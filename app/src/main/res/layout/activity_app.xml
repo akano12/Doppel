@@ -102,7 +102,7 @@
                                 <TextView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="@string/title_restrict_app"
+                                    android:text="@string/title_restrict_all_groups"
                                     android:textAppearance="?attr/textAppearanceTitleSmall" />
 
                                 <TextView
@@ -112,11 +112,12 @@
                                     android:textAppearance="@style/XLua.Text.Meta" />
                             </LinearLayout>
 
-                            <com.google.android.material.materialswitch.MaterialSwitch
-                                android:id="@+id/swAll"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:contentDescription="@string/title_restrict_app" />
+                            <!-- Checked: all groups, indeterminate: some groups -->
+                            <com.google.android.material.checkbox.MaterialCheckBox
+                                android:id="@+id/cbAll"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:contentDescription="@string/title_restrict_all_groups" />
                         </LinearLayout>
 
                         <LinearLayout

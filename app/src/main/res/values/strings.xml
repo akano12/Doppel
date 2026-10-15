@@ -107,30 +107,28 @@
     <string name="msg_no_service_help">Enable XPrivacyLua in the Xposed manager (like LSPosed) with System Framework in its scope, then restart the device.</string>
 
     <!-- Apps -->
-    <string name="title_active">Active</string>
     <string name="title_search_apps">Search name, package or uid</string>
     <string name="title_filter_user">User</string>
     <string name="title_filter_system">System</string>
     <string name="title_filter_restricted">Restricted</string>
-    <string name="title_sort_name">Name</string>
-    <string name="title_sort_recent">Recent</string>
-    <plurals name="title_apps_count">
-        <item quantity="one">%1$d app</item>
-        <item quantity="other">%1$d apps</item>
-    </plurals>
+    <string name="title_filter_count">%1$s · %2$d</string>
+    <string name="menu_search">Search</string>
+    <string name="title_close_search">Close search</string>
+    <string name="menu_sort_name">Sort by name</string>
+    <string name="menu_sort_recent">Sort by recent restrictions</string>
     <string name="title_no_apps">No apps</string>
-    <string name="title_groups_count">%1$d / %2$d groups</string>
+    <string name="title_groups_of">%1$d of %2$d groups</string>
     <string name="title_last_used">%1$s · %2$s</string>
     <string name="title_not_used">Restricted · not used yet</string>
     <string name="title_not_restricted">Not restricted</string>
-    <string name="title_hook_error">A hook failed · tap to see why</string>
+    <string name="title_hook_failed_short">a hook failed</string>
     <string name="badge_system">System</string>
     <string name="badge_reboot">Restart</string>
     <string name="menu_bulk">Toggle a group for shown apps</string>
 
     <!-- Restrictions of an app -->
     <string name="title_app_meta">uid %1$d · version %2$s · %3$s</string>
-    <string name="title_restrict_app">Restrict this app</string>
+    <string name="title_restrict_all_groups">Restrict all</string>
     <string name="title_groups_restricted">%1$d of %2$d groups restricted</string>
     <string name="title_force_stop_hint">Stop the app to apply changes right away</string>
     <string name="title_force_stop_persistent">Persistent apps cannot be stopped</string>

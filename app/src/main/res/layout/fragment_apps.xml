@@ -7,81 +7,34 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:layout_height="72dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         android:paddingStart="20dp"
-        android:paddingTop="16dp"
-        android:paddingEnd="12dp">
+        android:paddingEnd="8dp">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_weight="1"
+            android:text="@string/nav_apps"
+            android:textAppearance="@style/XLua.Text.ScreenTitle" />
 
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:letterSpacing="0.06"
-                    android:text="@string/app_name"
-                    android:textAllCaps="true"
-                    android:textAppearance="@style/XLua.Text.Mono" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/nav_apps"
-                    android:textAppearance="@style/XLua.Text.ScreenTitle" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/tvStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:background="@drawable/bg_pill"
-                android:backgroundTint="?attr/colorPrimaryContainer"
-                android:drawableStart="@drawable/dot"
-                android:drawablePadding="6dp"
-                android:drawableTint="?attr/colorPrimary"
-                android:focusable="true"
-                android:gravity="center_vertical"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="@string/title_active"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorOnPrimaryContainer" />
-
-            <ImageButton
-                android:id="@+id/ibMore"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/title_more"
-                android:src="@drawable/ic_more" />
-        </LinearLayout>
-
+        <!-- Search replaces the title -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilSearch"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:layout_marginEnd="8dp"
-            android:hint="@string/title_search_apps"
+            android:layout_weight="1"
+            android:visibility="gone"
             app:boxBackgroundColor="?attr/colorSurfaceContainerLowest"
-            app:boxCornerRadiusBottomEnd="12dp"
-            app:boxCornerRadiusBottomStart="12dp"
-            app:boxCornerRadiusTopEnd="12dp"
-            app:boxCornerRadiusTopStart="12dp"
-            app:endIconMode="clear_text"
-            app:hintEnabled="false"
-            app:startIconDrawable="@drawable/ic_search">
+            app:boxCornerRadiusBottomEnd="24dp"
+            app:boxCornerRadiusBottomStart="24dp"
+            app:boxCornerRadiusTopEnd="24dp"
+            app:boxCornerRadiusTopStart="24dp"
+            app:hintEnabled="false">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etSearch"
@@ -93,73 +46,69 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <HorizontalScrollView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:scrollbars="none">
+        <ImageButton
+            android:id="@+id/ibSearch"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/menu_search"
+            android:src="@drawable/ic_search" />
 
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/cgFilter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                app:selectionRequired="true"
-                app:singleLine="true"
-                app:singleSelection="true">
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipAll"
-                    style="@style/XLua.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/title_all" />
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipUser"
-                    style="@style/XLua.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/title_filter_user" />
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipSystem"
-                    style="@style/XLua.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/title_filter_system" />
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipRestricted"
-                    style="@style/XLua.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/title_filter_restricted" />
-            </com.google.android.material.chip.ChipGroup>
-        </HorizontalScrollView>
+        <ImageButton
+            android:id="@+id/ibMore"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/title_more"
+            android:src="@drawable/ic_more" />
     </LinearLayout>
 
-    <LinearLayout
+    <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="20dp"
-        android:paddingEnd="8dp">
+        android:clipToPadding="false"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:scrollbars="none">
 
-        <TextView
-            android:id="@+id/tvCount"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textAppearance="@style/XLua.Text.Meta" />
-
-        <Button
-            android:id="@+id/btnSort"
-            style="@style/Widget.Material3.Button.TextButton.Icon"
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/cgFilter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:icon="@drawable/ic_sort" />
-    </LinearLayout>
+            app:chipSpacingHorizontal="6dp"
+            app:selectionRequired="true"
+            app:singleLine="true"
+            app:singleSelection="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipUser"
+                style="@style/XLua.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/title_filter_user" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipRestricted"
+                style="@style/XLua.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/title_filter_restricted" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipSystem"
+                style="@style/XLua.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/title_filter_system" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipAll"
+                style="@style/XLua.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/title_all" />
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -177,6 +126,7 @@
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
                 android:paddingStart="16dp"
+                android:paddingTop="8dp"
                 android:paddingEnd="16dp"
                 android:paddingBottom="16dp" />
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

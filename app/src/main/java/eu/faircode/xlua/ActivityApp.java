@@ -34,6 +34,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.text.Collator;
@@ -62,7 +63,7 @@ public class ActivityApp extends ActivityBase {
     private View svContent;
     private View pbLoading;
     private TextView tvSummary;
-    private MaterialSwitch swAll;
+    private MaterialCheckBox cbAll;
     private MaterialSwitch swForceStop;
     private View llRestart;
     private TextView tvRestart;
@@ -109,13 +110,14 @@ public class ActivityApp extends ActivityBase {
         svContent = findViewById(R.id.svContent);
         pbLoading = findViewById(R.id.pbLoading);
         tvSummary = findViewById(R.id.tvSummary);
-        swAll = findViewById(R.id.swAll);
+        cbAll = findViewById(R.id.cbAll);
         swForceStop = findViewById(R.id.swForceStop);
         llRestart = findViewById(R.id.llRestart);
         tvRestart = findViewById(R.id.tvRestart);
         btnForceStop = findViewById(R.id.btnForceStop);
 
-        findViewById(R.id.llAll).setOnClickListener(view -> swAll.toggle());
+        findViewById(R.id.llAll).setOnClickListener(view -> restrictAll());
+        cbAll.setOnClickListener(view -> restrictAll());
         findViewById(R.id.llForceStop).setOnClickListener(view -> {
             if (swForceStop.isEnabled())
                 swForceStop.toggle();
@@ -283,12 +285,26 @@ public class ActivityApp extends ActivityBase {
             if (!getAssignments(group).isEmpty())
                 restricted++;
         tvSummary.setText(getString(R.string.title_groups_restricted, restricted, available.size()));
-        swAll.setOnCheckedChangeListener(null);
-        swAll.setChecked(restricted > 0);
-        swAll.setOnCheckedChangeListener((button, checked) -> {
-            List<String> groups = new ArrayList<>(available.keySet());
-            assign(groups, checked);
-        });
+        cbAll.setCheckedState(restricted > 0 && restricted == available.size() ? MaterialCheckBox.STATE_CHECKED
+                : restricted > 0 ? MaterialCheckBox.STATE_INDETERMINATE
+                : MaterialCheckBox.STATE_UNCHECKED);
+    }
+
+    // Restrict all groups, or remove all restrictions when all groups are restricted
+    private void restrictAll() {
+        if (app == null)
+            return;
+        boolean all = true;
+        for (String group : available.keySet())
+            if (getAssignments(group).isEmpty())
+                all = false;
+        final boolean assign = !all;
+        final List<String> groups = new ArrayList<>(available.keySet());
+        if (assign && "android".equals(app.packageName)) {
+            updateSummary();
+            Ui.areYouSure(this, getString(R.string.title_bootloop), () -> assign(groups, true));
+        } else
+            assign(groups, assign);
     }
 
     private void assign(String group, boolean assign) {

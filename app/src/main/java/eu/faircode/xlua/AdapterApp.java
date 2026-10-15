@@ -145,6 +145,28 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
         return shown;
     }
 
+    // Number of apps for a filter, without the search query
+    int getCount(Filter filter) {
+        int count = 0;
+        for (Row row : all)
+            if (matches(row, filter))
+                count++;
+        return count;
+    }
+
+    private static boolean matches(Row row, Filter filter) {
+        switch (filter) {
+            case USER:
+                return !row.app.system;
+            case SYSTEM:
+                return row.app.system;
+            case RESTRICTED:
+                return !row.app.assignments.isEmpty();
+            default:
+                return true;
+        }
+    }
+
     private void apply() {
         // Search prefixes: ! restricted, ? not restricted, # system, @ user, or a uid
         String q = (query == null ? "" : query.toLowerCase(Locale.getDefault()).trim());
@@ -177,11 +199,7 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
         for (Row row : all) {
             XApp app = row.app;
             boolean isRestricted = !app.assignments.isEmpty();
-            if (filter == Filter.USER && app.system)
-                continue;
-            if (filter == Filter.SYSTEM && !app.system)
-                continue;
-            if (filter == Filter.RESTRICTED && !isRestricted)
+            if (!matches(row, filter))
                 continue;
             if ((restricted && !isRestricted) || (unrestricted && isRestricted))
                 continue;
@@ -237,9 +255,8 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
         final TextView tvLabel;
         final LinearLayout llBadges;
         final TextView tvPackage;
+        final TextView tvSummary;
         final LinearProgressIndicator piGroups;
-        final TextView tvGroups;
-        final TextView tvLast;
 
         ViewHolder(View itemView) {
             super(itemView);
@@ -247,9 +264,8 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
             tvLabel = itemView.findViewById(R.id.tvLabel);
             llBadges = itemView.findViewById(R.id.llBadges);
             tvPackage = itemView.findViewById(R.id.tvPackage);
+            tvSummary = itemView.findViewById(R.id.tvSummary);
             piGroups = itemView.findViewById(R.id.piGroups);
-            tvGroups = itemView.findViewById(R.id.tvGroups);
-            tvLast = itemView.findViewById(R.id.tvLast);
             itemView.setOnClickListener(this);
             itemView.setOnLongClickListener(this);
         }
@@ -308,25 +324,25 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
                     com.google.android.material.R.attr.colorSurfaceContainerHigh,
                     com.google.android.material.R.attr.colorOnSurfaceVariant);
 
+        boolean restricted = (row.restricted > 0);
+        holder.piGroups.setVisibility(restricted ? View.VISIBLE : View.GONE);
         holder.piGroups.setMax(Math.max(row.groups, 1));
         holder.piGroups.setProgressCompat(row.restricted, false);
-        holder.piGroups.setIndicatorColor(Ui.color(context, row.restricted > 0
-                ? androidx.appcompat.R.attr.colorPrimary
-                : com.google.android.material.R.attr.colorOutline));
-        holder.tvGroups.setText(context.getString(R.string.title_groups_count, row.restricted, row.groups));
 
-        if (row.error) {
-            holder.tvLast.setText(R.string.title_hook_error);
-            holder.tvLast.setTextColor(Ui.color(context, R.attr.colorWarning));
-        } else {
-            holder.tvLast.setTextColor(Ui.color(context, com.google.android.material.R.attr.colorOnSurfaceVariant));
-            if (row.used > 0)
-                holder.tvLast.setText(context.getString(R.string.title_last_used,
-                        Groups.getTitle(context, row.usedGroup), Ui.ago(row.used)));
-            else if (row.restricted > 0)
-                holder.tvLast.setText(R.string.title_not_used);
-            else
-                holder.tvLast.setText(R.string.title_not_restricted);
+        String summary;
+        if (!restricted)
+            summary = context.getString(R.string.title_not_restricted);
+        else {
+            summary = context.getString(R.string.title_groups_of, row.restricted, row.groups);
+            if (row.error)
+                summary = context.getString(R.string.title_last_used, summary, context.getString(R.string.title_hook_failed_short));
+            else if (row.used > 0)
+                summary = context.getString(R.string.title_last_used, summary,
+                        context.getString(R.string.title_last_used, Groups.getTitle(context, row.usedGroup), Ui.ago(row.used)));
         }
+        holder.tvSummary.setText(summary);
+        holder.tvSummary.setTextColor(Ui.color(context, row.error
+                ? R.attr.colorWarning
+                : com.google.android.material.R.attr.colorOnSurfaceVariant));
     }
 }

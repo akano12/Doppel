@@ -31,8 +31,9 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
@@ -43,6 +44,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -59,12 +61,16 @@ public class FragmentApps extends FragmentBase {
     private SwipeRefreshLayout swipeRefresh;
     private View pbLoading;
     private TextView tvEmpty;
-    private TextView tvCount;
-    private Button btnSort;
+    private TextView tvTitle;
+    private View tilSearch;
+    private EditText etSearch;
+    private ImageButton ibSearch;
+    private ChipGroup cgFilter;
     private AdapterApp adapter;
 
     private SharedPreferences prefs;
     private AdapterApp.Sort sort;
+    private boolean loaded = false;
 
     private List<XHook> hooks = new ArrayList<>();
     private List<String> collection = new ArrayList<>();
@@ -78,10 +84,11 @@ public class FragmentApps extends FragmentBase {
         swipeRefresh = view.findViewById(R.id.swipeRefresh);
         pbLoading = view.findViewById(R.id.pbLoading);
         tvEmpty = view.findViewById(R.id.tvEmpty);
-        tvCount = view.findViewById(R.id.tvCount);
-        btnSort = view.findViewById(R.id.btnSort);
-        EditText etSearch = view.findViewById(R.id.etSearch);
-        ChipGroup cgFilter = view.findViewById(R.id.cgFilter);
+        tvTitle = view.findViewById(R.id.tvTitle);
+        tilSearch = view.findViewById(R.id.tilSearch);
+        etSearch = view.findViewById(R.id.etSearch);
+        ibSearch = view.findViewById(R.id.ibSearch);
+        cgFilter = view.findViewById(R.id.cgFilter);
 
         adapter = new AdapterApp(new AdapterApp.Listener() {
             @Override
@@ -99,17 +106,17 @@ public class FragmentApps extends FragmentBase {
         adapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
             @Override
             public void onChanged() {
-                updateCount();
+                updateEmpty();
             }
 
             @Override
             public void onItemRangeInserted(int positionStart, int itemCount) {
-                updateCount();
+                updateEmpty();
             }
 
             @Override
             public void onItemRangeRemoved(int positionStart, int itemCount) {
-                updateCount();
+                updateEmpty();
             }
         });
 
@@ -120,23 +127,8 @@ public class FragmentApps extends FragmentBase {
         swipeRefresh.setColorSchemeColors(Ui.color(context, androidx.appcompat.R.attr.colorPrimary));
         swipeRefresh.setOnRefreshListener(this::load);
 
-        view.findViewById(R.id.tvStatus).setOnClickListener(v -> {
-            if (getActivity() instanceof ActivityMain)
-                ((ActivityMain) getActivity()).selectSettings();
-        });
-
-        view.findViewById(R.id.ibMore).setOnClickListener(v -> {
-            PopupMenu popup = new PopupMenu(context, v);
-            popup.inflate(R.menu.apps);
-            popup.setOnMenuItemClickListener(item -> {
-                if (item.getItemId() == R.id.menu_bulk)
-                    bulk();
-                else if (item.getItemId() == R.id.menu_help)
-                    Ui.browse(requireActivity(), "https://github.com/M66B/XPrivacyLua/blob/master/README.md");
-                return true;
-            });
-            popup.show();
-        });
+        ibSearch.setOnClickListener(v -> showSearch(tilSearch.getVisibility() != View.VISIBLE));
+        view.findViewById(R.id.ibMore).setOnClickListener(this::showMenu);
 
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
@@ -171,15 +163,44 @@ public class FragmentApps extends FragmentBase {
         sort = (AdapterApp.Sort.RECENT.name().equals(prefs.getString(PREF_SORT, null))
                 ? AdapterApp.Sort.RECENT : AdapterApp.Sort.NAME);
         adapter.setSort(sort);
-        updateSort();
-        btnSort.setOnClickListener(v -> {
-            sort = (sort == AdapterApp.Sort.NAME ? AdapterApp.Sort.RECENT : AdapterApp.Sort.NAME);
-            prefs.edit().putString(PREF_SORT, sort.name()).apply();
-            adapter.setSort(sort);
-            updateSort();
-        });
 
         return view;
+    }
+
+    // Search replaces the title, closing it clears the search
+    private void showSearch(boolean show) {
+        tvTitle.setVisibility(show ? View.GONE : View.VISIBLE);
+        tilSearch.setVisibility(show ? View.VISIBLE : View.GONE);
+        ibSearch.setImageResource(show ? R.drawable.ic_close : R.drawable.ic_search);
+        ibSearch.setContentDescription(getString(show ? R.string.title_close_search : R.string.menu_search));
+        InputMethodManager imm = requireContext().getSystemService(InputMethodManager.class);
+        if (show) {
+            etSearch.requestFocus();
+            imm.showSoftInput(etSearch, InputMethodManager.SHOW_IMPLICIT);
+        } else {
+            etSearch.setText(null);
+            imm.hideSoftInputFromWindow(etSearch.getWindowToken(), 0);
+        }
+    }
+
+    private void showMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(requireContext(), anchor);
+        popup.inflate(R.menu.apps);
+        popup.getMenu().findItem(sort == AdapterApp.Sort.RECENT ? R.id.menu_sort_recent : R.id.menu_sort_name)
+                .setChecked(true);
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.menu_sort_name || id == R.id.menu_sort_recent) {
+                sort = (id == R.id.menu_sort_recent ? AdapterApp.Sort.RECENT : AdapterApp.Sort.NAME);
+                prefs.edit().putString(PREF_SORT, sort.name()).apply();
+                adapter.setSort(sort);
+            } else if (id == R.id.menu_bulk)
+                bulk();
+            else if (id == R.id.menu_help)
+                Ui.browse(requireActivity(), "https://github.com/M66B/XPrivacyLua/blob/master/README.md");
+            return true;
+        });
+        popup.show();
     }
 
     @Override
@@ -222,10 +243,12 @@ public class FragmentApps extends FragmentBase {
                 post(() -> {
                     this.hooks = hooks;
                     this.collection = collection;
+                    loaded = true;
                     adapter.set(rows);
                     swipeRefresh.setRefreshing(false);
                     pbLoading.setVisibility(View.GONE);
-                    updateCount();
+                    updateCounts();
+                    updateEmpty();
                 });
             } catch (Throwable ex) {
                 post(() -> {
@@ -237,16 +260,29 @@ public class FragmentApps extends FragmentBase {
         });
     }
 
-    private void updateCount() {
-        if (tvCount == null || pbLoading.getVisibility() == View.VISIBLE)
-            return;
-        int count = adapter.getItemCount();
-        tvCount.setText(getResources().getQuantityString(R.plurals.title_apps_count, count, count));
-        tvEmpty.setVisibility(count == 0 ? View.VISIBLE : View.GONE);
+    private void updateCounts() {
+        for (AdapterApp.Filter filter : AdapterApp.Filter.values()) {
+            Chip chip = cgFilter.findViewById(getChip(filter));
+            chip.setText(getString(R.string.title_filter_count, getString(getTitle(filter)), adapter.getCount(filter)));
+        }
     }
 
-    private void updateSort() {
-        btnSort.setText(sort == AdapterApp.Sort.RECENT ? R.string.title_sort_recent : R.string.title_sort_name);
+    private void updateEmpty() {
+        if (tvEmpty != null && loaded)
+            tvEmpty.setVisibility(adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
+    }
+
+    private static int getTitle(AdapterApp.Filter filter) {
+        switch (filter) {
+            case ALL:
+                return R.string.title_all;
+            case SYSTEM:
+                return R.string.title_filter_system;
+            case RESTRICTED:
+                return R.string.title_filter_restricted;
+            default:
+                return R.string.title_filter_user;
+        }
     }
 
     private static int getChip(AdapterApp.Filter filter) {

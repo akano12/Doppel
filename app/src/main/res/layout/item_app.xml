@@ -12,20 +12,23 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
+        android:minHeight="72dp"
         android:orientation="horizontal"
-        android:padding="12dp">
+        android:paddingStart="12dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="10dp">
 
         <ImageView
             android:id="@+id/ivIcon"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:importantForAccessibility="no" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginStart="14dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
@@ -58,46 +61,34 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="middle"
                 android:singleLine="true"
-                android:textAppearance="@style/XLua.Text.Mono" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <com.google.android.material.progressindicator.LinearProgressIndicator
-                    android:id="@+id/piGroups"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    app:trackColor="?attr/colorSurfaceContainerHigh"
-                    app:trackCornerRadius="2dp"
-                    app:trackStopIndicatorSize="0dp"
-                    app:trackThickness="4dp" />
-
-                <TextView
-                    android:id="@+id/tvGroups"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:textAppearance="@style/XLua.Text.Meta" />
-            </LinearLayout>
+                android:textAppearance="@style/XLua.Text.Mono"
+                android:textSize="11sp" />
 
             <TextView
-                android:id="@+id/tvLast"
+                android:id="@+id/tvSummary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="4dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textAppearance="@style/XLua.Text.Meta" />
+
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/piGroups"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                app:trackColor="?attr/colorSurfaceContainerHigh"
+                app:trackCornerRadius="2dp"
+                app:trackStopIndicatorSize="0dp"
+                app:trackThickness="3dp" />
         </LinearLayout>
 
         <ImageView
             android:layout_width="18dp"
             android:layout_height="18dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
             android:importantForAccessibility="no"
             android:src="@drawable/ic_chevron_right"
             app:tint="?attr/colorOutline" />
