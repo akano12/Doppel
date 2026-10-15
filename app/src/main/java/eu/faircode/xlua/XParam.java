@@ -124,11 +124,17 @@ public class XParam {
         this.param.args[index] = value;
     }
 
+    // Classes of the hooked app (like Google Play services) are not visible to luajava.bindClass
+    @SuppressWarnings("unused")
+    public Class<?> findClass(String name) throws ClassNotFoundException {
+        return Class.forName(name, false, this.context.getClassLoader());
+    }
+
     @SuppressWarnings("unused")
     public Throwable getException() {
         Throwable ex = (this.field == null ? this.param.getThrowable() : null);
         if (BuildConfig.DEBUG)
-            Log.i(TAG, "Get " + this.getPackageName() + ":" + this.getUid() + " result=" + ex.getMessage());
+            Log.i(TAG, "Get " + this.getPackageName() + ":" + this.getUid() + " exception=" + ex);
         return ex;
     }
 

@@ -116,13 +116,16 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
 
             rvGroup = itemView.findViewById(R.id.rvGroup);
             rvGroup.setHasFixedSize(false);
-            LinearLayoutManager llm = new LinearLayoutManager(itemView.getContext());
-            llm.setAutoMeasureEnabled(true);
-            rvGroup.setLayoutManager(llm);
+            rvGroup.setLayoutManager(new LinearLayoutManager(itemView.getContext()));
             adapter = new AdapterGroup();
             rvGroup.setAdapter(adapter);
 
             grpExpanded = itemView.findViewById(R.id.grpExpanded);
+        }
+
+        private XApp getApp() {
+            int position = getBindingAdapterPosition();
+            return (position == RecyclerView.NO_POSITION ? null : filtered.get(position));
         }
 
         private void wire() {
@@ -143,7 +146,9 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
 
         @Override
         public void onClick(View view) {
-            XApp app = filtered.get(getAdapterPosition());
+            XApp app = getApp();
+            if (app == null)
+                return;
             int id = view.getId();
             if (id == R.id.itemView) {
                 if (!expanded.containsKey(app.packageName))
@@ -170,7 +175,9 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
 
         @Override
         public boolean onLongClick(View view) {
-            XApp app = filtered.get(getAdapterPosition());
+            XApp app = getApp();
+            if (app == null)
+                return false;
             Intent launch = view.getContext().getPackageManager().getLaunchIntentForPackage(app.packageName);
             if (launch != null)
                 view.getContext().startActivity(launch);
@@ -180,12 +187,14 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
         @Override
         public void onCheckedChanged(final CompoundButton compoundButton, boolean checked) {
             Log.i(TAG, "Check changed");
-            final XApp app = filtered.get(getAdapterPosition());
+            final XApp app = getApp();
+            if (app == null)
+                return;
 
             int id = compoundButton.getId();
             if (id == R.id.cbAssigned) {
                 updateAssignments(compoundButton.getContext(), app, group, checked);
-                notifyItemChanged(getAdapterPosition());
+                notifyItemChanged(getBindingAdapterPosition());
 
             } else if (id == R.id.cbForceStop) {
                 app.forceStop = checked;
@@ -202,9 +211,11 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
         @Override
         public void onAssign(Context context, String groupName, boolean assign) {
             Log.i(TAG, "Group changed");
-            XApp app = filtered.get(getAdapterPosition());
+            XApp app = getApp();
+            if (app == null)
+                return;
             updateAssignments(context, app, groupName, assign);
-            notifyItemChanged(getAdapterPosition());
+            notifyItemChanged(getBindingAdapterPosition());
         }
 
         private void updateAssignments(final Context context, final XApp app, String groupName, final boolean assign) {
@@ -237,7 +248,9 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
         }
 
         void updateExpand() {
-            XApp app = filtered.get(getAdapterPosition());
+            XApp app = getApp();
+            if (app == null)
+                return;
             boolean isExpanded = (group == null && expanded.containsKey(app.packageName) && expanded.get(app.packageName));
             ivExpander.setImageLevel(isExpanded ? 1 : 0);
             ivExpander.setVisibility(group == null ? View.VISIBLE : View.INVISIBLE);

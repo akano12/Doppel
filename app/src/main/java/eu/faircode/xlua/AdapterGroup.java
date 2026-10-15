@@ -42,6 +42,7 @@ import java.util.Map;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.AppCompatCheckBox;
+import androidx.core.text.HtmlCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 public class AdapterGroup extends RecyclerView.Adapter<AdapterGroup.ViewHolder> {
@@ -84,7 +85,10 @@ public class AdapterGroup extends RecyclerView.Adapter<AdapterGroup.ViewHolder> 
 
         @Override
         public void onClick(View view) {
-            Group group = groups.get(getAdapterPosition());
+            int position = getBindingAdapterPosition();
+            if (position == RecyclerView.NO_POSITION)
+                return;
+            Group group = groups.get(position);
             int id = view.getId();
             if (id == R.id.ivException) {
                 StringBuilder sb = new StringBuilder();
@@ -104,7 +108,7 @@ public class AdapterGroup extends RecyclerView.Adapter<AdapterGroup.ViewHolder> 
                 LayoutInflater inflater = LayoutInflater.from(view.getContext());
                 View alert = inflater.inflate(R.layout.exception, null, false);
                 TextView tvException = alert.findViewById(R.id.tvException);
-                tvException.setText(Html.fromHtml(sb.toString()));
+                tvException.setText(HtmlCompat.fromHtml(sb.toString(), HtmlCompat.FROM_HTML_MODE_LEGACY));
 
                 new AlertDialog.Builder(view.getContext())
                         .setView(alert)
@@ -117,7 +121,10 @@ public class AdapterGroup extends RecyclerView.Adapter<AdapterGroup.ViewHolder> 
 
         @Override
         public void onCheckedChanged(CompoundButton compoundButton, boolean checked) {
-            final Group group = groups.get(getAdapterPosition());
+            int position = getBindingAdapterPosition();
+            if (position == RecyclerView.NO_POSITION)
+                return;
+            final Group group = groups.get(position);
             if (compoundButton.getId() == R.id.cbAssigned)
                 app.notifyAssign(compoundButton.getContext(), group.name, checked);
         }

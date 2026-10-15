@@ -28,7 +28,6 @@ import android.media.AudioManager;
 import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.telephony.SmsManager;
 import android.text.TextUtils;
 
 import org.json.JSONArray;
@@ -157,7 +156,7 @@ public class XHook implements Parcelable {
         return included;
     }
 
-    public boolean isAvailable(int versionCode) {
+    public boolean isAvailable(long versionCode) {
         return (versionCode >= this.minApk && versionCode <= maxApk);
     }
 
@@ -206,11 +205,6 @@ public class XHook implements Parcelable {
 
         } else if ("android.hardware.SensorManager".equals(this.className)) {
             Object service = context.getSystemService(SensorManager.class);
-            if (service != null)
-                this.resolvedClassName = service.getClass().getName();
-
-        } else if ("android.telephony.SmsManager".equals(this.className)) {
-            Object service = SmsManager.getDefault();
             if (service != null)
                 this.resolvedClassName = service.getClass().getName();
 

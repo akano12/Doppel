@@ -50,6 +50,7 @@ import java.util.Locale;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.constraintlayout.widget.Group;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.loader.app.LoaderManager;
 import androidx.loader.content.AsyncTaskLoader;
@@ -102,7 +103,6 @@ public class FragmentMain extends Fragment {
                 return true;
             }
         };
-        llm.setAutoMeasureEnabled(true);
         rvApplication.setLayoutManager(llm);
         rvAdapter = new AdapterApp(getActivity());
         rvApplication.setAdapter(rvAdapter);
@@ -167,7 +167,7 @@ public class FragmentMain extends Fragment {
         ifPackage.addAction(Intent.ACTION_PACKAGE_CHANGED);
         ifPackage.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED);
         ifPackage.addDataScheme("package");
-        getContext().registerReceiver(packageChangedReceiver, ifPackage);
+        ContextCompat.registerReceiver(requireContext(), packageChangedReceiver, ifPackage, ContextCompat.RECEIVER_NOT_EXPORTED);
 
         loadData();
     }
@@ -176,7 +176,7 @@ public class FragmentMain extends Fragment {
     public void onPause() {
         super.onPause();
 
-        getContext().unregisterReceiver(packageChangedReceiver);
+        requireContext().unregisterReceiver(packageChangedReceiver);
     }
 
     public AdapterApp.enumShow getShow() {
@@ -196,7 +196,7 @@ public class FragmentMain extends Fragment {
 
     private void loadData() {
         Log.i(TAG, "Starting data loader");
-        LoaderManager manager = getActivity().getSupportLoaderManager();
+        LoaderManager manager = LoaderManager.getInstance(this);
         manager.restartLoader(ActivityMain.LOADER_DATA, new Bundle(), dataLoaderCallbacks).forceLoad();
     }
 

@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <attr name="expander" format="reference" />
     <attr name="hookError" format="reference" />
     <attr name="hookInstalled" format="reference" />
@@ -10,6 +10,8 @@
 
     <style name="AppThemeLight" parent="Theme.AppCompat.Light.DarkActionBar">
         <item name="android:windowDisablePreview">true</item>
+        <!-- The decor action bar does not handle edge-to-edge insets -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
 
         <item name="expander">@drawable/expander_black</item>
         <item name="hookError">@drawable/ic_error_outline_black_24dp</item>
@@ -28,6 +30,8 @@
 
     <style name="AppThemeDark" parent="Theme.AppCompat">
         <item name="android:windowDisablePreview">true</item>
+        <!-- The decor action bar does not handle edge-to-edge insets -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
 
         <item name="expander">@drawable/expander_white</item>
         <item name="hookError">@drawable/ic_error_outline_white_24dp</item>

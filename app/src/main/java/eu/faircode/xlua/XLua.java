@@ -57,8 +57,10 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.WeakHashMap;
@@ -124,7 +126,7 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
 
                     // Store current module version
                     PackageInfo pi = context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, 0);
-                    version = pi.versionCode;
+                    version = (int) Util.getVersionCode(pi);
                     Log.i(TAG, "Module version " + version);
 
                     // public static UserManagerService getInstance()
@@ -141,7 +143,11 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
                         ifPackageAdd.addAction(Intent.ACTION_PACKAGE_ADDED);
                         ifPackageAdd.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED);
                         ifPackageAdd.addDataScheme("package");
-                        Util.createContextForUser(context, userid).registerReceiver(new ReceiverPackage(), ifPackageAdd);
+                        Context ctx = Util.createContextForUser(context, userid);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                            ctx.registerReceiver(new ReceiverPackage(), ifPackageAdd, Context.RECEIVER_NOT_EXPORTED);
+                        else
+                            ctx.registerReceiver(new ReceiverPackage(), ifPackageAdd);
                     }
                 } catch (Throwable ex) {
                     Log.e(TAG, Log.getStackTraceString(ex));
@@ -240,26 +246,27 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
     }
 
     private void hookApplication(final XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+        // Packages loaded into another app's process (WebView, GMS, etc.) are handled by the host app
+        if (!lpparam.isFirstApplication)
+            return;
+
         final int uid = Process.myUid();
-        final boolean tiramisu = (Build.VERSION.SDK_INT >= 33);
+
+        // Instrumentation.newApplication is called by LoadedApk.makeApplication(Inner) on all versions
         // https://android.googlesource.com/platform/frameworks/base/+/169aeafb2d97b810ae123ad036d0c58336961c55%5E%21/#F1
-        Class<?> at = Class.forName(tiramisu ? "android.app.Instrumentation" : "android.app.LoadedApk", false, lpparam.classLoader);
-        XposedBridge.hookAllMethods(at, tiramisu ? "newApplication" : "makeApplication", new XC_MethodHook() {
+        Class<?> clsInstrumentation = Class.forName("android.app.Instrumentation", false, lpparam.classLoader);
+        XposedBridge.hookAllMethods(clsInstrumentation, "newApplication", new XC_MethodHook() {
             private boolean made = false;
 
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 try {
-                    if (!made) {
+                    if (!made && param.getResult() instanceof Application) {
                         made = true;
                         Context context = (Application) param.getResult();
 
-                        // Check for isolate process
-                        int userid = Util.getUserId(uid);
-                        int start = Util.getUserUid(userid, 99000);
-                        int end = Util.getUserUid(userid, 99999);
-                        boolean isolated = (uid >= start && uid <= end);
-                        if (isolated) {
+                        // Isolated processes (including app zygote) cannot access the provider
+                        if (Util.isIsolated(uid)) {
                             Log.i(TAG, "Skipping isolated " + lpparam.packageName + ":" + uid);
                             return;
                         }
@@ -331,9 +338,10 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
 
         // Apply hooks
         PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+        long versionCode = Util.getVersionCode(pi);
         for (final XHook hook : hooks)
             try {
-                if (!hook.isAvailable(pi.versionCode))
+                if (!hook.isAvailable(versionCode))
                     continue;
 
                 long install = SystemClock.elapsedRealtime();
@@ -393,7 +401,7 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
                         // Check if function exists
                         LuaValue func = globals.get("after");
                         if (func.isnil())
-                            return;
+                            continue;
 
                         LuaValue[] args = new LuaValue[]{
                                 CoerceJavaToLua.coerce(hook),
@@ -469,30 +477,32 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
                             try {
                                 long run = SystemClock.elapsedRealtime();
 
-                                // Initialize Lua runtime
-                                LuaValue func;
-                                LuaValue[] args;
+                                // Initialize Lua runtime once per thread
+                                Globals globals;
                                 synchronized (threadGlobals) {
                                     Thread thread = Thread.currentThread();
-                                    if (!threadGlobals.containsKey(thread))
-                                        threadGlobals.put(thread, getGlobals(context, hook, settings));
-                                    Globals globals = threadGlobals.get(thread);
+                                    globals = threadGlobals.get(thread);
+                                    if (globals == null) {
+                                        globals = getGlobals(context, hook, settings);
 
-                                    // Define functions
-                                    LuaClosure closure = new LuaClosure(compiledScript, globals);
-                                    closure.call();
+                                        // Define functions
+                                        LuaClosure closure = new LuaClosure(compiledScript, globals);
+                                        closure.call();
 
-                                    // Check if function exists
-                                    func = globals.get(function);
-                                    if (func.isnil())
-                                        return;
-
-                                    // Build arguments
-                                    args = new LuaValue[]{
-                                            CoerceJavaToLua.coerce(hook),
-                                            CoerceJavaToLua.coerce(new XParam(context, param, settings))
-                                    };
+                                        threadGlobals.put(thread, globals);
+                                    }
                                 }
+
+                                // Check if function exists
+                                LuaValue func = globals.get(function);
+                                if (func.isnil())
+                                    return;
+
+                                // Build arguments
+                                LuaValue[] args = new LuaValue[]{
+                                        CoerceJavaToLua.coerce(hook),
+                                        CoerceJavaToLua.coerce(new XParam(context, param, settings))
+                                };
 
                                 // Run function
                                 Varargs result = func.invoke(args);
@@ -785,7 +795,7 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
             globals.load(new DebugLib());
 
         globals.set("log", new LuaLog(context.getPackageName(), context.getApplicationInfo().uid, hook.getId()));
-        globals.set("hook", new LuaHook(context, settings));
+        globals.set("hook", new LuaHook(context, hook.getId(), settings));
 
         return new LuaLocals(globals);
     }
@@ -828,11 +838,16 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
     }
 
     private static class LuaHook extends VarArgFunction {
-        private Context context;
-        private Map<String, String> settings;
+        // Dynamic hooks are installed on classes, so install each one only once
+        private static final Set<String> installed = new HashSet<>();
 
-        LuaHook(Context context, Map<String, String> settings) {
+        private final Context context;
+        private final String hookId;
+        private final Map<String, String> settings;
+
+        LuaHook(Context context, String hookId, Map<String, String> settings) {
             this.context = context;
+            this.hookId = hookId;
             this.settings = settings;
         }
 
@@ -841,6 +856,11 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
             Class<?> cls = args.arg(1).checkuserdata().getClass();
             String m = args.arg(2).checkjstring();
             args.arg(3).checkfunction();
+
+            synchronized (installed) {
+                if (!installed.add(hookId + "/" + cls.getName() + "." + m))
+                    return LuaValue.NIL;
+            }
             Log.i(TAG, "Dynamic hook " + cls.getName() + "." + m);
             final LuaValue fun = args.arg(3);
             final List<LuaValue> xargs = new ArrayList<>();
@@ -892,7 +912,7 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
         }
     }
 
-    private class ScriptHolder {
+    private static class ScriptHolder {
         String script;
 
         ScriptHolder(String script) {

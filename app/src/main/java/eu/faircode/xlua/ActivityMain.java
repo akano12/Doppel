@@ -27,8 +27,6 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
-import android.text.Html;
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -49,10 +47,12 @@ import java.util.Calendar;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.SearchView;
+import androidx.core.text.HtmlCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
@@ -101,15 +101,26 @@ public class ActivityMain extends ActivityBase {
         drawerLayout = findViewById(R.id.drawer_layout);
         drawerLayout.setScrimColor(Util.resolveColor(this, R.attr.colorDrawerScrim));
 
+        // Close the drawer on back
+        final OnBackPressedCallback closeDrawer = new OnBackPressedCallback(false) {
+            @Override
+            public void handleOnBackPressed() {
+                drawerLayout.closeDrawer(drawerList);
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, closeDrawer);
+
         // Create drawer toggle
         drawerToggle = new ActionBarDrawerToggle(this, drawerLayout, R.string.app_name, R.string.app_name) {
             public void onDrawerClosed(View view) {
                 super.onDrawerClosed(view);
+                closeDrawer.setEnabled(false);
                 getSupportActionBar().setTitle(getString(R.string.app_name));
             }
 
             public void onDrawerOpened(View drawerView) {
                 super.onDrawerOpened(drawerView);
+                closeDrawer.setEnabled(true);
                 getSupportActionBar().setTitle(getString(R.string.app_name));
             }
         };
@@ -229,14 +240,6 @@ public class ActivityMain extends ActivityBase {
         super.onConfigurationChanged(newConfig);
         if (drawerToggle != null)
             drawerToggle.onConfigurationChanged(newConfig);
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (drawerLayout != null && drawerLayout.isDrawerOpen(drawerList))
-            drawerLayout.closeDrawer(drawerList);
-        else
-            finish();
     }
 
     @Override
@@ -372,7 +375,8 @@ public class ActivityMain extends ActivityBase {
     }
 
     public void checkFirstRun() {
-        final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        // Same file as the former default shared preferences
+        final SharedPreferences prefs = getSharedPreferences(getPackageName() + "_preferences", MODE_PRIVATE);
         boolean firstRun = prefs.getBoolean("firstrun", true);
         if (firstRun && firstRunDialog == null) {
             final Util.DialogObserver observer = new Util.DialogObserver();
@@ -383,7 +387,7 @@ public class ActivityMain extends ActivityBase {
             tvLicence.setMovementMethod(LinkMovementMethod.getInstance());
 
             int year = Calendar.getInstance().get(Calendar.YEAR);
-            tvLicence.setText(Html.fromHtml(getString(R.string.title_license, year)));
+            tvLicence.setText(HtmlCompat.fromHtml(getString(R.string.title_license, year), HtmlCompat.FROM_HTML_MODE_LEGACY));
 
             firstRunDialog = new AlertDialog.Builder(this)
                     .setView(view)

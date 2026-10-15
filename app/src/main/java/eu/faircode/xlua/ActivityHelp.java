@@ -20,7 +20,6 @@
 package eu.faircode.xlua;
 
 import android.os.Bundle;
-import android.text.Html;
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.view.MenuItem;
@@ -31,6 +30,7 @@ import android.widget.TextView;
 import java.util.Calendar;
 
 import androidx.core.app.NavUtils;
+import androidx.core.text.HtmlCompat;
 
 public class ActivityHelp extends ActivityBase {
     private static final String TAG = "XLua.Help";
@@ -55,8 +55,8 @@ public class ActivityHelp extends ActivityBase {
         int year = Calendar.getInstance().get(Calendar.YEAR);
 
         tvVersion.setText(BuildConfig.VERSION_NAME);
-        tvLicense.setText(Html.fromHtml(getString(R.string.title_license, year)));
-        tvInstructions.setText(Html.fromHtml(getString(R.string.title_help_instructions)));
+        tvLicense.setText(HtmlCompat.fromHtml(getString(R.string.title_license, year), HtmlCompat.FROM_HTML_MODE_LEGACY));
+        tvInstructions.setText(HtmlCompat.fromHtml(getString(R.string.title_help_instructions), HtmlCompat.FROM_HTML_MODE_LEGACY));
 
         ivInstalled.setVisibility(BuildConfig.DEBUG ? View.VISIBLE : View.GONE);
         tvInstalled.setVisibility(BuildConfig.DEBUG ? View.VISIBLE : View.GONE);

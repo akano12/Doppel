@@ -20,13 +20,11 @@
 package eu.faircode.xlua;
 
 import android.app.Notification;
-import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -63,25 +61,11 @@ public class ReceiverPackage extends BroadcastReceiver {
                         PackageManager pm = ctx.getPackageManager();
                         Resources resources = pm.getResourcesForApplication(BuildConfig.APPLICATION_ID);
 
-                        Notification.Builder builder = new Notification.Builder(ctx);
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                            builder.setChannelId(XProvider.cChannelName);
+                        Notification.Builder builder = Util.getNotificationBuilder(ctx, true);
                         builder.setSmallIcon(android.R.drawable.ic_dialog_alert);
                         builder.setContentTitle(resources.getString(R.string.msg_review_settings));
                         builder.setContentText(pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)));
-
-                        builder.setPriority(Notification.PRIORITY_HIGH);
-                        builder.setCategory(Notification.CATEGORY_STATUS);
-                        builder.setVisibility(Notification.VISIBILITY_SECRET);
-
-                        // Main
-                        int flags = (Build.VERSION.SDK_INT > Build.VERSION_CODES.R ? 0x04000000 : 0);
-                        Intent main = ctx.getPackageManager().getLaunchIntentForPackage(BuildConfig.APPLICATION_ID);
-                        main.putExtra(ActivityMain.EXTRA_SEARCH_PACKAGE, packageName);
-                        PendingIntent pi = PendingIntent.getActivity(ctx, uid, main, flags);
-                        builder.setContentIntent(pi);
-
-                        builder.setAutoCancel(true);
+                        builder.setContentIntent(Util.getSearchIntent(ctx, uid, packageName));
 
                         Util.notifyAsUser(ctx, "xlua_new_app", uid, builder.build(), userid);
                     }

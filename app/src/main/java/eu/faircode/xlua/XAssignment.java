@@ -72,7 +72,7 @@ class XAssignment implements Parcelable {
 
     @Override
     public void writeToParcel(Parcel dest, int flags) {
-        dest.writeParcelable(this.hook, flags);
+        dest.writeTypedObject(this.hook, flags);
         dest.writeLong(this.installed);
         dest.writeLong(this.used);
         dest.writeByte(this.restricted ? (byte) 1 : (byte) 0);
@@ -80,7 +80,7 @@ class XAssignment implements Parcelable {
     }
 
     protected XAssignment(Parcel in) {
-        this.hook = in.readParcelable(XHook.class.getClassLoader());
+        this.hook = in.readTypedObject(XHook.CREATOR);
         this.installed = in.readLong();
         this.used = in.readLong();
         this.restricted = (in.readByte() != 0);

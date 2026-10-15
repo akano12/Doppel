@@ -22,10 +22,8 @@ package eu.faircode.xlua;
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.app.Notification;
-import android.app.PendingIntent;
 import android.content.ContentValues;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -35,7 +33,6 @@ import android.database.MatrixCursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Binder;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Parcel;
@@ -54,8 +51,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import de.robv.android.xposed.XposedBridge;
 
 class XProvider {
     private final static String TAG = "XLua.Provider";
@@ -103,6 +98,7 @@ class XProvider {
                     result = putHook(context, extras);
                     break;
                 case "getGroups":
+                    enforcePermission(context);
                     result = getGroups(context, extras);
                     break;
                 case "assignHooks":
@@ -112,6 +108,7 @@ class XProvider {
                     result = report(context, extras);
                     break;
                 case "getSetting":
+                    enforcePermission(context);
                     result = getSetting(context, extras);
                     break;
                 case "putSetting":
@@ -151,15 +148,20 @@ class XProvider {
             StrictMode.allowThreadDiskWrites();
             switch (method) {
                 case "getHooks":
+                    enforcePermission(context);
                     result = getHooks(context, selection, false);
                     break;
                 case "getHooks2":
+                    enforcePermission(context);
                     result = getHooks(context, selection, true);
                     break;
                 case "getApps":
+                    // Would otherwise list all installed apps to any app
+                    enforcePermission(context);
                     result = getApps(context, selection, false);
                     break;
                 case "getApps2":
+                    enforcePermission(context);
                     result = getApps(context, selection, true);
                     break;
                 case "getAssignedHooks":
@@ -533,6 +535,7 @@ class XProvider {
 
         String packageName = selection[0];
         int uid = Integer.parseInt(selection[1]);
+        enforceCallerOrPermission(context, uid);
         MatrixCursor result = new MatrixCursor(new String[]{marshall ? "blob" : "json", "used"});
 
         List<String> collection = getCollection(context, Util.getUserId(uid));
@@ -590,6 +593,7 @@ class XProvider {
 
         String packageName = selection[0];
         int uid = Integer.parseInt(selection[1]);
+        enforceCallerOrPermission(context, uid);
         int userid = Util.getUserId(uid);
         MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
 
@@ -624,6 +628,7 @@ class XProvider {
     }
 
     @SuppressLint("MissingPermission")
+    @SuppressWarnings("deprecation") // Bundle.get: logging values of any type
     private static Bundle report(Context context, Bundle extras) throws Throwable {
         String hookid = extras.getString("hook");
         String packageName = extras.getString("packageName");
@@ -735,56 +740,24 @@ class XProvider {
                 String group = (resId == 0 ? hookid : resources.getString(resId));
 
                 // Build notification
-                Notification.Builder builder = new Notification.Builder(ctx);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    builder.setChannelId(cChannelName);
+                Notification.Builder builder = Util.getNotificationBuilder(ctx, false);
                 builder.setSmallIcon(android.R.drawable.ic_dialog_info);
                 builder.setContentTitle(resources.getString(R.string.msg_usage, group));
                 builder.setContentText(pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)));
                 if (BuildConfig.DEBUG)
                     builder.setSubText(hookid);
-
-                builder.setPriority(Notification.PRIORITY_DEFAULT);
-                builder.setCategory(Notification.CATEGORY_STATUS);
-                builder.setVisibility(Notification.VISIBILITY_SECRET);
-
-                // Main
-                Intent main = ctx.getPackageManager().getLaunchIntentForPackage(BuildConfig.APPLICATION_ID);
-                if (main != null) {
-                    int flags = (Build.VERSION.SDK_INT > Build.VERSION_CODES.R ? 0x04000000 : 0);
-                    main.putExtra(ActivityMain.EXTRA_SEARCH_PACKAGE, packageName);
-                    PendingIntent pi = PendingIntent.getActivity(ctx, uid, main, flags);
-                    builder.setContentIntent(pi);
-                }
-
-                builder.setAutoCancel(true);
+                builder.setContentIntent(Util.getSearchIntent(ctx, uid, packageName));
 
                 Util.notifyAsUser(ctx, "xlua_use_" + hook.getGroup(), uid, builder.build(), userid);
             }
 
             // Notify exception
             if (data.containsKey("exception")) {
-                Notification.Builder builder = new Notification.Builder(ctx);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    builder.setChannelId(cChannelName);
+                Notification.Builder builder = Util.getNotificationBuilder(ctx, true);
                 builder.setSmallIcon(android.R.drawable.ic_dialog_alert);
                 builder.setContentTitle(resources.getString(R.string.msg_exception, hookid));
                 builder.setContentText(pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)));
-
-                builder.setPriority(Notification.PRIORITY_HIGH);
-                builder.setCategory(Notification.CATEGORY_STATUS);
-                builder.setVisibility(Notification.VISIBILITY_SECRET);
-
-                // Main
-                Intent main = ctx.getPackageManager().getLaunchIntentForPackage(BuildConfig.APPLICATION_ID);
-                if (main != null) {
-                    int flags = (Build.VERSION.SDK_INT > Build.VERSION_CODES.R ? 0x04000000 : 0);
-                    main.putExtra(ActivityMain.EXTRA_SEARCH_PACKAGE, packageName);
-                    PendingIntent pi = PendingIntent.getActivity(ctx, uid, main, flags);
-                    builder.setContentIntent(pi);
-                }
-
-                builder.setAutoCancel(true);
+                builder.setContentIntent(Util.getSearchIntent(ctx, uid, packageName));
 
                 Util.notifyAsUser(ctx, "xlua_exception", uid, builder.build(), userid);
             }
@@ -1054,6 +1027,12 @@ class XProvider {
         return new Bundle();
     }
 
+    // Hooked apps may read their own data only
+    private static void enforceCallerOrPermission(Context context, int uid) throws SecurityException {
+        if (Binder.getCallingUid() != uid)
+            enforcePermission(context);
+    }
+
     private static void enforcePermission(Context context) throws SecurityException {
         int cuid = Util.getAppId(Binder.getCallingUid());
 
@@ -1072,7 +1051,7 @@ class XProvider {
 
             // Allow specific signature
             String[] cpkg = pm.getPackagesForUid(cuid);
-            if (cpkg.length > 0) {
+            if (cpkg != null && cpkg.length > 0) {
                 byte[] bytes = Util.getSha1Fingerprint(context, cpkg[0]);
                 StringBuilder sb = new StringBuilder();
                 for (byte b : bytes)
@@ -1311,15 +1290,15 @@ class XProvider {
         }
     }
 
+    // Called from the app UI, where the Xposed bridge is not necessarily loaded
     static boolean isAvailable(Context context) {
         try {
             PackageInfo pi = context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, 0);
             Bundle result = context.getContentResolver()
                     .call(XProvider.getURI(), "xlua", "getVersion", new Bundle());
-            return (result != null && pi.versionCode == result.getInt("version"));
+            return (result != null && Util.getVersionCode(pi) == result.getInt("version"));
         } catch (Throwable ex) {
             Log.e(TAG, Log.getStackTraceString(ex));
-            XposedBridge.log(ex);
             return false;
         }
     }

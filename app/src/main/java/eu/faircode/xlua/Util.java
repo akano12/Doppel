@@ -23,10 +23,14 @@ import android.app.Dialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.Process;
@@ -38,17 +42,18 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.security.MessageDigest;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
-import androidx.lifecycle.Lifecycle;
-import androidx.lifecycle.LifecycleObserver;
+import androidx.lifecycle.DefaultLifecycleObserver;
 import androidx.lifecycle.LifecycleOwner;
-import androidx.lifecycle.OnLifecycleEvent;
 
 class Util {
     private final static String TAG = "XLua.Util";
 
     static final String PRO_PACKAGE_NAME = "eu.faircode.xlua.pro";
     private static final int PER_USER_RANGE = 100000;
+    private static final int FIRST_ISOLATED_UID = 99000;
+    private static final int LAST_ISOLATED_UID = 99999;
 
     static void setPermissions(String path, int mode, int uid, int gid) {
         try {
@@ -61,55 +66,65 @@ class Util {
         }
     }
 
+    // Same arithmetic as the hidden UserHandle.getAppId/getUserId/getUid,
+    // which avoids hidden API access from app processes
+
     static int getAppId(int uid) {
-        try {
-            // public static final int getAppId(int uid)
-            Method method = UserHandle.class.getDeclaredMethod("getAppId", int.class);
-            return (int) method.invoke(null, uid);
-        } catch (Throwable ex) {
-            Log.e(TAG, Log.getStackTraceString(ex));
-            return uid % PER_USER_RANGE;
-        }
+        return uid % PER_USER_RANGE;
     }
 
     static int getUserId(int uid) {
-        try {
-            // public static final int getUserId(int uid)
-            Method method = UserHandle.class.getDeclaredMethod("getUserId", int.class);
-            return (int) method.invoke(null, uid);
-        } catch (Throwable ex) {
-            Log.e(TAG, Log.getStackTraceString(ex));
-            return uid / PER_USER_RANGE;
-        }
+        return uid / PER_USER_RANGE;
     }
 
     static int getUserUid(int userid, int appid) {
-        try {
-            // public static int getUid(@UserIdInt int userId, @AppIdInt int appId)
-            Method method = UserHandle.class.getDeclaredMethod("getUid", int.class, int.class);
-            return (int) method.invoke(null, userid, appid);
-        } catch (Throwable ex) {
-            Log.e(TAG, Log.getStackTraceString(ex));
-            return userid * PER_USER_RANGE + (appid % PER_USER_RANGE);
-        }
+        return userid * PER_USER_RANGE + (appid % PER_USER_RANGE);
+    }
+
+    static boolean isIsolated(int uid) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            return Process.isIsolated(); // Includes app zygote processes
+        int appid = getAppId(uid);
+        return (appid >= FIRST_ISOLATED_UID && appid <= LAST_ISOLATED_UID);
     }
 
     static UserHandle getUserHandle(int userid) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+            return UserHandle.getUserHandleForUid(getUserUid(userid, 0));
         try {
             // public UserHandle(int h)
-            Constructor ctor = UserHandle.class.getConstructor(int.class);
-            return (UserHandle) ctor.newInstance(userid);
+            Constructor<UserHandle> ctor = UserHandle.class.getConstructor(int.class);
+            return ctor.newInstance(userid);
         } catch (Throwable ex) {
             Log.e(TAG, Log.getStackTraceString(ex));
             return Process.myUserHandle();
         }
     }
 
+    @SuppressWarnings("deprecation")
+    static long getVersionCode(PackageInfo pi) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            return pi.getLongVersionCode();
+        else
+            return pi.versionCode;
+    }
+
+    @SuppressWarnings("deprecation")
     static byte[] getSha1Fingerprint(Context context, String packageName) throws Throwable {
         PackageManager pm = context.getPackageManager();
-        PackageInfo packageInfo = pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES);
+        Signature signature;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageInfo packageInfo = pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES);
+            SigningInfo si = packageInfo.signingInfo;
+            Signature[] signatures = (si.hasMultipleSigners()
+                    ? si.getApkContentsSigners() : si.getSigningCertificateHistory());
+            signature = signatures[0];
+        } else {
+            PackageInfo packageInfo = pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES);
+            signature = packageInfo.signatures[0];
+        }
         MessageDigest digest = MessageDigest.getInstance("SHA1");
-        return digest.digest(packageInfo.signatures[0].toByteArray());
+        return digest.digest(signature.toByteArray());
     }
 
     static Context createContextForUser(Context context, int userid) throws Throwable {
@@ -121,6 +136,31 @@ class Util {
         // public Context createPackageContextAsUser(String packageName, int flags, UserHandle user)
         Method c = context.getClass().getDeclaredMethod("createPackageContextAsUser", String.class, int.class, UserHandle.class);
         return (Context) c.invoke(context, "android", 0, uh);
+    }
+
+    @SuppressWarnings("deprecation")
+    static Notification.Builder getNotificationBuilder(Context context, boolean high) {
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            builder = new Notification.Builder(context, XProvider.cChannelName);
+        else {
+            builder = new Notification.Builder(context);
+            builder.setPriority(high ? Notification.PRIORITY_HIGH : Notification.PRIORITY_DEFAULT);
+        }
+        builder.setCategory(Notification.CATEGORY_STATUS);
+        builder.setVisibility(Notification.VISIBILITY_SECRET);
+        builder.setAutoCancel(true);
+        return builder;
+    }
+
+    // Intent to open the main activity searching for a package
+    static PendingIntent getSearchIntent(Context context, int requestCode, String packageName) {
+        Intent main = context.getPackageManager().getLaunchIntentForPackage(BuildConfig.APPLICATION_ID);
+        if (main == null)
+            return null;
+        main.putExtra(ActivityMain.EXTRA_SEARCH_PACKAGE, packageName);
+        return PendingIntent.getActivity(context, requestCode, main,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     static void notifyAsUser(Context context, String tag, int id, Notification notification, int userid) throws Throwable {
@@ -165,13 +205,13 @@ class Util {
         AlertDialog ad = new AlertDialog.Builder(activity)
                 .setMessage(question)
                 .setCancelable(true)
-                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         listener.onSure();
                     }
                 })
-                .setNegativeButton(android.R.string.no, new DialogInterface.OnClickListener() {
+                .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         // Do nothing
@@ -192,7 +232,7 @@ class Util {
         void onSure();
     }
 
-    static class DialogObserver implements LifecycleObserver {
+    static class DialogObserver implements DefaultLifecycleObserver {
         private LifecycleOwner owner = null;
         private Dialog dialog = null;
 
@@ -209,8 +249,8 @@ class Util {
             }
         }
 
-        @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-        public void onDestroy() {
+        @Override
+        public void onDestroy(@NonNull LifecycleOwner owner) {
             if (this.owner != null && this.dialog != null)
                 this.dialog.dismiss();
         }
