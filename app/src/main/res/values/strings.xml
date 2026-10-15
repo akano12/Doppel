@@ -10,7 +10,7 @@
         <![CDATA[<br><br>]]>This program is distributed in the hope that it will be useful but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the <![CDATA[<a href="http://www.gnu.org/licenses/gpl.txt">GNU General Public License</a>]]> for more details.
         <![CDATA[<br><br><strong>LuaJ</strong><br>]]>Copyright 2007-2013 LuaJ. All rights reserved. See the <![CDATA[<a href="http://luaj.sourceforge.net/license.txt">license</a>]]>.
         <![CDATA[<br><br><b>Glide</b><br>]]>Copyright 2014 Google, Inc. All rights reserved. See the <![CDATA[<a href="https://raw.githubusercontent.com/bumptech/glide/master/LICENSE">license</a>]]>.
-        <![CDATA[<br><br><b>Android Support Library</b><br>]]>Copyright 2011 The Android Open Source Project. See the <![CDATA[<a href="https://android.googlesource.com/platform/frameworks/support/+/master/LICENSE.txt">license</a>]]>.
+        <![CDATA[<br><br><b>AndroidX</b><br>]]>Copyright 2011 The Android Open Source Project. See the <![CDATA[<a href="https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt">license</a>]]>.
    </string>
     <string name="title_accept">I agree</string>
     <string name="title_deny">I disagree</string>
