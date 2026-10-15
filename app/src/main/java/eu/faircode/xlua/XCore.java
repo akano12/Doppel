@@ -54,6 +54,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -362,7 +363,7 @@ class XCore {
                 if (scriptPrototype.containsKey(sh))
                     compiledScript = scriptPrototype.get(sh);
                 else {
-                    InputStream is = new ByteArrayInputStream(sh.script.getBytes());
+                    InputStream is = new ByteArrayInputStream(sh.script.getBytes(StandardCharsets.UTF_8));
                     compiledScript = LuaC.instance.compile(is, "script");
                     scriptPrototype.put(sh, compiledScript);
                 }

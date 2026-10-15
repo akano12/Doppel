@@ -188,7 +188,8 @@ public class AdapterGroup extends RecyclerView.Adapter<AdapterGroup.ViewHolder> 
 
     @Override
     public long getItemId(int position) {
-        return groups.get(position).id;
+        // Not the title resource id, which is 0 for groups without a built-in title
+        return groups.get(position).name.hashCode();
     }
 
     @Override

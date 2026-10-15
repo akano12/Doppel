@@ -19,6 +19,8 @@
 
 package eu.faircode.xlua;
 
+import java.util.Objects;
+
 class XGroup {
     String name;
     String title;
@@ -33,6 +35,12 @@ class XGroup {
         if (!(obj instanceof XGroup))
             return false;
         XGroup other = (XGroup) obj;
-        return this.name.equals(other.name);
+        // The 'all' group has no name
+        return Objects.equals(this.name, other.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(this.name);
     }
 }

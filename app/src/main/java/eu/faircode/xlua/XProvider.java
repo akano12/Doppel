@@ -355,32 +355,25 @@ class XProvider {
         // Get settings
         dbLock.readLock().lock();
         try {
-            db.beginTransaction();
+            Cursor cursor = null;
             try {
-                Cursor cursor = null;
-                try {
-                    cursor = db.query(
-                            "setting",
-                            new String[]{"category", "value"},
-                            "user = ? AND name = 'forcestop'",
-                            new String[]{Integer.toString(userid)},
-                            null, null, null);
-                    while (cursor.moveToNext()) {
-                        String pkg = cursor.getString(0);
-                        if (apps.containsKey(pkg)) {
-                            XApp app = apps.get(pkg);
-                            app.forceStop = Boolean.parseBoolean(cursor.getString(1));
-                        } else
-                            Log.i(TAG, "Package " + pkg + " not found (force stop)");
-                    }
-                } finally {
-                    if (cursor != null)
-                        cursor.close();
+                cursor = db.query(
+                        "setting",
+                        new String[]{"category", "value"},
+                        "user = ? AND name = 'forcestop'",
+                        new String[]{Integer.toString(userid)},
+                        null, null, null);
+                while (cursor.moveToNext()) {
+                    String pkg = cursor.getString(0);
+                    if (apps.containsKey(pkg)) {
+                        XApp app = apps.get(pkg);
+                        app.forceStop = Boolean.parseBoolean(cursor.getString(1));
+                    } else
+                        Log.i(TAG, "Package " + pkg + " not found (force stop)");
                 }
-
-                db.setTransactionSuccessful();
             } finally {
-                db.endTransaction();
+                if (cursor != null)
+                    cursor.close();
             }
         } finally {
             dbLock.readLock().unlock();
@@ -390,58 +383,51 @@ class XProvider {
         List<String> collection = getCollection(context, userid);
         dbLock.readLock().lock();
         try {
-            db.beginTransaction();
+            Cursor cursor = null;
             try {
-                Cursor cursor = null;
-                try {
-                    int start = Util.getUserUid(userid, 0);
-                    int end = Util.getUserUid(userid, Process.LAST_APPLICATION_UID);
-                    cursor = db.query(
-                            "assignment",
-                            new String[]{"package", "uid", "hook", "installed", "used", "restricted", "exception"},
-                            "uid >= ? AND uid <= ?",
-                            new String[]{Integer.toString(start), Integer.toString(end)},
-                            null, null, null);
-                    int colPkg = cursor.getColumnIndex("package");
-                    int colUid = cursor.getColumnIndex("uid");
-                    int colHook = cursor.getColumnIndex("hook");
-                    int colInstalled = cursor.getColumnIndex("installed");
-                    int colUsed = cursor.getColumnIndex("used");
-                    int colRestricted = cursor.getColumnIndex("restricted");
-                    int colException = cursor.getColumnIndex("exception");
-                    while (cursor.moveToNext()) {
-                        String pkg = cursor.getString(colPkg);
-                        int uid = cursor.getInt(colUid);
-                        String hookid = cursor.getString(colHook);
-                        if (apps.containsKey(pkg)) {
-                            XApp app = apps.get(pkg);
-                            if (app.uid != uid)
-                                continue;
-                            synchronized (lock) {
-                                if (hooks.containsKey(hookid)) {
-                                    XHook hook = hooks.get(hookid);
-                                    if (hook.isAvailable(pkg, collection)) {
-                                        XAssignment assignment = new XAssignment(hook);
-                                        assignment.installed = cursor.getLong(colInstalled);
-                                        assignment.used = cursor.getLong(colUsed);
-                                        assignment.restricted = (cursor.getInt(colRestricted) == 1);
-                                        assignment.exception = cursor.getString(colException);
-                                        app.assignments.add(assignment);
-                                    }
-                                } else if (BuildConfig.DEBUG)
-                                    Log.w(TAG, "Hook " + hookid + " not found (assignment)");
-                            }
-                        } else
-                            Log.i(TAG, "Package " + pkg + " not found");
-                    }
-                } finally {
-                    if (cursor != null)
-                        cursor.close();
+                int start = Util.getUserUid(userid, 0);
+                int end = Util.getUserUid(userid, Process.LAST_APPLICATION_UID);
+                cursor = db.query(
+                        "assignment",
+                        new String[]{"package", "uid", "hook", "installed", "used", "restricted", "exception"},
+                        "uid >= ? AND uid <= ?",
+                        new String[]{Integer.toString(start), Integer.toString(end)},
+                        null, null, null);
+                int colPkg = cursor.getColumnIndex("package");
+                int colUid = cursor.getColumnIndex("uid");
+                int colHook = cursor.getColumnIndex("hook");
+                int colInstalled = cursor.getColumnIndex("installed");
+                int colUsed = cursor.getColumnIndex("used");
+                int colRestricted = cursor.getColumnIndex("restricted");
+                int colException = cursor.getColumnIndex("exception");
+                while (cursor.moveToNext()) {
+                    String pkg = cursor.getString(colPkg);
+                    int uid = cursor.getInt(colUid);
+                    String hookid = cursor.getString(colHook);
+                    if (apps.containsKey(pkg)) {
+                        XApp app = apps.get(pkg);
+                        if (app.uid != uid)
+                            continue;
+                        synchronized (lock) {
+                            if (hooks.containsKey(hookid)) {
+                                XHook hook = hooks.get(hookid);
+                                if (hook.isAvailable(pkg, collection)) {
+                                    XAssignment assignment = new XAssignment(hook);
+                                    assignment.installed = cursor.getLong(colInstalled);
+                                    assignment.used = cursor.getLong(colUsed);
+                                    assignment.restricted = (cursor.getInt(colRestricted) == 1);
+                                    assignment.exception = cursor.getString(colException);
+                                    app.assignments.add(assignment);
+                                }
+                            } else if (BuildConfig.DEBUG)
+                                Log.w(TAG, "Hook " + hookid + " not found (assignment)");
+                        }
+                    } else
+                        Log.i(TAG, "Package " + pkg + " not found");
                 }
-
-                db.setTransactionSuccessful();
             } finally {
-                db.endTransaction();
+                if (cursor != null)
+                    cursor.close();
             }
         } finally {
             dbLock.readLock().unlock();
@@ -543,43 +529,36 @@ class XProvider {
 
         dbLock.readLock().lock();
         try {
-            db.beginTransaction();
+            Cursor cursor = null;
             try {
-                Cursor cursor = null;
-                try {
-                    cursor = db.query(
-                            "assignment",
-                            new String[]{"hook", "used"},
-                            "package = ? AND uid = ?",
-                            new String[]{packageName, Integer.toString(uid)},
-                            null, null, "hook");
-                    int colHook = cursor.getColumnIndex("hook");
-                    int colUsed = cursor.getColumnIndex("used");
-                    while (cursor.moveToNext()) {
-                        String hookid = cursor.getString(colHook);
-                        synchronized (lock) {
-                            if (hooks.containsKey(hookid)) {
-                                XHook hook = hooks.get(hookid);
-                                if (hook.isAvailable(packageName, collection))
-                                    if (marshall) {
-                                        Parcel parcel = Parcel.obtain();
-                                        hook.writeToParcel(parcel, XHook.FLAG_WITH_LUA);
-                                        result.newRow().add(parcel.marshall()).add(cursor.getString(colUsed));
-                                        parcel.recycle();
-                                    } else
-                                        result.newRow().add(hook.toJSON()).add(cursor.getString(colUsed));
-                            } else if (BuildConfig.DEBUG)
-                                Log.w(TAG, "Hook " + hookid + " not found");
-                        }
+                cursor = db.query(
+                        "assignment",
+                        new String[]{"hook", "used"},
+                        "package = ? AND uid = ?",
+                        new String[]{packageName, Integer.toString(uid)},
+                        null, null, "hook");
+                int colHook = cursor.getColumnIndex("hook");
+                int colUsed = cursor.getColumnIndex("used");
+                while (cursor.moveToNext()) {
+                    String hookid = cursor.getString(colHook);
+                    synchronized (lock) {
+                        if (hooks.containsKey(hookid)) {
+                            XHook hook = hooks.get(hookid);
+                            if (hook.isAvailable(packageName, collection))
+                                if (marshall) {
+                                    Parcel parcel = Parcel.obtain();
+                                    hook.writeToParcel(parcel, XHook.FLAG_WITH_LUA);
+                                    result.newRow().add(parcel.marshall()).add(cursor.getString(colUsed));
+                                    parcel.recycle();
+                                } else
+                                    result.newRow().add(hook.toJSON()).add(cursor.getString(colUsed));
+                        } else if (BuildConfig.DEBUG)
+                            Log.w(TAG, "Hook " + hookid + " not found");
                     }
-                } finally {
-                    if (cursor != null)
-                        cursor.close();
                 }
-
-                db.setTransactionSuccessful();
             } finally {
-                db.endTransaction();
+                if (cursor != null)
+                    cursor.close();
             }
         } finally {
             dbLock.readLock().unlock();
@@ -600,26 +579,19 @@ class XProvider {
 
         dbLock.readLock().lock();
         try {
-            db.beginTransaction();
+            Cursor cursor = null;
             try {
-                Cursor cursor = null;
-                try {
-                    cursor = db.query(
-                            "setting",
-                            new String[]{"name", "value"},
-                            "user = ? AND category = ?",
-                            new String[]{Integer.toString(userid), packageName},
-                            null, null, null);
-                    while (cursor.moveToNext())
-                        result.addRow(new String[]{cursor.getString(0), cursor.getString(1)});
-                } finally {
-                    if (cursor != null)
-                        cursor.close();
-                }
-
-                db.setTransactionSuccessful();
+                cursor = db.query(
+                        "setting",
+                        new String[]{"name", "value"},
+                        "user = ? AND category = ?",
+                        new String[]{Integer.toString(userid), packageName},
+                        null, null, null);
+                while (cursor.moveToNext())
+                    result.addRow(new String[]{cursor.getString(0), cursor.getString(1)});
             } finally {
-                db.endTransaction();
+                if (cursor != null)
+                    cursor.close();
             }
         } finally {
             dbLock.readLock().unlock();
@@ -782,21 +754,16 @@ class XProvider {
 
         dbLock.readLock().lock();
         try {
-            db.beginTransaction();
-            try {
-                Cursor cursor = db.query(
-                        "assignment",
-                        new String[]{"package", "uid", "hook", "used", "old", "new"},
-                        "restricted = 1 AND uid >= ? AND uid <= ?",
-                        new String[]{Integer.toString(start), Integer.toString(end)},
-                        null, null, "used DESC");
+            Cursor cursor = db.query(
+                    "assignment",
+                    new String[]{"package", "uid", "hook", "used", "old", "new"},
+                    "restricted = 1 AND uid >= ? AND uid <= ?",
+                    new String[]{Integer.toString(start), Integer.toString(end)},
+                    null, null, "used DESC");
 
-                db.setTransactionSuccessful();
-
-                return cursor;
-            } finally {
-                db.endTransaction();
-            }
+            // Fill the cursor window while holding the lock
+            cursor.getCount();
+            return cursor;
         } finally {
             dbLock.readLock().unlock();
         }
@@ -821,24 +788,17 @@ class XProvider {
         String value = null;
         dbLock.readLock().lock();
         try {
-            db.beginTransaction();
+            Cursor cursor = null;
             try {
-                Cursor cursor = null;
-                try {
-                    cursor = db.query("setting", new String[]{"value"},
-                            "user = ? AND category = ? AND name = ?",
-                            new String[]{Integer.toString(userid), category, name},
-                            null, null, null);
-                    if (cursor.moveToNext())
-                        value = (cursor.isNull(0) ? null : cursor.getString(0));
-                } finally {
-                    if (cursor != null)
-                        cursor.close();
-                }
-
-                db.setTransactionSuccessful();
+                cursor = db.query("setting", new String[]{"value"},
+                        "user = ? AND category = ? AND name = ?",
+                        new String[]{Integer.toString(userid), category, name},
+                        null, null, null);
+                if (cursor.moveToNext())
+                    value = (cursor.isNull(0) ? null : cursor.getString(0));
             } finally {
-                db.endTransaction();
+                if (cursor != null)
+                    cursor.close();
             }
         } finally {
             dbLock.readLock().unlock();
@@ -1050,21 +1010,23 @@ class XProvider {
             if (pm.checkSignatures(cuid, uid) == PackageManager.SIGNATURE_MATCH)
                 return;
 
-            // Allow specific signature
+            // Allow the companion app (exact SHA-1 certificate fingerprint)
             String[] cpkg = pm.getPackagesForUid(cuid);
             if (cpkg != null && cpkg.length > 0) {
                 byte[] bytes = Util.getSha1Fingerprint(context, cpkg[0]);
                 StringBuilder sb = new StringBuilder();
                 for (byte b : bytes)
-                    sb.append(Integer.toString(b & 0xff, 16).toLowerCase(Locale.ROOT));
+                    sb.append(String.format(Locale.ROOT, "%02x", b & 0xff));
 
                 Resources resources = pm.getResourcesForApplication(BuildConfig.APPLICATION_ID);
                 if (sb.toString().equals(resources.getString(R.string.pro_fingerprint)))
                     return;
             }
             throw new SecurityException("Signature error cuid=" + cuid);
+        } catch (SecurityException ex) {
+            throw ex;
         } catch (Throwable ex) {
-            throw new SecurityException(ex);
+            throw new SecurityException("Signature check failed cuid=" + cuid, ex);
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
@@ -1086,28 +1048,21 @@ class XProvider {
         // Read external definitions
         dbLock.readLock().lock();
         try {
-            db.beginTransaction();
+            Cursor cursor = null;
             try {
-                Cursor cursor = null;
-                try {
-                    cursor = db.query("hook", null,
-                            null, null,
-                            null, null, null);
-                    int colDefinition = cursor.getColumnIndex("definition");
-                    while (cursor.moveToNext()) {
-                        String definition = cursor.getString(colDefinition);
-                        XHook hook = XHook.fromJSON(definition);
-                        hook.resolveClassName(context);
-                        hooks.put(hook.getId(), hook);
-                    }
-                } finally {
-                    if (cursor != null)
-                        cursor.close();
+                cursor = db.query("hook", null,
+                        null, null,
+                        null, null, null);
+                int colDefinition = cursor.getColumnIndex("definition");
+                while (cursor.moveToNext()) {
+                    String definition = cursor.getString(colDefinition);
+                    XHook hook = XHook.fromJSON(definition);
+                    hook.resolveClassName(context);
+                    hooks.put(hook.getId(), hook);
                 }
-
-                db.setTransactionSuccessful();
             } finally {
-                db.endTransaction();
+                if (cursor != null)
+                    cursor.close();
             }
         } finally {
             dbLock.readLock().unlock();
@@ -1127,6 +1082,9 @@ class XProvider {
 
         // Open database
         SQLiteDatabase _db = SQLiteDatabase.openOrCreateDatabase(dbFile, null);
+        // Write-ahead logging gives a connection pool, so reads (on every app start) do not wait for each other;
+        // writes are serialized by dbLock and run in transactions, reads do not need one
+        _db.enableWriteAheadLogging();
         Log.i(TAG, "Database file=" + dbFile);
 
         // Set database file permissions
