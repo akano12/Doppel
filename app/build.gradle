@@ -74,4 +74,8 @@ dependencies {
 
     // Provided at runtime by the Xposed framework (LSPosed, EdXposed, Xposed)
     compileOnly libs.xposed.api
+
+    testImplementation libs.junit
+    // Real implementation instead of the android.jar stubs
+    testImplementation libs.json
 }

@@ -5,6 +5,8 @@ constraintlayout = "2.2.2"
 core = "1.19.1"
 drawerlayout = "1.2.0"
 glide = "5.0.9"
+json = "20260814"
+junit = "4.13.2"
 material = "1.14.0"
 recyclerview = "1.4.0"
 swiperefreshlayout = "1.2.0"
@@ -18,6 +20,8 @@ androidx-drawerlayout = { module = "androidx.drawerlayout:drawerlayout", version
 androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
 androidx-swiperefreshlayout = { module = "androidx.swiperefreshlayout:swiperefreshlayout", version.ref = "swiperefreshlayout" }
 glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }
+json = { module = "org.json:json", version.ref = "json" }
+junit = { module = "junit:junit", version.ref = "junit" }
 material = { module = "com.google.android.material:material", version.ref = "material" }
 xposed-api = { module = "de.robv.android.xposed:api", version.ref = "xposed" }
 
