@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">I agree</string>
     <string name="title_deny">I disagree</string>
-    <string name="title_fix">Fix</string>
     <string name="title_all">All</string>
     <string name="title_restrict">Restrict</string>
     <string name="title_bootloop">Restricting can cause a bootloop</string>

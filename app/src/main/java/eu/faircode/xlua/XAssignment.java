@@ -32,16 +32,11 @@ class XAssignment implements Parcelable {
     boolean restricted = false;
     String exception;
 
-    private XAssignment() {
-    }
 
     XAssignment(XHook hook) {
         this.hook = hook;
     }
 
-    String toJSON() throws JSONException {
-        return toJSONObject().toString(2);
-    }
 
     JSONObject toJSONObject() throws JSONException {
         JSONObject jroot = new JSONObject();
@@ -55,21 +50,7 @@ class XAssignment implements Parcelable {
         return jroot;
     }
 
-    static XAssignment fromJSON(String json) throws JSONException {
-        return fromJSONObject(new JSONObject(json));
-    }
 
-    static XAssignment fromJSONObject(JSONObject jroot) throws JSONException {
-        XAssignment assignment = new XAssignment();
-
-        assignment.hook = XHook.fromJSONObject(jroot.getJSONObject("hook"));
-        assignment.installed = jroot.getLong("installed");
-        assignment.used = jroot.getLong("used");
-        assignment.restricted = jroot.getBoolean("restricted");
-        assignment.exception = (jroot.has("exception") ? jroot.getString("exception") : null);
-
-        return assignment;
-    }
 
     @Override
     public boolean equals(Object obj) {

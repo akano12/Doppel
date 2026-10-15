@@ -2,7 +2,6 @@
 <resources>
     <string name="title_accept">Ik ga akkoord</string>
     <string name="title_deny">Ik ga niet akkoord</string>
-    <string name="title_fix">Repareer</string>
     <string name="title_all">Alle</string>
     <string name="title_restrict">Beperk</string>
     <string name="title_bootloop">Restricting can cause a bootloop</string>

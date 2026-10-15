@@ -2,7 +2,6 @@
 <resources>
     <string name="title_accept">قبول می‌کنم</string>
     <string name="title_deny">قبول نمی‌کنم</string>
-    <string name="title_fix">تعمیر</string>
     <string name="title_all">همه</string>
     <string name="title_restrict">محدود کردن</string>
     <string name="title_bootloop">اعمال محدودیت ممکن است موجب بوت‌لوپ شود</string>

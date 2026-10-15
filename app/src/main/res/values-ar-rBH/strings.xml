@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">موافق</string>
     <string name="title_deny">لا أوافق</string>
-    <string name="title_fix">إصلاح</string>
     <string name="title_all">الكل</string>
     <string name="title_restrict">قيّد</string>
     <string name="title_bootloop">التقييد يمكن أن يسبب بوتلوب</string>

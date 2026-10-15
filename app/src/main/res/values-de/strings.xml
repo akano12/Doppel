@@ -2,7 +2,6 @@
 <resources>
     <string name="title_accept">Ich stimme zu</string>
     <string name="title_deny">Ich lehne ab</string>
-    <string name="title_fix">Problem beheben</string>
     <string name="title_all">Alle</string>
     <string name="title_restrict">Beschränken</string>
     <string name="title_bootloop">Die Beschränkung kann einen Bootlop verursachen</string>

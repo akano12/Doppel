@@ -80,18 +80,7 @@ public class ActivityMain extends ActivityBase {
 
         // Check if service is running
         if (!XProvider.isAvailable(this)) {
-            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), getString(R.string.msg_no_service), Snackbar.LENGTH_INDEFINITE);
-
-            final Intent intent = getPackageManager().getLaunchIntentForPackage("de.robv.android.xposed.installer");
-            if (intent != null && intent.resolveActivity(getPackageManager()) != null)
-                snackbar.setAction(R.string.title_fix, new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        startActivity(intent);
-                    }
-                });
-
-            snackbar.show();
+            Snackbar.make(findViewById(android.R.id.content), getString(R.string.msg_no_service), Snackbar.LENGTH_INDEFINITE).show();
             return;
         }
 
@@ -147,23 +136,21 @@ public class ActivityMain extends ActivityBase {
 
         final ArrayAdapterDrawer drawerArray = new ArrayAdapterDrawer(ActivityMain.this, R.layout.draweritem);
 
-        if (!Util.isVirtualXposed())
-            drawerArray.add(new DrawerItem(this, R.string.menu_notify_new, notifyNew, new DrawerItem.IListener() {
-                @Override
-                public void onClick(DrawerItem item) {
-                    XProvider.putSettingBoolean(ActivityMain.this, "global", "notify_new_apps", item.isChecked());
-                    drawerArray.notifyDataSetChanged();
-                }
-            }));
+        drawerArray.add(new DrawerItem(this, R.string.menu_notify_new, notifyNew, new DrawerItem.IListener() {
+            @Override
+            public void onClick(DrawerItem item) {
+                XProvider.putSettingBoolean(ActivityMain.this, "global", "notify_new_apps", item.isChecked());
+                drawerArray.notifyDataSetChanged();
+            }
+        }));
 
-        if (!Util.isVirtualXposed())
-            drawerArray.add(new DrawerItem(this, R.string.menu_restrict_new, restrictNew, new DrawerItem.IListener() {
-                @Override
-                public void onClick(DrawerItem item) {
-                    XProvider.putSettingBoolean(ActivityMain.this, "global", "restrict_new_apps", item.isChecked());
-                    drawerArray.notifyDataSetChanged();
-                }
-            }));
+        drawerArray.add(new DrawerItem(this, R.string.menu_restrict_new, restrictNew, new DrawerItem.IListener() {
+            @Override
+            public void onClick(DrawerItem item) {
+                XProvider.putSettingBoolean(ActivityMain.this, "global", "restrict_new_apps", item.isChecked());
+                drawerArray.notifyDataSetChanged();
+            }
+        }));
 
         drawerArray.add(new DrawerItem(this, R.string.menu_companion, new DrawerItem.IListener() {
             @Override
@@ -428,14 +415,12 @@ public class ActivityMain extends ActivityBase {
     }
 
     private static class DrawerItem {
-        private final int id;
         private final String title;
         private final boolean checkable;
         private boolean checked;
         private final IListener listener;
 
         DrawerItem(Context context, int title, IListener listener) {
-            this.id = title;
             this.title = context.getString(title);
             this.checkable = false;
             this.checked = false;
@@ -443,15 +428,10 @@ public class ActivityMain extends ActivityBase {
         }
 
         DrawerItem(Context context, int title, boolean checked, IListener listener) {
-            this.id = title;
             this.title = context.getString(title);
             this.checkable = true;
             this.checked = checked;
             this.listener = listener;
-        }
-
-        public int getId() {
-            return this.id;
         }
 
         public String getTitle() {

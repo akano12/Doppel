@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Я згоден</string>
     <string name="title_deny">Я не згоден</string>
-    <string name="title_fix">Виправити</string>
     <string name="title_all">Усі</string>
     <string name="title_restrict">Обмежити</string>
     <string name="title_bootloop">Обмеження можуть викликати бутлуп</string>

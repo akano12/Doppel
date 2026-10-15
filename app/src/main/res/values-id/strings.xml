@@ -2,7 +2,6 @@
 <resources>
     <string name="title_accept">Btun</string>
     <string name="title_deny">Saya tidak setuju</string>
-    <string name="title_fix">Perbaiki</string>
     <string name="title_all">Semua</string>
     <string name="title_restrict">Membatasi</string>
     <string name="title_bootloop">Restricting can cause a bootloop</string>

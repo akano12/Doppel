@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">J\'accepte</string>
     <string name="title_deny">Je refuse</string>
-    <string name="title_fix">Corriger</string>
     <string name="title_all">Toutes</string>
     <string name="title_restrict">Restreindre</string>
     <string name="title_bootloop">Restreindre peut provoquer des redémarrages en boucle</string>

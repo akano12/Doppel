@@ -2,7 +2,6 @@
 <resources>
     <string name="title_accept">接受</string>
     <string name="title_deny">拒绝</string>
-    <string name="title_fix">修复</string>
     <string name="title_all">全部</string>
     <string name="title_restrict">受限</string>
     <string name="title_bootloop">限制可能导致bootloop问题</string>

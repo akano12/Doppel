@@ -2,7 +2,6 @@
 <resources>
     <string name="title_accept">Принимаю</string>
     <string name="title_deny">Не принимаю</string>
-    <string name="title_fix">Исправить</string>
     <string name="title_all">Все</string>
     <string name="title_restrict">Ограничить</string>
     <string name="title_bootloop">Ограничения могут вызвать циклическую перезагрузку</string>

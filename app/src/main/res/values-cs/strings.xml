@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Souhlasím</string>
     <string name="title_deny">Odmítám</string>
-    <string name="title_fix">Opravit</string>
     <string name="title_all">Vše</string>
     <string name="title_restrict">Omezit</string>
     <string name="title_bootloop">Omezení mohou způsobit neustálé restarty zařízení (bootloop)</string>

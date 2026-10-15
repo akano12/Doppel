@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">接受</string>
     <string name="title_deny">拒絕</string>
-    <string name="title_fix">修復</string>
     <string name="title_all">全部</string>
     <string name="title_restrict">限制</string>
     <string name="title_bootloop">限制後可能導致卡在開機畫面</string>

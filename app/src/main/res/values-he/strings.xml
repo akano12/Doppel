@@ -2,7 +2,6 @@
 <resources>
     <string name="title_accept">אני מסכים</string>
     <string name="title_deny">אני מסרב</string>
-    <string name="title_fix">תקן</string>
     <string name="title_all">הכל</string>
     <string name="title_restrict">הגבל</string>
     <string name="title_bootloop">הגבלה עלולה לגרום לאי עליית המכשיר - bootloop</string>

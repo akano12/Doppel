@@ -71,10 +71,7 @@ class XProvider {
     final static String cChannelName = "xlua";
 
     static Uri getURI() {
-        if (Util.isVirtualXposed())
-            return Uri.parse("content://eu.faircode.xlua.vxp/");
-        else
-            return Settings.System.CONTENT_URI;
+        return Settings.System.CONTENT_URI;
     }
 
     static void loadData(Context context) throws RemoteException {
@@ -102,9 +99,6 @@ class XProvider {
             StrictMode.allowThreadDiskReads();
             StrictMode.allowThreadDiskWrites();
             switch (method) {
-                case "getVersion":
-                    result = getVersion(context, extras);
-                    break;
                 case "putHook":
                     result = putHook(context, extras);
                     break;
@@ -143,11 +137,6 @@ class XProvider {
         } finally {
             StrictMode.setThreadPolicy(originalPolicy);
         }
-
-        //Log.i(TAG, "Call " + method +
-        //        " uid=" + Process.myUid() +
-        //        " cuid=" + Binder.getCallingUid() +
-        //        " results=" + (result == null ? "-1" : result.keySet().size()));
 
         return result;
     }
@@ -195,24 +184,9 @@ class XProvider {
             StrictMode.setThreadPolicy(originalPolicy);
         }
 
-        //Log.i(TAG, "Query " + method +
-        //        " uid=" + Process.myUid() +
-        //        " cuid=" + Binder.getCallingUid() +
-        //        " rows=" + (result == null ? "-1" : result.getCount()));
-
         if (result != null)
             result.moveToPosition(-1);
         return result;
-    }
-
-    private static Bundle getVersion(Context context, Bundle extras) throws Throwable {
-        if (Util.isVirtualXposed()) {
-            PackageInfo pi = context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, 0);
-            Bundle result = new Bundle();
-            result.putInt("version", pi.versionCode);
-            return result;
-        } else
-            return null;
     }
 
     private static Bundle putHook(Context context, Bundle extras) throws Throwable {
@@ -1164,33 +1138,26 @@ class XProvider {
 
     private static SQLiteDatabase getDatabase(Context context) throws Throwable {
         // Build database file
-        File dbFile;
-        if (Util.isVirtualXposed())
-            dbFile = new File(context.getFilesDir(), "xlua.db");
-        else {
-            dbFile = new File(
-                    Environment.getDataDirectory() + File.separator +
-                            "system" + File.separator +
-                            "xlua" + File.separator +
-                            "xlua.db");
-            dbFile.getParentFile().mkdirs();
-        }
+        File dbFile = new File(
+                Environment.getDataDirectory() + File.separator +
+                        "system" + File.separator +
+                        "xlua" + File.separator +
+                        "xlua.db");
+        dbFile.getParentFile().mkdirs();
 
         // Open database
         SQLiteDatabase _db = SQLiteDatabase.openOrCreateDatabase(dbFile, null);
         Log.i(TAG, "Database file=" + dbFile);
 
-        if (!Util.isVirtualXposed()) {
-            // Set database file permissions
-            // Owner: rwx (system)
-            // Group: rwx (system)
-            // World: ---
-            Util.setPermissions(dbFile.getParentFile().getAbsolutePath(), 0770, Process.SYSTEM_UID, Process.SYSTEM_UID);
-            File[] files = dbFile.getParentFile().listFiles();
-            if (files != null)
-                for (File file : files)
-                    Util.setPermissions(file.getAbsolutePath(), 0770, Process.SYSTEM_UID, Process.SYSTEM_UID);
-        }
+        // Set database file permissions
+        // Owner: rwx (system)
+        // Group: rwx (system)
+        // World: ---
+        Util.setPermissions(dbFile.getParentFile().getAbsolutePath(), 0770, Process.SYSTEM_UID, Process.SYSTEM_UID);
+        File[] files = dbFile.getParentFile().listFiles();
+        if (files != null)
+            for (File file : files)
+                Util.setPermissions(file.getAbsolutePath(), 0770, Process.SYSTEM_UID, Process.SYSTEM_UID);
 
         dbLock.writeLock().lock();
         try {
@@ -1298,9 +1265,6 @@ class XProvider {
                 }
             }
 
-            //deleteHook(_db, "Privacy.ContentResolver/query1");
-            //deleteHook(_db, "Privacy.ContentResolver/query16");
-            //deleteHook(_db, "Privacy.ContentResolver/query26");
             renameHook(_db, "TelephonyManager/getDeviceId", "TelephonyManager.getDeviceId");
             renameHook(_db, "TelephonyManager/getDeviceId/slot", "TelephonyManager.getDeviceId/slot");
             renameHook(_db, "TelephonyManager/getGroupIdLevel1", "TelephonyManager.getGroupIdLevel1");
@@ -1344,15 +1308,6 @@ class XProvider {
             Log.i(TAG, "Renamed hook " + oldId + " into " + newId + " rows=" + rows);
         } catch (Throwable ex) {
             Log.i(TAG, "Renamed hook " + oldId + " into " + newId + " ex=" + ex.getMessage());
-        }
-    }
-
-    private static void deleteHook(SQLiteDatabase _db, String id) {
-        try {
-            long rows = _db.delete("assignment", "hook = ?", new String[]{id});
-            Log.i(TAG, "Deleted hook " + id + " rows=" + rows);
-        } catch (Throwable ex) {
-            Log.i(TAG, "Deleted hook " + id + " ex=" + ex.getMessage());
         }
     }
 

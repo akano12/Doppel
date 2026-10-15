@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Jeg accepterer</string>
     <string name="title_deny">Jeg accepterer ikke</string>
-    <string name="title_fix">Ret</string>
     <string name="title_all">Samtlige</string>
     <string name="title_restrict">Begræns</string>
     <string name="title_bootloop">Begrænsning kan forårsage en boot-løkke</string>

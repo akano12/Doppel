@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Akceptuję</string>
     <string name="title_deny">Odmawiam</string>
-    <string name="title_fix">Napraw</string>
     <string name="title_all">Wszystkie</string>
     <string name="title_restrict">Ogranicz</string>
     <string name="title_bootloop">Ograniczenie może spowodować pętlę restartów</string>

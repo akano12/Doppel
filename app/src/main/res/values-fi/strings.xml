@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Ako ay sumasang-ayon</string>
     <string name="title_deny">Ako ay hindi sumasang-ayon</string>
-    <string name="title_fix">Ayusin</string>
     <string name="title_all">Lahat</string>
     <string name="title_restrict">Limitado</string>
     <string name="title_bootloop">Ang paghihigpit ay maaaring maging sanhi ng bootloop</string>

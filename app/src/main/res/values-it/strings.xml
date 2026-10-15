@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Accetto</string>
     <string name="title_deny">Rifiuto</string>
-    <string name="title_fix">Ripara</string>
     <string name="title_all">Tutti</string>
     <string name="title_restrict">Restringi</string>
     <string name="title_bootloop">La restrizione può causare un bootloop</string>

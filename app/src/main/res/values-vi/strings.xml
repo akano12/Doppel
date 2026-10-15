@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Đồng ý</string>
     <string name="title_deny">Không đồng ý</string>
-    <string name="title_fix">Sửa</string>
     <string name="title_all">Tất cả</string>
     <string name="title_restrict">Chặn</string>
     <string name="title_bootloop">Hạn chế có thể gây ra một bootloop</string>

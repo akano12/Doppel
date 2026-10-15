@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Sunt de acord</string>
     <string name="title_deny">Nu sunt de acord</string>
-    <string name="title_fix">Fix</string>
     <string name="title_all">Toate</string>
     <string name="title_restrict">Restricționare</string>
     <string name="title_bootloop">Restricţionarea poate provoca un bootloop</string>

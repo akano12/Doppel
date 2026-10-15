@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Elfogadom</string>
     <string name="title_deny">Nem fogadom el</string>
-    <string name="title_fix">Javítás</string>
     <string name="title_all">Összes</string>
     <string name="title_restrict">Korlátoz</string>
     <string name="title_bootloop">A korlátozás bootloop-ot okozhat</string>

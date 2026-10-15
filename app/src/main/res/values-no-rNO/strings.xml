@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Jeg godtar</string>
     <string name="title_deny">Jeg avviser</string>
-    <string name="title_fix">Fiks</string>
     <string name="title_all">Alle</string>
     <string name="title_restrict">Innskrenk</string>
     <string name="title_bootloop">Innskrenking kan føre til en omstartsløyfe (bootloop)</string>

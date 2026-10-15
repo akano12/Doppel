@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Súhlasím</string>
     <string name="title_deny">Odmietam</string>
-    <string name="title_fix">Oprava</string>
     <string name="title_all">Všetko</string>
     <string name="title_restrict">Blokovať</string>
     <string name="title_bootloop">Blokovanie môže spôsobiť problém</string>

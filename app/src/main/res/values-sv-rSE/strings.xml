@@ -2,7 +2,6 @@
 <resources>
     <string name="title_accept">Jag godkänner</string>
     <string name="title_deny">Jag godkänner inte</string>
-    <string name="title_fix">Åtgärda</string>
     <string name="title_all">Alla</string>
     <string name="title_restrict">Begränsa</string>
     <string name="title_bootloop">Begränsning kan orsaka en bootloop</string>

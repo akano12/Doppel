@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Αποδέχομαι</string>
     <string name="title_deny">Αρνούμαι</string>
-    <string name="title_fix">Επιδιόρθωσε</string>
     <string name="title_all">Όλα</string>
     <string name="title_restrict">Περιορισμός</string>
     <string name="title_bootloop">Restricting can cause a bootloop</string>

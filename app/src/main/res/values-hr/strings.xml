@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Slažem se</string>
     <string name="title_deny">Ne slažem se</string>
-    <string name="title_fix">Popravi</string>
     <string name="title_all">Sve</string>
     <string name="title_restrict">Ograniči</string>
     <string name="title_bootloop">Ograničenje može uzrokovati petlju podizanja sustava (bootloop)</string>

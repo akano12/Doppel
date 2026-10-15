@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">Razıyam</string>
     <string name="title_deny">Razı deyiləm</string>
-    <string name="title_fix">Düzəlt</string>
     <string name="title_all">Hamısı</string>
     <string name="title_restrict">Məhdudlaşdır</string>
     <string name="title_bootloop">Məhdudlaşdırma bootloop-a səbəb ola bilər</string>

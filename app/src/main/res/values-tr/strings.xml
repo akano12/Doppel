@@ -2,7 +2,6 @@
 <resources>
     <string name="title_accept">Kabul ediyorum</string>
     <string name="title_deny">Reddediyorum</string>
-    <string name="title_fix">Düzelt</string>
     <string name="title_all">Tümü</string>
     <string name="title_restrict">Kısıtla</string>
     <string name="title_bootloop">Kısıtlamak bootloop\'a neden olabilir</string>

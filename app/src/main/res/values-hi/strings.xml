@@ -3,7 +3,6 @@
 <resources>
     <string name="title_accept">मैं सहमत हूँ</string>
     <string name="title_deny">मैं असहमत हूं</string>
-    <string name="title_fix">ठीक करें</string>
     <string name="title_all">सभी</string>
     <string name="title_restrict">प्रतिबंधित</string>
     <string name="title_bootloop">प्रतिबंधित करने से bootloop हो सकता है</string>

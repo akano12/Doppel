@@ -80,29 +80,7 @@ class XApp implements Parcelable {
         return jroot;
     }
 
-    static XApp fromJSON(String json) throws JSONException {
-        return fromJSONObject(new JSONObject(json));
-    }
 
-    static XApp fromJSONObject(JSONObject jroot) throws JSONException {
-        XApp app = new XApp();
-
-        app.packageName = jroot.getString("packageName");
-        app.uid = jroot.getInt("uid");
-        app.icon = jroot.getInt("icon");
-        app.label = (jroot.has("label") ? jroot.getString("label") : null);
-        app.enabled = jroot.getBoolean("enabled");
-        app.persistent = jroot.getBoolean("persistent");
-        app.system = jroot.getBoolean("system");
-        app.forceStop = jroot.getBoolean("forcestop");
-
-        app.assignments = new ArrayList<>();
-        JSONArray jassignment = jroot.getJSONArray("assignments");
-        for (int i = 0; i < jassignment.length(); i++)
-            app.assignments.add(XAssignment.fromJSONObject((JSONObject) jassignment.get(i)));
-
-        return app;
-    }
 
     private IListener listener = null;
 
