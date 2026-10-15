@@ -397,7 +397,7 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
                 if (TextUtils.isEmpty(query))
                     results.addAll(visible);
                 else {
-                    String q = query.toString().toLowerCase().trim();
+                    String q = query.toString().toLowerCase(Locale.getDefault()).trim();
 
                     boolean restricted = false;
                     boolean unrestricted = false;
@@ -446,8 +446,8 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
                             continue;
 
                         if (app.uid == uid ||
-                                app.packageName.toLowerCase().contains(q) ||
-                                (app.label != null && app.label.toLowerCase().contains(q)))
+                                app.packageName.toLowerCase(Locale.ROOT).contains(q) ||
+                                (app.label != null && app.label.toLowerCase(Locale.getDefault()).contains(q)))
                             results.add(app);
                     }
                 }

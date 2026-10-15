@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -735,7 +736,7 @@ class XProvider {
             if (hook != null && "use".equals(event) && restricted == 1 &&
                     (hook.doNotify() || (notify && used < 0))) {
                 // Get group name
-                String name = hook.getGroup().toLowerCase().replaceAll("[^a-z]", "_");
+                String name = hook.getGroup().toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "_");
                 int resId = resources.getIdentifier("group_" + name, "string", BuildConfig.APPLICATION_ID);
                 String group = (resId == 0 ? hookid : resources.getString(resId));
 
@@ -1055,7 +1056,7 @@ class XProvider {
                 byte[] bytes = Util.getSha1Fingerprint(context, cpkg[0]);
                 StringBuilder sb = new StringBuilder();
                 for (byte b : bytes)
-                    sb.append(Integer.toString(b & 0xff, 16).toLowerCase());
+                    sb.append(Integer.toString(b & 0xff, 16).toLowerCase(Locale.ROOT));
 
                 Resources resources = pm.getResourcesForApplication(BuildConfig.APPLICATION_ID);
                 if (sb.toString().equals(resources.getString(R.string.pro_fingerprint)))

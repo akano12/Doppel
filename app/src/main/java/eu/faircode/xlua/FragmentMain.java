@@ -291,7 +291,7 @@ public class FragmentMain extends Fragment {
                         .call(XProvider.getURI(), "xlua", "getGroups", new Bundle());
                 if (result != null)
                     for (String name : result.getStringArray("groups")) {
-                        String g = name.toLowerCase().replaceAll("[^a-z]", "_");
+                        String g = name.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "_");
                         int id = res.getIdentifier("group_" + g, "string", getContext().getPackageName());
 
                         XGroup group = new XGroup();
