@@ -1,50 +1,207 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <attr name="expander" format="reference" />
-    <attr name="hookError" format="reference" />
-    <attr name="hookInstalled" format="reference" />
-    <attr name="appPersistent" format="reference" />
-    <attr name="appSettings" format="reference" />
-    <attr name="colorSystem" format="reference" />
-    <attr name="colorDrawerScrim" format="reference" />
-    <attr name="colorDrawerBackground" format="reference" />
+    <!-- Colors without a Material 3 role -->
+    <attr name="colorWarning" format="color" />
+    <attr name="colorWarningContainer" format="color" />
+    <attr name="colorOnWarningContainer" format="color" />
 
-    <style name="AppThemeLight" parent="Theme.AppCompat.Light.DarkActionBar">
+    <!-- Light and dark follow the theme setting, see ApplicationEx -->
+    <style name="Theme.XLua" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowDisablePreview">true</item>
-        <!-- The decor action bar does not handle edge-to-edge insets -->
+        <!-- Layouts do not handle edge-to-edge insets -->
         <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
+        <item name="android:statusBarColor">@color/c_surface</item>
+        <item name="android:navigationBarColor">@color/c_surface_lowest</item>
+        <item name="android:windowLightStatusBar">@bool/light_bars</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">@bool/light_bars</item>
 
-        <item name="expander">@drawable/expander_black</item>
-        <item name="hookError">@drawable/ic_error_outline_black_24dp</item>
-        <item name="hookInstalled">@drawable/ic_done_black_24dp</item>
-        <item name="appPersistent">@drawable/ic_settings_backup_restore_black_24dp</item>
-        <item name="appSettings">@drawable/ic_settings_black_24dp</item>
+        <item name="colorPrimary">@color/c_primary</item>
+        <item name="colorOnPrimary">@color/c_on_primary</item>
+        <item name="colorPrimaryContainer">@color/c_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/c_on_primary_container</item>
+        <item name="colorSecondary">@color/c_secondary</item>
+        <item name="colorOnSecondary">@color/c_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/c_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/c_on_secondary_container</item>
 
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:colorBackground">@color/c_surface</item>
+        <item name="colorSurface">@color/c_surface</item>
+        <item name="colorOnSurface">@color/c_on_surface</item>
+        <item name="colorOnSurfaceVariant">@color/c_on_surface_variant</item>
+        <item name="colorSurfaceContainerLowest">@color/c_surface_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/c_surface_low</item>
+        <item name="colorSurfaceContainer">@color/c_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/c_surface_high</item>
+        <item name="colorSurfaceContainerHighest">@color/c_surface_highest</item>
+        <item name="colorOutline">@color/c_outline</item>
+        <item name="colorOutlineVariant">@color/c_outline_variant</item>
 
-        <item name="colorSystem">@color/lightColorSystem</item>
-        <item name="colorDrawerScrim">@color/lightColorDrawerScrim</item>
-        <item name="colorDrawerBackground">@color/lightColorDrawerBackground</item>
+        <item name="colorError">@color/c_error</item>
+        <item name="colorOnError">@color/c_on_error</item>
+        <item name="colorErrorContainer">@color/c_error_container</item>
+        <item name="colorOnErrorContainer">@color/c_on_error_container</item>
+
+        <item name="colorWarning">@color/c_warning</item>
+        <item name="colorWarningContainer">@color/c_warning_container</item>
+        <item name="colorOnWarningContainer">@color/c_on_warning_container</item>
+
+        <item name="materialCardViewStyle">@style/XLua.Card</item>
+        <item name="bottomNavigationStyle">@style/XLua.BottomNavigation</item>
+        <item name="toolbarStyle">@style/XLua.Toolbar</item>
     </style>
 
-    <style name="AppThemeDark" parent="Theme.AppCompat">
-        <item name="android:windowDisablePreview">true</item>
-        <!-- The decor action bar does not handle edge-to-edge insets -->
-        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
+    <!-- Cards: white on the light grey background, a hairline instead of elevation -->
+    <style name="XLua.Card" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerLowest</item>
+        <item name="strokeColor">?attr/colorOutlineVariant</item>
+        <item name="cardCornerRadius">16dp</item>
+    </style>
 
-        <item name="expander">@drawable/expander_white</item>
-        <item name="hookError">@drawable/ic_error_outline_white_24dp</item>
-        <item name="hookInstalled">@drawable/ic_done_white_24dp</item>
-        <item name="appPersistent">@drawable/ic_settings_backup_restore_white_24dp</item>
-        <item name="appSettings">@drawable/ic_settings_white_24dp</item>
+    <style name="XLua.BottomNavigation" parent="Widget.Material3.BottomNavigationView">
+        <item name="backgroundTint">?attr/colorSurfaceContainerLowest</item>
+    </style>
 
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
+    <style name="XLua.Toolbar" parent="Widget.Material3.Toolbar.Surface" />
 
-        <item name="colorSystem">@color/darkColorSystem</item>
-        <item name="colorDrawerScrim">@color/darkColorDrawerScrim</item>
-        <item name="colorDrawerBackground">@color/darkColorDrawerBackground</item>
+    <!-- Screen title of the top level screens -->
+    <style name="XLua.Text.ScreenTitle" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <!-- Uppercase caption above a group of rows -->
+    <style name="XLua.Text.Section" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.04</item>
+    </style>
+
+    <!-- Package names, class names, values -->
+    <style name="XLua.Text.Mono" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <style name="XLua.Text.Meta" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <!-- Small rounded label, the background is set from code -->
+    <style name="XLua.Badge" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingStart">7dp</item>
+        <item name="android:paddingEnd">7dp</item>
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:paddingBottom">2dp</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
+
+    <!-- Caption above a card -->
+    <style name="XLua.SectionTitle" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">4dp</item>
+        <item name="android:layout_marginTop">20dp</item>
+        <item name="android:layout_marginBottom">6dp</item>
+        <item name="android:accessibilityHeading" tools:targetApi="28">true</item>
+        <item name="android:textAppearance">@style/XLua.Text.Section</item>
+    </style>
+
+    <!-- Row of a settings card -->
+    <style name="XLua.Row" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:minHeight">56dp</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:paddingBottom">8dp</item>
+    </style>
+
+    <style name="XLua.Row.Text" parent="">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <style name="XLua.Row.Title" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textAppearance">?attr/textAppearanceBodyLarge</item>
+    </style>
+
+    <style name="XLua.Row.Subtitle" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textAppearance">@style/XLua.Text.Meta</item>
+    </style>
+
+    <!-- Text fields of forms -->
+    <style name="XLua.Field" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">10dp</item>
+    </style>
+
+    <style name="XLua.Field.Dropdown" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">10dp</item>
+    </style>
+
+    <style name="XLua.Field.Edit" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textAppearance">?attr/textAppearanceBodyMedium</item>
+    </style>
+
+    <!-- Warning above content, like changes which require a restart -->
+    <style name="XLua.Banner" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">12dp</item>
+        <item name="android:background">@drawable/bg_rounded</item>
+        <item name="android:backgroundTint">?attr/colorWarningContainer</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+    </style>
+
+    <!-- Number with a label, like the restrictions of today -->
+    <style name="XLua.Stat" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:paddingBottom">10dp</item>
+    </style>
+
+    <style name="XLua.Stat.Value" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textAppearance">?attr/textAppearanceTitleLarge</item>
+    </style>
+
+    <style name="XLua.Stat.Label" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:textAppearance">@style/XLua.Text.Meta</item>
+    </style>
+
+    <!-- Filter chips above lists -->
+    <style name="XLua.Chip.Filter" parent="Widget.Material3.Chip.Filter">
+        <item name="chipBackgroundColor">@color/chip_background</item>
+        <item name="android:textColor">@color/chip_text</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="chipStrokeColor">?attr/colorOutline</item>
     </style>
 </resources>

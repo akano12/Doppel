@@ -19,570 +19,145 @@
 
 package eu.faircode.xlua;
 
-import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.content.res.Configuration;
-import android.net.Uri;
 import android.os.Bundle;
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.CheckBox;
-import android.widget.ListView;
 import android.widget.TextView;
 
-import com.google.android.material.snackbar.Snackbar;
-
-import java.util.Calendar;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import androidx.activity.OnBackPressedCallback;
-import androidx.activity.result.ActivityResultCallback;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBarDrawerToggle;
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.widget.SearchView;
 import androidx.core.text.HtmlCompat;
-import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+import java.util.Calendar;
+
+// Top level screens: apps, activity, hooks and settings
 public class ActivityMain extends ActivityBase {
-    private final static String TAG = "XLua.Main";
+    private static final String TAG = "XLua.Main";
 
-    private FragmentMain fragmentMain = null;
-    private DrawerLayout drawerLayout = null;
-    private ListView drawerList;
-    private ActionBarDrawerToggle drawerToggle = null;
-
-    private Menu menu = null;
-
-    private AlertDialog firstRunDialog = null;
-
-    public static final int LOADER_DATA = 1;
+    // Opens the restrictions of an app, used by notifications
     public static final String EXTRA_SEARCH_PACKAGE = "package";
 
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static final String TAB_APPS = "apps";
+    private static final String TAB_ACTIVITY = "activity";
+    private static final String TAB_HOOKS = "hooks";
+    private static final String TAB_SETTINGS = "settings";
 
-    private final ActivityResultLauncher<String> backupLauncher = registerForActivityResult(
-            new ActivityResultContracts.CreateDocument("application/json"), new ActivityResultCallback<Uri>() {
-                @Override
-                public void onActivityResult(final Uri uri) {
-                    if (uri == null)
-                        return;
-                    executor.submit(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                int[] counts = Backup.save(ActivityMain.this, uri);
-                                showMessage(getString(R.string.msg_backup_done, counts[0], counts[1], counts[2]));
-                            } catch (Throwable ex) {
-                                Log.e(TAG, Log.getStackTraceString(ex));
-                                showMessage(getString(R.string.msg_error, ex.getMessage()));
-                            }
-                        }
-                    });
-                }
-            });
-
-    private final ActivityResultLauncher<String[]> restoreLauncher = registerForActivityResult(
-            new ActivityResultContracts.OpenDocument(), new ActivityResultCallback<Uri>() {
-                @Override
-                public void onActivityResult(final Uri uri) {
-                    if (uri == null)
-                        return;
-                    Util.areYouSure(ActivityMain.this, getString(R.string.msg_restore_sure), new Util.DoubtListener() {
-                        @Override
-                        public void onSure() {
-                            executor.submit(new Runnable() {
-                                @Override
-                                public void run() {
-                                    try {
-                                        int[] counts = Backup.restore(ActivityMain.this, uri);
-                                        showMessage(getString(R.string.msg_restore_done, counts[0], counts[1], counts[2]));
-                                    } catch (Throwable ex) {
-                                        Log.e(TAG, Log.getStackTraceString(ex));
-                                        showMessage(getString(R.string.msg_error, ex.getMessage()));
-                                    }
-                                }
-                            });
-                        }
-                    });
-                }
-            });
-
-    private void showMessage(final String message) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG).show();
-            }
-        });
-    }
+    private BottomNavigationView nav;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Check if service is running
         if (!XProvider.isAvailable(this)) {
-            Snackbar.make(findViewById(android.R.id.content), getString(R.string.msg_no_service), Snackbar.LENGTH_INDEFINITE).show();
+            setContentView(R.layout.activity_unavailable);
+            findViewById(R.id.btnRetry).setOnClickListener(view -> recreate());
+            findViewById(R.id.btnDocs).setOnClickListener(view ->
+                    Ui.browse(this, "https://github.com/M66B/XPrivacyLua/blob/master/README.md"));
             return;
         }
 
-        // Set layout
-        setContentView(R.layout.main);
-
-        // Prepare action bar
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-
-        // Show fragment
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
-        fragmentMain = new FragmentMain();
-        fragmentTransaction.replace(R.id.content_frame, fragmentMain);
-        fragmentTransaction.commit();
-
-        // Get drawer layout
-        drawerLayout = findViewById(R.id.drawer_layout);
-        drawerLayout.setScrimColor(Util.resolveColor(this, R.attr.colorDrawerScrim));
-
-        // Close the drawer on back
-        final OnBackPressedCallback closeDrawer = new OnBackPressedCallback(false) {
-            @Override
-            public void handleOnBackPressed() {
-                drawerLayout.closeDrawer(drawerList);
-            }
-        };
-        getOnBackPressedDispatcher().addCallback(this, closeDrawer);
-
-        // Create drawer toggle
-        drawerToggle = new ActionBarDrawerToggle(this, drawerLayout, R.string.app_name, R.string.app_name) {
-            public void onDrawerClosed(View view) {
-                super.onDrawerClosed(view);
-                closeDrawer.setEnabled(false);
-                getSupportActionBar().setTitle(getString(R.string.app_name));
-            }
-
-            public void onDrawerOpened(View drawerView) {
-                super.onDrawerOpened(drawerView);
-                closeDrawer.setEnabled(true);
-                getSupportActionBar().setTitle(getString(R.string.app_name));
-            }
-        };
-        drawerLayout.addDrawerListener(drawerToggle);
-
-        // Get drawer list
-        drawerList = findViewById(R.id.drawer_list);
-
-        // Handle drawer list click
-        drawerList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                DrawerItem item = (DrawerItem) parent.getAdapter().getItem(position);
-                Log.i(TAG, "Drawer selected " + item.getTitle());
-                item.onClick();
-                if (!item.isCheckable())
-                    drawerLayout.closeDrawer(drawerList);
-            }
+        setContentView(R.layout.activity_main);
+        nav = findViewById(R.id.snackbar_anchor);
+        nav.setOnItemSelectedListener(item -> {
+            show(getTab(item.getItemId()));
+            return true;
         });
 
-        // Initialize drawer
-        boolean notifyNew = XProvider.getSettingBoolean(this, "global", "notify_new_apps");
-        boolean restrictNew = XProvider.getSettingBoolean(this, "global", "restrict_new_apps");
-
-        final ArrayAdapterDrawer drawerArray = new ArrayAdapterDrawer(ActivityMain.this, R.layout.draweritem);
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_notify_new, notifyNew, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                XProvider.putSettingBoolean(ActivityMain.this, "global", "notify_new_apps", item.isChecked());
-                drawerArray.notifyDataSetChanged();
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_restrict_new, restrictNew, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                XProvider.putSettingBoolean(ActivityMain.this, "global", "restrict_new_apps", item.isChecked());
-                drawerArray.notifyDataSetChanged();
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_values, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                startActivity(new Intent(ActivityMain.this, ActivityValues.class));
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_hooks, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                startActivity(new Intent(ActivityMain.this, ActivityHooks.class));
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_log, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                startActivity(new Intent(ActivityMain.this, ActivityLog.class));
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_backup, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                backupLauncher.launch("xprivacylua-backup.json");
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_restore, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                restoreLauncher.launch(new String[]{"application/json", "text/*", "application/octet-stream"});
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_dark, "dark".equals(getThemeName()), new DrawerItem.IListener() {
-            @Override
-            public void onClick(final DrawerItem item) {
-                executor.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        XProvider.putSetting(ActivityMain.this, "global", "theme", item.isChecked() ? "dark" : "light");
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                recreate();
-                            }
-                        });
-                    }
-                });
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_readme, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                Intent browse = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/M66B/XPrivacyLua"));
-                if (browse.resolveActivity(getPackageManager()) == null)
-                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.msg_no_browser), Snackbar.LENGTH_LONG).show();
-                else
-                    startActivity(browse);
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_faq, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                Intent browse = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md"));
-                if (browse.resolveActivity(getPackageManager()) == null)
-                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.msg_no_browser), Snackbar.LENGTH_LONG).show();
-                else
-                    startActivity(browse);
-            }
-        }));
-
-        drawerArray.add(new DrawerItem(this, R.string.menu_donate, new DrawerItem.IListener() {
-            @Override
-            public void onClick(DrawerItem item) {
-                Intent browse = new Intent(Intent.ACTION_VIEW, Uri.parse("https://lua.xprivacy.eu/"));
-                if (browse.resolveActivity(getPackageManager()) == null)
-                    Snackbar.make(findViewById(android.R.id.content), getString(R.string.msg_no_browser), Snackbar.LENGTH_LONG).show();
-                else
-                    startActivity(browse);
-            }
-        }));
-
-        drawerList.setAdapter(drawerArray);
+        // Selected tab and fragments are restored by the framework
+        if (savedInstanceState == null) {
+            show(TAB_APPS);
+            handleIntent(getIntent());
+        }
 
         checkFirstRun();
     }
 
     @Override
-    protected void onPostCreate(Bundle savedInstanceState) {
-        super.onPostCreate(savedInstanceState);
-        if (drawerToggle != null)
-            drawerToggle.syncState();
-    }
-
-    @Override
     protected void onNewIntent(Intent intent) {
-        Log.i(TAG, "New " + intent);
         super.onNewIntent(intent);
-        setIntent(intent);
-
-        if (this.menu != null)
-            updateMenu(this.menu);
+        handleIntent(intent);
     }
 
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if (drawerToggle != null)
-            drawerToggle.onConfigurationChanged(newConfig);
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        Log.i(TAG, "Create options");
-
-        MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.main, menu);
-        this.menu = menu;
-
-        return super.onCreateOptionsMenu(menu);
-    }
-
-    @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
-        Log.i(TAG, "Prepare options");
-
-        // Search
-        MenuItem menuSearch = menu.findItem(R.id.menu_search);
-        final SearchView searchView = (SearchView) menuSearch.getActionView();
-        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-            @Override
-            public boolean onQueryTextSubmit(String query) {
-                Log.i(TAG, "Search submit=" + query);
-                if (fragmentMain != null) {
-                    fragmentMain.filter(query);
-                    searchView.clearFocus(); // close keyboard
-                }
-                return true;
-            }
-
-            @Override
-            public boolean onQueryTextChange(String newText) {
-                Log.i(TAG, "Search change=" + newText);
-                if (fragmentMain != null)
-                    fragmentMain.filter(newText);
-                return true;
-            }
-        });
-
-        menuSearch.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
-            @Override
-            public boolean onMenuItemActionExpand(MenuItem menuItem) {
-                Log.i(TAG, "Search expand");
-                return true;
-            }
-
-            @Override
-            public boolean onMenuItemActionCollapse(MenuItem menuItem) {
-                Log.i(TAG, "Search collapse");
-
-                // Search uid once
-                Intent intent = getIntent();
-                intent.removeExtra(EXTRA_SEARCH_PACKAGE);
-                setIntent(intent);
-
-                return true;
-            }
-        });
-
-        updateMenu(menu);
-
-        return super.onPrepareOptionsMenu(menu);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (drawerToggle != null && drawerToggle.onOptionsItemSelected(item))
-            return true;
-
-        Log.i(TAG, "Selected option " + item.getTitle());
-        int itemId = item.getItemId();
-        if (itemId == R.id.menu_show) {
-            AdapterApp.enumShow show = (fragmentMain == null ? AdapterApp.enumShow.none : fragmentMain.getShow());
-            this.menu.findItem(R.id.menu_show_user).setEnabled(show != AdapterApp.enumShow.none);
-            this.menu.findItem(R.id.menu_show_icon).setEnabled(show != AdapterApp.enumShow.none);
-            this.menu.findItem(R.id.menu_show_all).setEnabled(show != AdapterApp.enumShow.none);
-            switch (show) {
-                case user:
-                    this.menu.findItem(R.id.menu_show_user).setChecked(true);
-                    break;
-                case icon:
-                    this.menu.findItem(R.id.menu_show_icon).setChecked(true);
-                    break;
-                case all:
-                    this.menu.findItem(R.id.menu_show_all).setChecked(true);
-                    break;
-            }
-            return true;
-
-        } else if (itemId == R.id.menu_show_user || itemId == R.id.menu_show_icon || itemId == R.id.menu_show_all) {
-            item.setChecked(!item.isChecked());
-            final AdapterApp.enumShow set;
-            if (itemId == R.id.menu_show_user)
-                set = AdapterApp.enumShow.user;
-            else if (itemId == R.id.menu_show_all)
-                set = AdapterApp.enumShow.all;
-            else
-                set = AdapterApp.enumShow.icon;
-            fragmentMain.setShow(set);
-            executor.submit(new Runnable() {
-                @Override
-                public void run() {
-                    XProvider.putSetting(ActivityMain.this, "global", "show", set.name());
-                }
-            });
-            return true;
-
-        } else if (itemId == R.id.menu_help) {
-            menuHelp();
-            return true;
-
-        } else
-            return super.onOptionsItemSelected(item);
-    }
-
-    private void menuHelp() {
-        startActivity(new Intent(this, ActivityHelp.class));
-    }
-
-    public void updateMenu(Menu menu) {
-        // Search
-        MenuItem menuSearch = menu.findItem(R.id.menu_search);
-        final SearchView searchView = (SearchView) menuSearch.getActionView();
-        if (searchView != null) {
-            String pkg = getIntent().getStringExtra(EXTRA_SEARCH_PACKAGE);
-            if (pkg != null) {
-                Log.i(TAG, "Search pkg=" + pkg);
-                menuSearch.expandActionView();
-                searchView.setQuery(pkg, true);
-            }
+    private void handleIntent(Intent intent) {
+        String packageName = intent.getStringExtra(EXTRA_SEARCH_PACKAGE);
+        if (packageName != null) {
+            Log.i(TAG, "Show pkg=" + packageName);
+            intent.removeExtra(EXTRA_SEARCH_PACKAGE);
+            startActivity(ActivityApp.getIntent(this, packageName, -1));
         }
     }
 
-    public void checkFirstRun() {
+    void selectSettings() {
+        if (nav != null)
+            nav.setSelectedItemId(R.id.nav_settings);
+    }
+
+    private static String getTab(int itemId) {
+        if (itemId == R.id.nav_activity)
+            return TAB_ACTIVITY;
+        else if (itemId == R.id.nav_hooks)
+            return TAB_HOOKS;
+        else if (itemId == R.id.nav_settings)
+            return TAB_SETTINGS;
+        else
+            return TAB_APPS;
+    }
+
+    // Tabs are kept, so they keep their scroll position and filters
+    private void show(String tab) {
+        FragmentManager fm = getSupportFragmentManager();
+        FragmentTransaction ft = fm.beginTransaction().setReorderingAllowed(true);
+        for (Fragment fragment : fm.getFragments())
+            if (!tab.equals(fragment.getTag()) && !fragment.isHidden())
+                ft.hide(fragment);
+        Fragment fragment = fm.findFragmentByTag(tab);
+        if (fragment == null)
+            ft.add(R.id.content, createTab(tab), tab);
+        else
+            ft.show(fragment);
+        ft.commit();
+    }
+
+    private static Fragment createTab(String tab) {
+        switch (tab) {
+            case TAB_ACTIVITY:
+                return new FragmentLog();
+            case TAB_HOOKS:
+                return new FragmentHooks();
+            case TAB_SETTINGS:
+                return new FragmentSettings();
+            default:
+                return new FragmentApps();
+        }
+    }
+
+    private void checkFirstRun() {
         // Same file as the former default shared preferences
         final SharedPreferences prefs = getSharedPreferences(getPackageName() + "_preferences", MODE_PRIVATE);
-        boolean firstRun = prefs.getBoolean("firstrun", true);
-        if (firstRun && firstRunDialog == null) {
-            final Util.DialogObserver observer = new Util.DialogObserver();
+        if (!prefs.getBoolean("firstrun", true))
+            return;
 
-            LayoutInflater inflater = LayoutInflater.from(this);
-            View view = inflater.inflate(R.layout.license, null, false);
-            TextView tvLicence = view.findViewById(R.id.tvLicense);
-            tvLicence.setMovementMethod(LinkMovementMethod.getInstance());
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_text, null, false);
+        TextView tvLicense = view.findViewById(R.id.tvText);
+        tvLicense.setMovementMethod(LinkMovementMethod.getInstance());
+        int year = Calendar.getInstance().get(Calendar.YEAR);
+        tvLicense.setText(HtmlCompat.fromHtml(getString(R.string.title_license, year), HtmlCompat.FROM_HTML_MODE_LEGACY));
 
-            int year = Calendar.getInstance().get(Calendar.YEAR);
-            tvLicence.setText(HtmlCompat.fromHtml(getString(R.string.title_license, year), HtmlCompat.FROM_HTML_MODE_LEGACY));
-
-            firstRunDialog = new AlertDialog.Builder(this)
-                    .setView(view)
-                    .setCancelable(false)
-                    .setPositiveButton(R.string.title_accept, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            prefs.edit().putBoolean("firstrun", false).apply();
-                        }
-                    })
-                    .setNegativeButton(R.string.title_deny, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            System.exit(0);
-                        }
-                    })
-                    .setOnDismissListener(new DialogInterface.OnDismissListener() {
-                        @Override
-                        public void onDismiss(DialogInterface dialogInterface) {
-                            firstRunDialog = null;
-                            observer.stopObserving();
-                        }
-                    })
-                    .create();
-            firstRunDialog.show();
-
-            observer.startObserving(this, firstRunDialog);
-        }
-    }
-
-    private static class DrawerItem {
-        private final String title;
-        private final boolean checkable;
-        private boolean checked;
-        private final IListener listener;
-
-        DrawerItem(Context context, int title, IListener listener) {
-            this.title = context.getString(title);
-            this.checkable = false;
-            this.checked = false;
-            this.listener = listener;
-        }
-
-        DrawerItem(Context context, int title, boolean checked, IListener listener) {
-            this.title = context.getString(title);
-            this.checkable = true;
-            this.checked = checked;
-            this.listener = listener;
-        }
-
-        public String getTitle() {
-            return this.title;
-        }
-
-        boolean isCheckable() {
-            return this.checkable;
-        }
-
-        boolean isChecked() {
-            return this.checked;
-        }
-
-        void onClick() {
-            if (this.checkable)
-                this.checked = !this.checked;
-            if (this.listener != null)
-                this.listener.onClick(this);
-        }
-
-        interface IListener {
-            void onClick(DrawerItem item);
-        }
-    }
-
-    private static class ArrayAdapterDrawer extends ArrayAdapter<DrawerItem> {
-        private final int resource;
-
-        ArrayAdapterDrawer(@NonNull Context context, int resource) {
-            super(context, resource);
-            this.resource = resource;
-        }
-
-        @Override
-        @NonNull
-        public View getView(int position, View convertView, @NonNull ViewGroup parent) {
-            View row;
-            if (null == convertView)
-                row = LayoutInflater.from(getContext()).inflate(this.resource, null);
-            else
-                row = convertView;
-
-            DrawerItem item = getItem(position);
-
-            TextView tv = row.findViewById(R.id.tvItem);
-            CheckBox cb = row.findViewById(R.id.cbItem);
-            tv.setText(item.getTitle());
-            cb.setVisibility(item.isCheckable() ? View.VISIBLE : View.GONE);
-            cb.setChecked(item.isChecked());
-
-            return row;
-        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.app_name)
+                .setView(view)
+                .setCancelable(false)
+                .setPositiveButton(R.string.title_accept, (dialog, which) ->
+                        prefs.edit().putBoolean("firstrun", false).apply())
+                .setNegativeButton(R.string.title_deny, (dialog, which) -> finishAffinity())
+                .show();
     }
 }

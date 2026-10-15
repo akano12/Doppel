@@ -19,22 +19,30 @@
 
 package eu.faircode.xlua;
 
-import android.os.Bundle;
-
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.android.material.appbar.MaterialToolbar;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+// Screens share a background thread for service calls
 public class ActivityBase extends AppCompatActivity {
-    private String theme;
+    protected final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        theme = XProvider.getSetting(this, "global", "theme");
-        setTheme("dark".equals(theme) ? R.style.AppThemeDark : R.style.AppThemeLight);
-
-        super.onCreate(savedInstanceState);
+    // Toolbar with an up button, which finishes the screen
+    protected MaterialToolbar setupToolbar(CharSequence title) {
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        toolbar.setTitle(title);
+        toolbar.setNavigationIcon(R.drawable.ic_arrow_back);
+        toolbar.setNavigationContentDescription(R.string.title_back);
+        toolbar.setNavigationOnClickListener(view -> finish());
+        return toolbar;
     }
 
-    String getThemeName() {
-        return (theme == null ? "light" : theme);
+    @Override
+    protected void onDestroy() {
+        executor.shutdown();
+        super.onDestroy();
     }
 }

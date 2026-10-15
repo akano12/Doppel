@@ -17,22 +17,22 @@
 
 package eu.faircode.xlua;
 
+import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ArrayAdapter;
-import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.Spinner;
 import android.widget.TextView;
 
-import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -42,15 +42,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 // Fake values read by the hook scripts (param:getSetting), for all apps or for a single app
 public class ActivityValues extends ActivityBase {
     private static final String TAG = "XLua.Values";
 
-    static final String EXTRA_PACKAGE = "package";
-    static final String EXTRA_LABEL = "label";
+    private static final String EXTRA_PACKAGE = "package";
+    private static final String EXTRA_LABEL = "label";
 
     private static final String GLOBAL = "global";
 
@@ -64,189 +62,205 @@ public class ActivityValues extends ActivityBase {
         final Type type;
         final Random random;
         final String builtin; // Value used by the script when there is no setting
-        final boolean globalOnly;
 
-        Field(String key, int title, Type type, Random random, String builtin, boolean globalOnly) {
+        Field(String key, int title, Type type, Random random, String builtin) {
             this.key = key;
             this.title = title;
             this.type = type;
             this.random = random;
             this.builtin = builtin;
-            this.globalOnly = globalOnly;
         }
     }
 
     // Settings used by the scripts in assets, with their built-in defaults
     private static final Object[] SECTIONS = new Object[]{
             R.string.title_values_identifiers,
-            new Field("value.serial", R.string.title_value_serial, Type.TEXT, Random.SERIAL, "unknown", false),
-            new Field("value.android_id", R.string.title_value_android_id, Type.TEXT, Random.ANDROID_ID, "0000000000000000", false),
-            new Field("value.imei", R.string.title_value_imei, Type.TEXT, Random.IMEI, null, false),
-            new Field("value.meid", R.string.title_value_meid, Type.TEXT, Random.MEID, null, false),
-            new Field("value.phone_number", R.string.title_value_phone_number, Type.TEXT, Random.NONE, null, false),
-            new Field("value.email", R.string.title_value_email, Type.TEXT, Random.NONE, "private@lua.xprivacy.eu", false),
+            new Field("value.serial", R.string.title_value_serial, Type.TEXT, Random.SERIAL, "unknown"),
+            new Field("value.android_id", R.string.title_value_android_id, Type.TEXT, Random.ANDROID_ID, "0000000000000000"),
+            new Field("value.imei", R.string.title_value_imei, Type.TEXT, Random.IMEI, null),
+            new Field("value.meid", R.string.title_value_meid, Type.TEXT, Random.MEID, null),
+            new Field("value.phone_number", R.string.title_value_phone_number, Type.TEXT, Random.NONE, null),
+            new Field("value.email", R.string.title_value_email, Type.TEXT, Random.NONE, "private@lua.xprivacy.eu"),
             R.string.title_values_location,
-            new Field("location.type", R.string.title_value_location_type, Type.LOCATION, Random.NONE, null, false),
-            new Field("location.latitude", R.string.title_value_latitude, Type.NUMBER, Random.NONE, "0", false),
-            new Field("location.longitude", R.string.title_value_longitude, Type.NUMBER, Random.NONE, "0", false),
-            new Field("location.accuracy", R.string.title_value_accuracy, Type.NUMBER, Random.NONE, null, false),
+            new Field("location.type", R.string.title_value_location_type, Type.LOCATION, Random.NONE, null),
+            new Field("location.latitude", R.string.title_value_latitude, Type.NUMBER, Random.NONE, "0"),
+            new Field("location.longitude", R.string.title_value_longitude, Type.NUMBER, Random.NONE, "0"),
+            new Field("location.accuracy", R.string.title_value_accuracy, Type.NUMBER, Random.NONE, null),
             R.string.title_values_other,
-            new Field("value.timezone", R.string.title_value_timezone, Type.TIMEZONE, Random.NONE, "UTC", false),
-            new Field("features.hide", R.string.title_value_features, Type.TEXT, Random.NONE, null, false),
-            new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, Random.NONE, null, false),
-            new Field("collection", R.string.title_value_collection, Type.TEXT, Random.NONE, "Privacy", true),
+            new Field("value.timezone", R.string.title_value_timezone, Type.TIMEZONE, Random.NONE, "UTC"),
+            new Field("features.hide", R.string.title_value_features, Type.TEXT, Random.NONE, null),
+            new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, Random.NONE, null),
     };
 
-    // Spinner positions to setting values
+    // Dropdown positions to setting values
     private static final String[] LOCATION_VALUES = new String[]{null, "set", "coarse"};
     private static final String[] CONTACTS_VALUES = new String[]{null, "1", "0"};
 
+    private String packageName; // null for the values of all apps
+    private String label;
     private String category;
+
     private final Map<String, String> values = new HashMap<>();
     private final Map<String, String> globals = new HashMap<>();
-    private final Map<String, View> inputs = new HashMap<>();
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Map<String, EditText> inputs = new HashMap<>();
     private final SecureRandom random = new SecureRandom();
+
+    static Intent getIntent(Context context, String packageName, String label) {
+        Intent intent = new Intent(context, ActivityValues.class);
+        intent.putExtra(EXTRA_PACKAGE, packageName);
+        intent.putExtra(EXTRA_LABEL, label);
+        return intent;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.values);
+        setContentView(R.layout.activity_values);
 
-        category = getIntent().getStringExtra(EXTRA_PACKAGE);
-        if (category == null)
-            category = GLOBAL;
-        String label = getIntent().getStringExtra(EXTRA_LABEL);
+        packageName = getIntent().getStringExtra(EXTRA_PACKAGE);
+        label = getIntent().getStringExtra(EXTRA_LABEL);
+        if (label == null)
+            label = packageName;
+        category = (packageName == null ? GLOBAL : packageName);
 
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        getSupportActionBar().setTitle(GLOBAL.equals(category)
-                ? getString(R.string.title_values_global)
-                : getString(R.string.title_values_app, label == null ? category : label));
+        setupToolbar(getString(R.string.menu_values));
 
-        executor.submit(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final Map<String, String> v = XProvider.getSettings(ActivityValues.this, category);
-                    final Map<String, String> g = (GLOBAL.equals(category)
-                            ? new HashMap<String, String>()
-                            : XProvider.getSettings(ActivityValues.this, GLOBAL));
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            values.putAll(v);
-                            globals.putAll(g);
-                            buildForm();
-                        }
-                    });
-                } catch (final Throwable ex) {
-                    Log.e(TAG, Log.getStackTraceString(ex));
-                    showMessage(getString(R.string.msg_error, ex.toString()));
-                }
+        // Values of an app replace the values for all apps
+        MaterialButtonToggleGroup tgScope = findViewById(R.id.tgScope);
+        if (packageName != null) {
+            ((Button) findViewById(R.id.btnScopeApp)).setText(label);
+            tgScope.setVisibility(View.VISIBLE);
+            tgScope.check(R.id.btnScopeApp);
+            tgScope.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+                if (!isChecked)
+                    return;
+                category = (checkedId == R.id.btnScopeApp ? packageName : GLOBAL);
+                load();
+            });
+        }
+
+        findViewById(R.id.btnSave).setOnClickListener(view -> save());
+        findViewById(R.id.btnReset).setOnClickListener(view -> reset());
+
+        load();
+    }
+
+    private void load() {
+        final String category = this.category;
+        final Context context = getApplicationContext();
+        executor.submit(() -> {
+            try {
+                final Map<String, String> v = XProvider.getSettings(context, category);
+                final Map<String, String> g = (GLOBAL.equals(category)
+                        ? new HashMap<>()
+                        : XProvider.getSettings(context, GLOBAL));
+                runOnUiThread(() -> {
+                    values.clear();
+                    values.putAll(v);
+                    globals.clear();
+                    globals.putAll(g);
+                    buildForm();
+                });
+            } catch (Throwable ex) {
+                Log.e(TAG, Log.getStackTraceString(ex));
+                Ui.message(this, getString(R.string.msg_error, ex.toString()));
             }
         });
     }
 
-    @Override
-    protected void onDestroy() {
-        executor.shutdown();
-        super.onDestroy();
-    }
-
     private void buildForm() {
-        LinearLayout container = findViewById(R.id.llValues);
         boolean global = GLOBAL.equals(category);
+        ((TextView) findViewById(R.id.tvHint)).setText(global
+                ? getString(R.string.title_values_global_hint)
+                : getString(R.string.title_values_app_hint, label));
+
+        LinearLayout container = findViewById(R.id.llValues);
+        container.removeAllViews();
+        inputs.clear();
+        LayoutInflater inflater = LayoutInflater.from(this);
+        LinearLayout rows = null;
         for (Object item : SECTIONS) {
             if (item instanceof Integer) {
-                TextView section = new TextView(this);
-                section.setText((Integer) item);
-                section.setTextAppearance(android.R.style.TextAppearance_Medium);
-                section.setPadding(0, dp(24), 0, dp(4));
-                container.addView(section);
+                View card = inflater.inflate(R.layout.item_card, container, false);
+                ((TextView) card.findViewById(R.id.tvSection)).setText((Integer) item);
+                rows = card.findViewById(R.id.llRows);
+                container.addView(card);
                 continue;
             }
 
             final Field field = (Field) item;
-            if (field.globalOnly && !global)
-                continue;
-
-            TextView title = new TextView(this);
-            title.setText(field.title);
-            title.setPadding(0, dp(12), 0, 0);
-            container.addView(title);
-
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            container.addView(row);
-
-            final View input;
             String value = values.get(field.key);
+
+            int layout;
+            if (field.type == Type.LOCATION || field.type == Type.CONTACTS)
+                layout = R.layout.item_value_dropdown;
+            else if (field.type == Type.TIMEZONE)
+                layout = R.layout.item_value_auto;
+            else
+                layout = R.layout.item_value_text;
+            TextInputLayout til = (TextInputLayout) inflater.inflate(layout, rows, false);
+            til.setHint(field.title);
+            EditText input = til.findViewById(R.id.etValue);
+
             if (field.type == Type.LOCATION || field.type == Type.CONTACTS) {
-                Spinner spinner = new Spinner(this);
-                ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
-                        field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types,
-                        android.R.layout.simple_spinner_item);
-                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                spinner.setAdapter(adapter);
-                spinner.setSelection(Math.max(0, Arrays.asList(spinnerValues(field)).indexOf(value)));
-                input = spinner;
+                String[] titles = getResources().getStringArray(
+                        field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
+                MaterialAutoCompleteTextView dropdown = (MaterialAutoCompleteTextView) input;
+                dropdown.setSimpleItems(titles);
+                int index = Math.max(0, Arrays.asList(spinnerValues(field)).indexOf(value));
+                dropdown.setText(titles[index], false);
             } else {
-                EditText edit;
-                if (field.type == Type.TIMEZONE) {
-                    AutoCompleteTextView auto = new AutoCompleteTextView(this);
-                    auto.setAdapter(new ArrayAdapter<>(this,
-                            android.R.layout.simple_dropdown_item_1line, TimeZone.getAvailableIDs()));
-                    auto.setThreshold(1);
-                    edit = auto;
-                } else
-                    edit = new EditText(this);
-                edit.setSingleLine(true);
+                if (field.type == Type.TIMEZONE)
+                    ((MaterialAutoCompleteTextView) input).setSimpleItems(TimeZone.getAvailableIDs());
                 if (field.type == Type.NUMBER)
-                    edit.setInputType(InputType.TYPE_CLASS_NUMBER |
+                    input.setInputType(InputType.TYPE_CLASS_NUMBER |
                             InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
-                edit.setText(value);
+                input.setText(value);
 
                 // Show what applies when the field is empty
                 String fallback = globals.get(field.key);
                 if (fallback != null)
-                    edit.setHint(getString(R.string.title_global, fallback));
+                    til.setHelperText(getString(R.string.title_global, fallback));
                 else if (field.builtin != null)
-                    edit.setHint(getString(R.string.title_default, field.builtin));
-                input = edit;
+                    til.setHelperText(getString(R.string.title_default, field.builtin));
+
+                if (field.random != Random.NONE) {
+                    til.setEndIconMode(TextInputLayout.END_ICON_CUSTOM);
+                    til.setEndIconDrawable(R.drawable.ic_shuffle);
+                    til.setEndIconContentDescription(getString(R.string.title_randomize_field, getString(field.title)));
+                    til.setEndIconOnClickListener(view -> input.setText(randomValue(field.random)));
+                }
             }
-            row.addView(input, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+            rows.addView(til);
             inputs.put(field.key, input);
+        }
+    }
 
-            if (field.random != Random.NONE) {
-                Button button = new Button(this);
-                button.setText(R.string.title_randomize);
-                button.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        ((EditText) input).setText(randomValue(field.random));
-                    }
-                });
-                row.addView(button);
+    // Empty fields remove the values, after saving
+    private void reset() {
+        for (Object item : SECTIONS)
+            if (item instanceof Field) {
+                Field field = (Field) item;
+                EditText input = inputs.get(field.key);
+                if (field.type == Type.LOCATION || field.type == Type.CONTACTS) {
+                    String[] titles = getResources().getStringArray(
+                            field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
+                    ((MaterialAutoCompleteTextView) input).setText(titles[0], false);
+                } else if (input != null)
+                    input.setText(null);
             }
-        }
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.values, menu);
-        return super.onCreateOptionsMenu(menu);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            finish();
-            return true;
-        } else if (item.getItemId() == R.id.menu_save) {
-            save();
-            return true;
+    private String getValue(Field field, EditText input) {
+        if (field.type == Type.LOCATION || field.type == Type.CONTACTS) {
+            String[] titles = getResources().getStringArray(
+                    field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
+            int index = Math.max(0, Arrays.asList(titles).indexOf(input.getText().toString()));
+            return spinnerValues(field)[index];
         }
-        return super.onOptionsItemSelected(item);
+        String value = input.getText().toString().trim();
+        return (TextUtils.isEmpty(value) ? null : value);
     }
 
     private void save() {
@@ -255,52 +269,42 @@ public class ActivityValues extends ActivityBase {
             if (!(item instanceof Field))
                 continue;
             Field field = (Field) item;
-            View input = inputs.get(field.key);
+            EditText input = inputs.get(field.key);
             if (input == null)
                 continue;
-
-            String value;
-            if (input instanceof Spinner)
-                value = spinnerValues(field)[((Spinner) input).getSelectedItemPosition()];
-            else {
-                value = ((EditText) input).getText().toString().trim();
-                if (TextUtils.isEmpty(value))
-                    value = null;
-            }
-
+            TextInputLayout til = (TextInputLayout) input.getParent().getParent();
+            til.setError(null);
+            String value = getValue(field, input);
             if (value != null && !isValid(field, value)) {
-                ((EditText) input).setError(getString(R.string.msg_invalid, value));
+                til.setError(getString(R.string.msg_invalid, value));
                 input.requestFocus();
                 return;
             }
-
             if (!Objects.equals(value, values.get(field.key)))
                 changed.put(field.key, value);
         }
 
         if (changed.isEmpty()) {
-            finish();
+            Ui.message(this, getString(R.string.msg_no_changes));
             return;
         }
 
+        final String category = this.category;
         final boolean global = GLOBAL.equals(category);
-        executor.submit(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    List<String> keys = new ArrayList<>(changed.keySet());
-                    for (int i = 0; i < keys.size(); i++) {
-                        // Stop the app once, so it starts with the new values
-                        boolean kill = (!global && i == keys.size() - 1);
-                        XProvider.putSetting(ActivityValues.this, category,
-                                keys.get(i), changed.get(keys.get(i)), kill);
-                    }
-                    values.putAll(changed);
-                    showMessage(getString(global ? R.string.msg_saved_restart : R.string.msg_saved));
-                } catch (Throwable ex) {
-                    Log.e(TAG, Log.getStackTraceString(ex));
-                    showMessage(getString(R.string.msg_error, ex.toString()));
+        final Context context = getApplicationContext();
+        executor.submit(() -> {
+            try {
+                List<String> keys = new ArrayList<>(changed.keySet());
+                for (int i = 0; i < keys.size(); i++) {
+                    // Stop the app once, so it starts with the new values
+                    boolean kill = (!global && i == keys.size() - 1);
+                    XProvider.putSetting(context, category, keys.get(i), changed.get(keys.get(i)), kill);
                 }
+                runOnUiThread(() -> values.putAll(changed));
+                Ui.message(this, getString(global ? R.string.msg_saved_restart : R.string.msg_saved));
+            } catch (Throwable ex) {
+                Log.e(TAG, Log.getStackTraceString(ex));
+                Ui.message(this, getString(R.string.msg_error, ex.toString()));
             }
         });
     }
@@ -364,18 +368,5 @@ public class ActivityValues extends ActivityBase {
             sum += d;
         }
         return (10 - sum % 10) % 10;
-    }
-
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
-    }
-
-    private void showMessage(final String message) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG).show();
-            }
-        });
     }
 }

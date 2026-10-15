@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.textfield.TextInputLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/XLua.Field.Dropdown"
+    android:layout_width="match_parent">
+
+    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+        android:id="@+id/etValue"
+        style="@style/XLua.Field.Edit"
+        android:inputType="none" />
+</com.google.android.material.textfield.TextInputLayout>

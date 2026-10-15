@@ -1,0 +1,265 @@
+/*
+    This file is part of XPrivacyLua.
+
+    XPrivacyLua is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    XPrivacyLua is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package eu.faircode.xlua;
+
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Process;
+import android.text.TextUtils;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.GridLayout;
+import android.widget.TextView;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeSet;
+
+// Module status, global settings, data and information
+public class FragmentSettings extends FragmentBase {
+    private static final String TAG = "XLua.Settings";
+
+    private TextView tvStatus;
+    private TextView tvVersion;
+    private GridLayout glStatus;
+    private TextView tvCollections;
+    private MaterialSwitch swRestrictNew;
+    private MaterialSwitch swNotifyNew;
+    private MaterialButtonToggleGroup tgTheme;
+
+    private List<String> collections = new ArrayList<>(); // Known collections
+    private List<String> enabled = new ArrayList<>(); // Enabled collections
+
+    private final ActivityResultLauncher<String> backupLauncher = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("application/json"), uri -> {
+                if (uri != null)
+                    backup(uri);
+            });
+
+    private final ActivityResultLauncher<String[]> restoreLauncher = registerForActivityResult(
+            new ActivityResultContracts.OpenDocument(), uri -> {
+                if (uri != null)
+                    Ui.areYouSure(requireContext(), getString(R.string.msg_restore_sure), () -> restore(uri));
+            });
+
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.fragment_settings, container, false);
+        final Activity activity = requireActivity();
+
+        tvStatus = view.findViewById(R.id.tvStatus);
+        tvVersion = view.findViewById(R.id.tvVersion);
+        glStatus = view.findViewById(R.id.glStatus);
+        tvCollections = view.findViewById(R.id.tvCollections);
+        swRestrictNew = view.findViewById(R.id.swRestrictNew);
+        swNotifyNew = view.findViewById(R.id.swNotifyNew);
+        tgTheme = view.findViewById(R.id.tgTheme);
+
+        tvVersion.setText(getString(R.string.title_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
+
+        view.findViewById(R.id.llRestrictNew).setOnClickListener(v -> swRestrictNew.toggle());
+        view.findViewById(R.id.llNotifyNew).setOnClickListener(v -> swNotifyNew.toggle());
+        view.findViewById(R.id.llCollections).setOnClickListener(v -> selectCollections());
+        view.findViewById(R.id.llDownloads).setOnClickListener(v ->
+                startActivity(new Intent(activity, ActivityDownloads.class)));
+        view.findViewById(R.id.llValues).setOnClickListener(v ->
+                startActivity(ActivityValues.getIntent(activity, null, null)));
+        view.findViewById(R.id.llBackup).setOnClickListener(v ->
+                backupLauncher.launch("xprivacylua-backup.json"));
+        view.findViewById(R.id.llRestore).setOnClickListener(v ->
+                restoreLauncher.launch(new String[]{"application/json", "text/*", "application/octet-stream"}));
+        view.findViewById(R.id.llClear).setOnClickListener(v ->
+                Ui.areYouSure(activity, getString(R.string.msg_clear_sure), this::clear));
+        view.findViewById(R.id.llDocs).setOnClickListener(v ->
+                Ui.browse(activity, "https://github.com/M66B/XPrivacyLua/blob/master/README.md"));
+        view.findViewById(R.id.llFaq).setOnClickListener(v ->
+                Ui.browse(activity, "https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md"));
+        view.findViewById(R.id.llLicense).setOnClickListener(v -> Ui.showLicense(activity));
+        view.findViewById(R.id.llDonate).setOnClickListener(v ->
+                Ui.browse(activity, "https://lua.xprivacy.eu/"));
+
+        return view;
+    }
+
+    @Override
+    protected void load() {
+        final Context context = requireContext().getApplicationContext();
+        executor.submit(() -> {
+            try {
+                boolean available = XProvider.isAvailable(context);
+                Bundle version = context.getContentResolver()
+                        .call(XProvider.getURI(), "xlua", "getVersion", new Bundle());
+                List<XHook> hooks = XProvider.getAllHooks(context);
+                TreeSet<String> known = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+                for (XHook hook : hooks)
+                    known.add(hook.getCollection());
+                List<String> enabled = Data.getCollection(context);
+                known.addAll(enabled);
+                boolean restrictNew = XProvider.getSettingBoolean(context, "global", "restrict_new_apps");
+                boolean notifyNew = XProvider.getSettingBoolean(context, "global", "notify_new_apps");
+                String theme = XProvider.getSetting(context, "global", "theme");
+
+                post(() -> {
+                    this.collections = new ArrayList<>(known);
+                    this.enabled = enabled;
+
+                    tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
+                    glStatus.removeAllViews();
+                    addStatus(R.string.title_status_service, version == null ? "-" : Integer.toString(version.getInt("version")));
+                    addStatus(R.string.title_status_hooks, Integer.toString(hooks.size()));
+                    addStatus(R.string.title_status_collections, Integer.toString(enabled.size()));
+                    addStatus(R.string.title_status_android, Build.VERSION.RELEASE + " · SDK " + Build.VERSION.SDK_INT);
+                    tvCollections.setText(TextUtils.join(", ", enabled));
+
+                    swRestrictNew.setOnCheckedChangeListener(null);
+                    swRestrictNew.setChecked(restrictNew);
+                    swRestrictNew.setOnCheckedChangeListener((button, checked) ->
+                            put("restrict_new_apps", Boolean.toString(checked)));
+                    swNotifyNew.setOnCheckedChangeListener(null);
+                    swNotifyNew.setChecked(notifyNew);
+                    swNotifyNew.setOnCheckedChangeListener((button, checked) ->
+                            put("notify_new_apps", Boolean.toString(checked)));
+
+                    tgTheme.clearOnButtonCheckedListeners();
+                    tgTheme.check(ApplicationEx.THEME_DARK.equals(theme) ? R.id.btnThemeDark
+                            : ApplicationEx.THEME_LIGHT.equals(theme) ? R.id.btnThemeLight
+                            : R.id.btnThemeSystem);
+                    tgTheme.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+                        if (!isChecked)
+                            return;
+                        String selected = (checkedId == R.id.btnThemeDark ? ApplicationEx.THEME_DARK
+                                : checkedId == R.id.btnThemeLight ? ApplicationEx.THEME_LIGHT
+                                : ApplicationEx.THEME_SYSTEM);
+                        executor.submit(() -> {
+                            XProvider.putSetting(context, "global", "theme", selected);
+                            post(() -> ApplicationEx.applyTheme(selected));
+                        });
+                    });
+                });
+            } catch (Throwable ex) {
+                error(TAG, ex);
+            }
+        });
+    }
+
+    private void addStatus(int key, String value) {
+        View cell = LayoutInflater.from(getContext()).inflate(R.layout.item_status, glStatus, false);
+        ((TextView) cell.findViewById(R.id.tvKey)).setText(key);
+        ((TextView) cell.findViewById(R.id.tvValue)).setText(value);
+        GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
+                GridLayout.spec(GridLayout.UNDEFINED), GridLayout.spec(GridLayout.UNDEFINED, 1f));
+        lp.width = 0;
+        glStatus.addView(cell, lp);
+    }
+
+    private void put(String name, String value) {
+        final Context context = requireContext().getApplicationContext();
+        executor.submit(() -> {
+            try {
+                XProvider.putSetting(context, "global", name, value);
+            } catch (Throwable ex) {
+                error(TAG, ex);
+            }
+        });
+    }
+
+    // Hooks of disabled collections are not offered and not applied
+    private void selectCollections() {
+        if (collections.isEmpty())
+            return;
+        final String[] names = collections.toArray(new String[0]);
+        final boolean[] checked = new boolean[names.length];
+        for (int i = 0; i < names.length; i++)
+            checked[i] = enabled.contains(names[i]);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.title_collections)
+                .setMultiChoiceItems(names, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    List<String> selected = new ArrayList<>();
+                    for (int i = 0; i < names.length; i++)
+                        if (checked[i])
+                            selected.add(names[i]);
+                    final Context context = requireContext().getApplicationContext();
+                    executor.submit(() -> {
+                        try {
+                            Data.putCollection(context, selected);
+                            post(this::load);
+                        } catch (Throwable ex) {
+                            error(TAG, ex);
+                        }
+                    });
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void backup(Uri uri) {
+        final Activity activity = requireActivity();
+        executor.submit(() -> {
+            try {
+                int[] counts = Backup.save(activity, uri);
+                Ui.message(activity, getString(R.string.msg_backup_done, counts[0], counts[1], counts[2]));
+            } catch (Throwable ex) {
+                error(TAG, ex);
+            }
+        });
+    }
+
+    private void restore(Uri uri) {
+        final Activity activity = requireActivity();
+        executor.submit(() -> {
+            try {
+                int[] counts = Backup.restore(activity, uri);
+                Ui.message(activity, getString(R.string.msg_restore_done, counts[0], counts[1], counts[2]));
+                post(this::load);
+            } catch (Throwable ex) {
+                error(TAG, ex);
+            }
+        });
+    }
+
+    // Restrictions and settings of the current user; custom definitions are kept
+    private void clear() {
+        final Activity activity = requireActivity();
+        executor.submit(() -> {
+            try {
+                Bundle args = new Bundle();
+                args.putInt("user", Util.getUserId(Process.myUid()));
+                activity.getContentResolver().call(XProvider.getURI(), "xlua", "clearData", args);
+                Ui.message(activity, getString(R.string.msg_cleared));
+                post(this::load);
+            } catch (Throwable ex) {
+                error(TAG, ex);
+            }
+        });
+    }
+}

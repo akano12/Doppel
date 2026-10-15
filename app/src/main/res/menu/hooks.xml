@@ -1,22 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
-    <item
-        android:id="@+id/menu_search"
-        android:icon="@drawable/ic_search_white_24dp"
-        android:title="@string/menu_search"
-        app:actionViewClass="androidx.appcompat.widget.SearchView"
-        app:showAsAction="always|collapseActionView" />
-    <item
-        android:id="@+id/menu_add"
-        android:title="@string/menu_add"
-        app:showAsAction="ifRoom|withText" />
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/menu_import"
-        android:title="@string/menu_import"
-        app:showAsAction="never" />
+        android:title="@string/menu_import" />
     <item
         android:id="@+id/menu_export"
-        android:title="@string/menu_export"
-        app:showAsAction="never" />
+        android:title="@string/menu_export_custom" />
 </menu>

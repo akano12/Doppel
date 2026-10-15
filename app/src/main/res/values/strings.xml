@@ -17,29 +17,10 @@
 
 
     <string name="title_all">All</string>
-    <string name="title_restrict">Restrict</string>
     <string name="title_bootloop">Restricting can cause a bootloop</string>
-    <string name="title_force_stop">Force stop automatically</string>
+    <string name="title_force_stop">Stop automatically</string>
 
-    <string name="title_help_instructions">
-        Tap on an app icon or name and tick restrictions to apply them.
-        If possible, apps are automatically stopped to apply (or remove) restrictions immediately,
-        but applying restrictions to some apps requires a device restart (see icons below).
-        <![CDATA[<br><br>]]>Long press on an app name or icon to start the app.
-        <![CDATA[<br><br>]]>See <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">the documentation</a>]]>
-        and <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">the frequently asked questions</a>]]> for more information.
-    </string>
-    <string name="title_help_installed">Restriction installed</string>
-    <string name="title_help_system">Applying restrictions can result in problems</string>
-    <string name="title_help_settings">App restriction settings</string>
-    <string name="title_help_persistent">Applying restrictions requires a device restart</string>
-    <string name="title_help_exception">Applying restriction failed (tap icon to see why)</string>
 
-    <string name="menu_show">Show</string>
-    <string name="menu_show_user">Show user apps</string>
-    <string name="menu_show_icon">Show apps with icon</string>
-    <string name="menu_show_all">Show all apps</string>
-    <string name="menu_search">Search</string>
     <string name="menu_help">Help</string>
     <string name="menu_notify_new">Notify on new apps</string>
     <string name="menu_restrict_new">Restrict new apps</string>
@@ -47,11 +28,8 @@
     <string name="menu_faq">FAQ</string>
     <string name="menu_donate">Donate</string>
     <string name="menu_values">Fake values</string>
-    <string name="menu_log">Restriction log</string>
-    <string name="menu_hooks">Hook definitions</string>
     <string name="menu_backup">Backup</string>
     <string name="menu_restore">Restore</string>
-    <string name="menu_dark">Dark theme</string>
     <string name="menu_save">Save</string>
     <string name="menu_add">Add</string>
     <string name="menu_import">Import</string>
@@ -61,8 +39,6 @@
     <string name="menu_delete">Delete</string>
 
     <string name="title_values_global">Fake values for all apps</string>
-    <string name="title_values_app">Fake values for %1$s</string>
-    <string name="title_values_hint">Empty fields use the values for all apps, or the built-in default. Changes apply when an app starts.</string>
     <string name="title_values_identifiers">Identifiers</string>
     <string name="title_values_location">Location</string>
     <string name="title_values_other">Other</string>
@@ -79,8 +55,6 @@
     <string name="title_value_longitude">Longitude</string>
     <string name="title_value_accuracy">Coarse accuracy (meters)</string>
     <string name="title_value_contacts">Contacts</string>
-    <string name="title_value_collection">Hook collections (comma separated)</string>
-    <string name="title_randomize">Randomize</string>
     <string name="title_default">Default: %1$s</string>
     <string name="title_global">All apps: %1$s</string>
     <string-array name="location_types">
@@ -104,11 +78,8 @@
     <string name="title_hook_overridden">Custom (replaces built-in)</string>
     <string name="title_hook_disabled">Disabled</string>
     <string name="title_hook_unavailable">Not for this Android version</string>
-    <string name="title_hook_definition">Definition (JSON)</string>
-    <string name="title_hook_script">Lua script</string>
     <string name="title_hook_edit_builtin">Saving a built-in definition creates a custom copy. Deleting the copy restores the built-in definition.</string>
     <string name="msg_hook_saved">Saved, restart restricted apps to apply</string>
-    <string name="msg_hook_deleted">Deleted</string>
     <string name="msg_hooks_imported">Imported %1$d definitions</string>
     <string name="msg_hooks_exported">Exported %1$d definitions</string>
     <string name="msg_delete_sure">Delete \'%1$s\'?</string>
@@ -122,8 +93,183 @@
     <string name="msg_review_settings">Review privacy settings</string>
     <string name="msg_usage">Restricted \'%1$s\'</string>
     <string name="msg_exception">Error in %1$s</string>
-    <string name="msg_restrict_sure">Are you sure to toggle \'%1$s\' for all apps?</string>
+    <string name="msg_bulk_sure">Toggle \'%1$s\' for the %2$d shown apps? When any of them has it, it is removed from all of them, otherwise it is added to all of them.</string>
     <string name="msg_no_browser">No browser available to open link</string>
+
+    <!-- Navigation -->
+    <string name="nav_apps">Apps</string>
+    <string name="nav_activity">Activity</string>
+    <string name="nav_hooks">Hooks</string>
+    <string name="nav_settings">Settings</string>
+    <string name="title_back">Back</string>
+    <string name="title_more">More options</string>
+    <string name="title_retry">Retry</string>
+    <string name="msg_no_service_help">Enable XPrivacyLua in the Xposed manager (like LSPosed) with System Framework in its scope, then restart the device.</string>
+
+    <!-- Apps -->
+    <string name="title_active">Active</string>
+    <string name="title_search_apps">Search name, package or uid</string>
+    <string name="title_filter_user">User</string>
+    <string name="title_filter_system">System</string>
+    <string name="title_filter_restricted">Restricted</string>
+    <string name="title_sort_name">Name</string>
+    <string name="title_sort_recent">Recent</string>
+    <plurals name="title_apps_count">
+        <item quantity="one">%1$d app</item>
+        <item quantity="other">%1$d apps</item>
+    </plurals>
+    <string name="title_no_apps">No apps</string>
+    <string name="title_groups_count">%1$d / %2$d groups</string>
+    <string name="title_last_used">%1$s · %2$s</string>
+    <string name="title_not_used">Restricted · not used yet</string>
+    <string name="title_not_restricted">Not restricted</string>
+    <string name="title_hook_error">A hook failed · tap to see why</string>
+    <string name="badge_system">System</string>
+    <string name="badge_reboot">Restart</string>
+    <string name="menu_bulk">Toggle a group for shown apps</string>
+
+    <!-- Restrictions of an app -->
+    <string name="title_app_meta">uid %1$d · version %2$s · %3$s</string>
+    <string name="title_restrict_app">Restrict this app</string>
+    <string name="title_groups_restricted">%1$d of %2$d groups restricted</string>
+    <string name="title_force_stop_hint">Stop the app to apply changes right away</string>
+    <string name="title_force_stop_persistent">Persistent apps cannot be stopped</string>
+    <string name="title_force_stop_now">Stop</string>
+    <string name="title_apply_restart">Changes apply the next time %1$s starts</string>
+    <string name="title_apply_reboot">Changes apply after restarting the device</string>
+    <string name="title_group_used">Restricted %1$s</string>
+    <string name="title_group_partial">Partially restricted · %1$d of %2$d hooks</string>
+    <string name="title_group_error">Failed · see the details</string>
+    <string name="title_show_error">Show the error</string>
+    <string name="title_edit_values">Edit fake values</string>
+    <string name="menu_values_app">Fake values for this app</string>
+    <string name="menu_launch">Open app</string>
+    <string name="menu_app_info">App info</string>
+    <string name="msg_stopped">Stopped %1$s</string>
+    <string name="msg_app_not_found">App %1$s not found</string>
+    <string name="section_location">Location and sensors</string>
+    <string name="section_identity">Device identity</string>
+    <string name="section_personal">Personal data</string>
+    <string name="section_media">Camera and microphone</string>
+    <string name="section_tracking">Tracking</string>
+    <string name="section_other">Other</string>
+
+    <!-- Activity -->
+    <string name="title_stat_today">today</string>
+    <string name="title_stat_apps">apps</string>
+    <string name="title_stat_errors">Errors</string>
+    <string name="title_today">Today</string>
+    <string name="title_yesterday">Yesterday</string>
+    <string name="title_hook_failed">Hook failed: %1$s</string>
+
+    <!-- Hooks -->
+    <string name="title_search_hooks">Class, method or group</string>
+    <string name="title_hooks_summary">%1$d built-in · %2$d custom · %3$d groups</string>
+    <string name="title_group_header">%1$s (%2$s) · %3$d</string>
+    <string name="title_no_hooks">No hook definitions</string>
+    <string name="title_hook_collection_off">%1$s off</string>
+    <string name="menu_export_custom">Export custom definitions</string>
+    <string name="menu_restore_builtin">Restore built-in</string>
+    <string name="title_hook_new">New hook definition</string>
+    <string name="title_tab_definition">Definition</string>
+    <string name="title_tab_script">Script</string>
+    <string name="title_section_target">Target</string>
+    <string name="title_section_definition">Definition</string>
+    <string name="title_section_availability">Availability</string>
+    <string name="title_section_behavior">Behavior</string>
+    <string name="title_field_class">Class</string>
+    <string name="title_field_member">Method or field</string>
+    <string name="title_field_member_hint">#name for a static field, field:method for a method of an object in a static field, empty for a constructor</string>
+    <string name="title_field_params">Parameter types</string>
+    <string name="title_field_params_hint">Comma separated, like java.lang.String, int</string>
+    <string name="title_field_return">Return type</string>
+    <string name="title_field_collection">Collection</string>
+    <string name="title_field_group">Group</string>
+    <string name="title_field_name">Name</string>
+    <string name="title_field_name_hint">The id is collection.name</string>
+    <string name="title_field_author">Author</string>
+    <string name="title_field_version">Version</string>
+    <string name="title_field_description">Description</string>
+    <string name="title_field_min_sdk">Minimum SDK</string>
+    <string name="title_field_max_sdk">Maximum SDK</string>
+    <string name="title_field_min_apk">Minimum app version</string>
+    <string name="title_field_max_apk">Maximum app version</string>
+    <string name="title_field_exclude">Excluded packages</string>
+    <string name="title_field_comma">Comma separated</string>
+    <string name="title_field_settings">Settings</string>
+    <string name="title_field_settings_hint">Names of the values the script reads, comma separated</string>
+    <string name="title_hook_enabled">Enabled</string>
+    <string name="title_hook_enabled_hint">Offer the hook for apps</string>
+    <string name="title_hook_optional">Optional</string>
+    <string name="title_hook_optional_hint">No error when the class or method does not exist</string>
+    <string name="title_hook_usage">Log usage</string>
+    <string name="title_hook_usage_hint">Record restrictions in the activity log</string>
+    <string name="title_hook_notify">Notify</string>
+    <string name="title_hook_notify_hint">Show a notification for each restriction</string>
+    <string name="title_check">Check</string>
+    <string name="title_check_hint">Check the target on this device</string>
+    <string name="title_checking">Checking…</string>
+    <string name="title_check_found">Found %1$s</string>
+    <string name="title_check_class">Found class %1$s</string>
+    <string name="title_check_no_member">%1$s not found in the class or its super classes</string>
+    <string name="title_check_no_class">Class %1$s not found here. It can still exist in the app the hook is for.</string>
+    <string name="title_script_no_function">no before() or after()</string>
+    <string name="title_script_api">param: getResult() setResult(v) getArgument(i) setArgument(i, v) getThis() getException() getSetting(name) getValue(name, scope) putValue(name, value, scope) findClass(name) isInstance(object, class) getPackageName() getUid()\nReturn true, old and new value from before() or after() when restricted.</string>
+
+    <!-- Downloads -->
+    <string name="menu_downloads">Downloads</string>
+    <string name="title_search_downloads">Name, group, author or description</string>
+    <string name="title_downloads_notice">Community hook definitions, from the repository snapshot packaged with this version. Definitions are provided as-is and using them is at your own risk.</string>
+    <string name="title_not_installed">Not installed</string>
+    <string name="title_installed">Installed</string>
+    <string name="title_updates">Updates</string>
+    <string name="title_install">Install</string>
+    <string name="title_update">Update</string>
+    <string name="title_replaces_builtin">replaces built-in</string>
+    <string name="title_download_meta">%1$s · v%2$d · %3$s · %4$s</string>
+    <plurals name="title_downloads_count">
+        <item quantity="one">%1$d download</item>
+        <item quantity="other">%1$d downloads</item>
+    </plurals>
+    <string name="title_enable">Enable</string>
+    <string name="msg_installed">Installed %1$s</string>
+    <string name="msg_installed_collection">Installed %1$s, collection %2$s is off</string>
+    <string name="msg_collection_enabled">Collection %1$s on</string>
+
+    <!-- Fake values -->
+    <string name="title_all_apps">All apps</string>
+    <string name="title_values_global_hint">Used by restricted apps without their own values. Changes apply when an app starts.</string>
+    <string name="title_values_app_hint">Values for %1$s replace the values for all apps. Empty fields use the values for all apps.</string>
+    <string name="title_randomize_field">Randomize %1$s</string>
+    <string name="title_reset">Clear</string>
+    <string name="msg_no_changes">No changes</string>
+
+    <!-- Settings -->
+    <string name="title_module_active">Module active</string>
+    <string name="title_version">XPrivacyLua %1$s (%2$d)</string>
+    <string name="title_status_service">Service</string>
+    <string name="title_status_hooks">Definitions</string>
+    <string name="title_status_collections">Collections</string>
+    <string name="title_status_android">Android</string>
+    <string name="section_new_apps">New apps</string>
+    <string name="section_hooks">Hooks</string>
+    <string name="section_appearance">Appearance</string>
+    <string name="section_data">Data</string>
+    <string name="section_about">About</string>
+    <string name="title_restrict_new_hint">Restrict all groups when an app is installed</string>
+    <string name="title_notify_new_hint">Show a notification when an app is installed</string>
+    <string name="title_collections">Collections</string>
+    <string name="title_downloads_hint">Install community hook definitions</string>
+    <string name="title_theme_system">System</string>
+    <string name="title_theme_light">Light</string>
+    <string name="title_theme_dark">Dark</string>
+    <string name="title_backup_hint">Settings, custom definitions and restrictions</string>
+    <string name="title_restore_hint">From a backup file</string>
+    <string name="title_clear_data">Clear restrictions and settings</string>
+    <string name="title_clear_data_hint">Custom definitions are kept</string>
+    <string name="title_license_row">License</string>
+    <string name="msg_clear_sure">Remove all restrictions and settings, including fake values? This cannot be undone.</string>
+    <string name="msg_cleared">Restrictions and settings removed</string>
 
     <string name="group_determine_activity">Determine activity</string>
     <string name="group_get_applications">Get applications</string>

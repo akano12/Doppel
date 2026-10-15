@@ -20,590 +20,313 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
-import android.content.res.Resources;
-import android.net.Uri;
-import android.os.Bundle;
-import android.os.Process;
 import android.text.TextUtils;
-import android.util.Log;
-import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CompoundButton;
-import android.widget.Filter;
-import android.widget.Filterable;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.DecodeFormat;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.request.RequestOptions;
-import com.google.android.material.snackbar.Snackbar;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.progressindicator.LinearProgressIndicator;
 
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.Objects;
+import java.util.Set;
 
-import androidx.appcompat.widget.AppCompatCheckBox;
-import androidx.constraintlayout.widget.Group;
-import androidx.recyclerview.widget.DiffUtil;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+// Apps with a summary of their restrictions
+public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
+    enum Filter {ALL, USER, SYSTEM, RESTRICTED}
 
-public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> implements Filterable {
-    private static final String TAG = "XLua.App";
+    enum Sort {NAME, RECENT}
 
-    private int iconSize;
+    interface Listener {
+        void onApp(XApp app);
 
-    public enum enumShow {none, user, icon, all}
+        void onLaunch(XApp app);
+    }
 
-    private enumShow show = enumShow.icon;
-    private String group = null;
-    private CharSequence query = null;
-    private List<String> collection = new ArrayList<>();
-    private boolean dataChanged = false;
-    private List<XHook> hooks = new ArrayList<>();
-    private List<XApp> all = new ArrayList<>();
-    private List<XApp> filtered = new ArrayList<>();
-    private Map<String, Boolean> expanded = new HashMap<>();
+    // Restrictions of an app, summarized in the background
+    static class Row {
+        XApp app;
+        int groups; // Groups which can be restricted
+        int restricted; // Groups with one or more assigned hooks
+        long used = -1; // Last time a hook restricted something
+        String usedGroup;
+        boolean error;
 
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
+        static Row summarize(XApp app, List<XHook> hooks, List<String> collection) {
+            Row row = new Row();
+            row.app = app;
 
-    public class ViewHolder extends RecyclerView.ViewHolder
-            implements View.OnClickListener, View.OnLongClickListener, CompoundButton.OnCheckedChangeListener, XApp.IListener {
-        final View itemView;
-        final ImageView ivExpander;
+            Set<String> groups = new HashSet<>();
+            for (XHook hook : hooks)
+                if (hook.isAvailable(app.packageName, collection))
+                    groups.add(hook.getGroup());
+            row.groups = groups.size();
+
+            Set<String> restricted = new HashSet<>();
+            for (XAssignment assignment : app.assignments) {
+                String group = assignment.hook.getGroup();
+                if (groups.contains(group))
+                    restricted.add(group);
+                if (assignment.exception != null)
+                    row.error = true;
+                if (assignment.restricted && assignment.used > row.used) {
+                    row.used = assignment.used;
+                    row.usedGroup = group;
+                }
+            }
+            row.restricted = restricted.size();
+            return row;
+        }
+
+        boolean isSame(Row other) {
+            return (app.uid == other.app.uid && app.packageName.equals(other.app.packageName));
+        }
+
+        boolean hasSameContent(Row other) {
+            return (groups == other.groups &&
+                    restricted == other.restricted &&
+                    used == other.used &&
+                    error == other.error &&
+                    app.icon == other.app.icon &&
+                    Objects.equals(app.label, other.app.label));
+        }
+    }
+
+    private final Listener listener;
+    private final Collator collator;
+
+    private List<Row> all = new ArrayList<>();
+    private List<Row> shown = new ArrayList<>();
+    private Filter filter = Filter.USER;
+    private Sort sort = Sort.NAME;
+    private String query = null;
+
+    AdapterApp(Listener listener) {
+        this.listener = listener;
+        this.collator = Collator.getInstance(Locale.getDefault());
+        this.collator.setStrength(Collator.SECONDARY); // Case insensitive, process accents etc
+        setHasStableIds(true);
+    }
+
+    void set(List<Row> rows) {
+        this.all = rows;
+        apply();
+    }
+
+    void setFilter(Filter filter) {
+        this.filter = filter;
+        apply();
+    }
+
+    void setSort(Sort sort) {
+        this.sort = sort;
+        apply();
+    }
+
+    void setQuery(String query) {
+        this.query = query;
+        apply();
+    }
+
+    List<Row> getShown() {
+        return shown;
+    }
+
+    private void apply() {
+        // Search prefixes: ! restricted, ? not restricted, # system, @ user, or a uid
+        String q = (query == null ? "" : query.toLowerCase(Locale.getDefault()).trim());
+        boolean restricted = false;
+        boolean unrestricted = false;
+        boolean system = false;
+        boolean user = false;
+        while (!q.isEmpty()) {
+            char c = q.charAt(0);
+            if (c == '!')
+                restricted = true;
+            else if (c == '?')
+                unrestricted = true;
+            else if (c == '#')
+                system = true;
+            else if (c == '@')
+                user = true;
+            else
+                break;
+            q = q.substring(1);
+        }
+        int uid;
+        try {
+            uid = Integer.parseInt(q);
+        } catch (NumberFormatException ignored) {
+            uid = -1;
+        }
+
+        List<Row> result = new ArrayList<>();
+        for (Row row : all) {
+            XApp app = row.app;
+            boolean isRestricted = !app.assignments.isEmpty();
+            if (filter == Filter.USER && app.system)
+                continue;
+            if (filter == Filter.SYSTEM && !app.system)
+                continue;
+            if (filter == Filter.RESTRICTED && !isRestricted)
+                continue;
+            if ((restricted && !isRestricted) || (unrestricted && isRestricted))
+                continue;
+            if ((system && !app.system) || (user && app.system))
+                continue;
+            if (!q.isEmpty() &&
+                    app.uid != uid &&
+                    !app.packageName.toLowerCase(Locale.ROOT).contains(q) &&
+                    (app.label == null || !app.label.toLowerCase(Locale.getDefault()).contains(q)))
+                continue;
+            result.add(row);
+        }
+
+        Comparator<Row> byName = (r1, r2) -> collator.compare(
+                r1.app.label == null ? r1.app.packageName : r1.app.label,
+                r2.app.label == null ? r2.app.packageName : r2.app.label);
+        if (sort == Sort.RECENT)
+            Collections.sort(result, (r1, r2) -> {
+                int c = Long.compare(r2.used, r1.used);
+                return (c == 0 ? byName.compare(r1, r2) : c);
+            });
+        else
+            Collections.sort(result, byName);
+
+        final List<Row> prev = shown;
+        DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() {
+                return prev.size();
+            }
+
+            @Override
+            public int getNewListSize() {
+                return result.size();
+            }
+
+            @Override
+            public boolean areItemsTheSame(int oldPosition, int newPosition) {
+                return prev.get(oldPosition).isSame(result.get(newPosition));
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldPosition, int newPosition) {
+                return prev.get(oldPosition).hasSameContent(result.get(newPosition));
+            }
+        });
+        shown = result;
+        diff.dispatchUpdatesTo(this);
+    }
+
+    class ViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener, View.OnLongClickListener {
         final ImageView ivIcon;
         final TextView tvLabel;
-        final TextView tvUid;
+        final LinearLayout llBadges;
         final TextView tvPackage;
-        final ImageView ivPersistent;
-        final ImageView ivSettings;
-        final TextView tvAndroid;
-        final AppCompatCheckBox cbAssigned;
-        final AppCompatCheckBox cbForceStop;
-        final RecyclerView rvGroup;
-        final Group grpExpanded;
-
-        final AdapterGroup adapter;
+        final LinearProgressIndicator piGroups;
+        final TextView tvGroups;
+        final TextView tvLast;
 
         ViewHolder(View itemView) {
             super(itemView);
-
-            this.itemView = itemView;
-            ivExpander = itemView.findViewById(R.id.ivExpander);
             ivIcon = itemView.findViewById(R.id.ivIcon);
             tvLabel = itemView.findViewById(R.id.tvLabel);
-            tvUid = itemView.findViewById(R.id.tvUid);
+            llBadges = itemView.findViewById(R.id.llBadges);
             tvPackage = itemView.findViewById(R.id.tvPackage);
-            ivPersistent = itemView.findViewById(R.id.ivPersistent);
-            ivSettings = itemView.findViewById(R.id.ivSettings);
-            tvAndroid = itemView.findViewById(R.id.tvAndroid);
-            cbAssigned = itemView.findViewById(R.id.cbAssigned);
-            cbForceStop = itemView.findViewById(R.id.cbForceStop);
-
-            rvGroup = itemView.findViewById(R.id.rvGroup);
-            rvGroup.setHasFixedSize(false);
-            rvGroup.setLayoutManager(new LinearLayoutManager(itemView.getContext()));
-            adapter = new AdapterGroup();
-            rvGroup.setAdapter(adapter);
-
-            grpExpanded = itemView.findViewById(R.id.grpExpanded);
-        }
-
-        private XApp getApp() {
-            int position = getBindingAdapterPosition();
-            return (position == RecyclerView.NO_POSITION ? null : filtered.get(position));
-        }
-
-        private void wire() {
+            piGroups = itemView.findViewById(R.id.piGroups);
+            tvGroups = itemView.findViewById(R.id.tvGroups);
+            tvLast = itemView.findViewById(R.id.tvLast);
             itemView.setOnClickListener(this);
             itemView.setOnLongClickListener(this);
-            ivSettings.setOnClickListener(this);
-            cbAssigned.setOnCheckedChangeListener(this);
-            cbForceStop.setOnCheckedChangeListener(this);
-        }
-
-        private void unwire() {
-            itemView.setOnClickListener(null);
-            itemView.setOnLongClickListener(null);
-            ivSettings.setOnClickListener(null);
-            cbAssigned.setOnCheckedChangeListener(null);
-            cbForceStop.setOnCheckedChangeListener(null);
         }
 
         @Override
         public void onClick(View view) {
-            XApp app = getApp();
-            if (app == null)
-                return;
-            int id = view.getId();
-            if (id == R.id.itemView) {
-                if (!expanded.containsKey(app.packageName))
-                    expanded.put(app.packageName, false);
-                expanded.put(app.packageName, !expanded.get(app.packageName));
-                updateExpand();
-
-            } else if (id == R.id.ivSettings) {
-                // Fake values for this app
-                Intent values = new Intent(view.getContext(), ActivityValues.class);
-                values.putExtra(ActivityValues.EXTRA_PACKAGE, app.packageName);
-                values.putExtra(ActivityValues.EXTRA_LABEL, app.label);
-                view.getContext().startActivity(values);
-            }
+            int position = getBindingAdapterPosition();
+            if (position != RecyclerView.NO_POSITION)
+                listener.onApp(shown.get(position).app);
         }
 
+        // Start the app, like before
         @Override
         public boolean onLongClick(View view) {
-            XApp app = getApp();
-            if (app == null)
+            int position = getBindingAdapterPosition();
+            if (position == RecyclerView.NO_POSITION)
                 return false;
-            Intent launch = view.getContext().getPackageManager().getLaunchIntentForPackage(app.packageName);
-            if (launch != null)
-                view.getContext().startActivity(launch);
-            return true;
-        }
-
-        @Override
-        public void onCheckedChanged(final CompoundButton compoundButton, boolean checked) {
-            Log.i(TAG, "Check changed");
-            final XApp app = getApp();
-            if (app == null)
-                return;
-
-            int id = compoundButton.getId();
-            if (id == R.id.cbAssigned) {
-                updateAssignments(compoundButton.getContext(), app, group, checked);
-                notifyItemChanged(getBindingAdapterPosition());
-
-            } else if (id == R.id.cbForceStop) {
-                app.forceStop = checked;
-                executor.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        XProvider.putSettingBoolean(
-                                compoundButton.getContext(), app.packageName, "forcestop", app.forceStop);
-                    }
-                });
-            }
-        }
-
-        @Override
-        public void onAssign(Context context, String groupName, boolean assign) {
-            Log.i(TAG, "Group changed");
-            XApp app = getApp();
-            if (app == null)
-                return;
-            updateAssignments(context, app, groupName, assign);
-            notifyItemChanged(getBindingAdapterPosition());
-        }
-
-        private void updateAssignments(final Context context, final XApp app, String groupName, final boolean assign) {
-            Log.i(TAG, app.packageName + " " + groupName + "=" + assign);
-
-            final ArrayList<String> hookids = new ArrayList<>();
-            for (XHook hook : hooks)
-                if (hook.isAvailable(app.packageName, collection) &&
-                        (groupName == null || groupName.equals(hook.getGroup()))) {
-                    hookids.add(hook.getId());
-                    if (assign)
-                        app.assignments.add(new XAssignment(hook));
-                    else
-                        app.assignments.remove(new XAssignment(hook));
-                }
-
-            executor.submit(new Runnable() {
-                @Override
-                public void run() {
-                    Bundle args = new Bundle();
-                    args.putStringArrayList("hooks", hookids);
-                    args.putString("packageName", app.packageName);
-                    args.putInt("uid", app.uid);
-                    args.putBoolean("delete", !assign);
-                    args.putBoolean("kill", app.forceStop);
-                    context.getContentResolver()
-                            .call(XProvider.getURI(), "xlua", "assignHooks", args);
-                }
-            });
-        }
-
-        void updateExpand() {
-            XApp app = getApp();
-            if (app == null)
-                return;
-            boolean isExpanded = (group == null && expanded.containsKey(app.packageName) && expanded.get(app.packageName));
-            ivExpander.setImageLevel(isExpanded ? 1 : 0);
-            ivExpander.setVisibility(group == null ? View.VISIBLE : View.INVISIBLE);
-            grpExpanded.setVisibility(isExpanded ? View.VISIBLE : View.GONE);
-        }
-    }
-
-    AdapterApp(Context context) {
-        TypedValue typedValue = new TypedValue();
-        context.getTheme().resolveAttribute(android.R.attr.listPreferredItemHeight, typedValue, true);
-        int height = TypedValue.complexToDimensionPixelSize(typedValue.data, context.getResources().getDisplayMetrics());
-        iconSize = Math.round(height * context.getResources().getDisplayMetrics().density + 0.5f);
-
-        setHasStableIds(true);
-    }
-
-    void set(List<String> collection, List<XHook> hooks, List<XApp> apps) {
-        this.dataChanged = (this.hooks.size() != hooks.size());
-        for (int i = 0; i < this.hooks.size() && !this.dataChanged; i++) {
-            XHook hook = this.hooks.get(i);
-            XHook other = hooks.get(i);
-            if (!hook.getGroup().equals(other.getGroup()) || !hook.getId().equals(other.getId()))
-                this.dataChanged = true;
-        }
-
-        Log.i(TAG, "Set collections=" + collection.size() +
-                " hooks=" + hooks.size() +
-                " apps=" + apps.size() +
-                " changed=" + this.dataChanged);
-
-        this.collection = collection;
-        this.hooks = hooks;
-
-        final Collator collator = Collator.getInstance(Locale.getDefault());
-        collator.setStrength(Collator.SECONDARY); // Case insensitive, process accents etc
-
-        Collections.sort(apps, new Comparator<XApp>() {
-            @Override
-            public int compare(XApp app1, XApp app2) {
-                return collator.compare(app1.label, app2.label);
-            }
-        });
-
-        all.clear();
-        all.addAll(apps);
-
-        getFilter().filter(query);
-    }
-
-    void setShow(enumShow value) {
-        if (show != value) {
-            show = value;
-            getFilter().filter(query);
-        }
-    }
-
-    void setGroup(String name) {
-        if (group == null ? name != null : !group.equals(name)) {
-            group = name;
-            this.dataChanged = true;
-            getFilter().filter(query);
-        }
-    }
-
-    void restrict(final Context context) {
-        final List<Bundle> actions = new ArrayList<>();
-
-        boolean revert = false;
-        for (XApp app : filtered)
-            for (XHook hook : hooks)
-                if (group == null || group.equals(hook.getGroup())) {
-                    XAssignment assignment = new XAssignment(hook);
-                    if (app.assignments.contains(assignment)) {
-                        revert = true;
-                        break;
-                    }
-                }
-        Log.i(TAG, "revert=" + revert);
-
-        for (XApp app : filtered) {
-            ArrayList<String> hookids = new ArrayList<>();
-
-            for (XHook hook : hooks)
-                if (hook.isAvailable(app.packageName, this.collection) &&
-                        (group == null || group.equals(hook.getGroup()))) {
-                    XAssignment assignment = new XAssignment(hook);
-                    if (revert) {
-                        if (app.assignments.contains(assignment)) {
-                            hookids.add(hook.getId());
-                            app.assignments.remove(assignment);
-                        }
-                    } else {
-                        if (!app.assignments.contains(assignment)) {
-                            hookids.add(hook.getId());
-                            app.assignments.add(assignment);
-                        }
-                    }
-                }
-
-            if (hookids.size() > 0) {
-                Log.i(TAG, "Applying " + group + "=" + hookids.size() + "=" + revert + " package=" + app.packageName);
-                Bundle args = new Bundle();
-                args.putStringArrayList("hooks", hookids);
-                args.putString("packageName", app.packageName);
-                args.putInt("uid", app.uid);
-                args.putBoolean("delete", revert);
-                args.putBoolean("kill", app.forceStop);
-                actions.add(args);
-            }
-        }
-
-        notifyDataSetChanged();
-
-        executor.submit(new Runnable() {
-            @Override
-            public void run() {
-                for (Bundle args : actions)
-                    context.getContentResolver()
-                            .call(XProvider.getURI(), "xlua", "assignHooks", args);
-            }
-        });
-    }
-
-    @Override
-    public Filter getFilter() {
-        return new Filter() {
-            private boolean expanded1 = false;
-
-            @Override
-            protected FilterResults performFiltering(CharSequence query) {
-                AdapterApp.this.query = query;
-
-                List<XApp> visible = new ArrayList<>();
-                if (show == enumShow.all || !TextUtils.isEmpty(query))
-                    visible.addAll(all);
-                else
-                    for (XApp app : all)
-                        if (app.uid > Process.FIRST_APPLICATION_UID && app.enabled &&
-                                (show == enumShow.icon ? app.icon > 0 : !app.system))
-                            visible.add(app);
-
-                List<XApp> results = new ArrayList<>();
-
-                if (TextUtils.isEmpty(query))
-                    results.addAll(visible);
-                else {
-                    String q = query.toString().toLowerCase(Locale.getDefault()).trim();
-
-                    boolean restricted = false;
-                    boolean unrestricted = false;
-                    boolean system = false;
-                    boolean user = false;
-
-                    while (true) {
-                        if (q.startsWith("!")) {
-                            restricted = true;
-                            q = q.substring(1);
-                            continue;
-                        } else if (q.startsWith("?")) {
-                            unrestricted = true;
-                            q = q.substring(1);
-                            continue;
-                        } else if (q.startsWith("#")) {
-                            system = true;
-                            q = q.substring(1);
-                            continue;
-                        } else if (q.startsWith("@")) {
-                            user = true;
-                            q = q.substring(1);
-                            continue;
-                        }
-                        break;
-                    }
-
-                    int uid;
-                    try {
-                        uid = Integer.parseInt(q);
-                    } catch (NumberFormatException ignore) {
-                        uid = -1;
-                    }
-
-                    for (XApp app : visible) {
-                        if (restricted || unrestricted) {
-                            int assigments = app.getAssignments(group).size();
-                            if (restricted && assigments == 0)
-                                continue;
-                            if (unrestricted && assigments > 0)
-                                continue;
-                        }
-                        if (system && !app.system)
-                            continue;
-                        if (user && app.system)
-                            continue;
-
-                        if (app.uid == uid ||
-                                app.packageName.toLowerCase(Locale.ROOT).contains(q) ||
-                                (app.label != null && app.label.toLowerCase(Locale.getDefault()).contains(q)))
-                            results.add(app);
-                    }
-                }
-
-                if (results.size() == 1) {
-                    String packageName = results.get(0).packageName;
-                    if (!expanded.containsKey(packageName)) {
-                        expanded1 = true;
-                        expanded.put(packageName, true);
-                    }
-                }
-
-                FilterResults filterResults = new FilterResults();
-                filterResults.values = results;
-                filterResults.count = results.size();
-                return filterResults;
-            }
-
-            @Override
-            protected void publishResults(CharSequence query, FilterResults result) {
-                final List<XApp> apps = (result.values == null
-                        ? new ArrayList<XApp>()
-                        : (List<XApp>) result.values);
-                Log.i(TAG, "Filtered apps count=" + apps.size());
-
-                if (dataChanged) {
-                    dataChanged = false;
-                    filtered = apps;
-                    notifyDataSetChanged();
-                } else {
-                    DiffUtil.DiffResult diff =
-                            DiffUtil.calculateDiff(new AppDiffCallback(expanded1, filtered, apps));
-                    filtered = apps;
-                    diff.dispatchUpdatesTo(AdapterApp.this);
-                }
-            }
-        };
-    }
-
-    private class AppDiffCallback extends DiffUtil.Callback {
-        private final boolean refresh;
-        private final List<XApp> prev;
-        private final List<XApp> next;
-
-        AppDiffCallback(boolean refresh, List<XApp> prev, List<XApp> next) {
-            this.refresh = refresh;
-            this.prev = prev;
-            this.next = next;
-        }
-
-        @Override
-        public int getOldListSize() {
-            return prev.size();
-        }
-
-        @Override
-        public int getNewListSize() {
-            return next.size();
-        }
-
-        @Override
-        public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
-            XApp app1 = prev.get(oldItemPosition);
-            XApp app2 = next.get(newItemPosition);
-
-            return (!refresh && app1.packageName.equals(app2.packageName) && app1.uid == app2.uid);
-        }
-
-        @Override
-        public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
-            XApp app1 = prev.get(oldItemPosition);
-            XApp app2 = next.get(newItemPosition);
-
-            if (app1.icon != app2.icon ||
-                    !app1.label.equals(app2.label) ||
-                    app1.enabled != app2.enabled ||
-                    app1.persistent != app2.persistent ||
-                    app1.getAssignments(group).size() != app2.getAssignments(group).size())
-                return false;
-
-            for (XAssignment a1 : app1.getAssignments(group)) {
-                int i2 = app2.assignments.indexOf(a1); // by hookid
-                if (i2 < 0)
-                    return false;
-                XAssignment a2 = app2.assignments.get(i2);
-                if (a1.installed != a2.installed ||
-                        a1.used != a2.used ||
-                        a1.restricted != a2.restricted)
-                    return false;
-            }
-
+            listener.onLaunch(shown.get(position).app);
             return true;
         }
     }
 
     @Override
     public long getItemId(int position) {
-        XApp assignment = filtered.get(position);
-        return ((long) assignment.packageName.hashCode()) << 32 | assignment.uid;
+        XApp app = shown.get(position).app;
+        return ((long) app.packageName.hashCode()) << 32 | app.uid;
     }
 
     @Override
     public int getItemCount() {
-        return filtered.size();
+        return shown.size();
+    }
+
+    @NonNull
+    @Override
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_app, parent, false));
     }
 
     @Override
-    public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-        return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.app, parent, false));
-    }
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        Row row = shown.get(position);
+        XApp app = row.app;
+        Context context = holder.itemView.getContext();
 
-    @Override
-    public void onBindViewHolder(final ViewHolder holder, int position) {
-        holder.unwire();
-        XApp app = filtered.get(position);
-        app.setListener(holder);
-
-        Resources resources = holder.itemView.getContext().getResources();
-
-        // App icon
-        if (app.icon <= 0)
-            holder.ivIcon.setImageResource(android.R.drawable.sym_def_app_icon);
-        else {
-            Uri uri = Uri.parse("android.resource://" + app.packageName + "/" + app.icon);
-            Glide.with(holder.itemView.getContext())
-                    .applyDefaultRequestOptions(new RequestOptions().format(DecodeFormat.PREFER_RGB_565))
-                    .load(uri)
-                    .diskCacheStrategy(DiskCacheStrategy.NONE)
-                    .skipMemoryCache(true)
-                    .override(iconSize, iconSize)
-                    .into(holder.ivIcon);
-        }
-
-        // App info
-        holder.itemView.setBackgroundColor(app.system
-                ? Util.resolveColor(holder.itemView.getContext(), R.attr.colorSystem)
-                : resources.getColor(android.R.color.transparent, null));
-        holder.tvLabel.setText(app.label);
-        holder.tvUid.setText(Integer.toString(app.uid));
+        Ui.loadIcon(holder.ivIcon, app.packageName, app.icon);
+        holder.tvLabel.setText(TextUtils.isEmpty(app.label) ? app.packageName : app.label);
         holder.tvPackage.setText(app.packageName);
-        holder.ivPersistent.setVisibility(app.persistent ? View.VISIBLE : View.GONE);
 
-        List<XHook> selectedHooks = new ArrayList<>();
-        for (XHook hook : hooks)
-            if (hook.isAvailable(app.packageName, collection) &&
-                    (group == null || group.equals(hook.getGroup())))
-                selectedHooks.add(hook);
+        holder.llBadges.removeAllViews();
+        if (app.persistent)
+            Ui.addBadge(holder.llBadges, context.getString(R.string.badge_reboot),
+                    R.attr.colorWarningContainer, R.attr.colorOnWarningContainer);
+        if (app.system)
+            Ui.addBadge(holder.llBadges, context.getString(R.string.badge_system),
+                    com.google.android.material.R.attr.colorSurfaceContainerHigh,
+                    com.google.android.material.R.attr.colorOnSurfaceVariant);
 
-        // Assignment info
-        holder.cbAssigned.setChecked(app.getAssignments(group).size() > 0);
-        holder.cbAssigned.setButtonTintList(ColorStateList.valueOf(resources.getColor(
-                selectedHooks.size() > 0 && app.getAssignments(group).size() == selectedHooks.size()
-                        ? R.color.colorAccent
-                        : android.R.color.darker_gray, null)));
+        holder.piGroups.setMax(Math.max(row.groups, 1));
+        holder.piGroups.setProgressCompat(row.restricted, false);
+        holder.piGroups.setIndicatorColor(Ui.color(context, row.restricted > 0
+                ? androidx.appcompat.R.attr.colorPrimary
+                : com.google.android.material.R.attr.colorOutline));
+        holder.tvGroups.setText(context.getString(R.string.title_groups_count, row.restricted, row.groups));
 
-        holder.tvAndroid.setVisibility("android".equals(app.packageName) ? View.VISIBLE : View.GONE);
-
-        holder.cbForceStop.setChecked(app.forceStop);
-        holder.cbForceStop.setEnabled(!app.persistent);
-
-        holder.adapter.set(app, selectedHooks, holder.itemView.getContext());
-
-        holder.updateExpand();
-
-        holder.wire();
+        if (row.error) {
+            holder.tvLast.setText(R.string.title_hook_error);
+            holder.tvLast.setTextColor(Ui.color(context, R.attr.colorWarning));
+        } else {
+            holder.tvLast.setTextColor(Ui.color(context, com.google.android.material.R.attr.colorOnSurfaceVariant));
+            if (row.used > 0)
+                holder.tvLast.setText(context.getString(R.string.title_last_used,
+                        Groups.getTitle(context, row.usedGroup), Ui.ago(row.used)));
+            else if (row.restricted > 0)
+                holder.tvLast.setText(R.string.title_not_used);
+            else
+                holder.tvLast.setText(R.string.title_not_restricted);
+        }
     }
 }

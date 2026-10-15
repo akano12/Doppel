@@ -3,18 +3,16 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/menu_save"
+        android:icon="@drawable/ic_check"
         android:title="@string/menu_save"
-        app:showAsAction="always|withText" />
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_enable"
-        android:title="@string/menu_disable"
-        app:showAsAction="never" />
+        android:title="@string/menu_disable" />
     <item
         android:id="@+id/menu_export"
-        android:title="@string/menu_export"
-        app:showAsAction="never" />
+        android:title="@string/menu_export" />
     <item
         android:id="@+id/menu_delete"
-        android:title="@string/menu_delete"
-        app:showAsAction="never" />
+        android:title="@string/menu_delete" />
 </menu>

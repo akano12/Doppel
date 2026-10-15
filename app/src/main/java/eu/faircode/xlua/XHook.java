@@ -100,6 +100,10 @@ public class XHook implements Parcelable {
         return this.name;
     }
 
+    public int getVersion() {
+        return this.version;
+    }
+
     @SuppressWarnings("unused")
     public String getAuthor() {
         return this.author;

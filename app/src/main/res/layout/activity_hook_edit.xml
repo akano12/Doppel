@@ -1,0 +1,512 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurface"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize" />
+
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        app:tabGravity="fill"
+        app:tabMode="fixed" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/svDefinition"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="24dp">
+
+                <LinearLayout
+                    android:id="@+id/llBuiltin"
+                    style="@style/XLua.Banner"
+                    android:backgroundTint="?attr/colorPrimaryContainer"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/title_hook_edit_builtin"
+                        android:textAppearance="?attr/textAppearanceBodyMedium"
+                        android:textColor="?attr/colorOnPrimaryContainer" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/XLua.SectionTitle"
+                    android:text="@string/title_section_target" />
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:paddingBottom="14dp">
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/XLua.Field"
+                        android:layout_width="match_parent"
+                        android:hint="@string/title_field_class">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etClass"
+                            style="@style/XLua.Field.Edit"
+                            android:inputType="text"
+                            android:fontFamily="monospace" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/XLua.Field"
+                        android:layout_width="match_parent"
+                        android:hint="@string/title_field_member"
+                        app:helperText="@string/title_field_member_hint">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etMethod"
+                            style="@style/XLua.Field.Edit"
+                            android:inputType="text"
+                            android:fontFamily="monospace" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/XLua.Field"
+                        android:layout_width="match_parent"
+                        android:hint="@string/title_field_params"
+                        app:helperText="@string/title_field_params_hint">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etParams"
+                            style="@style/XLua.Field.Edit"
+                            android:inputType="text"
+                            android:fontFamily="monospace" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/XLua.Field"
+                        android:layout_width="match_parent"
+                        android:hint="@string/title_field_return">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etReturn"
+                            style="@style/XLua.Field.Edit"
+                            android:inputType="text"
+                            android:fontFamily="monospace" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_rounded"
+                        android:backgroundTint="?attr/colorSurfaceContainer"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="12dp"
+                        android:paddingTop="4dp"
+                        android:paddingEnd="4dp"
+                        android:paddingBottom="4dp">
+
+                        <TextView
+                            android:id="@+id/tvCheck"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp"
+                            android:text="@string/title_check_hint"
+                            android:textAppearance="?attr/textAppearanceBodySmall" />
+
+                        <Button
+                            android:id="@+id/btnCheck"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/title_check" />
+                    </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <TextView
+                    style="@style/XLua.SectionTitle"
+                    android:text="@string/title_section_definition" />
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:paddingBottom="14dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:baselineAligned="false"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:hint="@string/title_field_collection"
+                            android:layout_marginEnd="8dp">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etCollection"
+                                style="@style/XLua.Field.Edit"
+                                android:inputType="text" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field.Dropdown"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:hint="@string/title_field_group">
+
+                            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                                android:id="@+id/etGroup"
+                                style="@style/XLua.Field.Edit"
+                                android:completionThreshold="1"
+                                android:inputType="text" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/XLua.Field"
+                        android:layout_width="match_parent"
+                        android:hint="@string/title_field_name"
+                        app:helperText="@string/title_field_name_hint">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etName"
+                            style="@style/XLua.Field.Edit"
+                            android:inputType="text"
+                            android:fontFamily="monospace" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:baselineAligned="false"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field"
+                            android:layout_width="0dp"
+                            android:layout_weight="2"
+                            android:hint="@string/title_field_author"
+                            android:layout_marginEnd="8dp">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etAuthor"
+                                style="@style/XLua.Field.Edit"
+                                android:inputType="text" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:hint="@string/title_field_version">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etVersion"
+                                style="@style/XLua.Field.Edit"
+                                android:inputType="number" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/XLua.Field"
+                        android:layout_width="match_parent"
+                        android:hint="@string/title_field_description">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etDescription"
+                            style="@style/XLua.Field.Edit"
+                            android:inputType="textMultiLine"
+                            android:maxLines="8" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <TextView
+                    style="@style/XLua.SectionTitle"
+                    android:text="@string/title_section_availability" />
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:paddingBottom="14dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:baselineAligned="false"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:hint="@string/title_field_min_sdk"
+                            android:layout_marginEnd="8dp">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etMinSdk"
+                                style="@style/XLua.Field.Edit"
+                                android:inputType="number" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:hint="@string/title_field_max_sdk">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etMaxSdk"
+                                style="@style/XLua.Field.Edit"
+                                android:inputType="number" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:baselineAligned="false"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:hint="@string/title_field_min_apk"
+                            android:layout_marginEnd="8dp">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etMinApk"
+                                style="@style/XLua.Field.Edit"
+                                android:inputType="number" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:hint="@string/title_field_max_apk">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etMaxApk"
+                                style="@style/XLua.Field.Edit"
+                                android:inputType="number" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/XLua.Field"
+                        android:layout_width="match_parent"
+                        android:hint="@string/title_field_exclude"
+                        app:helperText="@string/title_field_comma">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etExclude"
+                            style="@style/XLua.Field.Edit"
+                            android:inputType="text"
+                            android:fontFamily="monospace" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/XLua.Field"
+                        android:layout_width="match_parent"
+                        android:hint="@string/title_field_settings"
+                        app:helperText="@string/title_field_settings_hint">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etSettings"
+                            style="@style/XLua.Field.Edit"
+                            android:inputType="text"
+                            android:fontFamily="monospace" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <TextView
+                    style="@style/XLua.SectionTitle"
+                    android:text="@string/title_section_behavior" />
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:paddingBottom="14dp">
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/swEnabled"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:minHeight="48dp"
+                        android:text="@string/title_hook_enabled"
+                        android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/title_hook_enabled_hint"
+                        android:textAppearance="@style/XLua.Text.Meta" />
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/swOptional"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:minHeight="48dp"
+                        android:text="@string/title_hook_optional"
+                        android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/title_hook_optional_hint"
+                        android:textAppearance="@style/XLua.Text.Meta" />
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/swUsage"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:minHeight="48dp"
+                        android:text="@string/title_hook_usage"
+                        android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/title_hook_usage_hint"
+                        android:textAppearance="@style/XLua.Text.Meta" />
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/swNotify"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:minHeight="48dp"
+                        android:text="@string/title_hook_notify"
+                        android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/title_hook_notify_hint"
+                        android:textAppearance="@style/XLua.Text.Meta" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+        <LinearLayout
+            android:id="@+id/llScript"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_rounded"
+                android:backgroundTint="@color/c_code_background"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="10dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="monospace"
+                        android:text="script.lua"
+                        android:textColor="@color/c_code_comment"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tvScriptInfo"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/c_code_comment"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/etScript"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@null"
+                    android:fontFamily="monospace"
+                    android:gravity="top|start"
+                    android:importantForAutofill="no"
+                    android:inputType="textMultiLine|textNoSuggestions"
+                    android:labelFor="@id/etScript"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="14dp"
+                    android:scrollbars="vertical|horizontal"
+                    android:textColor="@color/c_code_text"
+                    android:textCursorDrawable="@null"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/title_script_api"
+                android:textAppearance="@style/XLua.Text.Mono"
+                android:textIsSelectable="true" />
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>

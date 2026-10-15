@@ -1,5 +1,38 @@
+import javax.inject.Inject
+
 plugins {
     alias(libs.plugins.android.application)
+}
+
+// The hook definition repository (repo/) is packaged as assets/repo, to browse and install definitions offline
+abstract class RepoAssetsTask extends DefaultTask {
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    abstract DirectoryProperty getRepoDir()
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDir()
+
+    @Inject
+    abstract FileSystemOperations getFs()
+
+    @TaskAction
+    void sync() {
+        fs.sync { spec ->
+            spec.from(repoDir)
+            spec.into(outputDir.dir('repo'))
+        }
+    }
+}
+
+def repoAssets = tasks.register('repoAssets', RepoAssetsTask) {
+    repoDir = rootProject.layout.projectDirectory.dir('repo')
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(repoAssets, { it.outputDir })
+    }
 }
 
 // Release signing is optional: without keystore.properties the release build is left unsigned

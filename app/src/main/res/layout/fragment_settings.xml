@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="12dp"
+            android:text="@string/nav_settings"
+            android:textAppearance="@style/XLua.Text.ScreenTitle" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/c_code_background"
+            app:cardCornerRadius="18dp"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/ivStatus"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:background="@drawable/bg_rounded"
+                        android:backgroundTint="@color/c_primary"
+                        android:importantForAccessibility="no"
+                        android:padding="10dp"
+                        android:src="@drawable/ic_shield"
+                        app:tint="#FFFFFF" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="#FFFFFF" />
+
+                        <TextView
+                            android:id="@+id/tvVersion"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="#B8C0C7" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <GridLayout
+                    android:id="@+id/glStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:columnCount="2" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            style="@style/XLua.SectionTitle"
+            android:text="@string/section_new_apps" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:divider="@drawable/divider"
+                android:orientation="vertical"
+                android:showDividers="middle">
+
+            <LinearLayout
+                android:id="@+id/llRestrictNew"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/menu_restrict_new" />
+
+                    <TextView
+                        style="@style/XLua.Row.Subtitle"
+                        android:text="@string/title_restrict_new_hint" />
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/swRestrictNew"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@string/menu_restrict_new" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/llNotifyNew"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/menu_notify_new" />
+
+                    <TextView
+                        style="@style/XLua.Row.Subtitle"
+                        android:text="@string/title_notify_new_hint" />
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/swNotifyNew"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@string/menu_notify_new" />
+            </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            style="@style/XLua.SectionTitle"
+            android:text="@string/section_hooks" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:divider="@drawable/divider"
+                android:orientation="vertical"
+                android:showDividers="middle">
+
+            <LinearLayout
+                android:id="@+id/llCollections"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/title_collections" />
+
+                    <TextView
+                        style="@style/XLua.Row.Subtitle"
+                        android:id="@+id/tvCollections" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_chevron_right"
+                    app:tint="?attr/colorOutline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/llDownloads"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/menu_downloads" />
+
+                    <TextView
+                        style="@style/XLua.Row.Subtitle"
+                        android:text="@string/title_downloads_hint" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_chevron_right"
+                    app:tint="?attr/colorOutline" />
+            </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            style="@style/XLua.SectionTitle"
+            android:text="@string/section_appearance" />
+
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/tgTheme"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:selectionRequired="true"
+            app:singleSelection="true">
+
+            <Button
+                android:id="@+id/btnThemeSystem"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/title_theme_system" />
+
+            <Button
+                android:id="@+id/btnThemeLight"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/title_theme_light" />
+
+            <Button
+                android:id="@+id/btnThemeDark"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/title_theme_dark" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <TextView
+            style="@style/XLua.SectionTitle"
+            android:text="@string/section_data" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:divider="@drawable/divider"
+                android:orientation="vertical"
+                android:showDividers="middle">
+
+            <LinearLayout
+                android:id="@+id/llValues"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/title_values_global" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_chevron_right"
+                    app:tint="?attr/colorOutline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/llBackup"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/menu_backup" />
+
+                    <TextView
+                        style="@style/XLua.Row.Subtitle"
+                        android:text="@string/title_backup_hint" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_chevron_right"
+                    app:tint="?attr/colorOutline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/llRestore"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/menu_restore" />
+
+                    <TextView
+                        style="@style/XLua.Row.Subtitle"
+                        android:text="@string/title_restore_hint" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_chevron_right"
+                    app:tint="?attr/colorOutline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/llClear"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/title_clear_data"
+                        android:textColor="?attr/colorError" />
+
+                    <TextView
+                        style="@style/XLua.Row.Subtitle"
+                        android:text="@string/title_clear_data_hint" />
+                </LinearLayout>
+            </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            style="@style/XLua.SectionTitle"
+            android:text="@string/section_about" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:divider="@drawable/divider"
+                android:orientation="vertical"
+                android:showDividers="middle">
+
+            <LinearLayout
+                android:id="@+id/llDocs"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/menu_readme" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_open"
+                    app:tint="?attr/colorOutline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/llFaq"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/menu_faq" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_open"
+                    app:tint="?attr/colorOutline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/llLicense"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/title_license_row" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_chevron_right"
+                    app:tint="?attr/colorOutline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/llDonate"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/menu_donate" />
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_open"
+                    app:tint="?attr/colorOutline" />
+            </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

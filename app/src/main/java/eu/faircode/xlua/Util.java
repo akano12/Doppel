@@ -19,13 +19,11 @@
 
 package eu.faircode.xlua;
 
-import android.app.Dialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -42,10 +40,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.security.MessageDigest;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
-import androidx.lifecycle.DefaultLifecycleObserver;
-import androidx.lifecycle.LifecycleOwner;
 
 class Util {
     private final static String TAG = "XLua.Util";
@@ -197,61 +191,5 @@ class Util {
         Resources.Theme theme = context.getTheme();
         theme.resolveAttribute(attr, typedValue, true);
         return typedValue.data;
-    }
-
-    static void areYouSure(ActivityBase activity, String question, final DoubtListener listener) {
-        final DialogObserver observer = new DialogObserver();
-        AlertDialog ad = new AlertDialog.Builder(activity)
-                .setMessage(question)
-                .setCancelable(true)
-                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        listener.onSure();
-                    }
-                })
-                .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        // Do nothing
-                    }
-                })
-                .setOnDismissListener(new DialogInterface.OnDismissListener() {
-                    @Override
-                    public void onDismiss(DialogInterface dialogInterface) {
-                        observer.stopObserving();
-                    }
-                })
-                .create();
-        ad.show();
-        observer.startObserving(activity, ad);
-    }
-
-    public interface DoubtListener {
-        void onSure();
-    }
-
-    static class DialogObserver implements DefaultLifecycleObserver {
-        private LifecycleOwner owner = null;
-        private Dialog dialog = null;
-
-        void startObserving(LifecycleOwner owner, Dialog dialog) {
-            this.dialog = dialog;
-            this.owner = owner;
-            owner.getLifecycle().addObserver(this);
-        }
-
-        void stopObserving() {
-            if (this.owner != null && this.dialog != null) {
-                owner.getLifecycle().removeObserver(this);
-                this.dialog = null;
-            }
-        }
-
-        @Override
-        public void onDestroy(@NonNull LifecycleOwner owner) {
-            if (this.owner != null && this.dialog != null)
-                this.dialog.dismiss();
-        }
     }
 }

@@ -18,7 +18,7 @@
         android:largeHeap="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppThemeLight">
+        android:theme="@style/Theme.XLua">
 
         <meta-data
             android:name="xposedmodule"
@@ -47,13 +47,13 @@
         </activity>
 
         <activity
-            android:name=".ActivityValues"
+            android:name=".ActivityApp"
             android:configChanges="orientation|screenSize"
             android:exported="false"
             android:parentActivityName=".ActivityMain" />
 
         <activity
-            android:name=".ActivityHooks"
+            android:name=".ActivityValues"
             android:configChanges="orientation|screenSize"
             android:exported="false"
             android:parentActivityName=".ActivityMain" />
@@ -62,24 +62,13 @@
             android:name=".ActivityHookEdit"
             android:configChanges="orientation|screenSize"
             android:exported="false"
-            android:parentActivityName=".ActivityHooks" />
+            android:parentActivityName=".ActivityMain"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
-            android:name=".ActivityLog"
+            android:name=".ActivityDownloads"
             android:configChanges="orientation|screenSize"
             android:exported="false"
             android:parentActivityName=".ActivityMain" />
-
-        <activity
-            android:name=".ActivityHelp"
-            android:configChanges="orientation|screenSize"
-            android:label="@string/menu_help"
-            android:launchMode="singleTop"
-            android:parentActivityName=".ActivityMain"
-            android:resizeableActivity="true">
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value=".ActivityMain" />
-        </activity>
     </application>
 </manifest>

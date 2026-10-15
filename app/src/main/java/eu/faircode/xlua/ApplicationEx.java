@@ -22,12 +22,37 @@ package eu.faircode.xlua;
 import android.app.Application;
 import android.util.Log;
 
+import androidx.appcompat.app.AppCompatDelegate;
+
 public class ApplicationEx extends Application {
     private static final String TAG = "XLua.App";
+
+    static final String THEME_SYSTEM = "system";
+    static final String THEME_LIGHT = "light";
+    static final String THEME_DARK = "dark";
 
     @Override
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "Create version=" + BuildConfig.VERSION_NAME);
+
+        // The service is not available when the module is not running
+        String theme = null;
+        try {
+            theme = XProvider.getSetting(this, "global", "theme");
+        } catch (Throwable ex) {
+            Log.w(TAG, ex.toString());
+        }
+        applyTheme(theme);
+    }
+
+    // No setting follows the system theme
+    static void applyTheme(String theme) {
+        if (THEME_LIGHT.equals(theme))
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+        else if (THEME_DARK.equals(theme))
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+        else
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
     }
 }

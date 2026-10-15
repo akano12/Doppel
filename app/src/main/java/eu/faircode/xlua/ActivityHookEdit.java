@@ -17,49 +17,44 @@
 
 package eu.faircode.xlua;
 
+import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
-import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.tabs.TabLayout;
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.google.android.material.textfield.TextInputLayout;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.OutputStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 // Edit a hook definition; saving creates or updates a custom definition
 public class ActivityHookEdit extends ActivityBase {
     private static final String TAG = "XLua.HookEdit";
 
-    static final String EXTRA_ID = "id";
-
-    private static final String TEMPLATE = "{\n" +
-            "  \"collection\": \"Privacy\",\n" +
-            "  \"group\": \"Custom\",\n" +
-            "  \"name\": \"TelephonyManager.getSimOperatorName/custom\",\n" +
-            "  \"author\": \"me\",\n" +
-            "  \"className\": \"android.telephony.TelephonyManager\",\n" +
-            "  \"methodName\": \"getSimOperatorName\",\n" +
-            "  \"parameterTypes\": [],\n" +
-            "  \"returnType\": \"java.lang.String\",\n" +
-            "  \"minSdk\": 1,\n" +
-            "  \"enabled\": true,\n" +
-            "  \"optional\": false,\n" +
-            "  \"usage\": true,\n" +
-            "  \"notify\": false\n" +
-            "}";
+    private static final String EXTRA_ID = "id";
 
     private static final String TEMPLATE_SCRIPT = "function after(hook, param)\n" +
             "    local result = param:getResult()\n" +
@@ -72,185 +67,354 @@ public class ActivityHookEdit extends ActivityBase {
             "    return true, result, fake\n" +
             "end\n";
 
-    private EditText etDefinition;
-    private EditText etScript;
-    private TextView tvNote;
     private XHook hook = null; // null for a new definition
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private Set<String> builtinIds = null;
+
+    private MaterialToolbar toolbar;
+    private EditText etCollection;
+    private MaterialAutoCompleteTextView etGroup;
+    private EditText etName;
+    private EditText etAuthor;
+    private EditText etVersion;
+    private EditText etDescription;
+    private EditText etClass;
+    private EditText etMethod;
+    private EditText etParams;
+    private EditText etReturn;
+    private EditText etMinSdk;
+    private EditText etMaxSdk;
+    private EditText etMinApk;
+    private EditText etMaxApk;
+    private EditText etExclude;
+    private EditText etSettings;
+    private MaterialSwitch swEnabled;
+    private MaterialSwitch swOptional;
+    private MaterialSwitch swUsage;
+    private MaterialSwitch swNotify;
+    private EditText etScript;
+    private TextView tvCheck;
+    private TextView tvScriptInfo;
+    private LuaHighlighter highlighter;
 
     private final ActivityResultLauncher<String> exportLauncher = registerForActivityResult(
-            new ActivityResultContracts.CreateDocument("application/json"), new ActivityResultCallback<Uri>() {
-                @Override
-                public void onActivityResult(Uri uri) {
-                    if (uri != null)
-                        export(uri);
-                }
+            new ActivityResultContracts.CreateDocument("application/json"), uri -> {
+                if (uri != null)
+                    export(uri);
             });
+
+    static Intent getIntent(Context context, String id) {
+        Intent intent = new Intent(context, ActivityHookEdit.class);
+        intent.putExtra(EXTRA_ID, id);
+        return intent;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.hookedit);
-
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-
-        etDefinition = findViewById(R.id.etDefinition);
-        etScript = findViewById(R.id.etScript);
-        tvNote = findViewById(R.id.tvNote);
-        etDefinition.setHorizontallyScrolling(true);
-        etScript.setHorizontallyScrolling(true);
+        setContentView(R.layout.activity_hook_edit);
 
         final String id = getIntent().getStringExtra(EXTRA_ID);
-        if (id == null) {
-            getSupportActionBar().setTitle(R.string.menu_add);
-            etDefinition.setText(TEMPLATE);
-            etScript.setText(TEMPLATE_SCRIPT);
-            return;
-        }
+        toolbar = setupToolbar(id == null ? getString(R.string.title_hook_new) : id);
+        toolbar.inflateMenu(R.menu.hookedit);
+        toolbar.setOnMenuItemClickListener(this::onMenu);
 
-        getSupportActionBar().setTitle(id);
-        executor.submit(new Runnable() {
+        etCollection = findViewById(R.id.etCollection);
+        etGroup = findViewById(R.id.etGroup);
+        etName = findViewById(R.id.etName);
+        etAuthor = findViewById(R.id.etAuthor);
+        etVersion = findViewById(R.id.etVersion);
+        etDescription = findViewById(R.id.etDescription);
+        etClass = findViewById(R.id.etClass);
+        etMethod = findViewById(R.id.etMethod);
+        etParams = findViewById(R.id.etParams);
+        etReturn = findViewById(R.id.etReturn);
+        etMinSdk = findViewById(R.id.etMinSdk);
+        etMaxSdk = findViewById(R.id.etMaxSdk);
+        etMinApk = findViewById(R.id.etMinApk);
+        etMaxApk = findViewById(R.id.etMaxApk);
+        etExclude = findViewById(R.id.etExclude);
+        etSettings = findViewById(R.id.etSettings);
+        swEnabled = findViewById(R.id.swEnabled);
+        swOptional = findViewById(R.id.swOptional);
+        swUsage = findViewById(R.id.swUsage);
+        swNotify = findViewById(R.id.swNotify);
+        etScript = findViewById(R.id.etScript);
+        tvCheck = findViewById(R.id.tvCheck);
+        tvScriptInfo = findViewById(R.id.tvScriptInfo);
+
+        etScript.setHorizontallyScrolling(true);
+        highlighter = new LuaHighlighter(etScript);
+        etScript.addTextChangedListener(highlighter);
+
+        final View svDefinition = findViewById(R.id.svDefinition);
+        final View llScript = findViewById(R.id.llScript);
+        TabLayout tabs = findViewById(R.id.tabs);
+        tabs.addTab(tabs.newTab().setText(R.string.title_tab_definition));
+        tabs.addTab(tabs.newTab().setText(R.string.title_tab_script));
+        tabs.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
-            public void run() {
-                try {
-                    for (final XHook h : XProvider.getAllHooks(ActivityHookEdit.this))
-                        if (id.equals(h.getId())) {
-                            JSONObject jhook = ActivityHooks.toEditable(h);
-                            jhook.remove("luaScript");
-                            final String definition = jhook.toString(2).replace("\\/", "/");
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    hook = h;
-                                    etDefinition.setText(definition);
-                                    etScript.setText(h.getLuaScript());
-                                    tvNote.setVisibility(h.isBuiltin() ? View.VISIBLE : View.GONE);
-                                    invalidateOptionsMenu();
-                                }
-                            });
-                            break;
-                        }
-                } catch (Throwable ex) {
-                    Log.e(TAG, Log.getStackTraceString(ex));
-                    showMessage(getString(R.string.msg_error, ex.toString()));
-                }
+            public void onTabSelected(TabLayout.Tab tab) {
+                svDefinition.setVisibility(tab.getPosition() == 0 ? View.VISIBLE : View.GONE);
+                llScript.setVisibility(tab.getPosition() == 1 ? View.VISIBLE : View.GONE);
+                if (tab.getPosition() == 1)
+                    updateScriptInfo();
+            }
+
+            @Override
+            public void onTabUnselected(TabLayout.Tab tab) {
+            }
+
+            @Override
+            public void onTabReselected(TabLayout.Tab tab) {
             }
         });
+
+        findViewById(R.id.btnCheck).setOnClickListener(view -> check());
+
+        if (id == null) {
+            etCollection.setText(Data.COLLECTION_DEFAULT);
+            etGroup.setText("Custom");
+            etAuthor.setText("me");
+            etVersion.setText("1");
+            etMinSdk.setText("1");
+            swEnabled.setChecked(true);
+            swUsage.setChecked(true);
+            etScript.setText(TEMPLATE_SCRIPT);
+            updateMenu();
+        }
+
+        load(id);
     }
 
     @Override
     protected void onDestroy() {
-        executor.shutdown();
+        highlighter.stop();
         super.onDestroy();
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.hookedit, menu);
-        return super.onCreateOptionsMenu(menu);
+    private void load(final String id) {
+        final Context context = getApplicationContext();
+        executor.submit(() -> {
+            try {
+                List<XHook> hooks = XProvider.getAllHooks(context);
+                Set<String> ids = Data.getBuiltinIds(context);
+                List<String> groups = Data.getGroupNames(hooks);
+                XHook found = null;
+                if (id != null)
+                    for (XHook h : hooks)
+                        if (id.equals(h.getId()))
+                            found = h;
+                final XHook hook = found;
+                final JSONObject jhook = (hook == null ? null : Data.toEditable(hook));
+                runOnUiThread(() -> {
+                    builtinIds = ids;
+                    etGroup.setSimpleItems(groups.toArray(new String[0]));
+                    if (jhook != null) {
+                        this.hook = hook;
+                        fill(jhook);
+                    }
+                    updateMenu();
+                });
+            } catch (Throwable ex) {
+                Log.e(TAG, Log.getStackTraceString(ex));
+                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+            }
+        });
     }
 
-    @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
-        boolean enabled = (hook == null || hook.isEnabled());
-        menu.findItem(R.id.menu_enable).setTitle(enabled ? R.string.menu_disable : R.string.menu_enable);
-        menu.findItem(R.id.menu_enable).setVisible(hook != null);
-        // Only custom definitions can be deleted; deleting one replacing a built-in restores the built-in
-        menu.findItem(R.id.menu_delete).setVisible(hook != null && !hook.isBuiltin());
-        menu.findItem(R.id.menu_export).setVisible(hook != null);
-        return super.onPrepareOptionsMenu(menu);
+    private void fill(JSONObject jhook) {
+        etCollection.setText(jhook.optString("collection"));
+        etGroup.setText(jhook.optString("group"), false);
+        etName.setText(jhook.optString("name"));
+        etAuthor.setText(jhook.optString("author"));
+        etVersion.setText(Integer.toString(jhook.optInt("version", 0)));
+        etDescription.setText(jhook.optString("description", ""));
+        etClass.setText(jhook.optString("className"));
+        etMethod.setText(jhook.optString("methodName", ""));
+        etParams.setText(join(jhook.optJSONArray("parameterTypes")));
+        etReturn.setText(jhook.optString("returnType", ""));
+        etMinSdk.setText(Integer.toString(jhook.optInt("minSdk", 1)));
+        etMaxSdk.setText(Integer.toString(jhook.optInt("maxSdk", 999)));
+        etMinApk.setText(jhook.optInt("minApk", 0) == 0 ? "" : Integer.toString(jhook.optInt("minApk")));
+        etMaxApk.setText(jhook.optInt("maxApk", Integer.MAX_VALUE) == Integer.MAX_VALUE ? "" : Integer.toString(jhook.optInt("maxApk")));
+        etExclude.setText(jhook.optString("excludePackages", ""));
+        etSettings.setText(join(jhook.optJSONArray("settings")));
+        swEnabled.setChecked(jhook.optBoolean("enabled", true));
+        swOptional.setChecked(jhook.optBoolean("optional", false));
+        swUsage.setChecked(jhook.optBoolean("usage", true));
+        swNotify.setChecked(jhook.optBoolean("notify", false));
+        etScript.setText(jhook.optString("luaScript"));
+        highlighter.highlight();
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
-        if (id == android.R.id.home) {
-            finish();
-            return true;
-        } else if (id == R.id.menu_save) {
-            save(null);
-            return true;
-        } else if (id == R.id.menu_enable) {
-            save(!hook.isEnabled());
-            return true;
-        } else if (id == R.id.menu_delete) {
-            delete();
-            return true;
-        } else if (id == R.id.menu_export) {
-            exportLauncher.launch(hook.getName().replaceAll("[^A-Za-z0-9._-]", "_") + ".json");
-            return true;
+    private static String join(JSONArray jarray) {
+        if (jarray == null)
+            return "";
+        List<String> items = new ArrayList<>();
+        for (int i = 0; i < jarray.length(); i++)
+            items.add(jarray.optString(i));
+        return TextUtils.join(", ", items);
+    }
+
+    private static JSONArray split(EditText et) {
+        JSONArray jarray = new JSONArray();
+        for (String item : et.getText().toString().split(","))
+            if (!item.trim().isEmpty())
+                jarray.put(item.trim());
+        return jarray;
+    }
+
+    private static String text(EditText et) {
+        return et.getText().toString().trim();
+    }
+
+    // Shows the error at the field
+    private static Integer number(EditText et, int empty) {
+        String value = text(et);
+        if (value.isEmpty())
+            return empty;
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ex) {
+            TextInputLayout til = (TextInputLayout) et.getParent().getParent();
+            til.setError(et.getContext().getString(R.string.msg_invalid, value));
+            et.requestFocus();
+            return null;
         }
-        return super.onOptionsItemSelected(item);
     }
 
+    // The definition as entered, null with an error shown at a field
     private JSONObject getDefinition() throws Exception {
-        JSONObject jhook = new JSONObject(etDefinition.getText().toString());
+        for (EditText et : new EditText[]{etVersion, etMinSdk, etMaxSdk, etMinApk, etMaxApk})
+            ((TextInputLayout) et.getParent().getParent()).setError(null);
+        Integer version = number(etVersion, 0);
+        Integer minSdk = number(etMinSdk, 1);
+        Integer maxSdk = number(etMaxSdk, 999);
+        Integer minApk = number(etMinApk, 0);
+        Integer maxApk = number(etMaxApk, Integer.MAX_VALUE);
+        if (version == null || minSdk == null || maxSdk == null || minApk == null || maxApk == null)
+            return null;
+
+        JSONObject jhook = new JSONObject();
+        jhook.put("collection", text(etCollection));
+        jhook.put("group", text(etGroup));
+        jhook.put("name", text(etName));
+        jhook.put("author", text(etAuthor));
+        jhook.put("version", version);
+        if (!text(etDescription).isEmpty())
+            jhook.put("description", etDescription.getText().toString());
+        jhook.put("className", text(etClass));
+        if (!text(etMethod).isEmpty())
+            jhook.put("methodName", text(etMethod));
+        jhook.put("parameterTypes", split(etParams));
+        if (!text(etReturn).isEmpty())
+            jhook.put("returnType", text(etReturn));
+        jhook.put("minSdk", minSdk);
+        jhook.put("maxSdk", maxSdk);
+        jhook.put("minApk", minApk);
+        jhook.put("maxApk", maxApk);
+        if (!text(etExclude).isEmpty())
+            jhook.put("excludePackages", text(etExclude).replaceAll("\\s+", ""));
+        jhook.put("enabled", swEnabled.isChecked());
+        jhook.put("optional", swOptional.isChecked());
+        jhook.put("usage", swUsage.isChecked());
+        jhook.put("notify", swNotify.isChecked());
         jhook.put("luaScript", etScript.getText().toString());
+        JSONArray settings = split(etSettings);
+        if (settings.length() > 0)
+            jhook.put("settings", settings);
         return jhook;
+    }
+
+    private boolean onMenu(MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.menu_save)
+            save(null);
+        else if (id == R.id.menu_enable)
+            save(!swEnabled.isChecked());
+        else if (id == R.id.menu_delete)
+            delete();
+        else if (id == R.id.menu_export)
+            exportLauncher.launch(text(etName).replaceAll("[^A-Za-z0-9._-]", "_") + ".json");
+        return true;
+    }
+
+    private void updateMenu() {
+        boolean overrides = (hook != null && !hook.isBuiltin() && builtinIds != null && builtinIds.contains(hook.getId()));
+        MenuItem enable = toolbar.getMenu().findItem(R.id.menu_enable);
+        enable.setVisible(hook != null);
+        enable.setTitle(swEnabled.isChecked() ? R.string.menu_disable : R.string.menu_enable);
+        // Only custom definitions can be deleted; deleting one replacing a built-in restores the built-in
+        MenuItem delete = toolbar.getMenu().findItem(R.id.menu_delete);
+        delete.setVisible(hook != null && !hook.isBuiltin());
+        delete.setTitle(overrides ? R.string.menu_restore_builtin : R.string.menu_delete);
+        toolbar.getMenu().findItem(R.id.menu_export).setVisible(hook != null);
+
+        findViewById(R.id.llBuiltin).setVisibility(hook != null && hook.isBuiltin() ? View.VISIBLE : View.GONE);
+        if (hook == null)
+            toolbar.setSubtitle(null);
+        else if (hook.isBuiltin())
+            toolbar.setSubtitle(R.string.title_hook_builtin);
+        else
+            toolbar.setSubtitle(overrides ? R.string.title_hook_overridden : R.string.title_hook_custom);
+    }
+
+    private void updateScriptInfo() {
+        String script = etScript.getText().toString();
+        List<String> functions = new ArrayList<>();
+        if (script.matches("(?s).*\\bfunction\\s+before\\s*\\(.*"))
+            functions.add("before()");
+        if (script.matches("(?s).*\\bfunction\\s+after\\s*\\(.*"))
+            functions.add("after()");
+        tvScriptInfo.setText(functions.isEmpty()
+                ? getString(R.string.title_script_no_function)
+                : TextUtils.join(" · ", functions));
     }
 
     private void save(final Boolean enabled) {
         final JSONObject jhook;
         try {
             jhook = getDefinition();
+            if (jhook == null)
+                return;
             if (enabled != null)
                 jhook.put("enabled", enabled);
         } catch (Throwable ex) {
-            showMessage(getString(R.string.msg_error, ex.getMessage()));
+            Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
             return;
         }
 
-        executor.submit(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    final XHook saved = ActivityHooks.putCustom(ActivityHookEdit.this, jhook);
-                    final String definition;
-                    JSONObject jedit = ActivityHooks.toEditable(saved);
-                    jedit.remove("luaScript");
-                    definition = jedit.toString(2).replace("\\/", "/");
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            hook = saved;
-                            etDefinition.setText(definition);
-                            getSupportActionBar().setTitle(saved.getId());
-                            tvNote.setVisibility(View.GONE);
-                            invalidateOptionsMenu();
-                        }
-                    });
-                    showMessage(getString(R.string.msg_hook_saved));
-                } catch (Throwable ex) {
-                    Log.e(TAG, Log.getStackTraceString(ex));
-                    showMessage(getString(R.string.msg_error, ex.getMessage()));
-                }
+        final Context context = getApplicationContext();
+        executor.submit(() -> {
+            try {
+                final XHook saved = Data.putCustom(context, jhook);
+                runOnUiThread(() -> {
+                    hook = saved;
+                    swEnabled.setChecked(saved.isEnabled());
+                    toolbar.setTitle(saved.getId());
+                    updateMenu();
+                });
+                Ui.message(this, getString(R.string.msg_hook_saved));
+            } catch (Throwable ex) {
+                Log.e(TAG, Log.getStackTraceString(ex));
+                Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
             }
         });
     }
 
     private void delete() {
-        Util.areYouSure(this, getString(R.string.msg_delete_sure, hook.getId()), new Util.DoubtListener() {
-            @Override
-            public void onSure() {
-                final String id = hook.getId();
-                executor.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            XProvider.putHook(ActivityHookEdit.this, id, null);
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    finish();
-                                }
-                            });
-                        } catch (Throwable ex) {
-                            Log.e(TAG, Log.getStackTraceString(ex));
-                            showMessage(getString(R.string.msg_error, ex.getMessage()));
-                        }
-                    }
-                });
-            }
+        final String id = hook.getId();
+        Ui.areYouSure(this, getString(R.string.msg_delete_sure, id), () -> {
+            final Context context = getApplicationContext();
+            executor.submit(() -> {
+                try {
+                    XProvider.putHook(context, id, null);
+                    runOnUiThread(this::finish);
+                } catch (Throwable ex) {
+                    Log.e(TAG, Log.getStackTraceString(ex));
+                    Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
+                }
+            });
         });
     }
 
@@ -258,30 +422,111 @@ public class ActivityHookEdit extends ActivityBase {
         final JSONObject jhook;
         try {
             jhook = getDefinition();
+            if (jhook == null)
+                return;
         } catch (Throwable ex) {
-            showMessage(getString(R.string.msg_error, ex.getMessage()));
+            Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
             return;
         }
-        executor.submit(new Runnable() {
-            @Override
-            public void run() {
-                try (OutputStream os = getContentResolver().openOutputStream(uri)) {
-                    os.write(jhook.toString(2).replace("\\/", "/").getBytes(StandardCharsets.UTF_8));
-                    showMessage(getString(R.string.msg_hooks_exported, 1));
-                } catch (Throwable ex) {
-                    Log.e(TAG, Log.getStackTraceString(ex));
-                    showMessage(getString(R.string.msg_error, ex.getMessage()));
-                }
+        final Context context = getApplicationContext();
+        executor.submit(() -> {
+            try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
+                os.write(jhook.toString(2).replace("\\/", "/").getBytes(StandardCharsets.UTF_8));
+                Ui.message(this, getString(R.string.msg_hooks_exported, 1));
+            } catch (Throwable ex) {
+                Log.e(TAG, Log.getStackTraceString(ex));
+                Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
             }
         });
     }
 
-    private void showMessage(final String message) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG).show();
+    // Resolve the target in this app, which has the framework classes but not the classes of other apps
+    private void check() {
+        final String className = text(etClass);
+        final String member = text(etMethod);
+        final JSONArray params = split(etParams);
+        tvCheck.setText(R.string.title_checking);
+        executor.submit(() -> {
+            String result;
+            try {
+                Class<?> cls = Class.forName(className, false, getClassLoader());
+                if (member.contains(":"))
+                    result = getString(R.string.title_check_class, cls.getName());
+                else if (member.startsWith("#")) {
+                    Field field = findField(cls, member.substring(1));
+                    result = (field == null
+                            ? getString(R.string.title_check_no_member, member)
+                            : getString(R.string.title_check_found, field.toString()));
+                } else {
+                    Member found = findMember(cls, member.isEmpty() ? null : member, params);
+                    result = (found == null
+                            ? getString(R.string.title_check_no_member, member.isEmpty() ? "<init>" : member)
+                            : getString(R.string.title_check_found, found.toString()));
+                }
+            } catch (ClassNotFoundException | NoClassDefFoundError ex) {
+                result = getString(R.string.title_check_no_class, className);
+            } catch (Throwable ex) {
+                result = getString(R.string.msg_error, ex.toString());
             }
+            final String text = result;
+            runOnUiThread(() -> tvCheck.setText(text));
         });
+    }
+
+    private static Field findField(Class<?> cls, String name) {
+        for (Class<?> c = cls; c != null; c = c.getSuperclass())
+            for (Field field : c.getDeclaredFields())
+                if (field.getName().equals(name))
+                    return field;
+        return null;
+    }
+
+    // Like the hook engine, parameter types match by assignability
+    private Member findMember(Class<?> cls, String name, JSONArray jparams) throws Exception {
+        Class<?>[] params = new Class<?>[jparams.length()];
+        for (int i = 0; i < params.length; i++)
+            params[i] = resolveClass(jparams.getString(i));
+        for (Class<?> c = cls; c != null; c = c.getSuperclass()) {
+            Member[] members = (name == null ? c.getDeclaredConstructors() : c.getDeclaredMethods());
+            for (Member m : members) {
+                if (name != null && !name.equals(m.getName()))
+                    continue;
+                Class<?>[] types = (m instanceof Method
+                        ? ((Method) m).getParameterTypes()
+                        : ((Constructor<?>) m).getParameterTypes());
+                if (types.length != params.length)
+                    continue;
+                boolean same = true;
+                for (int i = 0; i < types.length && same; i++)
+                    same = types[i].isAssignableFrom(params[i]);
+                if (same)
+                    return m;
+            }
+        }
+        return null;
+    }
+
+    private Class<?> resolveClass(String name) throws ClassNotFoundException {
+        switch (name) {
+            case "boolean":
+                return boolean.class;
+            case "byte":
+                return byte.class;
+            case "char":
+                return char.class;
+            case "short":
+                return short.class;
+            case "int":
+                return int.class;
+            case "long":
+                return long.class;
+            case "float":
+                return float.class;
+            case "double":
+                return double.class;
+        }
+        if (name.endsWith("[]"))
+            return java.lang.reflect.Array.newInstance(resolveClass(name.substring(0, name.length() - 2)), 0).getClass();
+        return Class.forName(name, false, getClassLoader());
     }
 }

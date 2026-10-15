@@ -56,7 +56,7 @@ class Backup {
         JSONArray jhooks = new JSONArray();
         for (XHook hook : XProvider.getAllHooks(context))
             if (!hook.isBuiltin())
-                jhooks.put(ActivityHooks.toEditable(hook));
+                jhooks.put(Data.toEditable(hook));
         jroot.put("hooks", jhooks);
 
         JSONArray jrestrictions = new JSONArray();
@@ -109,7 +109,7 @@ class Backup {
         int hooks = 0;
         if (jhooks != null)
             for (int i = 0; i < jhooks.length(); i++) {
-                ActivityHooks.putCustom(context, jhooks.getJSONObject(i));
+                Data.putCustom(context, jhooks.getJSONObject(i));
                 hooks++;
             }
 

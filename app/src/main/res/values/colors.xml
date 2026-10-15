@@ -1,16 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#1C8ADB</color>
-    <color name="colorPrimaryDark">#005DA9</color>
-    <color name="colorAccent">#FF4081</color>
+    <!-- Light palette, the dark palette is in values-night -->
+    <color name="c_primary">#0E6B5F</color>
+    <color name="c_on_primary">#FFFFFF</color>
+    <color name="c_primary_container">#E2F0EC</color>
+    <color name="c_on_primary_container">#0A3B34</color>
+    <color name="c_secondary">#4A6360</color>
+    <color name="c_on_secondary">#FFFFFF</color>
+    <color name="c_secondary_container">#E3EAE8</color>
+    <color name="c_on_secondary_container">#15191C</color>
 
-    <!-- Light theme -->
-    <color name="lightColorDrawerScrim">#99000000</color>
-    <color name="lightColorDrawerBackground">#EEE</color>
-    <color name="lightColorSystem">#20B10000</color>
+    <color name="c_surface">#F4F5F2</color>
+    <color name="c_on_surface">#15191C</color>
+    <color name="c_on_surface_variant">#575E64</color>
+    <color name="c_surface_lowest">#FFFFFF</color>
+    <color name="c_surface_low">#F8F9F6</color>
+    <color name="c_surface_container">#EEF0EC</color>
+    <color name="c_surface_high">#E8EBE6</color>
+    <color name="c_surface_highest">#E2E5E0</color>
+    <color name="c_outline">#C3C8C2</color>
+    <color name="c_outline_variant">#E1E4DF</color>
 
-    <!-- Dark theme -->
-    <color name="darkColorDrawerScrim">#997F7F7F</color>
-    <color name="darkColorDrawerBackground">#222</color>
-    <color name="darkColorSystem">#40B10000</color>
+    <color name="c_error">#A4262C</color>
+    <color name="c_on_error">#FFFFFF</color>
+    <color name="c_error_container">#FCE4E4</color>
+    <color name="c_on_error_container">#5C0F13</color>
+
+    <color name="c_warning">#8A4204</color>
+    <color name="c_warning_container">#FBEEDD</color>
+    <color name="c_on_warning_container">#6B3303</color>
+
+    <color name="c_code_background">#16191D</color>
+    <color name="c_code_text">#E6E9EC</color>
+    <color name="c_code_comment">#7C858D</color>
+    <color name="c_code_keyword">#C792EA</color>
+    <color name="c_code_string">#C3E88D</color>
+    <color name="c_code_number">#F78C6C</color>
+    <color name="c_code_function">#82AAFF</color>
+
 </resources>
