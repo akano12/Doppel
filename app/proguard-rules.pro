@@ -5,9 +5,11 @@
 -renamesourcefileattribute SourceFile
 
 # XPrivacyLua
-# XLua is the Xposed entry point (assets/xposed_init),
+# XLua is the legacy Xposed entry point (assets/xposed_init),
+# XLuaModule the modern entry point (META-INF/xposed/java_init.list),
 # XHook and XParam are accessed from Lua scripts by reflection
 -keep class eu.faircode.xlua.XLua { *; }
+-keep class eu.faircode.xlua.XLuaModule { *; }
 -keep class eu.faircode.xlua.XHook { *; }
 -keep class eu.faircode.xlua.XParam { *; }
 -keepnames class eu.faircode.xlua.** { *; }
@@ -16,5 +18,6 @@
 -dontwarn org.luaj.vm2.**
 -keep class org.luaj.vm2.** { *; }
 
-# Xposed API is provided at runtime
+# Xposed APIs are provided at runtime
 -dontwarn de.robv.android.xposed.**
+-dontwarn io.github.libxposed.**

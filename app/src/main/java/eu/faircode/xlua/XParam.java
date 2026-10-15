@@ -29,14 +29,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-import de.robv.android.xposed.XC_MethodHook;
-
 public class XParam {
     private static final String TAG = "XLua.XParam";
 
     private final Context context;
     private final Field field;
-    private final XC_MethodHook.MethodHookParam param;
+    private final XCall param;
     private final Class<?>[] paramTypes;
     private final Class<?> returnType;
     private final Map<String, String> settings;
@@ -59,7 +57,7 @@ public class XParam {
     // Method param
     public XParam(
             Context context,
-            XC_MethodHook.MethodHookParam param,
+            XCall param,
             Map<String, String> settings) {
         this.context = context;
         this.field = null;

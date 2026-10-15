@@ -72,10 +72,14 @@ dependencies {
     implementation libs.material
     implementation libs.glide
 
-    // Provided at runtime by the Xposed framework (LSPosed, EdXposed, Xposed)
+    // Provided at runtime by the Xposed framework
+    // Modern API: https://github.com/libxposed/api (LSPosed and compatible frameworks)
+    compileOnly libs.libxposed.api
+    // Legacy API: Xposed, EdXposed and older LSPosed versions
     compileOnly libs.xposed.api
 
     testImplementation libs.junit
+    testImplementation libs.libxposed.api
     // Real implementation instead of the android.jar stubs
     testImplementation libs.json
 }

@@ -28,7 +28,6 @@ import android.content.res.Resources;
 import android.os.Bundle;
 import android.util.Log;
 
-import de.robv.android.xposed.XposedBridge;
 
 public class ReceiverPackage extends BroadcastReceiver {
     private static final String TAG = "XLua.Receiver";
@@ -88,8 +87,7 @@ public class ReceiverPackage extends BroadcastReceiver {
                 }
             }
         } catch (Throwable ex) {
-            Log.e(TAG, Log.getStackTraceString(ex));
-            XposedBridge.log(ex);
+            XCore.log(ex);
         }
     }
 }

@@ -82,8 +82,12 @@ Installation
 * Android 8.1 and later: download, install, and activate [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork
 * Download, install, and activate [XPrivacyLua](https://github.com/Xposed-Modules-Repo/eu.faircode.xlua/releases)
 
-LSPosed: the scope needs to include *System Framework* (android) and *Settings Storage* (com.android.providers.settings),
-which host the XPrivacyLua service, and any app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
+XPrivacyLua uses the [modern Xposed API](https://github.com/libxposed/api) (API 101 or later) when the framework provides it,
+and the legacy Xposed API otherwise, for example with Xposed or EdXposed.
+
+LSPosed: the scope needs to include *System Framework*, which hosts the XPrivacyLua service in the settings provider,
+and any app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
+With the legacy API, *Settings Storage* (com.android.providers.settings) needs to be in the scope too.
 
 Certificate fingerprints:
 

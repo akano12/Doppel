@@ -1,0 +1,4 @@
+# https://github.com/libxposed/api
+minApiVersion=101
+targetApiVersion=102
+staticScope=false
