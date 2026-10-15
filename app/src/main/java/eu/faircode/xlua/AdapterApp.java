@@ -39,6 +39,7 @@ import android.widget.Filterable;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
@@ -114,7 +115,7 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
             cbForceStop = itemView.findViewById(R.id.cbForceStop);
 
             rvGroup = itemView.findViewById(R.id.rvGroup);
-            rvGroup.setHasFixedSize(true);
+            rvGroup.setHasFixedSize(false);
             LinearLayoutManager llm = new LinearLayoutManager(itemView.getContext());
             llm.setAutoMeasureEnabled(true);
             rvGroup.setLayoutManager(llm);
@@ -143,29 +144,27 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
         @Override
         public void onClick(View view) {
             XApp app = filtered.get(getAdapterPosition());
-            switch (view.getId()) {
-                case R.id.itemView:
-                    if (!expanded.containsKey(app.packageName))
-                        expanded.put(app.packageName, false);
-                    expanded.put(app.packageName, !expanded.get(app.packageName));
-                    updateExpand();
-                    break;
+            int id = view.getId();
+            if (id == R.id.itemView) {
+                if (!expanded.containsKey(app.packageName))
+                    expanded.put(app.packageName, false);
+                expanded.put(app.packageName, !expanded.get(app.packageName));
+                updateExpand();
 
-                case R.id.ivSettings:
-                    PackageManager pm = view.getContext().getPackageManager();
-                    Intent settings = pm.getLaunchIntentForPackage(Util.PRO_PACKAGE_NAME);
-                    if (settings == null) {
-                        Intent browse = new Intent(Intent.ACTION_VIEW);
-                        browse.setData(Uri.parse("https://lua.xprivacy.eu/pro/"));
-                        if (browse.resolveActivity(pm) == null)
-                            Snackbar.make(view, view.getContext().getString(R.string.msg_no_browser), Snackbar.LENGTH_LONG).show();
-                        else
-                            view.getContext().startActivity(browse);
-                    } else {
-                        settings.putExtra("packageName", app.packageName);
-                        view.getContext().startActivity(settings);
-                    }
-                    break;
+            } else if (id == R.id.ivSettings) {
+                PackageManager pm = view.getContext().getPackageManager();
+                Intent settings = pm.getLaunchIntentForPackage(Util.PRO_PACKAGE_NAME);
+                if (settings == null) {
+                    Intent browse = new Intent(Intent.ACTION_VIEW);
+                    browse.setData(Uri.parse("https://lua.xprivacy.eu/pro/"));
+                    if (browse.resolveActivity(pm) == null)
+                        Snackbar.make(view, view.getContext().getString(R.string.msg_no_browser), Snackbar.LENGTH_LONG).show();
+                    else
+                        view.getContext().startActivity(browse);
+                } else {
+                    settings.putExtra("packageName", app.packageName);
+                    view.getContext().startActivity(settings);
+                }
             }
         }
 
@@ -183,22 +182,20 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
             Log.i(TAG, "Check changed");
             final XApp app = filtered.get(getAdapterPosition());
 
-            switch (compoundButton.getId()) {
-                case R.id.cbAssigned:
-                    updateAssignments(compoundButton.getContext(), app, group, checked);
-                    notifyItemChanged(getAdapterPosition());
-                    break;
+            int id = compoundButton.getId();
+            if (id == R.id.cbAssigned) {
+                updateAssignments(compoundButton.getContext(), app, group, checked);
+                notifyItemChanged(getAdapterPosition());
 
-                case R.id.cbForceStop:
-                    app.forceStop = checked;
-                    executor.submit(new Runnable() {
-                        @Override
-                        public void run() {
-                            XProvider.putSettingBoolean(
-                                    compoundButton.getContext(), app.packageName, "forcestop", app.forceStop);
-                        }
-                    });
-                    break;
+            } else if (id == R.id.cbForceStop) {
+                app.forceStop = checked;
+                executor.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        XProvider.putSettingBoolean(
+                                compoundButton.getContext(), app.packageName, "forcestop", app.forceStop);
+                    }
+                });
             }
         }
 
@@ -562,7 +559,7 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
             holder.ivIcon.setImageResource(android.R.drawable.sym_def_app_icon);
         else {
             Uri uri = Uri.parse("android.resource://" + app.packageName + "/" + app.icon);
-            GlideApp.with(holder.itemView.getContext())
+            Glide.with(holder.itemView.getContext())
                     .applyDefaultRequestOptions(new RequestOptions().format(DecodeFormat.PREFER_RGB_565))
                     .load(uri)
                     .diskCacheStrategy(DiskCacheStrategy.NONE)

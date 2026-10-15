@@ -1,13 +1,14 @@
 *.iml
 .gradle
+.kotlin
 /local.properties
-/.idea/workspace.xml
-/.idea/libraries
-/.idea/caches
+/.idea/*
+!/.idea/codeStyles
 .DS_Store
 /build
 /captures
 .externalNativeBuild
+.cxx
 /tools/config.sh
 /app/release
 keystore.properties

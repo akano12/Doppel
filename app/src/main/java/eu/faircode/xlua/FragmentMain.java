@@ -82,7 +82,7 @@ public class FragmentMain extends Fragment {
         tvRestrict = main.findViewById(R.id.tvRestrict);
         grpApplication = main.findViewById(R.id.grpApplication);
 
-        int colorAccent = Util.resolveColor(getContext(), R.attr.colorAccent);
+        int colorAccent = Util.resolveColor(getContext(), androidx.appcompat.R.attr.colorAccent);
 
         swipeRefresh = main.findViewById(R.id.swipeRefresh);
         swipeRefresh.setColorSchemeColors(colorAccent, colorAccent, colorAccent);

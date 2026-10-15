@@ -1,40 +1,20 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# https://developer.android.com/build/shrink-code
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
+# Preserve the line number information for debugging stack traces
 -keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
 -renamesourcefileattribute SourceFile
 
-#XPrivacyLua
--keep class eu.faircode.xlua.XLua {*; }
--keep class eu.faircode.xlua.XHook {*; }
--keep class eu.faircode.xlua.XParam {*; }
--keepnames class eu.faircode.xlua.** {*; }
+# XPrivacyLua
+# XLua is the Xposed entry point (assets/xposed_init),
+# XHook and XParam are accessed from Lua scripts by reflection
+-keep class eu.faircode.xlua.XLua { *; }
+-keep class eu.faircode.xlua.XHook { *; }
+-keep class eu.faircode.xlua.XParam { *; }
+-keepnames class eu.faircode.xlua.** { *; }
 
-#LuaJ
+# LuaJ binds library functions and Java objects by reflection
 -dontwarn org.luaj.vm2.**
--keepnames class org.luaj.vm2.** {*; }
+-keep class org.luaj.vm2.** { *; }
 
-#Glide
--keep public class * implements com.bumptech.glide.module.GlideModule
--keep public class * extends com.bumptech.glide.module.AppGlideModule
--keep class com.bumptech.glide.GeneratedAppGlideModuleImpl
--keep enum com.bumptech.glide.** {*; }
-
-#Support library
--keep class android.support.v7.widget.** { *; }
+# Xposed API is provided at runtime
+-dontwarn de.robv.android.xposed.**

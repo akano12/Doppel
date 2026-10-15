@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="eu.faircode.xlua">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- https://developer.android.com/preview/privacy/package-visibility -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
@@ -31,6 +30,7 @@
 
         <activity
             android:name=".ActivityMain"
+            android:exported="true"
             android:configChanges="orientation|screenSize"
             android:launchMode="singleTask"
             android:resizeableActivity="true">

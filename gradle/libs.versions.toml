@@ -1,0 +1,25 @@
+[versions]
+agp = "9.4.1"
+appcompat = "1.8.0"
+constraintlayout = "2.2.2"
+core = "1.19.1"
+drawerlayout = "1.2.0"
+glide = "5.0.9"
+material = "1.14.0"
+recyclerview = "1.4.0"
+swiperefreshlayout = "1.2.0"
+xposed = "82"
+
+[libraries]
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
+androidx-core = { module = "androidx.core:core", version.ref = "core" }
+androidx-drawerlayout = { module = "androidx.drawerlayout:drawerlayout", version.ref = "drawerlayout" }
+androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
+androidx-swiperefreshlayout = { module = "androidx.swiperefreshlayout:swiperefreshlayout", version.ref = "swiperefreshlayout" }
+glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }
+material = { module = "com.google.android.material:material", version.ref = "material" }
+xposed-api = { module = "de.robv.android.xposed:api", version.ref = "xposed" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }

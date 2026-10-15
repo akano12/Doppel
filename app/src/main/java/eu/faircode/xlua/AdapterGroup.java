@@ -85,47 +85,41 @@ public class AdapterGroup extends RecyclerView.Adapter<AdapterGroup.ViewHolder> 
         @Override
         public void onClick(View view) {
             Group group = groups.get(getAdapterPosition());
-            switch (view.getId()) {
-                case R.id.ivException:
-                    StringBuilder sb = new StringBuilder();
-                    for (XAssignment assignment : app.getAssignments(group.name))
-                        if (assignment.hook.getGroup().equals(group.name))
-                            if (assignment.exception != null) {
-                                sb.append("<b>");
-                                sb.append(Html.escapeHtml(assignment.hook.getId()));
-                                sb.append("</b><br><br>");
-                                for (String line : assignment.exception.split("\n")) {
-                                    sb.append(Html.escapeHtml(line));
-                                    sb.append("<br>");
-                                }
-                                sb.append("<br><br>");
+            int id = view.getId();
+            if (id == R.id.ivException) {
+                StringBuilder sb = new StringBuilder();
+                for (XAssignment assignment : app.getAssignments(group.name))
+                    if (assignment.hook.getGroup().equals(group.name))
+                        if (assignment.exception != null) {
+                            sb.append("<b>");
+                            sb.append(Html.escapeHtml(assignment.hook.getId()));
+                            sb.append("</b><br><br>");
+                            for (String line : assignment.exception.split("\n")) {
+                                sb.append(Html.escapeHtml(line));
+                                sb.append("<br>");
                             }
+                            sb.append("<br><br>");
+                        }
 
-                    LayoutInflater inflater = LayoutInflater.from(view.getContext());
-                    View alert = inflater.inflate(R.layout.exception, null, false);
-                    TextView tvException = alert.findViewById(R.id.tvException);
-                    tvException.setText(Html.fromHtml(sb.toString()));
+                LayoutInflater inflater = LayoutInflater.from(view.getContext());
+                View alert = inflater.inflate(R.layout.exception, null, false);
+                TextView tvException = alert.findViewById(R.id.tvException);
+                tvException.setText(Html.fromHtml(sb.toString()));
 
-                    new AlertDialog.Builder(view.getContext())
-                            .setView(alert)
-                            .create()
-                            .show();
-                    break;
+                new AlertDialog.Builder(view.getContext())
+                        .setView(alert)
+                        .create()
+                        .show();
 
-                case R.id.tvGroup:
-                    cbAssigned.setChecked(!cbAssigned.isChecked());
-                    break;
-            }
+            } else if (id == R.id.tvGroup)
+                cbAssigned.setChecked(!cbAssigned.isChecked());
         }
 
         @Override
         public void onCheckedChanged(CompoundButton compoundButton, boolean checked) {
             final Group group = groups.get(getAdapterPosition());
-            switch (compoundButton.getId()) {
-                case R.id.cbAssigned:
-                    app.notifyAssign(compoundButton.getContext(), group.name, checked);
-                    break;
-            }
+            if (compoundButton.getId() == R.id.cbAssigned)
+                app.notifyAssign(compoundButton.getContext(), group.name, checked);
         }
     }
 

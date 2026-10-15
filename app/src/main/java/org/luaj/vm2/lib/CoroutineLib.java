@@ -79,7 +79,7 @@ public class CoroutineLib extends TwoArgFunction {
 		coroutine.set("resume", new resume());
 		coroutine.set("running", new running());
 		coroutine.set("status", new status());
-		coroutine.set("yield", new yield());
+		coroutine.set("yield", new Yield());
 		coroutine.set("wrap", new wrap());
 		env.set("coroutine", coroutine);
 		env.get("package").get("loaded").set("coroutine", coroutine);
@@ -113,7 +113,7 @@ public class CoroutineLib extends TwoArgFunction {
 		}
 	}
 	
-	final class yield extends VarArgFunction {
+	final class Yield extends VarArgFunction {
 		public Varargs invoke(Varargs args) {
 			return globals.yield( args );
 		}

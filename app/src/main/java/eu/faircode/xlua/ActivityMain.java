@@ -321,57 +321,49 @@ public class ActivityMain extends ActivityBase {
             return true;
 
         Log.i(TAG, "Selected option " + item.getTitle());
-        switch (item.getItemId()) {
-            case R.id.menu_show:
-                AdapterApp.enumShow show = (fragmentMain == null ? AdapterApp.enumShow.none : fragmentMain.getShow());
-                this.menu.findItem(R.id.menu_show_user).setEnabled(show != AdapterApp.enumShow.none);
-                this.menu.findItem(R.id.menu_show_icon).setEnabled(show != AdapterApp.enumShow.none);
-                this.menu.findItem(R.id.menu_show_all).setEnabled(show != AdapterApp.enumShow.none);
-                switch (show) {
-                    case user:
-                        this.menu.findItem(R.id.menu_show_user).setChecked(true);
-                        break;
-                    case icon:
-                        this.menu.findItem(R.id.menu_show_icon).setChecked(true);
-                        break;
-                    case all:
-                        this.menu.findItem(R.id.menu_show_all).setChecked(true);
-                        break;
+        int itemId = item.getItemId();
+        if (itemId == R.id.menu_show) {
+            AdapterApp.enumShow show = (fragmentMain == null ? AdapterApp.enumShow.none : fragmentMain.getShow());
+            this.menu.findItem(R.id.menu_show_user).setEnabled(show != AdapterApp.enumShow.none);
+            this.menu.findItem(R.id.menu_show_icon).setEnabled(show != AdapterApp.enumShow.none);
+            this.menu.findItem(R.id.menu_show_all).setEnabled(show != AdapterApp.enumShow.none);
+            switch (show) {
+                case user:
+                    this.menu.findItem(R.id.menu_show_user).setChecked(true);
+                    break;
+                case icon:
+                    this.menu.findItem(R.id.menu_show_icon).setChecked(true);
+                    break;
+                case all:
+                    this.menu.findItem(R.id.menu_show_all).setChecked(true);
+                    break;
+            }
+            return true;
+
+        } else if (itemId == R.id.menu_show_user || itemId == R.id.menu_show_icon || itemId == R.id.menu_show_all) {
+            item.setChecked(!item.isChecked());
+            final AdapterApp.enumShow set;
+            if (itemId == R.id.menu_show_user)
+                set = AdapterApp.enumShow.user;
+            else if (itemId == R.id.menu_show_all)
+                set = AdapterApp.enumShow.all;
+            else
+                set = AdapterApp.enumShow.icon;
+            fragmentMain.setShow(set);
+            executor.submit(new Runnable() {
+                @Override
+                public void run() {
+                    XProvider.putSetting(ActivityMain.this, "global", "show", set.name());
                 }
-                return true;
+            });
+            return true;
 
-            case R.id.menu_show_user:
-            case R.id.menu_show_icon:
-            case R.id.menu_show_all:
-                item.setChecked(!item.isChecked());
-                final AdapterApp.enumShow set;
-                switch (item.getItemId()) {
-                    case R.id.menu_show_user:
-                        set = AdapterApp.enumShow.user;
-                        break;
-                    case R.id.menu_show_all:
-                        set = AdapterApp.enumShow.all;
-                        break;
-                    default:
-                        set = AdapterApp.enumShow.icon;
-                        break;
-                }
-                fragmentMain.setShow(set);
-                executor.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        XProvider.putSetting(ActivityMain.this, "global", "show", set.name());
-                    }
-                });
-                return true;
+        } else if (itemId == R.id.menu_help) {
+            menuHelp();
+            return true;
 
-            case R.id.menu_help:
-                menuHelp();
-                return true;
-
-            default:
-                return super.onOptionsItemSelected(item);
-        }
+        } else
+            return super.onOptionsItemSelected(item);
     }
 
     private void menuHelp() {
