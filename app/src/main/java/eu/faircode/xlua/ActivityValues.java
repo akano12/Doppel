@@ -44,7 +44,7 @@ import java.util.Objects;
 import java.util.TimeZone;
 
 // Fake values read by the hook scripts (param:getSetting), for all apps or for a single app
-public class ActivityValues extends ActivityBase {
+public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private static final String TAG = "XLua.Values";
 
     private static final String EXTRA_PACKAGE = "package";
@@ -102,7 +102,7 @@ public class ActivityValues extends ActivityBase {
 
     private final Map<String, String> values = new HashMap<>();
     private final Map<String, String> globals = new HashMap<>();
-    private final Map<String, EditText> inputs = new HashMap<>();
+    private final Map<String, TextInputLayout> inputs = new HashMap<>();
     private final SecureRandom random = new SecureRandom();
 
     static Intent getIntent(Context context, String packageName, String label) {
@@ -145,15 +145,20 @@ public class ActivityValues extends ActivityBase {
         load();
     }
 
+    @Override
+    public View getMessageAnchor() {
+        return findViewById(R.id.bar);
+    }
+
     private void load() {
         final String category = this.category;
         final Context context = getApplicationContext();
         executor.submit(() -> {
             try {
-                final Map<String, String> v = XProvider.getSettings(context, category);
+                final Map<String, String> v = Data.getSettings(context, category);
                 final Map<String, String> g = (GLOBAL.equals(category)
                         ? new HashMap<>()
-                        : XProvider.getSettings(context, GLOBAL));
+                        : Data.getSettings(context, GLOBAL));
                 runOnUiThread(() -> {
                     values.clear();
                     values.putAll(v);
@@ -233,7 +238,7 @@ public class ActivityValues extends ActivityBase {
             }
 
             rows.addView(til);
-            inputs.put(field.key, input);
+            inputs.put(field.key, til);
         }
     }
 
@@ -242,7 +247,8 @@ public class ActivityValues extends ActivityBase {
         for (Object item : SECTIONS)
             if (item instanceof Field) {
                 Field field = (Field) item;
-                EditText input = inputs.get(field.key);
+                TextInputLayout til = inputs.get(field.key);
+                EditText input = (til == null ? null : til.getEditText());
                 if (field.type == Type.LOCATION || field.type == Type.CONTACTS) {
                     String[] titles = getResources().getStringArray(
                             field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
@@ -269,10 +275,10 @@ public class ActivityValues extends ActivityBase {
             if (!(item instanceof Field))
                 continue;
             Field field = (Field) item;
-            EditText input = inputs.get(field.key);
-            if (input == null)
+            TextInputLayout til = inputs.get(field.key);
+            if (til == null)
                 continue;
-            TextInputLayout til = (TextInputLayout) input.getParent().getParent();
+            EditText input = til.getEditText();
             til.setError(null);
             String value = getValue(field, input);
             if (value != null && !isValid(field, value)) {
@@ -298,7 +304,7 @@ public class ActivityValues extends ActivityBase {
                 for (int i = 0; i < keys.size(); i++) {
                     // Stop the app once, so it starts with the new values
                     boolean kill = (!global && i == keys.size() - 1);
-                    XProvider.putSetting(context, category, keys.get(i), changed.get(keys.get(i)), kill);
+                    Data.putSetting(context, category, keys.get(i), changed.get(keys.get(i)), kill);
                 }
                 runOnUiThread(() -> values.putAll(changed));
                 Ui.message(this, getString(global ? R.string.msg_saved_restart : R.string.msg_saved));

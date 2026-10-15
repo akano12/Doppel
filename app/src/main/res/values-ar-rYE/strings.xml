@@ -4,24 +4,8 @@
     <string name="title_accept">موافق</string>
     <string name="title_deny">لا أوافق</string>
     <string name="title_all">الكل</string>
-    <string name="title_restrict">قيّد</string>
     <string name="title_bootloop">التقييد يمكن أن يسبب بوتلوب</string>
     <string name="title_force_stop">فرض إيقاف تلقائياً</string>
-    <string name="title_help_instructions">        انقر على رمز التطبيق أو اسمه ثم ضع علامة على القيود لتطبيقها.
-        إذا كان ذلك ممكناً، يتم إيقاف التطبيقات تلقائياً لتطبيق (أو إزالة) القيود فورا،
-        ولكن تطبيق القيود على بعض تطبيقات يتطلب إعادة تشغيل الجهاز (انظر الرموز أدناه).
-        <![CDATA[<br><br>]]> اضغط طويلاً على رمز التطبيق أو اسمه لتشغيل التطبيق.
-        <![CDATA[<br><br>]]>انظر<![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">التوثيق</a>]]>        و<![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">الأسئلة الأكثر شيوعاً</a>]]> للحصول على مزيد من المعلومات.
-    </string>
-    <string name="title_help_installed">تم تثبيت القيد</string>
-    <string name="title_help_system">تطبيق القيود يمكن أن يؤدي إلى مشاكل</string>
-    <string name="title_help_settings">إعدادات تقييد التطبيق</string>
-    <string name="title_help_persistent">تطبيق القيود يتطلب إعادة تشغيل الجهاز</string>
-    <string name="title_help_exception">تطبيق القيود فشل (انقر الرمز لمعرفة السبب)</string>
-    <string name="menu_show">إظهار</string>
-    <string name="menu_show_user">إظهار تطبيقات المستخدم</string>
-    <string name="menu_show_icon">إظهار تطبيقات مع رمز</string>
-    <string name="menu_show_all">إظهار جميع التطبيقات</string>
     <string name="menu_search">بحث</string>
     <string name="menu_help">المساعدة</string>
     <string name="menu_notify_new">نبه عند إضافة تطبيقات جديدة</string>
@@ -33,7 +17,6 @@
     <string name="msg_review_settings">راجع إعدادات الخصوصية</string>
     <string name="msg_usage">تم تقييد \'%1$s\'</string>
     <string name="msg_exception">خطأ في \'%1$s\'</string>
-    <string name="msg_restrict_sure">هل تريد تغيير \'%1$s\' لجميع التطبيقات؟</string>
     <string name="msg_no_browser">لا يوجد متصفح لفتح الرابط</string>
     <string name="group_determine_activity">تحديد النشاط</string>
     <string name="group_get_applications">الحصول على التطبيقات</string>

@@ -4,24 +4,8 @@
     <string name="title_accept">Razıyam</string>
     <string name="title_deny">Razı deyiləm</string>
     <string name="title_all">Hamısı</string>
-    <string name="title_restrict">Məhdudlaşdır</string>
     <string name="title_bootloop">Məhdudlaşdırma bootloop-a səbəb ola bilər</string>
     <string name="title_force_stop">Avtomatik dayandırmağa məcbur et</string>
-    <string name="title_help_instructions">        Bir tətbiq nişanına və ya adına toxunun və onlara tətbiq ediləcək məhdudlaşdırmaları seçin.
-        Əgər mümkün olsa, tətbiqlər dərhal məhdudiyyətləri tətbiq etmək (və ya çıxartmaq) üçün avtomatik olaraq dayandırılacaq,
-        ancaq bəzi tətbiqlərə məhdudiyyətləri tətbiq etmək cihazın yenidən başlanılmasını tələb edir (aşağıdakı nişanlara baxın).
-        <![CDATA[<br><br>]]>Tətbiqi başlatmaq üçün tətbiq nişanına və ya adına uzun basın.
-        <![CDATA[<br><br>]]>Əlavə məlumat üçün<![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">sənədinə</a>]]>        və <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">tez-tez soruşulan suallara</a>]]> baxın.
-    </string>
-    <string name="title_help_installed">Məhdudlaşdırma quraşdırıldı</string>
-    <string name="title_help_system">Məhdudlaşdırmaları tətbiq etmək problemlə nəticələnə bilər</string>
-    <string name="title_help_settings">Tətbiq məhdudlaşdırma tənzimləmələri</string>
-    <string name="title_help_persistent">Məhdudlaşdırmaları tətbiq etmək cihazı yenidən başlatmağı tələb edir</string>
-    <string name="title_help_exception">Məhdudlaşdırmanı tətbiq etmək uğursuz oldu (səbəbini görmək üçün nişana toxunun)</string>
-    <string name="menu_show">Göstər</string>
-    <string name="menu_show_user">İstifadəçi tətbiqlərini göstər</string>
-    <string name="menu_show_icon">Tətbiqləri nişan ilə göstər</string>
-    <string name="menu_show_all">Bütün tətbiqləri göstər</string>
     <string name="menu_search">Axtar</string>
     <string name="menu_help">Kömək</string>
     <string name="menu_notify_new">Yeni tətbiq olanda bildir</string>
@@ -33,7 +17,6 @@
     <string name="msg_review_settings">Gizlilik tənzimləmələrinə nəzər yetir</string>
     <string name="msg_usage">\'%1$s\' məhdudlaşdırıldı</string>
     <string name="msg_exception">%1$s daxilində xəta</string>
-    <string name="msg_restrict_sure">Bütün tətbiqlər üçün \'%1$s\' dəyişdirilsin?</string>
     <string name="msg_no_browser">Bağlantını açmaq üçün brauzer yoxdur</string>
     <string name="group_determine_activity">Aktivliyi müəyyənləşdir</string>
     <string name="group_get_applications">Tətbiqetmələri al</string>

@@ -50,13 +50,10 @@ public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
         if ("android".equals(lpparam.packageName))
             core.hookAndroid(lpparam.classLoader);
 
-        if ("com.android.providers.settings".equals(lpparam.packageName))
+        if (XCore.SETTINGS_PACKAGE.equals(lpparam.packageName))
             core.hookSettings(lpparam.classLoader);
 
-        // Packages loaded into another app's process (WebView, GMS, etc.) are handled by the host app
-        if (!"android".equals(lpparam.packageName) &&
-                !lpparam.packageName.startsWith(BuildConfig.APPLICATION_ID) &&
-                lpparam.isFirstApplication)
+        if (XCore.isApp(lpparam.packageName, lpparam.isFirstApplication))
             core.hookApplication(lpparam.packageName, lpparam.classLoader);
     }
 

@@ -25,13 +25,10 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.PopupMenu;
@@ -40,6 +37,8 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -130,20 +129,7 @@ public class FragmentApps extends FragmentBase {
         ibSearch.setOnClickListener(v -> showSearch(tilSearch.getVisibility() != View.VISIBLE));
         view.findViewById(R.id.ibMore).setOnClickListener(this::showMenu);
 
-        etSearch.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                adapter.setQuery(s.toString());
-            }
-        });
+        Ui.onTextChanged(etSearch, text -> adapter.setQuery(text));
 
         AdapterApp.Filter filter = AdapterApp.Filter.USER;
         try {
@@ -173,13 +159,14 @@ public class FragmentApps extends FragmentBase {
         tilSearch.setVisibility(show ? View.VISIBLE : View.GONE);
         ibSearch.setImageResource(show ? R.drawable.ic_close : R.drawable.ic_search);
         ibSearch.setContentDescription(getString(show ? R.string.title_close_search : R.string.menu_search));
-        InputMethodManager imm = requireContext().getSystemService(InputMethodManager.class);
+        WindowInsetsControllerCompat controller =
+                new WindowInsetsControllerCompat(requireActivity().getWindow(), etSearch);
         if (show) {
             etSearch.requestFocus();
-            imm.showSoftInput(etSearch, InputMethodManager.SHOW_IMPLICIT);
+            controller.show(WindowInsetsCompat.Type.ime());
         } else {
             etSearch.setText(null);
-            imm.hideSoftInputFromWindow(etSearch.getWindowToken(), 0);
+            controller.hide(WindowInsetsCompat.Type.ime());
         }
     }
 

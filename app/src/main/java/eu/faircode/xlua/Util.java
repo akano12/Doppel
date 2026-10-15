@@ -19,27 +19,25 @@
 
 package eu.faircode.xlua;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
-import android.content.res.Resources;
 import android.os.Build;
 import android.os.Process;
 import android.os.UserHandle;
 import android.util.Log;
-import android.util.TypedValue;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-
+import java.util.ArrayList;
+import java.util.List;
 
 class Util {
     private final static String TAG = "XLua.Util";
@@ -47,6 +45,8 @@ class Util {
     private static final int PER_USER_RANGE = 100000;
     private static final int FIRST_ISOLATED_UID = 99000;
     private static final int LAST_ISOLATED_UID = 99999;
+
+    static final String COLLECTION_DEFAULT = "Privacy";
 
     static void setPermissions(String path, int mode, int uid, int gid) {
         try {
@@ -95,14 +95,6 @@ class Util {
     }
 
     @SuppressWarnings("deprecation")
-    static long getVersionCode(PackageInfo pi) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-            return pi.getLongVersionCode();
-        else
-            return pi.versionCode;
-    }
-
-    @SuppressWarnings("deprecation")
     static byte[] getSha1Fingerprint(Context context, String packageName) throws Throwable {
         PackageManager pm = context.getPackageManager();
         Signature signature;
@@ -121,75 +113,31 @@ class Util {
     }
 
     static Context createContextForUser(Context context, int userid) throws Throwable {
-        // public UserHandle(int h)
-        Class<?> clsUH = Class.forName("android.os.UserHandle");
-        Constructor<?> cUH = clsUH.getDeclaredConstructor(int.class);
-        UserHandle uh = (UserHandle) cUH.newInstance(userid);
-
         // public Context createPackageContextAsUser(String packageName, int flags, UserHandle user)
-        Method c = context.getClass().getDeclaredMethod("createPackageContextAsUser", String.class, int.class, UserHandle.class);
-        return (Context) c.invoke(context, "android", 0, uh);
+        Method c = context.getClass().getDeclaredMethod(
+                "createPackageContextAsUser", String.class, int.class, UserHandle.class);
+        return (Context) c.invoke(context, "android", 0, getUserHandle(userid));
     }
 
-    @SuppressWarnings("deprecation")
-    static Notification.Builder getNotificationBuilder(Context context, boolean high) {
-        Notification.Builder builder;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            builder = new Notification.Builder(context, XProvider.cChannelName);
-        else {
-            builder = new Notification.Builder(context);
-            builder.setPriority(high ? Notification.PRIORITY_HIGH : Notification.PRIORITY_DEFAULT);
-        }
-        builder.setCategory(Notification.CATEGORY_STATUS);
-        builder.setVisibility(Notification.VISIBILITY_SECRET);
-        builder.setAutoCancel(true);
-        return builder;
+    // All text of a stream, which is not closed
+    static String readText(InputStream is) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int length;
+        while ((length = is.read(buffer)) > 0)
+            bos.write(buffer, 0, length);
+        return bos.toString(StandardCharsets.UTF_8.name());
     }
 
-    // Intent to open the main activity searching for a package
-    static PendingIntent getSearchIntent(Context context, int requestCode, String packageName) {
-        Intent main = context.getPackageManager().getLaunchIntentForPackage(BuildConfig.APPLICATION_ID);
-        if (main == null)
-            return null;
-        main.putExtra(ActivityMain.EXTRA_SEARCH_PACKAGE, packageName);
-        return PendingIntent.getActivity(context, requestCode, main,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
-    static void notifyAsUser(Context context, String tag, int id, Notification notification, int userid) throws Throwable {
-        NotificationManager nm = context.getSystemService(NotificationManager.class);
-
-        // Create notification channel
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            PackageManager pm = context.getPackageManager();
-            Resources resources = pm.getResourcesForApplication(BuildConfig.APPLICATION_ID);
-            NotificationChannel channel = new NotificationChannel(
-                    XProvider.cChannelName, resources.getString(R.string.channel_privacy), NotificationManager.IMPORTANCE_HIGH);
-            channel.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
-            nm.createNotificationChannel(channel);
-        }
-
-        // public void notifyAsUser(String tag, int id, Notification notification, UserHandle user)
-        Method mNotifyAsUser = nm.getClass().getDeclaredMethod(
-                "notifyAsUser", String.class, int.class, Notification.class, UserHandle.class);
-        mNotifyAsUser.invoke(nm, tag, id, notification, Util.getUserHandle(userid));
-        Log.i(TAG, "Notified " + tag + ":" + id + " as " + userid);
-    }
-
-    static void cancelAsUser(Context context, String tag, int id, int userid) throws Throwable {
-        NotificationManager nm = context.getSystemService(NotificationManager.class);
-
-        // public void cancelAsUser(String tag, int id, UserHandle user)
-        Method mCancelAsUser = nm.getClass().getDeclaredMethod(
-                "cancelAsUser", String.class, int.class, UserHandle.class);
-        mCancelAsUser.invoke(nm, tag, id, Util.getUserHandle(userid));
-        Log.i(TAG, "Cancelled " + tag + ":" + id + " as " + userid);
-    }
-
-    public static int resolveColor(Context context, int attr) {
-        TypedValue typedValue = new TypedValue();
-        Resources.Theme theme = context.getTheme();
-        theme.resolveAttribute(attr, typedValue, true);
-        return typedValue.data;
+    // Enabled hook collections of the comma separated setting, by default the privacy collection
+    static List<String> parseCollection(String value) {
+        List<String> result = new ArrayList<>();
+        if (value == null)
+            result.add(COLLECTION_DEFAULT);
+        else
+            for (String name : value.split(","))
+                if (!name.trim().isEmpty())
+                    result.add(name.trim());
+        return result;
     }
 }

@@ -4,29 +4,8 @@
     <string name="title_accept">Sang-ayon ako</string>
     <string name="title_deny">Hindi ako sumasang-ayon</string>
     <string name="title_all">Lahat</string>
-    <string name="title_restrict">Pabawalan</string>
     <string name="title_bootloop">Ang pagbabawal nito ay maaaring maging sanhi ng bootloop</string>
     <string name="title_force_stop">Awtomatikong ititigil</string>
-    <string name="title_help_instructions">        Pindutin ang icon o ang pangalan ng app at markahan ang mga paghihigpit na idadagdag dito.
-
-        Kung maaari, ang mga app ay awtomatikong pahintuin upang mapabilis ang paglalagay (o pagtanggal) sa mga paghihigpit,
-
-        ngunit sa ibang mga app, kakailanganin pang i-restart ang device upang maipatupad ang mga paghihigpit (tingnan ang mga icon sa baba).
-  
-      <![CDATA[<br><br>]]>pindutin ng matagal ang icon o ang pangalan upang buksan ang app.
-
-       <![CDATA[<br><br>]]>Tingnan<![CDATA[<a 
-href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">ang mga dokumento</a>]]>                
-        at <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">ang mga kadalasang katanungan</a>]]> para sa mga karagdagang impormasyon.    </string>
-    <string name="title_help_installed">Na-install na ang paghihigpit</string>
-    <string name="title_help_system">Ang paglalagay ng paghihigpit ay maaaring maging sanhi ng mga problema</string>
-    <string name="title_help_settings">Mga setting ng paghihigpit sa mga app</string>
-    <string name="title_help_persistent">Ang paglalagay ng paghihigpit ay nangangailangan ng pag-restart ng device</string>
-    <string name="title_help_exception">Hindi nailagay ang mga paghihigpit (pindutin ang icon para malaman kung bakit)</string>
-    <string name="menu_show">Ipakita</string>
-    <string name="menu_show_user">Ipakita ang mga app ng user</string>
-    <string name="menu_show_icon">Ipakita ang mga app kasama ang icon</string>
-    <string name="menu_show_all">Ipakita ang lahat ng app</string>
     <string name="menu_search">Hanapin</string>
     <string name="menu_help">Tulong</string>
     <string name="menu_notify_new">I-notify tuwing may bagong app</string>
@@ -38,7 +17,6 @@ href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">ang mga dokumen
     <string name="msg_review_settings">Tingnan ang mga setting ng privacy</string>
     <string name="msg_usage">Pinagbabawal \'%1$s\'</string>
     <string name="msg_exception">Mali sa %1$s</string>
-    <string name="msg_restrict_sure">Sigurado ka bang gusto mong i-toggle ang \'%1$s\' para sa lahat ng app?</string>
     <string name="msg_no_browser">Walang magamit na browser para buksan ang link</string>
     <string name="group_determine_activity">Tukuyin ang aktibidad</string>
     <string name="group_get_applications">Kunin ang mga application</string>

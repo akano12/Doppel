@@ -24,16 +24,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Parcel;
 import android.os.Process;
 import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.pm.PackageInfoCompat;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaClosure;
@@ -49,38 +48,42 @@ import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.WeakHashMap;
-
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.IXposedHookZygoteInit;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 // Hook engine, independent of the hooking framework
 class XCore {
     private static final String TAG = "XLua.Core";
+
+    // The settings provider is loaded into system server
+    static final String SETTINGS_PACKAGE = "com.android.providers.settings";
 
     // System property shared by all class loaders of a process
     private static final String PROP_ENGINE = "eu.faircode.xlua.engine";
 
     private static volatile XBackend backend = null;
     private static int version = -1;
-    private Timer timer = null;
+
+    // Usage reports are sent in batches, with the last report per hook and event
     private final Map<String, Map<String, Bundle>> queue = new HashMap<>();
+    private boolean flushing = false;
+    private final ScheduledExecutorService reporter = Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "XLua.Report");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     XCore(XBackend backend) {
         XCore.backend = backend;
@@ -98,6 +101,13 @@ class XCore {
             }
             return engine.equals(backend.getName());
         }
+    }
+
+    // Packages loaded into another app's process (WebView, GMS, etc.) are handled by the host app
+    static boolean isApp(String packageName, boolean firstPackage) {
+        return (firstPackage &&
+                !"android".equals(packageName) &&
+                !packageName.startsWith(BuildConfig.APPLICATION_ID));
     }
 
     static void log(Throwable ex) {
@@ -145,14 +155,15 @@ class XCore {
 
                     // Store current module version
                     PackageInfo pi = context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, 0);
-                    version = (int) Util.getVersionCode(pi);
+                    version = (int) PackageInfoCompat.getLongVersionCode(pi);
                     Log.i(TAG, "Module version " + version);
 
                     // public static UserManagerService getInstance()
-                    Class<?> clsUM = Class.forName("com.android.server.pm.UserManagerService", false, call.thisObject.getClass().getClassLoader());
+                    ClassLoader loader = call.thisObject.getClass().getClassLoader();
+                    Class<?> clsUM = Class.forName("com.android.server.pm.UserManagerService", false, loader);
                     Object um = clsUM.getDeclaredMethod("getInstance").invoke(null);
 
-                    //  public int[] getUserIds()
+                    // public int[] getUserIds()
                     int[] userids = (int[]) um.getClass().getDeclaredMethod("getUserIds").invoke(um);
 
                     // Listen for package changes
@@ -176,22 +187,14 @@ class XCore {
             @NonNull
             private Context getContext(Object am) throws Throwable {
                 // Searching for context
-                Context context = null;
-                Class<?> cAm = am.getClass();
-                while (cAm != null && context == null) {
+                for (Class<?> cAm = am.getClass(); cAm != null; cAm = cAm.getSuperclass())
                     for (Field field : cAm.getDeclaredFields())
                         if (field.getType().equals(Context.class)) {
                             field.setAccessible(true);
-                            context = (Context) field.get(am);
                             Log.i(TAG, "Context found in " + cAm + " as " + field.getName());
-                            break;
+                            return (Context) field.get(am);
                         }
-                    cAm = cAm.getSuperclass();
-                }
-                if (context == null)
-                    throw new Throwable("Context not found");
-
-                return context;
+                throw new Throwable("Context not found");
             }
         });
     }
@@ -210,24 +213,25 @@ class XCore {
                     String method = (String) call.args[0];
                     String arg = (String) call.args[1];
                     Bundle extras = (Bundle) call.args[2];
+                    if (!"xlua".equals(method))
+                        return;
 
-                    if ("xlua".equals(method))
-                        if ("getVersion".equals(arg)) {
-                            Bundle result = new Bundle();
-                            result.putInt("version", version);
-                            call.setResult(result);
-                        } else
-                            try {
-                                Method mGetContext = call.thisObject.getClass().getMethod("getContext");
-                                Context context = (Context) mGetContext.invoke(call.thisObject);
-                                call.setResult(XProvider.call(context, arg, extras));
-                            } catch (IllegalArgumentException ex) {
-                                Log.i(TAG, "Error: " + ex.getMessage());
-                                call.setThrowable(ex);
-                            } catch (Throwable ex) {
-                                log(ex);
-                                call.setResult(null);
-                            }
+                    if ("getVersion".equals(arg)) {
+                        Bundle result = new Bundle();
+                        result.putInt("version", version);
+                        call.setResult(result);
+                        return;
+                    }
+
+                    try {
+                        call.setResult(XProvider.call(getContext(call.thisObject), arg, extras));
+                    } catch (IllegalArgumentException ex) {
+                        Log.i(TAG, "Error: " + ex.getMessage());
+                        call.setThrowable(ex);
+                    } catch (Throwable ex) {
+                        log(ex);
+                        call.setResult(null);
+                    }
                 } catch (Throwable ex) {
                     log(ex);
                 }
@@ -242,22 +246,27 @@ class XCore {
                 try {
                     String[] projection = (String[]) call.args[1];
                     String[] selection = (String[]) call.args[3];
-                    if (projection != null && projection.length > 0 &&
-                            projection[0] != null && projection[0].startsWith("xlua.")) {
-                        try {
-                            Method mGetContext = call.thisObject.getClass().getMethod("getContext");
-                            Context context = (Context) mGetContext.invoke(call.thisObject);
-                            call.setResult(XProvider.query(context, projection[0].split("\\.")[1], selection));
-                        } catch (Throwable ex) {
-                            log(ex);
-                            call.setResult(null);
-                        }
+                    if (projection == null || projection.length == 0 ||
+                            projection[0] == null || !projection[0].startsWith("xlua."))
+                        return;
+
+                    try {
+                        String method = projection[0].split("\\.")[1];
+                        call.setResult(XProvider.query(getContext(call.thisObject), method, selection));
+                    } catch (Throwable ex) {
+                        log(ex);
+                        call.setResult(null);
                     }
                 } catch (Throwable ex) {
                     log(ex);
                 }
             }
         });
+    }
+
+    // ContentProvider.getContext()
+    private static Context getContext(Object provider) throws Throwable {
+        return (Context) provider.getClass().getMethod("getContext").invoke(provider);
     }
 
     // First package of an app process
@@ -293,309 +302,25 @@ class XCore {
     }
 
     private void hookPackage(final String packageName, int uid, final Context context) throws Throwable {
-        // Get assigned hooks
-        List<XHook> hooks = new ArrayList<>();
-        Cursor chooks = null;
-        try {
-            chooks = context.getContentResolver()
-                    .query(XProvider.getURI(), new String[]{"xlua.getAssignedHooks2"},
-                            "pkg = ? AND uid = ?", new String[]{packageName, Integer.toString(uid)},
-                            null);
-            while (chooks != null && chooks.moveToNext()) {
-                byte[] marshaled = chooks.getBlob(0);
-                Parcel parcel = Parcel.obtain();
-                parcel.unmarshall(marshaled, 0, marshaled.length);
-                parcel.setDataPosition(0);
-                XHook hook = XHook.CREATOR.createFromParcel(parcel);
-                parcel.recycle();
-                hooks.add(hook);
-            }
-        } finally {
-            if (chooks != null)
-                chooks.close();
-        }
+        List<XHook> hooks = Data.getAssignedHooks(context, packageName, uid);
 
-        final Map<String, String> settings = new HashMap<>();
+        // App settings replace global settings
+        final Map<String, String> settings = new HashMap<>(Data.getSettings(context, "global"));
+        settings.putAll(Data.getSettings(context, packageName));
 
-        // Get global settings
-        Cursor csettings1 = null;
-        try {
-            csettings1 = context.getContentResolver()
-                    .query(XProvider.getURI(), new String[]{"xlua.getSettings"},
-                            "pkg = ? AND uid = ?", new String[]{"global", Integer.toString(uid)},
-                            null);
-            while (csettings1 != null && csettings1.moveToNext())
-                settings.put(csettings1.getString(0), csettings1.getString(1));
-        } finally {
-            if (csettings1 != null)
-                csettings1.close();
-        }
+        // Hooks with the same script share the compiled script
+        Map<ScriptHolder, Prototype> scripts = new HashMap<>();
 
-        // Get app settings
-        Cursor csettings2 = null;
-        try {
-            csettings2 = context.getContentResolver()
-                    .query(XProvider.getURI(), new String[]{"xlua.getSettings"},
-                            "pkg = ? AND uid = ?", new String[]{packageName, Integer.toString(uid)},
-                            null);
-            while (csettings2 != null && csettings2.moveToNext())
-                settings.put(csettings2.getString(0), csettings2.getString(1));
-        } finally {
-            if (csettings2 != null)
-                csettings2.close();
-        }
-
-        Map<ScriptHolder, Prototype> scriptPrototype = new HashMap<>();
-
-        // Apply hooks
         PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-        long versionCode = Util.getVersionCode(pi);
+        long versionCode = PackageInfoCompat.getLongVersionCode(pi);
         for (final XHook hook : hooks)
             try {
                 if (!hook.isAvailable(versionCode))
                     continue;
 
                 long install = SystemClock.elapsedRealtime();
+                install(context, hook, compile(hook, scripts), settings);
 
-                // Compile script
-                final Prototype compiledScript;
-                ScriptHolder sh = new ScriptHolder(hook.getLuaScript());
-                if (scriptPrototype.containsKey(sh))
-                    compiledScript = scriptPrototype.get(sh);
-                else {
-                    InputStream is = new ByteArrayInputStream(sh.script.getBytes(StandardCharsets.UTF_8));
-                    compiledScript = LuaC.instance.compile(is, "script");
-                    scriptPrototype.put(sh, compiledScript);
-                }
-
-                // Get class
-                Class<?> cls = Class.forName(hook.getResolvedClassName(), false, context.getClassLoader());
-
-                // Handle field method
-                String methodName = hook.getMethodName();
-                if (methodName != null) {
-                    String[] m = methodName.split(":");
-                    if (m.length > 1) {
-                        Field field = cls.getField(m[0]);
-                        Object obj = field.get(null);
-                        cls = obj.getClass();
-                    }
-                    methodName = m[m.length - 1];
-                }
-
-                // Get parameter types
-                String[] p = hook.getParameterTypes();
-                final Class<?>[] paramTypes = new Class[p.length];
-                for (int i = 0; i < p.length; i++)
-                    paramTypes[i] = resolveClass(p[i], context.getClassLoader());
-
-                // Get return type
-                final Class<?> returnType = (hook.getReturnType() == null ? null :
-                        resolveClass(hook.getReturnType(), context.getClassLoader()));
-
-                if (methodName != null && methodName.startsWith("#")) {
-                    // Get field
-                    Field field = resolveField(cls, methodName.substring(1), returnType);
-                    field.setAccessible(true);
-
-                    if (paramTypes.length > 0)
-                        throw new NoSuchFieldException("Field with parameters");
-
-                    try {
-                        long run = SystemClock.elapsedRealtime();
-
-                        // Initialize Lua runtime
-                        Globals globals = getGlobals(context, hook, settings);
-                        LuaClosure closure = new LuaClosure(compiledScript, globals);
-                        closure.call();
-
-                        // Check if function exists
-                        LuaValue func = globals.get("after");
-                        if (func.isnil())
-                            continue;
-
-                        LuaValue[] args = new LuaValue[]{
-                                CoerceJavaToLua.coerce(hook),
-                                CoerceJavaToLua.coerce(new XParam(context, field, settings))
-                        };
-
-                        // Run function
-                        Varargs result = func.invoke(args);
-
-                        // Report use
-                        boolean restricted = result.arg1().checkboolean();
-                        if (restricted && hook.doUsage()) {
-                            Bundle data = new Bundle();
-                            data.putString("function", "after");
-                            data.putInt("restricted", restricted ? 1 : 0);
-                            data.putLong("duration", SystemClock.elapsedRealtime() - run);
-                            if (result.narg() > 1) {
-                                data.putString("old", result.isnil(2) ? null : result.checkjstring(2));
-                                data.putString("new", result.isnil(3) ? null : result.checkjstring(3));
-                            }
-                            report(context, hook.getId(), "after", "use", data);
-                        }
-                    } catch (Throwable ex) {
-                        StringBuilder sb = new StringBuilder();
-
-                        sb.append("Exception:\n");
-                        sb.append(Log.getStackTraceString(ex));
-                        sb.append("\n");
-
-                        sb.append("\nPackage:\n");
-                        sb.append(context.getPackageName());
-                        sb.append(':');
-                        sb.append(Integer.toString(context.getApplicationInfo().uid));
-                        sb.append("\n");
-
-                        sb.append("\nField:\n");
-                        sb.append(field.toString());
-                        sb.append("\n");
-
-                        Log.e(TAG, sb.toString());
-
-                        // Report use error
-                        Bundle data = new Bundle();
-                        data.putString("function", "after");
-                        data.putString("exception", sb.toString());
-                        report(context, hook.getId(), "after", "use", data);
-                    }
-                } else {
-                    // Get method
-                    final Member member = resolveMember(cls, methodName, paramTypes);
-
-                    // Check return type
-                    final Class<?> memberReturnType = (methodName == null ? null : ((Method) member).getReturnType());
-                    if (returnType != null && memberReturnType != null && !memberReturnType.isAssignableFrom(returnType))
-                        throw new Throwable("Invalid return type " + memberReturnType + " got " + returnType);
-
-                    // Hook method
-                    backend.hook(member, new XBackend.Callback() {
-                        private final WeakHashMap<Thread, Globals> threadGlobals = new WeakHashMap<>();
-
-                        @Override
-                        void before(XCall call) {
-                            execute(call, "before");
-                        }
-
-                        @Override
-                        void after(XCall call) {
-                            execute(call, "after");
-                        }
-
-                        // Execute hook
-                        private void execute(XCall call, String function) {
-                            try {
-                                long run = SystemClock.elapsedRealtime();
-
-                                // Initialize Lua runtime once per thread
-                                Globals globals;
-                                synchronized (threadGlobals) {
-                                    Thread thread = Thread.currentThread();
-                                    globals = threadGlobals.get(thread);
-                                    if (globals == null) {
-                                        globals = getGlobals(context, hook, settings);
-
-                                        // Define functions
-                                        LuaClosure closure = new LuaClosure(compiledScript, globals);
-                                        closure.call();
-
-                                        threadGlobals.put(thread, globals);
-                                    }
-                                }
-
-                                // Check if function exists
-                                LuaValue func = globals.get(function);
-                                if (func.isnil())
-                                    return;
-
-                                // Build arguments
-                                LuaValue[] args = new LuaValue[]{
-                                        CoerceJavaToLua.coerce(hook),
-                                        CoerceJavaToLua.coerce(new XParam(context, call, settings))
-                                };
-
-                                // Run function
-                                Varargs result = func.invoke(args);
-
-                                // Report use
-                                boolean restricted = result.arg1().checkboolean();
-                                if (restricted && hook.doUsage()) {
-                                    Bundle data = new Bundle();
-                                    data.putString("function", function);
-                                    data.putInt("restricted", restricted ? 1 : 0);
-                                    data.putLong("duration", SystemClock.elapsedRealtime() - run);
-                                    if (result.narg() > 1) {
-                                        data.putString("old", result.isnil(2) ? null : result.checkjstring(2));
-                                        data.putString("new", result.isnil(3) ? null : result.checkjstring(3));
-                                    }
-                                    report(context, hook.getId(), function, "use", data);
-                                }
-                            } catch (Throwable ex) {
-                                synchronized (threadGlobals) {
-                                    threadGlobals.remove(Thread.currentThread());
-                                }
-
-                                StringBuilder sb = new StringBuilder();
-
-                                sb.append("Exception:\n");
-                                sb.append(Log.getStackTraceString(ex));
-                                sb.append("\n");
-
-                                sb.append("\nPackage:\n");
-                                sb.append(context.getPackageName());
-                                sb.append(':');
-                                sb.append(Integer.toString(context.getApplicationInfo().uid));
-                                sb.append("\n");
-
-                                sb.append("\nMethod:\n");
-                                sb.append(function);
-                                sb.append(' ');
-                                sb.append(member.toString());
-                                sb.append("\n");
-
-                                sb.append("\nArguments:\n");
-                                if (call.args == null)
-                                    sb.append("null\n");
-                                else
-                                    for (int i = 0; i < call.args.length; i++) {
-                                        sb.append(i);
-                                        sb.append(": ");
-                                        if (call.args[i] == null)
-                                            sb.append("null");
-                                        else {
-                                            sb.append(call.args[i].toString());
-                                            sb.append(" (");
-                                            sb.append(call.args[i].getClass().getName());
-                                            sb.append(')');
-                                        }
-                                        sb.append("\n");
-                                    }
-
-                                sb.append("\nReturn:\n");
-                                if (call.getResult() == null)
-                                    sb.append("null");
-                                else {
-                                    sb.append(call.getResult().toString());
-                                    sb.append(" (");
-                                    sb.append(call.getResult().getClass().getName());
-                                    sb.append(')');
-                                }
-                                sb.append("\n");
-
-                                Log.e(TAG, sb.toString());
-
-                                // Report use error
-                                Bundle data = new Bundle();
-                                data.putString("function", function);
-                                data.putString("exception", sb.toString());
-                                report(context, hook.getId(), function, "use", data);
-                            }
-                        }
-                    });
-                }
-
-                // Report install
                 if (BuildConfig.DEBUG) {
                     Bundle data = new Bundle();
                     data.putLong("duration", SystemClock.elapsedRealtime() - install);
@@ -607,8 +332,7 @@ class XCore {
                                 ex instanceof NoSuchMethodException ||
                                 ex instanceof ClassNotFoundException ||
                                 ex instanceof NoClassDefFoundError))
-                    Log.i(TAG, "Optional hook=" + hook.getId() +
-                            ": " + ex.getClass().getName() + ": " + ex.getMessage());
+                    Log.i(TAG, "Optional hook=" + hook.getId() + ": " + ex.getClass().getName() + ": " + ex.getMessage());
                 else {
                     Log.e(TAG, hook.getId() + ": " + Log.getStackTraceString(ex));
 
@@ -620,7 +344,176 @@ class XCore {
             }
     }
 
-    private void report(final Context context, String hook, String function, String event, final Bundle data) {
+    private static Prototype compile(XHook hook, Map<ScriptHolder, Prototype> scripts) throws Throwable {
+        ScriptHolder sh = new ScriptHolder(hook.getLuaScript());
+        Prototype compiled = scripts.get(sh);
+        if (compiled == null) {
+            compiled = LuaC.instance.compile(
+                    new ByteArrayInputStream(sh.script.getBytes(StandardCharsets.UTF_8)), "script");
+            scripts.put(sh, compiled);
+        }
+        return compiled;
+    }
+
+    // Hook the method or field of the definition
+    private void install(Context context, XHook hook, Prototype script, Map<String, String> settings) throws Throwable {
+        ClassLoader loader = context.getClassLoader();
+        Class<?> cls = Class.forName(hook.getResolvedClassName(), false, loader);
+
+        // A method of an object in a static field: field:method
+        String methodName = hook.getMethodName();
+        if (methodName != null) {
+            String[] m = methodName.split(":");
+            if (m.length > 1) {
+                Object obj = cls.getField(m[0]).get(null);
+                cls = obj.getClass();
+            }
+            methodName = m[m.length - 1];
+        }
+
+        String[] p = hook.getParameterTypes();
+        Class<?>[] paramTypes = new Class<?>[p.length];
+        for (int i = 0; i < p.length; i++)
+            paramTypes[i] = XResolver.resolveClass(p[i], loader);
+
+        Class<?> returnType = (hook.getReturnType() == null ? null : XResolver.resolveClass(hook.getReturnType(), loader));
+
+        if (methodName != null && methodName.startsWith("#")) {
+            if (paramTypes.length > 0)
+                throw new NoSuchFieldException("Field with parameters");
+            Field field = XResolver.resolveField(cls, methodName.substring(1), returnType);
+            field.setAccessible(true);
+            installField(context, hook, script, settings, field);
+        } else {
+            Member member = XResolver.resolveMember(cls, methodName, paramTypes);
+            if (methodName != null && returnType != null) {
+                Class<?> memberReturnType = ((Method) member).getReturnType();
+                if (!memberReturnType.isAssignableFrom(returnType))
+                    throw new Throwable("Invalid return type " + memberReturnType + " got " + returnType);
+            }
+            installMethod(context, hook, script, settings, member);
+        }
+    }
+
+    // Static fields are changed once, by the after function
+    private void installField(Context context, XHook hook, Prototype script, Map<String, String> settings, Field field) {
+        try {
+            long run = SystemClock.elapsedRealtime();
+
+            Globals globals = getGlobals(context, hook, settings);
+            new LuaClosure(script, globals).call();
+
+            LuaValue func = globals.get("after");
+            if (func.isnil())
+                return;
+
+            Varargs result = func.invoke(new LuaValue[]{
+                    CoerceJavaToLua.coerce(hook),
+                    CoerceJavaToLua.coerce(new XParam(context, field, settings))
+            });
+            reportUse(context, hook, "after", result, run);
+        } catch (Throwable ex) {
+            reportError(context, hook, "after", ex, "\nField:\n" + field + "\n");
+        }
+    }
+
+    private void installMethod(final Context context, final XHook hook, final Prototype script,
+                               final Map<String, String> settings, final Member member) throws Throwable {
+        backend.hook(member, new XBackend.Callback() {
+            private final WeakHashMap<Thread, Globals> threadGlobals = new WeakHashMap<>();
+
+            @Override
+            void before(XCall call) {
+                execute(call, "before");
+            }
+
+            @Override
+            void after(XCall call) {
+                execute(call, "after");
+            }
+
+            private void execute(XCall call, String function) {
+                try {
+                    long run = SystemClock.elapsedRealtime();
+
+                    // Initialize the Lua runtime once per thread
+                    Globals globals;
+                    synchronized (threadGlobals) {
+                        Thread thread = Thread.currentThread();
+                        globals = threadGlobals.get(thread);
+                        if (globals == null) {
+                            globals = getGlobals(context, hook, settings);
+                            new LuaClosure(script, globals).call(); // Define functions
+                            threadGlobals.put(thread, globals);
+                        }
+                    }
+
+                    LuaValue func = globals.get(function);
+                    if (func.isnil())
+                        return;
+
+                    Varargs result = func.invoke(new LuaValue[]{
+                            CoerceJavaToLua.coerce(hook),
+                            CoerceJavaToLua.coerce(new XParam(context, call, settings))
+                    });
+                    reportUse(context, hook, function, result, run);
+                } catch (Throwable ex) {
+                    synchronized (threadGlobals) {
+                        threadGlobals.remove(Thread.currentThread());
+                    }
+                    reportError(context, hook, function, ex,
+                            "\nMethod:\n" + function + " " + member + "\n" + describe(call));
+                }
+            }
+        });
+    }
+
+    private static String describe(XCall call) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("\nArguments:\n");
+        if (call.args == null)
+            sb.append("null\n");
+        else
+            for (int i = 0; i < call.args.length; i++)
+                sb.append(i).append(": ").append(describe(call.args[i])).append('\n');
+        sb.append("\nReturn:\n").append(describe(call.getResult())).append('\n');
+        return sb.toString();
+    }
+
+    private static String describe(Object value) {
+        return (value == null ? "null" : value + " (" + value.getClass().getName() + ")");
+    }
+
+    // Scripts return whether they restricted something, optionally with the old and new value
+    private void reportUse(Context context, XHook hook, String function, Varargs result, long run) {
+        boolean restricted = result.arg1().checkboolean();
+        if (!restricted || !hook.doUsage())
+            return;
+
+        Bundle data = new Bundle();
+        data.putString("function", function);
+        data.putInt("restricted", 1);
+        data.putLong("duration", SystemClock.elapsedRealtime() - run);
+        if (result.narg() > 1) {
+            data.putString("old", result.isnil(2) ? null : result.checkjstring(2));
+            data.putString("new", result.isnil(3) ? null : result.checkjstring(3));
+        }
+        report(context, hook.getId(), function, "use", data);
+    }
+
+    private void reportError(Context context, XHook hook, String function, Throwable ex, String details) {
+        String message = "Exception:\n" + Log.getStackTraceString(ex) + "\n" +
+                "\nPackage:\n" + context.getPackageName() + ":" + context.getApplicationInfo().uid + "\n" +
+                details;
+        Log.e(TAG, message);
+
+        Bundle data = new Bundle();
+        data.putString("function", function);
+        data.putString("exception", message);
+        report(context, hook.getId(), function, "use", data);
+    }
+
+    private void report(final Context context, String hook, String function, String event, Bundle data) {
         final String packageName = context.getPackageName();
         final int uid = context.getApplicationInfo().uid;
 
@@ -629,172 +522,39 @@ class XCore {
         args.putString("packageName", packageName);
         args.putInt("uid", uid);
         args.putString("event", event);
-        args.putLong("time", new Date().getTime());
+        args.putLong("time", System.currentTimeMillis());
         args.putBundle("data", data);
 
         synchronized (queue) {
             String key = (function == null ? "*" : function) + ":" + event;
             if (!queue.containsKey(key))
-                queue.put(key, new HashMap<String, Bundle>());
+                queue.put(key, new HashMap<>());
             queue.get(key).put(hook, args);
 
-            if (timer == null) {
-                timer = new Timer();
-                timer.schedule(new TimerTask() {
-                    public void run() {
-                        Log.i(TAG, "Processing event queue package=" + packageName + ":" + uid);
-
-                        List<Bundle> work = new ArrayList<>();
-                        synchronized (queue) {
-                            for (String key : queue.keySet())
-                                for (String hook : queue.get(key).keySet())
-                                    work.add(queue.get(key).get(hook));
-                            queue.clear();
-                            timer = null;
-                        }
-
-                        for (Bundle args : work)
-                            try {
-                                context.getContentResolver()
-                                        .call(XProvider.getURI(), "xlua", "report", args);
-                            } catch (Throwable ex) {
-                                log(ex);
-                            }
-                    }
-                }, 1000);
+            if (!flushing) {
+                flushing = true;
+                reporter.schedule(() -> flush(context, packageName, uid), 1, TimeUnit.SECONDS);
             }
         }
     }
 
-    private static Class<?> resolveClass(String name, ClassLoader loader) throws ClassNotFoundException {
-        if ("boolean".equals(name))
-            return boolean.class;
-        else if ("byte".equals(name))
-            return byte.class;
-        else if ("char".equals(name))
-            return char.class;
-        else if ("short".equals(name))
-            return short.class;
-        else if ("int".equals(name))
-            return int.class;
-        else if ("long".equals(name))
-            return long.class;
-        else if ("float".equals(name))
-            return float.class;
-        else if ("double".equals(name))
-            return double.class;
+    private void flush(Context context, String packageName, int uid) {
+        Log.i(TAG, "Processing event queue package=" + packageName + ":" + uid);
 
-        else if ("boolean[]".equals(name))
-            return boolean[].class;
-        else if ("byte[]".equals(name))
-            return byte[].class;
-        else if ("char[]".equals(name))
-            return char[].class;
-        else if ("short[]".equals(name))
-            return short[].class;
-        else if ("int[]".equals(name))
-            return int[].class;
-        else if ("long[]".equals(name))
-            return long[].class;
-        else if ("float[]".equals(name))
-            return float[].class;
-        else if ("double[]".equals(name))
-            return double[].class;
-
-        else if ("void".equals(name))
-            return Void.TYPE;
-
-        else
-            return Class.forName(name, false, loader);
-    }
-
-    private static Field resolveField(Class<?> cls, String name, Class<?> type) throws NoSuchFieldException {
-        try {
-            Class<?> c = cls;
-            while (c != null && !c.equals(Object.class))
-                try {
-                    Field field = c.getDeclaredField(name);
-                    if (!field.getType().equals(type))
-                        throw new NoSuchFieldException();
-                    return field;
-                } catch (NoSuchFieldException ex) {
-                    for (Field field : c.getDeclaredFields()) {
-                        if (!name.equals(field.getName()))
-                            continue;
-
-                        if (!field.getType().equals(type))
-                            continue;
-
-                        Log.i(TAG, "Resolved field=" + field);
-                        return field;
-                    }
-                }
-            throw new NoSuchFieldException(name);
-        } catch (NoSuchFieldException ex) {
-            Class<?> c = cls;
-            while (c != null && !c.equals(Object.class)) {
-                Log.i(TAG, c.toString());
-                for (Method method : c.getDeclaredMethods())
-                    Log.i(TAG, "- " + method.toString());
-                c = c.getSuperclass();
-            }
-            throw ex;
+        List<Bundle> work = new ArrayList<>();
+        synchronized (queue) {
+            for (Map<String, Bundle> hooks : queue.values())
+                work.addAll(hooks.values());
+            queue.clear();
+            flushing = false;
         }
-    }
 
-    private static Member resolveMember(Class<?> cls, String name, Class<?>[] params) throws NoSuchMethodException {
-        boolean exists = false;
-        try {
-            Class<?> c = cls;
-            while (c != null && !c.equals(Object.class))
-                try {
-                    if (name == null)
-                        return c.getDeclaredConstructor(params);
-                    else
-                        return c.getDeclaredMethod(name, params);
-                } catch (NoSuchMethodException ex) {
-                    for (Member member : name == null ? c.getDeclaredConstructors() : c.getDeclaredMethods()) {
-                        if (name != null && !name.equals(member.getName()))
-                            continue;
-
-                        exists = true;
-
-                        Class<?>[] mparams = (name == null
-                                ? ((Constructor) member).getParameterTypes()
-                                : ((Method) member).getParameterTypes());
-
-                        if (mparams.length != params.length)
-                            continue;
-
-                        boolean same = true;
-                        for (int i = 0; i < mparams.length; i++) {
-                            if (!mparams[i].isAssignableFrom(params[i])) {
-                                same = false;
-                                break;
-                            }
-                        }
-                        if (!same)
-                            continue;
-
-                        Log.i(TAG, "Resolved member=" + member);
-                        return member;
-                    }
-                    c = c.getSuperclass();
-                    if (c == null)
-                        throw ex;
-                }
-            throw new NoSuchMethodException(name);
-        } catch (NoSuchMethodException ex) {
-            Class<?> c = cls;
-            while (c != null && !c.equals(Object.class)) {
-                Log.i(TAG, c.toString());
-                for (Member member : name == null ? c.getDeclaredConstructors() : c.getDeclaredMethods())
-                    if (!exists || name == null || name.equals(member.getName()))
-                        Log.i(TAG, "    " + member.toString());
-                c = c.getSuperclass();
+        for (Bundle args : work)
+            try {
+                context.getContentResolver().call(XProvider.getURI(), "xlua", "report", args);
+            } catch (Throwable ex) {
+                log(ex);
             }
-            throw ex;
-        }
     }
 
     private static Globals getGlobals(Context context, XHook hook, Map<String, String> settings) {
@@ -810,6 +570,7 @@ class XCore {
         return new LuaLocals(globals);
     }
 
+    // Scripts can define functions, but no other globals
     private static class LuaLocals extends Globals {
         LuaLocals(Globals globals) {
             this.presize(globals.length(), 0);
@@ -847,6 +608,7 @@ class XCore {
         }
     }
 
+    // hook(object, method, function, args...): hook the methods with a name of the class of an object
     private static class LuaHook extends VarArgFunction {
         // Dynamic hooks are installed on classes, so install each one only once
         private static final Set<String> installed = new HashSet<>();
@@ -894,8 +656,7 @@ class XCore {
                         List<LuaValue> values = new ArrayList<>();
                         values.add(LuaValue.valueOf(when));
                         values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
-                        for (int i = 0; i < xargs.size(); i++)
-                            values.add(xargs.get(i));
+                        values.addAll(xargs);
                         fun.invoke(values.toArray(new LuaValue[0]));
                     }
                 });
@@ -907,6 +668,7 @@ class XCore {
         }
     }
 
+    // log(value): write a value to the Android log
     private static class LuaLog extends OneArgFunction {
         private final String packageName;
         private final int uid;
@@ -926,8 +688,9 @@ class XCore {
         }
     }
 
+    // Scripts without comments and indentation, to compile scripts which differ in these once
     private static class ScriptHolder {
-        String script;
+        final String script;
 
         ScriptHolder(String script) {
             String[] lines = script.split("\\r?\\n");

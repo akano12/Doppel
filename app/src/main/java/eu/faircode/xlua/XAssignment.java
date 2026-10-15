@@ -22,9 +22,6 @@ package eu.faircode.xlua;
 import android.os.Parcel;
 import android.os.Parcelable;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
 class XAssignment implements Parcelable {
     XHook hook;
     long installed = -1;
@@ -32,25 +29,9 @@ class XAssignment implements Parcelable {
     boolean restricted = false;
     String exception;
 
-
     XAssignment(XHook hook) {
         this.hook = hook;
     }
-
-
-    JSONObject toJSONObject() throws JSONException {
-        JSONObject jroot = new JSONObject();
-
-        jroot.put("hook", this.hook.toJSONObject());
-        jroot.put("installed", this.installed);
-        jroot.put("used", this.used);
-        jroot.put("restricted", this.restricted);
-        jroot.put("exception", this.exception);
-
-        return jroot;
-    }
-
-
 
     @Override
     public boolean equals(Object obj) {

@@ -4,24 +4,8 @@
     <string name="title_accept">Đồng ý</string>
     <string name="title_deny">Không đồng ý</string>
     <string name="title_all">Tất cả</string>
-    <string name="title_restrict">Chặn</string>
     <string name="title_bootloop">Hạn chế có thể gây ra một bootloop</string>
     <string name="title_force_stop">Buộc dừng tự động</string>
-    <string name="title_help_instructions">        Tap on an app icon or name and tick restrictions to apply them.
-        If possible, apps are automatically stopped to apply (or remove) restrictions immediately,
-        but applying restrictions to some apps requires a device restart (see icons below).
-        <![CDATA[<br><br>]]>Long press on an app name or icon to start the app.
-        <![CDATA[<br><br>]]>See <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">the documentation</a>]]>        and <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">the frequently asked questions</a>]]> for more information.
-    </string>
-    <string name="title_help_installed">Đã cài chặn</string>
-    <string name="title_help_system">Tiến hành chặn có thể gây ra vấn đề</string>
-    <string name="title_help_settings">Thiết lập chặn ứng dụng</string>
-    <string name="title_help_persistent">Applying restrictions requires a device restart</string>
-    <string name="title_help_exception">Applying restriction failed (tap icon to see why)</string>
-    <string name="menu_show">Show</string>
-    <string name="menu_show_user">Show user apps</string>
-    <string name="menu_show_icon">Hiện ứng dụng kèm biểu tượng</string>
-    <string name="menu_show_all">Show all apps</string>
     <string name="menu_search">Tìm</string>
     <string name="menu_help">Trợ giúp</string>
     <string name="menu_notify_new">Thông báo khi có ứng dụng mới</string>
@@ -33,7 +17,6 @@
     <string name="msg_review_settings">Xem lại thiết lập bảo mật</string>
     <string name="msg_usage">Đã chặn \'\'%1$s\'</string>
     <string name="msg_exception">Lỗi ở %1$s</string>
-    <string name="msg_restrict_sure">Bạn có chắc muốn bật/tắt \'%1$s\' cho tất cả các ứng dụng?</string>
     <string name="msg_no_browser">Không có trình duyệt để mở đường dẫn</string>
     <string name="group_determine_activity">Xác định hoạt động</string>
     <string name="group_get_applications">Thu thập ứng dụng</string>

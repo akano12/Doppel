@@ -29,7 +29,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -176,7 +175,7 @@ public class ActivityApp extends ActivityBase {
                 ? R.string.title_force_stop_persistent : R.string.title_force_stop_hint);
         swForceStop.setOnCheckedChangeListener((button, checked) -> {
             app.forceStop = checked;
-            executor.submit(() -> XProvider.putSettingBoolean(this, app.packageName, "forcestop", checked));
+            executor.submit(() -> Data.putSettingBoolean(this, app.packageName, "forcestop", checked));
             updateRestart();
         });
 

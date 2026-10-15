@@ -19,9 +19,7 @@ package eu.faircode.xlua;
 
 import android.content.Context;
 import android.os.Bundle;
-import android.text.Editable;
 import android.text.TextUtils;
-import android.text.TextWatcher;
 import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -33,6 +31,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.ConcatAdapter;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -49,7 +48,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Scanner;
 import java.util.Set;
 
 // Community hook definitions of the repository (repo/), packaged with the app.
@@ -100,23 +98,12 @@ public class ActivityDownloads extends ActivityBase {
         adapter = new Adapter();
         RecyclerView rvDownloads = findViewById(R.id.rvDownloads);
         rvDownloads.setLayoutManager(new LinearLayoutManager(this));
-        rvDownloads.setAdapter(adapter);
+        rvDownloads.setAdapter(new ConcatAdapter(new NoticeAdapter(), adapter));
 
         EditText etSearch = findViewById(R.id.etSearch);
-        etSearch.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                query = s.toString();
-                show();
-            }
+        Ui.onTextChanged(etSearch, text -> {
+            query = text;
+            show();
         });
 
         ChipGroup cgFilter = findViewById(R.id.cgFilter);
@@ -160,7 +147,7 @@ public class ActivityDownloads extends ActivityBase {
                 });
 
                 Map<String, XHook> installed = new HashMap<>();
-                for (XHook hook : XProvider.getAllHooks(context))
+                for (XHook hook : Data.getAllHooks(context))
                     installed.put(hook.getId(), hook);
                 Set<String> builtinIds = Data.getBuiltinIds(context);
                 List<String> collection = Data.getCollection(context);
@@ -182,7 +169,7 @@ public class ActivityDownloads extends ActivityBase {
 
     private static String readAsset(Context context, String name) throws Exception {
         try (InputStream is = context.getAssets().open(name)) {
-            return new Scanner(is, "UTF-8").useDelimiter("\\A").next();
+            return Util.readText(is);
         }
     }
 
@@ -197,7 +184,6 @@ public class ActivityDownloads extends ActivityBase {
     private void show() {
         String q = (query == null ? "" : query.toLowerCase(Locale.getDefault()).trim());
         List<Object> items = new ArrayList<>();
-        items.add(Boolean.TRUE); // Notice
         String collection = null;
         for (Entry entry : all) {
             State state = getState(entry);
@@ -266,18 +252,27 @@ public class ActivityDownloads extends ActivityBase {
         });
     }
 
-    private class Adapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
-        private static final int TYPE_NOTICE = 0;
-        private static final int TYPE_HEADER = 1;
-        private static final int TYPE_ENTRY = 2;
-
-        private List<Object> items = new ArrayList<>();
-
-        void set(List<Object> items) {
-            this.items = items;
-            notifyDataSetChanged();
+    // The use at own risk notice, above the definitions
+    private static class NoticeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+        @NonNull
+        @Override
+        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_download_notice, parent, false);
+            return new RecyclerView.ViewHolder(view) {
+            };
         }
 
+        @Override
+        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        }
+
+        @Override
+        public int getItemCount() {
+            return 1;
+        }
+    }
+
+    private class Adapter extends AdapterSections<Entry> {
         class EntryHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
             final TextView tvName;
             final TextView tvGroup;
@@ -303,7 +298,7 @@ public class ActivityDownloads extends ActivityBase {
                 int position = getBindingAdapterPosition();
                 if (position == RecyclerView.NO_POSITION)
                     return;
-                Entry entry = (Entry) items.get(position);
+                Entry entry = getItem(position);
                 if (view == btnInstall)
                     install(entry);
                 else {
@@ -316,43 +311,13 @@ public class ActivityDownloads extends ActivityBase {
         }
 
         @Override
-        public int getItemViewType(int position) {
-            Object item = items.get(position);
-            if (item instanceof Boolean)
-                return TYPE_NOTICE;
-            return (item instanceof String ? TYPE_HEADER : TYPE_ENTRY);
+        RecyclerView.ViewHolder onCreateItemHolder(@NonNull ViewGroup parent) {
+            return new EntryHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_download, parent, false));
         }
 
         @Override
-        public int getItemCount() {
-            return items.size();
-        }
-
-        @NonNull
-        @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
-            if (viewType == TYPE_NOTICE)
-                return new RecyclerView.ViewHolder(inflater.inflate(R.layout.item_download_notice, parent, false)) {
-                };
-            if (viewType == TYPE_HEADER)
-                return new RecyclerView.ViewHolder(inflater.inflate(R.layout.item_header, parent, false)) {
-                };
-            return new EntryHolder(inflater.inflate(R.layout.item_download, parent, false));
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-            Object item = items.get(position);
-            if (item instanceof Boolean)
-                return;
-            if (item instanceof String) {
-                ((TextView) holder.itemView).setText((String) item);
-                return;
-            }
-
+        void onBindItem(@NonNull RecyclerView.ViewHolder holder, Entry entry) {
             EntryHolder h = (EntryHolder) holder;
-            Entry entry = (Entry) item;
             Context context = h.itemView.getContext();
             State state = getState(entry);
 

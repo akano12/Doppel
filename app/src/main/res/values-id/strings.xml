@@ -3,23 +3,8 @@
     <string name="title_accept">Btun</string>
     <string name="title_deny">Saya tidak setuju</string>
     <string name="title_all">Semua</string>
-    <string name="title_restrict">Membatasi</string>
     <string name="title_bootloop">Restricting can cause a bootloop</string>
     <string name="title_force_stop">Force stop automatically</string>
-    <string name="title_help_instructions">Ketuk ikon atau nama aplikasi dan centang batasan untuk menerapkannya.
-         Jika memungkinkan, aplikasi secara otomatis dihentikan untuk menerapkan (atau menghapus) batasan dengan segera,
-         tetapi menerapkan pembatasan ke beberapa aplikasi memerlukan perangkat dimulai ulang (lihat ikon di bawah).
-         <![CDATA[<br> <br>]]>Tekan lama nama atau ikon aplikasi untuk memulai aplikasi.
-         <![CDATA[<br> <br>]]>Lihat<![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md"> dokumentasi</a>]]>         dan <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md"> pertanyaan umum </a>]]> untuk informasi lebih lanjut.    </string>
-    <string name="title_help_installed">Pembatasan dipasang</string>
-    <string name="title_help_system">Applying restrictions can result in problems</string>
-    <string name="title_help_settings">App restriction settings</string>
-    <string name="title_help_persistent">Applying restrictions requires a device restart</string>
-    <string name="title_help_exception">Gagal menerapkan pembatasan (ketuk ikon untuk melihat alasannya)</string>
-    <string name="menu_show">Tampilkan</string>
-    <string name="menu_show_user">Tampilkan aplikasi pengguna</string>
-    <string name="menu_show_icon">Tampilkan aplikasi dengan ikon</string>
-    <string name="menu_show_all">Tampilkan semua aplikasi</string>
     <string name="menu_search">Cari</string>
     <string name="menu_help">Bantuan</string>
     <string name="menu_notify_new">Beri tahu pada aplikasi baru</string>
@@ -31,7 +16,6 @@
     <string name="msg_review_settings">Tinjau pengaturan privasi</string>
     <string name="msg_usage">\'%1$s\' dibatasi</string>
     <string name="msg_exception" comment="msg_exception&#10;Error in &lt;hook name&gt;">Galat di %1$s</string>
-    <string name="msg_restrict_sure">Anda yakin akan mengubah \'%1$s\' untuk semua aplikasi?</string>
     <string name="msg_no_browser">Tidak ada browser yang tersedia untuk membuka tautan</string>
     <string name="group_determine_activity">Tentukan aktivitas</string>
     <string name="group_get_applications">Dapatkan aplikasi</string>

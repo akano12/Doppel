@@ -4,24 +4,8 @@
     <string name="title_accept">Ako ay sumasang-ayon</string>
     <string name="title_deny">Ako ay hindi sumasang-ayon</string>
     <string name="title_all">Lahat</string>
-    <string name="title_restrict">Limitado</string>
     <string name="title_bootloop">Ang paghihigpit ay maaaring maging sanhi ng bootloop</string>
     <string name="title_force_stop">Awtomatikong pilit na hininto</string>
-    <string name="title_help_instructions">Pindutin ang app aykon o pangalan at piliin ang restriksyon para e apply sila. 
-        Kung posible, ang app na ito ay awtomatikong hihinto kaagad sa pag-apply (o sa pag tanggal) ng mga restriskyon,
-        ngunit ang pag apply bilang restrikyon sa ilang apps ay nangngailangan ng pag-restart (tingnan ang aykon sa ibaba).
-        <![CDATA[<br><br>]]>pindotin ng matagal sa pangalan ng app o aykon upang magsimula ang app.
-        <![CDATA[<br><br>]]>tingnan<![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">ang dokumentasyon</a>]]>        at<![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">ang madalas na mga tanong</a>]]>para sa impormasyon.
-    </string>
-    <string name="title_help_installed">Ipinagbabawal na naka install</string>
-    <string name="title_help_system">Pagpasaok sa mga ipinagababawal ay maaaring magresulta sa mga problema</string>
-    <string name="title_help_settings">Paghihigpit ng mga setting sa app</string>
-    <string name="title_help_persistent">Paglalapat ng restriksyon ay kailang mag restart ang devise</string>
-    <string name="title_help_exception">Nabigo ang pag-aaply sa restriksyon (tapikin ang aykon para malaman kung bakit)</string>
-    <string name="menu_show">Ipakita</string>
-    <string name="menu_show_user">Ipakita ang gumamit ng apps</string>
-    <string name="menu_show_icon">Ipakita ang apps na may atykon</string>
-    <string name="menu_show_all">Ipakita ang lahat ng apps</string>
     <string name="menu_search">Maghanap</string>
     <string name="menu_help">Tulong</string>
     <string name="menu_notify_new">Abisuhan ang bagong apps</string>
@@ -33,7 +17,6 @@
     <string name="msg_review_settings">Suriin ang seeting ng pribasidad</string>
     <string name="msg_usage">Pinaghihigpitan \'%1$s</string>
     <string name="msg_exception">May mali sa %1$s</string>
-    <string name="msg_restrict_sure">Sigurado kay i-toggle mo ang \'%1$s sa lahat ng apps?</string>
     <string name="msg_no_browser">Walang ma ibang browser na magagamit sa pag bukas ng link</string>
     <string name="group_determine_activity">Tukuyin ang aktibidad</string>
     <string name="group_get_applications">Kumuha ng application</string>

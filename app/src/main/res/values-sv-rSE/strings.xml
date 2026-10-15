@@ -3,24 +3,8 @@
     <string name="title_accept">Jag godkänner</string>
     <string name="title_deny">Jag godkänner inte</string>
     <string name="title_all">Alla</string>
-    <string name="title_restrict">Begränsa</string>
     <string name="title_bootloop">Begränsning kan orsaka en bootloop</string>
     <string name="title_force_stop">Tvinga stopp automatiskt</string>
-    <string name="title_help_instructions">        Tryck på en app-ikon eller namn och kryssa i begränsningar för att tillämpa dem.
-        Om möjligt stoppas appar automatiskt för att tillämpa (eller ta bort) begränsningar omedelbart,
-        men att tillämpa begränsningar för vissa appar kräver en omstart av enheten (se ikoner nedan).
-        <![CDATA[<br><br>]]>Tryck länge på ett appnamn eller en ikon för att starta appen.
-        <![CDATA[<br><br>]]>Se <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">dokumentationen</a>]]>        och <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">de vanliga frågorna</a>]]> för mer information.
-    </string>
-    <string name="title_help_installed">Begränsning installerad</string>
-    <string name="title_help_system">Tillämpning av begränsningar kan leda till problem</string>
-    <string name="title_help_settings">Inställningar för appbegränsningar</string>
-    <string name="title_help_persistent">För att tillämpa begränsningar krävs omstart av enheten</string>
-    <string name="title_help_exception">Begränsning misslyckades (tryck på ikonen för att se varför)</string>
-    <string name="menu_show">Visa</string>
-    <string name="menu_show_user">Visa användarappar</string>
-    <string name="menu_show_icon">Visa appar med ikoner</string>
-    <string name="menu_show_all">Visa alla appar</string>
     <string name="menu_search">Sök</string>
     <string name="menu_help">Hjälp</string>
     <string name="menu_notify_new">Meddela om nya appar</string>
@@ -32,7 +16,6 @@
     <string name="msg_review_settings">Granska sekretessinställningar</string>
     <string name="msg_usage">Begränsad \'%1$s\'</string>
     <string name="msg_exception" comment="msg_exception&#10;Error in &lt;hook name&gt;">Fel i %1$s</string>
-    <string name="msg_restrict_sure">Är du säker på att växla \'%1$s\' för alla appar?</string>
     <string name="msg_no_browser">Ingen webbläsare tillgänglig för att öppna länk</string>
     <string name="group_determine_activity">Bestäm aktivitet</string>
     <string name="group_get_applications">Hämta program</string>

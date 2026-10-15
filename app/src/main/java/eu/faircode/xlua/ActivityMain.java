@@ -22,24 +22,17 @@ package eu.faircode.xlua;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.text.method.LinkMovementMethod;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.TextView;
 
-import androidx.core.text.HtmlCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-
-import java.util.Calendar;
 
 // Top level screens: apps, activity, hooks and settings
-public class ActivityMain extends ActivityBase {
+public class ActivityMain extends ActivityBase implements Ui.Anchored {
     private static final String TAG = "XLua.Main";
 
     // Opens the restrictions of an app, used by notifications
@@ -50,13 +43,11 @@ public class ActivityMain extends ActivityBase {
     private static final String TAB_HOOKS = "hooks";
     private static final String TAB_SETTINGS = "settings";
 
-    private BottomNavigationView nav;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (!XProvider.isAvailable(this)) {
+        if (!Data.isAvailable(this)) {
             setContentView(R.layout.activity_unavailable);
             findViewById(R.id.btnRetry).setOnClickListener(view -> recreate());
             findViewById(R.id.btnDocs).setOnClickListener(view ->
@@ -65,7 +56,7 @@ public class ActivityMain extends ActivityBase {
         }
 
         setContentView(R.layout.activity_main);
-        nav = findViewById(R.id.snackbar_anchor);
+        BottomNavigationView nav = findViewById(R.id.nav);
         nav.setOnItemSelectedListener(item -> {
             show(getTab(item.getItemId()));
             return true;
@@ -81,6 +72,11 @@ public class ActivityMain extends ActivityBase {
     }
 
     @Override
+    public View getMessageAnchor() {
+        return findViewById(R.id.nav);
+    }
+
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleIntent(intent);
@@ -93,11 +89,6 @@ public class ActivityMain extends ActivityBase {
             intent.removeExtra(EXTRA_SEARCH_PACKAGE);
             startActivity(ActivityApp.getIntent(this, packageName, -1));
         }
-    }
-
-    void selectSettings() {
-        if (nav != null)
-            nav.setSelectedItemId(R.id.nav_settings);
     }
 
     private static String getTab(int itemId) {
@@ -145,15 +136,7 @@ public class ActivityMain extends ActivityBase {
         if (!prefs.getBoolean("firstrun", true))
             return;
 
-        View view = LayoutInflater.from(this).inflate(R.layout.dialog_text, null, false);
-        TextView tvLicense = view.findViewById(R.id.tvText);
-        tvLicense.setMovementMethod(LinkMovementMethod.getInstance());
-        int year = Calendar.getInstance().get(Calendar.YEAR);
-        tvLicense.setText(HtmlCompat.fromHtml(getString(R.string.title_license, year), HtmlCompat.FROM_HTML_MODE_LEGACY));
-
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.app_name)
-                .setView(view)
+        Ui.getLicenseDialog(this)
                 .setCancelable(false)
                 .setPositiveButton(R.string.title_accept, (dialog, which) ->
                         prefs.edit().putBoolean("firstrun", false).apply())

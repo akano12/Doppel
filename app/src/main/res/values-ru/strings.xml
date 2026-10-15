@@ -3,25 +3,8 @@
     <string name="title_accept">Принимаю</string>
     <string name="title_deny">Не принимаю</string>
     <string name="title_all">Все</string>
-    <string name="title_restrict">Ограничить</string>
     <string name="title_bootloop">Ограничения могут вызвать циклическую перезагрузку</string>
     <string name="title_force_stop">Останавливать автоматически</string>
-    <string name="title_help_instructions">        Коснитесь значка или имени приложения и отметьте ограничения, чтобы их применить.
-        По возможности приложения будут автоматически остановлены для немедленного применения (или удаления) ограничений,
-        однако для применения ограничений к некоторым приложениям требуется перезагрузка устройства (смотрите на ярлыки ниже).
-        <![CDATA[<br><br>]]>;Нажмите на имя или ярлык приложения и удерживайте для его запуска.
-        <![CDATA[<br><br>]]>;Изучите <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">the документацию</a>]]>;
-        и <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">часто задаваемые вопросы</a>]]>; для получения более подробной информации.
-    </string>
-    <string name="title_help_installed">Ограничение установлено</string>
-    <string name="title_help_system">Применение ограничений может вызвать проблемы</string>
-    <string name="title_help_settings">Настройки ограничения приложения</string>
-    <string name="title_help_persistent">Применение ограничений требует перезагрузки устройства</string>
-    <string name="title_help_exception">Применение ограничения не удалось (нажмите значок, чтобы показать, почему)</string>
-    <string name="menu_show">Показать</string>
-    <string name="menu_show_user">Показать пользовательские приложения</string>
-    <string name="menu_show_icon">Показать приложения с ярлыками</string>
-    <string name="menu_show_all">Показать все приложения</string>
     <string name="menu_search">Поиск</string>
     <string name="menu_help">Справка</string>
     <string name="menu_notify_new">Уведомлять о новых приложениях</string>
@@ -33,7 +16,6 @@
     <string name="msg_review_settings">Настройки конфиденциальности</string>
     <string name="msg_usage">Ограничено \'%1$s\'</string>
     <string name="msg_exception" comment="msg_exception&#10;Error in &lt;hook name&gt;">Ошибка в %1$s</string>
-    <string name="msg_restrict_sure">Вы действительно хотите переключить \'%1$s\' для всех приложений?</string>
     <string name="msg_no_browser">Отсутствует браузер для открытия ссылки</string>
     <string name="group_determine_activity">Определение активности</string>
     <string name="group_get_applications">Чтение списка приложений</string>

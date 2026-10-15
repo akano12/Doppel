@@ -4,24 +4,8 @@
     <string name="title_accept">Sunt de acord</string>
     <string name="title_deny">Nu sunt de acord</string>
     <string name="title_all">Toate</string>
-    <string name="title_restrict">Restricționare</string>
     <string name="title_bootloop">Restricţionarea poate provoca un bootloop</string>
     <string name="title_force_stop">Oprire automată</string>
-    <string name="title_help_instructions">        Atingeți pictograma unei aplicați sau numele şi bifaţi restricţii pentru ale aplica.
-        Dacă este posibil, aplicațiile sunt automat oprite pentru a aplica (sau elimina) restricţiile imediat,
-        dar aplicarea restricţiilor la unele aplicaţii necesită un dispozitiv de repornire (vezi pictogramele mai jos).
-        <![CDATA[<br><br>]]>țineți apăsat pe un nume de aplicație sau pictogramă pentru a porni aplicația.
-        <![CDATA[<br><br>]]> Vezi <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">documentaţia</a>]]>        și <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">întrebări frecvente</a>]]>, pentru mai multe informaţii.
-    </string>
-    <string name="title_help_installed">Restricțiile au fost instalate</string>
-    <string name="title_help_system">Aplicarea restricţiilor poate duce la probleme</string>
-    <string name="title_help_settings">Setările de restricţie a aplicației</string>
-    <string name="title_help_persistent">Aplicarea restricțiilor necesită repornirea aparatului</string>
-    <string name="title_help_exception">Aplicarea restricțiilor nu a fost posibilă (atinge semnul pentru a vedea de ce)</string>
-    <string name="menu_show">Arată</string>
-    <string name="menu_show_user">Arată aplicațiile utilizatorului</string>
-    <string name="menu_show_icon">Arată aplicațiile cu pictograma</string>
-    <string name="menu_show_all">Arată toate aplicațiile</string>
     <string name="menu_search">Caută</string>
     <string name="menu_help">Ajutor</string>
     <string name="menu_notify_new">Notifică aplicatiile noi</string>
@@ -33,7 +17,6 @@
     <string name="msg_review_settings">Revizuiește setările private</string>
     <string name="msg_usage">Limitat \'%1$s \'</string>
     <string name="msg_exception">Eroare in %1$s</string>
-    <string name="msg_restrict_sure">Sunteţi sigur că vreti să comutați \'%1$s\' pentru toate aplicațiile?</string>
     <string name="msg_no_browser">Nici un browser valabil pentru a deschide linkul</string>
     <string name="group_determine_activity">Determină activitatea</string>
     <string name="group_get_applications">Arată aplicațiile</string>

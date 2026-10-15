@@ -39,7 +39,7 @@ public class ApplicationEx extends Application {
         // The service is not available when the module is not running
         String theme = null;
         try {
-            theme = XProvider.getSetting(this, "global", "theme");
+            theme = Data.getSetting(this, "global", "theme");
         } catch (Throwable ex) {
             Log.w(TAG, ex.toString());
         }

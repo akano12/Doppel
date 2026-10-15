@@ -19,16 +19,12 @@
 
 package eu.faircode.xlua;
 
-import android.app.ActivityManager;
-import android.appwidget.AppWidgetManager;
 import android.content.Context;
-import android.hardware.SensorManager;
-import android.hardware.camera2.CameraManager;
-import android.media.AudioManager;
 import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.text.TextUtils;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -38,7 +34,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -73,8 +68,6 @@ public class XHook implements Parcelable {
     private String luaScript;
 
     private String[] settings;
-
-    final static int FLAG_WITH_LUA = 2; // =PARCELABLE_ELIDE_DUPLICATES
 
     private XHook() {
     }
@@ -142,7 +135,7 @@ public class XHook implements Parcelable {
         if (!this.enabled)
             return false;
 
-        if (Build.VERSION.SDK_INT < this.minSdk || Build.VERSION.SDK_INT > this.maxSdk)
+        if (!isForThisSdk())
             return false;
 
         if (packageName == null)
@@ -189,106 +182,61 @@ public class XHook implements Parcelable {
         return this.luaScript;
     }
 
+    // Hooks of system services hook the implementation, which can be a subclass
     public void resolveClassName(Context context) {
-        if ("android.app.ActivityManager".equals(this.className)) {
-            Object service = context.getSystemService(ActivityManager.class);
+        try {
+            Object service;
+            if ("android.content.ContentResolver".equals(this.className))
+                service = context.getContentResolver();
+            else if ("android.content.pm.PackageManager".equals(this.className))
+                service = context.getPackageManager();
+            else {
+                Class<?> cls = Class.forName(this.className, false, XHook.class.getClassLoader());
+                String name = context.getSystemServiceName(cls);
+                // Some services keep the context, like the Wi-Fi manager
+                Context app = context.getApplicationContext();
+                service = (name == null ? null : (app == null ? context : app).getSystemService(name));
+            }
             if (service != null)
                 this.resolvedClassName = service.getClass().getName();
-
-        } else if ("android.appwidget.AppWidgetManager".equals(this.className)) {
-            Object service = context.getSystemService(AppWidgetManager.class);
-            if (service != null)
-                this.resolvedClassName = service.getClass().getName();
-
-        } else if ("android.media.AudioManager".equals(this.className)) {
-            Object service = context.getSystemService(AudioManager.class);
-            if (service != null)
-                this.resolvedClassName = service.getClass().getName();
-
-        } else if ("android.hardware.camera2.CameraManager".equals(this.className)) {
-            Object service = context.getSystemService(CameraManager.class);
-            if (service != null)
-                this.resolvedClassName = service.getClass().getName();
-
-        } else if ("android.content.ContentResolver".equals(this.className)) {
-            this.resolvedClassName = context.getContentResolver().getClass().getName();
-
-        } else if ("android.content.pm.PackageManager".equals(this.className)) {
-            this.resolvedClassName = context.getPackageManager().getClass().getName();
-
-        } else if ("android.hardware.SensorManager".equals(this.className)) {
-            Object service = context.getSystemService(SensorManager.class);
-            if (service != null)
-                this.resolvedClassName = service.getClass().getName();
-
-        } else if ("android.telephony.TelephonyManager".equals(this.className)) {
-            Object service = context.getSystemService(Context.TELEPHONY_SERVICE);
-            if (service != null)
-                this.resolvedClassName = service.getClass().getName();
-
-        } else if ("android.net.wifi.WifiManager".equals(this.className)) {
-            Object service = context.getSystemService(Context.WIFI_SERVICE);
-            if (service != null)
-                this.resolvedClassName = service.getClass().getName();
+        } catch (ClassNotFoundException ignored) {
+            // A class of an app, like Google Play services
+        } catch (Throwable ex) {
+            Log.w(TAG, "Resolve " + this.className + ": " + ex);
         }
     }
 
-    // Read hook definitions from asset file
-    static ArrayList<XHook> readHooks(Context context, String apk) throws IOException, JSONException {
-        ZipFile zipFile = null;
-        try {
-            zipFile = new ZipFile(apk);
+    // Read the built-in hook definitions of the app
+    static ArrayList<XHook> readHooks(String apk) throws IOException, JSONException {
+        try (ZipFile zipFile = new ZipFile(apk)) {
             ZipEntry zipEntry = zipFile.getEntry("assets/hooks.json");
             if (zipEntry == null)
                 throw new IllegalArgumentException("assets/hooks.json not found in " + apk);
 
-            InputStream is = null;
-            try {
-                is = zipFile.getInputStream(zipEntry);
-                String json = new Scanner(is).useDelimiter("\\A").next();
-                ArrayList<XHook> hooks = new ArrayList<>();
-                JSONArray jarray = new JSONArray(json);
-                for (int i = 0; i < jarray.length(); i++) {
-                    XHook hook = XHook.fromJSONObject(jarray.getJSONObject(i));
-                    hook.builtin = true;
-
-                    // Link script
-                    if (hook.luaScript.startsWith("@")) {
-                        ZipEntry luaEntry = zipFile.getEntry("assets/" + hook.luaScript.substring(1) + ".lua");
-                        if (luaEntry == null)
-                            throw new IllegalArgumentException(hook.luaScript + " not found for " + hook.getId());
-                        else {
-                            InputStream lis = null;
-                            try {
-                                lis = zipFile.getInputStream(luaEntry);
-                                hook.luaScript = new Scanner(lis).useDelimiter("\\A").next();
-                            } finally {
-                                if (lis != null)
-                                    try {
-                                        lis.close();
-                                    } catch (IOException ignored) {
-                                    }
-                            }
-                        }
-                    }
-
-                    hooks.add(hook);
-                }
-
-                return hooks;
-            } finally {
-                if (is != null)
-                    try {
-                        is.close();
-                    } catch (IOException ignored) {
-                    }
+            String json;
+            try (InputStream is = zipFile.getInputStream(zipEntry)) {
+                json = Util.readText(is);
             }
-        } finally {
-            if (zipFile != null)
-                try {
-                    zipFile.close();
-                } catch (IOException ignored) {
+
+            ArrayList<XHook> hooks = new ArrayList<>();
+            JSONArray jarray = new JSONArray(json);
+            for (int i = 0; i < jarray.length(); i++) {
+                XHook hook = XHook.fromJSONObject(jarray.getJSONObject(i));
+                hook.builtin = true;
+
+                // Scripts in separate files
+                if (hook.luaScript.startsWith("@")) {
+                    ZipEntry luaEntry = zipFile.getEntry("assets/" + hook.luaScript.substring(1) + ".lua");
+                    if (luaEntry == null)
+                        throw new IllegalArgumentException(hook.luaScript + " not found for " + hook.getId());
+                    try (InputStream lis = zipFile.getInputStream(luaEntry)) {
+                        hook.luaScript = Util.readText(lis);
+                    }
                 }
+
+                hooks.add(hook);
+            }
+            return hooks;
         }
     }
 
@@ -441,8 +389,23 @@ public class XHook implements Parcelable {
         return 0;
     }
 
+    // Parcels of assignments and app lists do not include the script
     @Override
     public void writeToParcel(Parcel dest, int flags) {
+        write(dest, false);
+    }
+
+    byte[] marshall(boolean withLua) {
+        Parcel parcel = Parcel.obtain();
+        try {
+            write(parcel, withLua);
+            return parcel.marshall();
+        } finally {
+            parcel.recycle();
+        }
+    }
+
+    private void write(Parcel dest, boolean withLua) {
         dest.writeByte(this.builtin ? (byte) 1 : (byte) 0);
         dest.writeString(this.collection);
         dest.writeString(this.group);
@@ -464,10 +427,7 @@ public class XHook implements Parcelable {
         dest.writeByte(this.optional ? (byte) 1 : (byte) 0);
         dest.writeByte(this.usage ? (byte) 1 : (byte) 0);
         dest.writeByte(this.notify ? (byte) 1 : (byte) 0);
-        if ((flags & FLAG_WITH_LUA) == 0)
-            dest.writeString(null);
-        else
-            dest.writeString(this.luaScript);
+        dest.writeString(withLua ? this.luaScript : null);
         dest.writeStringArray(this.settings);
     }
 

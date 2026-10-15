@@ -4,21 +4,8 @@
     <string name="title_accept">Súhlasím</string>
     <string name="title_deny">Odmietam</string>
     <string name="title_all">Všetko</string>
-    <string name="title_restrict">Blokovať</string>
     <string name="title_bootloop">Blokovanie môže spôsobiť problém</string>
     <string name="title_force_stop">Zastaviť automaticky</string>
-    <string name="title_help_instructions">Stlačte na ikonu alebo názov a vyberte čo sa má blokovať.
-Ak je to možné, aplikácie sa automaticky zastavia kvôli okamžitej zmene blokovania,
- avšak pre niektoré aplikácie zmena blokovania vyžaduje reštart zariadenia (viď ikony nižšie).<![CDATA[<br><br>]]>Dlhým stlačením na ikonu alebo názov spustíte aplikáciu.<![CDATA[<br><br>]]>Viď <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">dokumentáciu</a>]]>a <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">najčastejšie otázky</a>]]> pre viac informácií.    </string>
-    <string name="title_help_installed">Blokovanie nainštalované</string>
-    <string name="title_help_system">Blokovanie môže spôsobiť problémy</string>
-    <string name="title_help_settings">Nastavenia blokovania aplikácie</string>
-    <string name="title_help_persistent">Uplatnenie blokovania vyžaduje reštart zariadenia</string>
-    <string name="title_help_exception">Uplatnenie blokovania zlyhalo (pre info stlačte na ikonu)</string>
-    <string name="menu_show">Zobraziť</string>
-    <string name="menu_show_user">Zobraziť používateľské aplikácie</string>
-    <string name="menu_show_icon">Zobraziť aplikácie s ikonou</string>
-    <string name="menu_show_all">Zobraziť všetky aplikácie</string>
     <string name="menu_search">Hľadať</string>
     <string name="menu_help">Pomoc</string>
     <string name="menu_notify_new">Upozorniť na nové aplikácie</string>
@@ -30,7 +17,6 @@ Ak je to možné, aplikácie sa automaticky zastavia kvôli okamžitej zmene blo
     <string name="msg_review_settings">Kontrola ochrany osobných údajov</string>
     <string name="msg_usage">Blokované: \'%1$s\'</string>
     <string name="msg_exception">Chyba v %1$s</string>
-    <string name="msg_restrict_sure">Prepnúť \'%1$s\' pre všetky aplikácie?</string>
     <string name="msg_no_browser">Chýba prehliadač k otvoreniu odkazu</string>
     <string name="group_determine_activity">Aktivita podľa senzorov</string>
     <string name="group_get_applications">Zoznam aplikácií</string>

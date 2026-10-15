@@ -19,9 +19,7 @@ package eu.faircode.xlua;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.net.Uri;
-import android.os.Parcel;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -30,7 +28,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Scanner;
 
 // Backup and restore of settings, custom hook definitions and restrictions.
 // Restrictions are stored by package name, so a backup can be restored on another device.
@@ -44,7 +41,7 @@ class Backup {
         jroot.put("version", BuildConfig.VERSION_CODE);
 
         JSONArray jsettings = new JSONArray();
-        for (String[] setting : XProvider.getAllSettings(context)) {
+        for (String[] setting : Data.getAllSettings(context)) {
             JSONObject jsetting = new JSONObject();
             jsetting.put("category", setting[0]);
             jsetting.put("name", setting[1]);
@@ -54,36 +51,23 @@ class Backup {
         jroot.put("settings", jsettings);
 
         JSONArray jhooks = new JSONArray();
-        for (XHook hook : XProvider.getAllHooks(context))
+        for (XHook hook : Data.getAllHooks(context))
             if (!hook.isBuiltin())
                 jhooks.put(Data.toEditable(hook));
         jroot.put("hooks", jhooks);
 
         JSONArray jrestrictions = new JSONArray();
-        try (Cursor cursor = context.getContentResolver().query(XProvider.getURI(),
-                new String[]{"xlua.getApps2"}, null, null, null)) {
-            while (cursor != null && cursor.moveToNext()) {
-                byte[] marshaled = cursor.getBlob(0);
-                Parcel parcel = Parcel.obtain();
-                XApp app;
-                try {
-                    parcel.unmarshall(marshaled, 0, marshaled.length);
-                    parcel.setDataPosition(0);
-                    app = XApp.CREATOR.createFromParcel(parcel);
-                } finally {
-                    parcel.recycle();
-                }
-                if (app.assignments.isEmpty())
-                    continue;
+        for (XApp app : Data.getApps(context)) {
+            if (app.assignments.isEmpty())
+                continue;
 
-                JSONArray jids = new JSONArray();
-                for (XAssignment assignment : app.assignments)
-                    jids.put(assignment.hook.getId());
-                JSONObject jrestriction = new JSONObject();
-                jrestriction.put("package", app.packageName);
-                jrestriction.put("hooks", jids);
-                jrestrictions.put(jrestriction);
-            }
+            JSONArray jids = new JSONArray();
+            for (XAssignment assignment : app.assignments)
+                jids.put(assignment.hook.getId());
+            JSONObject jrestriction = new JSONObject();
+            jrestriction.put("package", app.packageName);
+            jrestriction.put("hooks", jids);
+            jrestrictions.put(jrestriction);
         }
         jroot.put("restrictions", jrestrictions);
 
@@ -98,7 +82,7 @@ class Backup {
     static int[] restore(Context context, Uri uri) throws Throwable {
         String text;
         try (InputStream is = context.getContentResolver().openInputStream(uri)) {
-            text = new Scanner(is, "UTF-8").useDelimiter("\\A").next();
+            text = Util.readText(is);
         }
         JSONObject jroot = new JSONObject(text);
         if (jroot.optInt("format", 0) != FORMAT)
@@ -118,7 +102,7 @@ class Backup {
         if (jsettings != null)
             for (int i = 0; i < jsettings.length(); i++) {
                 JSONObject jsetting = jsettings.getJSONObject(i);
-                XProvider.putSetting(context,
+                Data.putSetting(context,
                         jsetting.getString("category"),
                         jsetting.getString("name"),
                         jsetting.isNull("value") ? null : jsetting.getString("value"),
@@ -144,7 +128,7 @@ class Backup {
                 JSONArray jids = jrestriction.getJSONArray("hooks");
                 for (int j = 0; j < jids.length(); j++)
                     ids.add(jids.getString(j));
-                XProvider.assignHooks(context, ids, packageName, uid, false);
+                Data.assignHooks(context, ids, packageName, uid, false, false);
                 apps++;
             }
         }

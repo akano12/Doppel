@@ -23,7 +23,6 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Process;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -115,18 +114,17 @@ public class FragmentSettings extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         executor.submit(() -> {
             try {
-                boolean available = XProvider.isAvailable(context);
-                Bundle version = context.getContentResolver()
-                        .call(XProvider.getURI(), "xlua", "getVersion", new Bundle());
-                List<XHook> hooks = XProvider.getAllHooks(context);
+                boolean available = Data.isAvailable(context);
+                int version = Data.getVersion(context);
+                List<XHook> hooks = Data.getAllHooks(context);
                 TreeSet<String> known = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
                 for (XHook hook : hooks)
                     known.add(hook.getCollection());
                 List<String> enabled = Data.getCollection(context);
                 known.addAll(enabled);
-                boolean restrictNew = XProvider.getSettingBoolean(context, "global", "restrict_new_apps");
-                boolean notifyNew = XProvider.getSettingBoolean(context, "global", "notify_new_apps");
-                String theme = XProvider.getSetting(context, "global", "theme");
+                boolean restrictNew = Data.getSettingBoolean(context, "global", "restrict_new_apps");
+                boolean notifyNew = Data.getSettingBoolean(context, "global", "notify_new_apps");
+                String theme = Data.getSetting(context, "global", "theme");
 
                 post(() -> {
                     this.collections = new ArrayList<>(known);
@@ -134,7 +132,7 @@ public class FragmentSettings extends FragmentBase {
 
                     tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
                     glStatus.removeAllViews();
-                    addStatus(R.string.title_status_service, version == null ? "-" : Integer.toString(version.getInt("version")));
+                    addStatus(R.string.title_status_service, version < 0 ? "-" : Integer.toString(version));
                     addStatus(R.string.title_status_hooks, Integer.toString(hooks.size()));
                     addStatus(R.string.title_status_collections, Integer.toString(enabled.size()));
                     addStatus(R.string.title_status_android, Build.VERSION.RELEASE + " · SDK " + Build.VERSION.SDK_INT);
@@ -160,7 +158,7 @@ public class FragmentSettings extends FragmentBase {
                                 : checkedId == R.id.btnThemeLight ? ApplicationEx.THEME_LIGHT
                                 : ApplicationEx.THEME_SYSTEM);
                         executor.submit(() -> {
-                            XProvider.putSetting(context, "global", "theme", selected);
+                            Data.putSetting(context, "global", "theme", selected);
                             post(() -> ApplicationEx.applyTheme(selected));
                         });
                     });
@@ -185,7 +183,7 @@ public class FragmentSettings extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         executor.submit(() -> {
             try {
-                XProvider.putSetting(context, "global", name, value);
+                Data.putSetting(context, "global", name, value);
             } catch (Throwable ex) {
                 error(TAG, ex);
             }
@@ -252,9 +250,7 @@ public class FragmentSettings extends FragmentBase {
         final Activity activity = requireActivity();
         executor.submit(() -> {
             try {
-                Bundle args = new Bundle();
-                args.putInt("user", Util.getUserId(Process.myUid()));
-                activity.getContentResolver().call(XProvider.getURI(), "xlua", "clearData", args);
+                Data.clearData(activity);
                 Ui.message(activity, getString(R.string.msg_cleared));
                 post(this::load);
             } catch (Throwable ex) {

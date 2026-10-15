@@ -130,8 +130,7 @@ public class FragmentLog extends FragmentBase {
                 }
 
                 List<Entry> entries = new ArrayList<>();
-                try (Cursor cursor = context.getContentResolver().query(XProvider.getURI(),
-                        new String[]{"xlua.getLog"}, null, null, null)) {
+                try (Cursor cursor = Data.getLog(context)) {
                     while (cursor != null && cursor.moveToNext()) {
                         String pkg = cursor.getString(cursor.getColumnIndexOrThrow("package"));
                         int uid = cursor.getInt(cursor.getColumnIndexOrThrow("uid"));
@@ -219,26 +218,7 @@ public class FragmentLog extends FragmentBase {
         tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
-    private class Adapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
-        private static final int TYPE_HEADER = 0;
-        private static final int TYPE_ENTRY = 1;
-
-        private List<Object> items = new ArrayList<>();
-
-        void set(List<Object> items) {
-            this.items = items;
-            notifyDataSetChanged();
-        }
-
-        class HeaderHolder extends RecyclerView.ViewHolder {
-            final TextView tvHeader;
-
-            HeaderHolder(View itemView) {
-                super(itemView);
-                tvHeader = itemView.findViewById(R.id.tvHeader);
-            }
-        }
-
+    private class Adapter extends AdapterSections<Entry> {
         class EntryHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
             final MaterialCardView card;
             final ImageView ivIcon;
@@ -270,7 +250,7 @@ public class FragmentLog extends FragmentBase {
                 int position = getBindingAdapterPosition();
                 if (position == RecyclerView.NO_POSITION)
                     return;
-                Entry entry = (Entry) items.get(position);
+                Entry entry = getItem(position);
                 if (entry.exception == null)
                     startActivity(ActivityApp.getIntent(view.getContext(), entry.app.packageName, entry.app.uid));
                 else
@@ -279,35 +259,13 @@ public class FragmentLog extends FragmentBase {
         }
 
         @Override
-        public int getItemViewType(int position) {
-            return (items.get(position) instanceof String ? TYPE_HEADER : TYPE_ENTRY);
+        RecyclerView.ViewHolder onCreateItemHolder(@NonNull ViewGroup parent) {
+            return new EntryHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_log, parent, false));
         }
 
         @Override
-        public int getItemCount() {
-            return items.size();
-        }
-
-        @NonNull
-        @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
-            if (viewType == TYPE_HEADER)
-                return new HeaderHolder(inflater.inflate(R.layout.item_header, parent, false));
-            else
-                return new EntryHolder(inflater.inflate(R.layout.item_log, parent, false));
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-            Object item = items.get(position);
-            if (holder instanceof HeaderHolder) {
-                ((HeaderHolder) holder).tvHeader.setText((String) item);
-                return;
-            }
-
+        void onBindItem(@NonNull RecyclerView.ViewHolder holder, Entry entry) {
             EntryHolder h = (EntryHolder) holder;
-            Entry entry = (Entry) item;
             Context context = h.itemView.getContext();
             boolean error = (entry.exception != null);
 

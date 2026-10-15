@@ -31,8 +31,6 @@ import io.github.libxposed.api.XposedModule;
 // The modern API requires Android 8.0 or later
 @RequiresApi(Build.VERSION_CODES.O)
 public class XLuaModule extends XposedModule {
-    private static final String SETTINGS_PACKAGE = "com.android.providers.settings";
-
     private boolean systemServer = false;
     private XCore core = null;
 
@@ -74,10 +72,9 @@ public class XLuaModule extends XposedModule {
         try {
             if (systemServer) {
                 // The settings provider is loaded into system server, which has the scope 'system'
-                if (SETTINGS_PACKAGE.equals(packageName))
+                if (XCore.SETTINGS_PACKAGE.equals(packageName))
                     core.hookSettings(param.getClassLoader());
-            } else if (param.isFirstPackage() && !packageName.startsWith(BuildConfig.APPLICATION_ID))
-                // Packages loaded into another app's process (WebView, GMS, etc.) are handled by the host app
+            } else if (XCore.isApp(packageName, param.isFirstPackage()))
                 core.hookApplication(packageName, param.getClassLoader());
         } catch (Throwable ex) {
             XCore.log(ex);

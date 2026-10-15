@@ -19,16 +19,13 @@
 
 package eu.faircode.xlua;
 
-import android.app.Notification;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.content.res.Resources;
 import android.os.Bundle;
 import android.util.Log;
 
-
+// Package changes of all users, registered in system server (see XCore.hookAndroid)
 public class ReceiverPackage extends BroadcastReceiver {
     private static final String TAG = "XLua.Receiver";
 
@@ -43,51 +40,37 @@ public class ReceiverPackage extends BroadcastReceiver {
             int userid = Util.getUserId(uid);
             Context ctx = Util.createContextForUser(context, userid);
 
+            Bundle args = new Bundle();
+            args.putString("packageName", packageName);
+            args.putInt("uid", uid);
+
             if (Intent.ACTION_PACKAGE_ADDED.equals(intent.getAction())) {
                 if (!replacing && !packageName.startsWith(BuildConfig.APPLICATION_ID)) {
                     // Initialize app
-                    Bundle args = new Bundle();
-                    args.putString("packageName", packageName);
-                    args.putInt("uid", uid);
-                    context.getContentResolver()
-                            .call(XProvider.getURI(), "xlua", "clearApp", args);
-                    if (XProvider.getSettingBoolean(context, userid, "global", "restrict_new_apps"))
-                        context.getContentResolver()
-                                .call(XProvider.getURI(), "xlua", "initApp", args);
+                    call(context, "clearApp", args);
+                    if (Data.getSettingBoolean(context, userid, "global", "restrict_new_apps"))
+                        call(context, "initApp", args);
 
-                    // Notify new app
-                    if (XProvider.getSettingBoolean(context, userid, "global", "notify_new_apps")) {
-                        PackageManager pm = ctx.getPackageManager();
-                        Resources resources = pm.getResourcesForApplication(BuildConfig.APPLICATION_ID);
-
-                        Notification.Builder builder = Util.getNotificationBuilder(ctx, true);
-                        builder.setSmallIcon(android.R.drawable.ic_dialog_alert);
-                        builder.setContentTitle(resources.getString(R.string.msg_review_settings));
-                        builder.setContentText(pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)));
-                        builder.setContentIntent(Util.getSearchIntent(ctx, uid, packageName));
-
-                        Util.notifyAsUser(ctx, "xlua_new_app", uid, builder.build(), userid);
-                    }
+                    if (Data.getSettingBoolean(context, userid, "global", "notify_new_apps"))
+                        XNotify.notifyNewApp(ctx, userid, uid, packageName);
                 }
             } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
                 if (BuildConfig.APPLICATION_ID.equals(packageName)) {
-                    Bundle args = new Bundle();
-                    args.putInt("user", userid);
-                    context.getContentResolver()
-                            .call(XProvider.getURI(), "xlua", "clearData", args);
+                    Bundle data = new Bundle();
+                    data.putInt("user", userid);
+                    call(context, "clearData", data);
                 } else {
-                    Bundle args = new Bundle();
-                    args.putString("packageName", packageName);
-                    args.putInt("uid", uid);
                     args.putBoolean("settings", true);
-                    context.getContentResolver()
-                            .call(XProvider.getURI(), "xlua", "clearApp", args);
-
-                    Util.cancelAsUser(ctx, "xlua_new_app", uid, userid);
+                    call(context, "clearApp", args);
+                    XNotify.cancelNewApp(ctx, userid, uid);
                 }
             }
         } catch (Throwable ex) {
             XCore.log(ex);
         }
+    }
+
+    private static void call(Context context, String method, Bundle args) {
+        context.getContentResolver().call(XProvider.getURI(), "xlua", method, args);
     }
 }

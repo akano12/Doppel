@@ -24,16 +24,21 @@ import android.content.Intent;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.text.format.DateUtils;
 import android.text.method.LinkMovementMethod;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.core.text.HtmlCompat;
+import androidx.core.util.Consumer;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;
@@ -46,6 +51,11 @@ import java.util.Calendar;
 
 // Small view helpers shared by the screens
 final class Ui {
+    // Screens with a bar at the bottom, which messages are shown above
+    interface Anchored {
+        View getMessageAnchor();
+    }
+
     private Ui() {
     }
 
@@ -54,7 +64,9 @@ final class Ui {
     }
 
     static int color(Context context, int attr) {
-        return Util.resolveColor(context, attr);
+        TypedValue value = new TypedValue();
+        context.getTheme().resolveAttribute(attr, value, true);
+        return value.data;
     }
 
     // Rounded label, like 'built-in' or 'system'
@@ -113,10 +125,9 @@ final class Ui {
 
     static void message(Activity activity, CharSequence message, CharSequence action, Runnable onAction) {
         activity.runOnUiThread(() -> {
-            View anchor = activity.findViewById(R.id.snackbar_anchor);
             Snackbar snackbar = Snackbar.make(activity.findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG);
-            if (anchor != null)
-                snackbar.setAnchorView(anchor);
+            if (activity instanceof Anchored)
+                snackbar.setAnchorView(((Anchored) activity).getMessageAnchor());
             if (action != null)
                 snackbar.setAction(action, view -> onAction.run());
             snackbar.show();
@@ -145,16 +156,39 @@ final class Ui {
     }
 
     static void showLicense(Context context) {
+        getLicenseDialog(context)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
+    // The license with working links, without buttons
+    static MaterialAlertDialogBuilder getLicenseDialog(Context context) {
         View view = LayoutInflater.from(context).inflate(R.layout.dialog_text, null, false);
         TextView tvText = view.findViewById(R.id.tvText);
         tvText.setMovementMethod(LinkMovementMethod.getInstance());
         int year = Calendar.getInstance().get(Calendar.YEAR);
         tvText.setText(HtmlCompat.fromHtml(context.getString(R.string.title_license, year), HtmlCompat.FROM_HTML_MODE_LEGACY));
-        new MaterialAlertDialogBuilder(context)
+        return new MaterialAlertDialogBuilder(context)
                 .setTitle(R.string.app_name)
-                .setView(view)
-                .setPositiveButton(android.R.string.ok, null)
-                .show();
+                .setView(view);
+    }
+
+    // Text of a search field, after each change
+    static void onTextChanged(EditText editText, Consumer<String> listener) {
+        editText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                listener.accept(s.toString());
+            }
+        });
     }
 
     static void areYouSure(Context context, CharSequence question, Runnable onSure) {

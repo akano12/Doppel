@@ -19,16 +19,44 @@
 
 package eu.faircode.xlua;
 
+import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
+
+import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-// Screens share a background thread for service calls
+// Screens are drawn edge-to-edge and share a background thread for service calls
 public class ActivityBase extends AppCompatActivity {
     protected final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        EdgeToEdge.enable(this);
+        super.onCreate(savedInstanceState);
+    }
+
+    // The layout keeps clear of the system bars, display cutouts and the keyboard
+    @Override
+    public void setContentView(int layoutResID) {
+        super.setContentView(layoutResID);
+        View root = ((ViewGroup) findViewById(android.R.id.content)).getChildAt(0);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() |
+                    WindowInsetsCompat.Type.displayCutout() |
+                    WindowInsetsCompat.Type.ime());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
+    }
 
     // Toolbar with an up button, which finishes the screen
     protected MaterialToolbar setupToolbar(CharSequence title) {

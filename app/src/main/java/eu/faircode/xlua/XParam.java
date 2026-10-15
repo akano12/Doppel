@@ -39,7 +39,8 @@ public class XParam {
     private final Class<?> returnType;
     private final Map<String, String> settings;
 
-    private static final Map<Object, Map<String, Object>> nv = new WeakHashMap<>();
+    // Values scripts keep per scope, like per object, see putValue and getValue
+    private static final Map<Object, Map<String, Object>> scopedValues = new WeakHashMap<>();
 
     // Field param
     public XParam(
@@ -185,10 +186,10 @@ public class XParam {
     public void putValue(String name, Object value, Object scope) {
         if (BuildConfig.DEBUG)
             Log.i(TAG, "Put value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value + " @" + scope);
-        synchronized (nv) {
-            if (!nv.containsKey(scope))
-                nv.put(scope, new HashMap<String, Object>());
-            nv.get(scope).put(name, value);
+        synchronized (scopedValues) {
+            if (!scopedValues.containsKey(scope))
+                scopedValues.put(scope, new HashMap<>());
+            scopedValues.get(scope).put(name, value);
         }
     }
 
@@ -201,12 +202,12 @@ public class XParam {
     }
 
     private static Object getValueInternal(String name, Object scope) {
-        synchronized (nv) {
-            if (!nv.containsKey(scope))
+        synchronized (scopedValues) {
+            if (!scopedValues.containsKey(scope))
                 return null;
-            if (!nv.get(scope).containsKey(name))
+            if (!scopedValues.get(scope).containsKey(name))
                 return null;
-            return nv.get(scope).get(name);
+            return scopedValues.get(scope).get(name);
         }
     }
 

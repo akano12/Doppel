@@ -7,12 +7,7 @@
     <!-- Light and dark follow the theme setting, see ApplicationEx -->
     <style name="Theme.XLua" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowDisablePreview">true</item>
-        <!-- Layouts do not handle edge-to-edge insets -->
-        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
-        <item name="android:statusBarColor">@color/c_surface</item>
-        <item name="android:navigationBarColor">@color/c_surface_lowest</item>
-        <item name="android:windowLightStatusBar">@bool/light_bars</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="27">@bool/light_bars</item>
+        <!-- Edge-to-edge, see ActivityBase -->
 
         <item name="colorPrimary">@color/c_primary</item>
         <item name="colorOnPrimary">@color/c_on_primary</item>

@@ -41,10 +41,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.OutputStream;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Member;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -172,7 +168,7 @@ public class ActivityHookEdit extends ActivityBase {
         findViewById(R.id.btnCheck).setOnClickListener(view -> check());
 
         if (id == null) {
-            etCollection.setText(Data.COLLECTION_DEFAULT);
+            etCollection.setText(Util.COLLECTION_DEFAULT);
             etGroup.setText("Custom");
             etAuthor.setText("me");
             etVersion.setText("1");
@@ -196,7 +192,7 @@ public class ActivityHookEdit extends ActivityBase {
         final Context context = getApplicationContext();
         executor.submit(() -> {
             try {
-                List<XHook> hooks = XProvider.getAllHooks(context);
+                List<XHook> hooks = Data.getAllHooks(context);
                 Set<String> ids = Data.getBuiltinIds(context);
                 List<String> groups = Data.getGroupNames(hooks);
                 XHook found = null;
@@ -269,15 +265,17 @@ public class ActivityHookEdit extends ActivityBase {
     }
 
     // Shows the error at the field
-    private static Integer number(EditText et, int empty) {
+    private Integer number(int tilId, int empty) {
+        TextInputLayout til = findViewById(tilId);
+        EditText et = til.getEditText();
+        til.setError(null);
         String value = text(et);
         if (value.isEmpty())
             return empty;
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException ex) {
-            TextInputLayout til = (TextInputLayout) et.getParent().getParent();
-            til.setError(et.getContext().getString(R.string.msg_invalid, value));
+            til.setError(getString(R.string.msg_invalid, value));
             et.requestFocus();
             return null;
         }
@@ -285,13 +283,11 @@ public class ActivityHookEdit extends ActivityBase {
 
     // The definition as entered, null with an error shown at a field
     private JSONObject getDefinition() throws Exception {
-        for (EditText et : new EditText[]{etVersion, etMinSdk, etMaxSdk, etMinApk, etMaxApk})
-            ((TextInputLayout) et.getParent().getParent()).setError(null);
-        Integer version = number(etVersion, 0);
-        Integer minSdk = number(etMinSdk, 1);
-        Integer maxSdk = number(etMaxSdk, 999);
-        Integer minApk = number(etMinApk, 0);
-        Integer maxApk = number(etMaxApk, Integer.MAX_VALUE);
+        Integer version = number(R.id.tilVersion, 0);
+        Integer minSdk = number(R.id.tilMinSdk, 1);
+        Integer maxSdk = number(R.id.tilMaxSdk, 999);
+        Integer minApk = number(R.id.tilMinApk, 0);
+        Integer maxApk = number(R.id.tilMaxApk, Integer.MAX_VALUE);
         if (version == null || minSdk == null || maxSdk == null || minApk == null || maxApk == null)
             return null;
 
@@ -408,7 +404,7 @@ public class ActivityHookEdit extends ActivityBase {
             final Context context = getApplicationContext();
             executor.submit(() -> {
                 try {
-                    XProvider.putHook(context, id, null);
+                    Data.putHook(context, id, null);
                     runOnUiThread(this::finish);
                 } catch (Throwable ex) {
                     Log.e(TAG, Log.getStackTraceString(ex));
@@ -440,29 +436,32 @@ public class ActivityHookEdit extends ActivityBase {
         });
     }
 
-    // Resolve the target in this app, which has the framework classes but not the classes of other apps
+    // Resolve the target in this app, like the hook engine does in an app,
+    // which has the framework classes, but not the classes of other apps
     private void check() {
         final String className = text(etClass);
         final String member = text(etMethod);
         final JSONArray params = split(etParams);
+        final ClassLoader loader = getClassLoader();
         tvCheck.setText(R.string.title_checking);
         executor.submit(() -> {
             String result;
             try {
-                Class<?> cls = Class.forName(className, false, getClassLoader());
+                Class<?> cls = XResolver.resolveClass(className, loader);
                 if (member.contains(":"))
                     result = getString(R.string.title_check_class, cls.getName());
-                else if (member.startsWith("#")) {
-                    Field field = findField(cls, member.substring(1));
-                    result = (field == null
-                            ? getString(R.string.title_check_no_member, member)
-                            : getString(R.string.title_check_found, field.toString()));
-                } else {
-                    Member found = findMember(cls, member.isEmpty() ? null : member, params);
-                    result = (found == null
-                            ? getString(R.string.title_check_no_member, member.isEmpty() ? "<init>" : member)
-                            : getString(R.string.title_check_found, found.toString()));
+                else if (member.startsWith("#"))
+                    result = getString(R.string.title_check_found,
+                            XResolver.resolveField(cls, member.substring(1), null).toString());
+                else {
+                    Class<?>[] types = new Class<?>[params.length()];
+                    for (int i = 0; i < types.length; i++)
+                        types[i] = XResolver.resolveClass(params.getString(i), loader);
+                    result = getString(R.string.title_check_found,
+                            XResolver.resolveMember(cls, member.isEmpty() ? null : member, types).toString());
                 }
+            } catch (NoSuchFieldException | NoSuchMethodException ex) {
+                result = getString(R.string.title_check_no_member, member.isEmpty() ? "<init>" : member);
             } catch (ClassNotFoundException | NoClassDefFoundError ex) {
                 result = getString(R.string.title_check_no_class, className);
             } catch (Throwable ex) {
@@ -471,62 +470,5 @@ public class ActivityHookEdit extends ActivityBase {
             final String text = result;
             runOnUiThread(() -> tvCheck.setText(text));
         });
-    }
-
-    private static Field findField(Class<?> cls, String name) {
-        for (Class<?> c = cls; c != null; c = c.getSuperclass())
-            for (Field field : c.getDeclaredFields())
-                if (field.getName().equals(name))
-                    return field;
-        return null;
-    }
-
-    // Like the hook engine, parameter types match by assignability
-    private Member findMember(Class<?> cls, String name, JSONArray jparams) throws Exception {
-        Class<?>[] params = new Class<?>[jparams.length()];
-        for (int i = 0; i < params.length; i++)
-            params[i] = resolveClass(jparams.getString(i));
-        for (Class<?> c = cls; c != null; c = c.getSuperclass()) {
-            Member[] members = (name == null ? c.getDeclaredConstructors() : c.getDeclaredMethods());
-            for (Member m : members) {
-                if (name != null && !name.equals(m.getName()))
-                    continue;
-                Class<?>[] types = (m instanceof Method
-                        ? ((Method) m).getParameterTypes()
-                        : ((Constructor<?>) m).getParameterTypes());
-                if (types.length != params.length)
-                    continue;
-                boolean same = true;
-                for (int i = 0; i < types.length && same; i++)
-                    same = types[i].isAssignableFrom(params[i]);
-                if (same)
-                    return m;
-            }
-        }
-        return null;
-    }
-
-    private Class<?> resolveClass(String name) throws ClassNotFoundException {
-        switch (name) {
-            case "boolean":
-                return boolean.class;
-            case "byte":
-                return byte.class;
-            case "char":
-                return char.class;
-            case "short":
-                return short.class;
-            case "int":
-                return int.class;
-            case "long":
-                return long.class;
-            case "float":
-                return float.class;
-            case "double":
-                return double.class;
-        }
-        if (name.endsWith("[]"))
-            return java.lang.reflect.Array.newInstance(resolveClass(name.substring(0, name.length() - 2)), 0).getClass();
-        return Class.forName(name, false, getClassLoader());
     }
 }

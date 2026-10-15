@@ -4,24 +4,8 @@
     <string name="title_accept">Elfogadom</string>
     <string name="title_deny">Nem fogadom el</string>
     <string name="title_all">Összes</string>
-    <string name="title_restrict">Korlátoz</string>
     <string name="title_bootloop">A korlátozás bootloop-ot okozhat</string>
     <string name="title_force_stop">Automatikus leállítás</string>
-    <string name="title_help_instructions">        Érintsd meg egy app ikonját vagy nevét és pipáld ki a korlátozásokat a bekapcsolásukhoz.
-        Ha lehetséges, akkor az appok automatikusan leállnak és azonnal érvényre jutnak (vagy törlődnek) a korlátozások,
-        de némely appok korlátozása az eszköz újraindítását igényli (lásd a lenti ikonokat).
-        <![CDATA[<br><br>]]>Tartsd hosszan nyomva egy app nevét vagy ikonját az app elindításához.
-        <![CDATA[<br><br>]]>További információért lásd a <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">dokumentációt</a>]]> és a <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">gyakran ismételt kérdéseket</a>]]>.
-    </string>
-    <string name="title_help_installed">Korlátozás installálva</string>
-    <string name="title_help_system">A korlátozások alkalmazása problémákat okozhat</string>
-    <string name="title_help_settings">App korlátozásainak beállításai</string>
-    <string name="title_help_persistent">A korlátozások bekapcsolásához újra kell indítani az eszközt</string>
-    <string name="title_help_exception">A korlátozás bekapcsolása nem sikerült (nyomd meg az ikont a részletekért)</string>
-    <string name="menu_show">Megjelenítés</string>
-    <string name="menu_show_user">Felhasználói appok megjelenítése</string>
-    <string name="menu_show_icon">Ikonnal rendelkező appok megjelenítése</string>
-    <string name="menu_show_all">Összes app megjelenítése</string>
     <string name="menu_search">Keresés</string>
     <string name="menu_help">Súgó</string>
     <string name="menu_notify_new">Értesítés új app esetén</string>
@@ -33,7 +17,6 @@
     <string name="msg_review_settings">Adatvédelmi beállítások áttekintése</string>
     <string name="msg_usage">\"%1$s\" korlátozva</string>
     <string name="msg_exception">Hiba a következőben: %1$s</string>
-    <string name="msg_restrict_sure">Biztosan szeretnéd bekapcsolni az összes appra a következőt: \"%1$s\"</string>
     <string name="msg_no_browser">Nincs elérhető böngésző a link megnyitásához</string>
     <string name="group_determine_activity">Aktivitások meghatározása</string>
     <string name="group_get_applications">Alkalmazások lekérdezése</string>

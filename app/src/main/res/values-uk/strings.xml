@@ -4,24 +4,8 @@
     <string name="title_accept">Я згоден</string>
     <string name="title_deny">Я не згоден</string>
     <string name="title_all">Усі</string>
-    <string name="title_restrict">Обмежити</string>
     <string name="title_bootloop">Обмеження можуть викликати бутлуп</string>
     <string name="title_force_stop">Змусити зупинитися автоматично</string>
-    <string name="title_help_instructions">        Торкніться значка програми або назви та позначте обмеження, щоб застосувати їх.
-        По можливості програми будуть автоматично зупинені для негайного застосування (або видалення) обмежень,
-        однак для застосування обмежень до деяких додатків потрібне перезавантаження пристрою (дивіться на ярлики нижче).
-        <![CDATA[<br><br>]]>Натисніть на назву або значок додатку, щоб запустити додаток.
-        <![CDATA[<br><br>]]>Дивіться <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/README.md">документацію</a>]]>        і <![CDATA[<a href="https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md">часто задавані питання</a>]]> для отримання додаткової інформації.
-    </string>
-    <string name="title_help_installed">Обмеження встановлені</string>
-    <string name="title_help_system">Застосування обмежень може призвести до проблем</string>
-    <string name="title_help_settings">Налаштування обмеження додатка</string>
-    <string name="title_help_persistent">Застосування обмежень вимагає перезавантаження пристрою</string>
-    <string name="title_help_exception">Застосування обмеження не вдалося (натисніть значок, щоб показати, чому)</string>
-    <string name="menu_show">Показати</string>
-    <string name="menu_show_user">Показати додатки користувача</string>
-    <string name="menu_show_icon">Показати додатки з ярликами</string>
-    <string name="menu_show_all">Показати всі програми</string>
     <string name="menu_search">Пошук</string>
     <string name="menu_help">Допомога</string>
     <string name="menu_notify_new">Сповіщати про нові програми</string>
@@ -33,7 +17,6 @@
     <string name="msg_review_settings">Налаштування конфіденційності</string>
     <string name="msg_usage">Обмежено \'%1$s\'</string>
     <string name="msg_exception">Помилка в %1$s</string>
-    <string name="msg_restrict_sure">Ви дійсно хочете перемкнути \'%1$s\' для всіх додатків?</string>
     <string name="msg_no_browser">Відсутній браузер для відкриття посилання</string>
     <string name="group_determine_activity">Визначення активності</string>
     <string name="group_get_applications">Отримання списку додатків</string>

@@ -22,8 +22,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -52,7 +50,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Scanner;
 import java.util.Set;
 
 // All hook definitions: built-in, custom and custom replacing built-in
@@ -116,20 +113,9 @@ public class FragmentHooks extends FragmentBase {
         });
 
         EditText etSearch = view.findViewById(R.id.etSearch);
-        etSearch.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                query = s.toString();
-                show();
-            }
+        Ui.onTextChanged(etSearch, text -> {
+            query = text;
+            show();
         });
 
         ChipGroup cgFilter = view.findViewById(R.id.cgFilter);
@@ -149,7 +135,7 @@ public class FragmentHooks extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         executor.submit(() -> {
             try {
-                List<XHook> hooks = XProvider.getAllHooks(context);
+                List<XHook> hooks = Data.getAllHooks(context);
                 Set<String> ids = Data.getBuiltinIds(context);
                 List<String> collection = Data.getCollection(context);
                 Collections.sort(hooks, (h1, h2) -> {
@@ -226,7 +212,7 @@ public class FragmentHooks extends FragmentBase {
             try {
                 String text;
                 try (InputStream is = context.getContentResolver().openInputStream(uri)) {
-                    text = new Scanner(is, "UTF-8").useDelimiter("\\A").next();
+                    text = Util.readText(is);
                 }
                 JSONArray jarray = (text.trim().startsWith("[")
                         ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
@@ -247,7 +233,7 @@ public class FragmentHooks extends FragmentBase {
         executor.submit(() -> {
             try {
                 JSONArray jarray = new JSONArray();
-                for (XHook hook : XProvider.getAllHooks(context))
+                for (XHook hook : Data.getAllHooks(context))
                     if (!hook.isBuiltin())
                         jarray.put(Data.toEditable(hook));
                 try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
@@ -276,23 +262,7 @@ public class FragmentHooks extends FragmentBase {
         return sb.append(')').toString();
     }
 
-    private class Adapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
-        private static final int TYPE_HEADER = 0;
-        private static final int TYPE_HOOK = 1;
-
-        private List<Object> items = new ArrayList<>();
-
-        void set(List<Object> items) {
-            this.items = items;
-            notifyDataSetChanged();
-        }
-
-        class HeaderHolder extends RecyclerView.ViewHolder {
-            HeaderHolder(View itemView) {
-                super(itemView);
-            }
-        }
-
+    private class Adapter extends AdapterSections<XHook> {
         class HookHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
             final TextView tvName;
             final TextView tvClass;
@@ -310,39 +280,18 @@ public class FragmentHooks extends FragmentBase {
             public void onClick(View view) {
                 int position = getBindingAdapterPosition();
                 if (position != RecyclerView.NO_POSITION)
-                    startActivity(ActivityHookEdit.getIntent(view.getContext(), ((XHook) items.get(position)).getId()));
+                    startActivity(ActivityHookEdit.getIntent(view.getContext(), getItem(position).getId()));
             }
         }
 
         @Override
-        public int getItemViewType(int position) {
-            return (items.get(position) instanceof String ? TYPE_HEADER : TYPE_HOOK);
+        RecyclerView.ViewHolder onCreateItemHolder(@NonNull ViewGroup parent) {
+            return new HookHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_hook, parent, false));
         }
 
         @Override
-        public int getItemCount() {
-            return items.size();
-        }
-
-        @NonNull
-        @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
-            if (viewType == TYPE_HEADER)
-                return new HeaderHolder(inflater.inflate(R.layout.item_header, parent, false));
-            else
-                return new HookHolder(inflater.inflate(R.layout.item_hook, parent, false));
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-            if (holder instanceof HeaderHolder) {
-                ((TextView) holder.itemView).setText((String) items.get(position));
-                return;
-            }
-
+        void onBindItem(@NonNull RecyclerView.ViewHolder holder, XHook hook) {
             HookHolder h = (HookHolder) holder;
-            XHook hook = (XHook) items.get(position);
             Context context = h.itemView.getContext();
             boolean runs = (hook.isEnabled() && hook.isForThisSdk() && collection.contains(hook.getCollection()));
 

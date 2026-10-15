@@ -19,13 +19,8 @@
 
 package eu.faircode.xlua;
 
-import android.content.Context;
 import android.os.Parcel;
 import android.os.Parcelable;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,47 +49,6 @@ class XApp implements Parcelable {
                 filtered.add(assignment);
 
         return filtered;
-    }
-
-    String toJSON() throws JSONException {
-        return toJSONObject().toString(2);
-    }
-
-    JSONObject toJSONObject() throws JSONException {
-        JSONObject jroot = new JSONObject();
-
-        jroot.put("packageName", this.packageName);
-        jroot.put("uid", this.uid);
-        jroot.put("icon", this.icon);
-        jroot.put("label", this.label);
-        jroot.put("enabled", this.enabled);
-        jroot.put("persistent", this.persistent);
-        jroot.put("system", this.system);
-        jroot.put("forcestop", this.forceStop);
-
-        JSONArray jassignments = new JSONArray();
-        for (XAssignment assignment : this.assignments)
-            jassignments.put(assignment.toJSONObject());
-        jroot.put("assignments", jassignments);
-
-        return jroot;
-    }
-
-
-
-    private IListener listener = null;
-
-    void setListener(IListener listener) {
-        this.listener = listener;
-    }
-
-    void notifyAssign(Context context, String groupName, boolean assign) {
-        if (this.listener != null)
-            this.listener.onAssign(context, groupName, assign);
-    }
-
-    public interface IListener {
-        void onAssign(Context context, String groupName, boolean assign);
     }
 
     @Override
