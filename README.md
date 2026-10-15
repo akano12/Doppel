@@ -40,7 +40,7 @@ Restrictions
 * Read sync data (hide [sync data](https://developer.android.com/training/sync-adapters/creating-sync-adapter.html))
 * Read telephony data (fake IMEI, MEID, SIM serial number, phone number, voicemail number, type allocation code, etc)
 * Read time zone (fake time zone, setting *value.timezone*, default UTC)
-* Read device features (hide features which are not part of the Android platform and features listed in setting *features.hide*)
+* Read device features (hide the list of device features; single checks only hide features which are not part of the Android platform and features listed in setting *features.hide*)
 * Read VPN state (hide VPN transports, networks and interfaces)
 * Record audio (prevent recording and speech recognition)
 * Record video (prevent recording)
