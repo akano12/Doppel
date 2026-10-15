@@ -23,7 +23,6 @@ Ak je to možné, aplikácie sa automaticky zastavia kvôli okamžitej zmene blo
     <string name="menu_help">Pomoc</string>
     <string name="menu_notify_new">Upozorniť na nové aplikácie</string>
     <string name="menu_restrict_new">Blokovať nové aplikácie</string>
-    <string name="menu_companion">Pro funkcie</string>
     <string name="menu_readme">Dokumentácia</string>
     <string name="menu_faq">FAQ</string>
     <string name="menu_donate">Podporiť</string>

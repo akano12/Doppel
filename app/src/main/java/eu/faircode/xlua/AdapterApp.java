@@ -157,19 +157,11 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> impl
                 updateExpand();
 
             } else if (id == R.id.ivSettings) {
-                PackageManager pm = view.getContext().getPackageManager();
-                Intent settings = pm.getLaunchIntentForPackage(Util.PRO_PACKAGE_NAME);
-                if (settings == null) {
-                    Intent browse = new Intent(Intent.ACTION_VIEW);
-                    browse.setData(Uri.parse("https://lua.xprivacy.eu/pro/"));
-                    if (browse.resolveActivity(pm) == null)
-                        Snackbar.make(view, view.getContext().getString(R.string.msg_no_browser), Snackbar.LENGTH_LONG).show();
-                    else
-                        view.getContext().startActivity(browse);
-                } else {
-                    settings.putExtra("packageName", app.packageName);
-                    view.getContext().startActivity(settings);
-                }
+                // Fake values for this app
+                Intent values = new Intent(view.getContext(), ActivityValues.class);
+                values.putExtra(ActivityValues.EXTRA_PACKAGE, app.packageName);
+                values.putExtra(ActivityValues.EXTRA_LABEL, app.label);
+                view.getContext().startActivity(values);
             }
         }
 

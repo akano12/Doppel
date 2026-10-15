@@ -14,7 +14,7 @@ An easy way to do this is by toggling a definition off/on in XPrivacyLua.
 
 XPrivacyLua allows you to select which apps a definition should be applied to.
 
-You can edit hook definitions for free with the XPrivacyLua [pro companion app](https://play.google.com/apps/testing/eu.faircode.xlua.pro).
+You can edit hook definitions in XPrivacyLua itself, with *Hook definitions* in the navigation drawer.
 
 Definition
 ----------
@@ -60,7 +60,8 @@ An exported definition in [JSON](https://en.wikipedia.org/wiki/JSON) format look
 
 <br>
 
-Note that you can conveniently edit hook definitions in the pro companion app, so there is no need to edit JSON files.
+Note that you can conveniently edit hook definitions in XPrivacyLua (*Hook definitions*), so there is no need to edit JSON files.
+Definitions can be imported from and exported to JSON files there too.
 
 <br>
 
@@ -71,9 +72,10 @@ Note that you can conveniently edit hook definitions in the pro companion app, s
 * Setting *optional* to *true* will suppress error messages about the class or method not being found (default *false*)
 * Setting *usage* to *false* means that executing the hook will not be reported (default *true*)
 * Setting *notify* to *true* will result in showing notifications when the hook is applied (default *false*)
-* Settings (custom values) can be set using the pro companion app and read using *param:getSetting('setting_name1')*
+* Settings (custom values) can be set with *Fake values* in the navigation drawer (for all apps) or with the settings icon of an app (for that app),
+  and read using *param:getSetting('setting_name1')*; an app setting takes precedence over the setting for all apps
 
-The pro companion app allows you to select which *collection*s of hooks XPrivacyLua should use.
+*Fake values* allows you to select which *collection*s of hooks XPrivacyLua should use.
 
 See [here](https://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/types.html#wp276) about Java type signatures (names).
 
@@ -184,7 +186,7 @@ If you need global caching, you can use something like this:
 	local value = param:getValue(name, scope)
 ```
 
-Using the pro companion app you can edit built-in definitions, which will result in making a copy of the definition.
+With *Hook definitions* you can edit built-in definitions, which will result in making a copy of the definition.
 You could for example enable usage notifications or change returned fake values.
 Deleting copied definitions will restore the built-in definitions.
 

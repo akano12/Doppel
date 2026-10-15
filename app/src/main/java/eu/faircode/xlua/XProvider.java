@@ -42,6 +42,8 @@ import android.os.StrictMode;
 import android.provider.Settings;
 import android.util.Log;
 
+import org.json.JSONException;
+
 import java.io.File;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -174,6 +176,10 @@ class XProvider {
                 case "getSettings":
                     result = getSettings(context, selection);
                     break;
+                case "getAllSettings":
+                    enforcePermission(context);
+                    result = queryAllSettings(context);
+                    break;
                 case "getLog":
                     result = getLog(context, selection);
                     break;
@@ -224,10 +230,16 @@ class XProvider {
                 } else
                     Log.w(TAG, "Builtin not found id=" + id);
             } else {
-                if (!hook.isBuiltin())
-                    Log.i(TAG, "Storing hook id=" + id);
                 hook.resolveClassName(context);
-                hooks.put(id, hook);
+                if (hook.isBuiltin()) {
+                    // Refresh the built-in definition, but keep a custom definition replacing it
+                    builtins.put(id, hook);
+                    if (!hooks.containsKey(id) || hooks.get(id).isBuiltin())
+                        hooks.put(id, hook);
+                } else {
+                    Log.i(TAG, "Storing hook id=" + id);
+                    hooks.put(id, hook);
+                }
             }
         }
 
@@ -589,6 +601,34 @@ class XProvider {
                         null, null, null);
                 while (cursor.moveToNext())
                     result.addRow(new String[]{cursor.getString(0), cursor.getString(1)});
+            } finally {
+                if (cursor != null)
+                    cursor.close();
+            }
+        } finally {
+            dbLock.readLock().unlock();
+        }
+
+        return result;
+    }
+
+    // All settings of the user of the caller, for backup
+    private static Cursor queryAllSettings(Context context) throws Throwable {
+        int userid = Util.getUserId(Binder.getCallingUid());
+        MatrixCursor result = new MatrixCursor(new String[]{"category", "name", "value"});
+
+        dbLock.readLock().lock();
+        try {
+            Cursor cursor = null;
+            try {
+                cursor = db.query(
+                        "setting",
+                        new String[]{"category", "name", "value"},
+                        "user = ?",
+                        new String[]{Integer.toString(userid)},
+                        null, null, "category, name");
+                while (cursor.moveToNext())
+                    result.addRow(new String[]{cursor.getString(0), cursor.getString(1), cursor.getString(2)});
             } finally {
                 if (cursor != null)
                     cursor.close();
@@ -1308,5 +1348,69 @@ class XProvider {
 
     static void putSettingBoolean(Context context, String category, String name, boolean value) {
         putSetting(context, category, name, Boolean.toString(value));
+    }
+
+    // Client side helpers for the management screens of the app
+
+    // Setting a null value deletes the setting; kill force stops the package of the category
+    static void putSetting(Context context, String category, String name, String value, boolean kill) {
+        Bundle args = new Bundle();
+        args.putInt("user", Util.getUserId(Process.myUid()));
+        args.putString("category", category);
+        args.putString("name", name);
+        args.putString("value", value);
+        args.putBoolean("kill", kill);
+        context.getContentResolver().call(XProvider.getURI(), "xlua", "putSetting", args);
+    }
+
+    // Settings of a category (global or a package name) of the current user
+    static Map<String, String> getSettings(Context context, String category) {
+        Map<String, String> result = new HashMap<>();
+        try (Cursor cursor = context.getContentResolver().query(XProvider.getURI(), new String[]{"xlua.getSettings"},
+                null, new String[]{category, Integer.toString(Process.myUid())}, null)) {
+            while (cursor != null && cursor.moveToNext())
+                result.put(cursor.getString(0), cursor.getString(1));
+        }
+        return result;
+    }
+
+    // {category, name, value} of all settings of the current user
+    static List<String[]> getAllSettings(Context context) {
+        List<String[]> result = new ArrayList<>();
+        try (Cursor cursor = context.getContentResolver().query(XProvider.getURI(), new String[]{"xlua.getAllSettings"},
+                null, null, null)) {
+            while (cursor != null && cursor.moveToNext())
+                result.add(new String[]{cursor.getString(0), cursor.getString(1), cursor.getString(2)});
+        }
+        return result;
+    }
+
+    // All hook definitions, including disabled hooks and hooks for other Android versions
+    static List<XHook> getAllHooks(Context context) throws JSONException {
+        List<XHook> result = new ArrayList<>();
+        try (Cursor cursor = context.getContentResolver().query(XProvider.getURI(), new String[]{"xlua.getHooks"},
+                null, new String[]{"all"}, null)) {
+            while (cursor != null && cursor.moveToNext())
+                result.add(XHook.fromJSON(cursor.getString(0)));
+        }
+        return result;
+    }
+
+    // A null definition deletes a custom hook, which restores the built-in hook with the same id
+    static void putHook(Context context, String id, String definition) {
+        Bundle args = new Bundle();
+        args.putString("id", id);
+        args.putString("definition", definition);
+        context.getContentResolver().call(XProvider.getURI(), "xlua", "putHook", args);
+    }
+
+    static void assignHooks(Context context, ArrayList<String> hookids, String packageName, int uid, boolean kill) {
+        Bundle args = new Bundle();
+        args.putStringArrayList("hooks", hookids);
+        args.putString("packageName", packageName);
+        args.putInt("uid", uid);
+        args.putBoolean("delete", false);
+        args.putBoolean("kill", kill);
+        context.getContentResolver().call(XProvider.getURI(), "xlua", "assignHooks", args);
     }
 }

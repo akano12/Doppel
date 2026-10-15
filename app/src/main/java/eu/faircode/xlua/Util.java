@@ -50,7 +50,6 @@ import androidx.lifecycle.LifecycleOwner;
 class Util {
     private final static String TAG = "XLua.Util";
 
-    static final String PRO_PACKAGE_NAME = "eu.faircode.xlua.pro";
     private static final int PER_USER_RANGE = 100000;
     private static final int FIRST_ISOLATED_UID = 99000;
     private static final int LAST_ISOLATED_UID = 99999;

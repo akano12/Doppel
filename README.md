@@ -52,6 +52,19 @@ Restrictions
 The tracking restrictions will work only if the code of the target app was not [obfuscated](https://developer.android.com/studio/build/shrink-code.html).
 The other restrictions will work always.
 
+Management
+----------
+
+Besides restricting apps, the navigation drawer offers:
+
+* Fake values: values used for all apps, like the IMEI, Android ID, location and time zone;
+  the settings icon of an app sets values for that app only
+* Restriction log: which app triggered which restriction, when, with the real and the fake value
+* Hook definitions: view, edit, enable, disable, add, import and export hook definitions
+* Backup and restore of settings, custom hook definitions and restrictions
+
+The (no longer available) pro companion app is not needed anymore.
+
 Hide or fake?
 
 * Hide: return empty list

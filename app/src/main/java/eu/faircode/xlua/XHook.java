@@ -160,6 +160,15 @@ public class XHook implements Parcelable {
         return (versionCode >= this.minApk && versionCode <= maxApk);
     }
 
+    public boolean isEnabled() {
+        return this.enabled;
+    }
+
+    // Whether the hook applies to the Android version of the device
+    public boolean isForThisSdk() {
+        return (Build.VERSION.SDK_INT >= this.minSdk && Build.VERSION.SDK_INT <= this.maxSdk);
+    }
+
     public boolean isOptional() {
         return this.optional;
     }

@@ -48,6 +48,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AlertDialog;
@@ -73,6 +76,62 @@ public class ActivityMain extends ActivityBase {
     public static final String EXTRA_SEARCH_PACKAGE = "package";
 
     private ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    private final ActivityResultLauncher<String> backupLauncher = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("application/json"), new ActivityResultCallback<Uri>() {
+                @Override
+                public void onActivityResult(final Uri uri) {
+                    if (uri == null)
+                        return;
+                    executor.submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                int[] counts = Backup.save(ActivityMain.this, uri);
+                                showMessage(getString(R.string.msg_backup_done, counts[0], counts[1], counts[2]));
+                            } catch (Throwable ex) {
+                                Log.e(TAG, Log.getStackTraceString(ex));
+                                showMessage(getString(R.string.msg_error, ex.getMessage()));
+                            }
+                        }
+                    });
+                }
+            });
+
+    private final ActivityResultLauncher<String[]> restoreLauncher = registerForActivityResult(
+            new ActivityResultContracts.OpenDocument(), new ActivityResultCallback<Uri>() {
+                @Override
+                public void onActivityResult(final Uri uri) {
+                    if (uri == null)
+                        return;
+                    Util.areYouSure(ActivityMain.this, getString(R.string.msg_restore_sure), new Util.DoubtListener() {
+                        @Override
+                        public void onSure() {
+                            executor.submit(new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+                                        int[] counts = Backup.restore(ActivityMain.this, uri);
+                                        showMessage(getString(R.string.msg_restore_done, counts[0], counts[1], counts[2]));
+                                    } catch (Throwable ex) {
+                                        Log.e(TAG, Log.getStackTraceString(ex));
+                                        showMessage(getString(R.string.msg_error, ex.getMessage()));
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+    private void showMessage(final String message) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG).show();
+            }
+        });
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -163,20 +222,56 @@ public class ActivityMain extends ActivityBase {
             }
         }));
 
-        drawerArray.add(new DrawerItem(this, R.string.menu_companion, new DrawerItem.IListener() {
+        drawerArray.add(new DrawerItem(this, R.string.menu_values, new DrawerItem.IListener() {
             @Override
             public void onClick(DrawerItem item) {
-                PackageManager pm = getPackageManager();
-                Intent companion = pm.getLaunchIntentForPackage(Util.PRO_PACKAGE_NAME);
-                if (companion == null) {
-                    Intent browse = new Intent(Intent.ACTION_VIEW);
-                    browse.setData(Uri.parse("https://lua.xprivacy.eu/pro/"));
-                    if (browse.resolveActivity(pm) == null)
-                        Snackbar.make(findViewById(android.R.id.content), getString(R.string.msg_no_browser), Snackbar.LENGTH_LONG).show();
-                    else
-                        startActivity(browse);
-                } else
-                    startActivity(companion);
+                startActivity(new Intent(ActivityMain.this, ActivityValues.class));
+            }
+        }));
+
+        drawerArray.add(new DrawerItem(this, R.string.menu_hooks, new DrawerItem.IListener() {
+            @Override
+            public void onClick(DrawerItem item) {
+                startActivity(new Intent(ActivityMain.this, ActivityHooks.class));
+            }
+        }));
+
+        drawerArray.add(new DrawerItem(this, R.string.menu_log, new DrawerItem.IListener() {
+            @Override
+            public void onClick(DrawerItem item) {
+                startActivity(new Intent(ActivityMain.this, ActivityLog.class));
+            }
+        }));
+
+        drawerArray.add(new DrawerItem(this, R.string.menu_backup, new DrawerItem.IListener() {
+            @Override
+            public void onClick(DrawerItem item) {
+                backupLauncher.launch("xprivacylua-backup.json");
+            }
+        }));
+
+        drawerArray.add(new DrawerItem(this, R.string.menu_restore, new DrawerItem.IListener() {
+            @Override
+            public void onClick(DrawerItem item) {
+                restoreLauncher.launch(new String[]{"application/json", "text/*", "application/octet-stream"});
+            }
+        }));
+
+        drawerArray.add(new DrawerItem(this, R.string.menu_dark, "dark".equals(getThemeName()), new DrawerItem.IListener() {
+            @Override
+            public void onClick(final DrawerItem item) {
+                executor.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        XProvider.putSetting(ActivityMain.this, "global", "theme", item.isChecked() ? "dark" : "light");
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                recreate();
+                            }
+                        });
+                    }
+                });
             }
         }));
 
