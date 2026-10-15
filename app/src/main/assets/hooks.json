@@ -3552,5 +3552,248 @@
     "returnType": "java.lang.String",
     "minSdk": 5,
     "luaScript": "@generic_null_value"
+  },
+  // Read time zone
+  // https://developer.android.com/reference/java/util/TimeZone
+  // Setting value.timezone, default UTC
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "TimeZone.defaultTimeZone",
+    "author": "XPrivacyLua",
+    "className": "java.util.TimeZone",
+    "methodName": "#defaultTimeZone",
+    "parameterTypes": [],
+    "returnType": "java.util.TimeZone",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@timezone"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "TimeZone.getDefault",
+    "author": "XPrivacyLua",
+    "className": "java.util.TimeZone",
+    "methodName": "getDefault",
+    "parameterTypes": [],
+    "returnType": "java.util.TimeZone",
+    "minSdk": 1,
+    "luaScript": "@timezone"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "TimeZone.setDefault",
+    "author": "XPrivacyLua",
+    "className": "java.util.TimeZone",
+    "methodName": "setDefault",
+    "parameterTypes": [
+      "java.util.TimeZone"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "luaScript": "@timezone"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "TimeZone.getDefault/icu",
+    "author": "XPrivacyLua",
+    "className": "android.icu.util.TimeZone",
+    "methodName": "getDefault",
+    "parameterTypes": [],
+    "returnType": "android.icu.util.TimeZone",
+    "minSdk": 24,
+    "luaScript": "@timezone"
+  },
+  // Read device features
+  // https://developer.android.com/reference/android/content/pm/PackageManager#getSystemAvailableFeatures()
+  // Hides features outside android.*, and features listed in setting features.hide
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "PackageManager.getSystemAvailableFeatures",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSystemAvailableFeatures",
+    "parameterTypes": [],
+    "returnType": "[Landroid.content.pm.FeatureInfo;",
+    "minSdk": 5,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "PackageManager.hasSystemFeature",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 5,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "PackageManager.hasSystemFeature/version",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 24,
+    "luaScript": "@features"
+  },
+  // Read VPN state
+  // https://developer.android.com/reference/android/net/NetworkCapabilities#TRANSPORT_VPN
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkCapabilities.hasTransport",
+    "author": "XPrivacyLua",
+    "className": "android.net.NetworkCapabilities",
+    "methodName": "hasTransport",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 21,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkCapabilities.hasCapability",
+    "author": "XPrivacyLua",
+    "className": "android.net.NetworkCapabilities",
+    "methodName": "hasCapability",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 21,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkCapabilities.toString",
+    "author": "XPrivacyLua",
+    "className": "android.net.NetworkCapabilities",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 21,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "ConnectivityManager.getNetworkInfo/type",
+    "author": "XPrivacyLua",
+    "className": "android.net.ConnectivityManager",
+    "methodName": "getNetworkInfo",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.net.NetworkInfo",
+    "minSdk": 1,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "ConnectivityManager.getAllNetworkInfo",
+    "author": "XPrivacyLua",
+    "className": "android.net.ConnectivityManager",
+    "methodName": "getAllNetworkInfo",
+    "parameterTypes": [],
+    "returnType": "[Landroid.net.NetworkInfo;",
+    "minSdk": 1,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInfo.getType",
+    "author": "XPrivacyLua",
+    "className": "android.net.NetworkInfo",
+    "methodName": "getType",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 1,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInfo.getTypeName",
+    "author": "XPrivacyLua",
+    "className": "android.net.NetworkInfo",
+    "methodName": "getTypeName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInterface.getNetworkInterfaces",
+    "author": "XPrivacyLua",
+    "className": "java.net.NetworkInterface",
+    "methodName": "getNetworkInterfaces",
+    "parameterTypes": [],
+    "returnType": "java.util.Enumeration",
+    "minSdk": 1,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInterface.networkInterfaces",
+    "author": "XPrivacyLua",
+    "className": "java.net.NetworkInterface",
+    "methodName": "networkInterfaces",
+    "parameterTypes": [],
+    "returnType": "java.util.stream.Stream",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInterface.getByName",
+    "author": "XPrivacyLua",
+    "className": "java.net.NetworkInterface",
+    "methodName": "getByName",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.net.NetworkInterface",
+    "minSdk": 1,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInterface.getByIndex",
+    "author": "XPrivacyLua",
+    "className": "java.net.NetworkInterface",
+    "methodName": "getByIndex",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.net.NetworkInterface",
+    "minSdk": 19,
+    "luaScript": "@vpn"
   }
 ]

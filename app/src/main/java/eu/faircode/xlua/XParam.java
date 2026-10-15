@@ -175,14 +175,16 @@ public class XParam {
     public String getSetting(String name) {
         synchronized (this.settings) {
             String value = (this.settings.containsKey(name) ? this.settings.get(name) : null);
-            Log.i(TAG, "Get setting " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value);
+            if (BuildConfig.DEBUG)
+                Log.i(TAG, "Get setting " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value);
             return value;
         }
     }
 
     @SuppressWarnings("unused")
     public void putValue(String name, Object value, Object scope) {
-        Log.i(TAG, "Put value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value + " @" + scope);
+        if (BuildConfig.DEBUG)
+            Log.i(TAG, "Put value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value + " @" + scope);
         synchronized (nv) {
             if (!nv.containsKey(scope))
                 nv.put(scope, new HashMap<String, Object>());
@@ -193,7 +195,8 @@ public class XParam {
     @SuppressWarnings("unused")
     public Object getValue(String name, Object scope) {
         Object value = getValueInternal(name, scope);
-        Log.i(TAG, "Get value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value + " @" + scope);
+        if (BuildConfig.DEBUG)
+            Log.i(TAG, "Get value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value + " @" + scope);
         return value;
     }
 

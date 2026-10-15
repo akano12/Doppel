@@ -70,6 +70,9 @@
     <string name="group_read_notifications">Read notifications</string>
     <string name="group_read_sync">Read sync data</string>
     <string name="group_read_telephony">Read telephony data</string>
+    <string name="group_read_timezone">Read time zone</string>
+    <string name="group_read_features">Read device features</string>
+    <string name="group_read_vpn">Read VPN state</string>
     <string name="group_record_audio">Record audio</string>
     <string name="group_record_video">Record video</string>
     <string name="group_send_messages">Send messages</string>
