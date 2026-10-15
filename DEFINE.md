@@ -114,6 +114,8 @@ The most important functions of *param* are:
 * *param:setArgument(index, value)*
 * *param:getResult()*: only available after the hooked method has been executed
 * *param:setResult(value)*
+* *param:findClass(name)*: load a class of the hooked app, see remarks below
+* *param:isInstance(object, name)*: check if an object is an instance of the named class or interface
 * For other functions, see [here](https://github.com/M66B/XPrivacyLua/blob/master/app/src/main/java/eu/faircode/xlua/XParam.java) for the available public methods
 
 The before/after function **must** return *true* when something was done and **must** return *false* otherwise.
@@ -161,6 +163,17 @@ and ends with the log text. This way it is always clear which hook/app logging b
 
 An error in the definition, like class or method not found, or a compile time or run time error of/in the Lua script will result in a status bar notification.
 By tapping on the error notification you can navigate to the app settings where you can tap on the corresponding **!**-icon to see the details of the error.
+
+*luajava.bindClass* and *luajava.newInstance* load classes with the context class loader of the current thread,
+which can be a class loader that does not know the classes of the app, like classes of Google Play services.
+To use such classes, load them with *param:findClass*:
+
+```Lua
+	local cls = param:findClass('com.google.android.gms.location.DetectedActivity')
+	local detected = luajava.new(cls, 4, 100)
+```
+
+A script is executed once per thread to define its functions, so a script should only define functions.
 
 [LuaJ](http://www.luaj.org/luaj/3.0/README.html) globals are not thread safe.
 If you need global caching, you can use something like this:

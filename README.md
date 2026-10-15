@@ -24,27 +24,27 @@ Features
 Restrictions
 ------------
 
-* Determine activity (fake unknown activity, see [here](https://developers.google.com/location-context/activity-recognition/))
-* Get applications (hide installed apps and [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html))
+* Determine activity (fake unknown activity, hide activity transitions, see [here](https://developers.google.com/location-context/activity-recognition/))
+* Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html) and usage statistics)
 * Get calendars (hide calendars)
 * Get call log (hide call log)
 * Get contacts (hide contacts with the pro option to allow (non) starred contacts, hide blocked numbers)
-* Get location (fake location, hide [NMEA](https://en.wikipedia.org/wiki/NMEA_0183) messages)
+* Get location (fake location, block [NMEA](https://en.wikipedia.org/wiki/NMEA_0183) messages and raw GNSS measurements)
 * Get messages (hide MMS, SMS, SIM, voicemail)
 * Get sensors (hide all available sensors)
 * Read [account](https://developer.android.com/reference/android/accounts/Account.html) name (fake name, mostly e-mail address)
 * Read clipboard (fake paste)
-* Read identifiers (fake build serial number, Android ID, advertising ID, GSF ID)
+* Read identifiers (fake build serial number, Android ID, advertising ID, Privacy Sandbox ad ID, app set ID, GSF ID, limit ad tracking)
 * Read notifications (fake [status bar notifications](https://developer.android.com/reference/android/service/notification/StatusBarNotification.html))
-* Read network data (hide cell info, Wi-Fi networks, fake Wi-Fi network name)
+* Read network data (hide cell info, Wi-Fi networks, paired Bluetooth devices, fake Wi-Fi network name)
 * Read sync data (hide [sync data](https://developer.android.com/training/sync-adapters/creating-sync-adapter.html))
-* Read telephony data (fake IMEI, MEI, SIM serial number, voicemail number, etc)
-* Record audio (prevent recording)
+* Read telephony data (fake IMEI, MEID, SIM serial number, phone number, voicemail number, type allocation code, etc)
+* Record audio (prevent recording and speech recognition)
 * Record video (prevent recording)
 * Send messages (prevent sending MMS, SMS, data)
-* Use analytics ([Fabric/Crashlytics](https://get.fabric.io/), [Facebook app events](https://developers.facebook.com/docs/reference/androidsdk/current/facebook/com/facebook/appevents/appeventslogger.html/), [Firebase Analytics](https://firebase.google.com/docs/analytics/), [Google Analytic](https://www.google.com/analytics/), [Mixpanel](https://mixpanel.com/), [Segment](https://segment.com/))
-* Use camera (fake camera not available and/or hide cameras)
-* Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html), network/SIM country/operator)
+* Use analytics ([Adjust](https://www.adjust.com/), [AppsFlyer](https://www.appsflyer.com/), [Facebook app events](https://developers.facebook.com/docs/reference/androidsdk/current/facebook/com/facebook/appevents/appeventslogger.html/), [Firebase Analytics](https://firebase.google.com/docs/analytics/), [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics), [Mixpanel](https://mixpanel.com/), [Segment](https://segment.com/))
+* Use camera (fake camera not available, hide cameras)
+* Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html), network/SIM country/operator, device and Bluetooth name)
 
 The tracking restrictions will work only if the code of the target app was not [obfuscated](https://developer.android.com/studio/build/shrink-code.html).
 The other restrictions will work always.
@@ -65,7 +65,6 @@ Notes
 * Some apps will use [OpenSL ES for Android](https://developer.android.com/ndk/guides/audio/opensl-for-android.html) to record audio, an example is WhatsApp. Xposed cannot hook into native code, so this cannot be prevented.
 * The get applications restriction will not restrict getting information about individual apps for stability and performance reasons.
 * The telephony data restriction will result in apps seeing a fake IMEI. However, this doesn't change the IMEI address of your device.
-* Restricting activity recognition (location) results for recent Google Maps versions and possibly other apps in the error *... java.lang.ClassNotFoundException ...* for unknown reasons.
 
 Compatibility
 -------------
@@ -75,19 +74,16 @@ For Android 4.0.3 KitKat to Android 5.1.1 Lollipop you can use [XPrivacy](https:
 
 XPrivacyLua is supported for smartphones and tablets only. XPrivacyLua is not supported on emulators.
 
-Hooking *com.google.android.gms.location.ActivityRecognitionResult.extractResult* (restriction *Determine activity*)
-is known to fail with *script:25 vm error: java.lang.ClassNotFoundException: com.google.android.gms.location.DetectedActivity*
-and *script:28 attempt to call nil* for some apps, like Google Maps and NetFlix, for yet unknown reasons.
-
 Installation
 ------------
 
 * Install [Magisk](https://www.xda-developers.com/how-to-install-magisk/)
 * Android 6-7: download, install, and activate [Xposed](http://forum.xda-developers.com/xposed)
-* Android 8-12: download, install, and activate [LSPosed](https://forum.xda-developers.com/t/lsposed-xposed-framework-8-0-11-0-edxposed-alternetive.4228973/) ~~or [EdXposed](https://forum.xda-developers.com/t/official-edxposed-the-successor-of-xposed-oreo-pie-q-r-2020-07-19.4070199)~~
+* Android 8.1 and later: download, install, and activate [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork
 * Download, install, and activate [XPrivacyLua](https://github.com/Xposed-Modules-Repo/eu.faircode.xlua/releases)
 
-LSPosed: please make sure that any app you want to restrict is [in the 'scope'](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules) of LSposed.
+LSPosed: the scope needs to include *System Framework* (android) and *Settings Storage* (com.android.providers.settings),
+which host the XPrivacyLua service, and any app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
 
 Certificate fingerprints:
 
@@ -131,7 +127,18 @@ are prefered in the form of [pull requests](https://help.github.com/articles/cre
 
 *Source code*
 
-Building XPrivacyLua from source code is straightforward with [Android Studio](http://developer.android.com/sdk/).
+Building XPrivacyLua from source code is straightforward with [Android Studio](http://developer.android.com/sdk/)
+or from the command line with JDK 17 or later and the Android SDK (platform 37):
+
+```
+./gradlew assembleDebug        # debug build
+./gradlew assembleRelease      # release build, signed when keystore.properties exists
+./gradlew testDebugUnitTest    # validates the built-in hook definitions and Lua scripts
+```
+
+The release build is signed with the key described in *keystore.properties* (storeFile, storePassword, keyAlias, keyPassword).
+A build signed with another key than the official release needs to replace (uninstall) the official release.
+
 It is expected that you can solve build problems yourself, so there is no support on building.
 
 Source code contributions are prefered in the form of [pull requests](https://help.github.com/articles/creating-a-pull-request/).
@@ -146,7 +153,7 @@ XPrivacyLua uses:
 
 * [LuaJ](https://sourceforge.net/projects/luaj/). Copyright 2007-2013 LuaJ. All rights reserved. See [license](http://luaj.sourceforge.net/license.txt).
 * [Glide](https://bumptech.github.io/glide/). Copyright 2014 Google, Inc. All rights reserved. See [license](https://raw.githubusercontent.com/bumptech/glide/master/LICENSE).
-* [Android Support Library](https://developer.android.com/tools/support-library/). Copyright (C) 2011 The Android Open Source Project. See [license](https://android.googlesource.com/platform/frameworks/support/+/master/LICENSE.txt).
+* [AndroidX](https://developer.android.com/jetpack/androidx). Copyright (C) 2011 The Android Open Source Project. See [license](https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt).
 
 License
 -------
