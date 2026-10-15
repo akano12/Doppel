@@ -13,14 +13,18 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
-
 function after(hook, param)
     local result = param:getResult()
-    if not result then
+    if result == nil or result.stop == nil or type(result.stop) ~= 'function' then
         return false
     end
 
-    param:setResult(false)
-    return true, 'true', 'false'
+    -- getInstance returns a singleton, stop it once
+    if param:getValue('stopped', result) then
+        return false
+    end
+    param:putValue('stopped', true, result)
+
+    result:stop(true, param:getApplicationContext())
+    return true
 end

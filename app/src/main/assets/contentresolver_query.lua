@@ -30,6 +30,7 @@ function before(hook, param)
     local match = string.gmatch(h, '[^/]+')
     local func = match()
     local name = match()
+    local bundled = (string.sub(func, -2) == '26')
     local authority = uri:getAuthority()
     if name == 'contacts' and authority == 'com.android.contacts' then
         local prefix = string.gmatch(path, '[^/]+')()
@@ -41,13 +42,13 @@ function before(hook, param)
         if starred ~= nil and
                 (prefix == 'contacts' or prefix == 'raw_contacts' or prefix == 'data') then
             local where
-            if func == 'ContentResolver.query26' then
+            if bundled then
                 local bundle = param:getArgument(2)
                 if bundle == nil then
-                    where = nil
-                else
-                    where = bundle:getString('android:query-arg-sql-selection')
+                    bundle = luajava.newInstance('android.os.Bundle')
+                    param:setArgument(2, bundle)
                 end
+                where = bundle:getString('android:query-arg-sql-selection')
             else
                 where = param:getArgument(2)
             end
@@ -58,7 +59,7 @@ function before(hook, param)
                 where = '(starred = ' .. starred .. ') AND (' .. where .. ')'
             end
 
-            if func == 'ContentResolver.query26' then
+            if bundled then
                 param:getArgument(2):putString('android:query-arg-sql-selection', where)
             else
                 param:setArgument(2, where)
@@ -66,7 +67,7 @@ function before(hook, param)
 
             if false then
                 local args
-                if func == 'ContentResolver.query26' then
+                if bundled then
                     local bundle = param:getArgument(2)
                     if bundle == nil then
                         args = nil
@@ -139,7 +140,7 @@ function after(hook, param)
 
         if name == 'gsf_id' then
             local args
-            if func == 'ContentResolver.query26' then
+            if string.sub(func, -2) == '26' then
                 local bundle = param:getArgument(2)
                 if bundle == nil then
                     return false

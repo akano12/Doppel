@@ -16,9 +16,10 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
 function before(hook, param)
-    local enable = param:getArgument(0)
-    if not enable then
-        param:setArgument(0, true)
+    local enabled = param:getArgument(0)
+    if enabled then
+        param:setArgument(0, false)
+        return true
     end
-    return not enable
+    return false
 end

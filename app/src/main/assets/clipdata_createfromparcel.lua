@@ -17,7 +17,7 @@
 
 function after(hook, param)
     local result = param:getResult()
-    if result == null or result:getItemCount() == 0 then
+    if result == nil or result:getItemCount() == 0 then
         return false
     end
 

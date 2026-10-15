@@ -22,7 +22,7 @@ function after(hook, param)
     end
 
     local filtered = false
-    local name = hook:getName()
+    local name = string.gsub(hook:getName(), '%.%d+$', '')
     local cuid = param:getUid()
 
     local index
@@ -38,12 +38,15 @@ function after(hook, param)
                 name == 'PackageManager.getPreferredPackages' then
             uid = item.applicationInfo.uid -- PackageInfo
         elseif name == 'PackageManager.queryIntentActivities' or
-                name == 'PackageManager.queryIntentActivityOptions' then
+                name == 'PackageManager.queryIntentActivityOptions' or
+                name == 'PackageManager.queryBroadcastReceivers' then
             uid = item.activityInfo.applicationInfo.uid -- ResolveInfo
         elseif name == 'PackageManager.queryIntentContentProviders' then
             uid = item.providerInfo.applicationInfo.uid -- ResolveInfo
         elseif name == 'PackageManager.queryIntentServices' then
             uid = item.serviceInfo.applicationInfo.uid -- ResolveInfo
+        elseif name == 'LauncherApps.getActivityList' then
+            uid = item:getApplicationInfo().uid -- LauncherActivityInfo
         else
             uid = item.uid
         end

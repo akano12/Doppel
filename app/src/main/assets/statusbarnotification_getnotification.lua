@@ -17,12 +17,14 @@
 
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or result.length == 0 then
+    if result == nil then
         return false
     end
 
-    local notificationClass = luajava.bindClass('android.app.Notification')
-    local fake = luajava.new(notificationClass, result.icon, 'private', result.when) -- deprecated
+    -- Empty notification without content, extras and actions
+    local fake = luajava.newInstance('android.app.Notification')
+    fake.when = result.when
+    fake.icon = result.icon
     param:setResult(fake)
     return true
 end

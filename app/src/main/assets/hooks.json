@@ -36,28 +36,27 @@
     "optional": true,
     "luaScript": "@activityrecognitionresult_extractresult"
   },
+  // https://developers.google.com/android/reference/com/google/android/gms/location/ActivityTransitionResult
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityTransitionResult.extractResult",
+    "author": "XPrivacyLua",
+    "className": "com.google.android.gms.location.ActivityTransitionResult",
+    "methodName": "extractResult",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "com.google.android.gms.location.ActivityTransitionResult",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
   // Get applications
   // https://developer.android.com/reference/android/app/ActivityManager.html
   // https://developer.android.com/reference/android/appwidget/AppWidgetManager.html
   // https://developer.android.com/reference/android/content/pm/PackageManager.html
   // https://developer.android.com/reference/android/content/Intent.html
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
-    "name": "ActivityManager.getRecentTasks",
-    "author": "M66B",
-    "className": "android.app.ActivityManager",
-    "methodName": "getRecentTasks",
-    "parameterTypes": [
-      "int",
-      "int"
-    ],
-    "returnType": "java.util.List",
-    "minSdk": 1,
-    "maxSdk": 20,
-    // Android L returns filtered data
-    "luaScript": "@generic_empty_list"
-  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -86,22 +85,6 @@
     "maxSdk": 25,
     // Android O returns filtered data
     "luaScript": "@generic_filter_by_uid"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
-    "name": "ActivityManager.getRunningTasks",
-    "author": "M66B",
-    "className": "android.app.ActivityManager",
-    "methodName": "getRunningTasks",
-    "parameterTypes": [
-      "int"
-    ],
-    "returnType": "java.util.List",
-    "minSdk": 1,
-    "maxSdk": 20,
-    // Android L returns filtered data
-    "luaScript": "@generic_empty_list"
   },
   {
     "collection": "Privacy",
@@ -383,6 +366,69 @@
     "minSdk": 33,
     "luaScript": "@generic_filter_by_uid"
   },
+  // https://developer.android.com/reference/android/content/pm/LauncherApps
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "LauncherApps.getActivityList",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getActivityList",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 21,
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.queryBroadcastReceivers",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "queryBroadcastReceivers",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 1,
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.queryBroadcastReceivers.33",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "queryBroadcastReceivers",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.pm.PackageManager$ResolveInfoFlags"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "luaScript": "@generic_filter_by_uid"
+  },
+  // https://developer.android.com/reference/android/app/usage/UsageStatsManager
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UsageStatsManager.queryUsageStats",
+    "author": "XPrivacyLua",
+    "className": "android.app.usage.UsageStatsManager",
+    "methodName": "queryUsageStats",
+    "parameterTypes": [
+      "int",
+      "long",
+      "long"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 21,
+    "luaScript": "@generic_empty_list"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html API 14
   {
@@ -401,6 +447,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 1,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -420,6 +467,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 16,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -428,6 +476,23 @@
     "name": "ContentResolver.query26/calendars",
     "author": "M66B",
     "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Calendars",
+    "name": "ContentProviderClient.query26/calendars",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentProviderClient",
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
@@ -457,6 +522,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 1,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -476,6 +542,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 16,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -484,6 +551,23 @@
     "name": "ContentResolver.query26/call_log",
     "author": "M66B",
     "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "ContentProviderClient.query26/call_log",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentProviderClient",
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
@@ -515,6 +599,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 1,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -534,6 +619,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 16,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -569,6 +655,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 1,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -588,6 +675,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 16,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -596,6 +684,40 @@
     "name": "ContentResolver.query26/blockednumber",
     "author": "M66B",
     "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Contacts",
+    "name": "ContentProviderClient.query26/contacts",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Contacts",
+    "name": "ContentProviderClient.query26/blockednumber",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentProviderClient",
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
@@ -652,7 +774,8 @@
     ],
     "returnType": "boolean",
     "minSdk": 5,
-    "luaScript": "@generic_false_value"
+    "optional": true,
+    "luaScript": "@generic_block_false"
   },
   {
     "collection": "Privacy",
@@ -666,7 +789,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 24,
-    "luaScript": "@generic_false_value"
+    "luaScript": "@generic_block_false"
   },
   {
     "collection": "Privacy",
@@ -681,7 +804,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 24,
-    "luaScript": "@generic_false_value"
+    "luaScript": "@generic_block_false"
   },
   {
     "collection": "Privacy",
@@ -721,31 +844,78 @@
   {
     "collection": "Privacy",
     "group": "Get.Location",
-    "name": "PlaceLikelihoodBuffer.getCount",
-    "author": "M66B",
-    "className": "com.google.android.gms.location.places.PlaceLikelihoodBuffer",
-    "methodName": "getCount",
+    "name": "LocationManager.addNmeaListener30",
+    "author": "XPrivacyLua",
+    "className": "android.location.LocationManager",
+    "methodName": "addNmeaListener",
     "parameterTypes": [
+      "java.util.concurrent.Executor",
+      "android.location.OnNmeaMessageListener"
     ],
-    "returnType": "int",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@generic_zero_value"
+    "returnType": "boolean",
+    "minSdk": 30,
+    "luaScript": "@generic_block_false"
+  },
+  // Raw GNSS measurements can be used to compute the location
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationManager.registerGnssMeasurementsCallback24a",
+    "author": "XPrivacyLua",
+    "className": "android.location.LocationManager",
+    "methodName": "registerGnssMeasurementsCallback",
+    "parameterTypes": [
+      "android.location.GnssMeasurementsEvent$Callback"
+    ],
+    "returnType": "boolean",
+    "minSdk": 24,
+    "luaScript": "@generic_block_false"
   },
   {
     "collection": "Privacy",
     "group": "Get.Location",
-    "name": "PlaceLikelihoodBuffer.get",
-    "author": "M66B",
-    "className": "com.google.android.gms.location.places.PlaceLikelihoodBuffer",
-    "methodName": "get",
+    "name": "LocationManager.registerGnssMeasurementsCallback24b",
+    "author": "XPrivacyLua",
+    "className": "android.location.LocationManager",
+    "methodName": "registerGnssMeasurementsCallback",
     "parameterTypes": [
-      "int"
+      "android.location.GnssMeasurementsEvent$Callback",
+      "android.os.Handler"
     ],
-    // any return type
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@generic_null_value"
+    "returnType": "boolean",
+    "minSdk": 24,
+    "luaScript": "@generic_block_false"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationManager.registerGnssMeasurementsCallback30",
+    "author": "XPrivacyLua",
+    "className": "android.location.LocationManager",
+    "methodName": "registerGnssMeasurementsCallback",
+    "parameterTypes": [
+      "java.util.concurrent.Executor",
+      "android.location.GnssMeasurementsEvent$Callback"
+    ],
+    "returnType": "boolean",
+    "minSdk": 30,
+    "luaScript": "@generic_block_false"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationManager.registerGnssMeasurementsCallback31",
+    "author": "XPrivacyLua",
+    "className": "android.location.LocationManager",
+    "methodName": "registerGnssMeasurementsCallback",
+    "parameterTypes": [
+      "android.location.GnssMeasurementRequest",
+      "java.util.concurrent.Executor",
+      "android.location.GnssMeasurementsEvent$Callback"
+    ],
+    "returnType": "boolean",
+    "minSdk": 31,
+    "luaScript": "@generic_block_false"
   },
   // Get messages
   // https://developer.android.com/reference/android/provider/Telephony.Sms.Intents#SMS_RECEIVED_ACTION
@@ -784,6 +954,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 1,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -803,6 +974,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 16,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -838,6 +1010,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 1,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -857,6 +1030,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 16,
+    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -887,7 +1061,42 @@
     ],
     "returnType": "java.util.ArrayList",
     "minSdk": 4,
+    "optional": true,
     "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Messages",
+    "name": "ContentProviderClient.query26/mmssms",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Messages",
+    "name": "ContentProviderClient.query26/voicemail",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@contentresolver_query"
   },
   // Get sensors
   // https://developer.android.com/reference/android/hardware/SensorManager.html
@@ -1054,6 +1263,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 1,
+    "maxSdk": 25,
     "excludePackages": "com\\.android\\..*,com\\.google\\.android\\..*",
     "luaScript": "@contentresolver_query"
   },
@@ -1074,6 +1284,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 16,
+    "maxSdk": 25,
     "excludePackages": "com\\.android\\..*,com\\.google\\.android\\..*",
     "luaScript": "@contentresolver_query"
   },
@@ -1193,6 +1404,8 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 3,
+    "maxSdk": 28,
+    "optional": true,
     "luaScript": "@generic_empty_list"
   },
   {
@@ -1261,6 +1474,66 @@
     "returnType": "java.lang.String",
     "minSdk": 1,
     "luaScript": "@wifiinfo_getssid"
+  },
+  // https://developer.android.com/reference/android/bluetooth/BluetoothAdapter
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothAdapter.getBondedDevices",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothAdapter",
+    "methodName": "getBondedDevices",
+    "parameterTypes": [],
+    "returnType": "java.util.Set",
+    "minSdk": 5,
+    "luaScript": "@generic_empty_set"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "TelephonyManager.requestCellInfoUpdate",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "requestCellInfoUpdate",
+    "parameterTypes": [
+      "java.util.concurrent.Executor",
+      "android.telephony.TelephonyManager$CellInfoCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 29,
+    "luaScript": "@generic_block_method"
+  },
+  // https://developer.android.com/reference/android/telephony/TelephonyCallback
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "TelephonyManager.registerTelephonyCallback",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "registerTelephonyCallback",
+    "parameterTypes": [
+      "java.util.concurrent.Executor",
+      "android.telephony.TelephonyCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 31,
+    "luaScript": "@telephonymanager_registertelephonycallback"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "TelephonyManager.registerTelephonyCallback.33",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "registerTelephonyCallback",
+    "parameterTypes": [
+      "int",
+      "java.util.concurrent.Executor",
+      "android.telephony.TelephonyCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "luaScript": "@telephonymanager_registertelephonycallback"
   },
   // Read notifications
   // https://developer.android.com/reference/android/service/notification/NotificationListenerService.html
@@ -1566,6 +1839,87 @@
     "minSdk": 1,
     "luaScript": "@value_phone_number"
   },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "SubscriptionInfo.getMccString",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getMccString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@generic_mcc_string_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "SubscriptionInfo.getMncString",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getMncString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@generic_mnc_string_value"
+  },
+  // https://developer.android.com/reference/android/telephony/SubscriptionManager#getPhoneNumber(int)
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "SubscriptionManager.getPhoneNumber",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SubscriptionManager",
+    "methodName": "getPhoneNumber",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 33,
+    "luaScript": "@value_phone_number_nonnull"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "SubscriptionManager.getPhoneNumber/source",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SubscriptionManager",
+    "methodName": "getPhoneNumber",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 33,
+    "luaScript": "@value_phone_number_nonnull"
+  },
+  // The type allocation code identifies the device model
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getTypeAllocationCode",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getTypeAllocationCode",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getTypeAllocationCode/slot",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getTypeAllocationCode",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
   // Record audio
   // https://developer.android.com/reference/android/media/AudioRecord.html
   {
@@ -1711,6 +2065,39 @@
     "minSdk": 1,
     "luaScript": "@mediarecorder_stop"
   },
+  // https://developer.android.com/reference/android/speech/SpeechRecognizer
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "SpeechRecognizer.startListening",
+    "author": "XPrivacyLua",
+    "className": "android.speech.SpeechRecognizer",
+    "methodName": "startListening",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "void",
+    "minSdk": 8,
+    "notify": true,
+    "luaScript": "@generic_block_method"
+  },
+  // Hidden implementation subclass on Android 14 and later
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "SpeechRecognizerImpl.startListening",
+    "author": "XPrivacyLua",
+    "className": "android.speech.SpeechRecognizerImpl",
+    "methodName": "startListening",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "void",
+    "minSdk": 34,
+    "optional": true,
+    "notify": true,
+    "luaScript": "@generic_block_method"
+  },
   // Record video
   // https://developer.android.com/reference/android/media/MediaRecorder.html
   {
@@ -1829,28 +2216,66 @@
     "minSdk": 4,
     "luaScript": "@generic_block_method"
   },
-  // Use analytics
-  // https://docs.fabric.io/javadocs/fabric/1.3.17/index.html
-  // https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/FirebaseAnalytics
-  // https://developers.facebook.com/docs/reference/androidsdk/current/facebook/com/facebook/appevents/appeventslogger.html/
-  // https://developers.google.com/android/reference/com/google/android/gms/analytics/GoogleAnalytics
-  // https://segment.com/docs/sources/mobile/android/
   {
     "collection": "Privacy",
-    "group": "Use.Analytics",
-    "name": "Fabric.with/kits",
-    "author": "M66B",
-    "className": "io.fabric.sdk.android.Fabric",
-    "methodName": "with",
+    "group": "Send.Messages",
+    "name": "SmsManager.sendTextMessage/id",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendTextMessage",
     "parameterTypes": [
-      "android.content.Context",
-      "[Lio.fabric.sdk.android.Kit;"
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent",
+      "long"
     ],
-    "returnType": "io.fabric.sdk.android.Fabric",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@fabric_with_kits"
+    "returnType": "void",
+    "minSdk": 30,
+    "luaScript": "@generic_block_method"
   },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "SmsManager.sendMultipartTextMessage/id",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendMultipartTextMessage",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.util.List",
+      "java.util.List",
+      "java.util.List",
+      "long"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "SmsManager.sendTextMessageWithoutPersisting",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendTextMessageWithoutPersisting",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 28,
+    "luaScript": "@generic_block_method"
+  },
+  // Use analytics
+  // https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/FirebaseAnalytics
+  // https://developers.facebook.com/docs/reference/androidsdk/current/facebook/com/facebook/appevents/appeventslogger.html/
+  // https://segment.com/docs/sources/mobile/android/
   {
     "collection": "Privacy",
     "group": "Use.Analytics",
@@ -1879,7 +2304,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@firebase_setenabled"
+    "luaScript": "@generic_false_argument"
   },
   // logPayment is not hooked to prevent problems with payments
   {
@@ -1906,68 +2331,6 @@
     "methodName": "activateApp",
     "parameterTypes": [
       "android.app.Application",
-      "java.lang.String"
-    ],
-    "returnType": "void",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@generic_block_method"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Analytics",
-    "name": "AppEventsLogger.activateApp/context",
-    "author": "M66B",
-    "className": "com.facebook.appevents.AppEventsLogger",
-    "methodName": "activateApp",
-    "parameterTypes": [
-      "android.content.Context"
-    ],
-    "returnType": "void",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@generic_block_method"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Analytics",
-    "name": "AppEventsLogger.activateApp/context/id",
-    "author": "M66B",
-    "className": "com.facebook.appevents.AppEventsLogger",
-    "methodName": "activateApp",
-    "parameterTypes": [
-      "android.content.Context",
-      "java.lang.String"
-    ],
-    "returnType": "void",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@generic_block_method"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Analytics",
-    "name": "AppEventsLogger.deactivateApp/context",
-    "author": "M66B",
-    "className": "com.facebook.appevents.AppEventsLogger",
-    "methodName": "deactivateApp",
-    "parameterTypes": [
-      "android.content.Context"
-    ],
-    "returnType": "void",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@generic_block_method"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Analytics",
-    "name": "AppEventsLogger.deactivateApp/context/id",
-    "author": "M66B",
-    "className": "com.facebook.appevents.AppEventsLogger",
-    "methodName": "deactivateApp",
-    "parameterTypes": [
-      "android.content.Context",
       "java.lang.String"
     ],
     "returnType": "void",
@@ -2138,36 +2501,6 @@
   {
     "collection": "Privacy",
     "group": "Use.Analytics",
-    "name": "GoogleAnalytics.getInstance",
-    "author": "M66B",
-    "className": "com.google.android.gms.analytics.GoogleAnalytics",
-    "methodName": "getInstance",
-    "parameterTypes": [
-      "android.content.Context"
-    ],
-    "returnType": "com.google.android.gms.analytics.GoogleAnalytics",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@ga_getinstance"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Analytics",
-    "name": "GoogleAnalytics.setDryRun",
-    "author": "M66B",
-    "className": "com.google.android.gms.analytics.GoogleAnalytics",
-    "methodName": "setDryRun",
-    "parameterTypes": [
-      "boolean"
-    ],
-    "returnType": "void",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@ga_setdryrun"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Analytics",
     "name": "SegmentAnalytics.setSingletonInstance",
     "author": "M66B",
     "className": "com.segment.analytics.Analytics",
@@ -2193,7 +2526,175 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@segment_optout"
+    "luaScript": "@generic_true_argument"
+  },
+  // https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/FirebaseAnalytics
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "FirebaseAnalytics.logEvent",
+    "author": "XPrivacyLua",
+    "className": "com.google.firebase.analytics.FirebaseAnalytics",
+    "methodName": "logEvent",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "FirebaseAnalytics.setUserId",
+    "author": "XPrivacyLua",
+    "className": "com.google.firebase.analytics.FirebaseAnalytics",
+    "methodName": "setUserId",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "FirebaseAnalytics.setUserProperty",
+    "author": "XPrivacyLua",
+    "className": "com.google.firebase.analytics.FirebaseAnalytics",
+    "methodName": "setUserProperty",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block_method"
+  },
+  // https://firebase.google.com/docs/reference/android/com/google/firebase/crashlytics/FirebaseCrashlytics
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "FirebaseCrashlytics.getInstance",
+    "author": "XPrivacyLua",
+    "className": "com.google.firebase.crashlytics.FirebaseCrashlytics",
+    "methodName": "getInstance",
+    "parameterTypes": [],
+    "returnType": "com.google.firebase.crashlytics.FirebaseCrashlytics",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@firebase_crashlytics_getinstance"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "FirebaseCrashlytics.setCrashlyticsCollectionEnabled",
+    "author": "XPrivacyLua",
+    "className": "com.google.firebase.crashlytics.FirebaseCrashlytics",
+    "methodName": "setCrashlyticsCollectionEnabled",
+    "parameterTypes": [
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_false_argument"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "FirebaseCrashlytics.setCrashlyticsCollectionEnabled/object",
+    "author": "XPrivacyLua",
+    "className": "com.google.firebase.crashlytics.FirebaseCrashlytics",
+    "methodName": "setCrashlyticsCollectionEnabled",
+    "parameterTypes": [
+      "java.lang.Boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_false_argument"
+  },
+  // https://developers.facebook.com/docs/reference/androidsdk/current/facebook/com/facebook/facebooksdk.html/
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "FacebookSdk.setAutoLogAppEventsEnabled",
+    "author": "XPrivacyLua",
+    "className": "com.facebook.FacebookSdk",
+    "methodName": "setAutoLogAppEventsEnabled",
+    "parameterTypes": [
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_false_argument"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "FacebookSdk.setAdvertiserIDCollectionEnabled",
+    "author": "XPrivacyLua",
+    "className": "com.facebook.FacebookSdk",
+    "methodName": "setAdvertiserIDCollectionEnabled",
+    "parameterTypes": [
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_false_argument"
+  },
+  // https://dev.appsflyer.com/hc/docs/android-sdk-reference-appsflyerlib
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AppsFlyerLib.getInstance",
+    "author": "XPrivacyLua",
+    "className": "com.appsflyer.AppsFlyerLib",
+    "methodName": "getInstance",
+    "parameterTypes": [],
+    "returnType": "com.appsflyer.AppsFlyerLib",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@appsflyer_getinstance"
+  },
+  // https://dev.adjust.com/en/sdk/android/
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Adjust.onCreate",
+    "author": "XPrivacyLua",
+    "className": "com.adjust.sdk.Adjust",
+    "methodName": "onCreate",
+    "parameterTypes": [
+      "com.adjust.sdk.AdjustConfig"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Adjust.initSdk",
+    "author": "XPrivacyLua",
+    "className": "com.adjust.sdk.Adjust",
+    "methodName": "initSdk",
+    "parameterTypes": [
+      "com.adjust.sdk.AdjustConfig"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block_method"
   },
   // Use camera
   // https://developer.android.com/reference/android/hardware/Camera.html
@@ -2271,6 +2772,7 @@
     "returnType": "android.hardware.Camera",
     "minSdk": 21,
     "notify": true,
+    "optional": true,
     "luaScript": "@camera_open"
   },
   {
@@ -2289,6 +2791,35 @@
     "minSdk": 21,
     "notify": true,
     "luaScript": "@camera2_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.openCamera/executor",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "openCamera",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.util.concurrent.Executor",
+      "android.hardware.camera2.CameraDevice$StateCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 28,
+    "notify": true,
+    "luaScript": "@camera2_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.getCameraIdList",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "getCameraIdList",
+    "parameterTypes": [],
+    "returnType": "[Ljava.lang.String;",
+    "minSdk": 21,
+    "luaScript": "@generic_empty_string_array"
   },
   // Use tracking
   // https://developer.android.com/reference/android/os/Build.html
@@ -2547,6 +3078,76 @@
     "returnType": "java.lang.String",
     "minSdk": 14,
     "luaScript": "@generic_unknown_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AdvertisingIdClient$Info.isLimitAdTrackingEnabled",
+    "author": "XPrivacyLua",
+    "className": "com.google.android.gms.ads.identifier.AdvertisingIdClient$Info",
+    "methodName": "isLimitAdTrackingEnabled",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
+  // https://developer.android.com/design-for-safety/privacy-sandbox/reference/adservices/adid/AdId
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AdId.getAdId",
+    "author": "XPrivacyLua",
+    "className": "android.adservices.adid.AdId",
+    "methodName": "getAdId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@advertisingidclient$info_getid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AdId.isLimitAdTrackingEnabled",
+    "author": "XPrivacyLua",
+    "className": "android.adservices.adid.AdId",
+    "methodName": "isLimitAdTrackingEnabled",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
+  // https://developers.google.com/android/reference/com/google/android/gms/appset/AppSetIdInfo
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AppSetIdInfo.getId",
+    "author": "XPrivacyLua",
+    "className": "com.google.android.gms.appset.AppSetIdInfo",
+    "methodName": "getId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@advertisingidclient$info_getid"
+  },
+  // android_id moved to Settings.Secure, but Settings.System still returns it
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Settings.System.getString/android_id",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$System",
+    "methodName": "getString",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 3,
+    "luaScript": "@settingssecure_getstring"
   },
   {
     "collection": "Privacy",
@@ -2872,24 +3473,6 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "WebView.constructor.5",
-    "author": "M66B",
-    "className": "android.webkit.WebView",
-    "parameterTypes": [
-      "android.content.Context",
-      "android.util.AttributeSet",
-      "int",
-      "java.util.Map"
-    ],
-    "minSdk": 5,
-    "maxSdk": 10,
-    "enabled": false,
-    "usage": false,
-    "luaScript": "@webview_constructor"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
     "name": "WebView.constructor.15",
     "author": "M66B",
     "className": "android.webkit.WebView",
@@ -2903,6 +3486,7 @@
     "minSdk": 15,
     "enabled": false,
     "usage": false,
+    "optional": true,
     "luaScript": "@webview_constructor"
   },
   {
@@ -2922,6 +3506,7 @@
     "minSdk": 23,
     "enabled": false,
     "usage": false,
+    "optional": true,
     "luaScript": "@webview_constructor"
   },
   {
@@ -2939,5 +3524,33 @@
     "minSdk": 18,
     "enabled": true,
     "luaScript": "@mediadrm_unique_id"
+  },
+  // The device name is often set to the name of the owner
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Settings.Global.getString/device_name",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Global",
+    "methodName": "getString",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 25,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BluetoothAdapter.getName",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothAdapter",
+    "methodName": "getName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 5,
+    "luaScript": "@generic_null_value"
   }
 ]

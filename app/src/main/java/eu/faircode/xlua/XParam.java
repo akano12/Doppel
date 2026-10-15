@@ -130,6 +130,12 @@ public class XParam {
         return Class.forName(name, false, this.context.getClassLoader());
     }
 
+    // Lua sees a Class as its static members, so Class.isInstance cannot be called from Lua
+    @SuppressWarnings("unused")
+    public boolean isInstance(Object object, String className) throws ClassNotFoundException {
+        return (object != null && findClass(className).isInstance(object));
+    }
+
     @SuppressWarnings("unused")
     public Throwable getException() {
         Throwable ex = (this.field == null ? this.param.getThrowable() : null);

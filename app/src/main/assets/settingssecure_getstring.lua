@@ -40,7 +40,8 @@ function after(hook, param)
         end
         param:setResult(fake)
         return true, result, fake
-    elseif name == 'bluetooth_name' and key == 'bluetooth_name' then
+    elseif (name == 'bluetooth_name' and key == 'bluetooth_name') or
+            (name == 'device_name' and key == 'device_name') then
         local fake
         param:setResult(fake)
         return true, result, fake

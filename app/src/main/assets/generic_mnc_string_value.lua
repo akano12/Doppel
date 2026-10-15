@@ -13,12 +13,13 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
-
-function before(hook, param)
-    local enabled = param:getArgument(0)
-    if enabled then
-        param:setArgument(0, false)
+function after(hook, param)
+    local result = param:getResult()
+    if result == nil then
+        return false
     end
-    return enabled
+
+    local fake = '01' -- test network
+    param:setResult(fake)
+    return true, result, fake
 end

@@ -13,20 +13,17 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
-
+-- For methods which return an empty string instead of null
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or
-            result.isDryRunEnabled == nil or type(result.isDryRunEnabled) ~= 'function' or
-            result.setDryRun == nil or type(result.setDryRun) ~= 'function' then
+    if result == nil or result == '' then
         return false
     end
 
-    if result:isDryRunEnabled() then
-        return false
-    else
-        result:setDryRun(true)
-        return true
+    local fake = param:getSetting('value.phone_number')
+    if fake == nil then
+        fake = ''
     end
+    param:setResult(fake)
+    return true, result, fake
 end
