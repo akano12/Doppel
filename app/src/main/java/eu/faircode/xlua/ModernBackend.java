@@ -46,9 +46,11 @@ class ModernBackend implements XBackend {
 
     @Override
     public void hook(Member member, final Callback callback) {
-        // Callbacks handle and report their own errors, other errors should not break the app
+        // Callbacks handle and report their own errors, so exceptions thrown here are intended:
+        // exceptions of scripts, like for a blocked camera, and exceptions of the original method.
+        // The protective mode would swallow them and call the original method instead.
         xposed.hook((Executable) member)
-                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .setExceptionMode(XposedInterface.ExceptionMode.PASSTHROUGH)
                 .intercept(chain -> {
                     XCall call = new XCall(member, chain.getThisObject(), chain.getArgs().toArray());
 
