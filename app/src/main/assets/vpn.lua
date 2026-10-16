@@ -48,6 +48,26 @@ function after(hook, param)
             return true, 'false', 'true'
         end
 
+    elseif method == 'getCapabilities' then
+        -- The capabilities of a VPN network lack NOT_VPN
+        if result ~= nil then
+            local length = result['length']
+            for index = 1, length do
+                if result[index] == NET_CAPABILITY_NOT_VPN then
+                    return false
+                end
+            end
+            local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+            local intClass = luajava.bindClass('java.lang.Integer')
+            local fake = arrayClass:newInstance(intClass.TYPE, length + 1)
+            for index = 1, length do
+                fake[index] = result[index]
+            end
+            fake[length + 1] = NET_CAPABILITY_NOT_VPN
+            param:setResult(fake)
+            return true
+        end
+
     elseif method == 'toString' then
         -- Apps search the text for VPN
         if result ~= nil and string.find(result, 'VPN', 1, true) then

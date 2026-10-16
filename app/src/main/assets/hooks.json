@@ -184,6 +184,197 @@
     "minSdk": 1,
     "luaScript": "@generic_filter_by_uid"
   },
+  // Checks for specific packages; own and system packages stay visible
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageInfo",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 1,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageInfo/flags",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$PackageInfoFlags"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 33,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getApplicationInfo",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getApplicationInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.pm.ApplicationInfo",
+    "minSdk": 1,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getApplicationInfo/flags",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getApplicationInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$ApplicationInfoFlags"
+    ],
+    "returnType": "android.content.pm.ApplicationInfo",
+    "minSdk": 33,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageUid",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageUid",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 24,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageUid/flags",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageUid",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$PackageInfoFlags"
+    ],
+    "returnType": "int",
+    "minSdk": 33,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageGids",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageGids",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int[]",
+    "minSdk": 1,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageGids/int",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageGids",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int[]",
+    "minSdk": 24,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageGids/flags",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageGids",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$PackageInfoFlags"
+    ],
+    "returnType": "int[]",
+    "minSdk": 33,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getInstallSourceInfo",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getInstallSourceInfo",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.pm.InstallSourceInfo",
+    "minSdk": 30,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getInstallerPackageName",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getInstallerPackageName",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 5,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getApplicationEnabledSetting",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getApplicationEnabledSetting",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 1,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getTargetSdkVersion",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getTargetSdkVersion",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
+    "luaScript": "@package_probe"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -1304,6 +1495,66 @@
     "returnType": "android.database.Cursor",
     "minSdk": 26,
     "excludePackages": "com\\.android\\..*,com\\.google\\.android\\..*",
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.query1/fb_attribution",
+    "author": "XPrivacyLua",
+    "description": "Attribution id of the Facebook apps, which the Facebook SDK uses to track users across apps",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 1,
+    "maxSdk": 25,
+    "excludePackages": "com\\.facebook\\..*",
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.query16/fb_attribution",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 16,
+    "maxSdk": 25,
+    "excludePackages": "com\\.facebook\\..*",
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.query26/fb_attribution",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "excludePackages": "com\\.facebook\\..*",
     "luaScript": "@contentresolver_query"
   },
   {
@@ -3188,6 +3439,47 @@
   },
   {
     "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LocationManager.getGnssHardwareModelName",
+    "author": "XPrivacyLua",
+    "className": "android.location.LocationManager",
+    "methodName": "getGnssHardwareModelName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 28,
+    "usage": false,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LocationManager.getGnssYearOfHardware",
+    "author": "XPrivacyLua",
+    "className": "android.location.LocationManager",
+    "methodName": "getGnssYearOfHardware",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 28,
+    "usage": false,
+    "luaScript": "@generic_zero_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UserManager.getUserCreationTime",
+    "author": "XPrivacyLua",
+    "className": "android.os.UserManager",
+    "methodName": "getUserCreationTime",
+    "parameterTypes": [
+      "android.os.UserHandle"
+    ],
+    "returnType": "long",
+    "minSdk": 23,
+    "usage": false,
+    "luaScript": "@generic_zero_value"
+  },
+  {
+    "collection": "Privacy",
     "group": "Read.Identifiers",
     "name": "Build.getRadioVersion",
     "author": "M66B",
@@ -3799,6 +4091,18 @@
     ],
     "returnType": "boolean",
     "minSdk": 21,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkCapabilities.getCapabilities",
+    "author": "XPrivacyLua",
+    "className": "android.net.NetworkCapabilities",
+    "methodName": "getCapabilities",
+    "parameterTypes": [],
+    "returnType": "int[]",
+    "minSdk": 31,
     "luaScript": "@vpn"
   },
   {

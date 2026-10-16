@@ -114,6 +114,8 @@ function after(hook, param)
             (name == 'contacts' and authority == 'icc') or
             (name == 'contacts' and authority == 'com.android.contacts') or
             (name == 'gsf_id' and authority == 'com.google.android.gsf.gservices') or
+            (name == 'fb_attribution' and authority == 'com.facebook.katana.provider.AttributionIdProvider') or
+            (name == 'fb_attribution' and authority == 'com.facebook.wakizashi.provider.AttributionIdProvider') or
             (name == 'mmssms' and authority == 'mms') or
             (name == 'mmssms' and authority == 'sms') or
             (name == 'mmssms' and authority == 'mms-sms') or

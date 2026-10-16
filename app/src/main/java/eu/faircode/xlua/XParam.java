@@ -20,6 +20,8 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.util.Log;
 
 import java.lang.reflect.Constructor;
@@ -28,6 +30,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class XParam {
     private static final String TAG = "XLua.XParam";
@@ -41,6 +44,10 @@ public class XParam {
 
     // Values scripts keep per scope, like per object, see putValue and getValue
     private static final Map<Object, Map<String, Object>> scopedValues = new WeakHashMap<>();
+
+    // See isPackageVisible
+    private static final Map<String, Boolean> visiblePackages = new ConcurrentHashMap<>();
+    private static final ThreadLocal<Boolean> checkingPackage = new ThreadLocal<>();
 
     // Field param
     public XParam(
@@ -133,6 +140,38 @@ public class XParam {
     @SuppressWarnings("unused")
     public boolean isInstance(Object object, String className) throws ClassNotFoundException {
         return (object != null && findClass(className).isInstance(object));
+    }
+
+    // Packages which stay visible to an app checking for a specific package:
+    // its own package, packages sharing its user id and system packages, which the Android framework,
+    // like WebView, looks up in the app process
+    @SuppressWarnings("unused")
+    public boolean isPackageVisible(String packageName) {
+        if (packageName == null || packageName.equals(this.context.getPackageName()))
+            return true;
+
+        Boolean visible = visiblePackages.get(packageName);
+        if (visible != null)
+            return visible;
+
+        // The check below calls hooked methods
+        if (Boolean.TRUE.equals(checkingPackage.get()))
+            return true;
+
+        checkingPackage.set(true);
+        try {
+            ApplicationInfo ai = this.context.getPackageManager().getApplicationInfo(packageName, 0);
+            visible = (ai.uid == getUid() ||
+                    (ai.flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
+        } catch (PackageManager.NameNotFoundException ignored) {
+            // Not installed or not visible because of the package visibility rules
+            visible = true;
+        } finally {
+            checkingPackage.remove();
+        }
+
+        visiblePackages.put(packageName, visible);
+        return visible;
     }
 
     @SuppressWarnings("unused")
