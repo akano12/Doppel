@@ -139,7 +139,13 @@
     <string name="title_group_partial">Partially restricted · %1$d of %2$d hooks</string>
     <string name="title_group_error">Failed · see the details</string>
     <string name="title_show_error">Show the error</string>
-    <string name="title_edit_values">Edit fake values</string>
+    <string name="title_values_hint">Values which restricted groups return instead</string>
+    <string name="title_show_hooks">Show the hooks of %1$s</string>
+    <string name="title_hide_hooks">Hide the hooks of %1$s</string>
+    <string name="title_hook_used">Restricted %1$s</string>
+    <string name="title_hook_not_used">Not used yet</string>
+    <string name="title_hook_not_restricted">Not restricted</string>
+    <string name="title_hook_state_failed">Failed</string>
     <string name="menu_values_app">Fake values for this app</string>
     <string name="menu_launch">Open app</string>
     <string name="menu_app_info">App info</string>
@@ -293,6 +299,32 @@
     <string name="group_use_analytics">Use analytics</string>
     <string name="group_use_camera">Use camera</string>
     <string name="group_use_tracking">Use tracking</string>
+
+    <!-- What the groups protect, below their titles -->
+    <string name="group_desc_determine_activity">Physical activity, like walking or driving</string>
+    <string name="group_desc_get_applications">Installed apps, checks for specific apps and keyboards</string>
+    <string name="group_desc_get_calendars">Calendars and events</string>
+    <string name="group_desc_get_call_log">Calls made and received</string>
+    <string name="group_desc_get_contacts">Contacts and their details</string>
+    <string name="group_desc_get_location">Precise and approximate location</string>
+    <string name="group_desc_get_messages">SMS and MMS messages</string>
+    <string name="group_desc_get_sensors">Motion and environment sensors</string>
+    <string name="group_desc_read_account">Accounts on the device, like email addresses</string>
+    <string name="group_desc_read_clipboard">Contents of the clipboard</string>
+    <string name="group_desc_read_identifiers">Device and advertising ids, serial number</string>
+    <string name="group_desc_read_network">Wi-Fi and cell networks, addresses of the device</string>
+    <string name="group_desc_read_notifications">Notifications of other apps</string>
+    <string name="group_desc_read_sync">Accounts which are being synchronized</string>
+    <string name="group_desc_read_telephony">Phone number, IMEI and SIM card details</string>
+    <string name="group_desc_read_timezone">Time zone of the device</string>
+    <string name="group_desc_read_features">Hardware and software features of the device</string>
+    <string name="group_desc_read_vpn">Whether a VPN is connected</string>
+    <string name="group_desc_record_audio">Recording with the microphone</string>
+    <string name="group_desc_record_video">Recording video</string>
+    <string name="group_desc_send_messages">Sending SMS and MMS messages</string>
+    <string name="group_desc_use_analytics">Analytics and advertising libraries in the app</string>
+    <string name="group_desc_use_camera">Taking pictures with the camera</string>
+    <string name="group_desc_use_tracking">Device model, firmware and other data to recognize the device</string>
 
     <string-array name="scopes" translatable="false">
         <item>android</item>

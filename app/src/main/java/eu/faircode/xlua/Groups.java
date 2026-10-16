@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-// Presentation of hook groups: localized titles, the section a group is shown in
+// Presentation of hook groups: localized titles, descriptions and icons, the section a group is shown in
 // and whether the scripts of a group use fake values
 final class Groups {
     // Sections in display order, groups of custom definitions go into the last one
@@ -41,35 +41,37 @@ final class Groups {
 
     private static final Map<String, Integer> SECTION = new HashMap<>();
     private static final Map<String, Integer> TITLE = new HashMap<>();
+    private static final Map<String, Integer> DESCRIPTION = new HashMap<>();
+    private static final Map<String, Integer> ICON = new HashMap<>();
     private static final Set<String> VALUES = new HashSet<>(Arrays.asList(
             "Get.Location", "Get.Contacts", "Read.Account", "Read.Features",
             "Read.Identifiers", "Read.Telephony", "Read.Timezone"));
 
     static {
-        TITLE.put("Determine.Activity", R.string.group_determine_activity);
-        TITLE.put("Get.Applications", R.string.group_get_applications);
-        TITLE.put("Get.Calendars", R.string.group_get_calendars);
-        TITLE.put("Get.Call.log", R.string.group_get_call_log);
-        TITLE.put("Get.Contacts", R.string.group_get_contacts);
-        TITLE.put("Get.Location", R.string.group_get_location);
-        TITLE.put("Get.Messages", R.string.group_get_messages);
-        TITLE.put("Get.Sensors", R.string.group_get_sensors);
-        TITLE.put("Read.Account", R.string.group_read_account);
-        TITLE.put("Read.Clipboard", R.string.group_read_clipboard);
-        TITLE.put("Read.Features", R.string.group_read_features);
-        TITLE.put("Read.Identifiers", R.string.group_read_identifiers);
-        TITLE.put("Read.Network", R.string.group_read_network);
-        TITLE.put("Read.Notifications", R.string.group_read_notifications);
-        TITLE.put("Read.Sync", R.string.group_read_sync);
-        TITLE.put("Read.Telephony", R.string.group_read_telephony);
-        TITLE.put("Read.Timezone", R.string.group_read_timezone);
-        TITLE.put("Read.VPN", R.string.group_read_vpn);
-        TITLE.put("Record.Audio", R.string.group_record_audio);
-        TITLE.put("Record.Video", R.string.group_record_video);
-        TITLE.put("Send.Messages", R.string.group_send_messages);
-        TITLE.put("Use.Analytics", R.string.group_use_analytics);
-        TITLE.put("Use.Camera", R.string.group_use_camera);
-        TITLE.put("Use.Tracking", R.string.group_use_tracking);
+        group("Determine.Activity", R.string.group_determine_activity, R.string.group_desc_determine_activity, R.drawable.ic_group_activity);
+        group("Get.Applications", R.string.group_get_applications, R.string.group_desc_get_applications, R.drawable.ic_group_applications);
+        group("Get.Calendars", R.string.group_get_calendars, R.string.group_desc_get_calendars, R.drawable.ic_group_calendars);
+        group("Get.Call.log", R.string.group_get_call_log, R.string.group_desc_get_call_log, R.drawable.ic_group_call_log);
+        group("Get.Contacts", R.string.group_get_contacts, R.string.group_desc_get_contacts, R.drawable.ic_group_contacts);
+        group("Get.Location", R.string.group_get_location, R.string.group_desc_get_location, R.drawable.ic_group_location);
+        group("Get.Messages", R.string.group_get_messages, R.string.group_desc_get_messages, R.drawable.ic_group_messages);
+        group("Get.Sensors", R.string.group_get_sensors, R.string.group_desc_get_sensors, R.drawable.ic_group_sensors);
+        group("Read.Account", R.string.group_read_account, R.string.group_desc_read_account, R.drawable.ic_group_account);
+        group("Read.Clipboard", R.string.group_read_clipboard, R.string.group_desc_read_clipboard, R.drawable.ic_group_clipboard);
+        group("Read.Features", R.string.group_read_features, R.string.group_desc_read_features, R.drawable.ic_group_features);
+        group("Read.Identifiers", R.string.group_read_identifiers, R.string.group_desc_read_identifiers, R.drawable.ic_group_identifiers);
+        group("Read.Network", R.string.group_read_network, R.string.group_desc_read_network, R.drawable.ic_group_network);
+        group("Read.Notifications", R.string.group_read_notifications, R.string.group_desc_read_notifications, R.drawable.ic_group_notifications);
+        group("Read.Sync", R.string.group_read_sync, R.string.group_desc_read_sync, R.drawable.ic_group_sync);
+        group("Read.Telephony", R.string.group_read_telephony, R.string.group_desc_read_telephony, R.drawable.ic_group_telephony);
+        group("Read.Timezone", R.string.group_read_timezone, R.string.group_desc_read_timezone, R.drawable.ic_group_timezone);
+        group("Read.VPN", R.string.group_read_vpn, R.string.group_desc_read_vpn, R.drawable.ic_group_vpn);
+        group("Record.Audio", R.string.group_record_audio, R.string.group_desc_record_audio, R.drawable.ic_group_audio);
+        group("Record.Video", R.string.group_record_video, R.string.group_desc_record_video, R.drawable.ic_group_video);
+        group("Send.Messages", R.string.group_send_messages, R.string.group_desc_send_messages, R.drawable.ic_group_send);
+        group("Use.Analytics", R.string.group_use_analytics, R.string.group_desc_use_analytics, R.drawable.ic_group_analytics);
+        group("Use.Camera", R.string.group_use_camera, R.string.group_desc_use_camera, R.drawable.ic_group_camera);
+        group("Use.Tracking", R.string.group_use_tracking, R.string.group_desc_use_tracking, R.drawable.ic_group_tracking);
 
         put(R.string.section_location, "Get.Location", "Determine.Activity", "Get.Sensors");
         put(R.string.section_identity, "Read.Identifiers", "Read.Telephony", "Read.Network", "Read.VPN",
@@ -81,6 +83,12 @@ final class Groups {
     }
 
     private Groups() {
+    }
+
+    private static void group(String group, int title, int description, int icon) {
+        TITLE.put(group, title);
+        DESCRIPTION.put(group, description);
+        ICON.put(group, icon);
     }
 
     private static void put(int section, String... groups) {
@@ -96,6 +104,17 @@ final class Groups {
     // Fake values on the values screen apply to this group
     static boolean hasValues(String group) {
         return VALUES.contains(group);
+    }
+
+    // What a built-in group protects, null for custom groups
+    static String getDescription(Context context, String group) {
+        Integer id = DESCRIPTION.get(group);
+        return (id == null ? null : context.getString(id));
+    }
+
+    static int getIcon(String group) {
+        Integer id = ICON.get(group);
+        return (id == null ? R.drawable.ic_group_custom : id);
     }
 
     // Built-in groups have a translated title, custom groups are shown by name

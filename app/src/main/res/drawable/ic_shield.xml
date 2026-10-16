@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:tint="?attr/colorOnSurface" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:pathData="M12,3l8,3v6c0,4.5 -3.4,8.3 -8,9c-4.6,-0.7 -8,-4.5 -8,-9V6z" android:strokeWidth="2" android:strokeColor="#FF000000" android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:pathData="M8.5,12l2.5,2.5l4.5,-5" android:strokeWidth="2" android:strokeColor="#FF000000" android:strokeLineCap="round" android:strokeLineJoin="round" />
+<!-- Material Symbols Rounded: shield_lock, Apache License 2.0 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:tint="?attr/colorOnSurface"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <group android:translateY="960">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M400-320h160q17 0 28.5-11.5T600-360v-120q0-17-11.5-28.5T560-520v-40q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560v40q-17 0-28.5 11.5T360-480v120q0 17 11.5 28.5T400-320Zm40-200v-40q0-17 11.5-28.5T480-600q17 0 28.5 11.5T520-560v40h-80Zm40 436q-7 0-13-1t-12-3q-135-45-215-166.5T160-516v-189q0-25 14.5-45t37.5-29l240-90q14-5 28-5t28 5l240 90q23 9 37.5 29t14.5 45v189q0 140-80 261.5T505-88q-6 2-12 3t-13 1Zm0-80q104-33 172-132t68-220v-189l-240-90-240 90v189q0 121 68 220t172 132Zm0-316Z" />
+    </group>
 </vector>

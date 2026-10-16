@@ -1,41 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Light palette, the dark palette is in values-night -->
-    <color name="c_primary">#0E6B5F</color>
+    <!-- Light palette: deep indigo with an amber accent on cool neutrals, the dark palette is in values-night -->
+    <color name="c_primary">#4338CA</color>
     <color name="c_on_primary">#FFFFFF</color>
-    <color name="c_primary_container">#E2F0EC</color>
-    <color name="c_on_primary_container">#0A3B34</color>
-    <color name="c_secondary">#4A6360</color>
+    <color name="c_primary_container">#E3E1FF</color>
+    <color name="c_on_primary_container">#1B1464</color>
+    <color name="c_secondary">#585C77</color>
     <color name="c_on_secondary">#FFFFFF</color>
-    <color name="c_secondary_container">#E3EAE8</color>
-    <color name="c_on_secondary_container">#15191C</color>
+    <color name="c_secondary_container">#DFE0F8</color>
+    <color name="c_on_secondary_container">#161A31</color>
+    <color name="c_tertiary">#8F5300</color>
+    <color name="c_on_tertiary">#FFFFFF</color>
+    <color name="c_tertiary_container">#FFDDB8</color>
+    <color name="c_on_tertiary_container">#2E1500</color>
 
-    <color name="c_surface">#F4F5F2</color>
-    <color name="c_on_surface">#15191C</color>
-    <color name="c_on_surface_variant">#575E64</color>
+    <color name="c_surface">#F5F5FA</color>
+    <color name="c_on_surface">#191A24</color>
+    <color name="c_on_surface_variant">#575A6D</color>
     <color name="c_surface_lowest">#FFFFFF</color>
-    <color name="c_surface_low">#F8F9F6</color>
-    <color name="c_surface_container">#EEF0EC</color>
-    <color name="c_surface_high">#E8EBE6</color>
-    <color name="c_surface_highest">#E2E5E0</color>
-    <color name="c_outline">#C3C8C2</color>
-    <color name="c_outline_variant">#E1E4DF</color>
+    <color name="c_surface_low">#EFEFF6</color>
+    <color name="c_surface_container">#E9E9F2</color>
+    <color name="c_surface_high">#E3E3ED</color>
+    <color name="c_surface_highest">#DDDDE8</color>
+    <color name="c_outline">#8A8CA0</color>
+    <color name="c_outline_variant">#DCDDE8</color>
 
-    <color name="c_error">#A4262C</color>
+    <color name="c_error">#B3261E</color>
     <color name="c_on_error">#FFFFFF</color>
-    <color name="c_error_container">#FCE4E4</color>
-    <color name="c_on_error_container">#5C0F13</color>
+    <color name="c_error_container">#FCE3E1</color>
+    <color name="c_on_error_container">#5C0D0A</color>
 
-    <color name="c_warning">#8A4204</color>
-    <color name="c_warning_container">#FBEEDD</color>
-    <color name="c_on_warning_container">#6B3303</color>
+    <color name="c_warning">#8F4A00</color>
+    <color name="c_warning_container">#FFEBD6</color>
+    <color name="c_on_warning_container">#5E3000</color>
 
-    <color name="c_code_background">#16191D</color>
-    <color name="c_code_text">#E6E9EC</color>
-    <color name="c_code_comment">#7C858D</color>
-    <color name="c_code_keyword">#C792EA</color>
-    <color name="c_code_string">#C3E88D</color>
-    <color name="c_code_number">#F78C6C</color>
-    <color name="c_code_function">#82AAFF</color>
+    <color name="c_code_background">#14151F</color>
+    <color name="c_code_text">#E5E6F0</color>
+    <color name="c_code_comment">#7B7F96</color>
+    <color name="c_code_keyword">#B4A9FF</color>
+    <color name="c_code_string">#9FDDB5</color>
+    <color name="c_code_number">#FFB870</color>
+    <color name="c_code_function">#82B6FF</color>
 
 </resources>

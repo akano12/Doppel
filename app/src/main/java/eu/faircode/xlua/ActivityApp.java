@@ -27,8 +27,10 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.content.res.ColorStateList;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -40,9 +42,11 @@ import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 // Restrictions of one app, by group
 public class ActivityApp extends ActivityBase {
@@ -57,6 +61,7 @@ public class ActivityApp extends ActivityBase {
     private XApp app = null;
     private final Map<String, List<XHook>> available = new HashMap<>();
     private final Map<String, GroupView> views = new HashMap<>();
+    private final Set<String> expanded = new HashSet<>(); // Groups which show their hooks
     private boolean dirty = false; // Changed restrictions which do not apply yet
 
     private View svContent;
@@ -69,10 +74,14 @@ public class ActivityApp extends ActivityBase {
     private Button btnForceStop;
 
     private static class GroupView {
+        View flIcon;
+        ImageView ivIcon;
+        TextView tvTitle;
         TextView tvMeta;
+        ImageView ivExpand;
         MaterialSwitch swGroup;
         ImageButton ibError;
-        Button btnValues;
+        LinearLayout llHooks;
     }
 
     static Intent getIntent(Context context, String packageName, int uid) {
@@ -122,6 +131,10 @@ public class ActivityApp extends ActivityBase {
                 swForceStop.toggle();
         });
         btnForceStop.setOnClickListener(view -> forceStop());
+        findViewById(R.id.llValues).setOnClickListener(view -> {
+            if (app != null)
+                startActivity(ActivityValues.getIntent(this, app.packageName, getLabel()));
+        });
 
         load();
     }
@@ -181,11 +194,15 @@ public class ActivityApp extends ActivityBase {
 
         // Group the hooks
         available.clear();
+        boolean values = false;
         for (XHook hook : hooks) {
             if (!available.containsKey(hook.getGroup()))
                 available.put(hook.getGroup(), new ArrayList<>());
             available.get(hook.getGroup()).add(hook);
+            if (Groups.hasValues(hook.getGroup()))
+                values = true;
         }
+        findViewById(R.id.llValues).setVisibility(values ? View.VISIBLE : View.GONE);
 
         // Sections with their groups by title
         final Collator collator = Collator.getInstance(Locale.getDefault());
@@ -214,17 +231,29 @@ public class ActivityApp extends ActivityBase {
             for (final String group : groups) {
                 View vGroup = inflater.inflate(R.layout.item_group, llRows, false);
                 GroupView gv = new GroupView();
+                gv.flIcon = vGroup.findViewById(R.id.flIcon);
+                gv.ivIcon = vGroup.findViewById(R.id.ivIcon);
+                gv.tvTitle = vGroup.findViewById(R.id.tvTitle);
                 gv.tvMeta = vGroup.findViewById(R.id.tvMeta);
+                gv.ivExpand = vGroup.findViewById(R.id.ivExpand);
                 gv.swGroup = vGroup.findViewById(R.id.swGroup);
                 gv.ibError = vGroup.findViewById(R.id.ibError);
-                gv.btnValues = vGroup.findViewById(R.id.btnValues);
+                gv.llHooks = vGroup.findViewById(R.id.llHooks);
                 String title = Groups.getTitle(this, group);
-                ((TextView) vGroup.findViewById(R.id.tvTitle)).setText(title);
+                gv.tvTitle.setText(title);
+                gv.ivIcon.setImageResource(Groups.getIcon(group));
+                TextView tvDescription = vGroup.findViewById(R.id.tvDescription);
+                String description = Groups.getDescription(this, group);
+                tvDescription.setText(description);
+                tvDescription.setVisibility(description == null ? View.GONE : View.VISIBLE);
                 gv.swGroup.setContentDescription(title);
-                vGroup.findViewById(R.id.llRow).setOnClickListener(view -> gv.swGroup.toggle());
+                // The row shows the hooks, the switch restricts
+                vGroup.findViewById(R.id.llRow).setOnClickListener(view -> {
+                    if (!expanded.remove(group))
+                        expanded.add(group);
+                    bind(group);
+                });
                 gv.ibError.setOnClickListener(view -> showErrors(group));
-                gv.btnValues.setOnClickListener(view ->
-                        startActivity(ActivityValues.getIntent(this, app.packageName, getLabel())));
                 views.put(group, gv);
                 llRows.addView(vGroup);
                 bind(group);
@@ -256,9 +285,22 @@ public class ActivityApp extends ActivityBase {
                 error = true;
         }
 
+        boolean restricted = !assignments.isEmpty();
         gv.tvMeta.setTextColor(Ui.color(this, error
                 ? R.attr.colorWarning
+                : restricted
+                ? androidx.appcompat.R.attr.colorPrimary
                 : com.google.android.material.R.attr.colorOnSurfaceVariant));
+        gv.flIcon.setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, error
+                ? R.attr.colorWarningContainer
+                : restricted
+                ? com.google.android.material.R.attr.colorPrimaryContainer
+                : com.google.android.material.R.attr.colorSurfaceContainerHigh)));
+        gv.ivIcon.setImageTintList(ColorStateList.valueOf(Ui.color(this, error
+                ? R.attr.colorOnWarningContainer
+                : restricted
+                ? com.google.android.material.R.attr.colorOnPrimaryContainer
+                : com.google.android.material.R.attr.colorOnSurfaceVariant)));
         if (assignments.isEmpty())
             gv.tvMeta.setText(R.string.title_not_restricted);
         else if (error)
@@ -271,11 +313,60 @@ public class ActivityApp extends ActivityBase {
             gv.tvMeta.setText(R.string.title_not_used);
 
         gv.ibError.setVisibility(error ? View.VISIBLE : View.GONE);
-        gv.btnValues.setVisibility(!assignments.isEmpty() && Groups.hasValues(group) ? View.VISIBLE : View.GONE);
+        bindHooks(group, gv, hooks);
 
         gv.swGroup.setOnCheckedChangeListener(null);
         gv.swGroup.setChecked(!assignments.isEmpty());
         gv.swGroup.setOnCheckedChangeListener((button, checked) -> assign(group, checked));
+    }
+
+    // The hooks of an expanded group, with whether they restricted something
+    private void bindHooks(String group, GroupView gv, List<XHook> hooks) {
+        boolean show = expanded.contains(group);
+        String title = Groups.getTitle(this, group);
+        gv.ivExpand.setRotation(show ? 180 : 0);
+        gv.ivExpand.setContentDescription(getString(show ? R.string.title_hide_hooks : R.string.title_show_hooks, title));
+        gv.llHooks.setVisibility(show ? View.VISIBLE : View.GONE);
+        gv.llHooks.removeAllViews();
+        if (!show)
+            return;
+
+        List<XHook> sorted = new ArrayList<>(hooks);
+        Collections.sort(sorted, (h1, h2) -> h1.getName().compareToIgnoreCase(h2.getName()));
+        LayoutInflater inflater = LayoutInflater.from(this);
+        for (XHook hook : sorted) {
+            View vHook = inflater.inflate(R.layout.item_group_hook, gv.llHooks, false);
+            int index = app.assignments.indexOf(new XAssignment(hook));
+            XAssignment assignment = (index < 0 ? null : app.assignments.get(index));
+
+            int color;
+            String status;
+            if (assignment == null) {
+                color = com.google.android.material.R.attr.colorOutline;
+                status = getString(R.string.title_hook_not_restricted);
+            } else if (assignment.exception != null) {
+                color = R.attr.colorWarning;
+                status = getString(R.string.title_hook_state_failed);
+            } else if (assignment.restricted && assignment.used > 0) {
+                color = androidx.appcompat.R.attr.colorPrimary;
+                status = getString(R.string.title_hook_used, Ui.ago(assignment.used));
+            } else {
+                color = com.google.android.material.R.attr.colorOnSurfaceVariant;
+                status = getString(R.string.title_hook_not_used);
+            }
+
+            ((TextView) vHook.findViewById(R.id.tvName)).setText(hook.getName());
+            TextView tvStatus = vHook.findViewById(R.id.tvStatus);
+            tvStatus.setText(status);
+            tvStatus.setTextColor(Ui.color(this, color));
+            vHook.findViewById(R.id.vDot).setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, color)));
+            if (assignment != null && assignment.exception != null) {
+                final String exception = assignment.exception;
+                vHook.setBackgroundResource(Ui.resource(this, android.R.attr.selectableItemBackground));
+                vHook.setOnClickListener(view -> Ui.showText(this, hook.getId(), exception.trim()));
+            }
+            gv.llHooks.addView(vHook);
+        }
     }
 
     // All available hooks of the group are assigned

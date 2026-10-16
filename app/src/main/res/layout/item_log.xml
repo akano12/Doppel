@@ -49,11 +49,14 @@
                     android:textAppearance="@style/XLua.Text.Meta" />
             </LinearLayout>
 
+            <!-- With the icon of the group, see FragmentLog -->
             <TextView
                 android:id="@+id/tvWhat"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
+                android:drawablePadding="6dp"
+                android:gravity="center_vertical"
                 android:textAppearance="?attr/textAppearanceBodyMedium" />
 
             <LinearLayout

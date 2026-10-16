@@ -78,7 +78,7 @@
                             android:id="@+id/etClass"
                             style="@style/XLua.Field.Edit"
                             android:inputType="text"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/plex_mono" />
                     </com.google.android.material.textfield.TextInputLayout>
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/XLua.Field"
@@ -90,7 +90,7 @@
                             android:id="@+id/etMethod"
                             style="@style/XLua.Field.Edit"
                             android:inputType="text"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/plex_mono" />
                     </com.google.android.material.textfield.TextInputLayout>
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/XLua.Field"
@@ -102,7 +102,7 @@
                             android:id="@+id/etParams"
                             style="@style/XLua.Field.Edit"
                             android:inputType="text"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/plex_mono" />
                     </com.google.android.material.textfield.TextInputLayout>
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/XLua.Field"
@@ -113,7 +113,7 @@
                             android:id="@+id/etReturn"
                             style="@style/XLua.Field.Edit"
                             android:inputType="text"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/plex_mono" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <LinearLayout
@@ -207,7 +207,7 @@
                             android:id="@+id/etName"
                             style="@style/XLua.Field.Edit"
                             android:inputType="text"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/plex_mono" />
                     </com.google.android.material.textfield.TextInputLayout>
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -347,7 +347,7 @@
                             android:id="@+id/etExclude"
                             style="@style/XLua.Field.Edit"
                             android:inputType="text"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/plex_mono" />
                     </com.google.android.material.textfield.TextInputLayout>
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/XLua.Field"
@@ -359,7 +359,7 @@
                             android:id="@+id/etSettings"
                             style="@style/XLua.Field.Edit"
                             android:inputType="text"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="@font/plex_mono" />
                     </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -472,7 +472,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/plex_mono"
                         android:text="script.lua"
                         android:textColor="@color/c_code_comment"
                         android:textSize="12sp" />
@@ -481,7 +481,7 @@
                         android:id="@+id/tvScriptInfo"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/plex_mono"
                         android:textColor="@color/c_code_comment"
                         android:textSize="12sp" />
                 </LinearLayout>
@@ -491,7 +491,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:background="@null"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/plex_mono"
                     android:gravity="top|start"
                     android:importantForAutofill="no"
                     android:inputType="textMultiLine|textNoSuggestions"

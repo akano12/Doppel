@@ -17,6 +17,10 @@
         <item name="colorOnSecondary">@color/c_on_secondary</item>
         <item name="colorSecondaryContainer">@color/c_secondary_container</item>
         <item name="colorOnSecondaryContainer">@color/c_on_secondary_container</item>
+        <item name="colorTertiary">@color/c_tertiary</item>
+        <item name="colorOnTertiary">@color/c_on_tertiary</item>
+        <item name="colorTertiaryContainer">@color/c_tertiary_container</item>
+        <item name="colorOnTertiaryContainer">@color/c_on_tertiary_container</item>
 
         <item name="android:colorBackground">@color/c_surface</item>
         <item name="colorSurface">@color/c_surface</item>
@@ -39,16 +43,100 @@
         <item name="colorWarningContainer">@color/c_warning_container</item>
         <item name="colorOnWarningContainer">@color/c_on_warning_container</item>
 
+        <!-- IBM Plex Sans for all text, see res/font -->
+        <item name="android:fontFamily">@font/plex_sans</item>
+        <item name="fontFamily">@font/plex_sans</item>
+        <item name="textAppearanceDisplayLarge">@style/XLua.TextAppearance.DisplayLarge</item>
+        <item name="textAppearanceDisplayMedium">@style/XLua.TextAppearance.DisplayMedium</item>
+        <item name="textAppearanceDisplaySmall">@style/XLua.TextAppearance.DisplaySmall</item>
+        <item name="textAppearanceHeadlineLarge">@style/XLua.TextAppearance.HeadlineLarge</item>
+        <item name="textAppearanceHeadlineMedium">@style/XLua.TextAppearance.HeadlineMedium</item>
+        <item name="textAppearanceHeadlineSmall">@style/XLua.TextAppearance.HeadlineSmall</item>
+        <item name="textAppearanceTitleLarge">@style/XLua.TextAppearance.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/XLua.TextAppearance.TitleMedium</item>
+        <item name="textAppearanceTitleSmall">@style/XLua.TextAppearance.TitleSmall</item>
+        <item name="textAppearanceBodyLarge">@style/XLua.TextAppearance.BodyLarge</item>
+        <item name="textAppearanceBodyMedium">@style/XLua.TextAppearance.BodyMedium</item>
+        <item name="textAppearanceBodySmall">@style/XLua.TextAppearance.BodySmall</item>
+        <item name="textAppearanceLabelLarge">@style/XLua.TextAppearance.LabelLarge</item>
+        <item name="textAppearanceLabelMedium">@style/XLua.TextAppearance.LabelMedium</item>
+        <item name="textAppearanceLabelSmall">@style/XLua.TextAppearance.LabelSmall</item>
+
         <item name="materialCardViewStyle">@style/XLua.Card</item>
         <item name="bottomNavigationStyle">@style/XLua.BottomNavigation</item>
         <item name="toolbarStyle">@style/XLua.Toolbar</item>
     </style>
 
-    <!-- Cards: white on the light grey background, a hairline instead of elevation -->
-    <style name="XLua.Card" parent="Widget.Material3.CardView.Outlined">
+    <!-- Cards: tonal surfaces without hairlines or elevation -->
+    <style name="XLua.Card" parent="Widget.Material3.CardView.Filled">
         <item name="cardBackgroundColor">?attr/colorSurfaceContainerLowest</item>
-        <item name="strokeColor">?attr/colorOutlineVariant</item>
-        <item name="cardCornerRadius">16dp</item>
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+
+    <!-- Typography: IBM Plex Sans, medium for titles and labels -->
+    <style name="XLua.TextAppearance.DisplayLarge" parent="TextAppearance.Material3.DisplayLarge">
+        <item name="android:fontFamily">@font/plex_sans</item>
+        <item name="fontFamily">@font/plex_sans</item>
+    </style>
+    <style name="XLua.TextAppearance.DisplayMedium" parent="TextAppearance.Material3.DisplayMedium">
+        <item name="android:fontFamily">@font/plex_sans</item>
+        <item name="fontFamily">@font/plex_sans</item>
+    </style>
+    <style name="XLua.TextAppearance.DisplaySmall" parent="TextAppearance.Material3.DisplaySmall">
+        <item name="android:fontFamily">@font/plex_sans</item>
+        <item name="fontFamily">@font/plex_sans</item>
+    </style>
+    <style name="XLua.TextAppearance.HeadlineLarge" parent="TextAppearance.Material3.HeadlineLarge">
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+    <style name="XLua.TextAppearance.HeadlineMedium" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+    <style name="XLua.TextAppearance.HeadlineSmall" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+    </style>
+    <style name="XLua.TextAppearance.TitleLarge" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+    </style>
+    <style name="XLua.TextAppearance.TitleMedium" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+    </style>
+    <style name="XLua.TextAppearance.TitleSmall" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+    </style>
+    <style name="XLua.TextAppearance.BodyLarge" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:fontFamily">@font/plex_sans</item>
+        <item name="fontFamily">@font/plex_sans</item>
+    </style>
+    <style name="XLua.TextAppearance.BodyMedium" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:fontFamily">@font/plex_sans</item>
+        <item name="fontFamily">@font/plex_sans</item>
+    </style>
+    <style name="XLua.TextAppearance.BodySmall" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:fontFamily">@font/plex_sans</item>
+        <item name="fontFamily">@font/plex_sans</item>
+    </style>
+    <style name="XLua.TextAppearance.LabelLarge" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+    </style>
+    <style name="XLua.TextAppearance.LabelMedium" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+    </style>
+    <style name="XLua.TextAppearance.LabelSmall" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
     </style>
 
     <style name="XLua.BottomNavigation" parent="Widget.Material3.BottomNavigationView">
@@ -58,24 +146,25 @@
     <style name="XLua.Toolbar" parent="Widget.Material3.Toolbar.Surface" />
 
     <!-- Screen title of the top level screens -->
-    <style name="XLua.Text.ScreenTitle" parent="TextAppearance.Material3.HeadlineMedium">
+    <style name="XLua.Text.ScreenTitle" parent="XLua.TextAppearance.HeadlineMedium">
         <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
 
     <!-- Uppercase caption above a group of rows -->
-    <style name="XLua.Text.Section" parent="TextAppearance.Material3.LabelMedium">
-        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    <style name="XLua.Text.Section" parent="XLua.TextAppearance.LabelMedium">
+        <item name="android:textColor">?attr/colorPrimary</item>
         <item name="android:textAllCaps">true</item>
-        <item name="android:letterSpacing">0.04</item>
+        <item name="android:letterSpacing">0.08</item>
     </style>
 
     <!-- Package names, class names, values -->
     <style name="XLua.Text.Mono" parent="TextAppearance.Material3.BodySmall">
-        <item name="android:fontFamily">monospace</item>
+        <item name="android:fontFamily">@font/plex_mono</item>
+        <item name="fontFamily">@font/plex_mono</item>
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 
-    <style name="XLua.Text.Meta" parent="TextAppearance.Material3.BodySmall">
+    <style name="XLua.Text.Meta" parent="XLua.TextAppearance.BodySmall">
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 
@@ -88,7 +177,7 @@
         <item name="android:paddingTop">2dp</item>
         <item name="android:paddingBottom">2dp</item>
         <item name="android:textSize">11sp</item>
-        <item name="android:fontFamily">monospace</item>
+        <item name="android:fontFamily">@font/plex_mono</item>
     </style>
 
     <!-- Caption above a card -->
@@ -197,6 +286,7 @@
         <item name="chipBackgroundColor">@color/chip_background</item>
         <item name="android:textColor">@color/chip_text</item>
         <item name="checkedIconVisible">false</item>
-        <item name="chipStrokeColor">?attr/colorOutline</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="chipCornerRadius">50dp</item>
     </style>
 </resources>

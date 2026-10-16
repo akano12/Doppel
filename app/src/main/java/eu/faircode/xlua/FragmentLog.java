@@ -20,6 +20,7 @@ package eu.faircode.xlua;
 import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Paint;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
@@ -31,6 +32,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -273,7 +275,18 @@ public class FragmentLog extends FragmentBase {
             h.tvApp.setText(TextUtils.isEmpty(entry.app.label) ? entry.app.packageName : entry.app.label);
             h.tvTime.setText(entry.time > 0
                     ? DateUtils.formatDateTime(context, entry.time, DateUtils.FORMAT_SHOW_TIME) : "");
-            h.tvHook.setText(entry.hook);
+            // Ids are the collection and the name, like Privacy.TelephonyManager.getImei
+            int dot = entry.hook.indexOf('.');
+            h.tvHook.setText(dot < 0 ? entry.hook : entry.hook.substring(dot + 1));
+            Drawable icon = AppCompatResources.getDrawable(context,
+                    error ? R.drawable.ic_error : Groups.getIcon(entry.group));
+            if (icon != null) {
+                icon = icon.mutate();
+                int size = Ui.dp(context, 16);
+                icon.setBounds(0, 0, size, size);
+                icon.setTint(Ui.color(context, error ? R.attr.colorWarning : androidx.appcompat.R.attr.colorPrimary));
+            }
+            h.tvWhat.setCompoundDrawablesRelative(icon, null, null, null);
 
             String group = (entry.group == null ? null : Groups.getTitle(context, entry.group));
             if (error) {

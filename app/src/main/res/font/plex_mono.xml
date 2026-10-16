@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app attributes are for Android versions before 8.0, see androidx.core -->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="UnusedAttribute">
+    <font
+        android:font="@font/plex_mono_regular"
+        android:fontStyle="normal"
+        android:fontWeight="400"
+        app:font="@font/plex_mono_regular"
+        app:fontStyle="normal"
+        app:fontWeight="400" />
+    <font
+        android:font="@font/plex_mono_regular"
+        android:fontStyle="normal"
+        android:fontWeight="700"
+        app:font="@font/plex_mono_regular"
+        app:fontStyle="normal"
+        app:fontWeight="700" />
+</font-family>
