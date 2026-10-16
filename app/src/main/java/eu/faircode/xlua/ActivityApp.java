@@ -263,10 +263,10 @@ public class ActivityApp extends ActivityBase {
             gv.tvMeta.setText(R.string.title_not_restricted);
         else if (error)
             gv.tvMeta.setText(R.string.title_group_error);
-        else if (used > 0)
-            gv.tvMeta.setText(getString(R.string.title_group_used, Ui.ago(used)));
         else if (assignments.size() < hooks.size())
             gv.tvMeta.setText(getString(R.string.title_group_partial, assignments.size(), hooks.size()));
+        else if (used > 0)
+            gv.tvMeta.setText(getString(R.string.title_group_used, Ui.ago(used)));
         else
             gv.tvMeta.setText(R.string.title_not_used);
 
@@ -278,24 +278,33 @@ public class ActivityApp extends ActivityBase {
         gv.swGroup.setOnCheckedChangeListener((button, checked) -> assign(group, checked));
     }
 
+    // All available hooks of the group are assigned
+    private boolean isComplete(String group) {
+        return (getAssignments(group).size() >= available.get(group).size());
+    }
+
     private void updateSummary() {
         int restricted = 0;
-        for (String group : available.keySet())
+        boolean complete = true;
+        for (String group : available.keySet()) {
             if (!getAssignments(group).isEmpty())
                 restricted++;
+            if (!isComplete(group))
+                complete = false;
+        }
         tvSummary.setText(getString(R.string.title_groups_restricted, restricted, available.size()));
-        cbAll.setCheckedState(restricted > 0 && restricted == available.size() ? MaterialCheckBox.STATE_CHECKED
+        cbAll.setCheckedState(restricted > 0 && complete ? MaterialCheckBox.STATE_CHECKED
                 : restricted > 0 ? MaterialCheckBox.STATE_INDETERMINATE
                 : MaterialCheckBox.STATE_UNCHECKED);
     }
 
-    // Restrict all groups, or remove all restrictions when all groups are restricted
+    // Restrict all hooks of all groups, or remove all restrictions when all hooks are restricted
     private void restrictAll() {
         if (app == null)
             return;
         boolean all = true;
         for (String group : available.keySet())
-            if (getAssignments(group).isEmpty())
+            if (!isComplete(group))
                 all = false;
         final boolean assign = !all;
         final List<String> groups = new ArrayList<>(available.keySet());

@@ -36,15 +36,19 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.StrictMode;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 // The service in system server, called through the settings provider (see XCore.hookSettings).
 // Apps can report usage and read their own restrictions and settings, everything else
@@ -288,6 +292,88 @@ class XProvider {
         });
 
         Log.i(TAG, "Loaded hook definitions hooks=" + hooks.size() + " builtins=" + builtins.size());
+
+        assignNewBuiltins();
+    }
+
+    // Built-in hooks added by an update are assigned to the apps which restrict their group,
+    // like the screens of the app assign all hooks of a group
+    private static void assignNewBuiltins() throws Throwable {
+        final String[] where = new String[]{"-1", "service", "builtins"};
+        db.write(d -> {
+            Set<String> known = new HashSet<>();
+            try (Cursor cursor = d.query("setting", new String[]{"value"},
+                    "user = ? AND category = ? AND name = ?", where, null, null, null)) {
+                if (cursor.moveToNext() && !cursor.isNull(0))
+                    known.addAll(Arrays.asList(cursor.getString(0).split(",")));
+            }
+
+            List<String> added = new ArrayList<>();
+            for (String id : builtins.keySet())
+                if (!known.contains(id))
+                    added.add(id);
+
+            if (!added.isEmpty()) {
+                // Groups restricted per app
+                Map<String, Set<String>> restricted = new HashMap<>();
+                Set<String> assigned = new HashSet<>();
+                try (Cursor cursor = d.query("assignment", new String[]{"package", "uid", "hook"},
+                        null, null, null, null, null)) {
+                    while (cursor.moveToNext()) {
+                        String key = cursor.getInt(1) + ":" + cursor.getString(0);
+                        assigned.add(key + "/" + cursor.getString(2));
+                        XHook hook = hooks.get(cursor.getString(2));
+                        if (hook == null)
+                            continue;
+                        if (!restricted.containsKey(key))
+                            restricted.put(key, new HashSet<>());
+                        restricted.get(key).add(hook.getGroup());
+                    }
+                }
+
+                Map<Integer, List<String>> collections = new HashMap<>();
+                int count = 0;
+                for (Map.Entry<String, Set<String>> entry : restricted.entrySet()) {
+                    int uid = Integer.parseInt(entry.getKey().substring(0, entry.getKey().indexOf(':')));
+                    String packageName = entry.getKey().substring(entry.getKey().indexOf(':') + 1);
+                    int userid = Util.getUserId(uid);
+                    if (!collections.containsKey(userid))
+                        collections.put(userid, readCollection(d, userid));
+                    for (String id : added) {
+                        // A custom definition can replace the built-in definition
+                        XHook hook = hooks.get(id);
+                        // Replacing an assignment would reset its usage data
+                        if (hook != null && !assigned.contains(entry.getKey() + "/" + id) &&
+                                entry.getValue().contains(hook.getGroup()) &&
+                                hook.isAvailable(packageName, collections.get(userid))) {
+                            Log.i(TAG, packageName + ":" + uid + "/" + id + " added (new built-in)");
+                            insertAssignment(d, packageName, uid, id);
+                            count++;
+                        }
+                    }
+                }
+                Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + count);
+            }
+
+            if (!added.isEmpty() || known.size() != builtins.size()) {
+                ContentValues cv = new ContentValues();
+                cv.put("user", -1);
+                cv.put("category", "service");
+                cv.put("name", "builtins");
+                cv.put("value", TextUtils.join(",", builtins.keySet()));
+                if (d.insertWithOnConflict("setting", null, cv, SQLiteDatabase.CONFLICT_REPLACE) < 0)
+                    throw new Throwable("Error inserting setting");
+            }
+            return null;
+        });
+    }
+
+    private static List<String> readCollection(SQLiteDatabase d, int userid) {
+        try (Cursor cursor = d.query("setting", new String[]{"value"},
+                "user = ? AND category = 'global' AND name = 'collection'",
+                new String[]{Integer.toString(userid)}, null, null, null)) {
+            return Util.parseCollection(cursor.moveToNext() && !cursor.isNull(0) ? cursor.getString(0) : null);
+        }
     }
 
     // Apps and restrictions
