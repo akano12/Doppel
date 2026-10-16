@@ -102,7 +102,7 @@ function after(hook, param)
         end
 
     elseif method == 'getNetworkInterfaces' then
-        -- NetworkInterface.networkInterfaces() calls are rewritten into this method when apps are built
+        -- NetworkInterface.networkInterfaces() is in the SDK stubs, but not in the Android runtime
         if result ~= nil then
             -- The original enumeration is consumed here, so always set a new result
             local collections = luajava.bindClass('java.util.Collections')
