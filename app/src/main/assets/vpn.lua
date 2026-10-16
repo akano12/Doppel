@@ -101,15 +101,12 @@ function after(hook, param)
             return true, result, 'WIFI'
         end
 
-    elseif method == 'getNetworkInterfaces' or method == 'networkInterfaces' then
+    elseif method == 'getNetworkInterfaces' then
+        -- NetworkInterface.networkInterfaces() calls are rewritten into this method when apps are built
         if result ~= nil then
-            -- The original enumeration or stream is consumed here, so always set a new result
-            local items
-            if method == 'getNetworkInterfaces' then
-                items = luajava.bindClass('java.util.Collections'):list(result):toArray()
-            else
-                items = result:toArray()
-            end
+            -- The original enumeration is consumed here, so always set a new result
+            local collections = luajava.bindClass('java.util.Collections')
+            local items = collections:list(result):toArray()
             local list = luajava.newInstance('java.util.ArrayList')
             local removed = false
             for index = 1, items['length'] do
@@ -119,13 +116,15 @@ function after(hook, param)
                     list:add(items[index])
                 end
             end
-            if method == 'getNetworkInterfaces' then
-                param:setResult(luajava.bindClass('java.util.Collections'):enumeration(list))
-            else
-                -- A stream can be consumed only once
-                param:setResult(list:stream())
-            end
+            param:setResult(collections:enumeration(list))
             return removed
+        end
+
+    elseif method == 'getInterfaceName' then
+        -- LinkProperties of the active network, like tun0
+        if isvpninterface(result) then
+            param:setResult('wlan0')
+            return true, result, 'wlan0'
         end
 
     elseif method == 'getByName' or method == 'getByIndex' then

@@ -1719,6 +1719,18 @@
   {
     "collection": "Privacy",
     "group": "Read.Telephony",
+    "name": "TelephonyManager.getPrimaryImei",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getPrimaryImei",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 34,
+    "luaScript": "@value_imei"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
     "name": "TelephonyManager.getLine1Number",
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
@@ -2081,7 +2093,7 @@
     "notify": true,
     "luaScript": "@generic_block_method"
   },
-  // Hidden implementation subclass on Android 14 and later
+  // Hidden implementation subclass on Android 15 and later
   {
     "collection": "Privacy",
     "group": "Record.Audio",
@@ -2093,7 +2105,7 @@
       "android.content.Intent"
     ],
     "returnType": "void",
-    "minSdk": 34,
+    "minSdk": 35,
     "optional": true,
     "notify": true,
     "luaScript": "@generic_block_method"
@@ -2183,6 +2195,25 @@
   {
     "collection": "Privacy",
     "group": "Send.Messages",
+    "name": "SmsManager.sendMultimediaMessage/id",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendMultimediaMessage",
+    "parameterTypes": [
+      "android.content.Context",
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.app.PendingIntent",
+      "long"
+    ],
+    "returnType": "void",
+    "minSdk": 31,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
     "name": "SmsManager.sendMultipartTextMessage",
     "author": "M66B",
     "className": "android.telephony.SmsManager",
@@ -2249,6 +2280,26 @@
       "java.util.List",
       "java.util.List",
       "long"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "SmsManager.sendMultipartTextMessage/attribution",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendMultipartTextMessage",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.util.List",
+      "java.util.List",
+      "java.util.List",
+      "java.lang.String",
+      "java.lang.String"
     ],
     "returnType": "void",
     "minSdk": 30,
@@ -2527,6 +2578,23 @@
     "minSdk": 1,
     "optional": true,
     "luaScript": "@generic_true_argument"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "SegmentAnalytics.process",
+    "author": "XPrivacyLua",
+    "description": "Segment for Kotlin, which processes all events, like track, identify and screen",
+    "className": "com.segment.analytics.kotlin.core.Analytics",
+    "methodName": "process",
+    "parameterTypes": [
+      "com.segment.analytics.kotlin.core.BaseEvent",
+      "kotlin.jvm.functions.Function1"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block_method"
   },
   // https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/FirebaseAnalytics
   {
@@ -3063,6 +3131,58 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "usage": false,
+    "luaScript": "@generic_unknown_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Build.SOC_MANUFACTURER",
+    "author": "XPrivacyLua",
+    "className": "android.os.Build",
+    "methodName": "#SOC_MANUFACTURER",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "usage": false,
+    "luaScript": "@generic_unknown_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Build.SOC_MODEL",
+    "author": "XPrivacyLua",
+    "className": "android.os.Build",
+    "methodName": "#SOC_MODEL",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "usage": false,
+    "luaScript": "@generic_unknown_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Build.SKU",
+    "author": "XPrivacyLua",
+    "className": "android.os.Build",
+    "methodName": "#SKU",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "usage": false,
+    "luaScript": "@generic_unknown_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Build.ODM_SKU",
+    "author": "XPrivacyLua",
+    "className": "android.os.Build",
+    "methodName": "#ODM_SKU",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
     "usage": false,
     "luaScript": "@generic_unknown_value"
   },
@@ -3696,6 +3816,18 @@
   {
     "collection": "Privacy",
     "group": "Read.VPN",
+    "name": "LinkProperties.getInterfaceName",
+    "author": "XPrivacyLua",
+    "className": "android.net.LinkProperties",
+    "methodName": "getInterfaceName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 21,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
     "name": "ConnectivityManager.getNetworkInfo/type",
     "author": "XPrivacyLua",
     "className": "android.net.ConnectivityManager",
@@ -3753,19 +3885,6 @@
     "parameterTypes": [],
     "returnType": "java.util.Enumeration",
     "minSdk": 1,
-    "luaScript": "@vpn"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.VPN",
-    "name": "NetworkInterface.networkInterfaces",
-    "author": "XPrivacyLua",
-    "className": "java.net.NetworkInterface",
-    "methodName": "networkInterfaces",
-    "parameterTypes": [],
-    "returnType": "java.util.stream.Stream",
-    "minSdk": 33,
-    "optional": true,
     "luaScript": "@vpn"
   },
   {
