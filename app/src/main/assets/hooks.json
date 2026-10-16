@@ -375,6 +375,58 @@
     "minSdk": 26,
     "luaScript": "@package_probe"
   },
+  // Installed keyboards
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "InputMethodManager.getInputMethodList",
+    "author": "XPrivacyLua",
+    "className": "android.view.inputmethod.InputMethodManager",
+    "methodName": "getInputMethodList",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 3,
+    "luaScript": "@inputmethod_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "InputMethodManager.getEnabledInputMethodList",
+    "author": "XPrivacyLua",
+    "className": "android.view.inputmethod.InputMethodManager",
+    "methodName": "getEnabledInputMethodList",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 3,
+    "luaScript": "@inputmethod_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "InputMethodManager.getCurrentInputMethodInfo",
+    "author": "XPrivacyLua",
+    "className": "android.view.inputmethod.InputMethodManager",
+    "methodName": "getCurrentInputMethodInfo",
+    "parameterTypes": [],
+    "returnType": "android.view.inputmethod.InputMethodInfo",
+    "minSdk": 34,
+    "luaScript": "@inputmethod_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Settings.Secure.getString/input_method",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Secure",
+    "methodName": "getString",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 3,
+    "luaScript": "@settingssecure_getstring"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -1557,6 +1609,169 @@
     "excludePackages": "com\\.facebook\\..*",
     "luaScript": "@contentresolver_query"
   },
+  // Advertising ids of device makers
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.query1/oaid",
+    "author": "XPrivacyLua",
+    "description": "Advertising id (OAID) of the system of Vivo and Meizu devices",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 1,
+    "maxSdk": 25,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.query16/oaid",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 16,
+    "maxSdk": 25,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.query26/oaid",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Settings.Global.getStringForUser/oaid",
+    "author": "XPrivacyLua",
+    "description": "Advertising id (OAID) of the system of Huawei devices",
+    "className": "android.provider.Settings$Global",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 21,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "IdProviderImpl.getOAID",
+    "author": "XPrivacyLua",
+    "description": "Advertising id (OAID) of the system of Xiaomi devices",
+    "className": "com.android.id.impl.IdProviderImpl",
+    "methodName": "getOAID",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "IdProviderImpl.getVAID",
+    "author": "XPrivacyLua",
+    "className": "com.android.id.impl.IdProviderImpl",
+    "methodName": "getVAID",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "IdProviderImpl.getAAID",
+    "author": "XPrivacyLua",
+    "className": "com.android.id.impl.IdProviderImpl",
+    "methodName": "getAAID",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "IdProviderImpl.getUDID",
+    "author": "XPrivacyLua",
+    "className": "com.android.id.impl.IdProviderImpl",
+    "methodName": "getUDID",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "HuaweiAdvertisingIdClient$Info.getId",
+    "author": "XPrivacyLua",
+    "description": "Advertising id (OAID) of Huawei Mobile Services",
+    "className": "com.huawei.hms.ads.identifier.AdvertisingIdClient$Info",
+    "methodName": "getId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@advertisingidclient$info_getid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "HuaweiAdvertisingIdClient$Info.isLimitAdTrackingEnabled",
+    "author": "XPrivacyLua",
+    "className": "com.huawei.hms.ads.identifier.AdvertisingIdClient$Info",
+    "methodName": "isLimitAdTrackingEnabled",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -1725,6 +1940,115 @@
     "returnType": "java.lang.String",
     "minSdk": 1,
     "luaScript": "@wifiinfo_getssid"
+  },
+  // Addresses of the device and of the network
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getIpAddress",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getIpAddress",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 1,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiManager.getDhcpInfo",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiManager",
+    "methodName": "getDhcpInfo",
+    "parameterTypes": [],
+    "returnType": "android.net.DhcpInfo",
+    "minSdk": 1,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getLinkAddresses",
+    "author": "XPrivacyLua",
+    "className": "android.net.LinkProperties",
+    "methodName": "getLinkAddresses",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 21,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getDnsServers",
+    "author": "XPrivacyLua",
+    "className": "android.net.LinkProperties",
+    "methodName": "getDnsServers",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 21,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getRoutes",
+    "author": "XPrivacyLua",
+    "className": "android.net.LinkProperties",
+    "methodName": "getRoutes",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 21,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getDomains",
+    "author": "XPrivacyLua",
+    "className": "android.net.LinkProperties",
+    "methodName": "getDomains",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 21,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getDhcpServerAddress",
+    "author": "XPrivacyLua",
+    "className": "android.net.LinkProperties",
+    "methodName": "getDhcpServerAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.Inet4Address",
+    "minSdk": 30,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NetworkInterface.getInetAddresses",
+    "author": "XPrivacyLua",
+    "className": "java.net.NetworkInterface",
+    "methodName": "getInetAddresses",
+    "parameterTypes": [],
+    "returnType": "java.util.Enumeration",
+    "minSdk": 1,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NetworkInterface.getInterfaceAddresses",
+    "author": "XPrivacyLua",
+    "className": "java.net.NetworkInterface",
+    "methodName": "getInterfaceAddresses",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 9,
+    "luaScript": "@network_address"
   },
   // https://developer.android.com/reference/android/bluetooth/BluetoothAdapter
   {
@@ -3440,6 +3764,105 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "Build.VERSION.INCREMENTAL",
+    "author": "XPrivacyLua",
+    "className": "android.os.Build$VERSION",
+    "methodName": "#INCREMENTAL",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "usage": false,
+    "luaScript": "@generic_unknown_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Build.VERSION.BASE_OS",
+    "author": "XPrivacyLua",
+    "className": "android.os.Build$VERSION",
+    "methodName": "#BASE_OS",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 23,
+    "usage": false,
+    "luaScript": "@generic_unknown_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.uname",
+    "author": "XPrivacyLua",
+    "className": "android.system.Os",
+    "methodName": "uname",
+    "parameterTypes": [],
+    "returnType": "android.system.StructUtsname",
+    "minSdk": 21,
+    "usage": false,
+    "luaScript": "@uname"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "System.props",
+    "author": "XPrivacyLua",
+    "description": "The HTTP user agent (http.agent) with the model and build and the kernel release (os.version)",
+    "className": "java.lang.System",
+    "methodName": "#props",
+    "parameterTypes": [],
+    "returnType": "java.util.Properties",
+    "minSdk": 1,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@system_properties"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "System.unchangeableProps",
+    "author": "XPrivacyLua",
+    "className": "java.lang.System",
+    "methodName": "#unchangeableProps",
+    "parameterTypes": [],
+    "returnType": "java.util.Properties",
+    "minSdk": 1,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@system_properties"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "WebSettings.getDefaultUserAgent",
+    "author": "XPrivacyLua",
+    "className": "android.webkit.WebSettings",
+    "methodName": "getDefaultUserAgent",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "usage": false,
+    "luaScript": "@webview_useragent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Settings.Global.getStringForUser/boot_count",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Global",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 21,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "LocationManager.getGnssHardwareModelName",
     "author": "XPrivacyLua",
     "className": "android.location.LocationManager",
@@ -3683,6 +4106,38 @@
     "returnType": "java.lang.String",
     "minSdk": 1,
     "enabled": false,
+    "luaScript": "@systemproperties_get"
+  },
+  // Properties of the model of the device, which apps read when the fields of android.os.Build are restricted
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.get/device",
+    "author": "XPrivacyLua",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.get.default/device",
+    "author": "XPrivacyLua",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "usage": false,
     "luaScript": "@systemproperties_get"
   },
   {

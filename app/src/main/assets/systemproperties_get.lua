@@ -15,13 +15,34 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+function isdeviceproperty(key)
+    if key == 'ro.soc.model' or key == 'ro.soc.manufacturer' or
+            key == 'ro.boot.hardware.sku' or key == 'ro.boot.vbmeta.digest' or key == 'ro.hardware' then
+        return true
+    end
+    if string.sub(key, 1, string.len('ro.product.')) ~= 'ro.product.' then
+        return false
+    end
+    for _, suffix in ipairs({ '.model', '.brand', '.manufacturer', '.device', '.name', '.board' }) do
+        if string.sub(key, -string.len(suffix)) == suffix then
+            return true
+        end
+    end
+    return false
+end
+
 function after(hook, param)
+    -- The hooked methods are called for all properties, so check the name first
+    local key = param:getArgument(0)
+    if key == nil or not (string.sub(key, 1, 3) == 'ro.' or string.sub(key, 1, 4) == 'ril.' or
+            string.sub(key, 1, 4) == 'gsm.' or key == 'sys.serialnumber') then
+        return false
+    end
+
     local result = param:getResult()
     if result == nil then
         return false
     end
-
-    local key = param:getArgument(0)
 
     local h = hook:getName()
     local match = string.gmatch(h, '[^/]+')
@@ -30,7 +51,9 @@ function after(hook, param)
 
     --log(key .. '=' .. result .. ' name=' .. name)
 
-    if name == 'serial' and (key == 'ro.serialno' or key == 'ro.boot.serialno') then
+    if name == 'serial' and (key == 'ro.serialno' or key == 'ro.boot.serialno' or
+            key == 'ril.serialnumber' or key == 'ro.boot.ap_serial' or key == 'sys.serialnumber' or
+            key == 'ro.ril.oem.sno' or key == 'ro.ril.oem.psno' or key == 'gsm.serial') then
         local fake = param:getSetting('value.serial')
         if fake == nil then
             fake = 'unknown'
@@ -55,6 +78,11 @@ function after(hook, param)
         return true, result, fake
     elseif name == 'vendor' and string.sub(key, 1, string.len('ro.vendor.')) == 'ro.vendor.' then
         local fake
+        param:setResult(fake)
+        return true, result, fake
+    elseif name == 'device' and result ~= '' and isdeviceproperty(key) then
+        -- Like the fields of android.os.Build
+        local fake = 'unknown'
         param:setResult(fake)
         return true, result, fake
     else
