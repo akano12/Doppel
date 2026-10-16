@@ -1682,6 +1682,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 21,
+    "optional": true,
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -3858,6 +3859,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 21,
+    "optional": true,
     "luaScript": "@settingssecure_getstring"
   },
   {
