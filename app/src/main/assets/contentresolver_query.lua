@@ -130,7 +130,6 @@ function after(hook, param)
             end
 
             local found = false
-            local index
             for index = 1, args['length'] do
                 if args[index] == 'android_id' then
                     found = true

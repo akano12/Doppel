@@ -15,24 +15,31 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The network and the SIM operator are those of the test network, MCC 001 and MNC 01,
+-- in the formats of the methods; the country is the unknown country code xx
+
+local FAKES = {
+    getMcc = 1,
+    getMnc = 1,
+    getMccString = '001',
+    getMncString = '01',
+    getNetworkOperator = '00101',
+    getSimOperator = '00101',
+    getCountryIso = 'xx',
+    getNetworkCountryIso = 'xx',
+    getSimCountryIso = 'xx',
+}
+
 function after(hook, param)
-    local this = param:getThis()
-    if this == nil then
-        return false
-    end
-
     local result = param:getResult()
-    local type = this:getPhoneType()
-
-    local fake
-    if type == 1 then -- GSM
-        fake = param:getSetting('value.imei')
-    end
-
-    if result == nil and fake == nil then
+    if result == nil then
         return false
     end
 
+    local fake = FAKES[hook:getMethodName()]
+    if fake == nil or fake == result then
+        return false
+    end
     param:setResult(fake)
-    return true, result, fake
+    return true, tostring(result), tostring(fake)
 end

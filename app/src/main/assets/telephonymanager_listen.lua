@@ -16,7 +16,7 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
 function before(hook, param)
-    local restricted = false;
+    local restricted = false
     local events = param:getArgument(1)
     if bit32.band(events, 16) ~= 0 then -- cell location
         restricted = true

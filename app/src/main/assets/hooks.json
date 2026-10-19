@@ -2217,7 +2217,7 @@
     ],
     "returnType": "int",
     "minSdk": 22,
-    "luaScript": "@generic_test_network_code"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -2230,7 +2230,7 @@
     ],
     "returnType": "int",
     "minSdk": 22,
-    "luaScript": "@generic_test_network_code"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -2326,7 +2326,7 @@
     "settings": [
       "value.imei"
     ],
-    "luaScript": "@value_imei"
+    "luaScript": "@value_device_id"
   },
   {
     "collection": "Privacy",
@@ -2343,7 +2343,7 @@
     "settings": [
       "value.imei"
     ],
-    "luaScript": "@value_imei"
+    "luaScript": "@value_device_id"
   },
   {
     "collection": "Privacy",
@@ -2358,7 +2358,7 @@
     "settings": [
       "value.imei"
     ],
-    "luaScript": "@value_imei"
+    "luaScript": "@value_device_id"
   },
   {
     "collection": "Privacy",
@@ -2391,7 +2391,7 @@
     "settings": [
       "value.meid"
     ],
-    "luaScript": "@value_meid"
+    "luaScript": "@value_device_id"
   },
   {
     "collection": "Privacy",
@@ -2408,7 +2408,7 @@
     "settings": [
       "value.meid"
     ],
-    "luaScript": "@value_meid"
+    "luaScript": "@value_device_id"
   },
   {
     "collection": "Privacy",
@@ -2508,7 +2508,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 29,
-    "luaScript": "@generic_mcc_string_value"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -2520,7 +2520,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 29,
-    "luaScript": "@generic_mnc_string_value"
+    "luaScript": "@test_network"
   },
   // https://developer.android.com/reference/android/telephony/SubscriptionManager#getPhoneNumber(int)
   {
@@ -4258,7 +4258,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 22,
-    "luaScript": "@generic_country_value"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -4271,7 +4271,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "luaScript": "@generic_country_value"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -4285,7 +4285,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 30,
-    "luaScript": "@generic_country_value"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -4298,7 +4298,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "luaScript": "@generic_operator_value"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -4324,7 +4324,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "luaScript": "@generic_country_value"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -4337,7 +4337,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "luaScript": "@generic_operator_value"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",

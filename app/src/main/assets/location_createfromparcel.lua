@@ -63,14 +63,18 @@ function after(hook, param)
 end
 
 function randomoffset(latitude, longitude, radius)
-    local r = radius / 111000; -- degrees
+    local r = radius / 111000 -- degrees
 
     local w = r * math.sqrt(math.random())
     local t = 2 * math.pi * math.random()
     local lonoff = w * math.cos(t)
     local latoff = w * math.sin(t)
 
-    lonoff = lonoff / math.cos(math.rad(latitude))
+    -- A degree of longitude is shorter away from the equator; at the poles all longitudes meet
+    local scale = math.cos(math.rad(latitude))
+    if scale > 0.01 then
+        lonoff = lonoff / scale
+    end
 
     return latitude + latoff, longitude + lonoff
 end

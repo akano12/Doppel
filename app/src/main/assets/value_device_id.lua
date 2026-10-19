@@ -15,6 +15,12 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The IMEI of GSM phones and the MEID of CDMA phones are replaced by the values set, nothing by default;
+-- getDeviceId returns the one of the phone type, getImei and getMeid only their own
+
+local PHONE_TYPE_GSM = 1
+local PHONE_TYPE_CDMA = 2
+
 function after(hook, param)
     local this = param:getThis()
     if this == nil then
@@ -22,15 +28,14 @@ function after(hook, param)
     end
 
     local result = param:getResult()
+    local method = hook:getMethodName()
     local type = this:getPhoneType()
-
     local fake
-    if type == 1 then -- GSM
+    if type == PHONE_TYPE_GSM and method ~= 'getMeid' then
         fake = param:getSetting('value.imei')
-    elseif type == 2 then -- CDMA
+    elseif type == PHONE_TYPE_CDMA and method ~= 'getImei' and method ~= 'getPrimaryImei' then
         fake = param:getSetting('value.meid')
     end
-
     if result == nil and fake == nil then
         return false
     end

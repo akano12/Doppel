@@ -21,9 +21,9 @@ function after(hook, param)
         return false
     end
 
-    local stringClass = luajava.bindClass('android.media.AudioDeviceInfo')
+    local deviceClass = luajava.bindClass('android.media.AudioDeviceInfo')
     local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-    local fake = arrayClass:newInstance(stringClass, 0)
+    local fake = arrayClass:newInstance(deviceClass, 0)
     param:setResult(fake)
     return true
 end

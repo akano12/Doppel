@@ -15,8 +15,13 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The mobile country and network code of the configuration, which apps use to select resources
+
 function after(hook, param)
     local configuration = param:getResult()
+    if configuration == nil or (configuration.mcc == 0 and configuration.mnc == 0) then
+        return false
+    end
     configuration.mcc = 0
     configuration.mnc = 0
     return true
