@@ -5254,5 +5254,221 @@
     "minSdk": 17,
     "optional": true,
     "luaScript": "@settingssecure_getstring"
+  },
+  // Memory and storage sizes, rounded to the sizes devices are sold with, free space to two digits
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "ActivityManager.getMemoryInfo",
+    "author": "XPrivacyLua",
+    "className": "android.app.ActivityManager",
+    "methodName": "getMemoryInfo",
+    "parameterTypes": [
+      "android.app.ActivityManager$MemoryInfo"
+    ],
+    "returnType": "void",
+    "minSdk": 16,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Os.statvfs",
+    "author": "XPrivacyLua",
+    "className": "android.system.Os",
+    "methodName": "statvfs",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 21,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Os.fstatvfs",
+    "author": "XPrivacyLua",
+    "className": "android.system.Os",
+    "methodName": "fstatvfs",
+    "parameterTypes": [
+      "java.io.FileDescriptor"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 21,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "File.getTotalSpace",
+    "author": "XPrivacyLua",
+    "className": "java.io.File",
+    "methodName": "getTotalSpace",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 9,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "File.getFreeSpace",
+    "author": "XPrivacyLua",
+    "className": "java.io.File",
+    "methodName": "getFreeSpace",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 9,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "File.getUsableSpace",
+    "author": "XPrivacyLua",
+    "className": "java.io.File",
+    "methodName": "getUsableSpace",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 9,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StorageStatsManager.getTotalBytes",
+    "author": "XPrivacyLua",
+    "className": "android.app.usage.StorageStatsManager",
+    "methodName": "getTotalBytes",
+    "parameterTypes": [
+      "java.util.UUID"
+    ],
+    "returnType": "long",
+    "minSdk": 26,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StorageStatsManager.getFreeBytes",
+    "author": "XPrivacyLua",
+    "className": "android.app.usage.StorageStatsManager",
+    "methodName": "getFreeBytes",
+    "parameterTypes": [
+      "java.util.UUID"
+    ],
+    "returnType": "long",
+    "minSdk": 26,
+    "luaScript": "@resources"
+  },
+  // StatFs itself, see resources.lua
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StatFs.getTotalBytes",
+    "author": "XPrivacyLua",
+    "className": "android.os.StatFs",
+    "methodName": "getTotalBytes",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 18,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StatFs.getAvailableBytes",
+    "author": "XPrivacyLua",
+    "className": "android.os.StatFs",
+    "methodName": "getAvailableBytes",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 18,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StatFs.getFreeBytes",
+    "author": "XPrivacyLua",
+    "className": "android.os.StatFs",
+    "methodName": "getFreeBytes",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 18,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StatFs.getBlockCountLong",
+    "author": "XPrivacyLua",
+    "className": "android.os.StatFs",
+    "methodName": "getBlockCountLong",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 18,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StatFs.getAvailableBlocksLong",
+    "author": "XPrivacyLua",
+    "className": "android.os.StatFs",
+    "methodName": "getAvailableBlocksLong",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 18,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StatFs.getFreeBlocksLong",
+    "author": "XPrivacyLua",
+    "className": "android.os.StatFs",
+    "methodName": "getFreeBlocksLong",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 18,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StatFs.getBlockCount",
+    "author": "XPrivacyLua",
+    "className": "android.os.StatFs",
+    "methodName": "getBlockCount",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 1,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StatFs.getAvailableBlocks",
+    "author": "XPrivacyLua",
+    "className": "android.os.StatFs",
+    "methodName": "getAvailableBlocks",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 1,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StatFs.getFreeBlocks",
+    "author": "XPrivacyLua",
+    "className": "android.os.StatFs",
+    "methodName": "getFreeBlocks",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 1,
+    "luaScript": "@resources"
   }
 ]

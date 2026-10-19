@@ -289,6 +289,7 @@
     <string name="group_read_battery">Read battery</string>
     <string name="group_read_clipboard">Read clipboard</string>
     <string name="group_read_debugging">Read debugging state</string>
+    <string name="group_read_resources">Read memory and storage</string>
     <string name="group_read_identifiers">Read identifiers</string>
     <string name="group_read_network">Read network data</string>
     <string name="group_read_notifications">Read notifications</string>
@@ -317,6 +318,7 @@
     <string name="group_desc_read_battery">Exact battery level, charge and wear, which help to recognize the device</string>
     <string name="group_desc_read_clipboard">Contents of the clipboard</string>
     <string name="group_desc_read_debugging">Whether developer options and USB or wireless debugging are on</string>
+    <string name="group_desc_read_resources">Exact size of memory and storage and the free space, which help to recognize the device</string>
     <string name="group_desc_read_identifiers">Device and advertising ids, serial number, ids of SD cards</string>
     <string name="group_desc_read_network">Wi-Fi and cell networks, addresses of the device, nearby Bluetooth and local network devices</string>
     <string name="group_desc_read_notifications">Notifications of other apps</string>

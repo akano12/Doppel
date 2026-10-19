@@ -36,6 +36,7 @@ Restrictions
 * Read battery (level in steps of 10 percent, hide charge counter, current, energy, cycle count, voltage and temperature)
 * Read clipboard (fake paste)
 * Read debugging state (developer options and USB or wireless debugging appear off)
+* Read memory and storage (total memory and storage rounded up to the sizes devices are sold with, free space rounded down to two digits)
 * Read identifiers (fake build serial number, Android ID, advertising ID, Privacy Sandbox ad ID, app set ID, GSF ID, limit ad tracking, random SD card ids on each start of the app)
 * Read notifications (fake [status bar notifications](https://developer.android.com/reference/android/service/notification/StatusBarNotification.html))
 * Read network data (hide cell info, Wi-Fi networks, paired and connected Bluetooth devices, fake Wi-Fi network name, block Bluetooth scans and discovery of devices in the local network)
