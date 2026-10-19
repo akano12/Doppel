@@ -12,7 +12,6 @@
     <string name="menu_restrict_new">قيّد التطبيقات الجديدة</string>
     <string name="menu_readme">التوثيق</string>
     <string name="menu_faq">الأسئلة الأكثر شيوعاً</string>
-    <string name="menu_donate">تبرع</string>
     <string name="msg_no_service">الوحدة لا تعمل أو تحت التحديث</string>
     <string name="msg_review_settings">راجع إعدادات الخصوصية</string>
     <string name="msg_usage">تم تقييد \'%1$s\'</string>

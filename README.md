@@ -17,7 +17,7 @@ Features
 
 * Simple to use
 * Manage any user or system app
-* [Extensible](https://github.com/M66B/XPrivacyLua/blob/master/DEFINE.md)
+* [Extensible](DEFINE.md)
 * Multi-user support
 * Free and open source
 
@@ -70,9 +70,9 @@ Hide or fake?
 * Hide: return empty list
 * Fake: return empty or fake value
 
-It is possible to add custom restriction definitions, see [this FAQ](https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md#user-content-faq8) for details.
+It is possible to add custom restriction definitions, see [this FAQ](FAQ.md#user-content-faq8) for details.
 
-You can see all technical details [here](https://github.com/M66B/XPrivacyLua/blob/master/app/src/main/assets/hooks.json).
+You can see all technical details [here](app/src/main/assets/hooks.json).
 
 Notes
 -----
@@ -114,7 +114,7 @@ Certificate fingerprints:
 Frequently Asked Questions
 --------------------------
 
-See [here](https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md) for a list of often asked questions.
+See [here](FAQ.md) for a list of often asked questions.
 
 Support
 -------

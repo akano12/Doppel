@@ -11,7 +11,6 @@
     <string name="menu_restrict_new">Neue Apps beschränken</string>
     <string name="menu_readme">Dokumentation</string>
     <string name="menu_faq">FAQ</string>
-    <string name="menu_donate">Spenden</string>
     <string name="msg_no_service">Modul nicht aktiv oder aktualisiert</string>
     <string name="msg_review_settings">Datenschutzeinstellungen überprüfen</string>
     <string name="msg_usage">Beschränkte \'%1$s\'</string>

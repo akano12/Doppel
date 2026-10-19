@@ -9,6 +9,5 @@
 /captures
 .externalNativeBuild
 .cxx
-/tools/config.sh
 /app/release
 keystore.properties

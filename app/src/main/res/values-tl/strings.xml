@@ -12,7 +12,6 @@
     <string name="menu_restrict_new">Paghigpitan ang nga bagong app</string>
     <string name="menu_readme">Pagdudukumento</string>
     <string name="menu_faq">FAQ</string>
-    <string name="menu_donate">Magbahagi</string>
     <string name="msg_no_service">Ang modyul ay hindi gumagana o hindi na-update</string>
     <string name="msg_review_settings">Tingnan ang mga setting ng privacy</string>
     <string name="msg_usage">Pinagbabawal \'%1$s\'</string>

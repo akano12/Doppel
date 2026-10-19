@@ -14,7 +14,6 @@
     <string name="menu_restrict_new">Restringir novos apps</string>
     <string name="menu_readme">Documentação</string>
     <string name="menu_faq">Perguntas Frequentes</string>
-    <string name="menu_donate">Fazer Doação</string>
 
     <string name="msg_no_service">O módulo não está em execução ou foi atualizado</string>
     <string name="msg_review_settings">Revise as configurações de privacidade</string>

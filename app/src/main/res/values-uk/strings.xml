@@ -12,7 +12,6 @@
     <string name="menu_restrict_new">Обмежити нові програми</string>
     <string name="menu_readme">Документація</string>
     <string name="menu_faq">Часті Питання</string>
-    <string name="menu_donate">Підтримати проект</string>
     <string name="msg_no_service">Модуль не запущений або не оновлений</string>
     <string name="msg_review_settings">Налаштування конфіденційності</string>
     <string name="msg_usage">Обмежено \'%1$s\'</string>

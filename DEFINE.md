@@ -72,8 +72,9 @@ Definitions can be imported from and exported to JSON files there too.
 * Setting *optional* to *true* will suppress error messages about the class or method not being found (default *false*)
 * Setting *usage* to *false* means that executing the hook will not be reported (default *true*)
 * Setting *notify* to *true* will result in showing notifications when the hook is applied (default *false*)
-* Settings (custom values) can be set with *Fake values* in the navigation drawer (for all apps) or with the settings icon of an app (for that app),
-  and read using *param:getSetting('setting_name1')*; an app setting takes precedence over the setting for all apps
+* Settings (custom values) can be set with *Fake values* in the settings (for all apps) or on the screen of an app (for that app),
+  and read using *param:getSetting('setting_name1')*; an app setting takes precedence over the setting for all apps.
+  List the names of the settings a script reads in *settings*, so that *Fake values* offers a field for each of them
 
 *Fake values* allows you to select which *collection*s of hooks XPrivacyLua should use.
 
@@ -106,7 +107,7 @@ The most important functions of *hook* are:
 
 * *hook:getName()*
 * *hook:getClassName()*
-* For other functions, see [here](https://github.com/M66B/XPrivacyLua/blob/master/app/src/main/java/eu/faircode/xlua/XHook.java) for the available public methods
+* For other functions, see [here](app/src/main/java/eu/faircode/xlua/XHook.java) for the available public methods
 
 The most important functions of *param* are:
 
@@ -118,7 +119,7 @@ The most important functions of *param* are:
 * *param:setResult(value)*
 * *param:findClass(name)*: load a class of the hooked app, see remarks below
 * *param:isInstance(object, name)*: check if an object is an instance of the named class or interface
-* For other functions, see [here](https://github.com/M66B/XPrivacyLua/blob/master/app/src/main/java/eu/faircode/xlua/XParam.java) for the available public methods
+* For other functions, see [here](app/src/main/java/eu/faircode/xlua/XParam.java) for the available public methods
 
 The before/after function **must** return *true* when something was done and **must** return *false* otherwise.
 XPrivacyLua will show the last date/time of the last time *true* was returned.
@@ -194,7 +195,7 @@ The pro companion app can upload defintions to and download definitions from a [
 making it easy to share hook definitions with others and to use hook definitions provided by others.
 Note that you cannot upload hook definitions with the author name to set to someone else.
 
-You can find some example definitions [here](https://github.com/M66B/XPrivacyLua/tree/master/examples)
-and the definitions built into XPrivacyLua [here](https://github.com/M66B/XPrivacyLua/tree/master/app/src/main/assets).
+You can find some example definitions [here](examples)
+and the definitions built into XPrivacyLua [here](app/src/main/assets).
 
 If you have questions, you can ask them in [this XDA thread](https://forum.xda-developers.com/xposed/modules/xposed-developing-module-t3741692).

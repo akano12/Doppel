@@ -11,7 +11,6 @@
     <string name="menu_restrict_new">הגבל יישומים חדשים</string>
     <string name="menu_readme">מסמכים</string>
     <string name="menu_faq">שאלות נפוצות</string>
-    <string name="menu_donate">תרום</string>
     <string name="msg_no_service">מודול אינו פועל או שאינו מעודכן</string>
     <string name="msg_review_settings">סקור את הגדרות הפרטיות</string>
     <string name="msg_usage">מוגבל \'%1$s\'</string>

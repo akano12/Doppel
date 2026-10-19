@@ -11,7 +11,6 @@
     <string name="menu_restrict_new">Yeni uygulamaları kısıtla</string>
     <string name="menu_readme">Dokümantasyon</string>
     <string name="menu_faq">SSS</string>
-    <string name="menu_donate">Bağış yap</string>
     <string name="msg_no_service">Modül çalışmıyor ya da güncellenmiş</string>
     <string name="msg_review_settings">Gizlilik ayarlarını incele</string>
     <string name="msg_usage">\'%1$s\' kısıtlandı</string>

@@ -11,7 +11,6 @@
     <string name="menu_restrict_new">Begränsa nya appar</string>
     <string name="menu_readme">Dokumentation</string>
     <string name="menu_faq">Vanliga frågor &amp; svar</string>
-    <string name="menu_donate">Donera</string>
     <string name="msg_no_service">Modulen körs inte eller uppdateras</string>
     <string name="msg_review_settings">Granska sekretessinställningar</string>
     <string name="msg_usage">Begränsad \'%1$s\'</string>

@@ -7,16 +7,19 @@
 # XPrivacyLua
 # XLua is the legacy Xposed entry point (assets/xposed_init),
 # XLuaModule the modern entry point (META-INF/xposed/java_init.list),
-# XHook and XParam are accessed from Lua scripts by reflection
+# XHook, XParam and XCall (param:getScope) are accessed from Lua scripts by reflection
 -keep class eu.faircode.xlua.XLua { *; }
 -keep class eu.faircode.xlua.XLuaModule { *; }
 -keep class eu.faircode.xlua.XHook { *; }
 -keep class eu.faircode.xlua.XParam { *; }
+-keep class eu.faircode.xlua.XCall { *; }
+# Readable stack traces in the errors shown by the app, the code is small
 -keepnames class eu.faircode.xlua.** { *; }
 
-# LuaJ binds library functions and Java objects by reflection
+# LuaJ creates library functions by reflection (LibFunction.bind), the rest can be shrunk
 -dontwarn org.luaj.vm2.**
--keep class org.luaj.vm2.** { *; }
+-keep class * extends org.luaj.vm2.lib.LibFunction { <init>(); }
+-keepnames class org.luaj.vm2.** { *; }
 
 # Xposed APIs are provided at runtime
 -dontwarn de.robv.android.xposed.**

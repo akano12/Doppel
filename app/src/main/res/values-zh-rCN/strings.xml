@@ -11,7 +11,6 @@
     <string name="menu_restrict_new">限制新应用</string>
     <string name="menu_readme">文档</string>
     <string name="menu_faq">常见问题</string>
-    <string name="menu_donate">捐赠</string>
     <string name="msg_no_service">模块未运行或未更新</string>
     <string name="msg_review_settings">查看隐私设定</string>
     <string name="msg_usage">受限于\'%1$s\'</string>

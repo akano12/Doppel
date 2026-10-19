@@ -12,7 +12,6 @@
     <string name="menu_restrict_new">Blokovať nové aplikácie</string>
     <string name="menu_readme">Dokumentácia</string>
     <string name="menu_faq">FAQ</string>
-    <string name="menu_donate">Podporiť</string>
     <string name="msg_no_service">Modul Xposed nefunguje</string>
     <string name="msg_review_settings">Kontrola ochrany osobných údajov</string>
     <string name="msg_usage">Blokované: \'%1$s\'</string>

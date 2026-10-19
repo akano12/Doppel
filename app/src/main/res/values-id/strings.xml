@@ -11,7 +11,6 @@
     <string name="menu_restrict_new">Batasi aplikasi baru</string>
     <string name="menu_readme">Dokumentasi</string>
     <string name="menu_faq">FAQ</string>
-    <string name="menu_donate">Menyumbangkan</string>
     <string name="msg_no_service">Modul tidak berjalan atau diperbarui</string>
     <string name="msg_review_settings">Tinjau pengaturan privasi</string>
     <string name="msg_usage">\'%1$s\' dibatasi</string>

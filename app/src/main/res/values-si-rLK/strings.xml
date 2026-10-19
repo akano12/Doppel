@@ -11,7 +11,6 @@
     <string name="menu_restrict_new">Restrict new apps</string>
     <string name="menu_readme">Documentation</string>
     <string name="menu_faq">නිති අසන පැණ</string>
-    <string name="menu_donate">පරිත්‍යාග කරන්න</string>
     <string name="msg_no_service">Module not running or updated</string>
     <string name="msg_review_settings">Review privacy settings</string>
     <string name="msg_usage">Restricted \'%1$s\'</string>
