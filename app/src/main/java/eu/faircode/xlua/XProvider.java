@@ -308,8 +308,11 @@ class XProvider {
 
     // Built-in hooks added by an update are assigned to the apps which restrict their group,
     // like the screens of the app assign all hooks of a group
+    // Enabled built-in hooks are tracked, so a hook enabled by an update is assigned too.
+    // The former marker "builtins" included disabled hooks; without the current marker,
+    // all enabled built-in hooks count as new, which completes the restricted groups once.
     private static void assignNewBuiltins() throws Throwable {
-        final String[] where = new String[]{"-1", "service", "builtins"};
+        final String[] where = new String[]{"-1", "service", "builtins_enabled"};
         db.write(d -> {
             Set<String> known = new HashSet<>();
             try (Cursor cursor = d.query("setting", new String[]{"value"},
@@ -318,8 +321,13 @@ class XProvider {
                     known.addAll(Arrays.asList(cursor.getString(0).split(",")));
             }
 
+            List<String> enabled = new ArrayList<>();
+            for (XHook builtin : builtins.values())
+                if (builtin.isEnabled())
+                    enabled.add(builtin.getId());
+
             List<String> added = new ArrayList<>();
-            for (String id : builtins.keySet())
+            for (String id : enabled)
                 if (!known.contains(id))
                     added.add(id);
 
@@ -365,8 +373,10 @@ class XProvider {
                 Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + count);
             }
 
-            if (!added.isEmpty() || known.size() != builtins.size())
-                writeSetting(d, -1, "service", "builtins", TextUtils.join(",", builtins.keySet()));
+            if (!added.isEmpty() || known.size() != enabled.size()) {
+                writeSetting(d, -1, "service", "builtins_enabled", TextUtils.join(",", enabled));
+                writeSetting(d, -1, "service", "builtins", null);
+            }
             return null;
         });
     }
