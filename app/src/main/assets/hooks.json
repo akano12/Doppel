@@ -5656,5 +5656,261 @@
     "returnType": "boolean",
     "minSdk": 24,
     "luaScript": "@biometrics"
+  },
+  // Commands like getprop and uname read the system properties and kernel build behind faked values
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ProcessBuilder.start",
+    "author": "XPrivacyLua",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@shell_commands"
+  },
+  // The text of network objects contains the values their getters hide
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.toString",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "luaScript": "@network_tostring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NetworkInfo.toString",
+    "author": "XPrivacyLua",
+    "className": "android.net.NetworkInfo",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "luaScript": "@network_tostring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "InetAddress.getLocalHost",
+    "author": "XPrivacyLua",
+    "className": "java.net.InetAddress",
+    "methodName": "getLocalHost",
+    "parameterTypes": [],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 1,
+    "luaScript": "@network_address"
+  },
+  // MAC addresses of Wi-Fi, Bluetooth and the network interfaces
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "WifiInfo.getMacAddress",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getMacAddress",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "luaScript": "@mac_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "BluetoothAdapter.getAddress",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothAdapter",
+    "methodName": "getAddress",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 5,
+    "luaScript": "@mac_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "NetworkInterface.getHardwareAddress",
+    "author": "XPrivacyLua",
+    "className": "java.net.NetworkInterface",
+    "methodName": "getHardwareAddress",
+    "parameterTypes": [],
+    "returnType": "byte[]",
+    "minSdk": 9,
+    "luaScript": "@mac_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Settings.Secure.getStringForUser/mac",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  // Battery saver
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "PowerManager.isPowerSaveMode",
+    "author": "XPrivacyLua",
+    "className": "android.os.PowerManager",
+    "methodName": "isPowerSaveMode",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 21,
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "Settings.Global.getStringForUser/battery",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Global",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  // Package lookups for other users, hidden methods which skip the public ones
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageInfoAsUser",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfoAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 24,
+    "optional": true,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageInfoAsUser/flags",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfoAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$PackageInfoFlags",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getApplicationInfoAsUser",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getApplicationInfoAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.ApplicationInfo",
+    "minSdk": 24,
+    "optional": true,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getApplicationInfoAsUser/flags",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getApplicationInfoAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$ApplicationInfoFlags",
+      "int"
+    ],
+    "returnType": "android.content.pm.ApplicationInfo",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageUidAsUser",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageUidAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 24,
+    "optional": true,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageUidAsUser/int",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageUidAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 24,
+    "optional": true,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPackageUidAsUser/flags",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageUidAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$PackageInfoFlags",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@package_probe"
   }
 ]

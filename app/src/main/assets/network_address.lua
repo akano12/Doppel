@@ -42,6 +42,15 @@ function after(hook, param)
         param:setResult(luajava.newInstance('java.util.ArrayList'))
         return true
 
+    elseif method == 'getLocalHost' then
+        -- The address of the host name of the device, which is normally localhost
+        if result:isLoopbackAddress() then
+            return false
+        end
+        local fake = luajava.bindClass('java.net.InetAddress'):getLoopbackAddress()
+        param:setResult(fake)
+        return true, result:getHostAddress(), fake:getHostAddress()
+
     elseif method == 'getDomains' or method == 'getDhcpServerAddress' then
         param:setResult(nil)
         return true

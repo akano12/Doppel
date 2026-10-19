@@ -81,7 +81,8 @@ function after(hook, param)
     if key ~= 'android_id' and key ~= 'bluetooth_name' and key ~= 'device_name' and key ~= 'boot_count' and
             key ~= 'pps_oaid' and key ~= 'default_input_method' and key ~= 'enabled_input_methods' and
             key ~= 'enabled_accessibility_services' and key ~= 'adb_enabled' and key ~= 'adb_wifi_enabled' and
-            key ~= 'development_settings_enabled' and PERSONAL[key] == nil then
+            key ~= 'development_settings_enabled' and key ~= 'low_power' and key ~= 'bluetooth_address' and
+            PERSONAL[key] == nil then
         return false
     end
 
@@ -145,6 +146,21 @@ function after(hook, param)
         end
         param:setResult('0')
         return true, result, '0'
+    elseif name == 'battery' and key == 'low_power' then
+        -- Battery saver appears off, like PowerManager.isPowerSaveMode
+        if result == '0' then
+            return false
+        end
+        param:setResult('0')
+        return true, result, '0'
+    elseif name == 'mac' and key == 'bluetooth_address' then
+        -- The Bluetooth MAC address, like BluetoothAdapter.getAddress
+        local fake = '02:00:00:00:00:00'
+        if result == fake then
+            return false
+        end
+        param:setResult(fake)
+        return true, result, fake
     else
         return false
     end

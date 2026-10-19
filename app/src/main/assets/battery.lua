@@ -19,10 +19,19 @@
 -- the manufacturing date, the first use and the health identify the battery itself.
 -- The capacity is given in steps of 10 percent, other properties as not supported,
 -- like BatteryManager does on devices without them. The status stays, apps act on charging.
+-- Battery saver is a setting people switch, it appears off.
 
 function after(hook, param)
     local method = hook:getMethodName()
     local result = param:getResult()
+
+    if method == 'isPowerSaveMode' then
+        if not result then
+            return false
+        end
+        param:setResult(false)
+        return true, 'true', 'false'
+    end
 
     if method == 'computeChargeTimeRemaining' then
         if result == -1 then
