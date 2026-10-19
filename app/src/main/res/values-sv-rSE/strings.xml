@@ -6,7 +6,6 @@
     <string name="title_bootloop">Begränsning kan orsaka en bootloop</string>
     <string name="title_force_stop">Tvinga stopp automatiskt</string>
     <string name="menu_search">Sök</string>
-    <string name="menu_help">Hjälp</string>
     <string name="menu_notify_new">Meddela om nya appar</string>
     <string name="menu_restrict_new">Begränsa nya appar</string>
     <string name="menu_readme">Dokumentation</string>

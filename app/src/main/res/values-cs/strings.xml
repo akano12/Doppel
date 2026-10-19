@@ -7,7 +7,6 @@
     <string name="title_bootloop">Omezení mohou způsobit neustálé restarty zařízení (bootloop)</string>
     <string name="title_force_stop">Vynutit zastavení automaticky</string>
     <string name="menu_search">Hledat</string>
-    <string name="menu_help">Nápověda</string>
     <string name="menu_notify_new">Oznámit nové aplikace</string>
     <string name="menu_restrict_new">Omezit nové aplikace</string>
     <string name="menu_readme">Dokumentace</string>

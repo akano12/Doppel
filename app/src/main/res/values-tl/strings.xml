@@ -7,7 +7,6 @@
     <string name="title_bootloop">Ang pagbabawal nito ay maaaring maging sanhi ng bootloop</string>
     <string name="title_force_stop">Awtomatikong ititigil</string>
     <string name="menu_search">Hanapin</string>
-    <string name="menu_help">Tulong</string>
     <string name="menu_notify_new">I-notify tuwing may bagong app</string>
     <string name="menu_restrict_new">Paghigpitan ang nga bagong app</string>
     <string name="menu_readme">Pagdudukumento</string>

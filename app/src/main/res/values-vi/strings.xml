@@ -7,7 +7,6 @@
     <string name="title_bootloop">Hạn chế có thể gây ra một bootloop</string>
     <string name="title_force_stop">Buộc dừng tự động</string>
     <string name="menu_search">Tìm</string>
-    <string name="menu_help">Trợ giúp</string>
     <string name="menu_notify_new">Thông báo khi có ứng dụng mới</string>
     <string name="menu_restrict_new">Chặn ứng dụng mới</string>
     <string name="menu_readme">Tài liệu hướng dẫn</string>

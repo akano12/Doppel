@@ -7,7 +7,6 @@
     <string name="title_bootloop">限制後可能導致卡在開機畫面</string>
     <string name="title_force_stop">自動強制停止</string>
     <string name="menu_search">搜尋</string>
-    <string name="menu_help">幫助</string>
     <string name="menu_notify_new">通知新安裝程式</string>
     <string name="menu_restrict_new">限制新安裝程式</string>
     <string name="menu_readme">文件</string>

@@ -7,7 +7,6 @@
     <string name="title_bootloop">Обмеження можуть викликати бутлуп</string>
     <string name="title_force_stop">Змусити зупинитися автоматично</string>
     <string name="menu_search">Пошук</string>
-    <string name="menu_help">Допомога</string>
     <string name="menu_notify_new">Сповіщати про нові програми</string>
     <string name="menu_restrict_new">Обмежити нові програми</string>
     <string name="menu_readme">Документація</string>

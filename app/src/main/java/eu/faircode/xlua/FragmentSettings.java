@@ -19,7 +19,6 @@ package eu.faircode.xlua;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Build;
@@ -92,8 +91,6 @@ public class FragmentSettings extends FragmentBase {
         view.findViewById(R.id.llRestrictNew).setOnClickListener(v -> swRestrictNew.toggle());
         view.findViewById(R.id.llNotifyNew).setOnClickListener(v -> swNotifyNew.toggle());
         view.findViewById(R.id.llCollections).setOnClickListener(v -> selectCollections());
-        view.findViewById(R.id.llDownloads).setOnClickListener(v ->
-                startActivity(new Intent(activity, ActivityDownloads.class)));
         view.findViewById(R.id.llValues).setOnClickListener(v ->
                 startActivity(ActivityValues.getIntent(activity, null, null)));
         view.findViewById(R.id.llBackup).setOnClickListener(v ->

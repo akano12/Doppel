@@ -7,7 +7,6 @@
     <string name="title_bootloop">التقييد يمكن أن يسبب بوتلوب</string>
     <string name="title_force_stop">فرض إيقاف تلقائياً</string>
     <string name="menu_search">بحث</string>
-    <string name="menu_help">المساعدة</string>
     <string name="menu_notify_new">نبه عند إضافة تطبيقات جديدة</string>
     <string name="menu_restrict_new">قيّد التطبيقات الجديدة</string>
     <string name="menu_readme">التوثيق</string>

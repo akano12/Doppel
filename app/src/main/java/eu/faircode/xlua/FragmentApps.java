@@ -182,8 +182,6 @@ public class FragmentApps extends FragmentBase {
                 adapter.setSort(sort);
             } else if (id == R.id.menu_bulk)
                 bulk();
-            else if (id == R.id.menu_help)
-                Ui.browse(requireActivity(), Ui.URL_README);
             return true;
         });
         popup.show();

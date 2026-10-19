@@ -7,7 +7,6 @@
     <string name="title_bootloop">Restricting can cause a bootloop</string>
     <string name="title_force_stop">Force stop automatically</string>
     <string name="menu_search">Αναζήτηση</string>
-    <string name="menu_help">Βοήθεια</string>
     <string name="menu_notify_new">Ειδοποίηση για νέες εφαρμογές</string>
     <string name="menu_restrict_new">Περιορισμός νέων εφαρμογών</string>
     <string name="menu_readme">Τεκμηρίωση</string>

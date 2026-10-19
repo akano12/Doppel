@@ -103,9 +103,7 @@ public class ActivityApp extends ActivityBase {
         toolbar.inflateMenu(R.menu.app);
         toolbar.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
-            if (id == R.id.menu_values && app != null)
-                startActivity(ActivityValues.getIntent(this, app.packageName, getLabel()));
-            else if (id == R.id.menu_launch) {
+            if (id == R.id.menu_launch) {
                 Intent launch = getPackageManager().getLaunchIntentForPackage(packageName);
                 if (launch != null)
                     startActivity(launch);

@@ -7,7 +7,6 @@
     <string name="title_bootloop">Ang paghihigpit ay maaaring maging sanhi ng bootloop</string>
     <string name="title_force_stop">Awtomatikong pilit na hininto</string>
     <string name="menu_search">Maghanap</string>
-    <string name="menu_help">Tulong</string>
     <string name="menu_notify_new">Abisuhan ang bagong apps</string>
     <string name="menu_restrict_new">Higpitan ang bagong apps</string>
     <string name="menu_readme">Dokumentasyon</string>

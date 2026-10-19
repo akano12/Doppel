@@ -6,7 +6,6 @@
     <string name="title_bootloop">限制可能导致bootloop问题</string>
     <string name="title_force_stop">强制自动停止</string>
     <string name="menu_search">搜索</string>
-    <string name="menu_help">帮助</string>
     <string name="menu_notify_new">提示新应用</string>
     <string name="menu_restrict_new">限制新应用</string>
     <string name="menu_readme">文档</string>

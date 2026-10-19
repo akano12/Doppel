@@ -7,7 +7,6 @@
     <string name="title_bootloop">प्रतिबंधित करने से bootloop हो सकता है</string>
     <string name="title_force_stop">बलपूर्वक रोकें स्वचालित रूप से</string>
     <string name="menu_search">खोजें</string>
-    <string name="menu_help">सहायता</string>
     <string name="menu_notify_new">नए एप्स पर सूचित करें</string>
     <string name="menu_restrict_new">नए ऐप्स प्रतिबंधित करें</string>
     <string name="menu_readme">दस्तावेज़</string>

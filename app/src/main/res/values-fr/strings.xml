@@ -7,7 +7,6 @@
     <string name="title_bootloop">Restreindre peut provoquer des redémarrages en boucle</string>
     <string name="title_force_stop"> Forcer l\'arrêt automatiquement</string>
     <string name="menu_search">Rechercher</string>
-    <string name="menu_help">Aide</string>
     <string name="menu_notify_new">Notifier si nouvelles applis</string>
     <string name="menu_restrict_new">Restreindre les nouvelles applis</string>
     <string name="menu_readme">Documentation</string>

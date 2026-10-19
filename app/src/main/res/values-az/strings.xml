@@ -7,7 +7,6 @@
     <string name="title_bootloop">Məhdudlaşdırma bootloop-a səbəb ola bilər</string>
     <string name="title_force_stop">Avtomatik dayandırmağa məcbur et</string>
     <string name="menu_search">Axtar</string>
-    <string name="menu_help">Kömək</string>
     <string name="menu_notify_new">Yeni tətbiq olanda bildir</string>
     <string name="menu_restrict_new">Yeni tətbiqləri məhdudlaşdır</string>
     <string name="menu_readme">Sənəd</string>

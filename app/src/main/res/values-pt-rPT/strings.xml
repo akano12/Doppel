@@ -9,7 +9,6 @@
 
 
     <string name="menu_search">Pesquisar</string>
-    <string name="menu_help">Ajuda</string>
     <string name="menu_notify_new">Notificar sobre novos apps</string>
     <string name="menu_restrict_new">Restringir novos apps</string>
     <string name="menu_readme">Documentação</string>

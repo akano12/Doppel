@@ -7,7 +7,6 @@
     <string name="title_bootloop">La restricció pot causar un bootloop</string>
     <string name="title_force_stop">Força aturada automàtica</string>
     <string name="menu_search">Cerca</string>
-    <string name="menu_help">Ajuda</string>
     <string name="menu_notify_new">Notificar per a noves apps</string>
     <string name="menu_restrict_new">Restringeix noves apps</string>
     <string name="menu_readme">Documentació</string>

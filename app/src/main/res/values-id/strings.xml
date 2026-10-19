@@ -6,7 +6,6 @@
     <string name="title_bootloop">Restricting can cause a bootloop</string>
     <string name="title_force_stop">Force stop automatically</string>
     <string name="menu_search">Cari</string>
-    <string name="menu_help">Bantuan</string>
     <string name="menu_notify_new">Beri tahu pada aplikasi baru</string>
     <string name="menu_restrict_new">Batasi aplikasi baru</string>
     <string name="menu_readme">Dokumentasi</string>

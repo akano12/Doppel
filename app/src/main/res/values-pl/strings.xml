@@ -7,7 +7,6 @@
     <string name="title_bootloop">Ograniczenie może spowodować pętlę restartów</string>
     <string name="title_force_stop">Wymuś automatyczne zatrzymanie</string>
     <string name="menu_search">Szukaj</string>
-    <string name="menu_help">Pomoc</string>
     <string name="menu_notify_new">Powiadamiaj dla nowych aplikacji</string>
     <string name="menu_restrict_new">Ogranicz nowe aplikacje</string>
     <string name="menu_readme">Dokumentacja</string>

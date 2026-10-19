@@ -6,7 +6,6 @@
     <string name="title_bootloop">Die Beschränkung kann einen Bootlop verursachen</string>
     <string name="title_force_stop">Automatisches Beenden erzwingen</string>
     <string name="menu_search">Suche</string>
-    <string name="menu_help">Hilfe</string>
     <string name="menu_notify_new">Benachrichtigung für neu installierte Apps</string>
     <string name="menu_restrict_new">Neue Apps beschränken</string>
     <string name="menu_readme">Dokumentation</string>

@@ -6,7 +6,6 @@
     <string name="title_bootloop">Ограничения могут вызвать циклическую перезагрузку</string>
     <string name="title_force_stop">Останавливать автоматически</string>
     <string name="menu_search">Поиск</string>
-    <string name="menu_help">Справка</string>
     <string name="menu_notify_new">Уведомлять о новых приложениях</string>
     <string name="menu_restrict_new">Ограничивать новые приложения</string>
     <string name="menu_readme">Документация</string>

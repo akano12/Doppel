@@ -6,7 +6,6 @@
     <string name="title_bootloop">Kısıtlamak bootloop\'a neden olabilir</string>
     <string name="title_force_stop">Otomatik olarak zorla durdur</string>
     <string name="menu_search">Ara</string>
-    <string name="menu_help">Yardım</string>
     <string name="menu_notify_new">Yeni uygulamalar bildirilsin</string>
     <string name="menu_restrict_new">Yeni uygulamaları kısıtla</string>
     <string name="menu_readme">Dokümantasyon</string>

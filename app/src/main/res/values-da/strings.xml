@@ -7,7 +7,6 @@
     <string name="title_bootloop">Begrænsning kan forårsage en boot-løkke</string>
     <string name="title_force_stop">Auto-gennnemtving stop</string>
     <string name="menu_search">Søg</string>
-    <string name="menu_help">Hjælp</string>
     <string name="menu_notify_new">Advisér om nye apps</string>
     <string name="menu_restrict_new">Begrænse nye apps</string>
     <string name="menu_readme">Dokumentation</string>

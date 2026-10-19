@@ -11,7 +11,4 @@
     <item
         android:id="@+id/menu_bulk"
         android:title="@string/menu_bulk" />
-    <item
-        android:id="@+id/menu_help"
-        android:title="@string/menu_help" />
 </menu>

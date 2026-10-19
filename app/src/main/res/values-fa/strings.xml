@@ -6,7 +6,6 @@
     <string name="title_bootloop">اعمال محدودیت ممکن است موجب بوت‌لوپ شود</string>
     <string name="title_force_stop">توقف اجباری به صورت خودکار</string>
     <string name="menu_search">جستجو</string>
-    <string name="menu_help">کمک</string>
     <string name="menu_notify_new">اعلان برنامه‌های جدید</string>
     <string name="menu_restrict_new">محدود کردن برنامه‌های جدید</string>
     <string name="menu_readme">مستندات</string>

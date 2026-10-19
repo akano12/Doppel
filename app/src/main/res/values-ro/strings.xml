@@ -7,7 +7,6 @@
     <string name="title_bootloop">Restricţionarea poate provoca un bootloop</string>
     <string name="title_force_stop">Oprire automată</string>
     <string name="menu_search">Caută</string>
-    <string name="menu_help">Ajutor</string>
     <string name="menu_notify_new">Notifică aplicatiile noi</string>
     <string name="menu_restrict_new">Restrictionează aplicațiile noi</string>
     <string name="menu_readme">Documentație</string>

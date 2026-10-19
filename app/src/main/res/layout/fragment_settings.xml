@@ -182,29 +182,6 @@
                     android:src="@drawable/ic_chevron_right"
                     app:tint="?attr/colorOutline" />
             </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/llDownloads"
-                style="@style/XLua.Row">
-
-                <LinearLayout style="@style/XLua.Row.Text">
-
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/menu_downloads" />
-
-                    <TextView
-                        style="@style/XLua.Row.Subtitle"
-                        android:text="@string/title_downloads_hint" />
-                </LinearLayout>
-
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    android:importantForAccessibility="no"
-                    android:src="@drawable/ic_chevron_right"
-                    app:tint="?attr/colorOutline" />
-            </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

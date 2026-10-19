@@ -6,7 +6,6 @@
     <string name="title_bootloop">Restricting can cause a bootloop</string>
     <string name="title_force_stop">Automatisch geforceerd stoppen</string>
     <string name="menu_search">Zoeken</string>
-    <string name="menu_help">Help</string>
     <string name="menu_notify_new">Meldt nieuwe apps</string>
     <string name="menu_restrict_new">Beperk nieuwe apps</string>
     <string name="menu_readme">Documentatie</string>

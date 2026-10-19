@@ -7,7 +7,6 @@
   <string name="title_bootloop">Innskrenking kan føre til en omstartsløyfe (bootloop)</string>
   <string name="title_force_stop">Fremtving avslutting automatisk</string>
   <string name="menu_search">Søk</string>
-  <string name="menu_help">Hjelp</string>
   <string name="menu_notify_new">Varsling om nye apper</string>
   <string name="menu_restrict_new">Innskrenk nye apper</string>
   <string name="menu_readme">Dokumentasjon</string>

@@ -6,7 +6,6 @@
     <string name="title_bootloop">Restringir puede causar un bucle de arranque</string>
     <string name="title_force_stop">Detener forzadamente en automático</string>
     <string name="menu_search">Buscar</string>
-    <string name="menu_help">Ayuda</string>
     <string name="menu_notify_new">Notificar sobre nuevas apps</string>
     <string name="menu_restrict_new">Restringir nuevas apps</string>
     <string name="menu_readme">Documentación</string>

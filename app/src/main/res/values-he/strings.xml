@@ -6,7 +6,6 @@
     <string name="title_bootloop">הגבלה עלולה לגרום לאי עליית המכשיר - bootloop</string>
     <string name="title_force_stop">אלץ עצירה אוטומטית</string>
     <string name="menu_search">חיפוש</string>
-    <string name="menu_help">עזרה</string>
     <string name="menu_notify_new">התראה על יישומים חדשים</string>
     <string name="menu_restrict_new">הגבל יישומים חדשים</string>
     <string name="menu_readme">מסמכים</string>

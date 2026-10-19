@@ -6,7 +6,6 @@
     <string name="title_bootloop">Restricting can cause a bootloop</string>
     <string name="title_force_stop">Force stop automatically</string>
     <string name="menu_search">සොයන්න</string>
-    <string name="menu_help">උදව්</string>
     <string name="menu_notify_new">Notify on new apps</string>
     <string name="menu_restrict_new">Restrict new apps</string>
     <string name="menu_readme">Documentation</string>
