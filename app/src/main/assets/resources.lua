@@ -13,8 +13,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
-
 -- The exact sizes of memory and storage, like 3919 MB, and the free space narrow down the device model,
 -- its firmware and the device itself. Instead of fake values, which apps rely on, like for the size of
 -- caches and before writing files, the sizes are rounded: totals up to the sizes devices are sold with,

@@ -13,8 +13,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
-
 -- Connected keyboards, mice, game controllers and styluses, with their names and vendor ids,
 -- reveal what someone uses and help to recognize a device. External input devices are hidden,
 -- built-in devices, like the touch screen and the buttons, stay, because apps need them.

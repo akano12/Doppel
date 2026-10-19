@@ -25,7 +25,7 @@ Restrictions
 ------------
 
 * Determine activity (fake unknown activity, hide activity transitions, see [here](https://developers.google.com/location-context/activity-recognition/))
-* Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html), usage statistics, keyboards and accessibility services of other apps)
+* Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html), usage statistics, keyboards and accessibility services of other apps, also for lookups by user)
 * Get calendars (hide calendars)
 * Get call log (hide call log)
 * Get contacts (hide contacts, optionally except (non) starred contacts, hide blocked numbers)
@@ -34,14 +34,14 @@ Restrictions
 * Get sensors (hide all available sensors)
 * Read [account](https://developer.android.com/reference/android/accounts/Account.html) name (fake name, mostly e-mail address)
 * Read biometric sensors (no fingerprint sensor, face or iris unlock and no enrolled fingerprints; checks which include the screen lock stay)
-* Read battery (level in steps of 10 percent, hide charge counter, current, energy, cycle count, voltage and temperature)
+* Read battery (level in steps of 10 percent, hide charge counter, current, energy, cycle count, voltage and temperature, battery saver appears off)
 * Read clipboard (fake paste)
 * Read debugging state (developer options and USB or wireless debugging appear off)
 * Read memory and storage (total memory and storage rounded up to the sizes devices are sold with, free space rounded down to two digits)
 * Read device settings (settings people change, like animation and font scale, screen timeout, proxy, alarm sound and automatic time zone, have the values of a new device)
-* Read identifiers (fake build serial number, Android ID, advertising ID, Privacy Sandbox ad ID, app set ID, GSF ID, limit ad tracking, random SD card ids on each start of the app)
+* Read identifiers (fake build serial number, Android ID, advertising ID, Privacy Sandbox ad ID, app set ID, GSF ID, limit ad tracking, random SD card ids on each start of the app, Wi-Fi, Bluetooth and network interface MAC addresses)
 * Read notifications (fake [status bar notifications](https://developer.android.com/reference/android/service/notification/StatusBarNotification.html))
-* Read network data (hide cell info, Wi-Fi networks, paired and connected Bluetooth devices, fake Wi-Fi network name, block Bluetooth scans and discovery of devices in the local network)
+* Read network data (hide cell info, Wi-Fi networks, paired and connected Bluetooth devices, fake Wi-Fi network name, also in the text of Wi-Fi and network info, block Bluetooth scans and discovery of devices in the local network)
 * Read sync data (hide [sync data](https://developer.android.com/training/sync-adapters/creating-sync-adapter.html))
 * Read telephony data (fake IMEI, MEID, SIM serial number, phone number, voicemail number, type allocation code, etc)
 * Read time zone (fake time zone, setting *value.timezone*, default UTC)
@@ -52,7 +52,7 @@ Restrictions
 * Send messages (prevent sending MMS, SMS, data)
 * Use analytics ([Adjust](https://www.adjust.com/), [AppsFlyer](https://www.appsflyer.com/), [Facebook app events](https://developers.facebook.com/docs/reference/androidsdk/current/facebook/com/facebook/appevents/appeventslogger.html/), [Firebase Analytics](https://firebase.google.com/docs/analytics/), [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics), [Mixpanel](https://mixpanel.com/), [Segment](https://segment.com/))
 * Use camera (fake camera not available, hide cameras)
-* Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html), network/SIM country/operator, device and Bluetooth name)
+* Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html) including the security patch level, the same values for the shell commands getprop, uname and /proc/version, network/SIM country/operator, device and Bluetooth name)
 
 The tracking restrictions will work only if the code of the target app was not [obfuscated](https://developer.android.com/studio/build/shrink-code.html).
 The other restrictions will work always.

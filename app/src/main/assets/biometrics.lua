@@ -13,8 +13,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
-
 -- Whether a device has a fingerprint sensor, face or iris unlock, and whether fingerprints are enrolled,
 -- tells about the device and its user. Apps get the answers of a device without biometric hardware,
 -- so they offer their own login or the screen lock instead. Checks which include the screen lock

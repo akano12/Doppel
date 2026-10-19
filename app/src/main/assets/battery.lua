@@ -13,8 +13,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
-
 -- Exact battery measurements change slowly and together identify a device across apps;
 -- the manufacturing date, the first use and the health identify the battery itself.
 -- The capacity is given in steps of 10 percent, other properties as not supported,
