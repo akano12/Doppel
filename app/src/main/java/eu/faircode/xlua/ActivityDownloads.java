@@ -35,18 +35,21 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 // Community hook definitions of the repository (repo/), packaged with the app
@@ -71,6 +74,9 @@ public class ActivityDownloads extends ActivityBase {
         String description;
         long updated;
         int downloads;
+        String className;
+        String methodName;
+        String[] parameterTypes;
 
         String getId() {
             return collection + "." + name;
@@ -133,6 +139,16 @@ public class ActivityDownloads extends ActivityBase {
                     entry.description = jentry.optString("description", null);
                     entry.updated = jentry.optLong("updated") * 1000L;
                     entry.downloads = jentry.optInt("downloads");
+
+                    // The hooked member, to find definitions hooking the same one
+                    JSONObject jhook = new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
+                    entry.className = jhook.getString("className");
+                    entry.methodName = jhook.optString("methodName", null);
+                    JSONArray jparams = jhook.getJSONArray("parameterTypes");
+                    entry.parameterTypes = new String[jparams.length()];
+                    for (int p = 0; p < jparams.length(); p++)
+                        entry.parameterTypes[p] = jparams.getString(p);
+
                     entries.add(entry);
                 }
                 Collections.sort(entries, (e1, e2) -> {
@@ -172,6 +188,48 @@ public class ActivityDownloads extends ActivityBase {
         if (hook == null || hook.isBuiltin())
             return State.AVAILABLE;
         return (hook.getVersion() < entry.version ? State.UPDATE : State.INSTALLED);
+    }
+
+    // Other active definitions hooking the same member: both run, one after the other,
+    // and can undo or break the changes of the other
+    private List<XHook> getOverlaps(Entry entry) {
+        List<XHook> overlaps = new ArrayList<>();
+        for (XHook hook : installed.values())
+            if (!hook.getId().equals(entry.getId()) &&
+                    hook.isEnabled() && collection.contains(hook.getCollection()) &&
+                    hook.getClassName().equals(entry.className) &&
+                    Objects.equals(hook.getMethodName(), entry.methodName) &&
+                    Arrays.equals(hook.getParameterTypes(), entry.parameterTypes))
+                overlaps.add(hook);
+        Collections.sort(overlaps, (h1, h2) -> h1.getId().compareToIgnoreCase(h2.getId()));
+        return overlaps;
+    }
+
+    // Installing replaces a built-in definition with the same name and adds to definitions hooking the same member
+    private void confirmInstall(Entry entry) {
+        boolean replaces = builtinIds.contains(entry.getId());
+        List<XHook> overlaps = getOverlaps(entry);
+        if (getState(entry) != State.AVAILABLE || (!replaces && overlaps.isEmpty())) {
+            install(entry);
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        if (replaces)
+            sb.append(getString(R.string.msg_install_replaces, entry.getId()));
+        if (!overlaps.isEmpty()) {
+            if (sb.length() > 0)
+                sb.append("\n\n");
+            sb.append(getString(R.string.msg_install_overlaps));
+            for (XHook hook : overlaps)
+                sb.append("\n• ").append(hook.getId()).append(" (").append(hook.getGroup()).append(')');
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(getString(R.string.title_install_name, entry.name))
+                .setMessage(sb)
+                .setPositiveButton(R.string.title_install, (dialog, which) -> install(entry))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private void show() {
@@ -291,7 +349,7 @@ public class ActivityDownloads extends ActivityBase {
                     return;
                 Entry entry = getItem(position);
                 if (view == btnInstall)
-                    install(entry);
+                    confirmInstall(entry);
                 else {
                     // Show or hide the full description
                     if (!expanded.remove(entry.id))
@@ -326,6 +384,10 @@ public class ActivityDownloads extends ActivityBase {
             h.llBadges.removeAllViews();
             if (builtinIds.contains(entry.getId()))
                 Ui.addBadge(h.llBadges, getString(R.string.title_replaces_builtin),
+                        R.attr.colorWarningContainer, R.attr.colorOnWarningContainer);
+            int overlaps = getOverlaps(entry).size();
+            if (overlaps > 0)
+                Ui.addBadge(h.llBadges, getResources().getQuantityString(R.plurals.title_overlaps, overlaps, overlaps),
                         R.attr.colorWarningContainer, R.attr.colorOnWarningContainer);
             if (!collection.contains(entry.collection))
                 Ui.addBadge(h.llBadges, getString(R.string.title_hook_collection_off, entry.collection),
