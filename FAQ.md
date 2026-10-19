@@ -35,7 +35,7 @@ Disable and enable the module in the Xposed installer and hard reboot again to f
 
 * *Network and storage restrictions*: access to the internet and to the device storage can only be prevented by revoking Linux permission from an app, which will often result in the app crashing. Therefore this will not be added.
 * *User interface features* like *templates*: I want to limit the time I put into this project and I want to keep things simple, so don't expect anything more than basic restriction management.
-* *On demand restricting*: It is not really possible to add on demand restricting so that it works stable and can be supported on the long term, so this will not be added. See also [here](https://forum.xda-developers.com/showpost.php?p=75419161&postcount=49). However, you can use *Notify on restriction* (a pro feature) in combination with restricting by default.
+* *On demand restricting*: It is not really possible to add on demand restricting so that it works stable and can be supported on the long term, so this will not be added. See also [here](https://forum.xda-developers.com/showpost.php?p=75419161&postcount=49). However, you can use *Notify on restriction* in combination with restricting by default.
 * *App specific*: anything specific for an app will not be added.
 * *Security specific*: features related to security only will not be added.
 * *User choice*: if you can already control the data, like selecting an account, no restriction is needed.
@@ -43,8 +43,8 @@ Disable and enable the module in the Xposed installer and hard reboot again to f
 * *An app settings button*: see [here](https://forum.xda-developers.com/showpost.php?p=75745469&postcount=2071) why this won't be added.
 * *Select contacts groups to allow/block*: the Android contacts provider doesn't support contact groups at all hierarchy levels and working around this has appeared to be not possible reliably.
 
-If you want to confine apps to their own folder, you can download the hook definition *BlockGuardOs.open*
-from the [hook definition repository](https://lua.xprivacy.eu/repo/) using the pro companion app.
+If you want to confine apps to their own folder, you can install the hook definition *BlockGuardOs.open*
+in *Settings* > *Downloads*.
 
 Apps having access to the IP address generally have access to the internet and therefore can get your IP address in a simple way,
 see for example [here](https://www.privateinternetaccess.com/pages/whats-my-ip/). Therefore an IP address restriction doesn't make sense.
@@ -54,10 +54,10 @@ and faking offline state doesn't prevent apps from accessing the internet.
 Therefore internet restriction cannot properly be implemented.
 You are adviced to use a firewall app to control internet access, for example [NetGuard](https://forum.xda-developers.com/android/apps-games/app-netguard-root-firewall-t3233012).
 
-If you still want to fake offline state, you can download the hook definition *NetworkInfo.createFromParcel*
-from the [hook definition repository](https://lua.xprivacy.eu/repo/) using the pro companion app.
+If you still want to fake offline state, you can install the hook definition *NetworkInfo.createFromParcel*
+in *Settings* > *Downloads*.
 
-To protect your MAC address, there are hooks available in the [hook definition repository](https://lua.xprivacy.eu/repo/). On Android 8 and higher, you should only protect *NetworkInterface.getHardwareAddress*, since *WifiInfo.getMacAddress* and *BluetoothAdapter.getAddress* are [disabled](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m). However, some manufacturers may override this behavior, so hooks for all 3 methods are available.
+To protect your MAC address, there are hook definitions available in *Settings* > *Downloads*. On Android 8 and higher, you should only protect *NetworkInterface.getHardwareAddress*, since *WifiInfo.getMacAddress* and *BluetoothAdapter.getAddress* are [disabled](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m). However, some manufacturers may override this behavior, so hooks for all 3 methods are available.
 
 You can enable status bar notifications on applying restrictions with *Notify on restriction* on the screen of an app.
 This can be used as a replacement for on demand restricting by removing a restriction when needed.
@@ -134,12 +134,10 @@ The special search characters should be the first characters in the search field
 and can be followed by additional characters to refine the search result.
 
 <a name="faq12"></a>
-**(12) Can I get a discount / use an XPrivacy pro license to get the XPrivacyLua pro features?**
+**(12) Are there paid features?**
 
-XPrivacyLua was written from the ground up to support recent Android versions, which was really a lot of work.
-Since I believe everybody should be able to protect his/her privacy, XPrivacyLua is free to use.
-However, the XPrivacyLua pro features, mostly convencience and advanced features, not really needed to protect your privacy,
-need to be purchased and it is not possible to 'pay' with an XPrivacy pro license and there will be no discounts either.
+No, all features are free. The features of the former pro companion app, like fake values, backup and restore,
+notifications on restriction and editing hook definitions, are part of XPrivacyLua itself.
 
 <a name="faq13"></a>
 **(13) Will XPrivacyLua slow down my apps?**
@@ -156,14 +154,7 @@ even though the user interface and new features will not be available until afte
 <a name="faq15"></a>
 **(15) Can I get a refund?**
 
-If a purchased pro feature doesn't work properly
-and this isn't caused by a problem in the free features
-and I cannot fix the problem in a timely manner, you can get a refund.
-In all other cases there is no refund possible.
-In no circumstances there is a refund possible for any problem related to the free features, which include all restrictions,
-since there wasn't paid anything for them and because they can be evaluated without any limitation.
-I take my responsibility as seller to deliver what has been promised
-and I expect that you take responsibility for informing yourself of what you are buying.
+There is nothing to buy, XPrivacyLua is free.
 
 <a name="faq16"></a>
 **(16) Can apps with root access be restricted?**
@@ -196,10 +187,9 @@ Mostly the 'star' is in the upper right corner in the contact data.
 Due to limitations of the Android contacts provider it is not possible to block/allow contacts by contacts group in a reliable way.
 
 <a name="faq19"></a>
-**(19) Why is import/export disabled (dimmed) ?**
+**(19) Why can I not import, export, backup or restore?**
 
-Assuming you purchased the pro features
-this will happen if the [Storage Access Framework](https://developer.android.com/guide/topics/providers/document-provider) is missing from your Android version.
+These functions select files with the [Storage Access Framework](https://developer.android.com/guide/topics/providers/document-provider).
 This is an important Android component to select files and folders.
 If you removed it yourself, you'll need to restore it, else you'll have to ask your ROM developer to add it.
 

@@ -191,9 +191,8 @@ With *Hook definitions* you can edit built-in definitions, which will result in 
 You could for example enable usage notifications or change returned fake values.
 Deleting copied definitions will restore the built-in definitions.
 
-The pro companion app can upload defintions to and download definitions from a [hook definition repository](https://lua.xprivacy.eu/repo/),
-making it easy to share hook definitions with others and to use hook definitions provided by others.
-Note that you cannot upload hook definitions with the author name to set to someone else.
+In *Settings* > *Downloads* you can install hook definitions shared by others, which are part of the app (folder *repo*).
+To share a definition, export it in the hook editor and offer it as a pull request.
 
 You can find some example definitions [here](examples)
 and the definitions built into XPrivacyLua [here](app/src/main/assets).

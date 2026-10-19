@@ -96,7 +96,7 @@ Installation
 * Install [Magisk](https://www.xda-developers.com/how-to-install-magisk/)
 * Android 6-7: download, install, and activate [Xposed](http://forum.xda-developers.com/xposed)
 * Android 8.1 and later: download, install, and activate [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork
-* Download, install, and activate [XPrivacyLua](https://github.com/Xposed-Modules-Repo/eu.faircode.xlua/releases)
+* Build XPrivacyLua from source (see *Source code* below), install, and activate it
 
 XPrivacyLua uses the [modern Xposed API](https://github.com/libxposed/api) (API 101 or later) when the framework provides it,
 and the legacy Xposed API otherwise, for example with Xposed or EdXposed.
@@ -104,12 +104,6 @@ and the legacy Xposed API otherwise, for example with Xposed or EdXposed.
 LSPosed: the scope needs to include *System Framework*, which hosts the XPrivacyLua service in the settings provider,
 and any app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
 With the legacy API, *Settings Storage* (com.android.providers.settings) needs to be in the scope too.
-
-Certificate fingerprints:
-
-* MD5: 42:93:4F:A4:D5:AC:53:7B:04:97:3B:29:A6:6E:7B:B3
-* SHA1: 10:62:0A:E9:61:D7:88:54:F6:C9:CD:87:2C:43:88:23:28:49:C7:99
-* SHA256: 5E:69:9C:5D:AF:61:2C:AB:71:3A:35:BB:38:7C:F6:A8:86:8C:A0:DD:5D:CE:B4:CE:C1:53:8E:82:65:21:95:77
 
 Frequently Asked Questions
 --------------------------
@@ -119,17 +113,10 @@ See [here](FAQ.md) for a list of often asked questions.
 Support
 -------
 
-Only the XPrivacyLua version released in the Xposed repository is supported.
-
 XPrivacyLua with [Island](http://forum.xda-developers.com/android/-t3366295), etc is not supported.
 
 * For support on Xposed, please go [here](http://forum.xda-developers.com/xposed)
-* For support on XPrivacyLua, please go [here](https://forum.xda-developers.com/xposed/modules/xprivacylua6-0-android-privacy-manager-t3730663)
-
-Donations
----------
-
-See [here](https://lua.xprivacy.eu/) about how you can donate.
+* For support on XPrivacyLua, please open an [issue](https://github.com/akano12/XPrivacyLua/issues)
 
 Contributing
 ------------
@@ -141,9 +128,8 @@ are prefered in the form of [pull requests](https://help.github.com/articles/cre
 
 *Translations*
 
-* You can translate the in-app texts of XPrivacyLua [here](https://crowdin.com/project/xprivacylua/)
-* You can download the in-app texts of XPrivacyLua Pro for translation [here](https://lua.xprivacy.eu/strings_pro.xml)
-* If your language is not listed, please send a message through [this contact form](https://contact.faircode.eu/)
+Translations are welcome as pull requests of *app/src/main/res/values-xx/strings.xml* (xx is the language code),
+translated from *app/src/main/res/values/strings.xml*.
 
 *Source code*
 

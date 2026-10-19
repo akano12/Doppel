@@ -188,7 +188,7 @@ MAC addresses are [not available anymore](https://developer.android.com/training
 * Sensors
 	* **return an empty default sensor**
 	* **return an empty list of sensors**
-	* restrict individual sensors: might be implemented as pro feature
+	* restrict individual sensors: not implemented
 		* acceleration
 		* gravity
 		* heartrate
