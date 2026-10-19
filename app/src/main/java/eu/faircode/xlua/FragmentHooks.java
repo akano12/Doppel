@@ -217,7 +217,7 @@ public class FragmentHooks extends FragmentBase {
                         ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
                 for (int i = 0; i < jarray.length(); i++)
                     Data.putCustom(context, jarray.getJSONObject(i));
-                Ui.message(activity, getString(R.string.msg_hooks_imported, jarray.length()));
+                Ui.message(activity, activity.getString(R.string.msg_hooks_imported, jarray.length()));
                 post(this::load);
             } catch (Throwable ex) {
                 error(TAG, ex);
@@ -231,14 +231,11 @@ public class FragmentHooks extends FragmentBase {
         final Context context = activity.getApplicationContext();
         executor.submit(() -> {
             try {
-                JSONArray jarray = new JSONArray();
-                for (XHook hook : Data.getAllHooks(context, true))
-                    if (!hook.isBuiltin())
-                        jarray.put(Data.toEditable(hook));
+                JSONArray jarray = Data.getCustomHooks(context);
                 try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
                     os.write(jarray.toString(2).getBytes(StandardCharsets.UTF_8));
                 }
-                Ui.message(activity, getString(R.string.msg_hooks_exported, jarray.length()));
+                Ui.message(activity, activity.getString(R.string.msg_hooks_exported, jarray.length()));
             } catch (Throwable ex) {
                 error(TAG, ex);
             }

@@ -227,7 +227,7 @@ public class FragmentSettings extends FragmentBase {
         executor.submit(() -> {
             try {
                 int[] counts = Backup.save(activity, uri);
-                Ui.message(activity, getString(R.string.msg_backup_done, counts[0], counts[1], counts[2]));
+                Ui.message(activity, activity.getString(R.string.msg_backup_done, counts[0], counts[1], counts[2]));
             } catch (Throwable ex) {
                 error(TAG, ex);
             }
@@ -239,7 +239,7 @@ public class FragmentSettings extends FragmentBase {
         executor.submit(() -> {
             try {
                 int[] counts = Backup.restore(activity, uri);
-                Ui.message(activity, getString(R.string.msg_restore_done, counts[0], counts[1], counts[2]));
+                Ui.message(activity, activity.getString(R.string.msg_restore_done, counts[0], counts[1], counts[2]));
                 post(this::load);
             } catch (Throwable ex) {
                 error(TAG, ex);
@@ -253,7 +253,7 @@ public class FragmentSettings extends FragmentBase {
         executor.submit(() -> {
             try {
                 Data.clearData(activity);
-                Ui.message(activity, getString(R.string.msg_cleared));
+                Ui.message(activity, activity.getString(R.string.msg_cleared));
                 post(this::load);
             } catch (Throwable ex) {
                 error(TAG, ex);

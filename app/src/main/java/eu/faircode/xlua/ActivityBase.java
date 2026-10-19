@@ -20,7 +20,6 @@
 package eu.faircode.xlua;
 
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -71,8 +70,7 @@ public class ActivityBase extends AppCompatActivity {
 
     // Log an error and show it, from any thread
     protected void error(String tag, Throwable ex) {
-        Log.e(tag, Log.getStackTraceString(ex));
-        Ui.message(this, getString(R.string.msg_error, ex.toString()));
+        Ui.error(this, tag, ex);
     }
 
     @Override

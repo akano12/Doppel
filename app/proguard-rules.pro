@@ -7,12 +7,11 @@
 # XPrivacyLua
 # XLua is the legacy Xposed entry point (assets/xposed_init),
 # XLuaModule the modern entry point (META-INF/xposed/java_init.list),
-# XHook, XParam and XCall (param:getScope) are accessed from Lua scripts by reflection
+# XHook and XParam are accessed from Lua scripts by reflection
 -keep class eu.faircode.xlua.XLua { *; }
 -keep class eu.faircode.xlua.XLuaModule { *; }
 -keep class eu.faircode.xlua.XHook { *; }
 -keep class eu.faircode.xlua.XParam { *; }
--keep class eu.faircode.xlua.XCall { *; }
 # Readable stack traces in the errors shown by the app, the code is small
 -keepnames class eu.faircode.xlua.** { *; }
 

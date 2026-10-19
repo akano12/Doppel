@@ -26,6 +26,7 @@ import android.os.Process;
 import android.text.TextUtils;
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -83,7 +84,7 @@ final class Data {
         return result;
     }
 
-    static <T> T unmarshall(byte[] data, Parcelable.Creator<T> creator) {
+    private static <T> T unmarshall(byte[] data, Parcelable.Creator<T> creator) {
         Parcel parcel = Parcel.obtain();
         try {
             parcel.unmarshall(data, 0, data.length);
@@ -116,9 +117,18 @@ final class Data {
     // Ids of the definitions which are part of the app
     static Set<String> getBuiltinIds(Context context) throws Exception {
         Set<String> ids = new HashSet<>();
-        for (XHook builtin : XHook.readHooks(context.getApplicationInfo().publicSourceDir))
+        for (XHook builtin : XHook.readHooks(context.getApplicationInfo().publicSourceDir, false))
             ids.add(builtin.getId());
         return ids;
+    }
+
+    // Custom definitions as users edit them, for exports and backups
+    static JSONArray getCustomHooks(Context context) throws JSONException {
+        JSONArray jhooks = new JSONArray();
+        for (XHook hook : getAllHooks(context, true))
+            if (!hook.isBuiltin())
+                jhooks.put(toEditable(hook));
+        return jhooks;
     }
 
     // A null definition deletes a custom hook, which restores the built-in hook with the same id

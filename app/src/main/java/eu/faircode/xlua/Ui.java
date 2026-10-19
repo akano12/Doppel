@@ -28,6 +28,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.text.format.DateUtils;
 import android.text.method.LinkMovementMethod;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -138,6 +139,13 @@ final class Ui {
                 snackbar.setAction(action, view -> onAction.run());
             snackbar.show();
         });
+    }
+
+    // Log an error and show it, from any thread; the activity can be gone already
+    static void error(Activity activity, String tag, Throwable ex) {
+        Log.e(tag, Log.getStackTraceString(ex));
+        if (activity != null)
+            message(activity, activity.getString(R.string.msg_error, ex.toString()));
     }
 
     static void browse(Activity activity, String url) {

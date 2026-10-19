@@ -237,7 +237,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 String[] titles = getDropdownTitles(field);
                 MaterialAutoCompleteTextView dropdown = (MaterialAutoCompleteTextView) input;
                 dropdown.setSimpleItems(titles);
-                int index = Math.max(0, Arrays.asList(spinnerValues(field)).indexOf(value));
+                int index = Math.max(0, Arrays.asList(dropdownValues(field)).indexOf(value));
                 dropdown.setText(titles[index], false);
             } else {
                 if (field.type == Type.TIMEZONE)
@@ -287,7 +287,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         if (isDropdown(field)) {
             String[] titles = getDropdownTitles(field);
             int index = Math.max(0, Arrays.asList(titles).indexOf(input.getText().toString()));
-            return spinnerValues(field)[index];
+            return dropdownValues(field)[index];
         }
         String value = input.getText().toString().trim();
         return (TextUtils.isEmpty(value) ? null : value);
@@ -349,7 +349,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         return getResources().getStringArray(field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
     }
 
-    private static String[] spinnerValues(Field field) {
+    private static String[] dropdownValues(Field field) {
         return (field.type == Type.LOCATION ? LOCATION_VALUES : CONTACTS_VALUES);
     }
 

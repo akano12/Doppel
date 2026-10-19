@@ -52,10 +52,7 @@ class Backup {
         }
         jroot.put("settings", jsettings);
 
-        JSONArray jhooks = new JSONArray();
-        for (XHook hook : Data.getAllHooks(context, true))
-            if (!hook.isBuiltin())
-                jhooks.put(Data.toEditable(hook));
+        JSONArray jhooks = Data.getCustomHooks(context);
         jroot.put("hooks", jhooks);
 
         // Also assignments of hooks which are currently not available, like of a disabled collection

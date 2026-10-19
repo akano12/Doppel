@@ -55,12 +55,12 @@ final class Groups {
         group("Read.Biometrics", R.string.group_read_biometrics, R.string.group_desc_read_biometrics, R.drawable.ic_group_biometrics);
         group("Read.Clipboard", R.string.group_read_clipboard, R.string.group_desc_read_clipboard, R.drawable.ic_group_clipboard);
         group("Read.Debugging", R.string.group_read_debugging, R.string.group_desc_read_debugging, R.drawable.ic_group_debugging);
-        group("Read.Resources", R.string.group_read_resources, R.string.group_desc_read_resources, R.drawable.ic_group_resources);
-        group("Read.Settings", R.string.group_read_settings, R.string.group_desc_read_settings, R.drawable.ic_group_settings);
         group("Read.Features", R.string.group_read_features, R.string.group_desc_read_features, R.drawable.ic_group_features);
         group("Read.Identifiers", R.string.group_read_identifiers, R.string.group_desc_read_identifiers, R.drawable.ic_group_identifiers);
         group("Read.Network", R.string.group_read_network, R.string.group_desc_read_network, R.drawable.ic_group_network);
         group("Read.Notifications", R.string.group_read_notifications, R.string.group_desc_read_notifications, R.drawable.ic_group_notifications);
+        group("Read.Resources", R.string.group_read_resources, R.string.group_desc_read_resources, R.drawable.ic_group_resources);
+        group("Read.Settings", R.string.group_read_settings, R.string.group_desc_read_settings, R.drawable.ic_group_settings);
         group("Read.Sync", R.string.group_read_sync, R.string.group_desc_read_sync, R.drawable.ic_group_sync);
         group("Read.Telephony", R.string.group_read_telephony, R.string.group_desc_read_telephony, R.drawable.ic_group_telephony);
         group("Read.Timezone", R.string.group_read_timezone, R.string.group_desc_read_timezone, R.drawable.ic_group_timezone);
@@ -74,7 +74,8 @@ final class Groups {
 
         put(R.string.section_location, "Get.Location", "Determine.Activity", "Get.Sensors");
         put(R.string.section_identity, "Read.Identifiers", "Read.Telephony", "Read.Network", "Read.VPN",
-                "Read.Timezone", "Read.Features", "Read.Battery", "Read.Resources", "Read.Settings", "Read.Biometrics", "Read.Debugging", "Read.Account", "Read.Sync");
+                "Read.Timezone", "Read.Features", "Read.Battery", "Read.Resources", "Read.Settings",
+                "Read.Biometrics", "Read.Debugging", "Read.Account", "Read.Sync");
         put(R.string.section_personal, "Get.Contacts", "Get.Call.log", "Get.Messages", "Send.Messages",
                 "Get.Calendars", "Get.Applications", "Read.Clipboard", "Read.Notifications");
         put(R.string.section_media, "Use.Camera", "Record.Audio", "Record.Video");

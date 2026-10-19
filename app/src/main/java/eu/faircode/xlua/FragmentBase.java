@@ -18,7 +18,6 @@
 package eu.faircode.xlua;
 
 import android.app.Activity;
-import android.util.Log;
 
 import androidx.fragment.app.Fragment;
 
@@ -61,10 +60,8 @@ public abstract class FragmentBase extends Fragment {
             });
     }
 
+    // Also from a background thread, after the tab is gone
     protected void error(String tag, Throwable ex) {
-        Log.e(tag, Log.getStackTraceString(ex));
-        Activity activity = getActivity();
-        if (activity != null)
-            Ui.message(activity, getString(R.string.msg_error, ex.toString()));
+        Ui.error(getActivity(), tag, ex);
     }
 }

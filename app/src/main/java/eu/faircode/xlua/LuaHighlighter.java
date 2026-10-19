@@ -81,8 +81,8 @@ class LuaHighlighter implements TextWatcher {
         for (ForegroundColorSpan span : text.getSpans(0, text.length(), ForegroundColorSpan.class))
             text.removeSpan(span);
 
-        color(text, KEYWORD, 0, colorKeyword);
-        color(text, NUMBER, 0, colorNumber);
+        color(text, KEYWORD, colorKeyword);
+        color(text, NUMBER, colorNumber);
         Matcher call = CALL.matcher(text);
         while (call.find()) {
             int group = (call.group(1) == null ? 2 : 1);
@@ -101,10 +101,10 @@ class LuaHighlighter implements TextWatcher {
         }
     }
 
-    private static void color(Editable text, Pattern pattern, int group, int color) {
+    private static void color(Editable text, Pattern pattern, int color) {
         Matcher m = pattern.matcher(text);
         while (m.find())
-            set(text, m.start(group), m.end(group), color);
+            set(text, m.start(), m.end(), color);
     }
 
     private static void set(Editable text, int start, int end, int color) {

@@ -226,10 +226,9 @@ class XProvider {
         // Persist custom definitions, built-in definitions are part of the app
         if (hook == null || !hook.isBuiltin())
             db.write(d -> {
-                if (hook == null) {
-                    if (d.delete("hook", "id = ?", new String[]{id}) < 0)
-                        throw new Throwable("Error deleting hook");
-                } else {
+                if (hook == null)
+                    d.delete("hook", "id = ?", new String[]{id});
+                else {
                     ContentValues cv = new ContentValues();
                     cv.put("id", id);
                     cv.put("definition", hook.toJSON());
@@ -505,9 +504,8 @@ class XProvider {
 
                 if (delete) {
                     Log.i(TAG, packageName + ":" + uid + "/" + hookid + " deleted");
-                    if (d.delete("assignment", "hook = ? AND package = ? AND uid = ?",
-                            new String[]{hookid, packageName, Integer.toString(uid)}) < 0)
-                        throw new Throwable("Error deleting assignment");
+                    d.delete("assignment", "hook = ? AND package = ? AND uid = ?",
+                            new String[]{hookid, packageName, Integer.toString(uid)});
                 } else {
                     Log.i(TAG, packageName + ":" + uid + "/" + hookid + " added");
                     insertAssignment(d, packageName, uid, hookid);
@@ -517,9 +515,8 @@ class XProvider {
             // Notify about usage again
             if (!delete)
                 for (String group : groups)
-                    if (d.delete("`group`", "package = ? AND uid = ? AND name = ?",
-                            new String[]{packageName, Integer.toString(uid), group}) < 0)
-                        throw new Throwable("Error deleting group");
+                    d.delete("`group`", "package = ? AND uid = ? AND name = ?",
+                            new String[]{packageName, Integer.toString(uid), group});
             return null;
         });
 
@@ -845,11 +842,10 @@ class XProvider {
     // A null value deletes the setting
     private static void writeSetting(SQLiteDatabase d, int userid, String category, String name, String value)
             throws Throwable {
-        if (value == null) {
-            if (d.delete("setting", "user = ? AND category = ? AND name = ?",
-                    new String[]{Integer.toString(userid), category, name}) < 0)
-                throw new Throwable("Error deleting setting");
-        } else {
+        if (value == null)
+            d.delete("setting", "user = ? AND category = ? AND name = ?",
+                    new String[]{Integer.toString(userid), category, name});
+        else {
             ContentValues cv = new ContentValues();
             cv.put("user", userid);
             cv.put("category", category);
