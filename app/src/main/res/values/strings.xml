@@ -290,6 +290,7 @@
     <string name="group_read_clipboard">Read clipboard</string>
     <string name="group_read_debugging">Read debugging state</string>
     <string name="group_read_resources">Read memory and storage</string>
+    <string name="group_read_settings">Read device settings</string>
     <string name="group_read_identifiers">Read identifiers</string>
     <string name="group_read_network">Read network data</string>
     <string name="group_read_notifications">Read notifications</string>
@@ -319,13 +320,14 @@
     <string name="group_desc_read_clipboard">Contents of the clipboard</string>
     <string name="group_desc_read_debugging">Whether developer options and USB or wireless debugging are on</string>
     <string name="group_desc_read_resources">Exact size of memory and storage and the free space, which help to recognize the device</string>
+    <string name="group_desc_read_settings">Settings like animation and font scale, screen timeout, proxy and alarm sound, which help to recognize the device</string>
     <string name="group_desc_read_identifiers">Device and advertising ids, serial number, ids of SD cards</string>
     <string name="group_desc_read_network">Wi-Fi and cell networks, addresses of the device, nearby Bluetooth and local network devices</string>
     <string name="group_desc_read_notifications">Notifications of other apps</string>
     <string name="group_desc_read_sync">Accounts which are being synchronized</string>
     <string name="group_desc_read_telephony">Phone number, IMEI and SIM card details</string>
     <string name="group_desc_read_timezone">Time zone of the device</string>
-    <string name="group_desc_read_features">Hardware and software features of the device</string>
+    <string name="group_desc_read_features">Hardware and software features of the device, connected keyboards and controllers</string>
     <string name="group_desc_read_vpn">Whether a VPN is connected</string>
     <string name="group_desc_record_audio">Recording with the microphone</string>
     <string name="group_desc_record_video">Recording video</string>

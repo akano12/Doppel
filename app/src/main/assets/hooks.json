@@ -5470,5 +5470,110 @@
     "returnType": "int",
     "minSdk": 1,
     "luaScript": "@resources"
+  },
+  // Settings people change, which together recognize a device, see settingssecure_getstring.lua
+  {
+    "collection": "Privacy",
+    "group": "Read.Settings",
+    "name": "Settings.Global.getStringForUser/settings",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Global",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Settings",
+    "name": "Settings.Secure.getStringForUser/settings",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Settings",
+    "name": "Settings.System.getStringForUser/settings",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$System",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  // External input devices, like keyboards and game controllers
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputManager.getInputDeviceIds",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.input.InputManager",
+    "methodName": "getInputDeviceIds",
+    "parameterTypes": [],
+    "returnType": "int[]",
+    "minSdk": 29,
+    "luaScript": "@input_devices"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputManager.getInputDevice",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.input.InputManager",
+    "methodName": "getInputDevice",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.view.InputDevice",
+    "minSdk": 29,
+    "luaScript": "@input_devices"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputDevice.getDeviceIds",
+    "author": "XPrivacyLua",
+    "className": "android.view.InputDevice",
+    "methodName": "getDeviceIds",
+    "parameterTypes": [],
+    "returnType": "int[]",
+    "minSdk": 29,
+    "luaScript": "@input_devices"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputDevice.getDevice",
+    "author": "XPrivacyLua",
+    "className": "android.view.InputDevice",
+    "methodName": "getDevice",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.view.InputDevice",
+    "minSdk": 29,
+    "luaScript": "@input_devices"
   }
 ]

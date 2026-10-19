@@ -15,6 +15,36 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- Settings people change, which together recognize a device (the device state of FingerprintJS),
+-- with their values on a new device; NONE for settings which are not set on a new device.
+-- The 12/24 hour clock is not included, because apps show times with it.
+local NONE = {}
+local PERSONAL = {
+    -- Global
+    http_proxy = NONE,
+    transition_animation_scale = '1.0',
+    window_animation_scale = '1.0',
+    animator_duration_scale = '1.0',
+    data_roaming = '0',
+    auto_time = '1',
+    auto_time_zone = '1',
+    -- Secure
+    accessibility_enabled = '0',
+    touch_exploration_enabled = '0',
+    rtt_calling_mode = '0',
+    -- System
+    alarm_alert = NONE,
+    ringtone = NONE,
+    notification_sound = NONE,
+    date_format = NONE,
+    end_button_behavior = '2',
+    font_scale = '1.0',
+    screen_off_timeout = '60000',
+    text_auto_replace = '1',
+    text_auto_caps = '1',
+    text_auto_punctuate = '1',
+}
+
 -- Packages of the keyboards or accessibility services of system apps and of the app itself.
 -- These come from the services, because the package manager does not tell about apps
 -- which are hidden by the package visibility rules, like a system keyboard. See service_filter too.
@@ -51,7 +81,7 @@ function after(hook, param)
     if key ~= 'android_id' and key ~= 'bluetooth_name' and key ~= 'device_name' and key ~= 'boot_count' and
             key ~= 'pps_oaid' and key ~= 'default_input_method' and key ~= 'enabled_input_methods' and
             key ~= 'enabled_accessibility_services' and key ~= 'adb_enabled' and key ~= 'adb_wifi_enabled' and
-            key ~= 'development_settings_enabled' then
+            key ~= 'development_settings_enabled' and PERSONAL[key] == nil then
         return false
     end
 
@@ -95,6 +125,16 @@ function after(hook, param)
         end
         if fake == '' then
             fake = nil
+        end
+        param:setResult(fake)
+        return true, result, fake
+    elseif name == 'settings' and PERSONAL[key] ~= nil then
+        local fake = PERSONAL[key]
+        if fake == NONE then
+            fake = nil
+        end
+        if fake == result then
+            return false
         end
         param:setResult(fake)
         return true, result, fake
