@@ -60,6 +60,9 @@ public class FragmentHooks extends FragmentBase {
 
     private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipCustom, R.id.chipDisabled};
 
+    // Groups which show their hooks, the others only their header
+    private static final String PREF_EXPANDED = "hooks_expanded";
+
     private View pbLoading;
     private TextView tvEmpty;
     private TextView tvSummary;
@@ -70,6 +73,8 @@ public class FragmentHooks extends FragmentBase {
     private List<XHook> all = new ArrayList<>();
     private Set<String> builtinIds = new HashSet<>();
     private List<String> collection = new ArrayList<>();
+    private final Set<String> expanded = new HashSet<>();
+    private final Set<String> closed = new HashSet<>(); // Groups collapsed while searching or filtering
 
     private final ActivityResultLauncher<String[]> importLauncher = registerForActivityResult(
             new ActivityResultContracts.OpenDocument(), uri -> {
@@ -87,6 +92,7 @@ public class FragmentHooks extends FragmentBase {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_hooks, container, false);
         Context context = requireContext();
+        expanded.addAll(ApplicationEx.getPreferences(context).getStringSet(PREF_EXPANDED, new HashSet<>()));
 
         pbLoading = view.findViewById(R.id.pbLoading);
         tvEmpty = view.findViewById(R.id.tvEmpty);
@@ -117,12 +123,14 @@ public class FragmentHooks extends FragmentBase {
         EditText etSearch = view.findViewById(R.id.etSearch);
         Ui.onTextChanged(etSearch, text -> {
             query = text;
+            closed.clear();
             show();
         });
 
         ChipGroup cgFilter = view.findViewById(R.id.cgFilter);
         Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
             filter = selected;
+            closed.clear();
             show();
         });
 
@@ -195,12 +203,37 @@ public class FragmentHooks extends FragmentBase {
         tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
+    // Searching or filtering shows all groups with matches
+    private boolean isFiltering() {
+        return (filter != Filter.ALL || (query != null && !query.trim().isEmpty()));
+    }
+
+    // Groups are collapsed unless opened, which is remembered; while searching or filtering they are open
+    // unless closed for the current search
     private void addGroup(List<Object> items, String group, List<XHook> hooks) {
         if (group == null || hooks.isEmpty())
             return;
-        items.add(getString(R.string.title_group_header,
-                Groups.getTitle(requireContext(), group), group, hooks.size()));
-        items.addAll(hooks);
+        String title = Groups.getTitle(requireContext(), group);
+        boolean open = (isFiltering() ? !closed.contains(group) : expanded.contains(group));
+        items.add(new AdapterSections.Expandable(
+                getString(R.string.title_group_header, title, group, hooks.size()), open,
+                getString(open ? R.string.title_hide_hooks : R.string.title_show_hooks, title),
+                () -> toggle(group)));
+        if (open)
+            items.addAll(hooks);
+    }
+
+    private void toggle(String group) {
+        if (isFiltering()) {
+            if (!closed.remove(group))
+                closed.add(group);
+        } else {
+            if (!expanded.remove(group))
+                expanded.add(group);
+            ApplicationEx.getPreferences(requireContext()).edit()
+                    .putStringSet(PREF_EXPANDED, new HashSet<>(expanded)).apply();
+        }
+        show();
     }
 
     // A file with a definition or an array of definitions
