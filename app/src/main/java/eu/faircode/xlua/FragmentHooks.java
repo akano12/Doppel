@@ -60,8 +60,8 @@ public class FragmentHooks extends FragmentBase {
 
     private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipCustom, R.id.chipDisabled};
 
-    // Groups which show their hooks, the others only their header
-    private static final String PREF_EXPANDED = "hooks_expanded";
+    // The group which shows its hooks, the others show only their header
+    private static final String PREF_EXPANDED = "hooks_group";
 
     private View pbLoading;
     private TextView tvEmpty;
@@ -73,7 +73,7 @@ public class FragmentHooks extends FragmentBase {
     private List<XHook> all = new ArrayList<>();
     private Set<String> builtinIds = new HashSet<>();
     private List<String> collection = new ArrayList<>();
-    private final Set<String> expanded = new HashSet<>();
+    private String expanded = null; // null: the first group, empty: none
     private final Set<String> closed = new HashSet<>(); // Groups collapsed while searching or filtering
 
     private final ActivityResultLauncher<String[]> importLauncher = registerForActivityResult(
@@ -92,7 +92,7 @@ public class FragmentHooks extends FragmentBase {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_hooks, container, false);
         Context context = requireContext();
-        expanded.addAll(ApplicationEx.getPreferences(context).getStringSet(PREF_EXPANDED, new HashSet<>()));
+        expanded = ApplicationEx.getPreferences(context).getString(PREF_EXPANDED, null);
 
         pbLoading = view.findViewById(R.id.pbLoading);
         tvEmpty = view.findViewById(R.id.tvEmpty);
@@ -203,18 +203,23 @@ public class FragmentHooks extends FragmentBase {
         tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
+    // At first the first group is open
+    private String getExpanded() {
+        return (expanded == null && !all.isEmpty() ? all.get(0).getGroup() : expanded);
+    }
+
     // Searching or filtering shows all groups with matches
     private boolean isFiltering() {
         return (filter != Filter.ALL || (query != null && !query.trim().isEmpty()));
     }
 
-    // Groups are collapsed unless opened, which is remembered; while searching or filtering they are open
+    // One group is open at a time, which is remembered; while searching or filtering all groups are open
     // unless closed for the current search
     private void addGroup(List<Object> items, String group, List<XHook> hooks) {
         if (group == null || hooks.isEmpty())
             return;
         String title = Groups.getTitle(requireContext(), group);
-        boolean open = (isFiltering() ? !closed.contains(group) : expanded.contains(group));
+        boolean open = (isFiltering() ? !closed.contains(group) : group.equals(getExpanded()));
         items.add(new AdapterSections.Expandable(
                 getString(R.string.title_group_header, title, group, hooks.size()), open,
                 getString(open ? R.string.title_hide_hooks : R.string.title_show_hooks, title),
@@ -228,10 +233,9 @@ public class FragmentHooks extends FragmentBase {
             if (!closed.remove(group))
                 closed.add(group);
         } else {
-            if (!expanded.remove(group))
-                expanded.add(group);
-            ApplicationEx.getPreferences(requireContext()).edit()
-                    .putStringSet(PREF_EXPANDED, new HashSet<>(expanded)).apply();
+            // Opening a group closes the open one
+            expanded = (group.equals(getExpanded()) ? "" : group);
+            ApplicationEx.getPreferences(requireContext()).edit().putString(PREF_EXPANDED, expanded).apply();
         }
         show();
     }
