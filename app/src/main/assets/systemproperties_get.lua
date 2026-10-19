@@ -20,6 +20,10 @@ function isdeviceproperty(key)
             key == 'ro.boot.hardware.sku' or key == 'ro.boot.vbmeta.digest' or key == 'ro.hardware' then
         return true
     end
+    -- Like Build.VERSION.SECURITY_PATCH, also the patch level of the vendor partition
+    if string.sub(key, -string.len('.security_patch')) == '.security_patch' then
+        return true
+    end
     if string.sub(key, 1, string.len('ro.product.')) ~= 'ro.product.' then
         return false
     end

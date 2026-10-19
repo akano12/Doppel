@@ -44,7 +44,8 @@ function rules(param)
                        'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
                        'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
                        'ro.*.build.tags', 'ro.build.type', 'ro.*.build.type', 'ro.build.description',
-                       'ro.build.flavor', 'ro.build.product', 'ro.build.date', 'ro.*.build.date' } },
+                       'ro.build.flavor', 'ro.build.product', 'ro.build.date', 'ro.*.build.date',
+                       'ro.build.version.security_patch', 'ro.*.build.security_patch' } },
         { '0', { 'ro.build.date.utc', 'ro.*.build.date.utc' } },
         { 'unknown', { 'gsm.operator.alpha', 'gsm.sim.operator.alpha' } },
         { '00101', { 'gsm.operator.numeric', 'gsm.sim.operator.numeric' } }, -- test network

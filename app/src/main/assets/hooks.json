@@ -3867,6 +3867,19 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "Build.VERSION.SECURITY_PATCH",
+    "author": "XPrivacyLua",
+    "className": "android.os.Build$VERSION",
+    "methodName": "#SECURITY_PATCH",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 23,
+    "usage": false,
+    "luaScript": "@generic_unknown_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "Os.uname",
     "author": "XPrivacyLua",
     "className": "android.system.Os",
