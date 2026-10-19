@@ -87,7 +87,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             new Field("location.type", R.string.title_value_location_type, Type.LOCATION, Random.NONE, null),
             new Field("location.latitude", R.string.title_value_latitude, Type.NUMBER, Random.NONE, "0"),
             new Field("location.longitude", R.string.title_value_longitude, Type.NUMBER, Random.NONE, "0"),
-            new Field("location.accuracy", R.string.title_value_accuracy, Type.NUMBER, Random.NONE, null),
+            new Field("location.accuracy", R.string.title_value_accuracy, Type.NUMBER, Random.NONE, "10000"),
             R.string.title_values_other,
             new Field("value.timezone", R.string.title_value_timezone, Type.TIMEZONE, Random.NONE, "UTC"),
             new Field("features.hide", R.string.title_value_features, Type.TEXT, Random.NONE, null),

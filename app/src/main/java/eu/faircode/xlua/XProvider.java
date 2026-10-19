@@ -113,7 +113,7 @@ class XProvider {
                 default:
                     return null;
             }
-        } catch (IllegalArgumentException | RemoteException ex) {
+        } catch (IllegalArgumentException | SecurityException | RemoteException ex) {
             throw ex;
         } catch (Throwable ex) {
             Log.e(TAG, Log.getStackTraceString(ex));
@@ -167,7 +167,7 @@ class XProvider {
                 default:
                     result = null;
             }
-        } catch (RemoteException ex) {
+        } catch (SecurityException | RemoteException ex) {
             throw ex;
         } catch (Throwable ex) {
             Log.e(TAG, Log.getStackTraceString(ex));
@@ -590,8 +590,9 @@ class XProvider {
         final boolean use = "use".equals(event);
         final boolean countGroup = (hook != null && use && restricted == 1 && notify);
 
-        // Last use of the group before this use, -1 for the first use
-        long used = db.write(d -> {
+        // Last use of the group before this use, -1 for the first use,
+        // null when the app has no such assignment, like for a package of another app
+        Long used = db.write(d -> {
             ContentValues cv = new ContentValues();
             if ("install".equals(event))
                 cv.put("installed", time);
@@ -602,9 +603,9 @@ class XProvider {
             for (String key : new String[]{"exception", "old", "new"})
                 if (data.containsKey(key))
                     cv.put(key, data.getString(key));
-            if (d.update("assignment", cv, "package = ? AND uid = ? AND hook = ?",
+            if (cv.size() == 0 || d.update("assignment", cv, "package = ? AND uid = ? AND hook = ?",
                     new String[]{packageName, Integer.toString(uid), hookid}) != 1)
-                Log.w(TAG, "Error updating assignment");
+                return null;
 
             long last = -1;
             if (countGroup) {
@@ -626,6 +627,11 @@ class XProvider {
             }
             return last;
         });
+
+        if (used == null) {
+            Log.w(TAG, "No assignment " + packageName + ":" + uid + "/" + hookid);
+            return new Bundle();
+        }
 
         long ident = Binder.clearCallingIdentity();
         try {

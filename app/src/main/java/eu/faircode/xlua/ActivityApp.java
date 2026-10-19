@@ -68,6 +68,7 @@ public class ActivityApp extends ActivityBase {
     private TextView tvSummary;
     private MaterialCheckBox cbAll;
     private MaterialSwitch swForceStop;
+    private MaterialSwitch swNotify;
     private View llRestart;
     private TextView tvRestart;
     private Button btnForceStop;
@@ -119,6 +120,7 @@ public class ActivityApp extends ActivityBase {
         tvSummary = findViewById(R.id.tvSummary);
         cbAll = findViewById(R.id.cbAll);
         swForceStop = findViewById(R.id.swForceStop);
+        swNotify = findViewById(R.id.swNotify);
         llRestart = findViewById(R.id.llRestart);
         tvRestart = findViewById(R.id.tvRestart);
         btnForceStop = findViewById(R.id.btnForceStop);
@@ -129,6 +131,7 @@ public class ActivityApp extends ActivityBase {
             if (swForceStop.isEnabled())
                 swForceStop.toggle();
         });
+        findViewById(R.id.llNotify).setOnClickListener(view -> swNotify.toggle());
         btnForceStop.setOnClickListener(view -> forceStop());
         findViewById(R.id.llValues).setOnClickListener(view -> {
             if (app != null)
@@ -149,7 +152,8 @@ public class ActivityApp extends ActivityBase {
                     return;
                 }
                 List<XHook> hooks = Data.getAvailable(Data.getHooks(context), app, Data.getCollection(context), null);
-                runOnUiThread(() -> show(app, hooks));
+                boolean notify = Data.getSettingBoolean(context, app.packageName, "notify");
+                runOnUiThread(() -> show(app, hooks, notify));
             } catch (Throwable ex) {
                 runOnUiThread(() -> pbLoading.setVisibility(View.GONE));
                 error(TAG, ex);
@@ -161,7 +165,7 @@ public class ActivityApp extends ActivityBase {
         return (app == null || TextUtils.isEmpty(app.label) ? packageName : app.label);
     }
 
-    private void show(XApp app, List<XHook> hooks) {
+    private void show(XApp app, List<XHook> hooks, boolean notify) {
         this.app = app;
         uid = app.uid;
 
@@ -191,6 +195,12 @@ public class ActivityApp extends ActivityBase {
             executor.submit(() -> Data.putSettingBoolean(this, app.packageName, "forcestop", checked));
             updateRestart();
         });
+
+        // Read by the service when a hook restricts something, see XProvider.report
+        swNotify.setOnCheckedChangeListener(null);
+        swNotify.setChecked(notify);
+        swNotify.setOnCheckedChangeListener((button, checked) ->
+                executor.submit(() -> Data.putSettingBoolean(this, app.packageName, "notify", checked)));
 
         // Group the hooks
         available.clear();

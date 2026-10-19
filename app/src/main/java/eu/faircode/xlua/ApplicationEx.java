@@ -26,6 +26,8 @@ import android.util.Log;
 
 import androidx.appcompat.app.AppCompatDelegate;
 
+import java.util.Objects;
+
 public class ApplicationEx extends Application {
     private static final String TAG = "XLua.App";
 
@@ -43,9 +45,12 @@ public class ApplicationEx extends Application {
         applyTheme(getPreferences(this).getString(PREF_THEME, null));
     }
 
-    // Apply and remember the theme setting of the service
+    // Apply and remember the theme setting of the service, when it changed
     static void setTheme(Context context, String theme) {
-        getPreferences(context).edit().putString(PREF_THEME, theme).apply();
+        SharedPreferences prefs = getPreferences(context);
+        if (Objects.equals(theme, prefs.getString(PREF_THEME, null)))
+            return;
+        prefs.edit().putString(PREF_THEME, theme).apply();
         applyTheme(theme);
     }
 

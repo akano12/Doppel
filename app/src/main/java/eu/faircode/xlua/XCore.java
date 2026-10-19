@@ -20,6 +20,7 @@
 package eu.faircode.xlua;
 
 import android.app.Application;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -27,8 +28,10 @@ import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Process;
 import android.os.SystemClock;
+import android.os.UserHandle;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -167,17 +170,29 @@ class XCore {
                     int[] userids = (int[]) um.getClass().getDeclaredMethod("getUserIds").invoke(um);
 
                     // Listen for package changes
-                    for (int userid : userids) {
-                        Log.i(TAG, "Registering package listener user=" + userid);
-                        IntentFilter ifPackageAdd = new IntentFilter();
-                        ifPackageAdd.addAction(Intent.ACTION_PACKAGE_ADDED);
-                        ifPackageAdd.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED);
-                        ifPackageAdd.addDataScheme("package");
-                        Context ctx = Util.createContextForUser(context, userid);
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                            ctx.registerReceiver(new ReceiverPackage(), ifPackageAdd, Context.RECEIVER_NOT_EXPORTED);
-                        else
-                            ctx.registerReceiver(new ReceiverPackage(), ifPackageAdd);
+                    IntentFilter ifPackageAdd = new IntentFilter();
+                    ifPackageAdd.addAction(Intent.ACTION_PACKAGE_ADDED);
+                    ifPackageAdd.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED);
+                    ifPackageAdd.addDataScheme("package");
+                    try {
+                        // Also of users and profiles which are added later
+                        // public Intent registerReceiverAsUser(BroadcastReceiver receiver, UserHandle user,
+                        //   IntentFilter filter, String broadcastPermission, Handler scheduler)
+                        UserHandle all = (UserHandle) UserHandle.class.getField("ALL").get(null);
+                        context.getClass().getMethod("registerReceiverAsUser", BroadcastReceiver.class,
+                                        UserHandle.class, IntentFilter.class, String.class, Handler.class)
+                                .invoke(context, new ReceiverPackage(), all, ifPackageAdd, null, null);
+                        Log.i(TAG, "Registered package listener for all users");
+                    } catch (Throwable ex) {
+                        Log.w(TAG, "Registering for all users: " + ex);
+                        for (int userid : userids) {
+                            Log.i(TAG, "Registering package listener user=" + userid);
+                            Context ctx = Util.createContextForUser(context, userid);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                                ctx.registerReceiver(new ReceiverPackage(), ifPackageAdd, Context.RECEIVER_NOT_EXPORTED);
+                            else
+                                ctx.registerReceiver(new ReceiverPackage(), ifPackageAdd);
+                        }
                     }
                 } catch (Throwable ex) {
                     log(ex);
@@ -228,6 +243,10 @@ class XCore {
                     } catch (IllegalArgumentException ex) {
                         Log.i(TAG, "Error: " + ex.getMessage());
                         call.setThrowable(ex);
+                    } catch (SecurityException ex) {
+                        // A refused app gets no result, like before
+                        Log.w(TAG, "Call " + arg + ": " + ex.getMessage());
+                        call.setResult(null);
                     } catch (Throwable ex) {
                         log(ex);
                         call.setResult(null);
@@ -253,6 +272,9 @@ class XCore {
                     try {
                         String method = projection[0].split("\\.")[1];
                         call.setResult(XProvider.query(getContext(call.thisObject), method, selection));
+                    } catch (SecurityException ex) {
+                        Log.w(TAG, "Query " + projection[0] + ": " + ex.getMessage());
+                        call.setResult(null);
                     } catch (Throwable ex) {
                         log(ex);
                         call.setResult(null);
@@ -586,6 +608,8 @@ class XCore {
             this.undumper = libraries.undumper;
             this.running = libraries.running;
             super.setmetatable(LuaValue.tableOf(new LuaValue[]{LuaValue.INDEX, libraries}));
+            // Else _G would be the shared libraries, and its globals visible to the other hooks
+            super.rawset(LuaValue.valueOf("_G"), this);
         }
 
         @Override

@@ -101,9 +101,10 @@ final class Data {
         return query(context, "getHooks2", new String[]{"false", "false"}, XHook.CREATOR);
     }
 
-    // All hook definitions with their scripts, including disabled hooks and hooks for other Android versions
-    static List<XHook> getAllHooks(Context context) {
-        return query(context, "getHooks2", new String[]{"true", "true"}, XHook.CREATOR);
+    // All hook definitions, including disabled hooks and hooks for other Android versions,
+    // optionally with their scripts
+    static List<XHook> getAllHooks(Context context, boolean lua) {
+        return query(context, "getHooks2", new String[]{"true", Boolean.toString(lua)}, XHook.CREATOR);
     }
 
     // Hooks assigned to an app, with their scripts

@@ -131,6 +131,8 @@
     <string name="title_restrict_all_groups">Restrict all</string>
     <string name="title_groups_restricted">%1$d of %2$d groups restricted</string>
     <string name="title_force_stop_hint">Stop the app to apply changes right away</string>
+    <string name="title_notify_usage">Notify on restriction</string>
+    <string name="title_notify_usage_hint">Show a notification the first time each group restricts something</string>
     <string name="title_force_stop_persistent">Persistent apps cannot be stopped</string>
     <string name="title_force_stop_now">Stop</string>
     <string name="title_apply_restart">Changes apply the next time %1$s starts</string>

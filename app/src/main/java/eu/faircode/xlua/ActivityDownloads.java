@@ -142,7 +142,7 @@ public class ActivityDownloads extends ActivityBase {
                 });
 
                 Map<String, XHook> installed = new HashMap<>();
-                for (XHook hook : Data.getAllHooks(context))
+                for (XHook hook : Data.getAllHooks(context, false))
                     installed.put(hook.getId(), hook);
                 Set<String> builtinIds = Data.getBuiltinIds(context);
                 List<String> collection = Data.getCollection(context);

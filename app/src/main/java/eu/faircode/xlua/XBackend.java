@@ -19,6 +19,7 @@ package eu.faircode.xlua;
 
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 
 // Hooking framework used by the engine: modern libxposed API or legacy XposedBridge API
 interface XBackend {
@@ -30,10 +31,10 @@ interface XBackend {
 
     void log(Throwable ex);
 
-    // Hook all methods with the given name declared by the class
+    // Hook all methods with the given name declared by the class; abstract methods have no code to hook
     default void hookAll(Class<?> cls, String name, Callback callback) throws Throwable {
         for (Method method : cls.getDeclaredMethods())
-            if (method.getName().equals(name))
+            if (method.getName().equals(name) && !Modifier.isAbstract(method.getModifiers()))
                 hook(method, callback);
     }
 

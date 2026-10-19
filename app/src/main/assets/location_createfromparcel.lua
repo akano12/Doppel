@@ -26,25 +26,28 @@ function after(hook, param)
     local longitude = 0
     local type = param:getSetting('location.type')
     if type == 'set' then
-        latitude = param:getSetting('location.latitude')
-        longitude = param:getSetting('location.longitude')
+        -- Settings are text, Location.setLatitude needs a number
+        latitude = tonumber(param:getSetting('location.latitude'))
+        longitude = tonumber(param:getSetting('location.longitude'))
         if latitude == nil or longitude == nil then
             latitude = 0
             longitude = 0
         end
     elseif type == 'coarse' then
-        local accuracy = param:getSetting('location.accuracy')
-        if accuracy ~= nil then
-            local clatitude = param:getValue('latitude', hook)
-            local clongitude = param:getValue('longitude', hook)
-            if clatitude == nil or clongitude == nil then
-                clatitude, clongitude = randomoffset(result:getLatitude(), result:getLongitude(), accuracy)
-                param:putValue('latitude', clatitude, hook)
-                param:putValue('longitude', clongitude, hook)
-            end
-            latitude = clatitude
-            longitude = clongitude
+        -- Meters, 10 km by default, see ActivityValues
+        local accuracy = tonumber(param:getSetting('location.accuracy'))
+        if accuracy == nil or accuracy <= 0 then
+            accuracy = 10000
         end
+        local clatitude = param:getValue('latitude', hook)
+        local clongitude = param:getValue('longitude', hook)
+        if clatitude == nil or clongitude == nil then
+            clatitude, clongitude = randomoffset(result:getLatitude(), result:getLongitude(), accuracy)
+            param:putValue('latitude', clatitude, hook)
+            param:putValue('longitude', clongitude, hook)
+        end
+        latitude = clatitude
+        longitude = clongitude
     end
 
     if result:hasAccuracy() then

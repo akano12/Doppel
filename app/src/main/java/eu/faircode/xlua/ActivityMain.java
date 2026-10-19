@@ -63,12 +63,15 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
         final Context context = getApplicationContext();
         executor.submit(() -> {
             boolean available = Data.isAvailable(context);
+            // The local copy of the theme does not exist yet after an update
+            String theme = (available ? Data.getSetting(context, "global", "theme") : null);
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed())
                     return;
-                if (available)
+                if (available) {
+                    ApplicationEx.setTheme(context, theme);
                     showMain(true);
-                else
+                } else
                     showUnavailable();
             });
         });

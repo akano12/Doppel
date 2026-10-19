@@ -60,6 +60,7 @@ public class XHook implements Parcelable {
     private int minApk;
     private int maxApk;
     private String[] excludePackages;
+    private Pattern[] excludePatterns = null; // Compiled once, see isAvailable
     private boolean enabled;
     private boolean optional;
     private boolean usage;
@@ -144,13 +145,17 @@ public class XHook implements Parcelable {
         if (this.excludePackages == null)
             return true;
 
-        boolean included = true;
-        for (String excluded : this.excludePackages)
-            if (Pattern.matches(excluded, packageName)) {
-                included = false;
-                break;
-            }
-        return included;
+        Pattern[] patterns = this.excludePatterns;
+        if (patterns == null) {
+            patterns = new Pattern[this.excludePackages.length];
+            for (int i = 0; i < patterns.length; i++)
+                patterns[i] = Pattern.compile(this.excludePackages[i]);
+            this.excludePatterns = patterns;
+        }
+        for (Pattern pattern : patterns)
+            if (pattern.matcher(packageName).matches())
+                return false;
+        return true;
     }
 
     public boolean isAvailable(long versionCode) {

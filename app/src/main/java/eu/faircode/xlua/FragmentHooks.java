@@ -134,7 +134,7 @@ public class FragmentHooks extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         executor.submit(() -> {
             try {
-                List<XHook> hooks = Data.getAllHooks(context);
+                List<XHook> hooks = Data.getAllHooks(context, false);
                 Set<String> ids = Data.getBuiltinIds(context);
                 List<String> collection = Data.getCollection(context);
                 Collections.sort(hooks, (h1, h2) -> {
@@ -232,7 +232,7 @@ public class FragmentHooks extends FragmentBase {
         executor.submit(() -> {
             try {
                 JSONArray jarray = new JSONArray();
-                for (XHook hook : Data.getAllHooks(context))
+                for (XHook hook : Data.getAllHooks(context, true))
                     if (!hook.isBuiltin())
                         jarray.put(Data.toEditable(hook));
                 try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {

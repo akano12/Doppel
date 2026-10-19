@@ -191,7 +191,7 @@ public class ActivityHookEdit extends ActivityBase {
         final Context context = getApplicationContext();
         executor.submit(() -> {
             try {
-                List<XHook> hooks = Data.getAllHooks(context);
+                List<XHook> hooks = Data.getAllHooks(context, true);
                 Set<String> ids = Data.getBuiltinIds(context);
                 List<String> groups = Data.getGroupNames(hooks);
                 XHook found = null;

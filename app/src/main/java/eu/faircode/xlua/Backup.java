@@ -53,7 +53,7 @@ class Backup {
         jroot.put("settings", jsettings);
 
         JSONArray jhooks = new JSONArray();
-        for (XHook hook : Data.getAllHooks(context))
+        for (XHook hook : Data.getAllHooks(context, true))
             if (!hook.isBuiltin())
                 jhooks.put(Data.toEditable(hook));
         jroot.put("hooks", jhooks);

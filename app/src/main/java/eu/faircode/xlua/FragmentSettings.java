@@ -116,7 +116,7 @@ public class FragmentSettings extends FragmentBase {
             try {
                 int version = Data.getVersion(context);
                 boolean available = Data.isAvailable(version);
-                List<XHook> hooks = Data.getAllHooks(context);
+                List<XHook> hooks = Data.getAllHooks(context, false);
                 TreeSet<String> known = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
                 for (XHook hook : hooks)
                     known.add(hook.getCollection());

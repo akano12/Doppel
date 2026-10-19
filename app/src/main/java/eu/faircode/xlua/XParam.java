@@ -120,7 +120,11 @@ public class XParam {
         if (index < 0 || index >= this.paramTypes.length)
             throw new ArrayIndexOutOfBoundsException("Argument #" + index);
 
-        if (value != null) {
+        if (value == null) {
+            // Calling with null for a primitive parameter would crash the app
+            if (this.paramTypes[index].isPrimitive())
+                throw new IllegalArgumentException("Expected argument #" + index + " " + this.paramTypes[index] + " got null");
+        } else {
             value = coerceValue(this.paramTypes[index], value);
             if (!boxType(this.paramTypes[index]).isInstance(value))
                 throw new IllegalArgumentException(
@@ -195,6 +199,9 @@ public class XParam {
         if (BuildConfig.DEBUG)
             Log.i(TAG, "Set " + this.getPackageName() + ":" + this.getUid() +
                     " result=" + result + " return=" + this.returnType);
+        // Returning null for a primitive would crash the app
+        if (result == null && this.returnType != null && this.returnType.isPrimitive() && this.returnType != void.class)
+            throw new IllegalArgumentException("Expected return " + this.returnType + " got null");
         if (result != null && !(result instanceof Throwable) && this.returnType != null) {
             result = coerceValue(this.returnType, result);
             if (!boxType(this.returnType).isInstance(result))
@@ -269,20 +276,26 @@ public class XParam {
         return type;
     }
 
-    private static Object coerceValue(Class<?> type, Object value) {
-        // TODO: check for null primitives
-
-        // Lua 5.2 auto converts numbers into floating or integer values
-        if (Integer.class.equals(value.getClass())) {
-            if (long.class.equals(type))
-                return (long) (int) value;
+    static Object coerceValue(Class<?> type, Object value) {
+        // Lua numbers become an Integer or a Double, like 5000000000 for a long;
+        // whole numbers which fit are converted to the numeric type expected
+        if (value instanceof Number && type.isPrimitive()) {
+            Number number = (Number) value;
+            double d = number.doubleValue();
+            if (double.class.equals(type))
+                return d;
             else if (float.class.equals(type))
-                return (float) (int) value;
-            else if (double.class.equals(type))
-                return (double) (int) value;
-        } else if (Double.class.equals(value.getClass())) {
-            if (float.class.equals(type))
-                return (float) (double) value;
+                return (float) d;
+            else if (d == Math.rint(d)) {
+                if (long.class.equals(type) && d >= Long.MIN_VALUE && d <= Long.MAX_VALUE)
+                    return number.longValue();
+                else if (int.class.equals(type) && d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE)
+                    return number.intValue();
+                else if (short.class.equals(type) && d >= Short.MIN_VALUE && d <= Short.MAX_VALUE)
+                    return number.shortValue();
+                else if (byte.class.equals(type) && d >= Byte.MIN_VALUE && d <= Byte.MAX_VALUE)
+                    return number.byteValue();
+            }
         } else if (value instanceof String && int.class.equals(type))
             return Integer.parseInt((String) value);
         else if (value instanceof String && long.class.equals(type))
