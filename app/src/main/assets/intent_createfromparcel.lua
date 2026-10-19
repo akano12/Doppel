@@ -26,10 +26,8 @@ function after(hook, param)
         return false
     end
 
-    local h = hook:getName()
-    local match = string.gmatch(h, '[^/]+')
-    local func = match()
-    local name = match()
+    -- Hook names are like Function/variant
+    local name = string.match(hook:getName(), '/(.*)$')
 
     if name == 'package' and (action == 'android.intent.action.PACKAGE_ADDED' or
             action == 'android.intent.action.PACKAGE_CHANGED' or

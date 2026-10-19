@@ -17,11 +17,7 @@
 
 function after(hook, param)
     local list = param:getResult()
-    if list == nil then
-        return false
-    end
-    local array = luajava.bindClass('java.lang.reflect.Array')
-    if array:getLength(list:toArray()) == 0 then
+    if list == nil or list:isEmpty() then
         return false
     end
 

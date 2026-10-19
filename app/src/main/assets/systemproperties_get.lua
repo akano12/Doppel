@@ -44,12 +44,9 @@ function after(hook, param)
         return false
     end
 
-    local h = hook:getName()
-    local match = string.gmatch(h, '[^/]+')
-    local func = match()
-    local name = match()
+    -- Hook names are like Function/variant
+    local name = string.match(hook:getName(), '/(.*)$')
 
-    --log(key .. '=' .. result .. ' name=' .. name)
 
     if name == 'serial' and (key == 'ro.serialno' or key == 'ro.boot.serialno' or
             key == 'ril.serialnumber' or key == 'ro.boot.ap_serial' or key == 'sys.serialnumber' or

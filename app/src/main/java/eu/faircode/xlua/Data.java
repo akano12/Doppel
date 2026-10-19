@@ -18,7 +18,6 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
-import android.content.pm.PackageInfo;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.os.Parcel;
@@ -26,8 +25,6 @@ import android.os.Parcelable;
 import android.os.Process;
 import android.text.TextUtils;
 import android.util.Log;
-
-import androidx.core.content.pm.PackageInfoCompat;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -48,21 +45,24 @@ final class Data {
     private Data() {
     }
 
-    // The service runs a module of the same version
+    // The service runs a module of the same version as this app
     static boolean isAvailable(Context context) {
-        try {
-            PackageInfo pi = context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, 0);
-            return (PackageInfoCompat.getLongVersionCode(pi) == getVersion(context));
-        } catch (Throwable ex) {
-            Log.e(TAG, Log.getStackTraceString(ex));
-            return false;
-        }
+        return isAvailable(getVersion(context));
+    }
+
+    static boolean isAvailable(int version) {
+        return (version == BuildConfig.VERSION_CODE);
     }
 
     // Version of the module of the service, -1 when the module is not running
     static int getVersion(Context context) {
-        Bundle result = call(context, "getVersion", new Bundle());
-        return (result == null ? -1 : result.getInt("version", -1));
+        try {
+            Bundle result = call(context, "getVersion", new Bundle());
+            return (result == null ? -1 : result.getInt("version", -1));
+        } catch (Throwable ex) {
+            Log.e(TAG, Log.getStackTraceString(ex));
+            return -1;
+        }
     }
 
     private static Bundle call(Context context, String method, Bundle args) {
@@ -96,19 +96,14 @@ final class Data {
 
     // Hook definitions
 
-    // Hook definitions available for the enabled collections
+    // Hook definitions available for the enabled collections, without scripts
     static List<XHook> getHooks(Context context) {
-        return query(context, "getHooks2", null, XHook.CREATOR);
+        return query(context, "getHooks2", new String[]{"false", "false"}, XHook.CREATOR);
     }
 
-    // All hook definitions, including disabled hooks and hooks for other Android versions
-    static List<XHook> getAllHooks(Context context) throws JSONException {
-        List<XHook> result = new ArrayList<>();
-        try (Cursor cursor = query(context, "getHooks", new String[]{"all"})) {
-            while (cursor != null && cursor.moveToNext())
-                result.add(XHook.fromJSON(cursor.getString(0)));
-        }
-        return result;
+    // All hook definitions with their scripts, including disabled hooks and hooks for other Android versions
+    static List<XHook> getAllHooks(Context context) {
+        return query(context, "getHooks2", new String[]{"true", "true"}, XHook.CREATOR);
     }
 
     // Hooks assigned to an app, with their scripts
@@ -209,6 +204,20 @@ final class Data {
         args.putString("packageName", app.packageName);
         args.putInt("uid", app.uid);
         call(context, "forceStop", args);
+    }
+
+    // Hook ids assigned to each package of the current user, including hooks which are not available
+    static Map<String, List<String>> getAssignments(Context context) {
+        Map<String, List<String>> result = new HashMap<>();
+        try (Cursor cursor = query(context, "getAssignments", null)) {
+            while (cursor != null && cursor.moveToNext()) {
+                String packageName = cursor.getString(0);
+                if (!result.containsKey(packageName))
+                    result.put(packageName, new ArrayList<>());
+                result.get(packageName).add(cursor.getString(2));
+            }
+        }
+        return result;
     }
 
     // Settings of the current user

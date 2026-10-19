@@ -25,7 +25,6 @@ function after(hook, param)
     local name = string.gsub(hook:getName(), '%.%d+$', '')
     local cuid = param:getUid()
 
-    local index
     local info = list:toArray()
     for index = info['length'], 1, -1 do
         local item = info[index]

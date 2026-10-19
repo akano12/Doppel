@@ -28,12 +28,9 @@ function after(hook, param)
         return false
     end
 
-    local h = hook:getName()
-    local match = string.gmatch(h, '[^/]+')
-    local func = match()
-    local name = match()
+    -- Hook names are like Function/variant
+    local name = string.match(hook:getName(), '/(.*)$')
 
-    --log(key .. '=' .. result .. ' name=' .. name)
 
     if name == 'android_id' and key == 'android_id' then
         local fake = param:getSetting('value.android_id')

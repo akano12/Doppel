@@ -26,10 +26,8 @@ function before(hook, param)
         return false
     end
 
-    local h = hook:getName()
-    local match = string.gmatch(h, '[^/]+')
-    local func = match()
-    local name = match()
+    -- Hook names are like Function/variant
+    local func, name = string.match(hook:getName(), '^([^/]*)/?(.*)$')
     local bundled = (string.sub(func, -2) == '26')
     local authority = uri:getAuthority()
     if name == 'contacts' and authority == 'com.android.contacts' then
@@ -64,30 +62,6 @@ function before(hook, param)
             else
                 param:setArgument(2, where)
             end
-
-            if false then
-                local args
-                if bundled then
-                    local bundle = param:getArgument(2)
-                    if bundle == nil then
-                        args = nil
-                    else
-                        args = bundle:getStringArray('android:query-arg-sql-selection-args')
-                    end
-                else
-                    args = param:getArgument(3)
-                end
-
-                local line = path .. ' where ' .. where .. ' ('
-                if args ~= nil then
-                    local index
-                    for index = 1, args['length'] do
-                        line = line .. ' ' .. args[index]
-                    end
-                end
-                line = line .. ')'
-                log(line)
-            end
         end
     end
 
@@ -101,10 +75,8 @@ function after(hook, param)
         return false
     end
 
-    local h = hook:getName()
-    local match = string.gmatch(h, '[^/]+')
-    local func = match()
-    local name = match()
+    -- Hook names are like Function/variant
+    local func, name = string.match(hook:getName(), '^([^/]*)/?(.*)$')
     local authority = uri:getAuthority()
 
     if (name == 'blockednumber' and authority == 'com.android.blockednumber') or
@@ -172,13 +144,8 @@ function after(hook, param)
         end
 
         local fake = luajava.newInstance('android.database.MatrixCursor', cursor:getColumnNames())
-        --fake:setExtras(cursor:getExtras())
-        --notify = cursor:getNotificationUri()
-        --if notify ~= nil then
-        --    fake:setNotificationUri(param:getThis(), notify)
-        --end
 
-        param:setResult(fake);
+        param:setResult(fake)
         return true
     else
         return false

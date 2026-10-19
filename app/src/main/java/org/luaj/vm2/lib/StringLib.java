@@ -418,7 +418,7 @@ public class StringLib extends TwoArgFunction {
 				}
 				digits = Long.toString( number, radix );
 				if ( conversion == 'X' )
-					digits = digits.toUpperCase();
+					digits = digits.toUpperCase(java.util.Locale.ROOT);
 			}
 			
 			int minwidth = digits.length();
@@ -640,7 +640,7 @@ public class StringLib extends TwoArgFunction {
 	 */
 	static final class lower extends OneArgFunction {
 		public LuaValue call(LuaValue arg) {
-			return valueOf( arg.checkjstring().toLowerCase() );
+			return valueOf( arg.checkjstring().toLowerCase(java.util.Locale.ROOT) );
 		}
 	}
 
@@ -734,7 +734,7 @@ public class StringLib extends TwoArgFunction {
 	 */
 	static final class upper extends OneArgFunction {
 		public LuaValue call(LuaValue arg) {
-			return valueOf(arg.checkjstring().toUpperCase());
+			return valueOf(arg.checkjstring().toUpperCase(java.util.Locale.ROOT));
 		}
 	}
 	

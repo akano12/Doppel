@@ -28,6 +28,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 // Backup and restore of settings, custom hook definitions and restrictions.
 // Restrictions are stored by package name, so a backup can be restored on another device.
@@ -56,16 +58,14 @@ class Backup {
                 jhooks.put(Data.toEditable(hook));
         jroot.put("hooks", jhooks);
 
+        // Also assignments of hooks which are currently not available, like of a disabled collection
         JSONArray jrestrictions = new JSONArray();
-        for (XApp app : Data.getApps(context)) {
-            if (app.assignments.isEmpty())
-                continue;
-
+        for (Map.Entry<String, List<String>> entry : Data.getAssignments(context).entrySet()) {
             JSONArray jids = new JSONArray();
-            for (XAssignment assignment : app.assignments)
-                jids.put(assignment.hook.getId());
+            for (String id : entry.getValue())
+                jids.put(id);
             JSONObject jrestriction = new JSONObject();
-            jrestriction.put("package", app.packageName);
+            jrestriction.put("package", entry.getKey());
             jrestriction.put("hooks", jids);
             jrestrictions.put(jrestriction);
         }

@@ -213,12 +213,11 @@ public class XParam {
 
     @SuppressWarnings("unused")
     public String getSetting(String name) {
-        synchronized (this.settings) {
-            String value = (this.settings.containsKey(name) ? this.settings.get(name) : null);
-            if (BuildConfig.DEBUG)
-                Log.i(TAG, "Get setting " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value);
-            return value;
-        }
+        // The settings are read only, see XCore.hookPackage
+        String value = this.settings.get(name);
+        if (BuildConfig.DEBUG)
+            Log.i(TAG, "Get setting " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value);
+        return value;
     }
 
     @SuppressWarnings("unused")

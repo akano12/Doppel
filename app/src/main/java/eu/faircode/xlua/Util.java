@@ -20,10 +20,6 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.Signature;
-import android.content.pm.SigningInfo;
 import android.os.Build;
 import android.os.Process;
 import android.os.UserHandle;
@@ -35,7 +31,6 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -92,24 +87,6 @@ class Util {
             Log.e(TAG, Log.getStackTraceString(ex));
             return Process.myUserHandle();
         }
-    }
-
-    @SuppressWarnings("deprecation")
-    static byte[] getSha1Fingerprint(Context context, String packageName) throws Throwable {
-        PackageManager pm = context.getPackageManager();
-        Signature signature;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            PackageInfo packageInfo = pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES);
-            SigningInfo si = packageInfo.signingInfo;
-            Signature[] signatures = (si.hasMultipleSigners()
-                    ? si.getApkContentsSigners() : si.getSigningCertificateHistory());
-            signature = signatures[0];
-        } else {
-            PackageInfo packageInfo = pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES);
-            signature = packageInfo.signatures[0];
-        }
-        MessageDigest digest = MessageDigest.getInstance("SHA1");
-        return digest.digest(signature.toByteArray());
     }
 
     static Context createContextForUser(Context context, int userid) throws Throwable {

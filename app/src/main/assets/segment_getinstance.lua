@@ -25,7 +25,8 @@ function before(hook, param)
         analytics:optOut(true)
         return true
     elseif type(analytics.optOut) == 'userdata' then
-        analytics.optOut:set(false)
+        -- AtomicBoolean, true is opted out
+        analytics.optOut:set(true)
         return true
     else
         return false

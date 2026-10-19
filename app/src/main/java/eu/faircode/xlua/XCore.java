@@ -74,7 +74,7 @@ class XCore {
     private static final String PROP_ENGINE = "eu.faircode.xlua.engine";
 
     private static volatile XBackend backend = null;
-    private static int version = -1;
+    private static volatile int version = -1;
 
     // Usage reports are sent in batches, with the last report per hook and event
     private final Map<String, Map<String, Bundle>> queue = new HashMap<>();
@@ -309,7 +309,7 @@ class XCore {
         settings.putAll(Data.getSettings(context, packageName));
 
         // Hooks with the same script share the compiled script
-        Map<ScriptHolder, Prototype> scripts = new HashMap<>();
+        Map<String, Prototype> scripts = new HashMap<>();
 
         PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
         long versionCode = PackageInfoCompat.getLongVersionCode(pi);
@@ -318,14 +318,8 @@ class XCore {
                 if (!hook.isAvailable(versionCode))
                     continue;
 
-                long install = SystemClock.elapsedRealtime();
+                // Only install errors are reported, see XProvider.report
                 install(context, hook, compile(hook, scripts), settings);
-
-                if (BuildConfig.DEBUG) {
-                    Bundle data = new Bundle();
-                    data.putLong("duration", SystemClock.elapsedRealtime() - install);
-                    report(context, hook.getId(), null, "install", data);
-                }
             } catch (Throwable ex) {
                 if (hook.isOptional() &&
                         (ex instanceof NoSuchFieldException ||
@@ -344,13 +338,13 @@ class XCore {
             }
     }
 
-    private static Prototype compile(XHook hook, Map<ScriptHolder, Prototype> scripts) throws Throwable {
-        ScriptHolder sh = new ScriptHolder(hook.getLuaScript());
-        Prototype compiled = scripts.get(sh);
+    private static Prototype compile(XHook hook, Map<String, Prototype> scripts) throws Throwable {
+        String script = hook.getLuaScript();
+        Prototype compiled = scripts.get(script);
         if (compiled == null) {
             compiled = LuaC.instance.compile(
-                    new ByteArrayInputStream(sh.script.getBytes(StandardCharsets.UTF_8)), "script");
-            scripts.put(sh, compiled);
+                    new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)), "script");
+            scripts.put(script, compiled);
         }
         return compiled;
     }
@@ -557,30 +551,41 @@ class XCore {
             }
     }
 
+    // The standard libraries, once per thread, because loading them takes much longer than running a script:
+    // base, bit32, coroutine, io, math, os, package, string, table, luajava (and debug in debug builds)
+    private static final ThreadLocal<Globals> libraries = new ThreadLocal<Globals>() {
+        @Override
+        protected Globals initialValue() {
+            Globals globals = JsePlatform.standardGlobals();
+            if (BuildConfig.DEBUG)
+                globals.load(new DebugLib());
+            return globals;
+        }
+    };
+
+    // The globals of a hook on the current thread
     private static Globals getGlobals(Context context, XHook hook, Map<String, String> settings) {
-        Globals globals = JsePlatform.standardGlobals();
-        // base, bit32, coroutine, io, math, os, package, string, table, luajava
-
-        if (BuildConfig.DEBUG)
-            globals.load(new DebugLib());
-
-        globals.set("log", new LuaLog(context.getPackageName(), context.getApplicationInfo().uid, hook.getId()));
-        globals.set("hook", new LuaHook(context, hook.getId(), settings));
-
-        return new LuaLocals(globals);
+        LuaLocals globals = new LuaLocals(libraries.get());
+        globals.rawset("log", new LuaLog(context.getPackageName(), context.getApplicationInfo().uid, hook.getId()));
+        globals.rawset("hook", new LuaHook(context, hook.getId(), settings));
+        return globals;
     }
 
-    // Scripts can define functions, but no other globals
+    // Scripts can define functions, but no other globals; the libraries are shared by the hooks of a thread
     private static class LuaLocals extends Globals {
-        LuaLocals(Globals globals) {
-            this.presize(globals.length(), 0);
-            Varargs entry = globals.next(LuaValue.NIL);
-            while (!entry.arg1().isnil()) {
-                LuaValue key = entry.arg1();
-                LuaValue value = entry.arg(2);
-                super.rawset(key, value);
-                entry = globals.next(entry.arg1());
-            }
+        LuaLocals(Globals libraries) {
+            // Same runtime, so errors have a traceback in debug builds
+            this.STDOUT = libraries.STDOUT;
+            this.STDERR = libraries.STDERR;
+            this.finder = libraries.finder;
+            this.baselib = libraries.baselib;
+            this.package_ = libraries.package_;
+            this.debuglib = libraries.debuglib;
+            this.loader = libraries.loader;
+            this.compiler = libraries.compiler;
+            this.undumper = libraries.undumper;
+            this.running = libraries.running;
+            super.setmetatable(LuaValue.tableOf(new LuaValue[]{LuaValue.INDEX, libraries}));
         }
 
         @Override
@@ -651,13 +656,19 @@ class XCore {
                         execute("after", call);
                     }
 
+                    // Errors must not reach the app, which the modern API would let through
                     private void execute(String when, XCall call) {
-                        Log.i(TAG, "Dynamic invoke " + call.method);
-                        List<LuaValue> values = new ArrayList<>();
-                        values.add(LuaValue.valueOf(when));
-                        values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
-                        values.addAll(xargs);
-                        fun.invoke(values.toArray(new LuaValue[0]));
+                        try {
+                            if (BuildConfig.DEBUG)
+                                Log.i(TAG, "Dynamic invoke " + call.method);
+                            List<LuaValue> values = new ArrayList<>();
+                            values.add(LuaValue.valueOf(when));
+                            values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
+                            values.addAll(xargs);
+                            fun.invoke(values.toArray(new LuaValue[0]));
+                        } catch (Throwable ex) {
+                            Log.e(TAG, "Dynamic hook " + hookId + " " + call.method + ": " + Log.getStackTraceString(ex));
+                        }
                     }
                 });
             } catch (Throwable ex) {
@@ -685,35 +696,6 @@ class XCore {
             Log.i(TAG, "Log " + packageName + ":" + uid + " " + hook + " " +
                     arg.toString() + " (" + arg.typename() + ")");
             return LuaValue.NIL;
-        }
-    }
-
-    // Scripts without comments and indentation, to compile scripts which differ in these once
-    private static class ScriptHolder {
-        final String script;
-
-        ScriptHolder(String script) {
-            String[] lines = script.split("\\r?\\n");
-            StringBuilder sb = new StringBuilder();
-            for (String line : lines) {
-                if (!line.startsWith("--"))
-                    sb.append(line.trim());
-                sb.append("\n");
-            }
-            this.script = sb.toString();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (!(obj instanceof ScriptHolder))
-                return false;
-            ScriptHolder other = (ScriptHolder) obj;
-            return this.script.equals(other.script);
-        }
-
-        @Override
-        public int hashCode() {
-            return this.script.hashCode();
         }
     }
 }

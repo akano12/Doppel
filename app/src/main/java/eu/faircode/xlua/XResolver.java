@@ -61,12 +61,13 @@ final class XResolver {
                 if (name.equals(field.getName()) && (type == null || field.getType().equals(type)))
                     return field;
 
-        // Help finding the right definition
-        for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass()) {
-            Log.i(TAG, c.toString());
-            for (Field field : c.getDeclaredFields())
-                Log.i(TAG, "- " + field);
-        }
+        // Help finding the right definition, in debug builds only, because this runs on each app start
+        if (BuildConfig.DEBUG)
+            for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass()) {
+                Log.i(TAG, c.toString());
+                for (Field field : c.getDeclaredFields())
+                    Log.i(TAG, "- " + field);
+            }
         throw new NoSuchFieldException(name);
     }
 
@@ -93,19 +94,21 @@ final class XResolver {
                 for (int i = 0; i < mparams.length && same; i++)
                     same = mparams[i].isAssignableFrom(params[i]);
                 if (same) {
-                    Log.i(TAG, "Resolved member=" + member);
+                    if (BuildConfig.DEBUG)
+                        Log.i(TAG, "Resolved member=" + member);
                     return member;
                 }
             }
         }
 
-        // Help finding the right definition
-        for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass()) {
-            Log.i(TAG, c.toString());
-            for (Member member : name == null ? c.getDeclaredConstructors() : c.getDeclaredMethods())
-                if (name == null || name.equals(member.getName()))
-                    Log.i(TAG, "- " + member);
-        }
+        // Help finding the right definition, in debug builds only
+        if (BuildConfig.DEBUG)
+            for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass()) {
+                Log.i(TAG, c.toString());
+                for (Member member : name == null ? c.getDeclaredConstructors() : c.getDeclaredMethods())
+                    if (name == null || name.equals(member.getName()))
+                        Log.i(TAG, "- " + member);
+            }
         throw new NoSuchMethodException(name);
     }
 }

@@ -843,6 +843,9 @@
     "returnType": "android.database.Cursor",
     "minSdk": 1,
     "maxSdk": 25,
+    "settings": [
+      "contacts.starred"
+    ],
     "luaScript": "@contentresolver_query"
   },
   {
@@ -863,6 +866,9 @@
     "returnType": "android.database.Cursor",
     "minSdk": 16,
     "maxSdk": 25,
+    "settings": [
+      "contacts.starred"
+    ],
     "luaScript": "@contentresolver_query"
   },
   {
@@ -880,6 +886,9 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 26,
+    "settings": [
+      "contacts.starred"
+    ],
     "luaScript": "@contentresolver_query"
   },
   {
@@ -953,6 +962,9 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 26,
+    "settings": [
+      "contacts.starred"
+    ],
     "luaScript": "@contentresolver_query"
   },
   {
@@ -1003,6 +1015,12 @@
     ],
     "returnType": "android.location.Location",
     "minSdk": 1,
+    "settings": [
+      "location.type",
+      "location.latitude",
+      "location.longitude",
+      "location.accuracy"
+    ],
     "luaScript": "@location_createfromparcel"
   },
   {
@@ -1427,6 +1445,9 @@
     ],
     "returnType": "android.accounts.Account",
     "minSdk": 5,
+    "settings": [
+      "value.email"
+    ],
     "luaScript": "@account_createfromparcel"
   },
   // Read clipboard
@@ -1474,6 +1495,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 26,
+    "settings": [
+      "value.serial"
+    ],
     "luaScript": "@value_serial"
   },
   {
@@ -1488,6 +1512,9 @@
     "returnType": "java.lang.String",
     "minSdk": 9,
     "usage": false,
+    "settings": [
+      "value.serial"
+    ],
     "luaScript": "@value_serial"
   },
   {
@@ -1786,6 +1813,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 3,
+    "settings": [
+      "value.android_id"
+    ],
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -1800,6 +1830,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "settings": [
+      "value.serial"
+    ],
     "luaScript": "@systemproperties_get"
   },
   {
@@ -1815,6 +1848,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "settings": [
+      "value.serial"
+    ],
     "luaScript": "@systemproperties_get"
   },
   // Read network data
@@ -2181,7 +2217,7 @@
     ],
     "returnType": "int",
     "minSdk": 22,
-    "luaScript": "@generic_mcc_value"
+    "luaScript": "@generic_test_network_code"
   },
   {
     "collection": "Privacy",
@@ -2194,7 +2230,7 @@
     ],
     "returnType": "int",
     "minSdk": 22,
-    "luaScript": "@generic_mnc_value"
+    "luaScript": "@generic_test_network_code"
   },
   {
     "collection": "Privacy",
@@ -2207,6 +2243,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 22,
+    "settings": [
+      "value.phone_number"
+    ],
     "luaScript": "@value_phone_number"
   },
   {
@@ -2234,6 +2273,10 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "settings": [
+      "value.imei",
+      "value.meid"
+    ],
     "luaScript": "@value_device_id"
   },
   {
@@ -2250,6 +2293,10 @@
     "minSdk": 1,
     // officially SDK 23
     "optional": true,
+    "settings": [
+      "value.imei",
+      "value.meid"
+    ],
     "luaScript": "@value_device_id"
   },
   {
@@ -2276,6 +2323,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 26,
+    "settings": [
+      "value.imei"
+    ],
     "luaScript": "@value_imei"
   },
   {
@@ -2290,6 +2340,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 26,
+    "settings": [
+      "value.imei"
+    ],
     "luaScript": "@value_imei"
   },
   {
@@ -2302,6 +2355,9 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 34,
+    "settings": [
+      "value.imei"
+    ],
     "luaScript": "@value_imei"
   },
   {
@@ -2316,6 +2372,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "settings": [
+      "value.phone_number"
+    ],
     "luaScript": "@value_phone_number"
   },
   {
@@ -2329,6 +2388,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 26,
+    "settings": [
+      "value.meid"
+    ],
     "luaScript": "@value_meid"
   },
   {
@@ -2343,6 +2405,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 26,
+    "settings": [
+      "value.meid"
+    ],
     "luaScript": "@value_meid"
   },
   {
@@ -2412,6 +2477,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "settings": [
+      "value.phone_number"
+    ],
     "luaScript": "@value_phone_number"
   },
   {
@@ -2425,6 +2493,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "settings": [
+      "value.phone_number"
+    ],
     "luaScript": "@value_phone_number"
   },
   {
@@ -2464,6 +2535,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 33,
+    "settings": [
+      "value.phone_number"
+    ],
     "luaScript": "@value_phone_number_nonnull"
   },
   {
@@ -2479,6 +2553,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 33,
+    "settings": [
+      "value.phone_number"
+    ],
     "luaScript": "@value_phone_number_nonnull"
   },
   // The type allocation code identifies the device model
@@ -3984,6 +4061,9 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 3,
+    "settings": [
+      "value.android_id"
+    ],
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -4436,6 +4516,9 @@
     "returnType": "java.util.TimeZone",
     "minSdk": 1,
     "optional": true,
+    "settings": [
+      "value.timezone"
+    ],
     "luaScript": "@timezone"
   },
   {
@@ -4448,6 +4531,9 @@
     "parameterTypes": [],
     "returnType": "java.util.TimeZone",
     "minSdk": 1,
+    "settings": [
+      "value.timezone"
+    ],
     "luaScript": "@timezone"
   },
   {
@@ -4462,6 +4548,9 @@
     ],
     "returnType": "void",
     "minSdk": 1,
+    "settings": [
+      "value.timezone"
+    ],
     "luaScript": "@timezone"
   },
   {
@@ -4474,6 +4563,9 @@
     "parameterTypes": [],
     "returnType": "android.icu.util.TimeZone",
     "minSdk": 24,
+    "settings": [
+      "value.timezone"
+    ],
     "luaScript": "@timezone"
   },
   // Read device features
@@ -4489,6 +4581,9 @@
     "parameterTypes": [],
     "returnType": "[Landroid.content.pm.FeatureInfo;",
     "minSdk": 5,
+    "settings": [
+      "features.hide"
+    ],
     "luaScript": "@features"
   },
   {
@@ -4503,6 +4598,9 @@
     ],
     "returnType": "boolean",
     "minSdk": 5,
+    "settings": [
+      "features.hide"
+    ],
     "luaScript": "@features"
   },
   {
@@ -4518,6 +4616,9 @@
     ],
     "returnType": "boolean",
     "minSdk": 24,
+    "settings": [
+      "features.hide"
+    ],
     "luaScript": "@features"
   },
   // Read VPN state

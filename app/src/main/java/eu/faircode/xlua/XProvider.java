@@ -24,7 +24,6 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.content.res.Resources;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -46,13 +45,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 // The service in system server, called through the settings provider (see XCore.hookSettings).
 // Apps can report usage and read their own restrictions and settings, everything else
-// is limited to system server, the app and the pro companion app.
+// is limited to system server and the app.
 class XProvider {
     private final static String TAG = "XLua.Provider";
 
@@ -125,7 +123,7 @@ class XProvider {
         }
     }
 
-    // Methods ending in 2 return parcels, the others JSON, which the pro companion app uses
+    // Methods ending in 2 return parcels
     static Cursor query(Context context, String method, String[] selection) throws RemoteException {
         loadData(context);
 
@@ -137,7 +135,6 @@ class XProvider {
 
             // Apps read their own restrictions and settings
             switch (method) {
-                case "getAssignedHooks":
                 case "getAssignedHooks2":
                 case "getSettings":
                     break;
@@ -146,20 +143,17 @@ class XProvider {
             }
 
             switch (method) {
-                case "getHooks":
-                    result = getHooks(context, selection, false);
-                    break;
                 case "getHooks2":
-                    result = getHooks(context, selection, true);
+                    result = getHooks(selection);
                     break;
                 case "getApps2":
                     result = getApps(context, selection);
                     break;
-                case "getAssignedHooks":
-                    result = getAssignedHooks(context, selection, false);
-                    break;
                 case "getAssignedHooks2":
-                    result = getAssignedHooks(context, selection, true);
+                    result = getAssignedHooks(context, selection);
+                    break;
+                case "getAssignments":
+                    result = getAssignments();
                     break;
                 case "getSettings":
                     result = getSettings(context, selection);
@@ -248,8 +242,13 @@ class XProvider {
         return new Bundle();
     }
 
-    private static Cursor getHooks(Context context, String[] selection, boolean marshall) throws Throwable {
-        boolean all = (selection != null && selection.length == 1 && "all".equals(selection[0]));
+    // Selection: whether to include definitions which are not available (disabled, other collection or Android version)
+    // and whether to include the scripts, which most screens of the app do not need
+    private static Cursor getHooks(String[] selection) throws Throwable {
+        if (selection == null || selection.length != 2)
+            throw new IllegalArgumentException("selection invalid");
+        boolean all = Boolean.parseBoolean(selection[0]);
+        boolean lua = Boolean.parseBoolean(selection[1]);
         List<String> collection = getCollection(Util.getUserId(Binder.getCallingUid()));
 
         List<XHook> hv = new ArrayList<>();
@@ -260,15 +259,16 @@ class XProvider {
         }
         Collections.sort(hv, (h1, h2) -> h1.getId().compareTo(h2.getId()));
 
-        MatrixCursor result = new MatrixCursor(new String[]{marshall ? "blob" : "json"});
+        MatrixCursor result = new MatrixCursor(new String[]{"blob"});
         for (XHook hook : hv)
-            result.addRow(new Object[]{marshall ? hook.marshall(true) : hook.toJSON()});
+            result.addRow(new Object[]{hook.marshall(lua)});
         return result;
     }
 
+    // The definitions are kept only when all could be loaded, so a failure is retried on the next call
     private static void loadHooks(Context context) throws Throwable {
-        hooks = new HashMap<>();
-        builtins = new HashMap<>();
+        final Map<String, XHook> hooks = new HashMap<>();
+        final Map<String, XHook> builtins = new HashMap<>();
 
         // Built-in definitions
         PackageManager pm = context.getPackageManager();
@@ -279,21 +279,31 @@ class XProvider {
             hooks.put(builtin.getId(), builtin);
         }
 
-        // Custom definitions
+        // Custom definitions; an invalid one should not disable all others
         db.read(d -> {
-            try (Cursor cursor = d.query("hook", new String[]{"definition"}, null, null, null, null, null)) {
-                while (cursor.moveToNext()) {
-                    XHook hook = XHook.fromJSON(cursor.getString(0));
-                    hook.resolveClassName(context);
-                    hooks.put(hook.getId(), hook);
-                }
+            try (Cursor cursor = d.query("hook", new String[]{"id", "definition"}, null, null, null, null, null)) {
+                while (cursor.moveToNext())
+                    try {
+                        XHook hook = XHook.fromJSON(cursor.getString(1));
+                        hook.resolveClassName(context);
+                        hooks.put(hook.getId(), hook);
+                    } catch (Throwable ex) {
+                        Log.e(TAG, "Invalid definition id=" + cursor.getString(0) + ": " + ex);
+                    }
             }
             return null;
         });
 
         Log.i(TAG, "Loaded hook definitions hooks=" + hooks.size() + " builtins=" + builtins.size());
+        XProvider.builtins = builtins;
+        XProvider.hooks = hooks;
 
-        assignNewBuiltins();
+        // Restrictions keep working without the new assignments
+        try {
+            assignNewBuiltins();
+        } catch (Throwable ex) {
+            Log.e(TAG, Log.getStackTraceString(ex));
+        }
     }
 
     // Built-in hooks added by an update are assigned to the apps which restrict their group,
@@ -355,15 +365,8 @@ class XProvider {
                 Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + count);
             }
 
-            if (!added.isEmpty() || known.size() != builtins.size()) {
-                ContentValues cv = new ContentValues();
-                cv.put("user", -1);
-                cv.put("category", "service");
-                cv.put("name", "builtins");
-                cv.put("value", TextUtils.join(",", builtins.keySet()));
-                if (d.insertWithOnConflict("setting", null, cv, SQLiteDatabase.CONFLICT_REPLACE) < 0)
-                    throw new Throwable("Error inserting setting");
-            }
+            if (!added.isEmpty() || known.size() != builtins.size())
+                writeSetting(d, -1, "service", "builtins", TextUtils.join(",", builtins.keySet()));
             return null;
         });
     }
@@ -407,7 +410,8 @@ class XProvider {
                         app.uid = ai.uid;
                         app.packageName = ai.packageName;
                         app.icon = ai.icon;
-                        app.label = (String) pm.getApplicationLabel(ai);
+                        // A label with styling is not a String
+                        app.label = pm.getApplicationLabel(ai).toString();
                         app.enabled = enabled;
                         app.persistent = persistent;
                         app.system = system;
@@ -436,12 +440,9 @@ class XProvider {
             }
 
             // Assigned hooks
-            int start = Util.getUserUid(userid, 0);
-            int end = Util.getUserUid(userid, Process.LAST_APPLICATION_UID);
             try (Cursor cursor = d.query("assignment",
                     new String[]{"package", "uid", "hook", "installed", "used", "restricted", "exception"},
-                    "uid >= ? AND uid <= ?", new String[]{Integer.toString(start), Integer.toString(end)},
-                    null, null, null)) {
+                    "uid >= ? AND uid <= ?", getUidRange(userid), null, null, null)) {
                 while (cursor.moveToNext()) {
                     String pkg = cursor.getString(0);
                     XApp app = apps.get(pkg);
@@ -531,7 +532,7 @@ class XProvider {
             throw new Throwable("Error inserting assignment");
     }
 
-    private static Cursor getAssignedHooks(Context context, String[] selection, final boolean marshall) throws Throwable {
+    private static Cursor getAssignedHooks(Context context, String[] selection) throws Throwable {
         if (selection == null || selection.length != 2)
             throw new IllegalArgumentException("selection invalid");
 
@@ -540,7 +541,7 @@ class XProvider {
         enforceCallerOrPermission(context, uid);
 
         final List<String> collection = getCollection(Util.getUserId(uid));
-        final MatrixCursor result = new MatrixCursor(new String[]{marshall ? "blob" : "json", "used"});
+        final MatrixCursor result = new MatrixCursor(new String[]{"blob", "used"});
         db.read(d -> {
             try (Cursor cursor = d.query("assignment", new String[]{"hook", "used"},
                     "package = ? AND uid = ?", new String[]{packageName, Integer.toString(uid)},
@@ -554,7 +555,7 @@ class XProvider {
                                 Log.w(TAG, "Hook " + hookid + " not found");
                         } else if (hook.isAvailable(packageName, collection))
                             result.newRow()
-                                    .add(marshall ? hook.marshall(true) : hook.toJSON())
+                                    .add(hook.marshall(true))
                                     .add(cursor.getString(1));
                     }
                 }
@@ -651,18 +652,28 @@ class XProvider {
         return sb.toString();
     }
 
+    // All assignments of the apps of the user of the caller, also of hooks which are not available, for backups
+    private static Cursor getAssignments() throws Throwable {
+        final String[] range = getUidRange(Util.getUserId(Binder.getCallingUid()));
+        return db.read(d -> {
+            Cursor cursor = d.query("assignment", new String[]{"package", "uid", "hook"},
+                    "uid >= ? AND uid <= ?", range, null, null, "package, hook");
+            // Fill the cursor window while holding the lock
+            cursor.getCount();
+            return cursor;
+        });
+    }
+
     // The last restriction of each hook of the apps of the user of the caller
     private static Cursor getLog(String[] selection) throws Throwable {
         if (selection != null)
             throw new IllegalArgumentException("selection invalid");
 
-        int userid = Util.getUserId(Binder.getCallingUid());
-        final String start = Integer.toString(Util.getUserUid(userid, 0));
-        final String end = Integer.toString(Util.getUserUid(userid, Process.LAST_APPLICATION_UID));
+        final String[] range = getUidRange(Util.getUserId(Binder.getCallingUid()));
         return db.read(d -> {
             Cursor cursor = d.query("assignment",
                     new String[]{"package", "uid", "hook", "used", "old", "new"},
-                    "restricted = 1 AND uid >= ? AND uid <= ?", new String[]{start, end},
+                    "restricted = 1 AND uid >= ? AND uid <= ?", range,
                     null, null, "used DESC");
             // Fill the cursor window while holding the lock
             cursor.getCount();
@@ -704,11 +715,15 @@ class XProvider {
         final boolean full = extras.getBoolean("settings", false);
         final int userid = Util.getUserId(uid);
 
-        long[] counts = db.write(d -> new long[]{
-                d.delete("assignment", "package = ? AND uid = ?",
-                        new String[]{packageName, Integer.toString(uid)}),
-                full ? d.delete("setting", "user = ? AND category = ?",
-                        new String[]{Integer.toString(userid), packageName}) : 0
+        final String[] where = new String[]{packageName, Integer.toString(uid)};
+        long[] counts = db.write(d -> {
+            // Last use of the groups, so the first use is notified again
+            d.delete("`group`", "package = ? AND uid = ?", where);
+            return new long[]{
+                    d.delete("assignment", "package = ? AND uid = ?", where),
+                    full ? d.delete("setting", "user = ? AND category = ?",
+                            new String[]{Integer.toString(userid), packageName}) : 0
+            };
         });
 
         if (kill)
@@ -727,12 +742,13 @@ class XProvider {
         db.write(d -> {
             if (userid == 0) {
                 d.delete("assignment", null, null);
-                d.delete("setting", null, null);
+                d.delete("`group`", null, null);
+                // The built-in hooks known to the service (user -1) are not data of a user
+                d.delete("setting", "user >= 0", null);
             } else {
-                int start = Util.getUserUid(userid, 0);
-                int end = Util.getUserUid(userid, Process.LAST_APPLICATION_UID);
-                d.delete("assignment", "uid >= ? AND uid <= ?",
-                        new String[]{Integer.toString(start), Integer.toString(end)});
+                String[] range = getUidRange(userid);
+                d.delete("assignment", "uid >= ? AND uid <= ?", range);
+                d.delete("`group`", "uid >= ? AND uid <= ?", range);
                 d.delete("setting", "user = ?", new String[]{Integer.toString(userid)});
             }
             return null;
@@ -791,19 +807,7 @@ class XProvider {
         Log.i(TAG, "Put setting " + userid + ":" + category + " " + name + "=" + value);
 
         db.write(d -> {
-            if (value == null) {
-                if (d.delete("setting", "user = ? AND category = ? AND name = ?",
-                        new String[]{Integer.toString(userid), category, name}) < 0)
-                    throw new Throwable("Error deleting setting");
-            } else {
-                ContentValues cv = new ContentValues();
-                cv.put("user", userid);
-                cv.put("category", category);
-                cv.put("name", name);
-                cv.put("value", value);
-                if (d.insertWithOnConflict("setting", null, cv, SQLiteDatabase.CONFLICT_REPLACE) < 0)
-                    throw new Throwable("Error inserting setting");
-            }
+            writeSetting(d, userid, category, name, value);
             return null;
         });
 
@@ -811,6 +815,31 @@ class XProvider {
             forceStop(context, category, userid);
 
         return new Bundle();
+    }
+
+    // A null value deletes the setting
+    private static void writeSetting(SQLiteDatabase d, int userid, String category, String name, String value)
+            throws Throwable {
+        if (value == null) {
+            if (d.delete("setting", "user = ? AND category = ? AND name = ?",
+                    new String[]{Integer.toString(userid), category, name}) < 0)
+                throw new Throwable("Error deleting setting");
+        } else {
+            ContentValues cv = new ContentValues();
+            cv.put("user", userid);
+            cv.put("category", category);
+            cv.put("name", name);
+            cv.put("value", value);
+            if (d.insertWithOnConflict("setting", null, cv, SQLiteDatabase.CONFLICT_REPLACE) < 0)
+                throw new Throwable("Error inserting setting");
+        }
+    }
+
+    // Selection arguments for the uids of the apps of a user
+    private static String[] getUidRange(int userid) {
+        return new String[]{
+                Integer.toString(Util.getUserUid(userid, 0)),
+                Integer.toString(Util.getUserUid(userid, Process.LAST_APPLICATION_UID))};
     }
 
     // Settings of a category (global or a package name) of an app
@@ -858,7 +887,7 @@ class XProvider {
             enforcePermission(context);
     }
 
-    // System server, the app and the pro companion app
+    // System server and the app
     private static void enforcePermission(Context context) throws SecurityException {
         int cuid = Util.getAppId(Binder.getCallingUid());
 
@@ -874,17 +903,6 @@ class XProvider {
             if (pm.checkSignatures(cuid, uid) == PackageManager.SIGNATURE_MATCH)
                 return;
 
-            // The pro companion app (exact SHA-1 certificate fingerprint)
-            String[] cpkg = pm.getPackagesForUid(cuid);
-            if (cpkg != null && cpkg.length > 0) {
-                StringBuilder sb = new StringBuilder();
-                for (byte b : Util.getSha1Fingerprint(context, cpkg[0]))
-                    sb.append(String.format(Locale.ROOT, "%02x", b & 0xff));
-
-                Resources resources = pm.getResourcesForApplication(BuildConfig.APPLICATION_ID);
-                if (sb.toString().equals(resources.getString(R.string.pro_fingerprint)))
-                    return;
-            }
             throw new SecurityException("Signature error cuid=" + cuid);
         } catch (SecurityException ex) {
             throw ex;

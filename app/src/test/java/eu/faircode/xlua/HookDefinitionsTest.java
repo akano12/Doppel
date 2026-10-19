@@ -34,9 +34,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -121,6 +125,36 @@ public class HookDefinitionsTest {
             assertTrue("Unreferenced script " + file.getName(), referenced.contains(file.getName()));
     }
 
+    // The settings attribute declares the settings a script reads, which the values screen offers.
+    // Scripts shared by hooks can read a setting for some of the hooks only.
+    @Test
+    public void settingsAreDeclared() throws Exception {
+        Pattern pattern = Pattern.compile("getSetting\\('([^']+)'\\)");
+        Map<String, Set<String>> read = new HashMap<>();
+        Map<String, Set<String>> declared = new HashMap<>();
+        for (JSONObject hook : hooks) {
+            String script = hook.getString("luaScript");
+            if (!read.containsKey(script)) {
+                Set<String> keys = new HashSet<>();
+                Matcher m = pattern.matcher(read(new File(ASSETS, script.substring(1) + ".lua")));
+                while (m.find())
+                    keys.add(m.group(1));
+                read.put(script, keys);
+                declared.put(script, new HashSet<>());
+            }
+
+            JSONArray jsettings = hook.optJSONArray("settings");
+            if (jsettings != null)
+                for (int i = 0; i < jsettings.length(); i++) {
+                    String key = jsettings.getString(i);
+                    assertTrue(hook.getString("name") + " does not read " + key, read.get(script).contains(key));
+                    declared.get(script).add(key);
+                }
+        }
+        for (String script : read.keySet())
+            assertEquals("Settings of " + script, read.get(script), declared.get(script));
+    }
+
     // Framework hooks must exist in the SDK the app is compiled against,
     // unless they are optional, hidden or limited to older versions
     @Test
@@ -145,7 +179,7 @@ public class HookDefinitionsTest {
                 JSONArray jparams = hook.getJSONArray("parameterTypes");
                 Class<?>[] params = new Class<?>[jparams.length()];
                 for (int i = 0; i < params.length; i++)
-                    params[i] = resolveClass(jparams.getString(i));
+                    params[i] = XResolver.resolveClass(jparams.getString(i), getClass().getClassLoader());
 
                 String methodName = hook.optString("methodName", null);
                 if (methodName == null)
@@ -182,36 +216,6 @@ public class HookDefinitionsTest {
             } catch (NoSuchFieldException ignored) {
             }
         throw new NoSuchFieldException(cls.getName() + "." + name);
-    }
-
-    // Same type names as XLua.resolveClass
-    private static Class<?> resolveClass(String name) throws ClassNotFoundException {
-        switch (name) {
-            case "boolean":
-                return boolean.class;
-            case "byte":
-                return byte.class;
-            case "char":
-                return char.class;
-            case "short":
-                return short.class;
-            case "int":
-                return int.class;
-            case "long":
-                return long.class;
-            case "float":
-                return float.class;
-            case "double":
-                return double.class;
-            case "byte[]":
-                return byte[].class;
-            case "int[]":
-                return int[].class;
-            case "long[]":
-                return long[].class;
-            default:
-                return Class.forName(name, false, HookDefinitionsTest.class.getClassLoader());
-        }
     }
 
     // The SDK level of the android.jar on the unit test class path

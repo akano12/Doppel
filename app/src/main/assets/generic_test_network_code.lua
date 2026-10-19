@@ -21,7 +21,7 @@ function after(hook, param)
         return false
     end
 
-    local fake = 1 -- test network
+    local fake = 1 -- MCC 001 and MNC 01 of the test network
     param:setResult(fake)
     return true, result, fake
 end

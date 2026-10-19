@@ -182,6 +182,11 @@ public class XHook implements Parcelable {
         return this.luaScript;
     }
 
+    // Names of the settings (fake values) the script reads, empty when none
+    public String[] getSettings() {
+        return (this.settings == null ? new String[0] : this.settings);
+    }
+
     // Hooks of system services hook the implementation, which can be a subclass
     public void resolveClassName(Context context) {
         try {
