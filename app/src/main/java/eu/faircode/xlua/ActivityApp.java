@@ -33,6 +33,9 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.appcompat.content.res.AppCompatResources;
+import androidx.core.graphics.ColorUtils;
+
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -80,6 +83,7 @@ public class ActivityApp extends ActivityBase {
         TextView tvMeta;
         ImageView ivExpand;
         MaterialSwitch swGroup;
+        ColorStateList track; // Of a fully restricted group
         ImageButton ibError;
         LinearLayout llHooks;
     }
@@ -245,6 +249,7 @@ public class ActivityApp extends ActivityBase {
                 gv.tvMeta = vGroup.findViewById(R.id.tvMeta);
                 gv.ivExpand = vGroup.findViewById(R.id.ivExpand);
                 gv.swGroup = vGroup.findViewById(R.id.swGroup);
+                gv.track = gv.swGroup.getTrackTintList();
                 gv.ibError = vGroup.findViewById(R.id.ibError);
                 gv.llHooks = vGroup.findViewById(R.id.llHooks);
                 String title = Groups.getTitle(this, group);
@@ -323,6 +328,13 @@ public class ActivityApp extends ActivityBase {
         gv.ibError.setVisibility(error ? View.VISIBLE : View.GONE);
         bindHooks(group, gv, hooks);
 
+        // A partially restricted group has a dash in the switch and a lighter track,
+        // like the dash of the check box to restrict all groups
+        boolean partial = (restricted && assignments.size() < hooks.size());
+        gv.swGroup.setThumbIconDrawable(partial ? AppCompatResources.getDrawable(this, R.drawable.ic_partial) : null);
+        gv.swGroup.setTrackTintList(partial
+                ? ColorStateList.valueOf(ColorUtils.setAlphaComponent(Ui.color(this, androidx.appcompat.R.attr.colorPrimary), 0x80))
+                : gv.track);
         gv.swGroup.setOnCheckedChangeListener(null);
         gv.swGroup.setChecked(!assignments.isEmpty());
         gv.swGroup.setOnCheckedChangeListener((button, checked) -> assign(group, checked));
