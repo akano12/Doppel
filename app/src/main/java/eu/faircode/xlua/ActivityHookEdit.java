@@ -323,9 +323,7 @@ public class ActivityHookEdit extends ActivityBase {
     private boolean onMenu(MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.menu_save)
-            save(null);
-        else if (id == R.id.menu_enable)
-            save(!swEnabled.isChecked());
+            save();
         else if (id == R.id.menu_delete)
             delete();
         else if (id == R.id.menu_export)
@@ -335,9 +333,6 @@ public class ActivityHookEdit extends ActivityBase {
 
     private void updateMenu() {
         boolean overrides = (hook != null && !hook.isBuiltin() && builtinIds != null && builtinIds.contains(hook.getId()));
-        MenuItem enable = toolbar.getMenu().findItem(R.id.menu_enable);
-        enable.setVisible(hook != null);
-        enable.setTitle(swEnabled.isChecked() ? R.string.menu_disable : R.string.menu_enable);
         // Only custom definitions can be deleted; deleting one replacing a built-in restores the built-in
         MenuItem delete = toolbar.getMenu().findItem(R.id.menu_delete);
         delete.setVisible(hook != null && !hook.isBuiltin());
@@ -365,14 +360,13 @@ public class ActivityHookEdit extends ActivityBase {
                 : TextUtils.join(" · ", functions));
     }
 
-    private void save(final Boolean enabled) {
+    // The switch at the bottom of the definition enables or disables it
+    private void save() {
         final JSONObject jhook;
         try {
             jhook = getDefinition();
             if (jhook == null)
                 return;
-            if (enabled != null)
-                jhook.put("enabled", enabled);
         } catch (Throwable ex) {
             Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
             return;

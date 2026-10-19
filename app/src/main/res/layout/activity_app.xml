@@ -112,11 +112,11 @@
                                     android:textAppearance="@style/XLua.Text.Meta" />
                             </LinearLayout>
 
-                            <!-- Checked: all groups, indeterminate: some groups -->
-                            <com.google.android.material.checkbox.MaterialCheckBox
-                                android:id="@+id/cbAll"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
+                            <!-- On: some or all groups, with a dash when not all hooks are restricted -->
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/swAll"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
                                 android:contentDescription="@string/title_restrict_all_groups" />
                         </LinearLayout>
 
@@ -149,10 +149,10 @@
                                     android:textAppearance="@style/XLua.Text.Meta" />
                             </LinearLayout>
 
-                            <com.google.android.material.materialswitch.MaterialSwitch
-                                android:id="@+id/swForceStop"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
+                            <com.google.android.material.checkbox.MaterialCheckBox
+                                android:id="@+id/cbForceStop"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
                                 android:contentDescription="@string/title_force_stop" />
                         </LinearLayout>
 
@@ -184,10 +184,10 @@
                                     android:textAppearance="@style/XLua.Text.Meta" />
                             </LinearLayout>
 
-                            <com.google.android.material.materialswitch.MaterialSwitch
-                                android:id="@+id/swNotify"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
+                            <com.google.android.material.checkbox.MaterialCheckBox
+                                android:id="@+id/cbNotify"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
                                 android:contentDescription="@string/title_notify_usage" />
                         </LinearLayout>
 

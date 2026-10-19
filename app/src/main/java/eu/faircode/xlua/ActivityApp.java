@@ -69,9 +69,10 @@ public class ActivityApp extends ActivityBase {
     private View svContent;
     private View pbLoading;
     private TextView tvSummary;
-    private MaterialCheckBox cbAll;
-    private MaterialSwitch swForceStop;
-    private MaterialSwitch swNotify;
+    private MaterialSwitch swAll;
+    private ColorStateList trackAll; // Of all groups fully restricted
+    private MaterialCheckBox cbForceStop;
+    private MaterialCheckBox cbNotify;
     private View llRestart;
     private TextView tvRestart;
     private Button btnForceStop;
@@ -120,20 +121,21 @@ public class ActivityApp extends ActivityBase {
         svContent = findViewById(R.id.svContent);
         pbLoading = findViewById(R.id.pbLoading);
         tvSummary = findViewById(R.id.tvSummary);
-        cbAll = findViewById(R.id.cbAll);
-        swForceStop = findViewById(R.id.swForceStop);
-        swNotify = findViewById(R.id.swNotify);
+        swAll = findViewById(R.id.swAll);
+        trackAll = swAll.getTrackTintList();
+        cbForceStop = findViewById(R.id.cbForceStop);
+        cbNotify = findViewById(R.id.cbNotify);
         llRestart = findViewById(R.id.llRestart);
         tvRestart = findViewById(R.id.tvRestart);
         btnForceStop = findViewById(R.id.btnForceStop);
 
         findViewById(R.id.llAll).setOnClickListener(view -> restrictAll());
-        cbAll.setOnClickListener(view -> restrictAll());
+        swAll.setOnClickListener(view -> restrictAll());
         findViewById(R.id.llForceStop).setOnClickListener(view -> {
-            if (swForceStop.isEnabled())
-                swForceStop.toggle();
+            if (cbForceStop.isEnabled())
+                cbForceStop.toggle();
         });
-        findViewById(R.id.llNotify).setOnClickListener(view -> swNotify.toggle());
+        findViewById(R.id.llNotify).setOnClickListener(view -> cbNotify.toggle());
         btnForceStop.setOnClickListener(view -> forceStop());
         findViewById(R.id.llValues).setOnClickListener(view -> {
             if (app != null)
@@ -187,21 +189,21 @@ public class ActivityApp extends ActivityBase {
                 getString(app.system ? R.string.badge_system : R.string.title_filter_user)));
         findViewById(R.id.llAndroid).setVisibility("android".equals(app.packageName) ? View.VISIBLE : View.GONE);
 
-        swForceStop.setOnCheckedChangeListener(null);
-        swForceStop.setChecked(app.forceStop && !app.persistent);
-        swForceStop.setEnabled(!app.persistent);
+        cbForceStop.setOnCheckedChangeListener(null);
+        cbForceStop.setChecked(app.forceStop && !app.persistent);
+        cbForceStop.setEnabled(!app.persistent);
         ((TextView) findViewById(R.id.tvForceStop)).setText(app.persistent
                 ? R.string.title_force_stop_persistent : R.string.title_force_stop_hint);
-        swForceStop.setOnCheckedChangeListener((button, checked) -> {
+        cbForceStop.setOnCheckedChangeListener((button, checked) -> {
             app.forceStop = checked;
             executor.submit(() -> Data.putSettingBoolean(this, app.packageName, "forcestop", checked));
             updateRestart();
         });
 
         // Read by the service when a hook restricts something, see XProvider.report
-        swNotify.setOnCheckedChangeListener(null);
-        swNotify.setChecked(notify);
-        swNotify.setOnCheckedChangeListener((button, checked) ->
+        cbNotify.setOnCheckedChangeListener(null);
+        cbNotify.setChecked(notify);
+        cbNotify.setOnCheckedChangeListener((button, checked) ->
                 executor.submit(() -> Data.putSettingBoolean(this, app.packageName, "notify", checked)));
 
         // Group the hooks
@@ -328,13 +330,7 @@ public class ActivityApp extends ActivityBase {
         gv.ibError.setVisibility(error ? View.VISIBLE : View.GONE);
         bindHooks(group, gv, hooks);
 
-        // A partially restricted group has a dash in the switch and a lighter track,
-        // like the dash of the check box to restrict all groups
-        boolean partial = (restricted && assignments.size() < hooks.size());
-        gv.swGroup.setThumbIconDrawable(partial ? AppCompatResources.getDrawable(this, R.drawable.ic_partial) : null);
-        gv.swGroup.setTrackTintList(partial
-                ? ColorStateList.valueOf(ColorUtils.setAlphaComponent(Ui.color(this, androidx.appcompat.R.attr.colorPrimary), 0x80))
-                : gv.track);
+        setPartial(gv.swGroup, gv.track, restricted && assignments.size() < hooks.size());
         gv.swGroup.setOnCheckedChangeListener(null);
         gv.swGroup.setChecked(!assignments.isEmpty());
         gv.swGroup.setOnCheckedChangeListener((button, checked) -> assign(group, checked));
@@ -391,6 +387,15 @@ public class ActivityApp extends ActivityBase {
         }
     }
 
+    // A partially restricted group, or all groups partially restricted,
+    // has a dash in the switch and a lighter track; track is the one of the switch when fully restricted
+    private void setPartial(MaterialSwitch sw, ColorStateList track, boolean partial) {
+        sw.setThumbIconDrawable(partial ? AppCompatResources.getDrawable(this, R.drawable.ic_partial) : null);
+        sw.setTrackTintList(partial
+                ? ColorStateList.valueOf(ColorUtils.setAlphaComponent(Ui.color(this, androidx.appcompat.R.attr.colorPrimary), 0x80))
+                : track);
+    }
+
     // All available hooks of the group are assigned
     private boolean isComplete(String group) {
         return (getAssignments(group).size() >= available.get(group).size());
@@ -406,9 +411,8 @@ public class ActivityApp extends ActivityBase {
                 complete = false;
         }
         tvSummary.setText(getString(R.string.title_groups_restricted, restricted, available.size()));
-        cbAll.setCheckedState(restricted > 0 && complete ? MaterialCheckBox.STATE_CHECKED
-                : restricted > 0 ? MaterialCheckBox.STATE_INDETERMINATE
-                : MaterialCheckBox.STATE_UNCHECKED);
+        swAll.setChecked(restricted > 0);
+        setPartial(swAll, trackAll, restricted > 0 && !complete);
     }
 
     // Restrict all hooks of all groups, or remove all restrictions when all hooks are restricted
