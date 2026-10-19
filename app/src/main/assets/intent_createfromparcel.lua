@@ -53,6 +53,33 @@ function after(hook, param)
         local stringArray = arrayClass:newInstance(stringClass, 0)
         intent:putExtra('android.intent.extra.changed_package_list', stringArray)
         return true
+    elseif name == 'battery' and action == 'android.intent.action.BATTERY_CHANGED' then
+        -- The level in steps of 10 percent and typical values instead of exact measurements,
+        -- which change slowly and together identify a device across apps
+        -- Bundle.putInt, because Lua would select Intent.putExtra(String, byte) for small numbers
+        local extras = intent:getExtras()
+        if extras == nil then
+            return false
+        end
+        local old = extras:getInt('level', -1)
+        local scale = extras:getInt('scale', 100)
+        local level = old
+        if old >= 0 and scale > 0 then
+            level = math.floor(math.floor(old * 10 / scale + 0.5) * scale / 10)
+            extras:putInt('level', level)
+        end
+        if extras:containsKey('voltage') then
+            extras:putInt('voltage', 3800)
+        end
+        if extras:containsKey('temperature') then
+            extras:putInt('temperature', 250)
+        end
+        for _, extra in ipairs({ 'charge_counter', 'max_charging_current', 'max_charging_voltage',
+                                 'android.os.extra.CYCLE_COUNT' }) do
+            extras:remove(extra)
+        end
+        intent:replaceExtras(extras)
+        return true, tostring(old), tostring(level)
     elseif name == 'message' and action == 'android.provider.Telephony.SMS_RECEIVED' then
         local objectClass = luajava.bindClass('java.lang.Object')
         local arrayClass = luajava.bindClass('java.lang.reflect.Array')

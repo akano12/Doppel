@@ -286,7 +286,9 @@
     <string name="group_get_messages">Get messages</string>
     <string name="group_get_sensors">Get sensors</string>
     <string name="group_read_account">Read account name</string>
+    <string name="group_read_battery">Read battery</string>
     <string name="group_read_clipboard">Read clipboard</string>
+    <string name="group_read_debugging">Read debugging state</string>
     <string name="group_read_identifiers">Read identifiers</string>
     <string name="group_read_network">Read network data</string>
     <string name="group_read_notifications">Read notifications</string>
@@ -304,7 +306,7 @@
 
     <!-- What the groups protect, below their titles -->
     <string name="group_desc_determine_activity">Physical activity, like walking or driving</string>
-    <string name="group_desc_get_applications">Installed apps, checks for specific apps and keyboards</string>
+    <string name="group_desc_get_applications">Installed apps, checks for specific apps, keyboards and accessibility services</string>
     <string name="group_desc_get_calendars">Calendars and events</string>
     <string name="group_desc_get_call_log">Calls made and received</string>
     <string name="group_desc_get_contacts">Contacts and their details</string>
@@ -312,9 +314,11 @@
     <string name="group_desc_get_messages">SMS and MMS messages</string>
     <string name="group_desc_get_sensors">Motion and environment sensors</string>
     <string name="group_desc_read_account">Accounts on the device, like email addresses</string>
+    <string name="group_desc_read_battery">Exact battery level, charge and wear, which help to recognize the device</string>
     <string name="group_desc_read_clipboard">Contents of the clipboard</string>
-    <string name="group_desc_read_identifiers">Device and advertising ids, serial number</string>
-    <string name="group_desc_read_network">Wi-Fi and cell networks, addresses of the device</string>
+    <string name="group_desc_read_debugging">Whether developer options and USB or wireless debugging are on</string>
+    <string name="group_desc_read_identifiers">Device and advertising ids, serial number, ids of SD cards</string>
+    <string name="group_desc_read_network">Wi-Fi and cell networks, addresses of the device, nearby Bluetooth and local network devices</string>
     <string name="group_desc_read_notifications">Notifications of other apps</string>
     <string name="group_desc_read_sync">Accounts which are being synchronized</string>
     <string name="group_desc_read_telephony">Phone number, IMEI and SIM card details</string>

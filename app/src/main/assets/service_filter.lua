@@ -13,9 +13,22 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Installed keyboards reveal installed apps and help to fingerprint devices.
--- Keyboards of other apps are hidden, like for checks for specific packages (package_probe),
--- keyboards of the system and of the app itself stay.
+-- Installed keyboards and accessibility services reveal installed apps and help to fingerprint devices.
+-- Services of other apps are hidden, like for checks for specific packages (package_probe),
+-- services of the system and of the app itself stay.
+
+-- Whether a service is of a system app or of the app itself. The app of a service is part of the
+-- service info, so this works for apps which are hidden by the package visibility rules too.
+function visible(hook, param, item)
+    local ai
+    if hook:getClassName() == 'android.view.accessibility.AccessibilityManager' then
+        ai = item:getResolveInfo().serviceInfo.applicationInfo -- AccessibilityServiceInfo
+    else
+        ai = item:getServiceInfo().applicationInfo -- InputMethodInfo
+    end
+    -- ApplicationInfo.FLAG_SYSTEM (1) or FLAG_UPDATED_SYSTEM_APP (128)
+    return ai.uid == param:getUid() or bit32.band(ai.flags, 129) ~= 0
+end
 
 function after(hook, param)
     local result = param:getResult()
@@ -24,7 +37,7 @@ function after(hook, param)
     end
 
     if hook:getMethodName() == 'getCurrentInputMethodInfo' then
-        if param:isPackageVisible(result:getPackageName()) then
+        if visible(hook, param, result) then
             return false
         end
         param:setResult(nil)
@@ -35,7 +48,7 @@ function after(hook, param)
     local items = result:toArray()
     local list = luajava.newInstance('java.util.ArrayList')
     for index = 1, items['length'] do
-        if param:isPackageVisible(items[index]:getPackageName()) then
+        if visible(hook, param, items[index]) then
             list:add(items[index])
         else
             filtered = true

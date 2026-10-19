@@ -386,7 +386,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 3,
-    "luaScript": "@inputmethod_filter"
+    "luaScript": "@service_filter"
   },
   {
     "collection": "Privacy",
@@ -398,7 +398,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 3,
-    "luaScript": "@inputmethod_filter"
+    "luaScript": "@service_filter"
   },
   {
     "collection": "Privacy",
@@ -410,7 +410,7 @@
     "parameterTypes": [],
     "returnType": "android.view.inputmethod.InputMethodInfo",
     "minSdk": 34,
-    "luaScript": "@inputmethod_filter"
+    "luaScript": "@service_filter"
   },
   {
     "collection": "Privacy",
@@ -4776,5 +4776,483 @@
     "returnType": "java.net.NetworkInterface",
     "minSdk": 19,
     "luaScript": "@vpn"
+  },
+  // Bluetooth scans reveal nearby beacons and devices, which locate the device like Wi-Fi scans
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothLeScanner.startScan",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.le.BluetoothLeScanner",
+    "methodName": "startScan",
+    "parameterTypes": [
+      "android.bluetooth.le.ScanCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 21,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothLeScanner.startScan/filters",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.le.BluetoothLeScanner",
+    "methodName": "startScan",
+    "parameterTypes": [
+      "java.util.List",
+      "android.bluetooth.le.ScanSettings",
+      "android.bluetooth.le.ScanCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 21,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothLeScanner.startScan/pending",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.le.BluetoothLeScanner",
+    "methodName": "startScan",
+    "parameterTypes": [
+      "java.util.List",
+      "android.bluetooth.le.ScanSettings",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
+    "luaScript": "@generic_block_zero"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothAdapter.startLeScan",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothAdapter",
+    "methodName": "startLeScan",
+    "parameterTypes": [
+      "android.bluetooth.BluetoothAdapter$LeScanCallback"
+    ],
+    "returnType": "boolean",
+    "minSdk": 18,
+    "luaScript": "@generic_block_false"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothAdapter.startLeScan/uuids",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothAdapter",
+    "methodName": "startLeScan",
+    "parameterTypes": [
+      "java.util.UUID[]",
+      "android.bluetooth.BluetoothAdapter$LeScanCallback"
+    ],
+    "returnType": "boolean",
+    "minSdk": 18,
+    "luaScript": "@generic_block_false"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothAdapter.startDiscovery",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothAdapter",
+    "methodName": "startDiscovery",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 5,
+    "luaScript": "@generic_block_false"
+  },
+  // Connected Bluetooth devices, like a car or headphones, reveal where and with what someone is
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothManager.getConnectedDevices",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothManager",
+    "methodName": "getConnectedDevices",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 18,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothManager.getDevicesMatchingConnectionStates",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothManager",
+    "methodName": "getDevicesMatchingConnectionStates",
+    "parameterTypes": [
+      "int",
+      "int[]"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 18,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothA2dp.getConnectedDevices",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothA2dp",
+    "methodName": "getConnectedDevices",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 11,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothA2dp.getDevicesMatchingConnectionStates",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothA2dp",
+    "methodName": "getDevicesMatchingConnectionStates",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 11,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothHeadset.getConnectedDevices",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothHeadset",
+    "methodName": "getConnectedDevices",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 11,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothHeadset.getDevicesMatchingConnectionStates",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothHeadset",
+    "methodName": "getDevicesMatchingConnectionStates",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 11,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothHearingAid.getConnectedDevices",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothHearingAid",
+    "methodName": "getConnectedDevices",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 29,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothHearingAid.getDevicesMatchingConnectionStates",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothHearingAid",
+    "methodName": "getDevicesMatchingConnectionStates",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 29,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothLeAudio.getConnectedDevices",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothLeAudio",
+    "methodName": "getConnectedDevices",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothLeAudio.getDevicesMatchingConnectionStates",
+    "author": "XPrivacyLua",
+    "className": "android.bluetooth.BluetoothLeAudio",
+    "methodName": "getDevicesMatchingConnectionStates",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "luaScript": "@generic_empty_list"
+  },
+  // Network service discovery finds the devices in the local network, like TVs, printers and phones with names
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.discoverServices",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "discoverServices",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "android.net.nsd.NsdManager$DiscoveryListener"
+    ],
+    "returnType": "void",
+    "minSdk": 16,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.discoverServices/network",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "discoverServices",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "android.net.Network",
+      "java.util.concurrent.Executor",
+      "android.net.nsd.NsdManager$DiscoveryListener"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.discoverServices/request",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "discoverServices",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "android.net.NetworkRequest",
+      "java.util.concurrent.Executor",
+      "android.net.nsd.NsdManager$DiscoveryListener"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.resolveService",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "resolveService",
+    "parameterTypes": [
+      "android.net.nsd.NsdServiceInfo",
+      "android.net.nsd.NsdManager$ResolveListener"
+    ],
+    "returnType": "void",
+    "minSdk": 16,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.resolveService/executor",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "resolveService",
+    "parameterTypes": [
+      "android.net.nsd.NsdServiceInfo",
+      "java.util.concurrent.Executor",
+      "android.net.nsd.NsdManager$ResolveListener"
+    ],
+    "returnType": "void",
+    "minSdk": 34,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.registerServiceInfoCallback",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "registerServiceInfoCallback",
+    "parameterTypes": [
+      "android.net.nsd.NsdServiceInfo",
+      "java.util.concurrent.Executor",
+      "android.net.nsd.NsdManager$ServiceInfoCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 34,
+    "luaScript": "@generic_block_method"
+  },
+  // Accessibility services reveal installed apps, like password managers and automation apps
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccessibilityManager.getEnabledAccessibilityServiceList",
+    "author": "XPrivacyLua",
+    "className": "android.view.accessibility.AccessibilityManager",
+    "methodName": "getEnabledAccessibilityServiceList",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 14,
+    "luaScript": "@service_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccessibilityManager.getInstalledAccessibilityServiceList",
+    "author": "XPrivacyLua",
+    "className": "android.view.accessibility.AccessibilityManager",
+    "methodName": "getInstalledAccessibilityServiceList",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 14,
+    "luaScript": "@service_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Settings.Secure.getStringForUser/accessibility",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  // Ids of SD cards and USB drives
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "StorageVolume.getUuid",
+    "author": "XPrivacyLua",
+    "className": "android.os.storage.StorageVolume",
+    "methodName": "getUuid",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 24,
+    "optional": true,
+    "luaScript": "@storage_uuid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "StorageVolume.getStorageUuid",
+    "author": "XPrivacyLua",
+    "className": "android.os.storage.StorageVolume",
+    "methodName": "getStorageUuid",
+    "parameterTypes": [],
+    "returnType": "java.util.UUID",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@storage_uuid"
+  },
+  // Battery
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "BatteryManager.getIntProperty",
+    "author": "XPrivacyLua",
+    "className": "android.os.BatteryManager",
+    "methodName": "getIntProperty",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 21,
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "BatteryManager.getLongProperty",
+    "author": "XPrivacyLua",
+    "className": "android.os.BatteryManager",
+    "methodName": "getLongProperty",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "long",
+    "minSdk": 21,
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "BatteryManager.computeChargeTimeRemaining",
+    "author": "XPrivacyLua",
+    "className": "android.os.BatteryManager",
+    "methodName": "computeChargeTimeRemaining",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 28,
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "Intent.createFromParcel/battery",
+    "author": "XPrivacyLua",
+    "className": "android.content.Intent",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 1,
+    "luaScript": "@intent_createfromparcel"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "PowerManager.getBatteryDischargePrediction",
+    "author": "XPrivacyLua",
+    "className": "android.os.PowerManager",
+    "methodName": "getBatteryDischargePrediction",
+    "parameterTypes": [],
+    "returnType": "java.time.Duration",
+    "minSdk": 31,
+    "luaScript": "@generic_null_value"
+  },
+  // Developer options and USB or wireless debugging
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Settings.Global.getStringForUser/adb",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Global",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
   }
 ]
