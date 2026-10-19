@@ -49,8 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-// Community hook definitions of the repository (repo/), packaged with the app.
-// The online repository of the pro companion app is not available anymore.
+// Community hook definitions of the repository (repo/), packaged with the app
 public class ActivityDownloads extends ActivityBase {
     private static final String TAG = "XLua.Downloads";
 

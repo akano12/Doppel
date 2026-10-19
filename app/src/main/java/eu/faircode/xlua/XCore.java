@@ -110,7 +110,7 @@ class XCore {
     static boolean isApp(String packageName, boolean firstPackage) {
         return (firstPackage &&
                 !"android".equals(packageName) &&
-                !packageName.startsWith(BuildConfig.APPLICATION_ID));
+                !BuildConfig.APPLICATION_ID.equals(packageName));
     }
 
     static void log(Throwable ex) {
@@ -231,9 +231,13 @@ class XCore {
                     if (!"xlua".equals(method))
                         return;
 
+                    // Other apps get no result, like without XPrivacyLua, so they cannot detect it this way
                     if ("getVersion".equals(arg)) {
-                        Bundle result = new Bundle();
-                        result.putInt("version", version);
+                        Bundle result = null;
+                        if (XProvider.hasPermission(getContext(call.thisObject))) {
+                            result = new Bundle();
+                            result.putInt("version", version);
+                        }
                         call.setResult(result);
                         return;
                     }

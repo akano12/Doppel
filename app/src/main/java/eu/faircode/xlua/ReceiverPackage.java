@@ -45,7 +45,7 @@ public class ReceiverPackage extends BroadcastReceiver {
             args.putInt("uid", uid);
 
             if (Intent.ACTION_PACKAGE_ADDED.equals(intent.getAction())) {
-                if (!replacing && !packageName.startsWith(BuildConfig.APPLICATION_ID)) {
+                if (!replacing && !BuildConfig.APPLICATION_ID.equals(packageName)) {
                     // Initialize app
                     call(context, "clearApp", args);
                     if (Data.getSettingBoolean(context, userid, "global", "restrict_new_apps"))

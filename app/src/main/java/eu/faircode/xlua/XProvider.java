@@ -394,7 +394,7 @@ class XProvider {
         try {
             PackageManager pm = Util.createContextForUser(context, userid).getPackageManager();
             for (ApplicationInfo ai : pm.getInstalledApplications(0))
-                if (!ai.packageName.startsWith(BuildConfig.APPLICATION_ID) &&
+                if (!BuildConfig.APPLICATION_ID.equals(ai.packageName) &&
                         (only == null || only.equals(ai.packageName)))
                     try {
                         int esetting = pm.getApplicationEnabledSetting(ai.packageName);
@@ -586,6 +586,9 @@ class XProvider {
             hook = hooks.get(hookid);
         }
 
+        // A failing hook can fail on each call, so only its first error since the start is notified
+        final boolean[] firstError = new boolean[]{false};
+
         boolean notify = Boolean.parseBoolean(getSettingValue(userid, packageName, "notify"));
         final boolean use = "use".equals(event);
         final boolean countGroup = (hook != null && use && restricted == 1 && notify);
@@ -603,6 +606,12 @@ class XProvider {
             for (String key : new String[]{"exception", "old", "new"})
                 if (data.containsKey(key))
                     cv.put(key, data.getString(key));
+            if (data.containsKey("exception"))
+                try (Cursor cursor = d.query("assignment", new String[]{"exception"},
+                        "package = ? AND uid = ? AND hook = ?",
+                        new String[]{packageName, Integer.toString(uid), hookid}, null, null, null)) {
+                    firstError[0] = (cursor.moveToNext() && cursor.isNull(0));
+                }
             if (cv.size() == 0 || d.update("assignment", cv, "package = ? AND uid = ? AND hook = ?",
                     new String[]{packageName, Integer.toString(uid), hookid}) != 1)
                 return null;
@@ -641,7 +650,7 @@ class XProvider {
             if (hook != null && use && restricted == 1 && (hook.doNotify() || (notify && used < 0)))
                 XNotify.notifyUsage(ctx, userid, uid, packageName, hook.getGroup(), hookid);
 
-            if (data.containsKey("exception"))
+            if (firstError[0])
                 XNotify.notifyException(ctx, userid, uid, packageName, hookid);
         } finally {
             Binder.restoreCallingIdentity(ident);
@@ -856,6 +865,9 @@ class XProvider {
         final String category = selection[0];
         int uid = Integer.parseInt(selection[1]);
         enforceCallerOrPermission(context, uid);
+        // Apps read the settings for all apps and of their own packages only
+        if (!"global".equals(category) && !isPackageOf(context, category, uid))
+            enforcePermission(context);
         final int userid = Util.getUserId(uid);
 
         return db.read(d -> {
@@ -886,6 +898,26 @@ class XProvider {
     }
 
     // Permissions
+
+    private static boolean isPackageOf(Context context, String packageName, int uid) {
+        long ident = Binder.clearCallingIdentity();
+        try {
+            String[] packages = context.getPackageManager().getPackagesForUid(uid);
+            return (packages != null && Arrays.asList(packages).contains(packageName));
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
+    }
+
+    // For calls handled outside this class
+    static boolean hasPermission(Context context) {
+        try {
+            enforcePermission(context);
+            return true;
+        } catch (SecurityException ignored) {
+            return false;
+        }
+    }
 
     // Hooked apps may read their own data only
     private static void enforceCallerOrPermission(Context context, int uid) throws SecurityException {
