@@ -19,12 +19,14 @@
 
 package eu.faircode.xlua;
 
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
@@ -43,18 +45,49 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
     private static final String TAB_HOOKS = "hooks";
     private static final String TAB_SETTINGS = "settings";
 
+    private static final String STATE_AVAILABLE = "available";
+
+    private boolean available = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (!Data.isAvailable(this)) {
-            setContentView(R.layout.activity_unavailable);
-            findViewById(R.id.btnRetry).setOnClickListener(view -> recreate());
-            findViewById(R.id.btnDocs).setOnClickListener(view ->
-                    Ui.browse(this, "https://github.com/M66B/XPrivacyLua/blob/master/README.md"));
+        // The tabs restored by the framework need the main layout right away
+        if (savedInstanceState != null && savedInstanceState.getBoolean(STATE_AVAILABLE)) {
+            showMain(false);
             return;
         }
 
+        // Checking the service is a call into system server, so not on the main thread
+        final Context context = getApplicationContext();
+        executor.submit(() -> {
+            boolean available = Data.isAvailable(context);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed())
+                    return;
+                if (available)
+                    showMain(true);
+                else
+                    showUnavailable();
+            });
+        });
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(STATE_AVAILABLE, available);
+    }
+
+    private void showUnavailable() {
+        setContentView(R.layout.activity_unavailable);
+        findViewById(R.id.btnRetry).setOnClickListener(view -> recreate());
+        findViewById(R.id.btnDocs).setOnClickListener(view -> Ui.browse(this, Ui.URL_README));
+    }
+
+    private void showMain(boolean first) {
+        available = true;
         setContentView(R.layout.activity_main);
         BottomNavigationView nav = findViewById(R.id.nav);
         nav.setOnItemSelectedListener(item -> {
@@ -62,8 +95,8 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
             return true;
         });
 
-        // Selected tab and fragments are restored by the framework
-        if (savedInstanceState == null) {
+        // Else the selected tab and fragments are restored by the framework
+        if (first) {
             show(TAB_APPS);
             handleIntent(getIntent());
         }
@@ -73,13 +106,15 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
 
     @Override
     public View getMessageAnchor() {
+        // Null without the main layout, which places messages at the bottom
         return findViewById(R.id.nav);
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        handleIntent(intent);
+        if (available)
+            handleIntent(intent);
     }
 
     private void handleIntent(Intent intent) {
@@ -131,8 +166,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
     }
 
     private void checkFirstRun() {
-        // Same file as the former default shared preferences
-        final SharedPreferences prefs = getSharedPreferences(getPackageName() + "_preferences", MODE_PRIVATE);
+        final SharedPreferences prefs = ApplicationEx.getPreferences(this);
         if (!prefs.getBoolean("firstrun", true))
             return;
 

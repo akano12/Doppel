@@ -26,7 +26,6 @@
     <string name="menu_restrict_new">Restrict new apps</string>
     <string name="menu_readme">Documentation</string>
     <string name="menu_faq">FAQ</string>
-    <string name="menu_donate">Donate</string>
     <string name="menu_values">Fake values</string>
     <string name="menu_backup">Backup</string>
     <string name="menu_restore">Restore</string>
@@ -42,6 +41,7 @@
     <string name="title_values_identifiers">Identifiers</string>
     <string name="title_values_location">Location</string>
     <string name="title_values_other">Other</string>
+    <string name="title_values_custom">Custom definitions</string>
     <string name="title_value_serial">Serial number</string>
     <string name="title_value_android_id">Android ID</string>
     <string name="title_value_imei">IMEI</string>
@@ -329,8 +329,6 @@
     <string-array name="scopes" translatable="false">
         <item>android</item>
         <item>com.android.providers.settings</item>
-        <item>eu.faircode.xlua</item>
     </string-array>
 
-    <string name="pro_fingerprint" translatable="false">10620ae961d78854f6c9cd872c4388232849c799</string>
 </resources>

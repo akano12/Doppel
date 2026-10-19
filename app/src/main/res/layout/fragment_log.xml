@@ -79,7 +79,6 @@
                         style="@style/XLua.Stat.Value" />
 
                     <TextView
-                        android:id="@+id/tvErrorsLabel"
                         style="@style/XLua.Stat.Label"
                         android:text="@string/title_stat_errors" />
                 </LinearLayout>

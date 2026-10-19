@@ -20,6 +20,7 @@ package eu.faircode.xlua;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -28,6 +29,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -47,6 +49,7 @@ import java.util.TreeSet;
 public class FragmentSettings extends FragmentBase {
     private static final String TAG = "XLua.Settings";
 
+    private ImageView ivStatus;
     private TextView tvStatus;
     private TextView tvVersion;
     private GridLayout glStatus;
@@ -75,6 +78,7 @@ public class FragmentSettings extends FragmentBase {
         View view = inflater.inflate(R.layout.fragment_settings, container, false);
         final Activity activity = requireActivity();
 
+        ivStatus = view.findViewById(R.id.ivStatus);
         tvStatus = view.findViewById(R.id.tvStatus);
         tvVersion = view.findViewById(R.id.tvVersion);
         glStatus = view.findViewById(R.id.glStatus);
@@ -98,13 +102,9 @@ public class FragmentSettings extends FragmentBase {
                 restoreLauncher.launch(new String[]{"application/json", "text/*", "application/octet-stream"}));
         view.findViewById(R.id.llClear).setOnClickListener(v ->
                 Ui.areYouSure(activity, getString(R.string.msg_clear_sure), this::clear));
-        view.findViewById(R.id.llDocs).setOnClickListener(v ->
-                Ui.browse(activity, "https://github.com/M66B/XPrivacyLua/blob/master/README.md"));
-        view.findViewById(R.id.llFaq).setOnClickListener(v ->
-                Ui.browse(activity, "https://github.com/M66B/XPrivacyLua/blob/master/FAQ.md"));
+        view.findViewById(R.id.llDocs).setOnClickListener(v -> Ui.browse(activity, Ui.URL_README));
+        view.findViewById(R.id.llFaq).setOnClickListener(v -> Ui.browse(activity, Ui.URL_FAQ));
         view.findViewById(R.id.llLicense).setOnClickListener(v -> Ui.showLicense(activity));
-        view.findViewById(R.id.llDonate).setOnClickListener(v ->
-                Ui.browse(activity, "https://lua.xprivacy.eu/"));
 
         return view;
     }
@@ -114,8 +114,8 @@ public class FragmentSettings extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         executor.submit(() -> {
             try {
-                boolean available = Data.isAvailable(context);
                 int version = Data.getVersion(context);
+                boolean available = Data.isAvailable(version);
                 List<XHook> hooks = Data.getAllHooks(context);
                 TreeSet<String> known = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
                 for (XHook hook : hooks)
@@ -131,6 +131,9 @@ public class FragmentSettings extends FragmentBase {
                     this.enabled = enabled;
 
                     tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
+                    ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
+                    ivStatus.setBackgroundTintList(ColorStateList.valueOf(Ui.color(requireContext(), available
+                            ? androidx.appcompat.R.attr.colorPrimary : R.attr.colorWarning)));
                     glStatus.removeAllViews();
                     addStatus(R.string.title_status_service, version < 0 ? "-" : Integer.toString(version));
                     addStatus(R.string.title_status_hooks, Integer.toString(hooks.size()));
@@ -147,6 +150,8 @@ public class FragmentSettings extends FragmentBase {
                     swNotifyNew.setOnCheckedChangeListener((button, checked) ->
                             put("notify_new_apps", Boolean.toString(checked)));
 
+                    // Restoring a backup or clearing data can change the theme
+                    ApplicationEx.setTheme(context, theme);
                     tgTheme.clearOnButtonCheckedListeners();
                     tgTheme.check(ApplicationEx.THEME_DARK.equals(theme) ? R.id.btnThemeDark
                             : ApplicationEx.THEME_LIGHT.equals(theme) ? R.id.btnThemeLight
@@ -159,7 +164,7 @@ public class FragmentSettings extends FragmentBase {
                                 : ApplicationEx.THEME_SYSTEM);
                         executor.submit(() -> {
                             Data.putSetting(context, "global", "theme", selected);
-                            post(() -> ApplicationEx.applyTheme(selected));
+                            post(() -> ApplicationEx.setTheme(context, selected));
                         });
                     });
                 });

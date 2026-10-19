@@ -414,25 +414,6 @@
                     android:src="@drawable/ic_chevron_right"
                     app:tint="?attr/colorOutline" />
             </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/llDonate"
-                style="@style/XLua.Row">
-
-                <LinearLayout style="@style/XLua.Row.Text">
-
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/menu_donate" />
-                </LinearLayout>
-
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    android:importantForAccessibility="no"
-                    android:src="@drawable/ic_open"
-                    app:tint="?attr/colorOutline" />
-            </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

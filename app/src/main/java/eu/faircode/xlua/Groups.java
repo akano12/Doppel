@@ -22,13 +22,10 @@ import android.content.res.Resources;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-// Presentation of hook groups: localized titles, descriptions and icons, the section a group is shown in
-// and whether the scripts of a group use fake values
+// Presentation of hook groups: localized titles, descriptions and icons and the section a group is shown in
 final class Groups {
     // Sections in display order, groups of custom definitions go into the last one
     static final List<Integer> SECTIONS = Arrays.asList(
@@ -43,9 +40,6 @@ final class Groups {
     private static final Map<String, Integer> TITLE = new HashMap<>();
     private static final Map<String, Integer> DESCRIPTION = new HashMap<>();
     private static final Map<String, Integer> ICON = new HashMap<>();
-    private static final Set<String> VALUES = new HashSet<>(Arrays.asList(
-            "Get.Location", "Get.Contacts", "Read.Account", "Read.Features",
-            "Read.Identifiers", "Read.Telephony", "Read.Timezone"));
 
     static {
         group("Determine.Activity", R.string.group_determine_activity, R.string.group_desc_determine_activity, R.drawable.ic_group_activity);
@@ -99,11 +93,6 @@ final class Groups {
     static int getSection(String group) {
         Integer section = SECTION.get(group);
         return (section == null ? R.string.section_other : section);
-    }
-
-    // Fake values on the values screen apply to this group
-    static boolean hasValues(String group) {
-        return VALUES.contains(group);
     }
 
     // What a built-in group protects, null for custom groups

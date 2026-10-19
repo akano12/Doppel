@@ -22,7 +22,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -38,10 +37,13 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TimeZone;
+import java.util.TreeSet;
 
 // Fake values read by the hook scripts (param:getSetting), for all apps or for a single app
 public class ActivityValues extends ActivityBase implements Ui.Anchored {
@@ -58,7 +60,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
     private static class Field {
         final String key;
-        final int title;
+        final int title; // 0 for settings of custom definitions, which show the key
         final Type type;
         final Random random;
         final String builtin; // Value used by the script when there is no setting
@@ -91,6 +93,9 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             new Field("features.hide", R.string.title_value_features, Type.TEXT, Random.NONE, null),
             new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, Random.NONE, null),
     };
+
+    // Built-in fields and the settings of custom definitions
+    private final List<Object> form = new ArrayList<>(Arrays.asList(SECTIONS));
 
     // Dropdown positions to setting values
     private static final String[] LOCATION_VALUES = new String[]{null, "set", "coarse"};
@@ -159,16 +164,34 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 final Map<String, String> g = (GLOBAL.equals(category)
                         ? new HashMap<>()
                         : Data.getSettings(context, GLOBAL));
+
+                // Settings declared by custom definitions
+                Set<String> known = new HashSet<>();
+                for (Object item : SECTIONS)
+                    if (item instanceof Field)
+                        known.add(((Field) item).key);
+                TreeSet<String> custom = new TreeSet<>();
+                for (XHook hook : Data.getHooks(context))
+                    for (String name : hook.getSettings())
+                        if (!known.contains(name))
+                            custom.add(name);
+
                 runOnUiThread(() -> {
                     values.clear();
                     values.putAll(v);
                     globals.clear();
                     globals.putAll(g);
+                    form.clear();
+                    form.addAll(Arrays.asList(SECTIONS));
+                    if (!custom.isEmpty()) {
+                        form.add(R.string.title_values_custom);
+                        for (String name : custom)
+                            form.add(new Field(name, 0, Type.TEXT, Random.NONE, null));
+                    }
                     buildForm();
                 });
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+                error(TAG, ex);
             }
         });
     }
@@ -184,7 +207,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         inputs.clear();
         LayoutInflater inflater = LayoutInflater.from(this);
         LinearLayout rows = null;
-        for (Object item : SECTIONS) {
+        for (Object item : form) {
             if (item instanceof Integer) {
                 View card = inflater.inflate(R.layout.item_card, container, false);
                 ((TextView) card.findViewById(R.id.tvSection)).setText((Integer) item);
@@ -197,19 +220,21 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             String value = values.get(field.key);
 
             int layout;
-            if (field.type == Type.LOCATION || field.type == Type.CONTACTS)
+            if (isDropdown(field))
                 layout = R.layout.item_value_dropdown;
             else if (field.type == Type.TIMEZONE)
                 layout = R.layout.item_value_auto;
             else
                 layout = R.layout.item_value_text;
             TextInputLayout til = (TextInputLayout) inflater.inflate(layout, rows, false);
-            til.setHint(field.title);
+            if (field.title == 0)
+                til.setHint(field.key);
+            else
+                til.setHint(field.title);
             EditText input = til.findViewById(R.id.etValue);
 
-            if (field.type == Type.LOCATION || field.type == Type.CONTACTS) {
-                String[] titles = getResources().getStringArray(
-                        field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
+            if (isDropdown(field)) {
+                String[] titles = getDropdownTitles(field);
                 MaterialAutoCompleteTextView dropdown = (MaterialAutoCompleteTextView) input;
                 dropdown.setSimpleItems(titles);
                 int index = Math.max(0, Arrays.asList(spinnerValues(field)).indexOf(value));
@@ -244,24 +269,23 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
     // Empty fields remove the values, after saving
     private void reset() {
-        for (Object item : SECTIONS)
+        for (Object item : form)
             if (item instanceof Field) {
                 Field field = (Field) item;
                 TextInputLayout til = inputs.get(field.key);
                 EditText input = (til == null ? null : til.getEditText());
-                if (field.type == Type.LOCATION || field.type == Type.CONTACTS) {
-                    String[] titles = getResources().getStringArray(
-                            field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
-                    ((MaterialAutoCompleteTextView) input).setText(titles[0], false);
-                } else if (input != null)
+                if (input == null)
+                    continue;
+                if (isDropdown(field))
+                    ((MaterialAutoCompleteTextView) input).setText(getDropdownTitles(field)[0], false);
+                else
                     input.setText(null);
             }
     }
 
     private String getValue(Field field, EditText input) {
-        if (field.type == Type.LOCATION || field.type == Type.CONTACTS) {
-            String[] titles = getResources().getStringArray(
-                    field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
+        if (isDropdown(field)) {
+            String[] titles = getDropdownTitles(field);
             int index = Math.max(0, Arrays.asList(titles).indexOf(input.getText().toString()));
             return spinnerValues(field)[index];
         }
@@ -271,7 +295,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
     private void save() {
         final Map<String, String> changed = new HashMap<>();
-        for (Object item : SECTIONS) {
+        for (Object item : form) {
             if (!(item instanceof Field))
                 continue;
             Field field = (Field) item;
@@ -309,10 +333,17 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 runOnUiThread(() -> values.putAll(changed));
                 Ui.message(this, getString(global ? R.string.msg_saved_restart : R.string.msg_saved));
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+                error(TAG, ex);
             }
         });
+    }
+
+    private static boolean isDropdown(Field field) {
+        return (field.type == Type.LOCATION || field.type == Type.CONTACTS);
+    }
+
+    private String[] getDropdownTitles(Field field) {
+        return getResources().getStringArray(field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
     }
 
     private static String[] spinnerValues(Field field) {

@@ -20,14 +20,13 @@ package eu.faircode.xlua;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
+import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.content.res.ColorStateList;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -145,14 +144,15 @@ public class ActivityApp extends ActivityBase {
             try {
                 XApp app = Data.getApp(context, packageName, uid);
                 if (app == null) {
+                    runOnUiThread(() -> pbLoading.setVisibility(View.GONE));
                     Ui.message(this, getString(R.string.msg_app_not_found, packageName));
                     return;
                 }
                 List<XHook> hooks = Data.getAvailable(Data.getHooks(context), app, Data.getCollection(context), null);
                 runOnUiThread(() -> show(app, hooks));
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+                runOnUiThread(() -> pbLoading.setVisibility(View.GONE));
+                error(TAG, ex);
             }
         });
     }
@@ -199,7 +199,7 @@ public class ActivityApp extends ActivityBase {
             if (!available.containsKey(hook.getGroup()))
                 available.put(hook.getGroup(), new ArrayList<>());
             available.get(hook.getGroup()).add(hook);
-            if (Groups.hasValues(hook.getGroup()))
+            if (hook.getSettings().length > 0)
                 values = true;
         }
         findViewById(R.id.llValues).setVisibility(values ? View.VISIBLE : View.GONE);
@@ -442,8 +442,7 @@ public class ActivityApp extends ActivityBase {
             try {
                 Data.assign(context, app, hooks, assign);
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+                error(TAG, ex);
             }
         });
     }
@@ -468,8 +467,7 @@ public class ActivityApp extends ActivityBase {
                 Data.forceStop(context, app);
                 Ui.message(this, getString(R.string.msg_stopped, getLabel()));
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+                error(TAG, ex);
             }
         });
     }

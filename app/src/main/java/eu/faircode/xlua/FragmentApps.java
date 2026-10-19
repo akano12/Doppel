@@ -57,6 +57,9 @@ public class FragmentApps extends FragmentBase {
     private static final String PREF_FILTER = "apps_filter";
     private static final String PREF_SORT = "apps_sort";
 
+    // Same order as AdapterApp.Filter
+    private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipUser, R.id.chipSystem, R.id.chipRestricted};
+
     private SwipeRefreshLayout swipeRefresh;
     private View pbLoading;
     private TextView tvEmpty;
@@ -78,7 +81,7 @@ public class FragmentApps extends FragmentBase {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_apps, container, false);
         Context context = requireContext();
-        prefs = context.getSharedPreferences(context.getPackageName() + "_preferences", Context.MODE_PRIVATE);
+        prefs = ApplicationEx.getPreferences(context);
 
         swipeRefresh = view.findViewById(R.id.swipeRefresh);
         pbLoading = view.findViewById(R.id.pbLoading);
@@ -136,12 +139,8 @@ public class FragmentApps extends FragmentBase {
             filter = AdapterApp.Filter.valueOf(prefs.getString(PREF_FILTER, filter.name()));
         } catch (IllegalArgumentException ignored) {
         }
-        cgFilter.check(getChip(filter));
         adapter.setFilter(filter);
-        cgFilter.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            if (checkedIds.isEmpty())
-                return;
-            AdapterApp.Filter selected = getFilter(checkedIds.get(0));
+        Ui.chips(cgFilter, FILTER_CHIPS, AdapterApp.Filter.values(), filter, selected -> {
             prefs.edit().putString(PREF_FILTER, selected.name()).apply();
             adapter.setFilter(selected);
         });
@@ -184,7 +183,7 @@ public class FragmentApps extends FragmentBase {
             } else if (id == R.id.menu_bulk)
                 bulk();
             else if (id == R.id.menu_help)
-                Ui.browse(requireActivity(), "https://github.com/M66B/XPrivacyLua/blob/master/README.md");
+                Ui.browse(requireActivity(), Ui.URL_README);
             return true;
         });
         popup.show();
@@ -211,7 +210,9 @@ public class FragmentApps extends FragmentBase {
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.i(TAG, "Received " + intent);
-            load();
+            // A hidden tab loads when it is shown again
+            if (!isHidden())
+                load();
         }
     };
 
@@ -249,7 +250,7 @@ public class FragmentApps extends FragmentBase {
 
     private void updateCounts() {
         for (AdapterApp.Filter filter : AdapterApp.Filter.values()) {
-            Chip chip = cgFilter.findViewById(getChip(filter));
+            Chip chip = cgFilter.findViewById(FILTER_CHIPS[filter.ordinal()]);
             chip.setText(getString(R.string.title_filter_count, getString(getTitle(filter)), adapter.getCount(filter)));
         }
     }
@@ -270,30 +271,6 @@ public class FragmentApps extends FragmentBase {
             default:
                 return R.string.title_filter_user;
         }
-    }
-
-    private static int getChip(AdapterApp.Filter filter) {
-        switch (filter) {
-            case ALL:
-                return R.id.chipAll;
-            case SYSTEM:
-                return R.id.chipSystem;
-            case RESTRICTED:
-                return R.id.chipRestricted;
-            default:
-                return R.id.chipUser;
-        }
-    }
-
-    private static AdapterApp.Filter getFilter(int chip) {
-        if (chip == R.id.chipAll)
-            return AdapterApp.Filter.ALL;
-        else if (chip == R.id.chipSystem)
-            return AdapterApp.Filter.SYSTEM;
-        else if (chip == R.id.chipRestricted)
-            return AdapterApp.Filter.RESTRICTED;
-        else
-            return AdapterApp.Filter.USER;
     }
 
     // Toggle a group for all shown apps: remove it when an app has it, else add it

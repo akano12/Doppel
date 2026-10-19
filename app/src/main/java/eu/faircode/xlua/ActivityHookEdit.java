@@ -22,7 +22,6 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
@@ -212,8 +211,7 @@ public class ActivityHookEdit extends ActivityBase {
                     updateMenu();
                 });
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+                error(TAG, ex);
             }
         });
     }
@@ -392,8 +390,7 @@ public class ActivityHookEdit extends ActivityBase {
                 });
                 Ui.message(this, getString(R.string.msg_hook_saved));
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
+                error(TAG, ex);
             }
         });
     }
@@ -407,8 +404,7 @@ public class ActivityHookEdit extends ActivityBase {
                     Data.putHook(context, id, null);
                     runOnUiThread(this::finish);
                 } catch (Throwable ex) {
-                    Log.e(TAG, Log.getStackTraceString(ex));
-                    Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
+                    error(TAG, ex);
                 }
             });
         });
@@ -430,8 +426,7 @@ public class ActivityHookEdit extends ActivityBase {
                 os.write(jhook.toString(2).replace("\\/", "/").getBytes(StandardCharsets.UTF_8));
                 Ui.message(this, getString(R.string.msg_hooks_exported, 1));
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
+                error(TAG, ex);
             }
         });
     }

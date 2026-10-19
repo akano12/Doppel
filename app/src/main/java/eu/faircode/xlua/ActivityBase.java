@@ -20,6 +20,7 @@
 package eu.faircode.xlua;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -66,6 +67,12 @@ public class ActivityBase extends AppCompatActivity {
         toolbar.setNavigationContentDescription(R.string.title_back);
         toolbar.setNavigationOnClickListener(view -> finish());
         return toolbar;
+    }
+
+    // Log an error and show it, from any thread
+    protected void error(String tag, Throwable ex) {
+        Log.e(tag, Log.getStackTraceString(ex));
+        Ui.message(this, getString(R.string.msg_error, ex.toString()));
     }
 
     @Override

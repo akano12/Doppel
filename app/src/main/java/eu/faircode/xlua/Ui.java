@@ -44,9 +44,11 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
+import java.util.Arrays;
 import java.util.Calendar;
 
 // Small view helpers shared by the screens
@@ -55,6 +57,10 @@ final class Ui {
     interface Anchored {
         View getMessageAnchor();
     }
+
+    // Documentation of this fork
+    static final String URL_README = "https://github.com/akano12/XPrivacyLua/blob/master/README.md";
+    static final String URL_FAQ = "https://github.com/akano12/XPrivacyLua/blob/master/FAQ.md";
 
     private Ui() {
     }
@@ -195,6 +201,18 @@ final class Ui {
             public void afterTextChanged(Editable s) {
                 listener.accept(s.toString());
             }
+        });
+    }
+
+    // Filter chips with one chip id per value, in the same order; selects a value and reports selections
+    static <E> void chips(ChipGroup group, int[] ids, E[] values, E selected, Consumer<E> listener) {
+        group.check(ids[Arrays.asList(values).indexOf(selected)]);
+        group.setOnCheckedStateChangeListener((g, checkedIds) -> {
+            if (checkedIds.isEmpty())
+                return;
+            for (int i = 0; i < ids.length; i++)
+                if (ids[i] == checkedIds.get(0))
+                    listener.accept(values[i]);
         });
     }
 

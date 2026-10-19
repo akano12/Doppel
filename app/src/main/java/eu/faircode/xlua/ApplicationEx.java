@@ -20,6 +20,8 @@
 package eu.faircode.xlua;
 
 import android.app.Application;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 
 import androidx.appcompat.app.AppCompatDelegate;
@@ -31,23 +33,29 @@ public class ApplicationEx extends Application {
     static final String THEME_LIGHT = "light";
     static final String THEME_DARK = "dark";
 
+    // Copy of the theme setting of the service, which is not called on the main thread
+    private static final String PREF_THEME = "theme";
+
     @Override
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "Create version=" + BuildConfig.VERSION_NAME);
+        applyTheme(getPreferences(this).getString(PREF_THEME, null));
+    }
 
-        // The service is not available when the module is not running
-        String theme = null;
-        try {
-            theme = Data.getSetting(this, "global", "theme");
-        } catch (Throwable ex) {
-            Log.w(TAG, ex.toString());
-        }
+    // Apply and remember the theme setting of the service
+    static void setTheme(Context context, String theme) {
+        getPreferences(context).edit().putString(PREF_THEME, theme).apply();
         applyTheme(theme);
     }
 
+    // Same file as the former default shared preferences
+    static SharedPreferences getPreferences(Context context) {
+        return context.getSharedPreferences(context.getPackageName() + "_preferences", Context.MODE_PRIVATE);
+    }
+
     // No setting follows the system theme
-    static void applyTheme(String theme) {
+    private static void applyTheme(String theme) {
         if (THEME_LIGHT.equals(theme))
             AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         else if (THEME_DARK.equals(theme))

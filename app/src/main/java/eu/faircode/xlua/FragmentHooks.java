@@ -58,6 +58,8 @@ public class FragmentHooks extends FragmentBase {
 
     private enum Filter {ALL, CUSTOM, DISABLED}
 
+    private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipCustom, R.id.chipDisabled};
+
     private View pbLoading;
     private TextView tvEmpty;
     private TextView tvSummary;
@@ -119,11 +121,8 @@ public class FragmentHooks extends FragmentBase {
         });
 
         ChipGroup cgFilter = view.findViewById(R.id.cgFilter);
-        cgFilter.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            if (checkedIds.isEmpty())
-                return;
-            int id = checkedIds.get(0);
-            filter = (id == R.id.chipCustom ? Filter.CUSTOM : id == R.id.chipDisabled ? Filter.DISABLED : Filter.ALL);
+        Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
+            filter = selected;
             show();
         });
 

@@ -54,6 +54,8 @@ public class FragmentLog extends FragmentBase {
 
     private enum Filter {ALL, TODAY, ERRORS}
 
+    private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipToday, R.id.chipErrors};
+
     private static class Entry {
         XApp app;
         String hook;
@@ -98,11 +100,8 @@ public class FragmentLog extends FragmentBase {
         swipeRefresh.setOnRefreshListener(this::load);
 
         ChipGroup cgFilter = view.findViewById(R.id.cgFilter);
-        cgFilter.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            if (checkedIds.isEmpty())
-                return;
-            int id = checkedIds.get(0);
-            filter = (id == R.id.chipToday ? Filter.TODAY : id == R.id.chipErrors ? Filter.ERRORS : Filter.ALL);
+        Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
+            filter = selected;
             show();
         });
         cvErrors.setOnClickListener(v -> cgFilter.check(R.id.chipErrors));

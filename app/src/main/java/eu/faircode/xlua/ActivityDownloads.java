@@ -21,7 +21,6 @@ import android.content.Context;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -58,6 +57,8 @@ public class ActivityDownloads extends ActivityBase {
     private static final String REPO = "repo/";
 
     private enum Filter {ALL, AVAILABLE, INSTALLED, UPDATES}
+
+    private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipAvailable, R.id.chipInstalled, R.id.chipUpdates};
 
     private enum State {AVAILABLE, INSTALLED, UPDATE}
 
@@ -107,14 +108,8 @@ public class ActivityDownloads extends ActivityBase {
         });
 
         ChipGroup cgFilter = findViewById(R.id.cgFilter);
-        cgFilter.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            if (checkedIds.isEmpty())
-                return;
-            int id = checkedIds.get(0);
-            filter = (id == R.id.chipAvailable ? Filter.AVAILABLE
-                    : id == R.id.chipInstalled ? Filter.INSTALLED
-                    : id == R.id.chipUpdates ? Filter.UPDATES
-                    : Filter.ALL);
+        Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
+            filter = selected;
             show();
         });
 
@@ -161,8 +156,7 @@ public class ActivityDownloads extends ActivityBase {
                     show();
                 });
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+                error(TAG, ex);
             }
         });
     }
@@ -226,8 +220,7 @@ public class ActivityDownloads extends ActivityBase {
                     Ui.message(this, getString(R.string.msg_installed_collection, entry.name, entry.collection),
                             getString(R.string.title_enable), () -> enableCollection(entry.collection));
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+                error(TAG, ex);
             }
         });
     }
@@ -246,8 +239,7 @@ public class ActivityDownloads extends ActivityBase {
                 });
                 Ui.message(this, getString(R.string.msg_collection_enabled, name));
             } catch (Throwable ex) {
-                Log.e(TAG, Log.getStackTraceString(ex));
-                Ui.message(this, getString(R.string.msg_error, ex.toString()));
+                error(TAG, ex);
             }
         });
     }
