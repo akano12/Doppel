@@ -328,7 +328,7 @@ public class ActivityApp extends ActivityBase {
         gv.swGroup.setOnCheckedChangeListener((button, checked) -> assign(group, checked));
     }
 
-    // The hooks of an expanded group, with whether they restricted something
+    // The hooks of an expanded group, with whether they restricted something, each can be assigned on its own
     private void bindHooks(String group, GroupView gv, List<XHook> hooks) {
         boolean show = expanded.contains(group);
         String title = Groups.getTitle(this, group);
@@ -368,11 +368,13 @@ public class ActivityApp extends ActivityBase {
             tvStatus.setText(status);
             tvStatus.setTextColor(Ui.color(this, color));
             vHook.findViewById(R.id.vDot).setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, color)));
-            if (assignment != null && assignment.exception != null) {
-                final String exception = assignment.exception;
-                vHook.setBackgroundResource(Ui.resource(this, android.R.attr.selectableItemBackground));
-                vHook.setOnClickListener(view -> Ui.showText(this, hook.getId(), exception.trim()));
-            }
+
+            // Errors are shown with the button of the group
+            MaterialSwitch swHook = vHook.findViewById(R.id.swHook);
+            swHook.setChecked(assignment != null);
+            swHook.setContentDescription(hook.getName());
+            swHook.setOnCheckedChangeListener((button, checked) -> assign(group, Collections.singletonList(hook), checked));
+            vHook.setOnClickListener(view -> swHook.toggle());
             gv.llHooks.addView(vHook);
         }
     }
@@ -415,26 +417,35 @@ public class ActivityApp extends ActivityBase {
     }
 
     private void assign(String group, boolean assign) {
-        List<String> groups = new ArrayList<>();
-        groups.add(group);
-        assign(groups, assign);
+        assign(Collections.singletonList(group), available.get(group), assign);
     }
 
-    // Updates the assignments shown right away, the service in the background
     private void assign(List<String> groups, boolean assign) {
-        final List<XHook> hooks = new ArrayList<>();
+        List<XHook> candidates = new ArrayList<>();
         for (String group : groups)
-            for (XHook hook : available.get(group)) {
-                XAssignment assignment = new XAssignment(hook);
-                boolean assigned = app.assignments.contains(assignment);
-                if (assign && !assigned) {
-                    app.assignments.add(assignment);
-                    hooks.add(hook);
-                } else if (!assign && assigned) {
-                    app.assignments.remove(assignment);
-                    hooks.add(hook);
-                }
+            candidates.addAll(available.get(group));
+        assign(groups, candidates, assign);
+    }
+
+    private void assign(String group, List<XHook> candidates, boolean assign) {
+        assign(Collections.singletonList(group), candidates, assign);
+    }
+
+    // Updates the assignments shown right away, the service in the background, with one call,
+    // which stops the app once when it is stopped automatically
+    private void assign(List<String> groups, List<XHook> candidates, boolean assign) {
+        final List<XHook> hooks = new ArrayList<>();
+        for (XHook hook : candidates) {
+            XAssignment assignment = new XAssignment(hook);
+            boolean assigned = app.assignments.contains(assignment);
+            if (assign && !assigned) {
+                app.assignments.add(assignment);
+                hooks.add(hook);
+            } else if (!assign && assigned) {
+                app.assignments.remove(assignment);
+                hooks.add(hook);
             }
+        }
         for (String group : groups)
             bind(group);
         updateSummary();

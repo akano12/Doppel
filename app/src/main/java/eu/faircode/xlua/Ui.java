@@ -75,13 +75,6 @@ final class Ui {
         return value.data;
     }
 
-    // Resource of a theme attribute, like a drawable
-    static int resource(Context context, int attr) {
-        TypedValue value = new TypedValue();
-        context.getTheme().resolveAttribute(attr, value, true);
-        return value.resourceId;
-    }
-
     // Rounded label, like 'built-in' or 'system'
     static TextView badge(Context context, String text, int backgroundAttr, int textAttr) {
         TextView badge = (TextView) LayoutInflater.from(context).inflate(R.layout.badge, null, false);
