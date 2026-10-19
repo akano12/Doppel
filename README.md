@@ -28,7 +28,7 @@ Restrictions
 * Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html) and usage statistics)
 * Get calendars (hide calendars)
 * Get call log (hide call log)
-* Get contacts (hide contacts with the pro option to allow (non) starred contacts, hide blocked numbers)
+* Get contacts (hide contacts, optionally except (non) starred contacts, hide blocked numbers)
 * Get location (fake location, block [NMEA](https://en.wikipedia.org/wiki/NMEA_0183) messages and raw GNSS measurements)
 * Get messages (hide MMS, SMS, SIM, voicemail)
 * Get sensors (hide all available sensors)

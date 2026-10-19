@@ -11,7 +11,7 @@ Primary users can clear all data of all users by uninstalling XPrivacyLua *while
 Secondary users can clear their own data by uninstalling XPrivacyLua *while it is running*.
 
 All data is stored in the system folder */data/system/xlua* and can therefore not be backed up by regular backup apps.
-You can use the pro companion app to backup and restore all restrictions and settings.
+You can backup and restore all restrictions, settings and custom hook definitions in *Settings* > *Backup* and *Restore*.
 
 <a name="faq2"></a>
 **(2) Can I run XPrivacy and XPrivacyLua side by side?**
@@ -59,7 +59,7 @@ from the [hook definition repository](https://lua.xprivacy.eu/repo/) using the p
 
 To protect your MAC address, there are hooks available in the [hook definition repository](https://lua.xprivacy.eu/repo/). On Android 8 and higher, you should only protect *NetworkInterface.getHardwareAddress*, since *WifiInfo.getMacAddress* and *BluetoothAdapter.getAddress* are [disabled](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m). However, some manufacturers may override this behavior, so hooks for all 3 methods are available.
 
-Since XPrivacyLua version 1.22 it is possible to enable status bar notifications on applying restrictions using the pro companion app.
+You can enable status bar notifications on applying restrictions with *Notify on restriction* on the screen of an app.
 This can be used as a replacement for on demand restricting by removing a restriction when needed.
 
 You can ask for new restrictions, but you'll need to explain how it would improve your privacy as well.
@@ -180,13 +180,11 @@ XPrivacy and XPrivacyLua work differently, so this is not possible.
 <a name="faq18"></a>
 **(18) How do I selectively block/allow contacts?**
 
-This is a pro feature, which needs to be purchased.
+Select which contacts are visible with *Contacts* in *Fake values* (for all apps or for one app):
 
-The pro companion app contacts settings are:
-
-* Block all: hide all contacts (the default)
-* Allow starred: make starred contacts visible
-* Allow not starred: make not starred contacts visible
+* Default (hide all): hide all contacts
+* Only starred contacts: make starred contacts visible
+* Only not starred contacts: make not starred contacts visible
 
 These settings can be applied to one app or globally to all apps.
 
