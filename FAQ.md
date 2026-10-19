@@ -44,7 +44,7 @@ Disable and enable the module in the Xposed installer and hard reboot again to f
 * *Select contacts groups to allow/block*: the Android contacts provider doesn't support contact groups at all hierarchy levels and working around this has appeared to be not possible reliably.
 
 If you want to confine apps to their own folder, you can install the hook definition *BlockGuardOs.open*
-in *Settings* > *Downloads*.
+with *Downloads* on the *Hooks* tab.
 
 Apps having access to the IP address generally have access to the internet and therefore can get your IP address in a simple way,
 see for example [here](https://www.privateinternetaccess.com/pages/whats-my-ip/). Therefore an IP address restriction doesn't make sense.
@@ -55,9 +55,9 @@ Therefore internet restriction cannot properly be implemented.
 You are adviced to use a firewall app to control internet access, for example [NetGuard](https://forum.xda-developers.com/android/apps-games/app-netguard-root-firewall-t3233012).
 
 If you still want to fake offline state, you can install the hook definition *NetworkInfo.createFromParcel*
-in *Settings* > *Downloads*.
+with *Downloads* on the *Hooks* tab.
 
-To protect your MAC address, there are hook definitions available in *Settings* > *Downloads*. On Android 8 and higher, you should only protect *NetworkInterface.getHardwareAddress*, since *WifiInfo.getMacAddress* and *BluetoothAdapter.getAddress* are [disabled](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m). However, some manufacturers may override this behavior, so hooks for all 3 methods are available.
+MAC addresses are restricted with *Read identifiers*: the addresses of Wi-Fi, Bluetooth and the network interfaces. Android 8 and higher [hide](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m) most of them from apps already, but older versions, apps targeting them and some manufacturers do not.
 
 You can enable status bar notifications on applying restrictions with *Notify on restriction* on the screen of an app.
 This can be used as a replacement for on demand restricting by removing a restriction when needed.

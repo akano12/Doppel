@@ -14,7 +14,7 @@ An easy way to do this is by toggling a definition off/on in XPrivacyLua.
 
 XPrivacyLua allows you to select which apps a definition should be applied to.
 
-You can edit hook definitions in XPrivacyLua itself, with *Hook definitions* in the navigation drawer.
+You can edit hook definitions in XPrivacyLua itself, on the *Hooks* tab.
 
 Definition
 ----------
@@ -54,13 +54,13 @@ An exported definition in [JSON](https://en.wikipedia.org/wiki/JSON) format look
 	"setting_name1",
 	"setting_name2"
   ],
-  "luaScript": "function after(hook, param)\n    local result = param:getResult()\n    if result == nil then\n        return false\n    end\n\n    param:setResult(null)\n    return true\nend\n"
+  "luaScript": "function after(hook, param)\n    local result = param:getResult()\n    if result == nil then\n        return false\n    end\n\n    param:setResult(nil)\n    return true\nend\n"
 }
 ```
 
 <br>
 
-Note that you can conveniently edit hook definitions in XPrivacyLua (*Hook definitions*), so there is no need to edit JSON files.
+Note that you can conveniently edit hook definitions in XPrivacyLua (*Hooks* tab), so there is no need to edit JSON files.
 Definitions can be imported from and exported to JSON files there too.
 
 <br>
@@ -89,7 +89,7 @@ function after(hook, param)
 		return false
 	end
 
-	param:setResult(null)
+	param:setResult(nil)
 	return true
 end
 ```
@@ -187,11 +187,11 @@ If you need global caching, you can use something like this:
 	local value = param:getValue(name, scope)
 ```
 
-With *Hook definitions* you can edit built-in definitions, which will result in making a copy of the definition.
+On the *Hooks* tab you can edit built-in definitions, which will result in making a copy of the definition.
 You could for example enable usage notifications or change returned fake values.
 Deleting copied definitions will restore the built-in definitions.
 
-In *Settings* > *Downloads* you can install hook definitions shared by others, which are part of the app (folder *repo*).
+With *Downloads* on the *Hooks* tab you can install hook definitions shared by others, which are part of the app (folder *repo*).
 To share a definition, export it in the hook editor and offer it as a pull request.
 
 You can find some example definitions [here](examples)

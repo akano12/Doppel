@@ -60,13 +60,14 @@ The other restrictions will work always.
 Management
 ----------
 
-Besides restricting apps, the navigation drawer offers:
+Besides restricting apps, the tabs of the app offer:
 
-* Fake values: values used for all apps, like the IMEI, Android ID, location and time zone;
-  the settings icon of an app sets values for that app only
-* Restriction log: which app triggered which restriction, when, with the real and the fake value
-* Hook definitions: view, edit, enable, disable, add, import and export hook definitions
-* Backup and restore of settings, custom hook definitions and restrictions
+* Fake values (*Settings*): values used for all apps, like the IMEI, Android ID, location and time zone;
+  *Fake values for this app* on the screen of an app sets values for that app only
+* Activity: which app triggered which restriction, when, with the real and the fake value, and hook errors
+* Hooks: view, edit, enable, disable, add, import and export hook definitions,
+  and install definitions shared by others with *Downloads*
+* Backup and restore of settings, custom hook definitions and restrictions (*Settings*)
 
 The (no longer available) pro companion app is not needed anymore.
 
