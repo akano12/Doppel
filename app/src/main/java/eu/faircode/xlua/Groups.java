@@ -52,6 +52,7 @@ final class Groups {
         group("Get.Sensors", R.string.group_get_sensors, R.string.group_desc_get_sensors, R.drawable.ic_group_sensors);
         group("Read.Account", R.string.group_read_account, R.string.group_desc_read_account, R.drawable.ic_group_account);
         group("Read.Battery", R.string.group_read_battery, R.string.group_desc_read_battery, R.drawable.ic_group_battery);
+        group("Read.Biometrics", R.string.group_read_biometrics, R.string.group_desc_read_biometrics, R.drawable.ic_group_biometrics);
         group("Read.Clipboard", R.string.group_read_clipboard, R.string.group_desc_read_clipboard, R.drawable.ic_group_clipboard);
         group("Read.Debugging", R.string.group_read_debugging, R.string.group_desc_read_debugging, R.drawable.ic_group_debugging);
         group("Read.Resources", R.string.group_read_resources, R.string.group_desc_read_resources, R.drawable.ic_group_resources);
@@ -73,7 +74,7 @@ final class Groups {
 
         put(R.string.section_location, "Get.Location", "Determine.Activity", "Get.Sensors");
         put(R.string.section_identity, "Read.Identifiers", "Read.Telephony", "Read.Network", "Read.VPN",
-                "Read.Timezone", "Read.Features", "Read.Battery", "Read.Resources", "Read.Settings", "Read.Debugging", "Read.Account", "Read.Sync");
+                "Read.Timezone", "Read.Features", "Read.Battery", "Read.Resources", "Read.Settings", "Read.Biometrics", "Read.Debugging", "Read.Account", "Read.Sync");
         put(R.string.section_personal, "Get.Contacts", "Get.Call.log", "Get.Messages", "Send.Messages",
                 "Get.Calendars", "Get.Applications", "Read.Clipboard", "Read.Notifications");
         put(R.string.section_media, "Use.Camera", "Record.Audio", "Record.Video");

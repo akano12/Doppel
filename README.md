@@ -33,6 +33,7 @@ Restrictions
 * Get messages (hide MMS, SMS, SIM, voicemail)
 * Get sensors (hide all available sensors)
 * Read [account](https://developer.android.com/reference/android/accounts/Account.html) name (fake name, mostly e-mail address)
+* Read biometric sensors (no fingerprint sensor, face or iris unlock and no enrolled fingerprints; checks which include the screen lock stay)
 * Read battery (level in steps of 10 percent, hide charge counter, current, energy, cycle count, voltage and temperature)
 * Read clipboard (fake paste)
 * Read debugging state (developer options and USB or wireless debugging appear off)

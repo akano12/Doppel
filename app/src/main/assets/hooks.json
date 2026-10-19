@@ -5574,5 +5574,87 @@
     "returnType": "android.view.InputDevice",
     "minSdk": 29,
     "luaScript": "@input_devices"
+  },
+  // Fingerprint sensor, face and iris unlock, see biometrics.lua
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "FingerprintManager.isHardwareDetected",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.fingerprint.FingerprintManager",
+    "methodName": "isHardwareDetected",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "optional": true,
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "FingerprintManager.hasEnrolledFingerprints",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.fingerprint.FingerprintManager",
+    "methodName": "hasEnrolledFingerprints",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "optional": true,
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricManager.canAuthenticate",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.biometrics.BiometricManager",
+    "methodName": "canAuthenticate",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 29,
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricManager.canAuthenticate/authenticators",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.biometrics.BiometricManager",
+    "methodName": "canAuthenticate",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 30,
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "PackageManager.hasSystemFeature/biometrics",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 5,
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "PackageManager.hasSystemFeature/version/biometrics",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 24,
+    "luaScript": "@biometrics"
   }
 ]
