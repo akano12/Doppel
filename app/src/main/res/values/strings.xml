@@ -245,6 +245,11 @@
         <item quantity="other">same method as %1$d hooks</item>
     </plurals>
     <string name="title_install_name">Install %1$s?</string>
+    <string name="title_install_restrict">Also restrict for the apps which restrict %1$s</string>
+    <plurals name="msg_installed_restricted">
+        <item quantity="one">Installed %1$s, restricted for %2$d app when it starts again</item>
+        <item quantity="other">Installed %1$s, restricted for %2$d apps when they start again</item>
+    </plurals>
     <string name="msg_install_replaces">This definition replaces the built-in hook %1$s. Deleting it restores the built-in hook.</string>
     <string name="msg_install_overlaps">This definition hooks the same method as the hooks below. Both run for apps restricting their groups, one after the other, so one can undo or break the changes of the other:</string>
 

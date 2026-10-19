@@ -209,6 +209,15 @@ final class Data {
         call(context, "assignHooks", args);
     }
 
+    // Assign hooks to the apps of the current user which restrict their group, without stopping them;
+    // the number of apps which got hooks
+    static int assignRestricting(Context context, ArrayList<String> hookids) {
+        Bundle args = new Bundle();
+        args.putStringArrayList("hooks", hookids);
+        Bundle result = call(context, "assignRestricting", args);
+        return (result == null ? 0 : result.getInt("apps"));
+    }
+
     // Stop an app, so it starts with the current restrictions and values
     static void forceStop(Context context, XApp app) {
         Bundle args = new Bundle();

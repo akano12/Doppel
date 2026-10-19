@@ -95,6 +95,8 @@ class XProvider {
                     return putHook(context, extras);
                 case "assignHooks":
                     return assignHooks(context, extras);
+                case "assignRestricting":
+                    return assignRestricting(extras);
                 case "report":
                     return report(context, extras);
                 case "getSetting":
@@ -331,45 +333,13 @@ class XProvider {
                     added.add(id);
 
             if (!added.isEmpty()) {
-                // Groups restricted per app
-                Map<String, Set<String>> restricted = new HashMap<>();
-                Set<String> assigned = new HashSet<>();
-                try (Cursor cursor = d.query("assignment", new String[]{"package", "uid", "hook"},
-                        null, null, null, null, null)) {
-                    while (cursor.moveToNext()) {
-                        String key = cursor.getInt(1) + ":" + cursor.getString(0);
-                        assigned.add(key + "/" + cursor.getString(2));
-                        XHook hook = hooks.get(cursor.getString(2));
-                        if (hook == null)
-                            continue;
-                        if (!restricted.containsKey(key))
-                            restricted.put(key, new HashSet<>());
-                        restricted.get(key).add(hook.getGroup());
-                    }
-                }
-
-                Map<Integer, List<String>> collections = new HashMap<>();
-                int count = 0;
-                for (Map.Entry<String, Set<String>> entry : restricted.entrySet()) {
-                    int uid = Integer.parseInt(entry.getKey().substring(0, entry.getKey().indexOf(':')));
-                    String packageName = entry.getKey().substring(entry.getKey().indexOf(':') + 1);
-                    int userid = Util.getUserId(uid);
-                    if (!collections.containsKey(userid))
-                        collections.put(userid, readCollection(d, userid));
-                    for (String id : added) {
-                        // A custom definition can replace the built-in definition
-                        XHook hook = hooks.get(id);
-                        // Replacing an assignment would reset its usage data
-                        if (hook != null && !assigned.contains(entry.getKey() + "/" + id) &&
-                                entry.getValue().contains(hook.getGroup()) &&
-                                hook.isAvailable(packageName, collections.get(userid))) {
-                            Log.i(TAG, packageName + ":" + uid + "/" + id + " added (new built-in)");
-                            insertAssignment(d, packageName, uid, id);
-                            count++;
-                        }
-                    }
-                }
-                Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + count);
+                // A custom definition can replace the built-in definition
+                List<XHook> targets = new ArrayList<>();
+                for (String id : added)
+                    if (hooks.containsKey(id))
+                        targets.add(hooks.get(id));
+                int[] counts = assignToRestricting(d, hooks, targets, null, false);
+                Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + counts[0]);
             }
 
             if (!added.isEmpty() || known.size() != enabled.size()) {
@@ -378,6 +348,78 @@ class XProvider {
             }
             return null;
         });
+    }
+
+    // Assigns hooks to the apps which restrict a hook of the same group, of all users or of one user,
+    // optionally also when the collection of a hook is not enabled (yet). Existing assignments are kept,
+    // replacing one would reset its usage data. Returns the number of assignments and apps.
+    private static int[] assignToRestricting(SQLiteDatabase d, Map<String, XHook> hooks, List<XHook> targets,
+                                             Integer user, boolean anyCollection) throws Throwable {
+        // Groups restricted per app
+        Map<String, Set<String>> restricted = new HashMap<>();
+        Set<String> assigned = new HashSet<>();
+        String[] range = (user == null ? null : getUidRange(user));
+        try (Cursor cursor = d.query("assignment", new String[]{"package", "uid", "hook"},
+                range == null ? null : "uid >= ? AND uid <= ?", range, null, null, null)) {
+            while (cursor.moveToNext()) {
+                String key = cursor.getInt(1) + ":" + cursor.getString(0);
+                assigned.add(key + "/" + cursor.getString(2));
+                XHook hook = hooks.get(cursor.getString(2));
+                if (hook == null)
+                    continue;
+                if (!restricted.containsKey(key))
+                    restricted.put(key, new HashSet<>());
+                restricted.get(key).add(hook.getGroup());
+            }
+        }
+
+        Map<Integer, List<String>> collections = new HashMap<>();
+        int count = 0;
+        Set<String> apps = new HashSet<>();
+        for (Map.Entry<String, Set<String>> entry : restricted.entrySet()) {
+            int uid = Integer.parseInt(entry.getKey().substring(0, entry.getKey().indexOf(':')));
+            String packageName = entry.getKey().substring(entry.getKey().indexOf(':') + 1);
+            int userid = Util.getUserId(uid);
+            if (!collections.containsKey(userid))
+                collections.put(userid, readCollection(d, userid));
+            for (XHook hook : targets) {
+                List<String> collection = collections.get(userid);
+                if (anyCollection && !collection.contains(hook.getCollection())) {
+                    collection = new ArrayList<>(collection);
+                    collection.add(hook.getCollection());
+                }
+                if (!assigned.contains(entry.getKey() + "/" + hook.getId()) &&
+                        entry.getValue().contains(hook.getGroup()) &&
+                        hook.isAvailable(packageName, collection)) {
+                    Log.i(TAG, packageName + ":" + uid + "/" + hook.getId() + " added (restricted group)");
+                    insertAssignment(d, packageName, uid, hook.getId());
+                    count++;
+                    apps.add(entry.getKey());
+                }
+            }
+        }
+        return new int[]{count, apps.size()};
+    }
+
+    // Hooks installed by the user are assigned to the apps of the user which restrict their group
+    private static Bundle assignRestricting(Bundle extras) throws Throwable {
+        final List<String> hookids = extras.getStringArrayList("hooks");
+        final int userid = Util.getUserId(Binder.getCallingUid());
+        // A copy, because database calls are not made while holding the lock
+        final Map<String, XHook> all;
+        final List<XHook> targets = new ArrayList<>();
+        synchronized (lock) {
+            all = new HashMap<>(hooks);
+        }
+        for (String id : hookids)
+            if (all.containsKey(id))
+                targets.add(all.get(id));
+        int[] counts = db.write(d -> assignToRestricting(d, all, targets, userid, true));
+        Log.i(TAG, "Assigned hooks=" + hookids + " assignments=" + counts[0] + " apps=" + counts[1]);
+
+        Bundle result = new Bundle();
+        result.putInt("apps", counts[1]);
+        return result;
     }
 
     private static List<String> readCollection(SQLiteDatabase d, int userid) {

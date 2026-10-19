@@ -25,6 +25,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -205,18 +206,18 @@ public class ActivityDownloads extends ActivityBase {
         return overlaps;
     }
 
-    // Installing replaces a built-in definition with the same name and adds to definitions hooking the same member
+    // Installing replaces a built-in definition with the same name and adds to definitions hooking the same member;
+    // apps restricting the group of the definition can get it too, like for built-in definitions added by updates
     private void confirmInstall(Entry entry) {
-        boolean replaces = builtinIds.contains(entry.getId());
-        List<XHook> overlaps = getOverlaps(entry);
-        if (getState(entry) != State.AVAILABLE || (!replaces && overlaps.isEmpty())) {
-            install(entry);
+        if (getState(entry) != State.AVAILABLE) {
+            install(entry, false);
             return;
         }
 
         StringBuilder sb = new StringBuilder();
-        if (replaces)
+        if (builtinIds.contains(entry.getId()))
             sb.append(getString(R.string.msg_install_replaces, entry.getId()));
+        List<XHook> overlaps = getOverlaps(entry);
         if (!overlaps.isEmpty()) {
             if (sb.length() > 0)
                 sb.append("\n\n");
@@ -224,10 +225,18 @@ public class ActivityDownloads extends ActivityBase {
             for (XHook hook : overlaps)
                 sb.append("\n• ").append(hook.getId()).append(" (").append(hook.getGroup()).append(')');
         }
+
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_install, null, false);
+        TextView tvMessage = view.findViewById(R.id.tvMessage);
+        tvMessage.setText(sb);
+        tvMessage.setVisibility(sb.length() == 0 ? View.GONE : View.VISIBLE);
+        CheckBox cbRestrict = view.findViewById(R.id.cbRestrict);
+        cbRestrict.setText(getString(R.string.title_install_restrict, Groups.getTitle(this, entry.group)));
+
         new MaterialAlertDialogBuilder(this)
                 .setTitle(getString(R.string.title_install_name, entry.name))
-                .setMessage(sb)
-                .setPositiveButton(R.string.title_install, (dialog, which) -> install(entry))
+                .setView(view)
+                .setPositiveButton(R.string.title_install, (dialog, which) -> install(entry, cbRestrict.isChecked()))
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }
@@ -259,23 +268,28 @@ public class ActivityDownloads extends ActivityBase {
         adapter.set(items);
     }
 
-    private void install(Entry entry) {
+    private void install(Entry entry, boolean restrict) {
         final Context context = getApplicationContext();
         executor.submit(() -> {
             try {
                 JSONObject jhook = new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
                 XHook hook = Data.putCustom(context, jhook);
+                int apps = (restrict
+                        ? Data.assignRestricting(context, new ArrayList<>(Collections.singletonList(hook.getId())))
+                        : 0);
                 runOnUiThread(() -> {
                     installed.put(hook.getId(), hook);
                     show();
                 });
 
-                // Hooks of disabled collections are not applied
-                if (collection.contains(entry.collection))
-                    Ui.message(this, getString(R.string.msg_installed, entry.name));
-                else
+                // Hooks of disabled collections are not applied, also not when they are assigned already
+                if (!collection.contains(entry.collection))
                     Ui.message(this, getString(R.string.msg_installed_collection, entry.name, entry.collection),
                             getString(R.string.title_enable), () -> enableCollection(entry.collection));
+                else if (apps > 0)
+                    Ui.message(this, getResources().getQuantityString(R.plurals.msg_installed_restricted, apps, entry.name, apps));
+                else
+                    Ui.message(this, getString(R.string.msg_installed, entry.name));
             } catch (Throwable ex) {
                 error(TAG, ex);
             }
