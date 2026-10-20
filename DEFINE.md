@@ -37,7 +37,7 @@ An exported definition in [JSON](https://en.wikipedia.org/wiki/JSON) format look
 {
   "collection": "Privacy",
   "group": "Read.Telephony",
-  "name": "TelephonyManager\/getDeviceId",
+  "name": "TelephonyManager.getDeviceId",
   "author": "M66B",
   "description": "Let the telephony manager return NULL as device ID",
   "className": "android.telephony.TelephonyManager",
@@ -76,9 +76,12 @@ Definitions can be imported from and exported to JSON files there too.
   and read using *param:getSetting('setting_name1')*; an app setting takes precedence over the setting for all apps.
   List the names of the settings a script reads in *settings*, so that *Fake values* offers a field for each of them
 
-*Fake values* allows you to select which *collection*s of hooks XPrivacyLua should use.
+*Collections* in *Settings* selects which *collection*s of hooks XPrivacyLua should use.
 
-See [here](https://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/types.html#wp276) about Java type signatures (names).
+Parameter and return types are Java class names, like *java.lang.String*, *android.net.Uri* or *int*,
+nested classes with a $ sign, like *android.content.pm.PackageManager$NameNotFoundException*,
+and arrays with [] after the type, like *int[]* or *java.lang.String[]*.
+The *returnType* has to be the return type of the method, or a subclass of it (the type of the field for a field).
 
 The Lua script from the above definition without the JSON escapes looks like this:
 
@@ -123,6 +126,8 @@ The most important functions of *param* are:
 
 The before/after function **must** return *true* when something was done and **must** return *false* otherwise.
 XPrivacyLua will show the last date/time of the last time *true* was returned.
+Optionally the function can return the original and the fake value as text too, like *return true, old, fake*,
+which the *Activity* tab shows.
 
 Special cases
 -------------
@@ -194,7 +199,7 @@ Deleting copied definitions will restore the built-in definitions.
 With *Downloads* on the *Hooks* tab you can install hook definitions shared by others, which are part of the app (folder *repo*).
 To share a definition, export it in the hook editor and offer it as a pull request.
 
-You can find some example definitions [here](examples)
+You can find example definitions in the [repository](repo), which *Downloads* offers,
 and the definitions built into XPrivacyLua [here](app/src/main/assets).
 
-If you have questions, you can ask them in [this XDA thread](https://forum.xda-developers.com/xposed/modules/xposed-developing-module-t3741692).
+If you have questions, you can ask them in an [issue](https://github.com/akano12/XPrivacyLua/issues).

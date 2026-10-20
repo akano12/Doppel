@@ -92,7 +92,7 @@ E-mail data is generally not accessible on recent Android versions anymore.
 	* ~~return fake disconnected state~~ not privacy related
 	* ~~return fake supplicant disconnected state~~ not privacy related
 
-If you want to fake offline state, see [the example definitions](examples) about how this can be done with a custom restriction definition.
+If you want to fake offline state, you can install the hook definition *NetworkInfo.createFromParcel* with *Downloads* on the *Hooks* tab.
 
 <a name="IPC"></a>
 * IPC
@@ -222,7 +222,7 @@ which apps should use to open files instead of opening files directly.
 Moreover, the supported Android versions provide [runtime permissions](https://developer.android.com/training/permissions/requesting.html),
 so you can always choose to not grant storage permission to an app.
 
-If you want to confine apps to their own folder, see [the example definitions](examples) about how this can be done with a custom restriction definition.
+If you want to confine apps to their own folder, you can install the hook definition *BlockGuardOs.open* with *Downloads* on the *Hooks* tab.
 
 <a name="system"></a>
 * System

@@ -1,11 +1,11 @@
 XPrivacyLua
 ===========
 
-Really simple to use privacy manager for Android 6 and later (successor of [XPrivacy](https://forum.xda-developers.com/xposed/modules/xprivacy-ultimate-android-privacy-app-t2320783"]XPrivacy[/URL])).
+Really simple to use privacy manager for Android 6 and later (successor of [XPrivacy](https://forum.xda-developers.com/xposed/modules/xprivacy-ultimate-android-privacy-app-t2320783)).
 
 <br>
 
-**This project is not supported anymore**
+This is a maintained fork of [XPrivacyLua by M66B](https://github.com/M66B/XPrivacyLua), which is not supported anymore.
 
 <br>
 
@@ -94,7 +94,7 @@ Compatibility
 XPrivacyLua is supported on Android 6.0 Marshmallow and later.
 For Android 4.0.3 KitKat to Android 5.1.1 Lollipop you can use [XPrivacy](https://github.com/M66B/XPrivacy/blob/master/README.md) (unsupported though).
 
-XPrivacyLua is supported for smartphones and tablets only. XPrivacyLua is not supported on emulators.
+XPrivacyLua is supported for smartphones and tablets only.
 
 Installation
 ------------
@@ -154,7 +154,7 @@ A build signed with another key than the official release needs to replace (unin
 It is expected that you can solve build problems yourself, so there is no support on building.
 
 Source code contributions are prefered in the form of [pull requests](https://help.github.com/articles/creating-a-pull-request/).
-Please [contact me](https://contact.faircode.eu/) first to tell me what your plans are.
+Please open an [issue](https://github.com/akano12/XPrivacyLua/issues) first to tell what your plans are.
 
 Please note that you agree to the license below by contributing, including the copyright.
 

@@ -23,12 +23,13 @@ Since XPrivacyLua is [in many aspects better](#user-content-faq7) than XPrivacy,
 
 This message means either that:
 
-* The Xposed framework is not running: check if Xposed is enabled and running in the Xposed installer app.
-* The XPrivacyLua module is not running: check if XPrivacyLua is enabled in the Xposed installer app and make sure you restarted your device (hard reboot) after installing/updating XPrivacyLua.
-* There is a problem with the XPrivacyLua service: check the Xposed log in the Xposed installer app for XPrivacyLua problems.
+* The Xposed framework is not running: check if the framework is active in its manager app (like LSPosed).
+* The XPrivacyLua module is not running: check if XPrivacyLua is enabled in the manager app, with *System Framework* in its scope,
+  and make sure you restarted your device (hard reboot) after installing/updating XPrivacyLua.
+* There is a problem with the XPrivacyLua service: check the log of the manager app for XPrivacyLua problems.
 
-Rebooting too soon after updating an Xposed module (before the Xposed installer shows the update notification) is known to cause problems.
-Disable and enable the module in the Xposed installer and hard reboot again to fix this problem.
+Rebooting too soon after updating an Xposed module (before the manager app shows the update notification) is known to cause problems.
+Disable and enable the module in the manager app and hard reboot again to fix this problem.
 
 <a name="faq4"></a>
 **(4) Can you add ...?**
@@ -103,7 +104,7 @@ For a detailed comparison with XPrivacy see [here](XPRIVACY.md).
 <a name="faq8"></a>
 **(8) How can I define custom restrictions?**
 
-Yes, see [here](DEFINE.md) for the documentation on defining hooks.
+See [here](DEFINE.md) for the documentation on defining hooks.
 
 <a name="faq9"></a>
 **(9) Why can an app still access my accounts?**
@@ -133,6 +134,8 @@ You can filter on restricted apps, on not restricted apps, on system apps and on
 
 The special search characters should be the first characters in the search field (it is possible to combine special characters)
 and can be followed by additional characters to refine the search result.
+
+You can also search for the uid of an app, like 10123.
 
 <a name="faq12"></a>
 **(12) Are there paid features?**
@@ -206,4 +209,4 @@ If you really don't want an app to receive SMSes, you can revoke the SMS receive
 
 <br>
 
-If you have another question, you can use [this forum](https://forum.xda-developers.com/xposed/modules/xprivacylua6-0-android-privacy-manager-t3730663).
+If you have another question, you can open an [issue](https://github.com/akano12/XPrivacyLua/issues).
