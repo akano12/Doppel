@@ -78,6 +78,12 @@
         <item name="strokeWidth">0dp</item>
     </style>
 
+    <!-- Cards of a screen with an outline in the accent color, like the status and sections of Settings -->
+    <style name="XLua.Card.Outlined" parent="XLua.Card">
+        <item name="strokeColor">?attr/colorPrimary</item>
+        <item name="strokeWidth">2dp</item>
+    </style>
+
     <!-- Typography: IBM Plex Sans, medium for titles and labels -->
     <style name="XLua.TextAppearance.DisplayLarge" parent="TextAppearance.Material3.DisplayLarge">
         <item name="android:fontFamily">@font/plex_sans</item>
