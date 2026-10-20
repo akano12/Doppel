@@ -19,11 +19,18 @@
 
 package eu.faircode.xlua;
 
+import android.graphics.Bitmap;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.PixelCopy;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -37,6 +44,9 @@ import java.util.concurrent.Executors;
 // Screens are drawn edge-to-edge and share a background thread for service calls
 public class ActivityBase extends AppCompatActivity {
     protected final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    // The screen before it was recreated for other colors, see recreateSmoothly
+    private static Bitmap snapshot = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,6 +95,41 @@ public class ActivityBase extends AppCompatActivity {
                 error(tag, ex);
             }
         });
+    }
+
+    // Recreate the screen for other colors, which fades from the old screen into the new one, like a theme change;
+    // without the fade the new screen shows for a moment without the data, which is loaded in the background
+    void recreateSmoothly() {
+        View decor = getWindow().getDecorView();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || decor.getWidth() == 0 || decor.getHeight() == 0) {
+            recreate();
+            return;
+        }
+        Bitmap bitmap = Bitmap.createBitmap(decor.getWidth(), decor.getHeight(), Bitmap.Config.ARGB_8888);
+        PixelCopy.request(getWindow(), bitmap, result -> {
+            if (result == PixelCopy.SUCCESS)
+                snapshot = bitmap;
+            if (!isFinishing() && !isDestroyed())
+                recreate();
+        }, new Handler(Looper.getMainLooper()));
+    }
+
+    @Override
+    protected void onPostCreate(@Nullable Bundle savedInstanceState) {
+        super.onPostCreate(savedInstanceState);
+        if (snapshot == null)
+            return;
+
+        // The old screen over the new one, until the data is shown
+        ImageView overlay = new ImageView(this);
+        overlay.setScaleType(ImageView.ScaleType.FIT_XY);
+        overlay.setImageBitmap(snapshot);
+        snapshot = null;
+        ViewGroup decor = (ViewGroup) getWindow().getDecorView();
+        decor.addView(overlay, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        overlay.animate().alpha(0).setStartDelay(300).setDuration(250)
+                .withEndAction(() -> decor.removeView(overlay))
+                .start();
     }
 
     @Override

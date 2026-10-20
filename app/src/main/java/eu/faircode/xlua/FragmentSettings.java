@@ -94,6 +94,10 @@ public class FragmentSettings extends FragmentBase {
 
         tvVersion.setText(getString(R.string.title_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
 
+        // The colors right away from the local copies of the settings, the service settings follow
+        showPalettes(ApplicationEx.getPalette(activity));
+        swBlack.setChecked(ApplicationEx.isBlack(activity));
+
         view.findViewById(R.id.llRestrictNew).setOnClickListener(v -> swRestrictNew.toggle());
         view.findViewById(R.id.llNotifyNew).setOnClickListener(v -> swNotifyNew.toggle());
         view.findViewById(R.id.llBlack).setOnClickListener(v -> swBlack.toggle());
@@ -137,7 +141,7 @@ public class FragmentSettings extends FragmentBase {
                     boolean changed = ApplicationEx.setPalette(context, palette);
                     changed |= ApplicationEx.setBlack(context, black);
                     if (changed) {
-                        requireActivity().recreate();
+                        ((ActivityBase) requireActivity()).recreateSmoothly();
                         return;
                     }
                     showPalettes(ApplicationEx.getPalette(context));
@@ -229,7 +233,7 @@ public class FragmentSettings extends FragmentBase {
             Data.putSetting(context, "global", "palette", value);
             // Remembered also when the screen is gone meanwhile, which then shows the new colors when it is created
             if (ApplicationEx.setPalette(context, value))
-                post(() -> requireActivity().recreate());
+                post(() -> ((ActivityBase) requireActivity()).recreateSmoothly());
         });
     }
 
@@ -239,7 +243,7 @@ public class FragmentSettings extends FragmentBase {
         run(TAG, () -> {
             Data.putSetting(context, "global", "black", black ? Boolean.toString(true) : null);
             if (ApplicationEx.setBlack(context, black))
-                post(() -> requireActivity().recreate());
+                post(() -> ((ActivityBase) requireActivity()).recreateSmoothly());
         });
     }
 
