@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Light palette: deep indigo with an amber accent on cool neutrals, the dark palette is in values-night -->
-    <color name="c_primary">#4338CA</color>
+    <!-- Light palette: the default color theme Ocean (see palettes.xml) on cool neutrals, the dark palette is in values-night -->
+    <color name="c_primary">#006497</color>
     <color name="c_on_primary">#FFFFFF</color>
-    <color name="c_primary_container">#E3E1FF</color>
-    <color name="c_on_primary_container">#1B1464</color>
-    <color name="c_secondary">#585C77</color>
+    <color name="c_primary_container">#4FAEF2</color>
+    <color name="c_on_primary_container">#004062</color>
+    <color name="c_secondary">#43617B</color>
     <color name="c_on_secondary">#FFFFFF</color>
-    <color name="c_secondary_container">#DFE0F8</color>
-    <color name="c_on_secondary_container">#161A31</color>
-    <color name="c_tertiary">#8F5300</color>
+    <color name="c_secondary_container">#C1E0FF</color>
+    <color name="c_on_secondary_container">#45647E</color>
+    <color name="c_tertiary">#805600</color>
     <color name="c_on_tertiary">#FFFFFF</color>
-    <color name="c_tertiary_container">#FFDDB8</color>
-    <color name="c_on_tertiary_container">#2E1500</color>
+    <color name="c_tertiary_container">#DC9A20</color>
+    <color name="c_on_tertiary_container">#533600</color>
 
     <color name="c_surface">#F5F5FA</color>
     <color name="c_on_surface">#191A24</color>

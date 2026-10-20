@@ -236,6 +236,34 @@
                 android:orientation="horizontal" />
         </HorizontalScrollView>
 
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp">
+
+            <LinearLayout
+                android:id="@+id/llBlack"
+                style="@style/XLua.Row">
+
+                <LinearLayout style="@style/XLua.Row.Text">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:text="@string/title_black" />
+
+                    <TextView
+                        style="@style/XLua.Row.Subtitle"
+                        android:text="@string/title_black_hint" />
+                </LinearLayout>
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/swBlack"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@string/title_black" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <TextView
             style="@style/XLua.SectionTitle"
             android:text="@string/section_data" />

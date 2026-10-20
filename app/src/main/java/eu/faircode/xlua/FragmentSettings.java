@@ -20,7 +20,6 @@ package eu.faircode.xlua;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -60,6 +59,7 @@ public class FragmentSettings extends FragmentBase {
     private MaterialSwitch swNotifyNew;
     private MaterialButtonToggleGroup tgTheme;
     private LinearLayout llPalettes;
+    private MaterialSwitch swBlack;
 
     private List<String> collections = new ArrayList<>(); // Known collections
     private List<String> enabled = new ArrayList<>(); // Enabled collections
@@ -90,11 +90,13 @@ public class FragmentSettings extends FragmentBase {
         swNotifyNew = view.findViewById(R.id.swNotifyNew);
         tgTheme = view.findViewById(R.id.tgTheme);
         llPalettes = view.findViewById(R.id.llPalettes);
+        swBlack = view.findViewById(R.id.swBlack);
 
         tvVersion.setText(getString(R.string.title_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
 
         view.findViewById(R.id.llRestrictNew).setOnClickListener(v -> swRestrictNew.toggle());
         view.findViewById(R.id.llNotifyNew).setOnClickListener(v -> swNotifyNew.toggle());
+        view.findViewById(R.id.llBlack).setOnClickListener(v -> swBlack.toggle());
         view.findViewById(R.id.llCollections).setOnClickListener(v -> selectCollections());
         view.findViewById(R.id.llValues).setOnClickListener(v ->
                 startActivity(ActivityValues.getIntent(activity, null, null)));
@@ -128,14 +130,20 @@ public class FragmentSettings extends FragmentBase {
                 boolean notifyNew = Data.getSettingBoolean(context, "global", "notify_new_apps");
                 String theme = Data.getSetting(context, "global", "theme");
                 String palette = Data.getSetting(context, "global", "palette");
+                boolean black = Data.getSettingBoolean(context, "global", "black");
 
                 post(() -> {
                     // Restoring a backup or clearing data can change the colors
-                    if (ApplicationEx.setPalette(context, palette)) {
+                    boolean changed = ApplicationEx.setPalette(context, palette);
+                    changed |= ApplicationEx.setBlack(context, black);
+                    if (changed) {
                         requireActivity().recreate();
                         return;
                     }
                     showPalettes(ApplicationEx.getPalette(context));
+                    swBlack.setOnCheckedChangeListener(null);
+                    swBlack.setChecked(black);
+                    swBlack.setOnCheckedChangeListener((button, checked) -> selectBlack(checked));
 
                     this.collections = new ArrayList<>(known);
                     this.enabled = enabled;
@@ -197,10 +205,8 @@ public class FragmentSettings extends FragmentBase {
                 colors.getTheme().applyStyle(style, true);
 
             View view = inflater.inflate(R.layout.item_palette, llPalettes, false);
-            // AMOLED has the default colors on black
-            int outer = ("amoled".equals(palette) ? Color.BLACK
-                    : Ui.color(colors, com.google.android.material.R.attr.colorPrimaryContainer));
-            view.findViewById(R.id.flSwatch).setBackgroundTintList(ColorStateList.valueOf(outer));
+            view.findViewById(R.id.flSwatch).setBackgroundTintList(ColorStateList.valueOf(
+                    Ui.color(colors, com.google.android.material.R.attr.colorPrimaryContainer)));
             ImageView ivSwatch = view.findViewById(R.id.ivSwatch);
             ivSwatch.setBackgroundTintList(ColorStateList.valueOf(Ui.color(colors, androidx.appcompat.R.attr.colorPrimary)));
             ivSwatch.setImageTintList(ColorStateList.valueOf(Ui.color(colors, com.google.android.material.R.attr.colorOnPrimary)));
@@ -223,6 +229,16 @@ public class FragmentSettings extends FragmentBase {
             Data.putSetting(context, "global", "palette", value);
             // Remembered also when the screen is gone meanwhile, which then shows the new colors when it is created
             if (ApplicationEx.setPalette(context, value))
+                post(() -> requireActivity().recreate());
+        });
+    }
+
+    // Black instead of dark grey backgrounds in the dark theme, with any palette; off is no setting
+    private void selectBlack(boolean black) {
+        final Context context = requireContext().getApplicationContext();
+        run(TAG, () -> {
+            Data.putSetting(context, "global", "black", black ? Boolean.toString(true) : null);
+            if (ApplicationEx.setBlack(context, black))
                 post(() -> requireActivity().recreate());
         });
     }

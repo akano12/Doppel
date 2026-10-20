@@ -40,33 +40,23 @@ public class ApplicationEx extends Application {
     private static final String PREF_THEME = "theme";
 
     // Color themes: the setting value, the theme overlay (res/values/palettes.xml) and the title;
-    // no setting is the default indigo palette of the app theme
-    static final String PALETTE_DEFAULT = "indigo";
-    static final String[] PALETTES = {
-            PALETTE_DEFAULT, "ocean", "forest", "sunflower", "coral", "berry", "sky", "teal", "amoled"};
+    // no setting is the default palette Ocean of the app theme (res/values/colors.xml)
+    static final String PALETTE_DEFAULT = "ocean";
+    static final String[] PALETTES = {PALETTE_DEFAULT, "berry", "sky", "teal"};
     private static final int[] PALETTE_STYLES = {
             0,
-            R.style.ThemeOverlay_XLua_Ocean,
-            R.style.ThemeOverlay_XLua_Forest,
-            R.style.ThemeOverlay_XLua_Sunflower,
-            R.style.ThemeOverlay_XLua_Coral,
             R.style.ThemeOverlay_XLua_Berry,
             R.style.ThemeOverlay_XLua_Sky,
-            R.style.ThemeOverlay_XLua_Teal,
-            R.style.ThemeOverlay_XLua_Amoled};
+            R.style.ThemeOverlay_XLua_Teal};
     static final int[] PALETTE_TITLES = {
-            R.string.title_palette_indigo,
             R.string.title_palette_ocean,
-            R.string.title_palette_forest,
-            R.string.title_palette_sunflower,
-            R.string.title_palette_coral,
             R.string.title_palette_berry,
             R.string.title_palette_sky,
-            R.string.title_palette_teal,
-            R.string.title_palette_amoled};
+            R.string.title_palette_teal};
 
-    // Copy of the palette setting of the service, like the theme
+    // Copies of the palette and black background settings of the service, like the theme
     private static final String PREF_PALETTE = "palette";
+    private static final String PREF_BLACK = "black";
 
     @Override
     public void onCreate() {
@@ -105,11 +95,27 @@ public class ApplicationEx extends Application {
         return (index < 0 ? 0 : PALETTE_STYLES[index]);
     }
 
-    // Applies the palette to the theme of a screen, before its views are created
+    // Remember the black background setting of the service; true when it changed, like setPalette
+    static boolean setBlack(Context context, boolean black) {
+        SharedPreferences prefs = getPreferences(context);
+        if (black == prefs.getBoolean(PREF_BLACK, false))
+            return false;
+        prefs.edit().putBoolean(PREF_BLACK, black).apply();
+        return true;
+    }
+
+    static boolean isBlack(Context context) {
+        return getPreferences(context).getBoolean(PREF_BLACK, false);
+    }
+
+    // Applies the palette and the black background, which only the dark theme has (values-night),
+    // to the theme of a screen, before its views are created
     static void applyPalette(Context context) {
         int style = getPaletteStyle(getPalette(context));
         if (style != 0)
             context.getTheme().applyStyle(style, true);
+        if (isBlack(context))
+            context.getTheme().applyStyle(R.style.ThemeOverlay_XLua_Black, true);
     }
 
     // Same file as the former default shared preferences

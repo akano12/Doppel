@@ -285,15 +285,12 @@
     <string name="title_theme_light">Light</string>
     <string name="title_theme_dark">Dark</string>
     <string name="title_palette">Colors</string>
-    <string name="title_palette_indigo">Indigo</string>
     <string name="title_palette_ocean">Ocean</string>
-    <string name="title_palette_forest">Forest</string>
-    <string name="title_palette_sunflower">Sunflower</string>
-    <string name="title_palette_coral">Coral</string>
     <string name="title_palette_berry">Berry</string>
     <string name="title_palette_sky">Sky</string>
     <string name="title_palette_teal">Teal</string>
-    <string name="title_palette_amoled">AMOLED</string>
+    <string name="title_black">Pure black background</string>
+    <string name="title_black_hint">In the dark theme, which saves power on OLED screens</string>
     <string name="title_backup_hint">Settings, custom definitions and restrictions</string>
     <string name="title_restore_hint">From a backup file</string>
     <string name="title_clear_data">Clear restrictions and settings</string>

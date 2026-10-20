@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="c_primary">#C4C0FF</color>
-    <color name="c_on_primary">#26209A</color>
-    <color name="c_primary_container">#3A31B0</color>
-    <color name="c_on_primary_container">#E3E1FF</color>
-    <color name="c_secondary">#C2C4DF</color>
-    <color name="c_on_secondary">#2B2E46</color>
-    <color name="c_secondary_container">#41445E</color>
-    <color name="c_on_secondary_container">#DFE0F8</color>
-    <color name="c_tertiary">#FFB86B</color>
-    <color name="c_on_tertiary">#4C2700</color>
-    <color name="c_tertiary_container">#6B3D00</color>
-    <color name="c_on_tertiary_container">#FFDDB8</color>
+    <color name="c_primary">#92CCFF</color>
+    <color name="c_on_primary">#003351</color>
+    <color name="c_primary_container">#4FAEF2</color>
+    <color name="c_on_primary_container">#004062</color>
+    <color name="c_secondary">#ABCAE8</color>
+    <color name="c_on_secondary">#11334B</color>
+    <color name="c_secondary_container">#2A4A63</color>
+    <color name="c_on_secondary_container">#99B9D6</color>
+    <color name="c_tertiary">#FFBA45</color>
+    <color name="c_on_tertiary">#442C00</color>
+    <color name="c_tertiary_container">#DC9A20</color>
+    <color name="c_on_tertiary_container">#533600</color>
 
     <color name="c_surface">#0E0F15</color>
     <color name="c_on_surface">#E4E4EF</color>

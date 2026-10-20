@@ -66,13 +66,16 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
             // The local copy of the theme does not exist yet after an update
             String theme = (available ? Data.getSetting(context, "global", "theme") : null);
             String palette = (available ? Data.getSetting(context, "global", "palette") : null);
+            boolean black = (available && Data.getSettingBoolean(context, "global", "black"));
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed())
                     return;
                 if (available) {
                     ApplicationEx.setTheme(context, theme);
                     // The colors are applied when the screen is created
-                    if (ApplicationEx.setPalette(context, palette)) {
+                    boolean changed = ApplicationEx.setPalette(context, palette);
+                    changed |= ApplicationEx.setBlack(context, black);
+                    if (changed) {
                         recreate();
                         return;
                     }

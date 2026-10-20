@@ -1,69 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Accent colors generated from seed colors with the Material color utilities (fidelity scheme), see ApplicationEx.PALETTES;
+<!-- Accent colors generated from seed colors with the Material color utilities (fidelity scheme), see ApplicationEx.PALETTES; the default Ocean is in colors.xml;
      backgrounds, text and outlines are those of the light or dark theme, like Magisk does -->
 <resources>
-    <!-- AMOLED: the default colors, black surfaces in the dark theme only (values-night) -->
-    <style name="ThemeOverlay.XLua.Amoled" parent="" />
-
-    <style name="ThemeOverlay.XLua.Ocean" parent="">
-        <item name="colorPrimary">#006497</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorPrimaryContainer">#4FAEF2</item>
-        <item name="colorOnPrimaryContainer">#004062</item>
-        <item name="colorSecondary">#43617B</item>
-        <item name="colorOnSecondary">#FFFFFF</item>
-        <item name="colorSecondaryContainer">#C1E0FF</item>
-        <item name="colorOnSecondaryContainer">#45647E</item>
-        <item name="colorTertiary">#805600</item>
-        <item name="colorOnTertiary">#FFFFFF</item>
-        <item name="colorTertiaryContainer">#DC9A20</item>
-        <item name="colorOnTertiaryContainer">#533600</item>
-    </style>
-
-    <style name="ThemeOverlay.XLua.Forest" parent="">
-        <item name="colorPrimary">#2E694A</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorPrimaryContainer">#66A27F</item>
-        <item name="colorOnPrimaryContainer">#00361F</item>
-        <item name="colorSecondary">#4D6455</item>
-        <item name="colorOnSecondary">#FFFFFF</item>
-        <item name="colorSecondaryContainer">#CFE9D6</item>
-        <item name="colorOnSecondaryContainer">#536A5B</item>
-        <item name="colorTertiary">#8C4B51</item>
-        <item name="colorOnTertiary">#FFFFFF</item>
-        <item name="colorTertiaryContainer">#CC8186</item>
-        <item name="colorOnTertiaryContainer">#511D23</item>
-    </style>
-
-    <style name="ThemeOverlay.XLua.Sunflower" parent="">
-        <item name="colorPrimary">#775A00</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorPrimaryContainer">#F0B90F</item>
-        <item name="colorOnPrimaryContainer">#644B00</item>
-        <item name="colorSecondary">#725B22</item>
-        <item name="colorOnSecondary">#FFFFFF</item>
-        <item name="colorSecondaryContainer">#FCDC96</item>
-        <item name="colorOnSecondaryContainer">#776026</item>
-        <item name="colorTertiary">#006685</item>
-        <item name="colorOnTertiary">#FFFFFF</item>
-        <item name="colorTertiaryContainer">#56CEFF</item>
-        <item name="colorOnTertiaryContainer">#005670</item>
-    </style>
-
-    <style name="ThemeOverlay.XLua.Coral" parent="">
-        <item name="colorPrimary">#9C4236</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorPrimaryContainer">#DC7465</item>
-        <item name="colorOnPrimaryContainer">#571009</item>
-        <item name="colorSecondary">#81524B</item>
-        <item name="colorOnSecondary">#FFFFFF</item>
-        <item name="colorSecondaryContainer">#FEC0B6</item>
-        <item name="colorOnSecondaryContainer">#7A4C45</item>
-        <item name="colorTertiary">#006B55</item>
-        <item name="colorOnTertiary">#FFFFFF</item>
-        <item name="colorTertiaryContainer">#1CA484</item>
-        <item name="colorOnTertiaryContainer">#003125</item>
-    </style>
+    <!-- Pure black background: only in the dark theme (values-night), see ApplicationEx.applyPalette -->
+    <style name="ThemeOverlay.XLua.Black" parent="" />
 
     <style name="ThemeOverlay.XLua.Berry" parent="">
         <item name="colorPrimary">#943D54</item>

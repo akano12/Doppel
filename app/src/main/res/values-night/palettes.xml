@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Accent colors generated from seed colors with the Material color utilities (fidelity scheme), see ApplicationEx.PALETTES;
+<!-- Accent colors generated from seed colors with the Material color utilities (fidelity scheme), see ApplicationEx.PALETTES; the default Ocean is in colors.xml;
      backgrounds, text and outlines are those of the light or dark theme, like Magisk does -->
 <resources>
-    <!-- AMOLED: the default colors with black surfaces, which turn pixels of OLED screens off -->
-    <style name="ThemeOverlay.XLua.Amoled" parent="">
+    <!-- Pure black background, which turns pixels of OLED screens off, with any color theme -->
+    <style name="ThemeOverlay.XLua.Black" parent="">
         <item name="android:colorBackground">#000000</item>
         <item name="colorSurface">#000000</item>
         <item name="colorSurfaceContainerLowest">#000000</item>
@@ -12,66 +12,6 @@
         <item name="colorSurfaceContainerHigh">#1B1B22</item>
         <item name="colorSurfaceContainerHighest">#25252D</item>
         <item name="colorOutlineVariant">#2A2B33</item>
-    </style>
-
-    <style name="ThemeOverlay.XLua.Ocean" parent="">
-        <item name="colorPrimary">#92CCFF</item>
-        <item name="colorOnPrimary">#003351</item>
-        <item name="colorPrimaryContainer">#4FAEF2</item>
-        <item name="colorOnPrimaryContainer">#004062</item>
-        <item name="colorSecondary">#ABCAE8</item>
-        <item name="colorOnSecondary">#11334B</item>
-        <item name="colorSecondaryContainer">#2A4A63</item>
-        <item name="colorOnSecondaryContainer">#99B9D6</item>
-        <item name="colorTertiary">#FFBA45</item>
-        <item name="colorOnTertiary">#442C00</item>
-        <item name="colorTertiaryContainer">#DC9A20</item>
-        <item name="colorOnTertiaryContainer">#533600</item>
-    </style>
-
-    <style name="ThemeOverlay.XLua.Forest" parent="">
-        <item name="colorPrimary">#96D4AE</item>
-        <item name="colorOnPrimary">#003921</item>
-        <item name="colorPrimaryContainer">#66A27F</item>
-        <item name="colorOnPrimaryContainer">#00361F</item>
-        <item name="colorSecondary">#B3CDBA</item>
-        <item name="colorOnSecondary">#1F3528</item>
-        <item name="colorSecondaryContainer">#384E40</item>
-        <item name="colorOnSecondaryContainer">#A6BEAD</item>
-        <item name="colorTertiary">#FFB2B7</item>
-        <item name="colorOnTertiary">#541F25</item>
-        <item name="colorTertiaryContainer">#CC8186</item>
-        <item name="colorOnTertiaryContainer">#511D23</item>
-    </style>
-
-    <style name="ThemeOverlay.XLua.Sunflower" parent="">
-        <item name="colorPrimary">#FFD880</item>
-        <item name="colorOnPrimary">#3F2E00</item>
-        <item name="colorPrimaryContainer">#F0B90F</item>
-        <item name="colorOnPrimaryContainer">#644B00</item>
-        <item name="colorSecondary">#E2C37F</item>
-        <item name="colorOnSecondary">#3F2E00</item>
-        <item name="colorSecondaryContainer">#59440B</item>
-        <item name="colorOnSecondaryContainer">#CFB26F</item>
-        <item name="colorTertiary">#B1E4FF</item>
-        <item name="colorOnTertiary">#003547</item>
-        <item name="colorTertiaryContainer">#56CEFF</item>
-        <item name="colorOnTertiaryContainer">#005670</item>
-    </style>
-
-    <style name="ThemeOverlay.XLua.Coral" parent="">
-        <item name="colorPrimary">#FFB4A8</item>
-        <item name="colorOnPrimary">#5F150E</item>
-        <item name="colorPrimaryContainer">#DC7465</item>
-        <item name="colorOnPrimaryContainer">#571009</item>
-        <item name="colorSecondary">#F5B8AE</item>
-        <item name="colorOnSecondary">#4C2520</item>
-        <item name="colorSecondaryContainer">#693D37</item>
-        <item name="colorOnSecondaryContainer">#E6AAA1</item>
-        <item name="colorTertiary">#64DBB8</item>
-        <item name="colorOnTertiary">#00382B</item>
-        <item name="colorTertiaryContainer">#1CA484</item>
-        <item name="colorOnTertiaryContainer">#003125</item>
     </style>
 
     <style name="ThemeOverlay.XLua.Berry" parent="">
