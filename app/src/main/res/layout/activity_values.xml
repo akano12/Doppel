@@ -34,7 +34,7 @@
 
                 <Button
                     android:id="@+id/btnScopeApp"
-                    style="?attr/materialButtonOutlinedStyle"
+                    style="@style/XLua.Button.Segment"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -43,7 +43,7 @@
 
                 <Button
                     android:id="@+id/btnScopeGlobal"
-                    style="?attr/materialButtonOutlinedStyle"
+                    style="@style/XLua.Button.Segment"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"

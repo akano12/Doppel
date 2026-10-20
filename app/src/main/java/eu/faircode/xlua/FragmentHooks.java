@@ -38,6 +38,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -99,8 +100,18 @@ public class FragmentHooks extends FragmentBase {
         rvHooks.setLayoutManager(new LinearLayoutManager(context));
         rvHooks.setAdapter(adapter);
 
-        view.findViewById(R.id.fabAdd).setOnClickListener(v ->
-                startActivity(new Intent(context, ActivityHookEdit.class)));
+        // The button shows only its icon while scrolling down, so it covers less of the list
+        ExtendedFloatingActionButton fabAdd = view.findViewById(R.id.fabAdd);
+        fabAdd.setOnClickListener(v -> startActivity(new Intent(context, ActivityHookEdit.class)));
+        rvHooks.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                if (dy > 0)
+                    fabAdd.shrink();
+                else if (dy < 0)
+                    fabAdd.extend();
+            }
+        });
         view.findViewById(R.id.ibDownloads).setOnClickListener(v ->
                 startActivity(new Intent(context, ActivityDownloads.class)));
         view.findViewById(R.id.ibMore).setOnClickListener(v -> {
@@ -216,11 +227,8 @@ public class FragmentHooks extends FragmentBase {
             return;
         String title = Groups.getTitle(requireContext(), group);
         boolean open = (isFiltering() ? !closed.contains(group) : group.equals(getExpanded()));
-        // Custom groups are titled by their name
-        String header = (title.equals(group)
-                ? getString(R.string.title_group_header_custom, title, hooks.size())
-                : getString(R.string.title_group_header, title, group, hooks.size()));
-        items.add(new AdapterSections.Expandable(header, open,
+        // The name of a group can be searched for, the editor of a definition shows it
+        items.add(new AdapterSections.Expandable(getString(R.string.title_count, title, hooks.size()), open,
                 getString(open ? R.string.title_hide_hooks : R.string.title_show_hooks, title),
                 () -> toggle(group)));
         if (open)
@@ -321,18 +329,17 @@ public class FragmentHooks extends FragmentBase {
             h.tvClass.setText(getTarget(hook));
 
             h.llBadges.removeAllViews();
-            if (hook.isBuiltin())
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_builtin), Ui.Badge.NEUTRAL);
-            else if (builtinIds.contains(hook.getId()))
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_overridden), Ui.Badge.ACCENT);
-            else
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_custom), Ui.Badge.ACCENT);
+            // Built-in definitions, which most are, have no badge of their own
+            if (!hook.isBuiltin())
+                Ui.addBadge(h.llBadges, getString(builtinIds.contains(hook.getId())
+                        ? R.string.title_hook_overridden : R.string.title_hook_custom), Ui.Badge.ACCENT);
             if (!hook.isEnabled())
                 Ui.addBadge(h.llBadges, getString(R.string.title_hook_disabled), Ui.Badge.NEUTRAL);
             if (!hook.isForThisSdk())
                 Ui.addBadge(h.llBadges, getString(R.string.title_hook_unavailable), Ui.Badge.WARNING);
             if (!collection.contains(hook.getCollection()))
                 Ui.addBadge(h.llBadges, getString(R.string.title_hook_collection_off, hook.getCollection()), Ui.Badge.NEUTRAL);
+            h.llBadges.setVisibility(h.llBadges.getChildCount() == 0 ? View.GONE : View.VISIBLE);
         }
     }
 }

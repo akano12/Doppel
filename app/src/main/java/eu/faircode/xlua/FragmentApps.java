@@ -282,7 +282,7 @@ public class FragmentApps extends FragmentBase {
     private void updateCounts() {
         for (AdapterApp.Filter filter : AdapterApp.Filter.values()) {
             Button button = tgFilter.findViewById(FILTER_BUTTONS[filter.ordinal()]);
-            button.setText(getString(R.string.title_filter_count,
+            button.setText(getString(R.string.title_count,
                     getString(FILTER_TITLES[filter.ordinal()]), adapter.getCount(filter)));
         }
     }

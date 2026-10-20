@@ -317,7 +317,7 @@ public class ActivityApp extends ActivityBase {
         else if (assignments.size() < hooks.size())
             gv.tvMeta.setText(getString(R.string.title_group_partial, assignments.size(), hooks.size()));
         else if (used > 0)
-            gv.tvMeta.setText(getString(R.string.title_group_used, Ui.ago(used)));
+            gv.tvMeta.setText(getString(R.string.title_restricted_when, Ui.ago(used)));
         else
             gv.tvMeta.setText(R.string.title_not_used);
 
@@ -359,7 +359,7 @@ public class ActivityApp extends ActivityBase {
                 status = getString(R.string.title_hook_state_failed);
             } else if (assignment.restricted && assignment.used > 0) {
                 color = androidx.appcompat.R.attr.colorPrimary;
-                status = getString(R.string.title_hook_used, Ui.ago(assignment.used));
+                status = getString(R.string.title_restricted_when, Ui.ago(assignment.used));
             } else {
                 color = com.google.android.material.R.attr.colorOnSurfaceVariant;
                 status = getString(R.string.title_hook_not_used);

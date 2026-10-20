@@ -492,7 +492,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private void bindHeader(HeaderHolder h, Header header) {
         Context context = h.itemView.getContext();
         String title = context.getString(getTitle(header.section));
-        h.tvHeader.setText(context.getString(R.string.title_filter_count, title, header.count));
+        h.tvHeader.setText(context.getString(R.string.title_count, title, header.count));
         h.tvHeader.setTextColor(Ui.color(context, androidx.appcompat.R.attr.colorPrimary));
         // Turning the arrow when the section is toggled, not when the header is shown
         float rotation = (header.expanded ? 180 : 0);

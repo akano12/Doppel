@@ -293,7 +293,7 @@ public class ActivityDownloads extends ActivityBase {
             return;
         boolean expand = (isFiltering() ? !closed.contains(collection) : collection.equals(getOpen()));
         items.add(new AdapterSections.Expandable(
-                getString(R.string.title_group_header_custom, collection, entries.size()), expand,
+                getString(R.string.title_count, collection, entries.size()), expand,
                 getString(expand ? R.string.title_hide_hooks : R.string.title_show_hooks, collection),
                 () -> toggle(collection)));
         if (expand)

@@ -45,7 +45,7 @@
 
                     <TextView
                         style="@style/XLua.Stat.Label"
-                        android:text="@string/title_stat_today" />
+                        android:text="@string/title_today" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -64,7 +64,7 @@
 
                     <TextView
                         style="@style/XLua.Stat.Label"
-                        android:text="@string/title_stat_apps" />
+                        android:text="@string/nav_apps" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

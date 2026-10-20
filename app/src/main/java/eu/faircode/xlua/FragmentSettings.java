@@ -178,6 +178,12 @@ public class FragmentSettings extends FragmentBase {
                     tgTheme.check(ApplicationEx.THEME_DARK.equals(theme) ? R.id.btnThemeDark
                             : ApplicationEx.THEME_LIGHT.equals(theme) ? R.id.btnThemeLight
                             : R.id.btnThemeSystem);
+                    // Only the dark theme has a black background; choosing a theme recreates the screen
+                    boolean dark = !ApplicationEx.THEME_LIGHT.equals(theme);
+                    View llBlack = requireView().findViewById(R.id.llBlack);
+                    llBlack.setEnabled(dark);
+                    llBlack.setAlpha(dark ? 1f : 0.38f);
+                    swBlack.setEnabled(dark);
                     tgTheme.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
                         if (!isChecked)
                             return;
