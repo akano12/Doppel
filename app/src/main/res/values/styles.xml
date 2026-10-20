@@ -3,6 +3,7 @@
     <attr name="colorWarning" format="color" />
     <attr name="colorWarningContainer" format="color" />
     <attr name="colorOnWarningContainer" format="color" />
+    <attr name="colorSuccess" format="color" />
 
     <!-- Light and dark follow the theme setting, see ApplicationEx -->
     <style name="Theme.XLua" parent="Theme.Material3.DayNight.NoActionBar">
@@ -42,6 +43,8 @@
         <item name="colorWarning">@color/c_warning</item>
         <item name="colorWarningContainer">@color/c_warning_container</item>
         <item name="colorOnWarningContainer">@color/c_on_warning_container</item>
+
+        <item name="colorSuccess">@color/c_success</item>
 
         <!-- IBM Plex Sans for all text, see res/font -->
         <item name="android:fontFamily">@font/plex_sans</item>

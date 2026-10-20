@@ -33,6 +33,8 @@
     <color name="c_warning_container">#4C2700</color>
     <color name="c_on_warning_container">#FFDDB8</color>
 
+    <color name="c_success">#2E8A4B</color>
+
     <color name="c_code_background">#0A0B10</color>
 
 </resources>

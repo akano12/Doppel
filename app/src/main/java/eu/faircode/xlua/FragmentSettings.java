@@ -130,7 +130,7 @@ public class FragmentSettings extends FragmentBase {
                     tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
                     ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
                     ivStatus.setBackgroundTintList(ColorStateList.valueOf(Ui.color(requireContext(), available
-                            ? androidx.appcompat.R.attr.colorPrimary : R.attr.colorWarning)));
+                            ? R.attr.colorSuccess : R.attr.colorWarning)));
                     glStatus.removeAllViews();
                     addStatus(R.string.title_status_service, version < 0 ? "-" : Integer.toString(version));
                     addStatus(R.string.title_status_hooks, Integer.toString(hooks.size()));

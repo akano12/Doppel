@@ -34,6 +34,9 @@
     <color name="c_warning_container">#FFEBD6</color>
     <color name="c_on_warning_container">#5E3000</color>
 
+    <!-- Background of white icons, like the shield of an active module -->
+    <color name="c_success">#1E7B3C</color>
+
     <color name="c_code_background">#14151F</color>
     <color name="c_code_text">#E5E6F0</color>
     <color name="c_code_comment">#7B7F96</color>

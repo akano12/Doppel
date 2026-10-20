@@ -46,7 +46,7 @@
                         android:layout_width="44dp"
                         android:layout_height="44dp"
                         android:background="@drawable/bg_rounded"
-                        android:backgroundTint="@color/c_primary"
+                        android:backgroundTint="@color/c_outline"
                         android:importantForAccessibility="no"
                         android:padding="10dp"
                         android:src="@drawable/ic_shield"
