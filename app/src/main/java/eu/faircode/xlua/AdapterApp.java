@@ -111,10 +111,11 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
         // Failed hooks need a look, like new apps without restrictions; restricting a new app makes it
         // restricted recently. Apps left unrestricted on purpose are only with all apps after a while.
+        // System apps do not count as new, they are installed when the device is set up, like after a reset.
         Section getSection(long now) {
             if (error)
                 return Section.ATTENTION;
-            if (restricted == 0 && groups > 0 && app.installed > 0 && now - app.installed < INSTALLED)
+            if (!app.system && restricted == 0 && groups > 0 && app.installed > 0 && now - app.installed < INSTALLED)
                 return Section.NEW;
             long recent = getRecent();
             if (recent > 0 && now - recent < RECENT)

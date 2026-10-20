@@ -107,10 +107,12 @@ public class ActivityBase extends AppCompatActivity {
         }
         Bitmap bitmap = Bitmap.createBitmap(decor.getWidth(), decor.getHeight(), Bitmap.Config.ARGB_8888);
         PixelCopy.request(getWindow(), bitmap, result -> {
+            // A snapshot without the recreated screen would be shown over the next screen
+            if (isFinishing() || isDestroyed())
+                return;
             if (result == PixelCopy.SUCCESS)
                 snapshot = bitmap;
-            if (!isFinishing() && !isDestroyed())
-                recreate();
+            recreate();
         }, new Handler(Looper.getMainLooper()));
     }
 
