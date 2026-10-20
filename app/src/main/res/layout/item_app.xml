@@ -84,7 +84,7 @@
         android:minHeight="44dp"
         android:paddingStart="14dp"
         android:paddingEnd="14dp"
-        android:textColor="?attr/colorWarningContainer"
+        android:textColor="?attr/colorOnTertiary"
         android:visibility="gone"
-        app:backgroundTint="?attr/colorWarning" />
+        app:backgroundTint="?attr/colorTertiary" />
 </LinearLayout>
