@@ -322,22 +322,18 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         final String category = this.category;
         final boolean global = GLOBAL.equals(category);
         final Context context = getApplicationContext();
-        executor.submit(() -> {
-            try {
-                // Like for restrictions, the app is stopped when it is stopped automatically
-                XApp app = (global ? null : Data.getApp(context, category, -1));
-                boolean stop = (app != null && app.forceStop && !app.persistent);
-                List<String> keys = new ArrayList<>(changed.keySet());
-                for (int i = 0; i < keys.size(); i++) {
-                    // Stop the app once, so it starts with the new values
-                    boolean kill = (stop && i == keys.size() - 1);
-                    Data.putSetting(context, category, keys.get(i), changed.get(keys.get(i)), kill);
-                }
-                runOnUiThread(() -> values.putAll(changed));
-                Ui.message(this, getString(stop ? R.string.msg_saved : R.string.msg_saved_restart));
-            } catch (Throwable ex) {
-                error(TAG, ex);
+        run(TAG, () -> {
+            // Like for restrictions, the app is stopped when it is stopped automatically
+            XApp app = (global ? null : Data.getApp(context, category, -1));
+            boolean stop = (app != null && app.forceStop && !app.persistent);
+            List<String> keys = new ArrayList<>(changed.keySet());
+            for (int i = 0; i < keys.size(); i++) {
+                // Stop the app once, so it starts with the new values
+                boolean kill = (stop && i == keys.size() - 1);
+                Data.putSetting(context, category, keys.get(i), changed.get(keys.get(i)), kill);
             }
+            runOnUiThread(() -> values.putAll(changed));
+            Ui.message(this, getString(stop ? R.string.msg_saved : R.string.msg_saved_restart));
         });
     }
 

@@ -159,7 +159,7 @@ public class FragmentSettings extends FragmentBase {
                         String selected = (checkedId == R.id.btnThemeDark ? ApplicationEx.THEME_DARK
                                 : checkedId == R.id.btnThemeLight ? ApplicationEx.THEME_LIGHT
                                 : ApplicationEx.THEME_SYSTEM);
-                        executor.submit(() -> {
+                        run(TAG, () -> {
                             Data.putSetting(context, "global", "theme", selected);
                             post(() -> ApplicationEx.setTheme(context, selected));
                         });
@@ -183,13 +183,7 @@ public class FragmentSettings extends FragmentBase {
 
     private void put(String name, String value) {
         final Context context = requireContext().getApplicationContext();
-        executor.submit(() -> {
-            try {
-                Data.putSetting(context, "global", name, value);
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
-        });
+        run(TAG, () -> Data.putSetting(context, "global", name, value));
     }
 
     // Hooks of disabled collections are not offered and not applied
@@ -209,13 +203,9 @@ public class FragmentSettings extends FragmentBase {
                         if (checked[i])
                             selected.add(names[i]);
                     final Context context = requireContext().getApplicationContext();
-                    executor.submit(() -> {
-                        try {
-                            Data.putCollection(context, selected);
-                            post(this::load);
-                        } catch (Throwable ex) {
-                            error(TAG, ex);
-                        }
+                    run(TAG, () -> {
+                        Data.putCollection(context, selected);
+                        post(this::load);
                     });
                 })
                 .setNegativeButton(android.R.string.cancel, null)
@@ -224,40 +214,28 @@ public class FragmentSettings extends FragmentBase {
 
     private void backup(Uri uri) {
         final Activity activity = requireActivity();
-        executor.submit(() -> {
-            try {
-                int[] counts = Backup.save(activity, uri);
-                Ui.message(activity, activity.getString(R.string.msg_backup_done, counts[0], counts[1], counts[2]));
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            int[] counts = Backup.save(activity, uri);
+            Ui.message(activity, activity.getString(R.string.msg_backup_done, counts[0], counts[1], counts[2]));
         });
     }
 
     private void restore(Uri uri) {
         final Activity activity = requireActivity();
-        executor.submit(() -> {
-            try {
-                int[] counts = Backup.restore(activity, uri);
-                Ui.message(activity, activity.getString(R.string.msg_restore_done, counts[0], counts[1], counts[2]));
-                post(this::load);
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            int[] counts = Backup.restore(activity, uri);
+            Ui.message(activity, activity.getString(R.string.msg_restore_done, counts[0], counts[1], counts[2]));
+            post(this::load);
         });
     }
 
     // Restrictions and settings of the current user; custom definitions are kept
     private void clear() {
         final Activity activity = requireActivity();
-        executor.submit(() -> {
-            try {
-                Data.clearData(activity);
-                Ui.message(activity, activity.getString(R.string.msg_cleared));
-                post(this::load);
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            Data.clearData(activity);
+            Ui.message(activity, activity.getString(R.string.msg_cleared));
+            post(this::load);
         });
     }
 }

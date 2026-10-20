@@ -51,12 +51,35 @@ import com.google.android.material.snackbar.Snackbar;
 
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Locale;
 
 // Small view helpers shared by the screens
 final class Ui {
     // Screens with a bar at the bottom, which messages are shown above
     interface Anchored {
         View getMessageAnchor();
+    }
+
+    // Work for a background thread, see ActivityBase.run and FragmentBase.run
+    interface Task {
+        void run() throws Throwable;
+    }
+
+    // Colors of badges: information, what differs from built-in, what needs attention
+    enum Badge {
+        NEUTRAL(com.google.android.material.R.attr.colorSurfaceContainerHigh,
+                com.google.android.material.R.attr.colorOnSurfaceVariant),
+        ACCENT(com.google.android.material.R.attr.colorPrimaryContainer,
+                com.google.android.material.R.attr.colorOnPrimaryContainer),
+        WARNING(R.attr.colorWarningContainer, R.attr.colorOnWarningContainer);
+
+        final int background;
+        final int text;
+
+        Badge(int background, int text) {
+            this.background = background;
+            this.text = text;
+        }
     }
 
     // Documentation of this fork
@@ -77,19 +100,15 @@ final class Ui {
     }
 
     // Rounded label, like 'built-in' or 'system'
-    static TextView badge(Context context, String text, int backgroundAttr, int textAttr) {
-        TextView badge = (TextView) LayoutInflater.from(context).inflate(R.layout.badge, null, false);
+    static void addBadge(ViewGroup parent, String text, Badge style) {
+        Context context = parent.getContext();
+        TextView badge = (TextView) LayoutInflater.from(context).inflate(R.layout.badge, parent, false);
         badge.setText(text);
-        badge.setTextColor(color(context, textAttr));
+        badge.setTextColor(color(context, style.text));
         GradientDrawable background = new GradientDrawable();
         background.setCornerRadius(dp(context, 6));
-        background.setColor(color(context, backgroundAttr));
+        background.setColor(color(context, style.background));
         badge.setBackground(background);
-        return badge;
-    }
-
-    static void addBadge(ViewGroup parent, String text, int backgroundAttr, int textAttr) {
-        TextView badge = badge(parent.getContext(), text, backgroundAttr, textAttr);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMarginEnd(dp(parent.getContext(), 6));
@@ -148,6 +167,13 @@ final class Ui {
             message(activity, activity.getString(R.string.msg_error, ex.toString()));
     }
 
+    // Start an app, if it can be started
+    static void launch(Context context, String packageName) {
+        Intent launch = context.getPackageManager().getLaunchIntentForPackage(packageName);
+        if (launch != null)
+            context.startActivity(launch);
+    }
+
     static void browse(Activity activity, String url) {
         try {
             activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
@@ -185,6 +211,14 @@ final class Ui {
         return new MaterialAlertDialogBuilder(context)
                 .setTitle(R.string.app_name)
                 .setView(view);
+    }
+
+    // Search matching ignoring case: ids are matched with the root locale,
+    // labels in the language of the device (like the Turkish dotless i)
+    static boolean contains(String text, String query) {
+        return (text != null &&
+                (text.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)) ||
+                        text.toLowerCase(Locale.getDefault()).contains(query.toLowerCase(Locale.getDefault()))));
     }
 
     // Text of a search field, after each change

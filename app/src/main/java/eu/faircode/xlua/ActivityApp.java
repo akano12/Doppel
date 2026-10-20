@@ -40,13 +40,11 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
-import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -108,11 +106,9 @@ public class ActivityApp extends ActivityBase {
         toolbar.inflateMenu(R.menu.app);
         toolbar.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
-            if (id == R.id.menu_launch) {
-                Intent launch = getPackageManager().getLaunchIntentForPackage(packageName);
-                if (launch != null)
-                    startActivity(launch);
-            } else if (id == R.id.menu_app_info)
+            if (id == R.id.menu_launch)
+                Ui.launch(this, packageName);
+            else if (id == R.id.menu_app_info)
                 startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.fromParts("package", packageName, null)));
             return true;
@@ -194,9 +190,10 @@ public class ActivityApp extends ActivityBase {
         cbForceStop.setEnabled(!app.persistent);
         ((TextView) findViewById(R.id.tvForceStop)).setText(app.persistent
                 ? R.string.title_force_stop_persistent : R.string.title_force_stop_hint);
+        final Context context = getApplicationContext();
         cbForceStop.setOnCheckedChangeListener((button, checked) -> {
             app.forceStop = checked;
-            executor.submit(() -> Data.putSettingBoolean(this, app.packageName, "forcestop", checked));
+            run(TAG, () -> Data.putSettingBoolean(context, app.packageName, "forcestop", checked));
             updateRestart();
         });
 
@@ -204,7 +201,7 @@ public class ActivityApp extends ActivityBase {
         cbNotify.setOnCheckedChangeListener(null);
         cbNotify.setChecked(notify);
         cbNotify.setOnCheckedChangeListener((button, checked) ->
-                executor.submit(() -> Data.putSettingBoolean(this, app.packageName, "notify", checked)));
+                run(TAG, () -> Data.putSettingBoolean(context, app.packageName, "notify", checked)));
 
         // Group the hooks
         available.clear();
@@ -219,8 +216,6 @@ public class ActivityApp extends ActivityBase {
         findViewById(R.id.llValues).setVisibility(values ? View.VISIBLE : View.GONE);
 
         // Sections with their groups by title
-        final Collator collator = Collator.getInstance(Locale.getDefault());
-        collator.setStrength(Collator.SECONDARY);
         Map<Integer, List<String>> sections = new HashMap<>();
         for (String group : available.keySet()) {
             int section = Groups.getSection(group);
@@ -237,7 +232,7 @@ public class ActivityApp extends ActivityBase {
             List<String> groups = sections.get(section);
             if (groups == null)
                 continue;
-            Collections.sort(groups, (g1, g2) -> collator.compare(Groups.getTitle(this, g1), Groups.getTitle(this, g2)));
+            Groups.sortByTitle(this, groups);
 
             View vSection = inflater.inflate(R.layout.item_section, llSections, false);
             ((TextView) vSection.findViewById(R.id.tvSection)).setText(section);
@@ -282,14 +277,22 @@ public class ActivityApp extends ActivityBase {
         svContent.setVisibility(View.VISIBLE);
     }
 
-    private List<XAssignment> getAssignments(String group) {
-        return app.getAssignments(group);
-    }
+    // Colors of a group: text, icon background and icon
+    private static final int[] COLORS_ERROR = {
+            R.attr.colorWarning, R.attr.colorWarningContainer, R.attr.colorOnWarningContainer};
+    private static final int[] COLORS_RESTRICTED = {
+            androidx.appcompat.R.attr.colorPrimary,
+            com.google.android.material.R.attr.colorPrimaryContainer,
+            com.google.android.material.R.attr.colorOnPrimaryContainer};
+    private static final int[] COLORS_NONE = {
+            com.google.android.material.R.attr.colorOnSurfaceVariant,
+            com.google.android.material.R.attr.colorSurfaceContainerHigh,
+            com.google.android.material.R.attr.colorOnSurfaceVariant};
 
     private void bind(String group) {
         GroupView gv = views.get(group);
         List<XHook> hooks = available.get(group);
-        List<XAssignment> assignments = getAssignments(group);
+        List<XAssignment> assignments = app.getAssignments(group);
 
         long used = -1;
         boolean error = false;
@@ -301,21 +304,10 @@ public class ActivityApp extends ActivityBase {
         }
 
         boolean restricted = !assignments.isEmpty();
-        gv.tvMeta.setTextColor(Ui.color(this, error
-                ? R.attr.colorWarning
-                : restricted
-                ? androidx.appcompat.R.attr.colorPrimary
-                : com.google.android.material.R.attr.colorOnSurfaceVariant));
-        gv.flIcon.setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, error
-                ? R.attr.colorWarningContainer
-                : restricted
-                ? com.google.android.material.R.attr.colorPrimaryContainer
-                : com.google.android.material.R.attr.colorSurfaceContainerHigh)));
-        gv.ivIcon.setImageTintList(ColorStateList.valueOf(Ui.color(this, error
-                ? R.attr.colorOnWarningContainer
-                : restricted
-                ? com.google.android.material.R.attr.colorOnPrimaryContainer
-                : com.google.android.material.R.attr.colorOnSurfaceVariant)));
+        int[] colors = (error ? COLORS_ERROR : restricted ? COLORS_RESTRICTED : COLORS_NONE);
+        gv.tvMeta.setTextColor(Ui.color(this, colors[0]));
+        gv.flIcon.setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, colors[1])));
+        gv.ivIcon.setImageTintList(ColorStateList.valueOf(Ui.color(this, colors[2])));
         if (assignments.isEmpty())
             gv.tvMeta.setText(R.string.title_not_restricted);
         else if (error)
@@ -398,14 +390,14 @@ public class ActivityApp extends ActivityBase {
 
     // All available hooks of the group are assigned
     private boolean isComplete(String group) {
-        return (getAssignments(group).size() >= available.get(group).size());
+        return (app.getAssignments(group).size() >= available.get(group).size());
     }
 
     private void updateSummary() {
         int restricted = 0;
         boolean complete = true;
         for (String group : available.keySet()) {
-            if (!getAssignments(group).isEmpty())
+            if (!app.getAssignments(group).isEmpty())
                 restricted++;
             if (!isComplete(group))
                 complete = false;
@@ -473,13 +465,7 @@ public class ActivityApp extends ActivityBase {
 
         final Context context = getApplicationContext();
         final XApp app = this.app;
-        executor.submit(() -> {
-            try {
-                Data.assign(context, app, hooks, assign);
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
-        });
+        run(TAG, () -> Data.assign(context, app, hooks, assign));
     }
 
     // Changes apply when the app starts, stopped apps start with the new restrictions
@@ -497,19 +483,15 @@ public class ActivityApp extends ActivityBase {
         final XApp app = this.app;
         dirty = false;
         updateRestart();
-        executor.submit(() -> {
-            try {
-                Data.forceStop(context, app);
-                Ui.message(this, getString(R.string.msg_stopped, getLabel()));
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            Data.forceStop(context, app);
+            Ui.message(this, getString(R.string.msg_stopped, getLabel()));
         });
     }
 
     private void showErrors(String group) {
         StringBuilder sb = new StringBuilder();
-        for (XAssignment assignment : getAssignments(group))
+        for (XAssignment assignment : app.getAssignments(group))
             if (assignment.exception != null) {
                 if (sb.length() > 0)
                     sb.append("\n\n");

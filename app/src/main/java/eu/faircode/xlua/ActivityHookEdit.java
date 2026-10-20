@@ -39,8 +39,6 @@ import com.google.android.material.textfield.TextInputLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -175,8 +173,8 @@ public class ActivityHookEdit extends ActivityBase {
             swEnabled.setChecked(true);
             swUsage.setChecked(true);
             etScript.setText(TEMPLATE_SCRIPT);
-            updateMenu();
         }
+        updateMenu();
 
         load(id);
     }
@@ -189,30 +187,27 @@ public class ActivityHookEdit extends ActivityBase {
 
     private void load(final String id) {
         final Context context = getApplicationContext();
-        executor.submit(() -> {
-            try {
-                List<XHook> hooks = Data.getAllHooks(context, true);
-                Set<String> ids = Data.getBuiltinIds(context);
-                List<String> groups = Data.getGroupNames(hooks);
-                XHook found = null;
-                if (id != null)
-                    for (XHook h : hooks)
-                        if (id.equals(h.getId()))
-                            found = h;
-                final XHook hook = found;
-                final JSONObject jhook = (hook == null ? null : Data.toEditable(hook));
-                runOnUiThread(() -> {
-                    builtinIds = ids;
-                    etGroup.setSimpleItems(groups.toArray(new String[0]));
-                    if (jhook != null) {
-                        this.hook = hook;
-                        fill(jhook);
-                    }
-                    updateMenu();
-                });
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            // Only an existing definition needs the scripts
+            List<XHook> hooks = Data.getAllHooks(context, id != null);
+            Set<String> ids = Data.getBuiltinIds(context);
+            List<String> groups = Data.getGroupNames(hooks);
+            XHook found = null;
+            if (id != null)
+                for (XHook h : hooks)
+                    if (id.equals(h.getId()))
+                        found = h;
+            final XHook hook = found;
+            final JSONObject jhook = (hook == null ? null : Data.toEditable(hook));
+            runOnUiThread(() -> {
+                builtinIds = ids;
+                etGroup.setSimpleItems(groups.toArray(new String[0]));
+                if (jhook != null) {
+                    this.hook = hook;
+                    fill(jhook);
+                }
+                updateMenu();
+            });
         });
     }
 
@@ -360,7 +355,7 @@ public class ActivityHookEdit extends ActivityBase {
                 : TextUtils.join(" · ", functions));
     }
 
-    // The switch at the bottom of the definition enables or disables it
+    // The enabled switch of the definition enables or disables it
     private void save() {
         final JSONObject jhook;
         try {
@@ -373,19 +368,14 @@ public class ActivityHookEdit extends ActivityBase {
         }
 
         final Context context = getApplicationContext();
-        executor.submit(() -> {
-            try {
-                final XHook saved = Data.putCustom(context, jhook);
-                runOnUiThread(() -> {
-                    hook = saved;
-                    swEnabled.setChecked(saved.isEnabled());
-                    toolbar.setTitle(saved.getId());
-                    updateMenu();
-                });
-                Ui.message(this, getString(R.string.msg_hook_saved));
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            final XHook saved = Data.putCustom(context, jhook);
+            runOnUiThread(() -> {
+                hook = saved;
+                toolbar.setTitle(saved.getId());
+                updateMenu();
+            });
+            Ui.message(this, getString(R.string.msg_hook_saved));
         });
     }
 
@@ -393,13 +383,9 @@ public class ActivityHookEdit extends ActivityBase {
         final String id = hook.getId();
         Ui.areYouSure(this, getString(R.string.msg_delete_sure, id), () -> {
             final Context context = getApplicationContext();
-            executor.submit(() -> {
-                try {
-                    Data.putHook(context, id, null);
-                    runOnUiThread(this::finish);
-                } catch (Throwable ex) {
-                    error(TAG, ex);
-                }
+            run(TAG, () -> {
+                Data.putHook(context, id, null);
+                runOnUiThread(this::finish);
             });
         });
     }
@@ -415,13 +401,9 @@ public class ActivityHookEdit extends ActivityBase {
             return;
         }
         final Context context = getApplicationContext();
-        executor.submit(() -> {
-            try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
-                os.write(jhook.toString(2).replace("\\/", "/").getBytes(StandardCharsets.UTF_8));
-                Ui.message(this, getString(R.string.msg_hooks_exported, 1));
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            Util.writeJson(context, uri, jhook.toString(2));
+            Ui.message(this, getString(R.string.msg_hooks_exported, 1));
         });
     }
 

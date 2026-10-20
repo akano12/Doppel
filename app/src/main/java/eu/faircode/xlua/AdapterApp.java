@@ -169,7 +169,7 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
 
     private void apply() {
         // Search prefixes: ! restricted, ? not restricted, # system, @ user, or a uid
-        String q = (query == null ? "" : query.toLowerCase(Locale.getDefault()).trim());
+        String q = (query == null ? "" : query.trim());
         boolean restricted = false;
         boolean unrestricted = false;
         boolean system = false;
@@ -207,8 +207,8 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
                 continue;
             if (!q.isEmpty() &&
                     app.uid != uid &&
-                    !app.packageName.toLowerCase(Locale.ROOT).contains(q) &&
-                    (app.label == null || !app.label.toLowerCase(Locale.getDefault()).contains(q)))
+                    !Ui.contains(app.packageName, q) &&
+                    !Ui.contains(app.label, q))
                 continue;
             result.add(row);
         }
@@ -317,12 +317,9 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
 
         holder.llBadges.removeAllViews();
         if (app.persistent)
-            Ui.addBadge(holder.llBadges, context.getString(R.string.badge_reboot),
-                    R.attr.colorWarningContainer, R.attr.colorOnWarningContainer);
+            Ui.addBadge(holder.llBadges, context.getString(R.string.badge_reboot), Ui.Badge.WARNING);
         if (app.system)
-            Ui.addBadge(holder.llBadges, context.getString(R.string.badge_system),
-                    com.google.android.material.R.attr.colorSurfaceContainerHigh,
-                    com.google.android.material.R.attr.colorOnSurfaceVariant);
+            Ui.addBadge(holder.llBadges, context.getString(R.string.badge_system), Ui.Badge.NEUTRAL);
 
         boolean restricted = (row.restricted > 0);
         holder.piGroups.setVisibility(restricted ? View.VISIBLE : View.GONE);

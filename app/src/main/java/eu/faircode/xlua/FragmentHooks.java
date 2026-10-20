@@ -42,14 +42,10 @@ import com.google.android.material.chip.ChipGroup;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 // All hook definitions: built-in, custom and custom replacing built-in
@@ -176,7 +172,7 @@ public class FragmentHooks extends FragmentBase {
         }
         tvSummary.setText(getString(R.string.title_hooks_summary, builtin, custom, groups.size()));
 
-        String q = (query == null ? "" : query.toLowerCase(Locale.ROOT).trim());
+        String q = (query == null ? "" : query.trim());
         List<Object> items = new ArrayList<>();
         String group = null;
         List<XHook> inGroup = new ArrayList<>();
@@ -186,9 +182,9 @@ public class FragmentHooks extends FragmentBase {
             if (filter == Filter.DISABLED && hook.isEnabled())
                 continue;
             if (!q.isEmpty() &&
-                    !hook.getId().toLowerCase(Locale.ROOT).contains(q) &&
-                    !hook.getGroup().toLowerCase(Locale.ROOT).contains(q) &&
-                    !hook.getClassName().toLowerCase(Locale.ROOT).contains(q))
+                    !Ui.contains(hook.getId(), q) &&
+                    !Ui.contains(hook.getGroup(), q) &&
+                    !Ui.contains(hook.getClassName(), q))
                 continue;
             if (!hook.getGroup().equals(group)) {
                 addGroup(items, group, inGroup);
@@ -220,8 +216,11 @@ public class FragmentHooks extends FragmentBase {
             return;
         String title = Groups.getTitle(requireContext(), group);
         boolean open = (isFiltering() ? !closed.contains(group) : group.equals(getExpanded()));
-        items.add(new AdapterSections.Expandable(
-                getString(R.string.title_group_header, title, group, hooks.size()), open,
+        // Custom groups are titled by their name
+        String header = (title.equals(group)
+                ? getString(R.string.title_group_header_custom, title, hooks.size())
+                : getString(R.string.title_group_header, title, group, hooks.size()));
+        items.add(new AdapterSections.Expandable(header, open,
                 getString(open ? R.string.title_hide_hooks : R.string.title_show_hooks, title),
                 () -> toggle(group)));
         if (open)
@@ -244,21 +243,14 @@ public class FragmentHooks extends FragmentBase {
     private void importHooks(final Uri uri) {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
-        executor.submit(() -> {
-            try {
-                String text;
-                try (InputStream is = context.getContentResolver().openInputStream(uri)) {
-                    text = Util.readText(is);
-                }
-                JSONArray jarray = (text.trim().startsWith("[")
-                        ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
-                for (int i = 0; i < jarray.length(); i++)
-                    Data.putCustom(context, jarray.getJSONObject(i));
-                Ui.message(activity, activity.getString(R.string.msg_hooks_imported, jarray.length()));
-                post(this::load);
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            String text = Util.readText(context, uri);
+            JSONArray jarray = (text.trim().startsWith("[")
+                    ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
+            for (int i = 0; i < jarray.length(); i++)
+                Data.putCustom(context, jarray.getJSONObject(i));
+            Ui.message(activity, activity.getString(R.string.msg_hooks_imported, jarray.length()));
+            post(this::load);
         });
     }
 
@@ -266,16 +258,10 @@ public class FragmentHooks extends FragmentBase {
     private void exportHooks(final Uri uri) {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
-        executor.submit(() -> {
-            try {
-                JSONArray jarray = Data.getCustomHooks(context);
-                try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
-                    os.write(jarray.toString(2).getBytes(StandardCharsets.UTF_8));
-                }
-                Ui.message(activity, activity.getString(R.string.msg_hooks_exported, jarray.length()));
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            JSONArray jarray = Data.getCustomHooks(context);
+            Util.writeJson(context, uri, jarray.toString(2));
+            Ui.message(activity, activity.getString(R.string.msg_hooks_exported, jarray.length()));
         });
     }
 
@@ -335,23 +321,18 @@ public class FragmentHooks extends FragmentBase {
             h.tvClass.setText(getTarget(hook));
 
             h.llBadges.removeAllViews();
-            int neutral = com.google.android.material.R.attr.colorSurfaceContainerHigh;
-            int onNeutral = com.google.android.material.R.attr.colorOnSurfaceVariant;
-            int accent = com.google.android.material.R.attr.colorPrimaryContainer;
-            int onAccent = com.google.android.material.R.attr.colorOnPrimaryContainer;
             if (hook.isBuiltin())
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_builtin), neutral, onNeutral);
+                Ui.addBadge(h.llBadges, getString(R.string.title_hook_builtin), Ui.Badge.NEUTRAL);
             else if (builtinIds.contains(hook.getId()))
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_overridden), accent, onAccent);
+                Ui.addBadge(h.llBadges, getString(R.string.title_hook_overridden), Ui.Badge.ACCENT);
             else
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_custom), accent, onAccent);
+                Ui.addBadge(h.llBadges, getString(R.string.title_hook_custom), Ui.Badge.ACCENT);
             if (!hook.isEnabled())
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_disabled), neutral, onNeutral);
+                Ui.addBadge(h.llBadges, getString(R.string.title_hook_disabled), Ui.Badge.NEUTRAL);
             if (!hook.isForThisSdk())
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_unavailable),
-                        R.attr.colorWarningContainer, R.attr.colorOnWarningContainer);
+                Ui.addBadge(h.llBadges, getString(R.string.title_hook_unavailable), Ui.Badge.WARNING);
             if (!collection.contains(hook.getCollection()))
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_collection_off, hook.getCollection()), neutral, onNeutral);
+                Ui.addBadge(h.llBadges, getString(R.string.title_hook_collection_off, hook.getCollection()), Ui.Badge.NEUTRAL);
         }
     }
 }

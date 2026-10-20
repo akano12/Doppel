@@ -73,6 +73,17 @@ public class ActivityBase extends AppCompatActivity {
         Ui.error(this, tag, ex);
     }
 
+    // Run on the background thread, errors are shown
+    protected void run(String tag, Ui.Task task) {
+        executor.submit(() -> {
+            try {
+                task.run();
+            } catch (Throwable ex) {
+                error(tag, ex);
+            }
+        });
+    }
+
     @Override
     protected void onDestroy() {
         executor.shutdown();

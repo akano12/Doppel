@@ -20,6 +20,7 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Process;
 import android.os.UserHandle;
@@ -28,6 +29,7 @@ import android.util.Log;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -104,6 +106,24 @@ class Util {
         while ((length = is.read(buffer)) > 0)
             bos.write(buffer, 0, length);
         return bos.toString(StandardCharsets.UTF_8.name());
+    }
+
+    // All text of a file chosen by the user
+    static String readText(Context context, Uri uri) throws IOException {
+        try (InputStream is = context.getContentResolver().openInputStream(uri)) {
+            if (is == null)
+                throw new IOException("Cannot open " + uri);
+            return readText(is);
+        }
+    }
+
+    // JSON into a file chosen by the user; Android escapes slashes, which is valid, but hard to read in scripts
+    static void writeJson(Context context, Uri uri, String json) throws IOException {
+        try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
+            if (os == null)
+                throw new IOException("Cannot open " + uri);
+            os.write(json.replace("\\/", "/").getBytes(StandardCharsets.UTF_8));
+        }
     }
 
     // Enabled hook collections of the comma separated setting, by default the privacy collection

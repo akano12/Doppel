@@ -24,9 +24,6 @@ import android.net.Uri;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -68,20 +65,14 @@ class Backup {
         }
         jroot.put("restrictions", jrestrictions);
 
-        try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
-            os.write(jroot.toString(2).getBytes(StandardCharsets.UTF_8));
-        }
+        Util.writeJson(context, uri, jroot.toString(2));
 
         return new int[]{jsettings.length(), jhooks.length(), jrestrictions.length()};
     }
 
     // Values with the same name are replaced, restrictions are added; apps are not stopped
     static int[] restore(Context context, Uri uri) throws Throwable {
-        String text;
-        try (InputStream is = context.getContentResolver().openInputStream(uri)) {
-            text = Util.readText(is);
-        }
-        JSONObject jroot = new JSONObject(text);
+        JSONObject jroot = new JSONObject(Util.readText(context, uri));
         if (jroot.optInt("format", 0) != FORMAT)
             throw new IllegalArgumentException("Unsupported backup format " + jroot.optInt("format", 0));
 

@@ -48,7 +48,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -223,7 +222,7 @@ public class ActivityDownloads extends ActivityBase {
                 sb.append("\n\n");
             sb.append(getString(R.string.msg_install_overlaps));
             for (XHook hook : overlaps)
-                sb.append("\n• ").append(hook.getId()).append(" (").append(hook.getGroup()).append(')');
+                sb.append("\n• ").append(hook.getId()).append(" (").append(Groups.getTitle(this, hook.getGroup())).append(')');
         }
 
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_install, null, false);
@@ -242,7 +241,7 @@ public class ActivityDownloads extends ActivityBase {
     }
 
     private void show() {
-        String q = (query == null ? "" : query.toLowerCase(Locale.getDefault()).trim());
+        String q = (query == null ? "" : query.trim());
         List<Object> items = new ArrayList<>();
         String collection = null;
         for (Entry entry : all) {
@@ -254,10 +253,11 @@ public class ActivityDownloads extends ActivityBase {
             if (filter == Filter.UPDATES && state != State.UPDATE)
                 continue;
             if (!q.isEmpty() &&
-                    !entry.getId().toLowerCase(Locale.ROOT).contains(q) &&
-                    !entry.group.toLowerCase(Locale.getDefault()).contains(q) &&
-                    !entry.author.toLowerCase(Locale.getDefault()).contains(q) &&
-                    (entry.description == null || !entry.description.toLowerCase(Locale.getDefault()).contains(q)))
+                    !Ui.contains(entry.getId(), q) &&
+                    !Ui.contains(entry.group, q) &&
+                    !Ui.contains(Groups.getTitle(this, entry.group), q) &&
+                    !Ui.contains(entry.author, q) &&
+                    !Ui.contains(entry.description, q))
                 continue;
             if (!entry.collection.equals(collection)) {
                 collection = entry.collection;
@@ -270,29 +270,26 @@ public class ActivityDownloads extends ActivityBase {
 
     private void install(Entry entry, boolean restrict) {
         final Context context = getApplicationContext();
-        executor.submit(() -> {
-            try {
-                JSONObject jhook = new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
-                XHook hook = Data.putCustom(context, jhook);
-                int apps = (restrict
-                        ? Data.assignRestricting(context, new ArrayList<>(Collections.singletonList(hook.getId())))
-                        : 0);
-                runOnUiThread(() -> {
-                    installed.put(hook.getId(), hook);
-                    show();
-                });
+        final boolean enabled = collection.contains(entry.collection);
+        run(TAG, () -> {
+            JSONObject jhook = new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
+            XHook hook = Data.putCustom(context, jhook);
+            int apps = (restrict
+                    ? Data.assignRestricting(context, new ArrayList<>(Collections.singletonList(hook.getId())))
+                    : 0);
+            runOnUiThread(() -> {
+                installed.put(hook.getId(), hook);
+                show();
+            });
 
-                // Hooks of disabled collections are not applied, also not when they are assigned already
-                if (!collection.contains(entry.collection))
-                    Ui.message(this, getString(R.string.msg_installed_collection, entry.name, entry.collection),
-                            getString(R.string.title_enable), () -> enableCollection(entry.collection));
-                else if (apps > 0)
-                    Ui.message(this, getResources().getQuantityString(R.plurals.msg_installed_restricted, apps, entry.name, apps));
-                else
-                    Ui.message(this, getString(R.string.msg_installed, entry.name));
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+            // Hooks of disabled collections are not applied, also not when they are assigned already
+            if (!enabled)
+                Ui.message(this, getString(R.string.msg_installed_collection, entry.name, entry.collection),
+                        getString(R.string.title_enable), () -> enableCollection(entry.collection));
+            else if (apps > 0)
+                Ui.message(this, getResources().getQuantityString(R.plurals.msg_installed_restricted, apps, entry.name, apps));
+            else
+                Ui.message(this, getString(R.string.msg_installed, entry.name));
         });
     }
 
@@ -301,17 +298,13 @@ public class ActivityDownloads extends ActivityBase {
         final List<String> enabled = new ArrayList<>(collection);
         if (!enabled.contains(name))
             enabled.add(name);
-        executor.submit(() -> {
-            try {
-                Data.putCollection(context, enabled);
-                runOnUiThread(() -> {
-                    collection = enabled;
-                    show();
-                });
-                Ui.message(this, getString(R.string.msg_collection_enabled, name));
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+        run(TAG, () -> {
+            Data.putCollection(context, enabled);
+            runOnUiThread(() -> {
+                collection = enabled;
+                show();
+            });
+            Ui.message(this, getString(R.string.msg_collection_enabled, name));
         });
     }
 
@@ -385,7 +378,7 @@ public class ActivityDownloads extends ActivityBase {
             State state = getState(entry);
 
             h.tvName.setText(entry.name);
-            h.tvGroup.setText(entry.group);
+            h.tvGroup.setText(Groups.getTitle(context, entry.group));
             h.tvMeta.setText(getString(R.string.title_download_meta, entry.author, entry.version,
                     DateUtils.formatDateTime(context, entry.updated, DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR),
                     getResources().getQuantityString(R.plurals.title_downloads_count, entry.downloads, entry.downloads)));
@@ -397,16 +390,13 @@ public class ActivityDownloads extends ActivityBase {
 
             h.llBadges.removeAllViews();
             if (builtinIds.contains(entry.getId()))
-                Ui.addBadge(h.llBadges, getString(R.string.title_replaces_builtin),
-                        R.attr.colorWarningContainer, R.attr.colorOnWarningContainer);
+                Ui.addBadge(h.llBadges, getString(R.string.title_replaces_builtin), Ui.Badge.WARNING);
             int overlaps = getOverlaps(entry).size();
             if (overlaps > 0)
                 Ui.addBadge(h.llBadges, getResources().getQuantityString(R.plurals.title_overlaps, overlaps, overlaps),
-                        R.attr.colorWarningContainer, R.attr.colorOnWarningContainer);
+                        Ui.Badge.WARNING);
             if (!collection.contains(entry.collection))
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_collection_off, entry.collection),
-                        com.google.android.material.R.attr.colorSurfaceContainerHigh,
-                        com.google.android.material.R.attr.colorOnSurfaceVariant);
+                Ui.addBadge(h.llBadges, getString(R.string.title_hook_collection_off, entry.collection), Ui.Badge.NEUTRAL);
 
             h.btnInstall.setEnabled(state != State.INSTALLED);
             h.btnInstall.setText(state == State.UPDATE ? R.string.title_update

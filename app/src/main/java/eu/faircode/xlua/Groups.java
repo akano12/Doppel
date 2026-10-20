@@ -20,9 +20,12 @@ package eu.faircode.xlua;
 import android.content.Context;
 import android.content.res.Resources;
 
+import java.text.Collator;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 // Presentation of hook groups: localized titles, descriptions and icons and the section a group is shown in
@@ -115,6 +118,13 @@ final class Groups {
     // Built-in groups have a translated title, custom groups are shown by name
     static String getTitle(Context context, String group) {
         return getTitle(context.getResources(), group);
+    }
+
+    // In the order of the titles shown, ignoring case and accents
+    static void sortByTitle(Context context, List<String> groups) {
+        Collator collator = Collator.getInstance(Locale.getDefault());
+        collator.setStrength(Collator.SECONDARY);
+        Collections.sort(groups, (g1, g2) -> collator.compare(getTitle(context, g1), getTitle(context, g2)));
     }
 
     // The resources of the app, also in the service, which runs in another app

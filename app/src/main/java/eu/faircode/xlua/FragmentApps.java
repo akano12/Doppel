@@ -100,9 +100,7 @@ public class FragmentApps extends FragmentBase {
 
             @Override
             public void onLaunch(XApp app) {
-                Intent launch = context.getPackageManager().getLaunchIntentForPackage(app.packageName);
-                if (launch != null)
-                    startActivity(launch);
+                Ui.launch(context, app.packageName);
             }
         });
         adapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
@@ -277,6 +275,7 @@ public class FragmentApps extends FragmentBase {
         final List<String> groups = Data.getGroupNames(hooks);
         if (groups.isEmpty())
             return;
+        Groups.sortByTitle(context, groups);
         String[] titles = new String[groups.size()];
         for (int i = 0; i < groups.size(); i++)
             titles[i] = Groups.getTitle(context, groups.get(i));
@@ -299,7 +298,7 @@ public class FragmentApps extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         final List<XHook> hooks = this.hooks;
         final List<String> collection = this.collection;
-        executor.submit(() -> {
+        run(TAG, () -> {
             try {
                 boolean revert = false;
                 for (XApp app : apps)
@@ -314,10 +313,10 @@ public class FragmentApps extends FragmentBase {
                     if (!available.isEmpty())
                         Data.assign(context, app, available, !revert);
                 }
-            } catch (Throwable ex) {
-                error(TAG, ex);
+            } finally {
+                // Also the apps changed before an error
+                post(this::load);
             }
-            post(this::load);
         });
     }
 }
