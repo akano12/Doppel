@@ -112,7 +112,6 @@
     <string name="section_apps_new">Recently installed</string>
     <string name="section_apps_recent">Restricted recently</string>
     <string name="section_apps_all">All apps</string>
-    <string name="title_review_not_restricted">Not restricted</string>
     <string name="title_review_error">A hook failed</string>
     <string name="title_review">Review</string>
     <string name="title_restrictions_added">Restrictions added</string>

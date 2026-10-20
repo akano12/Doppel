@@ -39,7 +39,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class XHook implements Parcelable {
-    private final static String TAG = "XLua.XHook";
+    private static final String TAG = "XLua.XHook";
 
     private boolean builtin = false;
     private String collection;

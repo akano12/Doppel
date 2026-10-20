@@ -249,11 +249,8 @@ public class XParam {
 
     private static Object getValueInternal(String name, Object scope) {
         synchronized (scopedValues) {
-            if (!scopedValues.containsKey(scope))
-                return null;
-            if (!scopedValues.get(scope).containsKey(name))
-                return null;
-            return scopedValues.get(scope).get(name);
+            Map<String, Object> values = scopedValues.get(scope);
+            return (values == null ? null : values.get(name));
         }
     }
 

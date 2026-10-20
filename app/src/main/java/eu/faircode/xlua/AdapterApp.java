@@ -540,7 +540,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             case ATTENTION:
             case NEW:
                 // A failed hook or a new app without restrictions, see Row.getSection
-                summary = context.getString(row.error ? R.string.title_review_error : R.string.title_review_not_restricted);
+                summary = context.getString(row.error ? R.string.title_review_error : R.string.title_not_restricted);
                 summaryColor = androidx.appcompat.R.attr.colorPrimary;
                 if (item.section == Section.NEW) {
                     h.tvTime.setVisibility(View.VISIBLE);

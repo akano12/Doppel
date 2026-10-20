@@ -30,7 +30,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Process;
-import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.Log;
 
@@ -143,7 +142,7 @@ class XCore {
             void before(XCall call) {
                 try {
                     log("Preparing system");
-                    Context context = getContext(call.thisObject);
+                    Context context = findContext(call.thisObject);
                     hookPackage("android", Process.myUid(), context);
                 } catch (Throwable ex) {
                     log(ex);
@@ -154,7 +153,7 @@ class XCore {
             void after(XCall call) {
                 try {
                     log("System ready");
-                    Context context = getContext(call.thisObject);
+                    Context context = findContext(call.thisObject);
 
                     // Store current module version
                     PackageInfo pi = context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, 0);
@@ -200,7 +199,7 @@ class XCore {
             }
 
             @NonNull
-            private Context getContext(Object am) throws Throwable {
+            private Context findContext(Object am) throws Throwable {
                 // Searching for context
                 for (Class<?> cAm = am.getClass(); cAm != null; cAm = cAm.getSuperclass())
                     for (Field field : cAm.getDeclaredFields())
@@ -418,8 +417,6 @@ class XCore {
     // Static fields are changed once, by the after function
     private void installField(Context context, XHook hook, Prototype script, Map<String, String> settings, Field field) {
         try {
-            long run = SystemClock.elapsedRealtime();
-
             Globals globals = getGlobals(context, hook, settings);
             new LuaClosure(script, globals).call();
 
@@ -431,7 +428,7 @@ class XCore {
                     CoerceJavaToLua.coerce(hook),
                     CoerceJavaToLua.coerce(new XParam(context, field, settings))
             });
-            reportUse(context, hook, "after", result, run);
+            reportUse(context, hook, "after", result);
         } catch (Throwable ex) {
             reportError(context, hook, "after", ex, "\nField:\n" + field + "\n");
         }
@@ -454,8 +451,6 @@ class XCore {
 
             private void execute(XCall call, String function) {
                 try {
-                    long run = SystemClock.elapsedRealtime();
-
                     // Initialize the Lua runtime once per thread
                     Globals globals;
                     synchronized (threadGlobals) {
@@ -476,7 +471,7 @@ class XCore {
                             CoerceJavaToLua.coerce(hook),
                             CoerceJavaToLua.coerce(new XParam(context, call, settings))
                     });
-                    reportUse(context, hook, function, result, run);
+                    reportUse(context, hook, function, result);
                 } catch (Throwable ex) {
                     synchronized (threadGlobals) {
                         threadGlobals.remove(Thread.currentThread());
@@ -504,16 +499,15 @@ class XCore {
         return (value == null ? "null" : value + " (" + value.getClass().getName() + ")");
     }
 
-    // Scripts return whether they restricted something, optionally with the old and new value
-    private void reportUse(Context context, XHook hook, String function, Varargs result, long run) {
+    // Scripts return whether they restricted something, optionally with the old and new value;
+    // the data is what XProvider.report stores
+    private void reportUse(Context context, XHook hook, String function, Varargs result) {
         boolean restricted = result.arg1().checkboolean();
         if (!restricted || !hook.doUsage())
             return;
 
         Bundle data = new Bundle();
-        data.putString("function", function);
         data.putInt("restricted", 1);
-        data.putLong("duration", SystemClock.elapsedRealtime() - run);
         if (result.narg() > 1) {
             data.putString("old", result.isnil(2) ? null : result.checkjstring(2));
             data.putString("new", result.isnil(3) ? null : result.checkjstring(3));
@@ -528,7 +522,6 @@ class XCore {
         Log.e(TAG, message);
 
         Bundle data = new Bundle();
-        data.putString("function", function);
         data.putString("exception", message);
         report(context, hook.getId(), function, "use", data);
     }

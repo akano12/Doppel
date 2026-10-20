@@ -127,56 +127,52 @@ public class ActivityDownloads extends ActivityBase {
 
     private void load() {
         final Context context = getApplicationContext();
-        executor.submit(() -> {
-            try {
-                List<Entry> entries = new ArrayList<>();
-                JSONArray jlist = new JSONObject(readAsset(context, REPO + "list.json")).getJSONArray("list");
-                for (int i = 0; i < jlist.length(); i++) {
-                    JSONObject jentry = jlist.getJSONObject(i);
-                    Entry entry = new Entry();
-                    entry.id = jentry.getInt("id");
-                    entry.collection = jentry.getString("collection");
-                    entry.group = jentry.getString("group");
-                    entry.name = jentry.getString("name");
-                    entry.author = jentry.optString("author");
-                    entry.version = jentry.optInt("version");
-                    entry.description = jentry.optString("description", null);
-                    entry.updated = jentry.optLong("updated") * 1000L;
-                    entry.downloads = jentry.optInt("downloads");
+        run(TAG, () -> {
+            List<Entry> entries = new ArrayList<>();
+            JSONArray jlist = new JSONObject(readAsset(context, REPO + "list.json")).getJSONArray("list");
+            for (int i = 0; i < jlist.length(); i++) {
+                JSONObject jentry = jlist.getJSONObject(i);
+                Entry entry = new Entry();
+                entry.id = jentry.getInt("id");
+                entry.collection = jentry.getString("collection");
+                entry.group = jentry.getString("group");
+                entry.name = jentry.getString("name");
+                entry.author = jentry.optString("author");
+                entry.version = jentry.optInt("version");
+                entry.description = jentry.optString("description", null);
+                entry.updated = jentry.optLong("updated") * 1000L;
+                entry.downloads = jentry.optInt("downloads");
 
-                    // The hooked member, to find definitions hooking the same one
-                    JSONObject jhook = new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
-                    entry.className = jhook.getString("className");
-                    entry.methodName = jhook.optString("methodName", null);
-                    JSONArray jparams = jhook.getJSONArray("parameterTypes");
-                    entry.parameterTypes = new String[jparams.length()];
-                    for (int p = 0; p < jparams.length(); p++)
-                        entry.parameterTypes[p] = jparams.getString(p);
+                // The hooked member, to find definitions hooking the same one
+                JSONObject jhook = new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
+                entry.className = jhook.getString("className");
+                entry.methodName = jhook.optString("methodName", null);
+                JSONArray jparams = jhook.getJSONArray("parameterTypes");
+                entry.parameterTypes = new String[jparams.length()];
+                for (int p = 0; p < jparams.length(); p++)
+                    entry.parameterTypes[p] = jparams.getString(p);
 
-                    entries.add(entry);
-                }
-                Collections.sort(entries, (e1, e2) -> {
-                    int c = e1.collection.compareToIgnoreCase(e2.collection);
-                    return (c == 0 ? e1.name.compareToIgnoreCase(e2.name) : c);
-                });
-
-                Map<String, XHook> installed = new HashMap<>();
-                for (XHook hook : Data.getAllHooks(context, false))
-                    installed.put(hook.getId(), hook);
-                Set<String> builtinIds = Data.getBuiltinIds(context);
-                List<String> collection = Data.getCollection(context);
-
-                runOnUiThread(() -> {
-                    this.all = entries;
-                    this.installed = installed;
-                    this.builtinIds = builtinIds;
-                    this.collection = collection;
-                    pbLoading.setVisibility(View.GONE);
-                    show();
-                });
-            } catch (Throwable ex) {
-                error(TAG, ex);
+                entries.add(entry);
             }
+            Collections.sort(entries, (e1, e2) -> {
+                int c = e1.collection.compareToIgnoreCase(e2.collection);
+                return (c == 0 ? e1.name.compareToIgnoreCase(e2.name) : c);
+            });
+
+            Map<String, XHook> installed = new HashMap<>();
+            for (XHook hook : Data.getAllHooks(context, false))
+                installed.put(hook.getId(), hook);
+            Set<String> builtinIds = Data.getBuiltinIds(context);
+            List<String> collection = Data.getCollection(context);
+
+            runOnUiThread(() -> {
+                this.all = entries;
+                this.installed = installed;
+                this.builtinIds = builtinIds;
+                this.collection = collection;
+                pbLoading.setVisibility(View.GONE);
+                show();
+            });
         });
     }
 

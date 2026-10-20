@@ -37,7 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 class Util {
-    private final static String TAG = "XLua.Util";
+    private static final String TAG = "XLua.Util";
 
     private static final int PER_USER_RANGE = 100000;
     private static final int FIRST_ISOLATED_UID = 99000;

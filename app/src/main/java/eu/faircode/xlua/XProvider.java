@@ -53,9 +53,9 @@ import java.util.Set;
 // Apps can report usage and read their own restrictions and settings, everything else
 // is limited to system server and the app.
 class XProvider {
-    private final static String TAG = "XLua.Provider";
+    private static final String TAG = "XLua.Provider";
 
-    private final static Object lock = new Object();
+    private static final Object lock = new Object();
 
     private static XDatabase db = null;
     private static Map<String, XHook> hooks = null;
@@ -600,9 +600,9 @@ class XProvider {
         enforceCallerOrPermission(context, uid);
 
         final List<String> collection = getCollection(Util.getUserId(uid));
-        final MatrixCursor result = new MatrixCursor(new String[]{"blob", "used"});
+        final MatrixCursor result = new MatrixCursor(new String[]{"blob"});
         db.read(d -> {
-            try (Cursor cursor = d.query("assignment", new String[]{"hook", "used"},
+            try (Cursor cursor = d.query("assignment", new String[]{"hook"},
                     "package = ? AND uid = ?", new String[]{packageName, Integer.toString(uid)},
                     null, null, "hook")) {
                 while (cursor.moveToNext()) {
@@ -613,9 +613,7 @@ class XProvider {
                             if (BuildConfig.DEBUG)
                                 Log.w(TAG, "Hook " + hookid + " not found");
                         } else if (hook.isAvailable(packageName, collection))
-                            result.newRow()
-                                    .add(hook.marshall(true))
-                                    .add(cursor.getString(1));
+                            result.newRow().add(hook.marshall(true));
                     }
                 }
             }
@@ -638,7 +636,9 @@ class XProvider {
         if (uid != Binder.getCallingUid())
             throw new SecurityException();
 
-        Log.i(TAG, "Hook " + hookid + " pkg=" + packageName + ":" + uid + " event=" + event + toString(data));
+        // The data has the real values, like an IMEI, which release builds do not write to the system log
+        Log.i(TAG, "Hook " + hookid + " pkg=" + packageName + ":" + uid + " event=" + event +
+                (BuildConfig.DEBUG ? toString(data) : ""));
 
         final XHook hook;
         synchronized (lock) {

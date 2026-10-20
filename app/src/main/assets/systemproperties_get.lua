@@ -51,7 +51,6 @@ function after(hook, param)
     -- Hook names are like Function/variant
     local name = string.match(hook:getName(), '/(.*)$')
 
-
     if name == 'serial' and (key == 'ro.serialno' or key == 'ro.boot.serialno' or
             key == 'ril.serialnumber' or key == 'ro.boot.ap_serial' or key == 'sys.serialnumber' or
             key == 'ro.ril.oem.sno' or key == 'ro.ril.oem.psno' or key == 'gsm.serial') then

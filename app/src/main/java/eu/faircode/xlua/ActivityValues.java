@@ -158,41 +158,37 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private void load() {
         final String category = this.category;
         final Context context = getApplicationContext();
-        executor.submit(() -> {
-            try {
-                final Map<String, String> v = Data.getSettings(context, category);
-                final Map<String, String> g = (GLOBAL.equals(category)
-                        ? new HashMap<>()
-                        : Data.getSettings(context, GLOBAL));
+        run(TAG, () -> {
+            final Map<String, String> v = Data.getSettings(context, category);
+            final Map<String, String> g = (GLOBAL.equals(category)
+                    ? new HashMap<>()
+                    : Data.getSettings(context, GLOBAL));
 
-                // Settings declared by custom definitions
-                Set<String> known = new HashSet<>();
-                for (Object item : SECTIONS)
-                    if (item instanceof Field)
-                        known.add(((Field) item).key);
-                TreeSet<String> custom = new TreeSet<>();
-                for (XHook hook : Data.getHooks(context))
-                    for (String name : hook.getSettings())
-                        if (!known.contains(name))
-                            custom.add(name);
+            // Settings declared by custom definitions
+            Set<String> known = new HashSet<>();
+            for (Object item : SECTIONS)
+                if (item instanceof Field)
+                    known.add(((Field) item).key);
+            TreeSet<String> custom = new TreeSet<>();
+            for (XHook hook : Data.getHooks(context))
+                for (String name : hook.getSettings())
+                    if (!known.contains(name))
+                        custom.add(name);
 
-                runOnUiThread(() -> {
-                    values.clear();
-                    values.putAll(v);
-                    globals.clear();
-                    globals.putAll(g);
-                    form.clear();
-                    form.addAll(Arrays.asList(SECTIONS));
-                    if (!custom.isEmpty()) {
-                        form.add(R.string.title_values_custom);
-                        for (String name : custom)
-                            form.add(new Field(name, 0, Type.TEXT, Random.NONE, null));
-                    }
-                    buildForm();
-                });
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+            runOnUiThread(() -> {
+                values.clear();
+                values.putAll(v);
+                globals.clear();
+                globals.putAll(g);
+                form.clear();
+                form.addAll(Arrays.asList(SECTIONS));
+                if (!custom.isEmpty()) {
+                    form.add(R.string.title_values_custom);
+                    for (String name : custom)
+                        form.add(new Field(name, 0, Type.TEXT, Random.NONE, null));
+                }
+                buildForm();
+            });
         });
     }
 

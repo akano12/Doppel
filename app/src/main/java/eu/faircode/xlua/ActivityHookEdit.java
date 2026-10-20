@@ -355,17 +355,21 @@ public class ActivityHookEdit extends ActivityBase {
                 : TextUtils.join(" · ", functions));
     }
 
-    // The enabled switch of the definition enables or disables it
-    private void save() {
-        final JSONObject jhook;
+    // The definition as entered, null with an error shown at a field or as a message
+    private JSONObject getDefinitionOrShowError() {
         try {
-            jhook = getDefinition();
-            if (jhook == null)
-                return;
+            return getDefinition();
         } catch (Throwable ex) {
             Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
-            return;
+            return null;
         }
+    }
+
+    // The enabled switch of the definition enables or disables it
+    private void save() {
+        final JSONObject jhook = getDefinitionOrShowError();
+        if (jhook == null)
+            return;
 
         final Context context = getApplicationContext();
         run(TAG, () -> {
@@ -391,15 +395,10 @@ public class ActivityHookEdit extends ActivityBase {
     }
 
     private void export(final Uri uri) {
-        final JSONObject jhook;
-        try {
-            jhook = getDefinition();
-            if (jhook == null)
-                return;
-        } catch (Throwable ex) {
-            Ui.message(this, getString(R.string.msg_error, ex.getMessage()));
+        final JSONObject jhook = getDefinitionOrShowError();
+        if (jhook == null)
             return;
-        }
+
         final Context context = getApplicationContext();
         run(TAG, () -> {
             Util.writeJson(context, uri, jhook.toString(2));

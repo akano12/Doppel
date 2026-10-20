@@ -60,18 +60,19 @@ The other restrictions will work always.
 Management
 ----------
 
-The *Apps* tab shows the apps by what needs attention: apps which need a review (a hook failed,
-or a user app without restrictions, which can be restricted with one tap), apps which restricted something recently
-and all others; tap a section to show or hide its apps.
+The *Apps* tab shows the apps by what needs attention: apps with a failed hook,
+user apps installed in the last week without restrictions (which can be restricted with one tap),
+apps restricted or restricting something in the last day, and all apps; tap a section to show or hide its apps.
 
 Besides restricting apps, the tabs of the app offer:
 
 * Light and dark theme, color themes and a pure black background for the dark theme (*Settings*)
 * Fake values (*Settings*): values used for all apps, like the IMEI, Android ID, location and time zone;
   *Fake values for this app* on the screen of an app sets values for that app only
-* Activity: which app triggered which restriction, when, with the real and the fake value, and hook errors
+* Activity: which app triggered which restriction, when, with the real and the fake value, and hook errors,
+  searchable by app or restriction; *View log* on the screen of an app shows the log of that app only
 * Hooks: view, edit, enable, disable, add, import and export hook definitions,
-  and install definitions shared by others with *Downloads*
+  and install and remove definitions shared by others with *Downloads*
 * Backup and restore of settings, custom hook definitions and restrictions (*Settings*)
 
 The (no longer available) pro companion app is not needed anymore.
