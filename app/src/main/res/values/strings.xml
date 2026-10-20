@@ -108,12 +108,14 @@
     <string name="title_filter_user">User</string>
     <string name="title_filter_system">System</string>
     <string name="title_filter_count">%1$s · %2$d</string>
-    <string name="section_apps_review">Needs review</string>
+    <string name="section_apps_attention">Needs attention</string>
+    <string name="section_apps_new">Recently installed</string>
     <string name="section_apps_recent">Restricted recently</string>
-    <string name="section_apps_others">All others</string>
+    <string name="section_apps_all">All apps</string>
     <string name="title_review_not_restricted">Not restricted</string>
     <string name="title_review_error">A hook failed</string>
     <string name="title_review">Review</string>
+    <string name="title_restrictions_added">Restrictions added</string>
     <string name="title_expand">Expand</string>
     <string name="title_collapse">Collapse</string>
     <string name="msg_restricted_all">%1$s: all groups restricted</string>
@@ -235,6 +237,10 @@
     <string name="title_updates">Updates</string>
     <string name="title_install">Install</string>
     <string name="title_update">Update</string>
+    <string name="title_remove">Remove</string>
+    <string name="msg_remove_sure">Remove \'%1$s\'?</string>
+    <string name="msg_remove_restores">Remove \'%1$s\'? The built-in definition it replaced is used again.</string>
+    <string name="msg_removed">Removed %1$s</string>
     <string name="title_replaces_builtin">replaces built-in</string>
     <string name="title_download_meta">%1$s · v%2$d · %3$s · %4$s</string>
     <plurals name="title_downloads_count">

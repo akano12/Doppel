@@ -33,6 +33,7 @@ class XApp implements Parcelable {
     boolean persistent;
     boolean system;
     boolean forceStop = true;
+    long installed = -1; // First install time
     List<XAssignment> assignments;
 
     XApp() {
@@ -74,6 +75,7 @@ class XApp implements Parcelable {
         dest.writeByte(this.persistent ? (byte) 1 : (byte) 0);
         dest.writeByte(this.system ? (byte) 1 : (byte) 0);
         dest.writeByte(this.forceStop ? (byte) 1 : (byte) 0);
+        dest.writeLong(this.installed);
         dest.writeTypedList(this.assignments);
     }
 
@@ -85,6 +87,7 @@ class XApp implements Parcelable {
         this.persistent = (in.readByte() != 0);
         this.system = (in.readByte() != 0);
         this.forceStop = (in.readByte() != 0);
+        this.installed = in.readLong();
         this.assignments = in.createTypedArrayList(XAssignment.CREATOR);
     }
 

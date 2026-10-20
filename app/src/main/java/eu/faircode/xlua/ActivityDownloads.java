@@ -92,7 +92,9 @@ public class ActivityDownloads extends ActivityBase {
     private Map<String, XHook> installed = new HashMap<>();
     private Set<String> builtinIds = new HashSet<>();
     private List<String> collection = new ArrayList<>();
-    private final Set<Integer> expanded = new HashSet<>();
+    private final Set<Integer> expanded = new HashSet<>(); // Entries showing their full description
+    private String open = null; // The collection which shows its definitions; null: the first one, empty: none
+    private final Set<String> closed = new HashSet<>(); // Collections collapsed while searching or filtering
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,12 +111,14 @@ public class ActivityDownloads extends ActivityBase {
         EditText etSearch = findViewById(R.id.etSearch);
         Ui.onTextChanged(etSearch, text -> {
             query = text;
+            closed.clear();
             show();
         });
 
         ChipGroup cgFilter = findViewById(R.id.cgFilter);
         Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
             filter = selected;
+            closed.clear();
             show();
         });
 
@@ -190,6 +194,11 @@ public class ActivityDownloads extends ActivityBase {
         return (hook.getVersion() < entry.version ? State.UPDATE : State.INSTALLED);
     }
 
+    // The installed definitions can be removed where they are listed by themselves
+    private boolean canRemove(Entry entry) {
+        return (filter == Filter.INSTALLED && getState(entry) == State.INSTALLED);
+    }
+
     // Other active definitions hooking the same member: both run, one after the other,
     // and can undo or break the changes of the other
     private List<XHook> getOverlaps(Entry entry) {
@@ -244,6 +253,7 @@ public class ActivityDownloads extends ActivityBase {
         String q = (query == null ? "" : query.trim());
         List<Object> items = new ArrayList<>();
         String collection = null;
+        List<Entry> inCollection = new ArrayList<>();
         for (Entry entry : all) {
             State state = getState(entry);
             if (filter == Filter.AVAILABLE && state != State.AVAILABLE)
@@ -260,12 +270,48 @@ public class ActivityDownloads extends ActivityBase {
                     !Ui.contains(entry.description, q))
                 continue;
             if (!entry.collection.equals(collection)) {
+                addCollection(items, collection, inCollection);
                 collection = entry.collection;
-                items.add(collection);
+                inCollection = new ArrayList<>();
             }
-            items.add(entry);
+            inCollection.add(entry);
         }
+        addCollection(items, collection, inCollection);
         adapter.set(items);
+    }
+
+    // At first the first collection is open
+    private String getOpen() {
+        return (open == null && !all.isEmpty() ? all.get(0).collection : open);
+    }
+
+    // Searching or filtering shows all collections with matches
+    private boolean isFiltering() {
+        return (filter != Filter.ALL || (query != null && !query.trim().isEmpty()));
+    }
+
+    // One collection is open at a time, like the groups of the Hooks tab; while searching or filtering
+    // all collections are open unless closed for the current search
+    private void addCollection(List<Object> items, String collection, List<Entry> entries) {
+        if (collection == null || entries.isEmpty())
+            return;
+        boolean expand = (isFiltering() ? !closed.contains(collection) : collection.equals(getOpen()));
+        items.add(new AdapterSections.Expandable(
+                getString(R.string.title_group_header_custom, collection, entries.size()), expand,
+                getString(expand ? R.string.title_hide_hooks : R.string.title_show_hooks, collection),
+                () -> toggle(collection)));
+        if (expand)
+            items.addAll(entries);
+    }
+
+    private void toggle(String collection) {
+        if (isFiltering()) {
+            if (!closed.remove(collection))
+                closed.add(collection);
+        } else
+            // Opening a collection closes the open one
+            open = (collection.equals(getOpen()) ? "" : collection);
+        show();
     }
 
     private void install(Entry entry, boolean restrict) {
@@ -290,6 +336,26 @@ public class ActivityDownloads extends ActivityBase {
                 Ui.message(this, getResources().getQuantityString(R.plurals.msg_installed_restricted, apps, entry.name, apps));
             else
                 Ui.message(this, getString(R.string.msg_installed, entry.name));
+        });
+    }
+
+    // Deleting an installed definition restores the built-in definition it replaced
+    private void confirmRemove(Entry entry) {
+        String message = getString(builtinIds.contains(entry.getId())
+                ? R.string.msg_remove_restores : R.string.msg_remove_sure, entry.getId());
+        Ui.areYouSure(this, message, () -> {
+            final Context context = getApplicationContext();
+            run(TAG, () -> {
+                Data.putHook(context, entry.getId(), null);
+                Map<String, XHook> installed = new HashMap<>();
+                for (XHook hook : Data.getAllHooks(context, false))
+                    installed.put(hook.getId(), hook);
+                runOnUiThread(() -> {
+                    this.installed = installed;
+                    show();
+                });
+                Ui.message(this, getString(R.string.msg_removed, entry.name));
+            });
         });
     }
 
@@ -355,8 +421,12 @@ public class ActivityDownloads extends ActivityBase {
                 if (position == RecyclerView.NO_POSITION)
                     return;
                 Entry entry = getItem(position);
-                if (view == btnInstall)
-                    confirmInstall(entry);
+                if (view == btnInstall) {
+                    if (canRemove(entry))
+                        confirmRemove(entry);
+                    else
+                        confirmInstall(entry);
+                }
                 else {
                     // Show or hide the full description
                     if (!expanded.remove(entry.id))
@@ -398,10 +468,14 @@ public class ActivityDownloads extends ActivityBase {
             if (!collection.contains(entry.collection))
                 Ui.addBadge(h.llBadges, getString(R.string.title_hook_collection_off, entry.collection), Ui.Badge.NEUTRAL);
 
-            h.btnInstall.setEnabled(state != State.INSTALLED);
-            h.btnInstall.setText(state == State.UPDATE ? R.string.title_update
+            boolean remove = canRemove(entry);
+            h.btnInstall.setEnabled(state != State.INSTALLED || remove);
+            h.btnInstall.setText(remove ? R.string.title_remove
+                    : state == State.UPDATE ? R.string.title_update
                     : state == State.INSTALLED ? R.string.title_installed
                     : R.string.title_install);
+            // Screen readers tell which definition the button is for
+            h.btnInstall.setContentDescription(h.btnInstall.getText() + ", " + entry.name);
         }
     }
 }

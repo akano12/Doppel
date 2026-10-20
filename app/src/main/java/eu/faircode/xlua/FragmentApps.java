@@ -171,7 +171,7 @@ public class FragmentApps extends FragmentBase {
                 }
         });
 
-        String value = prefs.getString(PREF_COLLAPSED, AdapterApp.Section.OTHERS.name());
+        String value = prefs.getString(PREF_COLLAPSED, AdapterApp.Section.ALL.name());
         for (String name : value.split(","))
             for (AdapterApp.Section section : AdapterApp.Section.values())
                 if (section.name().equals(name))

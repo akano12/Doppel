@@ -195,12 +195,14 @@ final class Data {
         ArrayList<String> hookids = new ArrayList<>();
         for (XHook hook : hooks)
             hookids.add(hook.getId());
-        assignHooks(context, hookids, app.packageName, app.uid, !assign, app.forceStop);
+        assignHooks(context, hookids, app.packageName, app.uid, !assign, app.forceStop, false);
     }
 
+    // Restored hooks do not count as restricted recently
     static void assignHooks(Context context, ArrayList<String> hookids,
-                            String packageName, int uid, boolean delete, boolean kill) {
+                            String packageName, int uid, boolean delete, boolean kill, boolean restore) {
         Bundle args = new Bundle();
+        args.putBoolean("restore", restore);
         args.putStringArrayList("hooks", hookids);
         args.putString("packageName", packageName);
         args.putInt("uid", uid);

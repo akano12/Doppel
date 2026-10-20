@@ -86,6 +86,10 @@ class XDatabase {
             db -> {
                 db.execSQL("CREATE TABLE `group` (package TEXT NOT NULL, uid INTEGER NOT NULL, name TEXT NOT NULL, used INTEGER)");
                 db.execSQL("CREATE UNIQUE INDEX idx_group ON `group`(package, uid, name)");
+            },
+            db -> {
+                // When a hook was assigned, for the apps restricted recently
+                db.execSQL("ALTER TABLE assignment ADD COLUMN assigned INTEGER");
             }
     };
 

@@ -23,6 +23,7 @@ import android.app.ActivityManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.MatrixCursor;
@@ -397,7 +398,8 @@ class XProvider {
                         entry.getValue().contains(hook.getGroup()) &&
                         hook.isAvailable(packageName, collection)) {
                     Log.i(TAG, packageName + ":" + uid + "/" + hook.getId() + " added (restricted group)");
-                    insertAssignment(d, packageName, uid, hook.getId());
+                    // Completing a restricted group does not make the app restricted recently
+                    insertAssignment(d, packageName, uid, hook.getId(), -1);
                     count++;
                     apps.add(entry.getKey());
                 }
@@ -449,10 +451,12 @@ class XProvider {
         long ident = Binder.clearCallingIdentity();
         try {
             PackageManager pm = Util.createContextForUser(context, userid).getPackageManager();
-            for (ApplicationInfo ai : pm.getInstalledApplications(0))
-                if (!BuildConfig.APPLICATION_ID.equals(ai.packageName) &&
-                        (only == null || only.equals(ai.packageName)))
+            for (PackageInfo pi : pm.getInstalledPackages(0))
+                if (pi.applicationInfo != null &&
+                        !BuildConfig.APPLICATION_ID.equals(pi.packageName) &&
+                        (only == null || only.equals(pi.packageName)))
                     try {
+                        ApplicationInfo ai = pi.applicationInfo;
                         boolean persistent = ((ai.flags & ApplicationInfo.FLAG_PERSISTENT) != 0 ||
                                 "android".equals(ai.packageName));
                         boolean system = ((ai.flags &
@@ -467,6 +471,7 @@ class XProvider {
                         app.persistent = persistent;
                         app.system = system;
                         app.forceStop = (!persistent && !system);
+                        app.installed = pi.firstInstallTime;
                         app.assignments = new ArrayList<>();
                         apps.put(app.packageName, app);
                     } catch (Throwable ex) {
@@ -492,7 +497,7 @@ class XProvider {
 
             // Assigned hooks
             try (Cursor cursor = d.query("assignment",
-                    new String[]{"package", "uid", "hook", "installed", "used", "restricted", "exception"},
+                    new String[]{"package", "uid", "hook", "installed", "used", "restricted", "exception", "assigned"},
                     "uid >= ? AND uid <= ?", getUidRange(userid), null, null, null)) {
                 while (cursor.moveToNext()) {
                     String pkg = cursor.getString(0);
@@ -508,6 +513,7 @@ class XProvider {
                             assignment.used = cursor.getLong(4);
                             assignment.restricted = (cursor.getInt(5) == 1);
                             assignment.exception = cursor.getString(6);
+                            assignment.assigned = (cursor.isNull(7) ? -1 : cursor.getLong(7));
                             app.assignments.add(assignment);
                         } else if (hook == null && BuildConfig.DEBUG)
                             Log.w(TAG, "Hook " + hookid + " not found (assignment)");
@@ -533,6 +539,8 @@ class XProvider {
         final int uid = extras.getInt("uid");
         final boolean delete = extras.getBoolean("delete");
         boolean kill = extras.getBoolean("kill");
+        // Restoring a backup does not make apps restricted recently
+        final long now = (extras.getBoolean("restore") ? -1 : System.currentTimeMillis());
 
         db.write(d -> {
             List<String> groups = new ArrayList<>();
@@ -550,7 +558,7 @@ class XProvider {
                             new String[]{hookid, packageName, Integer.toString(uid)});
                 } else {
                     Log.i(TAG, packageName + ":" + uid + "/" + hookid + " added");
-                    insertAssignment(d, packageName, uid, hookid);
+                    insertAssignment(d, packageName, uid, hookid, now);
                 }
             }
 
@@ -568,11 +576,13 @@ class XProvider {
         return new Bundle();
     }
 
-    private static void insertAssignment(SQLiteDatabase d, String packageName, int uid, String hookid) throws Throwable {
+    // Assigned: the time of a restriction by the user or of a new app, -1 for an automatic addition
+    private static void insertAssignment(SQLiteDatabase d, String packageName, int uid, String hookid, long assigned) throws Throwable {
         ContentValues cv = new ContentValues();
         cv.put("package", packageName);
         cv.put("uid", uid);
         cv.put("hook", hookid);
+        cv.put("assigned", assigned);
         cv.put("installed", -1);
         cv.put("used", -1);
         cv.put("restricted", 0);
@@ -759,9 +769,10 @@ class XProvider {
                     hookids.add(hook.getId());
         }
 
+        final long now = System.currentTimeMillis();
         db.write(d -> {
             for (String hookid : hookids)
-                insertAssignment(d, packageName, uid, hookid);
+                insertAssignment(d, packageName, uid, hookid, now);
             return null;
         });
 

@@ -116,7 +116,7 @@ class Backup {
                 JSONArray jids = jrestriction.getJSONArray("hooks");
                 for (int j = 0; j < jids.length(); j++)
                     ids.add(jids.getString(j));
-                Data.assignHooks(context, ids, packageName, uid, false, false);
+                Data.assignHooks(context, ids, packageName, uid, false, false, true);
                 apps++;
             }
         }

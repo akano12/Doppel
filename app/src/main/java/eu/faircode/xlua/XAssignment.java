@@ -25,6 +25,7 @@ import android.os.Parcelable;
 class XAssignment implements Parcelable {
     XHook hook;
     long installed = -1;
+    long assigned = -1; // Unknown for hooks assigned by former versions and by updates
     long used = -1;
     boolean restricted = false;
     String exception;
@@ -55,6 +56,7 @@ class XAssignment implements Parcelable {
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeTypedObject(this.hook, flags);
         dest.writeLong(this.installed);
+        dest.writeLong(this.assigned);
         dest.writeLong(this.used);
         dest.writeByte(this.restricted ? (byte) 1 : (byte) 0);
         dest.writeString(this.exception);
@@ -63,6 +65,7 @@ class XAssignment implements Parcelable {
     protected XAssignment(Parcel in) {
         this.hook = in.readTypedObject(XHook.CREATOR);
         this.installed = in.readLong();
+        this.assigned = in.readLong();
         this.used = in.readLong();
         this.restricted = (in.readByte() != 0);
         this.exception = in.readString();
