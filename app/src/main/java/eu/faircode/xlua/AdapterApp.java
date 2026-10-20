@@ -519,15 +519,13 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         String summary;
         switch (item.section) {
             case REVIEW:
-                if (row.error)
-                    summary = context.getString(R.string.title_review_error);
-                else if (row.restricted == 0)
-                    summary = context.getString(R.string.title_review_not_restricted);
-                else
-                    summary = context.getString(R.string.title_review_partial, row.restricted, row.groups);
+                // A failed hook or no restrictions, see Row.getSection
+                summary = context.getString(row.error ? R.string.title_review_error : R.string.title_review_not_restricted);
                 summaryColor = androidx.appcompat.R.attr.colorPrimary;
                 h.btnAction.setVisibility(View.VISIBLE);
                 h.btnAction.setText(row.canRestrictAll() ? R.string.title_restrict_all_groups : R.string.title_review);
+                // Screen readers tell which app the button is for
+                h.btnAction.setContentDescription(h.btnAction.getText() + ", " + h.tvLabel.getText());
                 break;
 
             case RECENT:

@@ -112,12 +112,12 @@
     <string name="section_apps_recent">Restricted recently</string>
     <string name="section_apps_others">All others</string>
     <string name="title_review_not_restricted">Not restricted</string>
-    <string name="title_review_partial">%1$d of %2$d groups restricted</string>
     <string name="title_review_error">A hook failed</string>
     <string name="title_review">Review</string>
     <string name="title_expand">Expand</string>
     <string name="title_collapse">Collapse</string>
     <string name="msg_restricted_all">%1$s: all groups restricted</string>
+    <string name="title_undo">Undo</string>
     <string name="menu_search">Search</string>
     <string name="title_close_search">Close search</string>
     <string name="title_no_apps">No apps</string>

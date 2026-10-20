@@ -292,7 +292,8 @@ public class FragmentApps extends FragmentBase {
             tvEmpty.setVisibility(adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
     }
 
-    // All available hooks, like Restrict all on the screen of the app, which stops the app when it is stopped automatically
+    // All available hooks, like Restrict all on the screen of the app, which stops the app when it is stopped automatically;
+    // the app had no restrictions (AdapterApp.Row.canRestrictAll), so removing the hooks again undoes it
     private void restrictAll(AdapterApp.Row row) {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
@@ -300,7 +301,11 @@ public class FragmentApps extends FragmentBase {
         final String label = (TextUtils.isEmpty(row.app.label) ? row.app.packageName : row.app.label);
         run(TAG, () -> {
             Data.assign(context, row.app, available, true);
-            Ui.message(activity, activity.getString(R.string.msg_restricted_all, label));
+            Ui.message(activity, activity.getString(R.string.msg_restricted_all, label),
+                    activity.getString(R.string.title_undo), () -> run(TAG, () -> {
+                        Data.assign(context, row.app, available, false);
+                        post(this::load);
+                    }));
             post(this::load);
         });
     }

@@ -57,8 +57,10 @@ public class SegmentBar extends View {
             return;
         float width = (getWidth() - gap * (total - 1)) / total;
         float radius = getHeight() / 2f;
+        // Filled from the start, which is the right in right-to-left languages
+        boolean rtl = (getLayoutDirection() == LAYOUT_DIRECTION_RTL);
         for (int i = 0; i < total; i++) {
-            float left = i * (width + gap);
+            float left = (rtl ? total - 1 - i : i) * (width + gap);
             rect.set(left, 0, left + width, getHeight());
             paint.setColor(i < filled ? colorFilled : colorEmpty);
             canvas.drawRoundRect(rect, radius, radius, paint);

@@ -60,8 +60,13 @@ The other restrictions will work always.
 Management
 ----------
 
+The *Apps* tab shows the apps by what needs attention: apps which need a review (a hook failed,
+or a user app without restrictions, which can be restricted with one tap), apps which restricted something recently
+and all others; tap a section to show or hide its apps.
+
 Besides restricting apps, the tabs of the app offer:
 
+* Light and dark theme and color themes (*Settings*)
 * Fake values (*Settings*): values used for all apps, like the IMEI, Android ID, location and time zone;
   *Fake values for this app* on the screen of an app sets values for that app only
 * Activity: which app triggered which restriction, when, with the real and the fake value, and hook errors

@@ -93,9 +93,10 @@ public class ApplicationEx extends Application {
         return true;
     }
 
+    // An unknown palette, like of a backup of another version, is the default palette
     static String getPalette(Context context) {
         String palette = getPreferences(context).getString(PREF_PALETTE, null);
-        return (palette == null ? PALETTE_DEFAULT : palette);
+        return (Arrays.asList(PALETTES).contains(palette) ? palette : PALETTE_DEFAULT);
     }
 
     // The theme overlay of a palette, 0 for the default palette or an unknown one
