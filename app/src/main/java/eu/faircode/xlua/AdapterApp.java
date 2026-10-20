@@ -20,40 +20,54 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
+import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
+import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.graphics.ColorUtils;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
-
-import com.google.android.material.progressindicator.LinearProgressIndicator;
 
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-// Apps with a summary of their restrictions
-public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
-    enum Filter {ALL, USER, SYSTEM, RESTRICTED}
+// Apps in sections by what needs attention: apps to review, apps which restricted something recently and the others
+public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+    enum Filter {USER, SYSTEM, ALL}
 
-    enum Sort {NAME, RECENT}
+    enum Section {REVIEW, RECENT, OTHERS}
+
+    // Restrictions used this long ago are recent
+    private static final long RECENT = 7 * DateUtils.DAY_IN_MILLIS;
+
+    private static final int TYPE_HEADER = 0;
+    private static final int TYPE_APP = 1;
 
     interface Listener {
         void onApp(XApp app);
 
         void onLaunch(XApp app);
+
+        void onRestrictAll(Row row);
+
+        void onToggle(Section section);
     }
 
     // Restrictions of an app, summarized in the background
@@ -91,6 +105,21 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
             return row;
         }
 
+        // Failed hooks and user apps without restrictions need a look; system apps are often left unrestricted
+        // on purpose, like groups switched off for an app, which the bar of recent apps shows
+        Section getSection(long now) {
+            if (error || (!app.system && restricted == 0 && groups > 0))
+                return Section.REVIEW;
+            if (used > 0 && now - used < RECENT)
+                return Section.RECENT;
+            return Section.OTHERS;
+        }
+
+        // Restricting all groups is offered for apps without restrictions, not for Android itself (boot loop risk)
+        boolean canRestrictAll() {
+            return (!error && restricted == 0 && groups > 0 && !"android".equals(app.packageName));
+        }
+
         boolean isSame(Row other) {
             return (app.uid == other.app.uid && app.packageName.equals(other.app.packageName));
         }
@@ -100,8 +129,38 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
                     restricted == other.restricted &&
                     used == other.used &&
                     error == other.error &&
+                    Objects.equals(usedGroup, other.usedGroup) &&
                     app.icon == other.app.icon &&
+                    app.system == other.app.system &&
+                    app.persistent == other.app.persistent &&
                     Objects.equals(app.label, other.app.label));
+        }
+    }
+
+    private static class Header {
+        final Section section;
+        final int count;
+        final boolean expanded;
+
+        Header(Section section, int count, boolean expanded) {
+            this.section = section;
+            this.count = count;
+            this.expanded = expanded;
+        }
+    }
+
+    // An app with its place in its section, which rounds the corners of the first and last app
+    private static class Item {
+        final Row row;
+        final Section section;
+        final boolean first;
+        final boolean last;
+
+        Item(Row row, Section section, boolean first, boolean last) {
+            this.row = row;
+            this.section = section;
+            this.first = first;
+            this.last = last;
         }
     }
 
@@ -110,9 +169,10 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
 
     private List<Row> all = new ArrayList<>();
     private List<Row> shown = new ArrayList<>();
+    private List<Object> items = new ArrayList<>();
     private Filter filter = Filter.USER;
-    private Sort sort = Sort.NAME;
     private String query = null;
+    private Set<Section> collapsed = new HashSet<>();
 
     AdapterApp(Listener listener) {
         this.listener = listener;
@@ -131,16 +191,17 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
         apply();
     }
 
-    void setSort(Sort sort) {
-        this.sort = sort;
-        apply();
-    }
-
     void setQuery(String query) {
         this.query = query;
         apply();
     }
 
+    void setCollapsed(Set<Section> collapsed) {
+        this.collapsed = collapsed;
+        apply();
+    }
+
+    // Apps of the filter and the search, also in collapsed sections
     List<Row> getShown() {
         return shown;
     }
@@ -160,11 +221,13 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
                 return !row.app.system;
             case SYSTEM:
                 return row.app.system;
-            case RESTRICTED:
-                return !row.app.assignments.isEmpty();
             default:
                 return true;
         }
+    }
+
+    private boolean isSearching() {
+        return (query != null && !query.trim().isEmpty());
     }
 
     private void apply() {
@@ -212,19 +275,40 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
                 continue;
             result.add(row);
         }
+        shown = result;
+
+        // Sections: failures first, then by name; recent by time; others by name
+        long now = System.currentTimeMillis();
+        Map<Section, List<Row>> sections = new EnumMap<>(Section.class);
+        for (Section section : Section.values())
+            sections.put(section, new ArrayList<>());
+        for (Row row : result)
+            sections.get(row.getSection(now)).add(row);
 
         Comparator<Row> byName = (r1, r2) -> collator.compare(
                 r1.app.label == null ? r1.app.packageName : r1.app.label,
                 r2.app.label == null ? r2.app.packageName : r2.app.label);
-        if (sort == Sort.RECENT)
-            Collections.sort(result, (r1, r2) -> {
-                int c = Long.compare(r2.used, r1.used);
-                return (c == 0 ? byName.compare(r1, r2) : c);
-            });
-        else
-            Collections.sort(result, byName);
+        Collections.sort(sections.get(Section.REVIEW), (r1, r2) -> {
+            int c = Boolean.compare(r2.error, r1.error);
+            return (c == 0 ? byName.compare(r1, r2) : c);
+        });
+        Collections.sort(sections.get(Section.RECENT), (r1, r2) -> Long.compare(r2.used, r1.used));
+        Collections.sort(sections.get(Section.OTHERS), byName);
 
-        final List<Row> prev = shown;
+        // Searching shows the matches of all sections
+        List<Object> next = new ArrayList<>();
+        for (Section section : Section.values()) {
+            List<Row> rows = sections.get(section);
+            if (rows.isEmpty())
+                continue;
+            boolean expanded = (isSearching() || !collapsed.contains(section));
+            next.add(new Header(section, rows.size(), expanded));
+            if (expanded)
+                for (int i = 0; i < rows.size(); i++)
+                    next.add(new Item(rows.get(i), section, i == 0, i == rows.size() - 1));
+        }
+
+        final List<Object> prev = items;
         DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
             @Override
             public int getOldListSize() {
@@ -233,113 +317,243 @@ public class AdapterApp extends RecyclerView.Adapter<AdapterApp.ViewHolder> {
 
             @Override
             public int getNewListSize() {
-                return result.size();
+                return next.size();
             }
 
             @Override
             public boolean areItemsTheSame(int oldPosition, int newPosition) {
-                return prev.get(oldPosition).isSame(result.get(newPosition));
+                Object o = prev.get(oldPosition);
+                Object n = next.get(newPosition);
+                if (o instanceof Header && n instanceof Header)
+                    return ((Header) o).section == ((Header) n).section;
+                if (o instanceof Item && n instanceof Item)
+                    return ((Item) o).row.isSame(((Item) n).row);
+                return false;
             }
 
             @Override
             public boolean areContentsTheSame(int oldPosition, int newPosition) {
-                return prev.get(oldPosition).hasSameContent(result.get(newPosition));
+                Object o = prev.get(oldPosition);
+                Object n = next.get(newPosition);
+                if (o instanceof Header) {
+                    Header h1 = (Header) o;
+                    Header h2 = (Header) n;
+                    return (h1.count == h2.count && h1.expanded == h2.expanded);
+                }
+                Item i1 = (Item) o;
+                Item i2 = (Item) n;
+                return (i1.section == i2.section && i1.first == i2.first && i1.last == i2.last &&
+                        i1.row.hasSameContent(i2.row));
             }
         });
-        shown = result;
+        items = next;
         diff.dispatchUpdatesTo(this);
     }
 
-    class ViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener, View.OnLongClickListener {
+    private class HeaderHolder extends RecyclerView.ViewHolder {
+        final TextView tvHeader;
+        final ImageView ivExpand;
+
+        HeaderHolder(View itemView) {
+            super(itemView);
+            tvHeader = itemView.findViewById(R.id.tvHeader);
+            ivExpand = itemView.findViewById(R.id.ivExpand);
+            itemView.setOnClickListener(view -> {
+                int position = getBindingAdapterPosition();
+                if (position != RecyclerView.NO_POSITION)
+                    listener.onToggle(((Header) items.get(position)).section);
+            });
+        }
+    }
+
+    private class AppHolder extends RecyclerView.ViewHolder implements View.OnClickListener, View.OnLongClickListener {
         final ImageView ivIcon;
         final TextView tvLabel;
         final LinearLayout llBadges;
-        final TextView tvPackage;
+        final TextView tvTime;
         final TextView tvSummary;
-        final LinearProgressIndicator piGroups;
+        final SegmentBar sbGroups;
+        final Button btnAction;
 
-        ViewHolder(View itemView) {
+        AppHolder(View itemView) {
             super(itemView);
             ivIcon = itemView.findViewById(R.id.ivIcon);
             tvLabel = itemView.findViewById(R.id.tvLabel);
             llBadges = itemView.findViewById(R.id.llBadges);
-            tvPackage = itemView.findViewById(R.id.tvPackage);
+            tvTime = itemView.findViewById(R.id.tvTime);
             tvSummary = itemView.findViewById(R.id.tvSummary);
-            piGroups = itemView.findViewById(R.id.piGroups);
+            sbGroups = itemView.findViewById(R.id.sbGroups);
+            btnAction = itemView.findViewById(R.id.btnAction);
             itemView.setOnClickListener(this);
             itemView.setOnLongClickListener(this);
+            btnAction.setOnClickListener(view -> {
+                Row row = getRow();
+                if (row == null)
+                    return;
+                if (row.canRestrictAll())
+                    listener.onRestrictAll(row);
+                else
+                    listener.onApp(row.app);
+            });
+        }
+
+        private Row getRow() {
+            int position = getBindingAdapterPosition();
+            return (position == RecyclerView.NO_POSITION ? null : ((Item) items.get(position)).row);
         }
 
         @Override
         public void onClick(View view) {
-            int position = getBindingAdapterPosition();
-            if (position != RecyclerView.NO_POSITION)
-                listener.onApp(shown.get(position).app);
+            Row row = getRow();
+            if (row != null)
+                listener.onApp(row.app);
         }
 
         // Start the app, like before
         @Override
         public boolean onLongClick(View view) {
-            int position = getBindingAdapterPosition();
-            if (position == RecyclerView.NO_POSITION)
+            Row row = getRow();
+            if (row == null)
                 return false;
-            listener.onLaunch(shown.get(position).app);
+            listener.onLaunch(row.app);
             return true;
         }
     }
 
     @Override
     public long getItemId(int position) {
-        XApp app = shown.get(position).app;
+        Object item = items.get(position);
+        if (item instanceof Header)
+            return -1 - ((Header) item).section.ordinal();
+        XApp app = ((Item) item).row.app;
         return ((long) app.packageName.hashCode()) << 32 | app.uid;
     }
 
     @Override
+    public int getItemViewType(int position) {
+        return (items.get(position) instanceof Header ? TYPE_HEADER : TYPE_APP);
+    }
+
+    @Override
     public int getItemCount() {
-        return shown.size();
+        return items.size();
     }
 
     @NonNull
     @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_app, parent, false));
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+        if (viewType == TYPE_HEADER)
+            return new HeaderHolder(inflater.inflate(R.layout.item_header_expandable, parent, false));
+        return new AppHolder(inflater.inflate(R.layout.item_app, parent, false));
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        Row row = shown.get(position);
-        XApp app = row.app;
-        Context context = holder.itemView.getContext();
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        Object item = items.get(position);
+        if (item instanceof Header)
+            bindHeader((HeaderHolder) holder, (Header) item);
+        else
+            bindApp((AppHolder) holder, (Item) item);
+    }
 
-        Ui.loadIcon(holder.ivIcon, app.packageName, app.icon);
-        holder.tvLabel.setText(TextUtils.isEmpty(app.label) ? app.packageName : app.label);
-        holder.tvPackage.setText(app.packageName);
-
-        holder.llBadges.removeAllViews();
-        if (app.persistent)
-            Ui.addBadge(holder.llBadges, context.getString(R.string.badge_reboot), Ui.Badge.WARNING);
-        if (app.system)
-            Ui.addBadge(holder.llBadges, context.getString(R.string.badge_system), Ui.Badge.NEUTRAL);
-
-        boolean restricted = (row.restricted > 0);
-        holder.piGroups.setVisibility(restricted ? View.VISIBLE : View.GONE);
-        holder.piGroups.setMax(Math.max(row.groups, 1));
-        holder.piGroups.setProgressCompat(row.restricted, false);
-
-        String summary;
-        if (!restricted)
-            summary = context.getString(R.string.title_not_restricted);
-        else {
-            summary = context.getString(R.string.title_groups_of, row.restricted, row.groups);
-            if (row.error)
-                summary = context.getString(R.string.title_last_used, summary, context.getString(R.string.title_hook_failed_short));
-            else if (row.used > 0)
-                summary = context.getString(R.string.title_last_used, summary,
-                        context.getString(R.string.title_last_used, Groups.getTitle(context, row.usedGroup), Ui.ago(row.used)));
+    private static int getTitle(Section section) {
+        switch (section) {
+            case REVIEW:
+                return R.string.section_apps_review;
+            case RECENT:
+                return R.string.section_apps_recent;
+            default:
+                return R.string.section_apps_others;
         }
-        holder.tvSummary.setText(summary);
-        holder.tvSummary.setTextColor(Ui.color(context, row.error
+    }
+
+    private void bindHeader(HeaderHolder h, Header header) {
+        Context context = h.itemView.getContext();
+        String title = context.getString(getTitle(header.section));
+        h.tvHeader.setText(context.getString(R.string.title_filter_count, title, header.count));
+        h.tvHeader.setTextColor(Ui.color(context, header.section == Section.REVIEW
                 ? R.attr.colorWarning
+                : header.section == Section.RECENT
+                ? androidx.appcompat.R.attr.colorPrimary
                 : com.google.android.material.R.attr.colorOnSurfaceVariant));
+        // Turning the arrow when the section is toggled, not when the header is shown
+        float rotation = (header.expanded ? 180 : 0);
+        if (h.itemView.getTag() == header.section)
+            h.ivExpand.animate().rotation(rotation).setDuration(200).start();
+        else
+            h.ivExpand.setRotation(rotation);
+        h.itemView.setTag(header.section);
+        h.itemView.setContentDescription(h.tvHeader.getText() + ", " +
+                context.getString(header.expanded ? R.string.title_collapse : R.string.title_expand));
+    }
+
+    private void bindApp(AppHolder h, Item item) {
+        Row row = item.row;
+        XApp app = row.app;
+        Context context = h.itemView.getContext();
+
+        // The apps of a section form one rounded block, the apps to review are tinted
+        int background = Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerLow);
+        if (item.section == Section.REVIEW)
+            background = ColorUtils.blendARGB(background, Ui.color(context, R.attr.colorWarningContainer), 0.5f);
+        float radius = Ui.dp(context, 20);
+        float top = (item.first ? radius : 0);
+        float bottom = (item.last ? radius : 0);
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(background);
+        shape.setCornerRadii(new float[]{top, top, top, top, bottom, bottom, bottom, bottom});
+        h.itemView.setBackground(shape);
+
+        Ui.loadIcon(h.ivIcon, app.packageName, app.icon);
+        h.tvLabel.setText(TextUtils.isEmpty(app.label) ? app.packageName : app.label);
+
+        h.llBadges.removeAllViews();
+        if (app.persistent)
+            Ui.addBadge(h.llBadges, context.getString(R.string.badge_reboot), Ui.Badge.WARNING);
+        if (app.system)
+            Ui.addBadge(h.llBadges, context.getString(R.string.badge_system), Ui.Badge.NEUTRAL);
+
+        h.tvTime.setVisibility(View.GONE);
+        h.sbGroups.setVisibility(View.GONE);
+        h.btnAction.setVisibility(View.GONE);
+        int summaryColor = com.google.android.material.R.attr.colorOnSurfaceVariant;
+        String summary;
+        switch (item.section) {
+            case REVIEW:
+                if (row.error)
+                    summary = context.getString(R.string.title_review_error);
+                else if (row.restricted == 0)
+                    summary = context.getString(R.string.title_review_not_restricted);
+                else
+                    summary = context.getString(R.string.title_review_partial, row.restricted, row.groups);
+                summaryColor = R.attr.colorWarning;
+                h.btnAction.setVisibility(View.VISIBLE);
+                h.btnAction.setText(row.canRestrictAll() ? R.string.title_restrict_all_groups : R.string.title_review);
+                break;
+
+            case RECENT:
+                summary = Groups.getTitle(context, row.usedGroup);
+                summaryColor = androidx.appcompat.R.attr.colorPrimary;
+                h.tvTime.setVisibility(View.VISIBLE);
+                h.tvTime.setText(Ui.ago(row.used));
+                h.sbGroups.setVisibility(View.VISIBLE);
+                h.sbGroups.set(row.groups, row.restricted);
+                h.sbGroups.setContentDescription(
+                        context.getString(R.string.title_groups_restricted, row.restricted, row.groups));
+                break;
+
+            default:
+                if (row.restricted == 0)
+                    summary = context.getString(R.string.title_not_restricted);
+                else {
+                    summary = context.getString(R.string.title_groups_of, row.restricted, row.groups);
+                    if (row.used > 0)
+                        summary = context.getString(R.string.title_last_used, summary,
+                                context.getString(R.string.title_last_used, Groups.getTitle(context, row.usedGroup), Ui.ago(row.used)));
+                }
+        }
+        h.tvSummary.setText(summary);
+        h.tvSummary.setTextColor(Ui.color(context, summaryColor));
     }
 }

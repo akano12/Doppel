@@ -19,16 +19,19 @@
 
 package eu.faircode.xlua;
 
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.PopupMenu;
@@ -39,26 +42,30 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.google.android.material.chip.Chip;
-import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
-// Installed apps and how much they are restricted
+// Installed apps by what needs attention, see AdapterApp
 public class FragmentApps extends FragmentBase {
     private static final String TAG = "XLua.Apps";
 
     private static final String PREF_FILTER = "apps_filter";
-    private static final String PREF_SORT = "apps_sort";
+    // Collapsed sections, comma separated; the others are collapsed at first
+    private static final String PREF_COLLAPSED = "apps_collapsed";
 
     // Same order as AdapterApp.Filter
-    private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipUser, R.id.chipSystem, R.id.chipRestricted};
+    private static final int[] FILTER_BUTTONS = {R.id.btnFilterUser, R.id.btnFilterSystem, R.id.btnFilterAll};
+    private static final int[] FILTER_TITLES = {R.string.title_filter_user, R.string.title_filter_system, R.string.title_all};
 
     private SwipeRefreshLayout swipeRefresh;
     private View pbLoading;
@@ -67,11 +74,11 @@ public class FragmentApps extends FragmentBase {
     private View tilSearch;
     private EditText etSearch;
     private ImageButton ibSearch;
-    private ChipGroup cgFilter;
+    private MaterialButtonToggleGroup tgFilter;
     private AdapterApp adapter;
 
     private SharedPreferences prefs;
-    private AdapterApp.Sort sort;
+    private final Set<AdapterApp.Section> collapsed = EnumSet.noneOf(AdapterApp.Section.class);
     private boolean loaded = false;
 
     private List<XHook> hooks = new ArrayList<>();
@@ -90,7 +97,7 @@ public class FragmentApps extends FragmentBase {
         tilSearch = view.findViewById(R.id.tilSearch);
         etSearch = view.findViewById(R.id.etSearch);
         ibSearch = view.findViewById(R.id.ibSearch);
-        cgFilter = view.findViewById(R.id.cgFilter);
+        tgFilter = view.findViewById(R.id.tgFilter);
 
         adapter = new AdapterApp(new AdapterApp.Listener() {
             @Override
@@ -101,6 +108,16 @@ public class FragmentApps extends FragmentBase {
             @Override
             public void onLaunch(XApp app) {
                 Ui.launch(context, app.packageName);
+            }
+
+            @Override
+            public void onRestrictAll(AdapterApp.Row row) {
+                restrictAll(row);
+            }
+
+            @Override
+            public void onToggle(AdapterApp.Section section) {
+                toggle(section);
             }
         });
         adapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
@@ -122,6 +139,10 @@ public class FragmentApps extends FragmentBase {
 
         RecyclerView rvApps = view.findViewById(R.id.rvApps);
         rvApps.setLayoutManager(new LinearLayoutManager(context));
+        // Rows change in place, sections open and close with the default animations
+        DefaultItemAnimator animator = new DefaultItemAnimator();
+        animator.setSupportsChangeAnimations(false);
+        rvApps.setItemAnimator(animator);
         rvApps.setAdapter(adapter);
 
         swipeRefresh.setColorSchemeColors(Ui.color(context, androidx.appcompat.R.attr.colorPrimary));
@@ -136,16 +157,26 @@ public class FragmentApps extends FragmentBase {
         try {
             filter = AdapterApp.Filter.valueOf(prefs.getString(PREF_FILTER, filter.name()));
         } catch (IllegalArgumentException ignored) {
+            // Like the former filter restricted, which the sections replace
         }
         adapter.setFilter(filter);
-        Ui.chips(cgFilter, FILTER_CHIPS, AdapterApp.Filter.values(), filter, selected -> {
-            prefs.edit().putString(PREF_FILTER, selected.name()).apply();
-            adapter.setFilter(selected);
+        tgFilter.check(FILTER_BUTTONS[filter.ordinal()]);
+        tgFilter.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked)
+                return;
+            for (AdapterApp.Filter f : AdapterApp.Filter.values())
+                if (FILTER_BUTTONS[f.ordinal()] == checkedId) {
+                    prefs.edit().putString(PREF_FILTER, f.name()).apply();
+                    adapter.setFilter(f);
+                }
         });
 
-        sort = (AdapterApp.Sort.RECENT.name().equals(prefs.getString(PREF_SORT, null))
-                ? AdapterApp.Sort.RECENT : AdapterApp.Sort.NAME);
-        adapter.setSort(sort);
+        String value = prefs.getString(PREF_COLLAPSED, AdapterApp.Section.OTHERS.name());
+        for (String name : value.split(","))
+            for (AdapterApp.Section section : AdapterApp.Section.values())
+                if (section.name().equals(name))
+                    collapsed.add(section);
+        adapter.setCollapsed(collapsed);
 
         return view;
     }
@@ -170,19 +201,23 @@ public class FragmentApps extends FragmentBase {
     private void showMenu(View anchor) {
         PopupMenu popup = new PopupMenu(requireContext(), anchor);
         popup.inflate(R.menu.apps);
-        popup.getMenu().findItem(sort == AdapterApp.Sort.RECENT ? R.id.menu_sort_recent : R.id.menu_sort_name)
-                .setChecked(true);
         popup.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == R.id.menu_sort_name || id == R.id.menu_sort_recent) {
-                sort = (id == R.id.menu_sort_recent ? AdapterApp.Sort.RECENT : AdapterApp.Sort.NAME);
-                prefs.edit().putString(PREF_SORT, sort.name()).apply();
-                adapter.setSort(sort);
-            } else if (id == R.id.menu_bulk)
+            if (item.getItemId() == R.id.menu_bulk)
                 bulk();
             return true;
         });
         popup.show();
+    }
+
+    // Sections open and close when their header is tapped, which is remembered
+    private void toggle(AdapterApp.Section section) {
+        if (!collapsed.remove(section))
+            collapsed.add(section);
+        List<String> names = new ArrayList<>();
+        for (AdapterApp.Section s : collapsed)
+            names.add(s.name());
+        prefs.edit().putString(PREF_COLLAPSED, TextUtils.join(",", names)).apply();
+        adapter.setCollapsed(collapsed);
     }
 
     @Override
@@ -246,8 +281,9 @@ public class FragmentApps extends FragmentBase {
 
     private void updateCounts() {
         for (AdapterApp.Filter filter : AdapterApp.Filter.values()) {
-            Chip chip = cgFilter.findViewById(FILTER_CHIPS[filter.ordinal()]);
-            chip.setText(getString(R.string.title_filter_count, getString(getTitle(filter)), adapter.getCount(filter)));
+            Button button = tgFilter.findViewById(FILTER_BUTTONS[filter.ordinal()]);
+            button.setText(getString(R.string.title_filter_count,
+                    getString(FILTER_TITLES[filter.ordinal()]), adapter.getCount(filter)));
         }
     }
 
@@ -256,17 +292,17 @@ public class FragmentApps extends FragmentBase {
             tvEmpty.setVisibility(adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
     }
 
-    private static int getTitle(AdapterApp.Filter filter) {
-        switch (filter) {
-            case ALL:
-                return R.string.title_all;
-            case SYSTEM:
-                return R.string.title_filter_system;
-            case RESTRICTED:
-                return R.string.title_filter_restricted;
-            default:
-                return R.string.title_filter_user;
-        }
+    // All available hooks, like Restrict all on the screen of the app, which stops the app when it is stopped automatically
+    private void restrictAll(AdapterApp.Row row) {
+        final Activity activity = requireActivity();
+        final Context context = activity.getApplicationContext();
+        final List<XHook> available = Data.getAvailable(hooks, row.app, collection, null);
+        final String label = (TextUtils.isEmpty(row.app.label) ? row.app.packageName : row.app.label);
+        run(TAG, () -> {
+            Data.assign(context, row.app, available, true);
+            Ui.message(activity, activity.getString(R.string.msg_restricted_all, label));
+            post(this::load);
+        });
     }
 
     // Toggle a group for all shown apps: remove it when an app has it, else add it

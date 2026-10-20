@@ -198,7 +198,7 @@
 
             <Button
                 android:id="@+id/btnThemeSystem"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/XLua.Button.Segment"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -206,7 +206,7 @@
 
             <Button
                 android:id="@+id/btnThemeLight"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/XLua.Button.Segment"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -214,12 +214,27 @@
 
             <Button
                 android:id="@+id/btnThemeDark"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/XLua.Button.Segment"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/title_theme_dark" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <!-- Color themes, see FragmentSettings.showPalettes -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:contentDescription="@string/title_palette"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/llPalettes"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
 
         <TextView
             style="@style/XLua.SectionTitle"

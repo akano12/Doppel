@@ -63,52 +63,40 @@
             android:src="@drawable/ic_more" />
     </LinearLayout>
 
-    <HorizontalScrollView
+    <!-- Which apps: user, system or all, the sections show what to look at, see AdapterApp -->
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/tgFilter"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:clipToPadding="false"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:scrollbars="none">
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        app:selectionRequired="true"
+        app:singleSelection="true">
 
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/cgFilter"
-            android:layout_width="wrap_content"
+        <Button
+            android:id="@+id/btnFilterUser"
+            style="@style/XLua.Button.Segment"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            app:chipSpacingHorizontal="6dp"
-            app:selectionRequired="true"
-            app:singleLine="true"
-            app:singleSelection="true">
+            android:layout_weight="1"
+            android:text="@string/title_filter_user" />
 
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipUser"
-                style="@style/XLua.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title_filter_user" />
+        <Button
+            android:id="@+id/btnFilterSystem"
+            style="@style/XLua.Button.Segment"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/title_filter_system" />
 
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipRestricted"
-                style="@style/XLua.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title_filter_restricted" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipSystem"
-                style="@style/XLua.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title_filter_system" />
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipAll"
-                style="@style/XLua.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title_all" />
-        </com.google.android.material.chip.ChipGroup>
-    </HorizontalScrollView>
+        <Button
+            android:id="@+id/btnFilterAll"
+            style="@style/XLua.Button.Segment"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/title_all" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
 
     <FrameLayout
         android:layout_width="match_parent"

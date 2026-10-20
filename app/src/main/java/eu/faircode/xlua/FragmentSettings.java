@@ -20,15 +20,18 @@ package eu.faircode.xlua;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -56,6 +59,7 @@ public class FragmentSettings extends FragmentBase {
     private MaterialSwitch swRestrictNew;
     private MaterialSwitch swNotifyNew;
     private MaterialButtonToggleGroup tgTheme;
+    private LinearLayout llPalettes;
 
     private List<String> collections = new ArrayList<>(); // Known collections
     private List<String> enabled = new ArrayList<>(); // Enabled collections
@@ -85,6 +89,7 @@ public class FragmentSettings extends FragmentBase {
         swRestrictNew = view.findViewById(R.id.swRestrictNew);
         swNotifyNew = view.findViewById(R.id.swNotifyNew);
         tgTheme = view.findViewById(R.id.tgTheme);
+        llPalettes = view.findViewById(R.id.llPalettes);
 
         tvVersion.setText(getString(R.string.title_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
 
@@ -122,8 +127,16 @@ public class FragmentSettings extends FragmentBase {
                 boolean restrictNew = Data.getSettingBoolean(context, "global", "restrict_new_apps");
                 boolean notifyNew = Data.getSettingBoolean(context, "global", "notify_new_apps");
                 String theme = Data.getSetting(context, "global", "theme");
+                String palette = Data.getSetting(context, "global", "palette");
 
                 post(() -> {
+                    // Restoring a backup or clearing data can change the colors
+                    if (ApplicationEx.setPalette(context, palette)) {
+                        requireActivity().recreate();
+                        return;
+                    }
+                    showPalettes(ApplicationEx.getPalette(context));
+
                     this.collections = new ArrayList<>(known);
                     this.enabled = enabled;
 
@@ -168,6 +181,50 @@ public class FragmentSettings extends FragmentBase {
             } catch (Throwable ex) {
                 error(TAG, ex);
             }
+        });
+    }
+
+    // A swatch per color theme in its own colors, of the light or dark theme shown
+    private void showPalettes(String selected) {
+        Context context = requireContext();
+        llPalettes.removeAllViews();
+        LayoutInflater inflater = LayoutInflater.from(context);
+        for (int i = 0; i < ApplicationEx.PALETTES.length; i++) {
+            final String palette = ApplicationEx.PALETTES[i];
+            ContextThemeWrapper colors = new ContextThemeWrapper(context, R.style.Theme_XLua);
+            int style = ApplicationEx.getPaletteStyle(palette);
+            if (style != 0)
+                colors.getTheme().applyStyle(style, true);
+
+            View view = inflater.inflate(R.layout.item_palette, llPalettes, false);
+            // AMOLED has the default colors on black
+            int outer = ("amoled".equals(palette) ? Color.BLACK
+                    : Ui.color(colors, com.google.android.material.R.attr.colorPrimaryContainer));
+            view.findViewById(R.id.flSwatch).setBackgroundTintList(ColorStateList.valueOf(outer));
+            ImageView ivSwatch = view.findViewById(R.id.ivSwatch);
+            ivSwatch.setBackgroundTintList(ColorStateList.valueOf(Ui.color(colors, androidx.appcompat.R.attr.colorPrimary)));
+            ivSwatch.setImageTintList(ColorStateList.valueOf(Ui.color(colors, com.google.android.material.R.attr.colorOnPrimary)));
+            // The check of the selected palette
+            ivSwatch.setImageAlpha(palette.equals(selected) ? 255 : 0);
+            String title = getString(ApplicationEx.PALETTE_TITLES[i]);
+            ((TextView) view.findViewById(R.id.tvPalette)).setText(title);
+            view.setContentDescription(title);
+            view.setSelected(palette.equals(selected));
+            view.setOnClickListener(v -> selectPalette(palette));
+            llPalettes.addView(view);
+        }
+    }
+
+    // The default palette is no setting; screens are recreated with the new colors
+    private void selectPalette(String palette) {
+        final Context context = requireContext().getApplicationContext();
+        final String value = (ApplicationEx.PALETTE_DEFAULT.equals(palette) ? null : palette);
+        run(TAG, () -> {
+            Data.putSetting(context, "global", "palette", value);
+            post(() -> {
+                if (ApplicationEx.setPalette(context, value))
+                    requireActivity().recreate();
+            });
         });
     }
 

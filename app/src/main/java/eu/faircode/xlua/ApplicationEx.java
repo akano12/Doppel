@@ -26,6 +26,7 @@ import android.util.Log;
 
 import androidx.appcompat.app.AppCompatDelegate;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 public class ApplicationEx extends Application {
@@ -37,6 +38,35 @@ public class ApplicationEx extends Application {
 
     // Copy of the theme setting of the service, which is not called on the main thread
     private static final String PREF_THEME = "theme";
+
+    // Color themes: the setting value, the theme overlay (res/values/palettes.xml) and the title;
+    // no setting is the default indigo palette of the app theme
+    static final String PALETTE_DEFAULT = "indigo";
+    static final String[] PALETTES = {
+            PALETTE_DEFAULT, "ocean", "forest", "sunflower", "coral", "berry", "sky", "teal", "amoled"};
+    private static final int[] PALETTE_STYLES = {
+            0,
+            R.style.ThemeOverlay_XLua_Ocean,
+            R.style.ThemeOverlay_XLua_Forest,
+            R.style.ThemeOverlay_XLua_Sunflower,
+            R.style.ThemeOverlay_XLua_Coral,
+            R.style.ThemeOverlay_XLua_Berry,
+            R.style.ThemeOverlay_XLua_Sky,
+            R.style.ThemeOverlay_XLua_Teal,
+            R.style.ThemeOverlay_XLua_Amoled};
+    static final int[] PALETTE_TITLES = {
+            R.string.title_palette_indigo,
+            R.string.title_palette_ocean,
+            R.string.title_palette_forest,
+            R.string.title_palette_sunflower,
+            R.string.title_palette_coral,
+            R.string.title_palette_berry,
+            R.string.title_palette_sky,
+            R.string.title_palette_teal,
+            R.string.title_palette_amoled};
+
+    // Copy of the palette setting of the service, like the theme
+    private static final String PREF_PALETTE = "palette";
 
     @Override
     public void onCreate() {
@@ -52,6 +82,33 @@ public class ApplicationEx extends Application {
             return;
         prefs.edit().putString(PREF_THEME, theme).apply();
         applyTheme(theme);
+    }
+
+    // Remember the palette setting of the service; true when it changed, then screens need to be recreated
+    static boolean setPalette(Context context, String palette) {
+        SharedPreferences prefs = getPreferences(context);
+        if (Objects.equals(palette, prefs.getString(PREF_PALETTE, null)))
+            return false;
+        prefs.edit().putString(PREF_PALETTE, palette).apply();
+        return true;
+    }
+
+    static String getPalette(Context context) {
+        String palette = getPreferences(context).getString(PREF_PALETTE, null);
+        return (palette == null ? PALETTE_DEFAULT : palette);
+    }
+
+    // The theme overlay of a palette, 0 for the default palette or an unknown one
+    static int getPaletteStyle(String palette) {
+        int index = Arrays.asList(PALETTES).indexOf(palette);
+        return (index < 0 ? 0 : PALETTE_STYLES[index]);
+    }
+
+    // Applies the palette to the theme of a screen, before its views are created
+    static void applyPalette(Context context) {
+        int style = getPaletteStyle(getPalette(context));
+        if (style != 0)
+            context.getTheme().applyStyle(style, true);
     }
 
     // Same file as the former default shared preferences

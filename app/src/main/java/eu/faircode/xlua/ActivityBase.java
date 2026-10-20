@@ -40,6 +40,7 @@ public class ActivityBase extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        ApplicationEx.applyPalette(this);
         EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
     }
