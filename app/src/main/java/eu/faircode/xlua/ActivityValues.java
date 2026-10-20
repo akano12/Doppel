@@ -341,8 +341,13 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         return (field.type == Type.LOCATION || field.type == Type.CONTACTS);
     }
 
+    // The first item is no value, which for an app means the value for all apps, when there is one
     private String[] getDropdownTitles(Field field) {
-        return getResources().getStringArray(field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
+        String[] titles = getResources().getStringArray(field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
+        int global = Arrays.asList(dropdownValues(field)).indexOf(globals.get(field.key));
+        if (global > 0)
+            titles[0] = getString(R.string.title_global, titles[global]);
+        return titles;
     }
 
     private static String[] dropdownValues(Field field) {

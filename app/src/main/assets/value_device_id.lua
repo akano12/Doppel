@@ -22,8 +22,9 @@ local PHONE_TYPE_GSM = 1
 local PHONE_TYPE_CDMA = 2
 
 function after(hook, param)
+    -- Apps without permission keep the security exception
     local this = param:getThis()
-    if this == nil then
+    if this == nil or param:getException() ~= nil then
         return false
     end
 

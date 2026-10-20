@@ -23,6 +23,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaClosure;
+import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Prototype;
 import org.luaj.vm2.compiler.LuaC;
 import org.luaj.vm2.lib.jse.JsePlatform;
@@ -30,6 +31,7 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -110,19 +112,70 @@ public class HookDefinitionsTest {
                 source = read(file);
             } else
                 source = script;
-
-            Globals globals = JsePlatform.standardGlobals();
-            Prototype prototype = LuaC.instance.compile(
-                    new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8)), "script");
-            new LuaClosure(prototype, globals).call();
-            assertTrue("No before or after function for " + hook.getString("name"),
-                    globals.get("before").isfunction() || globals.get("after").isfunction());
+            runScript(hook.getString("name"), source);
         }
 
         // Unreferenced scripts are dead code
         File[] files = ASSETS.listFiles((dir, name) -> name.endsWith(".lua"));
         for (File file : files)
             assertTrue("Unreferenced script " + file.getName(), referenced.contains(file.getName()));
+    }
+
+    // Runs a script like the hook engine does to define its functions (see XCore.LuaLocals):
+    // scripts can define functions, other globals are an error at run time
+    private static void runScript(String name, String source) throws Exception {
+        Globals globals = JsePlatform.standardGlobals();
+        Set<String> standard = new HashSet<>();
+        for (LuaValue key : globals.keys())
+            standard.add(key.tojstring());
+
+        Prototype prototype = LuaC.instance.compile(
+                new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8)), "script");
+        new LuaClosure(prototype, globals).call();
+
+        for (LuaValue key : globals.keys())
+            if (!standard.contains(key.tojstring()))
+                assertTrue(name + " defines global " + key + ", which is not a function",
+                        globals.rawget(key).isfunction());
+        assertTrue("No before or after function for " + name,
+                globals.get("before").isfunction() || globals.get("after").isfunction());
+    }
+
+    // Groups of built-in hooks have an icon and a section, else they are shown like custom groups
+    @Test
+    public void groupsArePresented() throws Exception {
+        for (JSONObject hook : hooks) {
+            String group = hook.getString("group");
+            assertTrue("No icon for group " + group, Groups.getIcon(group) != R.drawable.ic_group_custom);
+            assertTrue("No section for group " + group, Groups.getSection(group) != R.string.section_other);
+        }
+    }
+
+    // The definitions offered by Downloads (repo/), which are installed as they are
+    @Test
+    public void repositoryIsValid() throws Exception {
+        File repo = new File("../repo");
+        JSONArray list = new JSONObject(read(new File(repo, "list.json"))).getJSONArray("list");
+        Set<String> listed = new HashSet<>();
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject entry = list.getJSONObject(i);
+            File file = new File(repo, "hook_" + entry.getInt("id") + ".json");
+            listed.add(file.getName());
+            assertTrue("Missing " + file, file.exists());
+
+            JSONObject hook = new JSONObject(read(file));
+            for (String key : new String[]{
+                    "collection", "group", "name", "author", "className", "parameterTypes", "minSdk", "luaScript"})
+                assertTrue(file.getName() + " misses " + key, hook.has(key));
+            for (String key : new String[]{"collection", "group", "name"})
+                assertEquals(file.getName() + " " + key, entry.getString(key), hook.getString(key));
+            assertEquals(file.getName() + " version", entry.optInt("version", 0), hook.optInt("version", 0));
+            runScript(file.getName(), hook.getString("luaScript"));
+        }
+
+        File[] files = repo.listFiles((dir, name) -> name.startsWith("hook_"));
+        for (File file : files)
+            assertTrue("Not listed " + file.getName(), listed.contains(file.getName()));
     }
 
     // The settings attribute declares the settings a script reads, which the values screen offers.
@@ -181,15 +234,25 @@ public class HookDefinitionsTest {
                 for (int i = 0; i < params.length; i++)
                     params[i] = XResolver.resolveClass(jparams.getString(i), getClass().getClassLoader());
 
+                // Like XCore.install: the return type of a method is the declared one or a subclass,
+                // the type of a field the declared one
                 String methodName = hook.optString("methodName", null);
+                String returnName = hook.optString("returnType", null);
+                Class<?> returnType = (returnName == null ? null
+                        : XResolver.resolveClass(returnName, getClass().getClassLoader()));
                 if (methodName == null)
                     cls.getDeclaredConstructor(params);
-                else if (methodName.startsWith("#"))
-                    findField(cls, methodName.substring(1));
-                else if (methodName.contains(":"))
+                else if (methodName.startsWith("#")) {
+                    Field field = findField(cls, methodName.substring(1));
+                    if (returnType != null && !field.getType().equals(returnType))
+                        errors.add(name + ": field type " + field.getType().getName() + " not " + returnName);
+                } else if (methodName.contains(":"))
                     findField(cls, methodName.split(":")[0]);
-                else
-                    findMethod(cls, methodName, params);
+                else {
+                    Method method = findMethod(cls, methodName, params);
+                    if (returnType != null && !method.getReturnType().isAssignableFrom(returnType))
+                        errors.add(name + ": return type " + method.getReturnType().getName() + " not " + returnName);
+                }
             } catch (Throwable ex) {
                 errors.add(name + ": " + ex);
             }
@@ -199,11 +262,10 @@ public class HookDefinitionsTest {
             fail(errors.size() + " hooks do not resolve against SDK " + sdk + ":\n" + String.join("\n", errors));
     }
 
-    private static void findMethod(Class<?> cls, String name, Class<?>[] params) throws NoSuchMethodException {
+    private static Method findMethod(Class<?> cls, String name, Class<?>[] params) throws NoSuchMethodException {
         for (Class<?> c = cls; c != null; c = c.getSuperclass())
             try {
-                c.getDeclaredMethod(name, params);
-                return;
+                return c.getDeclaredMethod(name, params);
             } catch (NoSuchMethodException ignored) {
             }
         throw new NoSuchMethodException(cls.getName() + "." + name + Arrays.toString(params));
