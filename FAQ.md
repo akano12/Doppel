@@ -75,15 +75,16 @@ It could also mean that you are trying to install XPrivacyLua on an unsupported 
 See [here](README.md#compatibility) for which Android versions are supported.
 
 <a name="faq6"></a>
-**(6) Why is a check box shown grey?**
+**(6) Why does a switch show a dash?**
 
-An app level check box is shown grey when one of the restriction level check boxes is not ticked.
+A group is a set of hooks (see [here](app/src/main/assets/hooks.json)).
+The switch of a group shows a dash when only some of its hooks are applied to the app,
+and the *Restrict all* switch shows a dash when not all hooks of all groups are applied.
+Tap a group to see its hooks; each hook has its own switch.
 
-A restriction level check box is shown grey
-if one of the hooks that [compose the restriction](app/src/main/assets/hooks.json) is not enabled
-(hooks are not shown in the app to keep things simple).
-This can happen when a new version adds new hooks. These new hooks are not enabled by default to make sure your apps keeps working.
-You can enable the new hooks by toggling the check box once (turning it off and on once).
+Hooks added by a new version are applied automatically to the apps which restrict their group.
+A dash means that hooks were switched off, for example because an app did not work with them.
+Turning the switch of the group off and on again applies all of its hooks.
 
 <a name="faq7"></a>
 **(7) How does XPrivacyLua compare to XPrivacy?**

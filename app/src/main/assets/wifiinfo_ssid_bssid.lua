@@ -22,6 +22,9 @@ function after(hook, param)
     end
 
     local fake = '"private"'
+    if hook:getMethodName() == 'getBSSID' then
+        fake = '00:00:00:00:00:00'
+    end
     param:setResult(fake)
     return true, result, fake
 end

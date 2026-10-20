@@ -15,6 +15,7 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- Recording with a restricted source (see mediarecorder_setsource) does not start, and does not stop
 function before(hook, param)
     local this = param:getThis()
     if this == nil then
@@ -24,6 +25,11 @@ function before(hook, param)
     local source = param:getValue('source', this)
     if source == nil then
         return false
+    end
+
+    -- A recorder can be reused with another source
+    if hook:getMethodName() == 'stop' then
+        param:putValue('source', nil, this)
     end
 
     param:setResult(nil)

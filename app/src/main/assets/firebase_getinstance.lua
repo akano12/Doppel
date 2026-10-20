@@ -15,14 +15,23 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- FirebaseAnalytics and FirebaseCrashlytics
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or
-            result.setAnalyticsCollectionEnabled == nil or
-            type(result.setAnalyticsCollectionEnabled) ~= 'function' then
+    if result == nil then
         return false
     end
 
-    result:setAnalyticsCollectionEnabled(false)
+    local name = 'setAnalyticsCollectionEnabled'
+    if hook:getClassName() == 'com.google.firebase.crashlytics.FirebaseCrashlytics' then
+        name = 'setCrashlyticsCollectionEnabled'
+    end
+
+    local set = result[name]
+    if set == nil or type(set) ~= 'function' then
+        return false
+    end
+
+    set(result, false)
     return true
 end

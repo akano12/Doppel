@@ -1963,7 +1963,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "luaScript": "@wifiinfo_getbssid"
+    "luaScript": "@wifiinfo_ssid_bssid"
   },
   {
     "collection": "Privacy",
@@ -1976,7 +1976,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "luaScript": "@wifiinfo_getssid"
+    "luaScript": "@wifiinfo_ssid_bssid"
   },
   // Addresses of the device and of the network
   {
@@ -2715,7 +2715,7 @@
     "returnType": "void",
     "minSdk": 1,
     "notify": true,
-    "luaScript": "@mediarecorder_start"
+    "luaScript": "@mediarecorder_startstop"
   },
   {
     "collection": "Privacy",
@@ -2728,7 +2728,7 @@
     ],
     "returnType": "void",
     "minSdk": 1,
-    "luaScript": "@mediarecorder_stop"
+    "luaScript": "@mediarecorder_startstop"
   },
   // https://developer.android.com/reference/android/speech/SpeechRecognizer
   {
@@ -2791,7 +2791,7 @@
     "returnType": "void",
     "minSdk": 1,
     "notify": true,
-    "luaScript": "@mediarecorder_start"
+    "luaScript": "@mediarecorder_startstop"
   },
   {
     "collection": "Privacy",
@@ -2804,7 +2804,7 @@
     ],
     "returnType": "void",
     "minSdk": 1,
-    "luaScript": "@mediarecorder_stop"
+    "luaScript": "@mediarecorder_startstop"
   },
   // Send messages
   // https://developer.android.com/reference/android/telephony/SmsManager.html
@@ -3309,7 +3309,7 @@
     "returnType": "com.google.firebase.crashlytics.FirebaseCrashlytics",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@firebase_crashlytics_getinstance"
+    "luaScript": "@firebase_getinstance"
   },
   {
     "collection": "Privacy",
