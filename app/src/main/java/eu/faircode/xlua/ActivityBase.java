@@ -74,8 +74,10 @@ public class ActivityBase extends AppCompatActivity {
         Ui.error(this, tag, ex);
     }
 
-    // Run on the background thread, errors are shown
+    // Run on the background thread, errors are shown; not anymore when the screen is gone
     protected void run(String tag, Ui.Task task) {
+        if (executor.isShutdown())
+            return;
         executor.submit(() -> {
             try {
                 task.run();
