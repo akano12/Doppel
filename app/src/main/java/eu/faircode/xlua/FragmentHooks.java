@@ -249,7 +249,7 @@ public class FragmentHooks extends FragmentBase {
                     ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
             for (int i = 0; i < jarray.length(); i++)
                 Data.putCustom(context, jarray.getJSONObject(i));
-            Ui.message(activity, activity.getString(R.string.msg_hooks_imported, jarray.length()));
+            Ui.message(activity, activity.getResources().getQuantityString(R.plurals.msg_hooks_imported, jarray.length(), jarray.length()));
             post(this::load);
         });
     }
@@ -261,7 +261,7 @@ public class FragmentHooks extends FragmentBase {
         run(TAG, () -> {
             JSONArray jarray = Data.getCustomHooks(context);
             Util.writeJson(context, uri, jarray.toString(2));
-            Ui.message(activity, activity.getString(R.string.msg_hooks_exported, jarray.length()));
+            Ui.message(activity, activity.getResources().getQuantityString(R.plurals.msg_hooks_exported, jarray.length(), jarray.length()));
         });
     }
 

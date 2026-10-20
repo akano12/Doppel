@@ -77,12 +77,10 @@
     <string name="title_hook_unavailable">Not for this Android version</string>
     <string name="title_hook_edit_builtin">Saving a built-in definition creates a custom copy. Deleting the copy restores the built-in definition.</string>
     <string name="msg_hook_saved">Saved, restart restricted apps to apply</string>
-    <string name="msg_hooks_imported">Imported %1$d definitions</string>
-    <string name="msg_hooks_exported">Exported %1$d definitions</string>
     <string name="msg_delete_sure">Delete \'%1$s\'?</string>
 
-    <string name="msg_backup_done">Backup saved: %1$d settings, %2$d custom definitions, %3$d apps</string>
-    <string name="msg_restore_done">Restored: %1$d settings, %2$d custom definitions, %3$d apps</string>
+    <string name="msg_backup_done">Backup saved · settings: %1$d · custom definitions: %2$d · apps: %3$d</string>
+    <string name="msg_restore_done">Restored · settings: %1$d · custom definitions: %2$d · apps: %3$d</string>
     <string name="msg_restore_sure">Restore settings, custom definitions and restrictions from this backup? Existing values with the same names are replaced.</string>
     <string name="msg_error">Error: %1$s</string>
 
@@ -90,7 +88,7 @@
     <string name="msg_review_settings">Review privacy settings</string>
     <string name="msg_usage">Restricted \'%1$s\'</string>
     <string name="msg_exception">Error in %1$s</string>
-    <string name="msg_bulk_sure">Toggle \'%1$s\' for the %2$d shown apps? When any of them has it, it is removed from all of them, otherwise it is added to all of them.</string>
+    <string name="msg_bulk_sure">Toggle \'%1$s\' for the shown apps (%2$d)? When any of them has it, it is removed from all of them, otherwise it is added to all of them.</string>
     <string name="msg_no_browser">No browser available to open link</string>
 
     <!-- Navigation -->
@@ -246,6 +244,14 @@
     <string name="msg_removed">Removed %1$s</string>
     <string name="title_replaces_builtin">replaces built-in</string>
     <string name="title_download_meta">%1$s · v%2$d · %3$s · %4$s</string>
+    <plurals name="msg_hooks_imported">
+        <item quantity="one">Imported %1$d definition</item>
+        <item quantity="other">Imported %1$d definitions</item>
+    </plurals>
+    <plurals name="msg_hooks_exported">
+        <item quantity="one">Exported %1$d definition</item>
+        <item quantity="other">Exported %1$d definitions</item>
+    </plurals>
     <plurals name="title_downloads_count">
         <item quantity="one">%1$d download</item>
         <item quantity="other">%1$d downloads</item>

@@ -402,7 +402,7 @@ public class ActivityHookEdit extends ActivityBase {
         final Context context = getApplicationContext();
         run(TAG, () -> {
             Util.writeJson(context, uri, jhook.toString(2));
-            Ui.message(this, getString(R.string.msg_hooks_exported, 1));
+            Ui.message(this, getResources().getQuantityString(R.plurals.msg_hooks_exported, 1, 1));
         });
     }
 

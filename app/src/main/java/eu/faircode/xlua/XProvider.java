@@ -116,9 +116,9 @@ class XProvider {
                 case "putSetting":
                     return putSetting(context, extras);
                 case "initApp":
-                    return initApp(context, extras);
+                    return initApp(extras);
                 case "clearApp":
-                    return clearApp(context, extras);
+                    return clearApp(extras);
                 case "clearData":
                     return clearData(extras);
                 case "forceStop":
@@ -755,10 +755,10 @@ class XProvider {
         });
     }
 
-    private static Bundle initApp(Context context, Bundle extras) throws Throwable {
+    // A new app, see ReceiverPackage, which is not running yet
+    private static Bundle initApp(Bundle extras) throws Throwable {
         final String packageName = extras.getString("packageName");
         final int uid = extras.getInt("uid");
-        boolean kill = extras.getBoolean("kill", false);
         int userid = Util.getUserId(uid);
 
         List<String> collection = getCollection(userid);
@@ -776,17 +776,14 @@ class XProvider {
             return null;
         });
 
-        if (kill)
-            forceStop(context, packageName, userid);
-
         Log.i(TAG, "Init app pkg=" + packageName + " uid=" + uid + " assignments=" + hookids.size());
         return new Bundle();
     }
 
-    private static Bundle clearApp(Context context, Bundle extras) throws Throwable {
+    // An app which is installed or removed, see ReceiverPackage
+    private static Bundle clearApp(Bundle extras) throws Throwable {
         final String packageName = extras.getString("packageName");
         final int uid = extras.getInt("uid");
-        boolean kill = extras.getBoolean("kill", false);
         final boolean full = extras.getBoolean("settings", false);
         final int userid = Util.getUserId(uid);
 
@@ -800,9 +797,6 @@ class XProvider {
                             new String[]{Integer.toString(userid), packageName}) : 0
             };
         });
-
-        if (kill)
-            forceStop(context, packageName, userid);
 
         Log.i(TAG, "Cleared app pkg=" + packageName + " uid=" + uid +
                 " assignments=" + counts[0] + " settings=" + counts[1]);
