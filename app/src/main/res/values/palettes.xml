@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Generated from seed colors with the Material color utilities (fidelity scheme), see ApplicationEx.PALETTES -->
+<!-- Accent colors generated from seed colors with the Material color utilities (fidelity scheme), see ApplicationEx.PALETTES;
+     backgrounds, text and outlines are those of the light or dark theme, like Magisk does -->
 <resources>
     <!-- AMOLED: the default colors, black surfaces in the dark theme only (values-night) -->
     <style name="ThemeOverlay.XLua.Amoled" parent="" />
@@ -17,17 +18,6 @@
         <item name="colorOnTertiary">#FFFFFF</item>
         <item name="colorTertiaryContainer">#DC9A20</item>
         <item name="colorOnTertiaryContainer">#533600</item>
-        <item name="android:colorBackground">#F7F9FF</item>
-        <item name="colorSurface">#F7F9FF</item>
-        <item name="colorOnSurface">#181C20</item>
-        <item name="colorOnSurfaceVariant">#3F4850</item>
-        <item name="colorSurfaceContainerLowest">#FFFFFF</item>
-        <item name="colorSurfaceContainerLow">#F1F4FA</item>
-        <item name="colorSurfaceContainer">#EBEEF4</item>
-        <item name="colorSurfaceContainerHigh">#E5E8EE</item>
-        <item name="colorSurfaceContainerHighest">#DFE3E8</item>
-        <item name="colorOutline">#707881</item>
-        <item name="colorOutlineVariant">#BFC7D2</item>
     </style>
 
     <style name="ThemeOverlay.XLua.Forest" parent="">
@@ -43,17 +33,6 @@
         <item name="colorOnTertiary">#FFFFFF</item>
         <item name="colorTertiaryContainer">#CC8186</item>
         <item name="colorOnTertiaryContainer">#511D23</item>
-        <item name="android:colorBackground">#F8FAF5</item>
-        <item name="colorSurface">#F8FAF5</item>
-        <item name="colorOnSurface">#191C1A</item>
-        <item name="colorOnSurfaceVariant">#404942</item>
-        <item name="colorSurfaceContainerLowest">#FFFFFF</item>
-        <item name="colorSurfaceContainerLow">#F2F4EF</item>
-        <item name="colorSurfaceContainer">#ECEFEA</item>
-        <item name="colorSurfaceContainerHigh">#E7E9E4</item>
-        <item name="colorSurfaceContainerHighest">#E1E3DE</item>
-        <item name="colorOutline">#707972</item>
-        <item name="colorOutlineVariant">#C0C9C0</item>
     </style>
 
     <style name="ThemeOverlay.XLua.Sunflower" parent="">
@@ -69,17 +48,6 @@
         <item name="colorOnTertiary">#FFFFFF</item>
         <item name="colorTertiaryContainer">#56CEFF</item>
         <item name="colorOnTertiaryContainer">#005670</item>
-        <item name="android:colorBackground">#FFF8F2</item>
-        <item name="colorSurface">#FFF8F2</item>
-        <item name="colorOnSurface">#201B11</item>
-        <item name="colorOnSurfaceVariant">#4F4633</item>
-        <item name="colorSurfaceContainerLowest">#FFFFFF</item>
-        <item name="colorSurfaceContainerLow">#FDF2E2</item>
-        <item name="colorSurfaceContainer">#F7ECDC</item>
-        <item name="colorSurfaceContainerHigh">#F1E7D6</item>
-        <item name="colorSurfaceContainerHighest">#ECE1D1</item>
-        <item name="colorOutline">#817660</item>
-        <item name="colorOutlineVariant">#D3C5AC</item>
     </style>
 
     <style name="ThemeOverlay.XLua.Coral" parent="">
@@ -95,17 +63,6 @@
         <item name="colorOnTertiary">#FFFFFF</item>
         <item name="colorTertiaryContainer">#1CA484</item>
         <item name="colorOnTertiaryContainer">#003125</item>
-        <item name="android:colorBackground">#FFF8F6</item>
-        <item name="colorSurface">#FFF8F6</item>
-        <item name="colorOnSurface">#231918</item>
-        <item name="colorOnSurfaceVariant">#55423F</item>
-        <item name="colorSurfaceContainerLowest">#FFFFFF</item>
-        <item name="colorSurfaceContainerLow">#FFF0EE</item>
-        <item name="colorSurfaceContainer">#FCEAE7</item>
-        <item name="colorSurfaceContainerHigh">#F6E4E1</item>
-        <item name="colorSurfaceContainerHighest">#F1DFDC</item>
-        <item name="colorOutline">#88726E</item>
-        <item name="colorOutlineVariant">#DBC0BC</item>
     </style>
 
     <style name="ThemeOverlay.XLua.Berry" parent="">
@@ -121,17 +78,6 @@
         <item name="colorOnTertiary">#FFFFFF</item>
         <item name="colorTertiaryContainer">#348246</item>
         <item name="colorOnTertiaryContainer">#EEFFEA</item>
-        <item name="android:colorBackground">#FFF8F7</item>
-        <item name="colorSurface">#FFF8F7</item>
-        <item name="colorOnSurface">#22191B</item>
-        <item name="colorOnSurfaceVariant">#544245</item>
-        <item name="colorSurfaceContainerLowest">#FFFFFF</item>
-        <item name="colorSurfaceContainerLow">#FFF0F1</item>
-        <item name="colorSurfaceContainer">#FBEAEB</item>
-        <item name="colorSurfaceContainerHigh">#F5E4E6</item>
-        <item name="colorSurfaceContainerHighest">#EFDFE0</item>
-        <item name="colorOutline">#877275</item>
-        <item name="colorOutlineVariant">#D9C0C4</item>
     </style>
 
     <style name="ThemeOverlay.XLua.Sky" parent="">
@@ -147,17 +93,6 @@
         <item name="colorOnTertiary">#FFFFFF</item>
         <item name="colorTertiaryContainer">#DA9C64</item>
         <item name="colorOnTertiaryContainer">#5E3303</item>
-        <item name="android:colorBackground">#F8FAFB</item>
-        <item name="colorSurface">#F8FAFB</item>
-        <item name="colorOnSurface">#191C1D</item>
-        <item name="colorOnSurfaceVariant">#3F484B</item>
-        <item name="colorSurfaceContainerLowest">#FFFFFF</item>
-        <item name="colorSurfaceContainerLow">#F2F4F5</item>
-        <item name="colorSurfaceContainer">#ECEEEF</item>
-        <item name="colorSurfaceContainerHigh">#E6E8EA</item>
-        <item name="colorSurfaceContainerHighest">#E1E3E4</item>
-        <item name="colorOutline">#6F797C</item>
-        <item name="colorOutlineVariant">#BFC8CB</item>
     </style>
 
     <style name="ThemeOverlay.XLua.Teal" parent="">
@@ -173,17 +108,6 @@
         <item name="colorOnTertiary">#FFFFFF</item>
         <item name="colorTertiaryContainer">#B35C3E</item>
         <item name="colorOnTertiaryContainer">#FFFBFF</item>
-        <item name="android:colorBackground">#F5FBF8</item>
-        <item name="colorSurface">#F5FBF8</item>
-        <item name="colorOnSurface">#171D1C</item>
-        <item name="colorOnSurfaceVariant">#3D4947</item>
-        <item name="colorSurfaceContainerLowest">#FFFFFF</item>
-        <item name="colorSurfaceContainerLow">#EFF5F2</item>
-        <item name="colorSurfaceContainer">#EAEFED</item>
-        <item name="colorSurfaceContainerHigh">#E4E9E7</item>
-        <item name="colorSurfaceContainerHighest">#DEE4E1</item>
-        <item name="colorOutline">#6D7A77</item>
-        <item name="colorOutlineVariant">#BCC9C6</item>
     </style>
 
 </resources>
