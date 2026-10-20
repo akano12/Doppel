@@ -63,6 +63,7 @@ public class FragmentHooks extends FragmentBase {
     private View pbLoading;
     private TextView tvEmpty;
     private TextView tvSummary;
+    private ExtendedFloatingActionButton fabAdd;
     private Adapter adapter;
 
     private Filter filter = Filter.ALL;
@@ -101,7 +102,7 @@ public class FragmentHooks extends FragmentBase {
         rvHooks.setAdapter(adapter);
 
         // The button shows only its icon while scrolling down, so it covers less of the list
-        ExtendedFloatingActionButton fabAdd = view.findViewById(R.id.fabAdd);
+        fabAdd = view.findViewById(R.id.fabAdd);
         fabAdd.setOnClickListener(v -> startActivity(new Intent(context, ActivityHookEdit.class)));
         rvHooks.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
@@ -207,6 +208,8 @@ public class FragmentHooks extends FragmentBase {
         addGroup(items, group, inGroup);
 
         adapter.set(items);
+        // Another list can be too short to scroll the button back
+        fabAdd.extend();
         tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
