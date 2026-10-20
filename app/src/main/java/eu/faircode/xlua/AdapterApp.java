@@ -472,11 +472,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         Context context = h.itemView.getContext();
         String title = context.getString(getTitle(header.section));
         h.tvHeader.setText(context.getString(R.string.title_filter_count, title, header.count));
-        h.tvHeader.setTextColor(Ui.color(context, header.section == Section.REVIEW
-                ? com.google.android.material.R.attr.colorTertiary
-                : header.section == Section.RECENT
-                ? androidx.appcompat.R.attr.colorPrimary
-                : com.google.android.material.R.attr.colorOnSurfaceVariant));
+        h.tvHeader.setTextColor(Ui.color(context, header.section == Section.OTHERS
+                ? com.google.android.material.R.attr.colorOnSurfaceVariant
+                : androidx.appcompat.R.attr.colorPrimary));
         // Turning the arrow when the section is toggled, not when the header is shown
         float rotation = (header.expanded ? 180 : 0);
         if (h.itemView.getTag() == header.section)
@@ -493,10 +491,10 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         XApp app = row.app;
         Context context = h.itemView.getContext();
 
-        // The apps of a section form one rounded block, the apps to review are tinted with the third color of the palette, amber by default
+        // The apps of a section form one rounded block, the apps to review are tinted with the accent color
         int background = Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerLow);
         if (item.section == Section.REVIEW)
-            background = ColorUtils.blendARGB(background, Ui.color(context, com.google.android.material.R.attr.colorTertiary), 0.16f);
+            background = ColorUtils.blendARGB(background, Ui.color(context, androidx.appcompat.R.attr.colorPrimary), 0.16f);
         float radius = Ui.dp(context, 20);
         float top = (item.first ? radius : 0);
         float bottom = (item.last ? radius : 0);
@@ -527,7 +525,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     summary = context.getString(R.string.title_review_not_restricted);
                 else
                     summary = context.getString(R.string.title_review_partial, row.restricted, row.groups);
-                summaryColor = com.google.android.material.R.attr.colorTertiary;
+                summaryColor = androidx.appcompat.R.attr.colorPrimary;
                 h.btnAction.setVisibility(View.VISIBLE);
                 h.btnAction.setText(row.canRestrictAll() ? R.string.title_restrict_all_groups : R.string.title_review);
                 break;

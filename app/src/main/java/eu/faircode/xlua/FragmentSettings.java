@@ -221,10 +221,9 @@ public class FragmentSettings extends FragmentBase {
         final String value = (ApplicationEx.PALETTE_DEFAULT.equals(palette) ? null : palette);
         run(TAG, () -> {
             Data.putSetting(context, "global", "palette", value);
-            post(() -> {
-                if (ApplicationEx.setPalette(context, value))
-                    requireActivity().recreate();
-            });
+            // Remembered also when the screen is gone meanwhile, which then shows the new colors when it is created
+            if (ApplicationEx.setPalette(context, value))
+                post(() -> requireActivity().recreate());
         });
     }
 
