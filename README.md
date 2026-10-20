@@ -66,7 +66,7 @@ and all others; tap a section to show or hide its apps.
 
 Besides restricting apps, the tabs of the app offer:
 
-* Light and dark theme and color themes (*Settings*)
+* Light and dark theme, color themes and a pure black background for the dark theme (*Settings*)
 * Fake values (*Settings*): values used for all apps, like the IMEI, Android ID, location and time zone;
   *Fake values for this app* on the screen of an app sets values for that app only
 * Activity: which app triggered which restriction, when, with the real and the fake value, and hook errors
