@@ -30,7 +30,6 @@ class XApp implements Parcelable {
     int uid;
     int icon;
     String label;
-    boolean enabled;
     boolean persistent;
     boolean system;
     boolean forceStop = true;
@@ -40,9 +39,6 @@ class XApp implements Parcelable {
     }
 
     List<XAssignment> getAssignments(String group) {
-        if (group == null)
-            return assignments;
-
         List<XAssignment> filtered = new ArrayList<>();
         for (XAssignment assignment : assignments)
             if (group.equals(assignment.hook.getGroup()))
@@ -75,7 +71,6 @@ class XApp implements Parcelable {
         dest.writeInt(this.uid);
         dest.writeInt(this.icon);
         dest.writeString(this.label);
-        dest.writeByte(this.enabled ? (byte) 1 : (byte) 0);
         dest.writeByte(this.persistent ? (byte) 1 : (byte) 0);
         dest.writeByte(this.system ? (byte) 1 : (byte) 0);
         dest.writeByte(this.forceStop ? (byte) 1 : (byte) 0);
@@ -87,7 +82,6 @@ class XApp implements Parcelable {
         this.uid = in.readInt();
         this.icon = in.readInt();
         this.label = in.readString();
-        this.enabled = (in.readByte() != 0);
         this.persistent = (in.readByte() != 0);
         this.system = (in.readByte() != 0);
         this.forceStop = (in.readByte() != 0);

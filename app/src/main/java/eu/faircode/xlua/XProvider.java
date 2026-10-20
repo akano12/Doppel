@@ -65,17 +65,28 @@ class XProvider {
     }
 
     private static void loadData(Context context) throws RemoteException {
+        boolean loaded = false;
         try {
             synchronized (lock) {
                 if (db == null)
                     db = XDatabase.open();
-                if (hooks == null)
+                if (hooks == null) {
                     loadHooks(context);
+                    loaded = true;
+                }
             }
         } catch (Throwable ex) {
             Log.e(TAG, Log.getStackTraceString(ex));
             throw new RemoteException(ex.getMessage());
         }
+
+        // Without holding the lock, see assignRestricting; restrictions keep working without the new assignments
+        if (loaded)
+            try {
+                assignNewBuiltins();
+            } catch (Throwable ex) {
+                Log.e(TAG, Log.getStackTraceString(ex));
+            }
     }
 
     static Bundle call(Context context, String method, Bundle extras) throws RemoteException, IllegalArgumentException {
@@ -191,11 +202,15 @@ class XProvider {
         if (id == null)
             throw new IllegalArgumentException("id missing");
 
+        // Only custom definitions are stored, built-in definitions are part of the app (see Data.putCustom)
         final XHook hook = (definition == null ? null : XHook.fromJSON(definition));
         if (hook != null) {
             hook.validate();
             if (!id.equals(hook.getId()))
                 throw new IllegalArgumentException("id mismatch");
+            if (hook.isBuiltin())
+                throw new IllegalArgumentException("builtin");
+            hook.resolveClassName(context);
         }
 
         // Cache hook
@@ -205,40 +220,30 @@ class XProvider {
                     throw new IllegalArgumentException("builtin");
                 Log.i(TAG, "Deleting hook id=" + id);
                 hooks.remove(id);
+                // A deleted custom definition can have replaced a built-in definition
                 if (builtins.containsKey(id)) {
                     Log.i(TAG, "Restoring builtin id=" + id);
                     // The class name is resolved already
                     hooks.put(id, builtins.get(id));
-                } else
-                    Log.w(TAG, "Builtin not found id=" + id);
-            } else {
-                hook.resolveClassName(context);
-                if (hook.isBuiltin()) {
-                    // Refresh the built-in definition, but keep a custom definition replacing it
-                    builtins.put(id, hook);
-                    if (!hooks.containsKey(id) || hooks.get(id).isBuiltin())
-                        hooks.put(id, hook);
-                } else {
-                    Log.i(TAG, "Storing hook id=" + id);
-                    hooks.put(id, hook);
                 }
+            } else {
+                Log.i(TAG, "Storing hook id=" + id);
+                hooks.put(id, hook);
             }
         }
 
-        // Persist custom definitions, built-in definitions are part of the app
-        if (hook == null || !hook.isBuiltin())
-            db.write(d -> {
-                if (hook == null)
-                    d.delete("hook", "id = ?", new String[]{id});
-                else {
-                    ContentValues cv = new ContentValues();
-                    cv.put("id", id);
-                    cv.put("definition", hook.toJSON());
-                    if (d.insertWithOnConflict("hook", null, cv, SQLiteDatabase.CONFLICT_REPLACE) < 0)
-                        throw new Throwable("Error inserting hook");
-                }
-                return null;
-            });
+        db.write(d -> {
+            if (hook == null)
+                d.delete("hook", "id = ?", new String[]{id});
+            else {
+                ContentValues cv = new ContentValues();
+                cv.put("id", id);
+                cv.put("definition", hook.toJSON());
+                if (d.insertWithOnConflict("hook", null, cv, SQLiteDatabase.CONFLICT_REPLACE) < 0)
+                    throw new Throwable("Error inserting hook");
+            }
+            return null;
+        });
 
         return new Bundle();
     }
@@ -298,13 +303,6 @@ class XProvider {
         Log.i(TAG, "Loaded hook definitions hooks=" + hooks.size() + " builtins=" + builtins.size());
         XProvider.builtins = builtins;
         XProvider.hooks = hooks;
-
-        // Restrictions keep working without the new assignments
-        try {
-            assignNewBuiltins();
-        } catch (Throwable ex) {
-            Log.e(TAG, Log.getStackTraceString(ex));
-        }
     }
 
     // Built-in hooks added by an update are assigned to the apps which restrict their group,
@@ -314,6 +312,13 @@ class XProvider {
     // all enabled built-in hooks count as new, which completes the restricted groups once.
     private static void assignNewBuiltins() throws Throwable {
         final String[] where = new String[]{"-1", "service", "builtins_enabled"};
+        // Copies, because database calls are not made while holding the lock
+        final Map<String, XHook> all;
+        final List<XHook> builtin;
+        synchronized (lock) {
+            all = new HashMap<>(hooks);
+            builtin = new ArrayList<>(builtins.values());
+        }
         db.write(d -> {
             Set<String> known = new HashSet<>();
             try (Cursor cursor = d.query("setting", new String[]{"value"},
@@ -323,9 +328,9 @@ class XProvider {
             }
 
             List<String> enabled = new ArrayList<>();
-            for (XHook builtin : builtins.values())
-                if (builtin.isEnabled())
-                    enabled.add(builtin.getId());
+            for (XHook hook : builtin)
+                if (hook.isEnabled())
+                    enabled.add(hook.getId());
 
             List<String> added = new ArrayList<>();
             for (String id : enabled)
@@ -336,9 +341,9 @@ class XProvider {
                 // A custom definition can replace the built-in definition
                 List<XHook> targets = new ArrayList<>();
                 for (String id : added)
-                    if (hooks.containsKey(id))
-                        targets.add(hooks.get(id));
-                int[] counts = assignToRestricting(d, hooks, targets, null, false);
+                    if (all.containsKey(id))
+                        targets.add(all.get(id));
+                int[] counts = assignToRestricting(d, all, targets, null, false);
                 Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + counts[0]);
             }
 
@@ -448,10 +453,6 @@ class XProvider {
                 if (!BuildConfig.APPLICATION_ID.equals(ai.packageName) &&
                         (only == null || only.equals(ai.packageName)))
                     try {
-                        int esetting = pm.getApplicationEnabledSetting(ai.packageName);
-                        boolean enabled = (ai.enabled &&
-                                (esetting == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT ||
-                                        esetting == PackageManager.COMPONENT_ENABLED_STATE_ENABLED));
                         boolean persistent = ((ai.flags & ApplicationInfo.FLAG_PERSISTENT) != 0 ||
                                 "android".equals(ai.packageName));
                         boolean system = ((ai.flags &
@@ -463,14 +464,13 @@ class XProvider {
                         app.icon = ai.icon;
                         // A label with styling is not a String
                         app.label = pm.getApplicationLabel(ai).toString();
-                        app.enabled = enabled;
                         app.persistent = persistent;
                         app.system = system;
                         app.forceStop = (!persistent && !system);
                         app.assignments = new ArrayList<>();
                         apps.put(app.packageName, app);
                     } catch (Throwable ex) {
-                        Log.e(TAG, ex + "\n" + Log.getStackTraceString(ex));
+                        Log.e(TAG, Log.getStackTraceString(ex));
                     }
         } finally {
             Binder.restoreCallingIdentity(ident);

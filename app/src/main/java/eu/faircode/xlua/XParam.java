@@ -105,15 +105,13 @@ public class XParam {
 
     @SuppressWarnings("unused")
     public Object getArgument(int index) {
-        if (index < 0 || index >= this.paramTypes.length)
-            throw new ArrayIndexOutOfBoundsException("Argument #" + index);
+        checkArgument(index);
         return this.param.args[index];
     }
 
     @SuppressWarnings("unused")
     public void setArgument(int index, Object value) {
-        if (index < 0 || index >= this.paramTypes.length)
-            throw new ArrayIndexOutOfBoundsException("Argument #" + index);
+        checkArgument(index);
 
         if (value == null) {
             // Calling with null for a primitive parameter would crash the app
@@ -127,6 +125,14 @@ public class XParam {
         }
 
         this.param.args[index] = value;
+    }
+
+    // Fields have no arguments
+    private void checkArgument(int index) {
+        if (this.field != null)
+            throw new IllegalStateException("Field " + this.field.getName() + " has no arguments");
+        if (index < 0 || index >= this.paramTypes.length)
+            throw new ArrayIndexOutOfBoundsException("Argument #" + index);
     }
 
     // Classes of the hooked app (like Google Play services) are not visible to luajava.bindClass

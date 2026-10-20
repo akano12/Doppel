@@ -218,6 +218,23 @@ final class Data {
         return (result == null ? 0 : result.getInt("apps"));
     }
 
+    // Assign all available hooks to a new app
+    static void initApp(Context context, String packageName, int uid) {
+        Bundle args = new Bundle();
+        args.putString("packageName", packageName);
+        args.putInt("uid", uid);
+        call(context, "initApp", args);
+    }
+
+    // Remove the restrictions of an app, optionally with its settings
+    static void clearApp(Context context, String packageName, int uid, boolean settings) {
+        Bundle args = new Bundle();
+        args.putString("packageName", packageName);
+        args.putInt("uid", uid);
+        args.putBoolean("settings", settings);
+        call(context, "clearApp", args);
+    }
+
     // Stop an app, so it starts with the current restrictions and values
     static void forceStop(Context context, XApp app) {
         Bundle args = new Bundle();
@@ -314,8 +331,13 @@ final class Data {
 
     // Restrictions and settings of the current user; custom definitions are kept
     static void clearData(Context context) {
+        clearData(context, Util.getUserId(Process.myUid()));
+    }
+
+    // Of all users for the owner (user 0)
+    static void clearData(Context context, int user) {
         Bundle args = new Bundle();
-        args.putInt("user", Util.getUserId(Process.myUid()));
+        args.putInt("user", user);
         call(context, "clearData", args);
     }
 

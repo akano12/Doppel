@@ -22,7 +22,6 @@ package eu.faircode.xlua;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
 import android.util.Log;
 
 // Package changes of all users, registered in system server (see XCore.hookAndroid)
@@ -40,37 +39,26 @@ public class ReceiverPackage extends BroadcastReceiver {
             int userid = Util.getUserId(uid);
             Context ctx = Util.createContextForUser(context, userid);
 
-            Bundle args = new Bundle();
-            args.putString("packageName", packageName);
-            args.putInt("uid", uid);
-
             if (Intent.ACTION_PACKAGE_ADDED.equals(intent.getAction())) {
                 if (!replacing && !BuildConfig.APPLICATION_ID.equals(packageName)) {
                     // Initialize app
-                    call(context, "clearApp", args);
+                    Data.clearApp(context, packageName, uid, false);
                     if (Data.getSettingBoolean(context, userid, "global", "restrict_new_apps"))
-                        call(context, "initApp", args);
+                        Data.initApp(context, packageName, uid);
 
                     if (Data.getSettingBoolean(context, userid, "global", "notify_new_apps"))
                         XNotify.notifyNewApp(ctx, userid, uid, packageName);
                 }
             } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
-                if (BuildConfig.APPLICATION_ID.equals(packageName)) {
-                    Bundle data = new Bundle();
-                    data.putInt("user", userid);
-                    call(context, "clearData", data);
-                } else {
-                    args.putBoolean("settings", true);
-                    call(context, "clearApp", args);
+                if (BuildConfig.APPLICATION_ID.equals(packageName))
+                    Data.clearData(context, userid);
+                else {
+                    Data.clearApp(context, packageName, uid, true);
                     XNotify.cancelNewApp(ctx, userid, uid);
                 }
             }
         } catch (Throwable ex) {
             XCore.log(ex);
         }
-    }
-
-    private static void call(Context context, String method, Bundle args) {
-        context.getContentResolver().call(XProvider.getURI(), "xlua", method, args);
     }
 }

@@ -23,20 +23,15 @@ import android.os.Process;
 import android.util.Log;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.IXposedHookZygoteInit;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 // Entry point for the legacy XposedBridge API (assets/xposed_init)
 // Frameworks supporting the modern API use XLuaModule instead
-public class XLua implements IXposedHookZygoteInit, IXposedHookLoadPackage {
+public class XLua implements IXposedHookLoadPackage {
     private static final String TAG = "XLua.Xposed";
 
     private final LegacyBackend backend = new LegacyBackend();
     private XCore core = null;
-
-    public void initZygote(final IXposedHookZygoteInit.StartupParam startupParam) {
-        Log.i(TAG, "initZygote system=" + startupParam.startsSystemServer + " debug=" + BuildConfig.DEBUG);
-    }
 
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         if (hasModernApi() || !XCore.claim(backend))
