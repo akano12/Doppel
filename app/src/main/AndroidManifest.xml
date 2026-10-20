@@ -60,6 +60,13 @@
             android:parentActivityName=".ActivityMain" />
 
         <activity
+            android:name=".ActivityLog"
+            android:configChanges="orientation|screenSize"
+            android:exported="false"
+            android:parentActivityName=".ActivityApp"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".ActivityHookEdit"
             android:configChanges="orientation|screenSize"
             android:exported="false"

@@ -108,6 +108,8 @@ public class ActivityApp extends ActivityBase {
             int id = item.getItemId();
             if (id == R.id.menu_launch)
                 Ui.launch(this, packageName);
+            else if (id == R.id.menu_log)
+                startActivity(ActivityLog.getIntent(this, packageName, uid, getLabel()));
             else if (id == R.id.menu_app_info)
                 startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.fromParts("package", packageName, null)));

@@ -4,6 +4,9 @@
         android:id="@+id/menu_launch"
         android:title="@string/menu_launch" />
     <item
+        android:id="@+id/menu_log"
+        android:title="@string/menu_view_log" />
+    <item
         android:id="@+id/menu_app_info"
         android:title="@string/menu_app_info" />
 </menu>

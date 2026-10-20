@@ -27,6 +27,7 @@ import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -48,9 +49,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-// What hooks did: the last restriction of each hook per app, and hooks which failed
+// What hooks did: the last restriction of each hook per app, and hooks which failed; of all apps or of one app
 public class FragmentLog extends FragmentBase {
     private static final String TAG = "XLua.Log";
+
+    private static final String ARG_PACKAGE = "package";
+    private static final String ARG_UID = "uid";
 
     private enum Filter {ALL, TODAY, ERRORS}
 
@@ -76,12 +80,34 @@ public class FragmentLog extends FragmentBase {
     private Adapter adapter;
 
     private Filter filter = Filter.ALL;
+    private String query = null;
+    private String only = null; // The package of the app of the log, null for all apps
+    private int onlyUid = -1; // Any user when unknown
     private List<Entry> entries = new ArrayList<>();
     private List<Entry> errors = new ArrayList<>();
+
+    // The log of one app, see ActivityLog
+    static FragmentLog forApp(String packageName, int uid) {
+        Bundle args = new Bundle();
+        args.putString(ARG_PACKAGE, packageName);
+        args.putInt(ARG_UID, uid);
+        FragmentLog fragment = new FragmentLog();
+        fragment.setArguments(args);
+        return fragment;
+    }
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_log, container, false);
+        Bundle args = getArguments();
+        if (args != null) {
+            only = args.getString(ARG_PACKAGE);
+            onlyUid = args.getInt(ARG_UID, -1);
+        }
+        if (only != null) {
+            view.findViewById(R.id.tvTitle).setVisibility(View.GONE);
+            view.findViewById(R.id.llStats).setVisibility(View.GONE);
+        }
 
         swipeRefresh = view.findViewById(R.id.swipeRefresh);
         pbLoading = view.findViewById(R.id.pbLoading);
@@ -99,6 +125,14 @@ public class FragmentLog extends FragmentBase {
         swipeRefresh.setColorSchemeColors(Ui.color(requireContext(), androidx.appcompat.R.attr.colorPrimary));
         swipeRefresh.setOnRefreshListener(this::load);
 
+        EditText etSearch = view.findViewById(R.id.etSearch);
+        if (only != null)
+            etSearch.setHint(R.string.title_search_log_app);
+        Ui.onTextChanged(etSearch, text -> {
+            query = text;
+            show();
+        });
+
         ChipGroup cgFilter = view.findViewById(R.id.cgFilter);
         Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
             filter = selected;
@@ -112,11 +146,16 @@ public class FragmentLog extends FragmentBase {
     @Override
     protected void load() {
         final Context context = requireContext().getApplicationContext();
+        final String only = this.only;
+        final int onlyUid = this.onlyUid;
         executor.submit(() -> {
             try {
                 Map<String, XApp> apps = new HashMap<>();
                 List<Entry> errors = new ArrayList<>();
                 for (XApp app : Data.getApps(context)) {
+                    // Restrictions of other apps are left out, like of uninstalled apps
+                    if (only != null && (!only.equals(app.packageName) || (onlyUid >= 0 && app.uid != onlyUid)))
+                        continue;
                     apps.put(app.packageName + ":" + app.uid, app);
                     for (XAssignment assignment : app.assignments)
                         if (assignment.exception != null) {
@@ -189,16 +228,23 @@ public class FragmentLog extends FragmentBase {
                 : R.attr.colorWarningContainer));
 
         // Items are entries or day headers
+        String q = (query == null ? "" : query.trim());
+        List<Entry> failed = new ArrayList<>();
+        for (Entry entry : errors)
+            if (matches(context, entry, q))
+                failed.add(entry);
         List<Object> items = new ArrayList<>();
-        if (filter == Filter.ERRORS || (filter == Filter.ALL && !errors.isEmpty())) {
+        if (filter == Filter.ERRORS || (filter == Filter.ALL && !failed.isEmpty())) {
             if (filter == Filter.ALL)
                 items.add(getString(R.string.title_stat_errors));
-            items.addAll(errors);
+            items.addAll(failed);
         }
         if (filter != Filter.ERRORS) {
             String day = null;
             for (Entry entry : entries) {
                 if (filter == Filter.TODAY && entry.time < today)
+                    continue;
+                if (!matches(context, entry, q))
                     continue;
                 String header;
                 if (entry.time >= today)
@@ -217,6 +263,16 @@ public class FragmentLog extends FragmentBase {
         }
         adapter.set(items);
         tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+    }
+
+    // Search by app, like the name or the package name, and by restriction, like the group or the hook
+    private static boolean matches(Context context, Entry entry, String q) {
+        return (q.isEmpty() ||
+                Ui.contains(entry.app.label, q) ||
+                Ui.contains(entry.app.packageName, q) ||
+                Ui.contains(entry.hook, q) ||
+                (entry.group != null &&
+                        (Ui.contains(entry.group, q) || Ui.contains(Groups.getTitle(context, entry.group), q))));
     }
 
     private class Adapter extends AdapterSections<Entry> {
@@ -252,9 +308,10 @@ public class FragmentLog extends FragmentBase {
                 if (position == RecyclerView.NO_POSITION)
                     return;
                 Entry entry = getItem(position);
-                if (entry.exception == null)
+                // The log of one app is opened from the screen of the app
+                if (entry.exception == null && only == null)
                     startActivity(ActivityApp.getIntent(view.getContext(), entry.app.packageName, entry.app.uid));
-                else
+                else if (entry.exception != null)
                     Ui.showText(view.getContext(), entry.hook, entry.exception.trim());
             }
         }
