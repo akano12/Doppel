@@ -25,7 +25,7 @@ Restrictions
 ------------
 
 * Determine activity (fake unknown activity, hide activity transitions, see [here](https://developers.google.com/location-context/activity-recognition/))
-* Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html), usage statistics, keyboards and accessibility services of other apps, also for lookups by user)
+* Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html), usage statistics, keyboards and accessibility services of other apps, also for lookups by user, package contexts, launch intents and the shell command pm)
 * Get calendars (hide calendars)
 * Get call log (hide call log)
 * Get contacts (hide contacts, optionally except (non) starred contacts, hide blocked numbers)
@@ -44,15 +44,15 @@ Restrictions
 * Read network data (hide cell info, Wi-Fi networks, paired and connected Bluetooth devices, fake Wi-Fi network name, also in the text of Wi-Fi and network info, block Bluetooth scans and discovery of devices in the local network)
 * Read sync data (hide [sync data](https://developer.android.com/training/sync-adapters/creating-sync-adapter.html))
 * Read telephony data (fake IMEI, MEID, SIM serial number, phone number, voicemail number, type allocation code, etc)
-* Read time zone (fake time zone, setting *value.timezone*, default UTC)
-* Read device features (hide the list of device features; single checks only hide features which are not part of the Android platform and features listed in setting *features.hide*; hide external input devices, like keyboards and game controllers)
+* Read time zone (fake time zone, also the system property, setting *value.timezone*, default UTC)
+* Read device features (hide features which are not part of the Android platform and features listed in setting *features.hide*, also in the list of features and for the shell command pm; hide external input devices, like keyboards and game controllers)
 * Read VPN state (hide VPN transports, networks and interfaces)
 * Record audio (prevent recording and speech recognition)
 * Record video (prevent recording)
 * Send messages (prevent sending MMS, SMS, data)
 * Use analytics ([Adjust](https://www.adjust.com/), [AppsFlyer](https://www.appsflyer.com/), [Facebook app events](https://developers.facebook.com/docs/reference/androidsdk/current/facebook/com/facebook/appevents/appeventslogger.html/), [Firebase Analytics](https://firebase.google.com/docs/analytics/), [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics), [Mixpanel](https://mixpanel.com/), [Segment](https://segment.com/))
 * Use camera (fake camera not available, hide cameras)
-* Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html) including the security patch level, the same values for the shell commands getprop, uname and /proc/version, network/SIM country/operator, device and Bluetooth name)
+* Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html) including the security patch level, the same values for the system properties and the shell commands getprop, uname and /proc/version, network/SIM country/operator, device and Bluetooth name)
 
 The tracking restrictions will work only if the code of the target app was not [obfuscated](https://developer.android.com/studio/build/shrink-code.html).
 The other restrictions will work always.

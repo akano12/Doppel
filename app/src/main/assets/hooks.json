@@ -364,6 +364,50 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
+    "name": "PackageManager.getLaunchIntentForPackage",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getLaunchIntentForPackage",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 3,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getLeanbackLaunchIntentForPackage",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getLeanbackLaunchIntentForPackage",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 21,
+    "luaScript": "@package_probe"
+  },
+  // Context.createPackageContext of the app and its wrappers ends here
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.createPackageContext",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "createPackageContext",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.Context",
+    "minSdk": 1,
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
     "name": "PackageManager.getTargetSdkVersion",
     "author": "XPrivacyLua",
     "className": "android.content.pm.PackageManager",
@@ -4202,7 +4246,7 @@
     "enabled": false,
     "luaScript": "@systemproperties_get"
   },
-  // Properties of the model of the device, which apps read when the fields of android.os.Build are restricted
+  // Properties of the model and the build of the device, which apps read when the fields of android.os.Build are restricted
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -4579,6 +4623,43 @@
       "value.timezone"
     ],
     "luaScript": "@timezone"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "SystemProperties.get/timezone",
+    "author": "XPrivacyLua",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "usage": false,
+    "settings": [
+      "value.timezone"
+    ],
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "SystemProperties.get.default/timezone",
+    "author": "XPrivacyLua",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "usage": false,
+    "settings": [
+      "value.timezone"
+    ],
+    "luaScript": "@systemproperties_get"
   },
   // Read device features
   // https://developer.android.com/reference/android/content/pm/PackageManager#getSystemAvailableFeatures()
@@ -5670,7 +5751,20 @@
     "minSdk": 24,
     "luaScript": "@biometrics"
   },
-  // Commands like getprop and uname read the system properties and kernel build behind faked values
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "PackageManager.getSystemAvailableFeatures/biometrics",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSystemAvailableFeatures",
+    "parameterTypes": [],
+    "returnType": "[Landroid.content.pm.FeatureInfo;",
+    "minSdk": 5,
+    "luaScript": "@biometrics"
+  },
+  // Commands like getprop and uname read the system properties and kernel build behind faked values,
+  // pm the installed packages and the features; each variant fakes the values of its group
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -5684,6 +5778,60 @@
     "settings": [
       "value.serial"
     ],
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ProcessBuilder.start/packages",
+    "author": "XPrivacyLua",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "ProcessBuilder.start/timezone",
+    "author": "XPrivacyLua",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "settings": [
+      "value.timezone"
+    ],
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "ProcessBuilder.start/features",
+    "author": "XPrivacyLua",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "settings": [
+      "features.hide"
+    ],
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ProcessBuilder.start/biometrics",
+    "author": "XPrivacyLua",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
     "luaScript": "@shell_commands"
   },
   // The text of network objects contains the values their getters hide
@@ -5805,6 +5953,451 @@
     "returnType": "java.lang.String",
     "minSdk": 17,
     "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  // The settings above read from the settings provider directly, with call(GET_secure, name) or a query
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.call/identifiers",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.call.uri/identifiers",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 11,
+    "maxSdk": 28,
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.query26/identifiers",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.query16/identifiers",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 16,
+    "maxSdk": 25,
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ContentResolver.call/tracking",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ContentResolver.call.uri/tracking",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 11,
+    "maxSdk": 28,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ContentResolver.query26/tracking",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ContentResolver.query16/tracking",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 16,
+    "maxSdk": 25,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.call/applications",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.call.uri/applications",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 11,
+    "maxSdk": 28,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.query26/applications",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.query16/applications",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 16,
+    "maxSdk": 25,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "ContentResolver.call/debugging",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "ContentResolver.call.uri/debugging",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 11,
+    "maxSdk": 28,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "ContentResolver.query26/debugging",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "ContentResolver.query16/debugging",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 16,
+    "maxSdk": 25,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Settings",
+    "name": "ContentResolver.call/settings",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Settings",
+    "name": "ContentResolver.call.uri/settings",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 11,
+    "maxSdk": 28,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Settings",
+    "name": "ContentResolver.query26/settings",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Settings",
+    "name": "ContentResolver.query16/settings",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 16,
+    "maxSdk": 25,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "ContentResolver.call/battery",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "ContentResolver.call.uri/battery",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 11,
+    "maxSdk": 28,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "ContentResolver.query26/battery",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "ContentResolver.query16/battery",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 16,
+    "maxSdk": 25,
     "luaScript": "@settingssecure_getstring"
   },
   // Package lookups for other users, hidden methods which skip the public ones

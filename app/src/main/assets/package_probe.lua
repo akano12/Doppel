@@ -30,6 +30,15 @@ function after(hook, param)
     end
 
     local method = hook:getMethodName()
+    if method == 'getLaunchIntentForPackage' or method == 'getLeanbackLaunchIntentForPackage' then
+        -- No launch intent, like for an app which is not installed
+        if param:getResult() == nil then
+            return false
+        end
+        param:setResult(nil)
+        return true, packageName
+    end
+
     local ex
     if method == 'getInstallerPackageName' or method == 'getApplicationEnabledSetting' then
         ex = luajava.newInstance('java.lang.IllegalArgumentException', 'Unknown package: ' .. packageName)

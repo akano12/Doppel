@@ -56,7 +56,7 @@ public class HookDefinitionsTest {
 
     // Hidden framework classes, which are not part of the SDK
     private static final Set<String> HIDDEN = new HashSet<>(Arrays.asList(
-            "android.os.SystemProperties"));
+            "android.os.SystemProperties", "android.app.ContextImpl"));
 
     private static List<JSONObject> hooks;
 

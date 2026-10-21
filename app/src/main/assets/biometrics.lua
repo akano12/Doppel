@@ -30,7 +30,26 @@ function after(hook, param)
     local method = hook:getMethodName()
     local result = param:getResult()
 
-    if method == 'hasSystemFeature' then
+    if method == 'getSystemAvailableFeatures' then
+        -- The same features as hasSystemFeature finds
+        if result == nil then
+            return false
+        end
+        local kept = luajava.newInstance('java.util.ArrayList')
+        for index = 1, result['length'] do
+            if not FEATURES[result[index].name] then
+                kept:add(result[index])
+            end
+        end
+        if kept:size() == result['length'] then
+            return false
+        end
+        local featureClass = luajava.bindClass('android.content.pm.FeatureInfo')
+        local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+        param:setResult(kept:toArray(arrayClass:newInstance(featureClass, 0)))
+        return true, tostring(result['length']), tostring(kept:size())
+
+    elseif method == 'hasSystemFeature' then
         local name = param:getArgument(0)
         if not result or not FEATURES[name] then
             return false

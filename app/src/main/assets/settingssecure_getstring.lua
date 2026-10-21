@@ -75,39 +75,29 @@ function systemservices(param, name)
     return packages
 end
 
-function after(hook, param)
-    -- The hooked methods are called for all settings, so check the name first
-    local key = param:getArgument(1)
-    if key ~= 'android_id' and key ~= 'bluetooth_name' and key ~= 'device_name' and key ~= 'boot_count' and
-            key ~= 'pps_oaid' and key ~= 'default_input_method' and key ~= 'enabled_input_methods' and
-            key ~= 'enabled_accessibility_services' and key ~= 'adb_enabled' and key ~= 'adb_wifi_enabled' and
-            key ~= 'development_settings_enabled' and key ~= 'low_power' and key ~= 'bluetooth_address' and
-            PERSONAL[key] == nil then
-        return false
-    end
+-- Whether hooks change the setting; the hooked methods are called for all settings, so check the name first
+function hooked(key)
+    return key == 'android_id' or key == 'bluetooth_name' or key == 'device_name' or key == 'boot_count' or
+            key == 'pps_oaid' or key == 'default_input_method' or key == 'enabled_input_methods' or
+            key == 'enabled_accessibility_services' or key == 'adb_enabled' or key == 'adb_wifi_enabled' or
+            key == 'development_settings_enabled' or key == 'low_power' or key == 'bluetooth_address' or
+            PERSONAL[key] ~= nil
+end
 
-    local result = param:getResult()
-    if result == nil then
-        return false
-    end
-
-    -- Hook names are like Function/variant
-    local name = string.match(hook:getName(), '/(.*)$')
-
+-- The fake value of a setting for a variant: true and the fake value, or false when it stays
+function fakesetting(param, name, key, result)
     if name == 'android_id' and key == 'android_id' then
         local fake = param:getSetting('value.android_id')
         if fake == nil then
             fake = '0000000000000000'
         end
-        param:setResult(fake)
-        return true, result, fake
+        return true, fake
     elseif (name == 'bluetooth_name' and key == 'bluetooth_name') or
             (name == 'device_name' and key == 'device_name') or
             (name == 'boot_count' and key == 'boot_count') or
             (name == 'oaid' and key == 'pps_oaid') then
         local fake
-        param:setResult(fake)
-        return true, result, fake
+        return true, fake
     elseif (name == 'input_method' and (key == 'default_input_method' or key == 'enabled_input_methods')) or
             (name == 'accessibility' and key == 'enabled_accessibility_services') then
         -- Components of keyboards or accessibility services, like com.example/.Keyboard;subtype:com.other/.Keyboard
@@ -126,8 +116,7 @@ function after(hook, param)
         if fake == '' then
             fake = nil
         end
-        param:setResult(fake)
-        return true, result, fake
+        return true, fake
     elseif name == 'settings' and PERSONAL[key] ~= nil then
         local fake = PERSONAL[key]
         if fake == NONE then
@@ -136,31 +125,164 @@ function after(hook, param)
         if fake == result then
             return false
         end
-        param:setResult(fake)
-        return true, result, fake
+        return true, fake
     elseif name == 'adb' and (key == 'adb_enabled' or key == 'adb_wifi_enabled' or key == 'development_settings_enabled') then
         -- Developer options and USB or wireless debugging appear off
         if result == '0' then
             return false
         end
-        param:setResult('0')
-        return true, result, '0'
+        return true, '0'
     elseif name == 'battery' and key == 'low_power' then
         -- Battery saver appears off, like PowerManager.isPowerSaveMode
         if result == '0' then
             return false
         end
-        param:setResult('0')
-        return true, result, '0'
+        return true, '0'
     elseif name == 'mac' and key == 'bluetooth_address' then
         -- The Bluetooth MAC address, like BluetoothAdapter.getAddress
         local fake = '02:00:00:00:00:00'
         if result == fake then
             return false
         end
-        param:setResult(fake)
-        return true, result, fake
+        return true, fake
     else
         return false
     end
+end
+
+-- The variants of the settings in each group, for the hooks of the settings provider
+local PROVIDER = {
+    identifiers = { 'android_id', 'oaid', 'mac' },
+    tracking = { 'bluetooth_name', 'device_name', 'boot_count' },
+    applications = { 'input_method', 'accessibility' },
+    debugging = { 'adb' },
+    settings = { 'settings' },
+    battery = { 'battery' },
+}
+
+-- The fake value of a setting for the variants of a provider hook, like fakesetting
+function fakeany(param, group, key, result)
+    for _, name in ipairs(PROVIDER[group]) do
+        local changed, value = fakesetting(param, name, key, result)
+        if changed then
+            return true, value
+        end
+    end
+    return false
+end
+
+-- Apps can read settings from the settings provider too, which Settings.*.getString use:
+-- call(GET_secure, name) returns a bundle with the value, a query rows of names and values
+function provider(hook, param, group)
+    local target = param:getArgument(0)
+    local authority = target
+    if type(target) ~= 'string' then
+        authority = target:getAuthority()
+    end
+    if authority ~= 'settings' then
+        return false
+    end
+
+    local result = param:getResult()
+    if result == nil then
+        return false
+    end
+
+    if hook:getMethodName() == 'call' then
+        local method = param:getArgument(1)
+        local key = param:getArgument(2)
+        if method == nil or string.sub(method, 1, 4) ~= 'GET_' or not hooked(key) then
+            return false
+        end
+        local value = result:getString('value')
+        if value == nil then
+            return false
+        end
+        local changed, fakevalue = fakeany(param, group, key, value)
+        if not changed then
+            return false
+        end
+        result:putString('value', fakevalue)
+        return true, value, fakevalue
+    end
+
+    -- A query of content://settings/secure or content://settings/secure/android_id
+    local columns = result:getColumnNames()
+    local nameIndex = result:getColumnIndex('name')
+    local valueIndex = result:getColumnIndex('value')
+    if valueIndex < 0 then
+        return false
+    end
+    local segments = target:getPathSegments()
+    local pathKey
+    if segments:size() == 2 then
+        pathKey = segments:get(1)
+    end
+
+    local fakecursor = luajava.newInstance('android.database.MatrixCursor', columns)
+    local changed = false
+    local position = result:getPosition()
+    result:moveToPosition(-1)
+    while result:moveToNext() do
+        local key = pathKey
+        if nameIndex >= 0 then
+            key = result:getString(nameIndex)
+        end
+        local row = fakecursor:newRow()
+        for index = 0, columns['length'] - 1 do
+            local value
+            local kind = result:getType(index)
+            if kind == 1 then
+                value = result:getLong(index)
+            elseif kind == 2 then
+                value = result:getDouble(index)
+            elseif kind == 3 then
+                value = result:getString(index)
+            elseif kind == 4 then
+                value = result:getBlob(index)
+            end
+            if index == valueIndex and value ~= nil and hooked(key) then
+                local hit, fakevalue = fakeany(param, group, key, value)
+                if hit then
+                    changed = true
+                    value = fakevalue
+                end
+            end
+            row:add(value)
+        end
+    end
+
+    if not changed then
+        result:moveToPosition(position)
+        fakecursor:close()
+        return false
+    end
+    result:close()
+    param:setResult(fakecursor)
+    return true
+end
+
+function after(hook, param)
+    -- Hook names are like Function/variant
+    local name = string.match(hook:getName(), '/(.*)$')
+    if hook:getClassName() == 'android.content.ContentResolver' then
+        return provider(hook, param, name)
+    end
+
+    local key = param:getArgument(1)
+    if not hooked(key) then
+        return false
+    end
+
+    local result = param:getResult()
+    if result == nil then
+        return false
+    end
+
+    local changed, value = fakesetting(param, name, key, result)
+    if not changed then
+        return false
+    end
+    param:setResult(value)
+    return true, result, value
 end

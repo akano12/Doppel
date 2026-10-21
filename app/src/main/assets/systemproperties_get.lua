@@ -15,36 +15,55 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
-function isdeviceproperty(key)
-    if key == 'ro.soc.model' or key == 'ro.soc.manufacturer' or
-            key == 'ro.boot.hardware.sku' or key == 'ro.boot.vbmeta.digest' or key == 'ro.hardware' then
-        return true
+-- Properties behind the fields of android.os.Build with their fake values, the same as getprop
+-- prints (see shell_commands); a * matches the partition, like ro.vendor.build.id
+local DEVICE = {
+    { 'unknown', { 'ro.product.model', 'ro.product.*.model', 'ro.product.brand', 'ro.product.*.brand',
+                   'ro.product.manufacturer', 'ro.product.*.manufacturer', 'ro.product.device',
+                   'ro.product.*.device', 'ro.product.name', 'ro.product.*.name', 'ro.product.board',
+                   'ro.product.*.board', 'ro.soc.model', 'ro.soc.manufacturer', 'ro.hardware',
+                   'ro.boot.hardware.sku', 'ro.boot.product.hardware.sku', 'ro.boot.vbmeta.digest',
+                   'ro.bootloader', 'ro.boot.bootloader', 'gsm.version.baseband' } },
+    { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
+                   'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
+                   'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
+                   'ro.*.build.tags', 'ro.build.type', 'ro.*.build.type', 'ro.build.description',
+                   'ro.build.flavor', 'ro.build.product', 'ro.build.date', 'ro.*.build.date',
+                   'ro.build.version.security_patch', 'ro.*.build.version.security_patch',
+                   'ro.*.build.security_patch' } },
+    { '0', { 'ro.build.date.utc', 'ro.*.build.date.utc' } },
+}
+
+-- The Lua patterns of the property names, made once because properties are read often
+local PATTERNS = {}
+for _, rule in ipairs(DEVICE) do
+    for _, name in ipairs(rule[2]) do
+        local pattern = '^' .. string.gsub(name, '[%.%*]', { ['.'] = '%.', ['*'] = '.+' }) .. '$'
+        PATTERNS[#PATTERNS + 1] = { pattern, rule[1] }
     end
-    -- Like Build.VERSION.SECURITY_PATCH, also the patch level of the vendor partition
-    if string.sub(key, -string.len('.security_patch')) == '.security_patch' then
-        return true
-    end
-    if string.sub(key, 1, string.len('ro.product.')) ~= 'ro.product.' then
-        return false
-    end
-    for _, suffix in ipairs({ '.model', '.brand', '.manufacturer', '.device', '.name', '.board' }) do
-        if string.sub(key, -string.len(suffix)) == suffix then
-            return true
+end
+
+-- The fake value of a device property, nil when it is not faked
+function fakedevice(key)
+    for _, entry in ipairs(PATTERNS) do
+        if string.match(key, entry[1]) then
+            return entry[2]
         end
     end
-    return false
+    return nil
 end
 
 function after(hook, param)
     -- The hooked methods are called for all properties, so check the name first
     local key = param:getArgument(0)
     if key == nil or not (string.sub(key, 1, 3) == 'ro.' or string.sub(key, 1, 4) == 'ril.' or
-            string.sub(key, 1, 4) == 'gsm.' or key == 'sys.serialnumber') then
+            string.sub(key, 1, 4) == 'gsm.' or key == 'sys.serialnumber' or key == 'persist.sys.timezone') then
         return false
     end
 
+    -- Properties which are not set stay empty, a fake value would tell they are faked
     local result = param:getResult()
-    if result == nil then
+    if result == nil or result == '' then
         return false
     end
 
@@ -80,9 +99,23 @@ function after(hook, param)
         local fake
         param:setResult(fake)
         return true, result, fake
-    elseif name == 'device' and result ~= '' and isdeviceproperty(key) then
+    elseif name == 'device' then
         -- Like the fields of android.os.Build
-        local fake = 'unknown'
+        local fake = fakedevice(key)
+        if fake == nil or fake == result then
+            return false
+        end
+        param:setResult(fake)
+        return true, result, fake
+    elseif name == 'timezone' and key == 'persist.sys.timezone' then
+        -- Like TimeZone.getDefault
+        local fake = param:getSetting('value.timezone')
+        if fake == nil or fake == '' then
+            fake = 'UTC'
+        end
+        if fake == result then
+            return false
+        end
         param:setResult(fake)
         return true, result, fake
     else

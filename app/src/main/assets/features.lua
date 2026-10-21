@@ -14,11 +14,11 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Device features
--- getSystemAvailableFeatures: return no features at all, the full list is a fingerprint
--- hasSystemFeature: hide features which are not part of the Android platform (vendor
--- features like com.google.android.feature.* identify the manufacturer) and features
--- listed in setting features.hide (comma separated); apps and the framework itself
--- check single platform features to decide what works (like WebView), so these remain
+-- Hide features which are not part of the Android platform (vendor features like
+-- com.google.android.feature.* identify the manufacturer) and features listed in setting
+-- features.hide (comma separated); apps and the framework itself check single platform
+-- features to decide what works (like WebView), so these remain. getSystemAvailableFeatures
+-- lists the same features as hasSystemFeature finds, an empty list would tell it is filtered.
 
 function hidden(name, param)
     if name == nil then
@@ -53,12 +53,18 @@ function after(hook, param)
         return false
     end
 
-    -- getSystemAvailableFeatures
-    if result['length'] == 0 then
+    -- getSystemAvailableFeatures, the OpenGL ES version has no name
+    local kept = luajava.newInstance('java.util.ArrayList')
+    for index = 1, result['length'] do
+        if not hidden(result[index].name, param) then
+            kept:add(result[index])
+        end
+    end
+    if kept:size() == result['length'] then
         return false
     end
     local featureClass = luajava.bindClass('android.content.pm.FeatureInfo')
     local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-    param:setResult(arrayClass:newInstance(featureClass, 0))
-    return true, tostring(result['length']), '0'
+    param:setResult(kept:toArray(arrayClass:newInstance(featureClass, 0)))
+    return true, tostring(result['length']), tostring(kept:size())
 end
