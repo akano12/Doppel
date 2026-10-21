@@ -38,7 +38,6 @@ public class XParam {
     private final Context context;
     private final Field field;
     private final XCall param;
-    private final Class<?>[] paramTypes;
     private final Class<?> returnType;
     private final Map<String, String> settings;
 
@@ -57,7 +56,6 @@ public class XParam {
         this.context = context;
         this.field = field;
         this.param = null;
-        this.paramTypes = null;
         this.returnType = field.getType();
         this.settings = settings;
     }
@@ -70,13 +68,7 @@ public class XParam {
         this.context = context;
         this.field = null;
         this.param = param;
-        if (param.method instanceof Constructor) {
-            this.paramTypes = ((Constructor) param.method).getParameterTypes();
-            this.returnType = null;
-        } else {
-            this.paramTypes = ((Method) param.method).getParameterTypes();
-            this.returnType = ((Method) param.method).getReturnType();
-        }
+        this.returnType = (param.method instanceof Method ? ((Method) param.method).getReturnType() : null);
         this.settings = settings;
     }
 
@@ -113,15 +105,20 @@ public class XParam {
     public void setArgument(int index, Object value) {
         checkArgument(index);
 
+        // A copy, so only made when needed
+        Class<?>[] paramTypes = (this.param.method instanceof Method
+                ? ((Method) this.param.method).getParameterTypes()
+                : ((Constructor<?>) this.param.method).getParameterTypes());
+
         if (value == null) {
             // Calling with null for a primitive parameter would crash the app
-            if (this.paramTypes[index].isPrimitive())
-                throw new IllegalArgumentException("Expected argument #" + index + " " + this.paramTypes[index] + " got null");
+            if (paramTypes[index].isPrimitive())
+                throw new IllegalArgumentException("Expected argument #" + index + " " + paramTypes[index] + " got null");
         } else {
-            value = coerceValue(this.paramTypes[index], value);
-            if (!boxType(this.paramTypes[index]).isInstance(value))
+            value = coerceValue(paramTypes[index], value);
+            if (!boxType(paramTypes[index]).isInstance(value))
                 throw new IllegalArgumentException(
-                        "Expected argument #" + index + " " + this.paramTypes[index] + " got " + value.getClass());
+                        "Expected argument #" + index + " " + paramTypes[index] + " got " + value.getClass());
         }
 
         this.param.args[index] = value;
@@ -131,7 +128,7 @@ public class XParam {
     private void checkArgument(int index) {
         if (this.field != null)
             throw new IllegalStateException("Field " + this.field.getName() + " has no arguments");
-        if (index < 0 || index >= this.paramTypes.length)
+        if (index < 0 || index >= (this.param.args == null ? 0 : this.param.args.length))
             throw new ArrayIndexOutOfBoundsException("Argument #" + index);
     }
 
@@ -169,8 +166,9 @@ public class XParam {
             visible = (ai.uid == getUid() ||
                     (ai.flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
         } catch (PackageManager.NameNotFoundException ignored) {
-            // Not installed or not visible because of the package visibility rules
-            visible = true;
+            // Not installed or not visible because of the package visibility rules;
+            // not kept, the package can be installed while the app runs
+            return true;
         } finally {
             checkingPackage.remove();
         }

@@ -642,9 +642,12 @@ class XProvider {
 
         // Last use of the group before this use, -1 for the first use,
         // null when the app has no such assignment, like for a package of another app
+        // An error keeps the last restriction of the hook, so the log keeps showing it:
+        // the time of an error is stored as installed, which is the time of the last error
+        final boolean error = data.containsKey("exception");
         Long used = db.write(d -> {
             ContentValues cv = new ContentValues();
-            if ("install".equals(event))
+            if ("install".equals(event) || (use && error))
                 cv.put("installed", time);
             else if (use) {
                 cv.put("used", time);
@@ -653,7 +656,7 @@ class XProvider {
             for (String key : new String[]{"exception", "old", "new"})
                 if (data.containsKey(key))
                     cv.put(key, data.getString(key));
-            if (data.containsKey("exception"))
+            if (error)
                 try (Cursor cursor = d.query("assignment", new String[]{"exception"},
                         "package = ? AND uid = ? AND hook = ?",
                         new String[]{packageName, Integer.toString(uid), hookid}, null, null, null)) {

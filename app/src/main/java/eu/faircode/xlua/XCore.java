@@ -60,7 +60,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -438,7 +437,9 @@ class XCore {
     private void installMethod(final Context context, final XHook hook, final Prototype script,
                                final Map<String, String> settings, final Member member) throws Throwable {
         backend.hook(member, new XBackend.Callback() {
-            private final WeakHashMap<Thread, Globals> threadGlobals = new WeakHashMap<>();
+            // The Lua runtime of this hook per thread, without a lock on each call
+            private final ThreadLocal<Globals> threadGlobals = new ThreadLocal<>();
+            private final LuaValue luaHook = CoerceJavaToLua.coerce(hook);
 
             @Override
             void before(XCall call) {
@@ -453,15 +454,11 @@ class XCore {
             private void execute(XCall call, String function) {
                 try {
                     // Initialize the Lua runtime once per thread
-                    Globals globals;
-                    synchronized (threadGlobals) {
-                        Thread thread = Thread.currentThread();
-                        globals = threadGlobals.get(thread);
-                        if (globals == null) {
-                            globals = getGlobals(context, hook, settings);
-                            new LuaClosure(script, globals).call(); // Define functions
-                            threadGlobals.put(thread, globals);
-                        }
+                    Globals globals = threadGlobals.get();
+                    if (globals == null) {
+                        globals = getGlobals(context, hook, settings);
+                        new LuaClosure(script, globals).call(); // Define functions
+                        threadGlobals.set(globals);
                     }
 
                     LuaValue func = globals.get(function);
@@ -469,14 +466,12 @@ class XCore {
                         return;
 
                     Varargs result = func.invoke(new LuaValue[]{
-                            CoerceJavaToLua.coerce(hook),
+                            luaHook,
                             CoerceJavaToLua.coerce(new XParam(context, call, settings))
                     });
                     reportUse(context, hook, function, result);
                 } catch (Throwable ex) {
-                    synchronized (threadGlobals) {
-                        threadGlobals.remove(Thread.currentThread());
-                    }
+                    threadGlobals.remove();
                     reportError(context, hook, function, ex,
                             "\nMethod:\n" + function + " " + member + "\n" + describe(call));
                 }
@@ -557,15 +552,10 @@ class XCore {
     private void flush(Context context, String packageName, int uid) {
         Log.i(TAG, "Processing event queue package=" + packageName + ":" + uid);
 
-        // Errors first, so a restriction reported after them is what the log shows
         List<Bundle> work = new ArrayList<>();
         synchronized (queue) {
-            for (Map.Entry<String, Map<String, Bundle>> entry : queue.entrySet())
-                if (entry.getKey().endsWith(":error"))
-                    work.addAll(entry.getValue().values());
-            for (Map.Entry<String, Map<String, Bundle>> entry : queue.entrySet())
-                if (!entry.getKey().endsWith(":error"))
-                    work.addAll(entry.getValue().values());
+            for (Map<String, Bundle> reports : queue.values())
+                work.addAll(reports.values());
             queue.clear();
             flushing = false;
         }

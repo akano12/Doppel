@@ -24,12 +24,31 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 // Package changes of all users, registered in system server (see XCore.hookAndroid)
 public class ReceiverPackage extends BroadcastReceiver {
     private static final String TAG = "XLua.Receiver";
 
+    // One thread, so the changes of a package are handled in order, like a removal before a new install
+    private static final ExecutorService executor = Executors.newSingleThreadExecutor(
+            runnable -> new Thread(runnable, "XLua.Receiver"));
+
+    // The service writes to its database, which is not done on the main thread of system server
     @Override
-    public void onReceive(Context context, Intent intent) {
+    public void onReceive(final Context context, final Intent intent) {
+        final PendingResult result = goAsync();
+        executor.execute(() -> {
+            try {
+                handle(context, intent);
+            } finally {
+                result.finish();
+            }
+        });
+    }
+
+    private static void handle(Context context, Intent intent) {
         try {
             String packageName = intent.getData().getSchemeSpecificPart();
             int uid = intent.getIntExtra(Intent.EXTRA_UID, -1);
