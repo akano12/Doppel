@@ -286,15 +286,18 @@ function provider(hook, param, group)
 end
 
 function after(hook, param)
-    -- Hook names are like Function/variant
-    local name = string.match(hook:getName(), '/(.*)$')
-    if hook:getClassName() == 'android.content.ContentResolver' then
-        return provider(hook, param, name)
+    -- The getters are called for all settings, so check the name first; the second argument of
+    -- the provider hooks is the method of call (GET_secure) or the projection of a query
+    local key = param:getArgument(1)
+    local getter = (type(key) == 'string' and string.sub(key, 1, 4) ~= 'GET_')
+    if getter and not hooked(key) then
+        return false
     end
 
-    local key = param:getArgument(1)
-    if not hooked(key) then
-        return false
+    -- Hook names are like Function/variant
+    local name = string.match(hook:getName(), '/(.*)$')
+    if not getter or hook:getClassName() == 'android.content.ContentResolver' then
+        return provider(hook, param, name)
     end
 
     local result = param:getResult()
