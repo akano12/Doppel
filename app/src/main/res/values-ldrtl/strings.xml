@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The values of the log are shown from right to left -->
+    <string name="title_value_arrow" translatable="false">←</string>
+</resources>

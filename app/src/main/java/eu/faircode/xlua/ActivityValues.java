@@ -94,8 +94,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, Random.NONE, null),
     };
 
-    // Built-in fields and the settings of custom definitions
-    private final List<Object> form = new ArrayList<>(Arrays.asList(SECTIONS));
+    // Built-in fields and the settings of custom definitions, see load
+    private final List<Object> form = new ArrayList<>();
 
     // Dropdown positions to setting values
     private static final String[] LOCATION_VALUES = new String[]{null, "set", "coarse"};

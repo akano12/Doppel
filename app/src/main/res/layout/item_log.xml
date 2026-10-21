@@ -82,7 +82,7 @@
                     android:layout_marginStart="6dp"
                     android:layout_marginEnd="6dp"
                     android:importantForAccessibility="no"
-                    android:text="→"
+                    android:text="@string/title_value_arrow"
                     android:textAppearance="@style/XLua.Text.Meta" />
 
                 <TextView

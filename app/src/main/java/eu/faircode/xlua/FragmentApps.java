@@ -298,7 +298,7 @@ public class FragmentApps extends FragmentBase {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
         final List<XHook> available = Data.getAvailable(hooks, row.app, collection, null);
-        final String label = (TextUtils.isEmpty(row.app.label) ? row.app.packageName : row.app.label);
+        final String label = row.app.getLabel();
         run(TAG, () -> {
             Data.assign(context, row.app, available, true);
             Ui.message(activity, activity.getString(R.string.msg_restricted_all, label),

@@ -122,7 +122,7 @@ public class FragmentHooks extends FragmentBase {
                 if (item.getItemId() == R.id.menu_import)
                     importLauncher.launch(new String[]{"application/json", "text/*", "application/octet-stream"});
                 else if (item.getItemId() == R.id.menu_export)
-                    exportLauncher.launch("xprivacylua-hooks.json");
+                    exportLauncher.launch(Ui.datedFileName("hooks"));
                 return true;
             });
             popup.show();
@@ -193,9 +193,11 @@ public class FragmentHooks extends FragmentBase {
                 continue;
             if (filter == Filter.DISABLED && hook.isEnabled())
                 continue;
+            // Groups by name and by the title shown, like 'call log' for Get.Call.log
             if (!q.isEmpty() &&
                     !Ui.contains(hook.getId(), q) &&
                     !Ui.contains(hook.getGroup(), q) &&
+                    !Ui.contains(Groups.getTitle(requireContext(), hook.getGroup()), q) &&
                     !Ui.contains(hook.getClassName(), q))
                 continue;
             if (!hook.getGroup().equals(group)) {

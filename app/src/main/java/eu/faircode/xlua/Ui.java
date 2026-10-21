@@ -49,8 +49,10 @@ import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.Locale;
 
 // Small view helpers shared by the screens
@@ -133,6 +135,12 @@ final class Ui {
     static CharSequence ago(long time) {
         return DateUtils.getRelativeTimeSpanString(time, System.currentTimeMillis(),
                 DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE);
+    }
+
+    // A file name with today's date, like xprivacylua-backup-2026-10-20.json, so backups do not replace each other
+    static String datedFileName(String name) {
+        return "xprivacylua-" + name + "-" +
+                new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new Date()) + ".json";
     }
 
     static long startOfDay(long time) {

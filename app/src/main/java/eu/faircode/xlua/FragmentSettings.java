@@ -20,6 +20,7 @@ package eu.faircode.xlua;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -105,7 +106,7 @@ public class FragmentSettings extends FragmentBase {
         view.findViewById(R.id.llValues).setOnClickListener(v ->
                 startActivity(ActivityValues.getIntent(activity, null, null)));
         view.findViewById(R.id.llBackup).setOnClickListener(v ->
-                backupLauncher.launch("xprivacylua-backup.json"));
+                backupLauncher.launch(Ui.datedFileName("backup")));
         view.findViewById(R.id.llRestore).setOnClickListener(v ->
                 restoreLauncher.launch(new String[]{"application/json", "text/*", "application/octet-stream"}));
         view.findViewById(R.id.llClear).setOnClickListener(v ->
@@ -120,85 +121,83 @@ public class FragmentSettings extends FragmentBase {
     @Override
     protected void load() {
         final Context context = requireContext().getApplicationContext();
-        executor.submit(() -> {
-            try {
-                int version = Data.getVersion(context);
-                boolean available = Data.isAvailable(version);
-                List<XHook> hooks = Data.getAllHooks(context, false);
-                TreeSet<String> known = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-                for (XHook hook : hooks)
-                    known.add(hook.getCollection());
-                List<String> enabled = Data.getCollection(context);
-                known.addAll(enabled);
-                boolean restrictNew = Data.getSettingBoolean(context, "global", "restrict_new_apps");
-                boolean notifyNew = Data.getSettingBoolean(context, "global", "notify_new_apps");
-                String theme = Data.getSetting(context, "global", "theme");
-                String palette = Data.getSetting(context, "global", "palette");
-                boolean black = Data.getSettingBoolean(context, "global", "black");
+        run(TAG, () -> {
+            int version = Data.getVersion(context);
+            boolean available = Data.isAvailable(version);
+            List<XHook> hooks = Data.getAllHooks(context, false);
+            TreeSet<String> known = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+            for (XHook hook : hooks)
+                known.add(hook.getCollection());
+            List<String> enabled = Data.getCollection(context);
+            known.addAll(enabled);
+            boolean restrictNew = Data.getSettingBoolean(context, "global", "restrict_new_apps");
+            boolean notifyNew = Data.getSettingBoolean(context, "global", "notify_new_apps");
+            String theme = Data.getSetting(context, "global", "theme");
+            String palette = Data.getSetting(context, "global", "palette");
+            boolean black = Data.getSettingBoolean(context, "global", "black");
 
-                post(() -> {
-                    // Restoring a backup or clearing data can change the colors
-                    boolean changed = ApplicationEx.setPalette(context, palette);
-                    changed |= ApplicationEx.setBlack(context, black);
-                    if (changed) {
-                        ((ActivityBase) requireActivity()).recreateSmoothly();
+            post(() -> {
+                // Restoring a backup or clearing data can change the colors
+                boolean changed = ApplicationEx.setPalette(context, palette);
+                changed |= ApplicationEx.setBlack(context, black);
+                if (changed) {
+                    ((ActivityBase) requireActivity()).recreateSmoothly();
+                    return;
+                }
+                showPalettes(ApplicationEx.getPalette(context));
+                swBlack.setOnCheckedChangeListener(null);
+                swBlack.setChecked(black);
+                swBlack.setOnCheckedChangeListener((button, checked) -> selectBlack(checked));
+
+                this.collections = new ArrayList<>(known);
+                this.enabled = enabled;
+
+                tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
+                ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
+                ivStatus.setBackgroundTintList(ColorStateList.valueOf(Ui.color(requireContext(), available
+                        ? R.attr.colorSuccess : R.attr.colorWarning)));
+                glStatus.removeAllViews();
+                addStatus(R.string.title_status_service, version < 0 ? "-" : Integer.toString(version));
+                addStatus(R.string.title_status_hooks, Integer.toString(hooks.size()));
+                addStatus(R.string.title_status_collections, Integer.toString(enabled.size()));
+                addStatus(R.string.title_status_android, Build.VERSION.RELEASE + " · SDK " + Build.VERSION.SDK_INT);
+                tvCollections.setText(TextUtils.join(", ", enabled));
+
+                swRestrictNew.setOnCheckedChangeListener(null);
+                swRestrictNew.setChecked(restrictNew);
+                swRestrictNew.setOnCheckedChangeListener((button, checked) ->
+                        put("restrict_new_apps", Boolean.toString(checked)));
+                swNotifyNew.setOnCheckedChangeListener(null);
+                swNotifyNew.setChecked(notifyNew);
+                swNotifyNew.setOnCheckedChangeListener((button, checked) ->
+                        put("notify_new_apps", Boolean.toString(checked)));
+
+                // Restoring a backup or clearing data can change the theme
+                ApplicationEx.setTheme(context, theme);
+                tgTheme.clearOnButtonCheckedListeners();
+                tgTheme.check(ApplicationEx.THEME_DARK.equals(theme) ? R.id.btnThemeDark
+                        : ApplicationEx.THEME_LIGHT.equals(theme) ? R.id.btnThemeLight
+                        : R.id.btnThemeSystem);
+                // Only the dark theme has a black background, also when the system theme is dark;
+                // choosing a theme or a change of the system theme recreates the screen
+                boolean dark = ((getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                        == Configuration.UI_MODE_NIGHT_YES);
+                View llBlack = requireView().findViewById(R.id.llBlack);
+                llBlack.setEnabled(dark);
+                llBlack.setAlpha(dark ? 1f : 0.38f);
+                swBlack.setEnabled(dark);
+                tgTheme.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+                    if (!isChecked)
                         return;
-                    }
-                    showPalettes(ApplicationEx.getPalette(context));
-                    swBlack.setOnCheckedChangeListener(null);
-                    swBlack.setChecked(black);
-                    swBlack.setOnCheckedChangeListener((button, checked) -> selectBlack(checked));
-
-                    this.collections = new ArrayList<>(known);
-                    this.enabled = enabled;
-
-                    tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
-                    ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
-                    ivStatus.setBackgroundTintList(ColorStateList.valueOf(Ui.color(requireContext(), available
-                            ? R.attr.colorSuccess : R.attr.colorWarning)));
-                    glStatus.removeAllViews();
-                    addStatus(R.string.title_status_service, version < 0 ? "-" : Integer.toString(version));
-                    addStatus(R.string.title_status_hooks, Integer.toString(hooks.size()));
-                    addStatus(R.string.title_status_collections, Integer.toString(enabled.size()));
-                    addStatus(R.string.title_status_android, Build.VERSION.RELEASE + " · SDK " + Build.VERSION.SDK_INT);
-                    tvCollections.setText(TextUtils.join(", ", enabled));
-
-                    swRestrictNew.setOnCheckedChangeListener(null);
-                    swRestrictNew.setChecked(restrictNew);
-                    swRestrictNew.setOnCheckedChangeListener((button, checked) ->
-                            put("restrict_new_apps", Boolean.toString(checked)));
-                    swNotifyNew.setOnCheckedChangeListener(null);
-                    swNotifyNew.setChecked(notifyNew);
-                    swNotifyNew.setOnCheckedChangeListener((button, checked) ->
-                            put("notify_new_apps", Boolean.toString(checked)));
-
-                    // Restoring a backup or clearing data can change the theme
-                    ApplicationEx.setTheme(context, theme);
-                    tgTheme.clearOnButtonCheckedListeners();
-                    tgTheme.check(ApplicationEx.THEME_DARK.equals(theme) ? R.id.btnThemeDark
-                            : ApplicationEx.THEME_LIGHT.equals(theme) ? R.id.btnThemeLight
-                            : R.id.btnThemeSystem);
-                    // Only the dark theme has a black background; choosing a theme recreates the screen
-                    boolean dark = !ApplicationEx.THEME_LIGHT.equals(theme);
-                    View llBlack = requireView().findViewById(R.id.llBlack);
-                    llBlack.setEnabled(dark);
-                    llBlack.setAlpha(dark ? 1f : 0.38f);
-                    swBlack.setEnabled(dark);
-                    tgTheme.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-                        if (!isChecked)
-                            return;
-                        String selected = (checkedId == R.id.btnThemeDark ? ApplicationEx.THEME_DARK
-                                : checkedId == R.id.btnThemeLight ? ApplicationEx.THEME_LIGHT
-                                : ApplicationEx.THEME_SYSTEM);
-                        run(TAG, () -> {
-                            Data.putSetting(context, "global", "theme", selected);
-                            post(() -> ApplicationEx.setTheme(context, selected));
-                        });
+                    String selected = (checkedId == R.id.btnThemeDark ? ApplicationEx.THEME_DARK
+                            : checkedId == R.id.btnThemeLight ? ApplicationEx.THEME_LIGHT
+                            : ApplicationEx.THEME_SYSTEM);
+                    run(TAG, () -> {
+                        Data.putSetting(context, "global", "theme", selected);
+                        post(() -> ApplicationEx.setTheme(context, selected));
                     });
                 });
-            } catch (Throwable ex) {
-                error(TAG, ex);
-            }
+            });
         });
     }
 

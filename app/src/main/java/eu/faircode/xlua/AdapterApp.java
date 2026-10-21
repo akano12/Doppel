@@ -21,7 +21,6 @@ package eu.faircode.xlua;
 
 import android.content.Context;
 import android.graphics.drawable.GradientDrawable;
-import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -304,9 +303,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             sections.get(Section.ALL).add(row);
         }
 
-        Comparator<Row> byName = (r1, r2) -> collator.compare(
-                r1.app.label == null ? r1.app.packageName : r1.app.label,
-                r2.app.label == null ? r2.app.packageName : r2.app.label);
+        Comparator<Row> byName = (r1, r2) -> collator.compare(r1.app.getLabel(), r2.app.getLabel());
         Collections.sort(sections.get(Section.ATTENTION), byName);
         Collections.sort(sections.get(Section.NEW), (r1, r2) -> Long.compare(r2.app.installed, r1.app.installed));
         Collections.sort(sections.get(Section.RECENT), (r1, r2) -> Long.compare(r2.getRecent(), r1.getRecent()));
@@ -523,7 +520,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.itemView.setBackground(shape);
 
         Ui.loadIcon(h.ivIcon, app.packageName, app.icon);
-        h.tvLabel.setText(TextUtils.isEmpty(app.label) ? app.packageName : app.label);
+        h.tvLabel.setText(app.getLabel());
 
         h.llBadges.removeAllViews();
         if (app.persistent)

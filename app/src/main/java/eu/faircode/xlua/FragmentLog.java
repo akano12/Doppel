@@ -22,7 +22,6 @@ import android.database.Cursor;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -41,6 +40,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.chip.ChipGroup;
 
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -152,10 +152,16 @@ public class FragmentLog extends FragmentBase {
             try {
                 Map<String, XApp> apps = new HashMap<>();
                 List<Entry> errors = new ArrayList<>();
-                for (XApp app : Data.getApps(context)) {
-                    // Restrictions of other apps are left out, like of uninstalled apps
-                    if (only != null && (!only.equals(app.packageName) || (onlyUid >= 0 && app.uid != onlyUid)))
-                        continue;
+                // The log of one app needs only that app; restrictions of other apps are left out, like of uninstalled apps
+                List<XApp> list = new ArrayList<>();
+                if (only == null)
+                    list.addAll(Data.getApps(context));
+                else {
+                    XApp app = Data.getApp(context, only, onlyUid);
+                    if (app != null)
+                        list.add(app);
+                }
+                for (XApp app : list) {
                     apps.put(app.packageName + ":" + app.uid, app);
                     for (XAssignment assignment : app.assignments)
                         if (assignment.exception != null) {
@@ -220,9 +226,11 @@ public class FragmentLog extends FragmentBase {
                 countToday++;
             packages.add(entry.app.packageName);
         }
-        tvToday.setText(Integer.toString(countToday));
-        tvApps.setText(Integer.toString(packages.size()));
-        tvErrors.setText(Integer.toString(errors.size()));
+        // Digits of the language, like Arabic digits
+        NumberFormat nf = NumberFormat.getIntegerInstance();
+        tvToday.setText(nf.format(countToday));
+        tvApps.setText(nf.format(packages.size()));
+        tvErrors.setText(nf.format(errors.size()));
         cvErrors.setCardBackgroundColor(Ui.color(context, errors.isEmpty()
                 ? com.google.android.material.R.attr.colorSurfaceContainerLowest
                 : R.attr.colorWarningContainer));
@@ -328,7 +336,7 @@ public class FragmentLog extends FragmentBase {
             boolean error = (entry.exception != null);
 
             Ui.loadIcon(h.ivIcon, entry.app.packageName, entry.app.icon);
-            h.tvApp.setText(TextUtils.isEmpty(entry.app.label) ? entry.app.packageName : entry.app.label);
+            h.tvApp.setText(entry.app.getLabel());
             h.tvTime.setText(entry.time > 0
                     ? DateUtils.formatDateTime(context, entry.time, DateUtils.FORMAT_SHOW_TIME) : "");
             // Ids are the collection and the name, like Privacy.TelephonyManager.getImei

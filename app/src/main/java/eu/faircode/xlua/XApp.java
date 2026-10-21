@@ -21,6 +21,7 @@ package eu.faircode.xlua;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.text.TextUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +38,11 @@ class XApp implements Parcelable {
     List<XAssignment> assignments;
 
     XApp() {
+    }
+
+    // The name shown, the package name when the app has no label
+    String getLabel() {
+        return (TextUtils.isEmpty(this.label) ? this.packageName : this.label);
     }
 
     List<XAssignment> getAssignments(String group) {

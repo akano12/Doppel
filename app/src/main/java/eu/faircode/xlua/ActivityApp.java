@@ -24,7 +24,6 @@ import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -164,7 +163,7 @@ public class ActivityApp extends ActivityBase {
     }
 
     private String getLabel() {
-        return (app == null || TextUtils.isEmpty(app.label) ? packageName : app.label);
+        return (app == null ? packageName : app.getLabel());
     }
 
     private void show(XApp app, List<XHook> hooks, boolean notify) {
