@@ -117,9 +117,10 @@ class Util {
         }
     }
 
-    // JSON into a file chosen by the user; Android escapes slashes, which is valid, but hard to read in scripts
+    // JSON into a file chosen by the user; Android escapes slashes, which is valid, but hard to read in scripts.
+    // Truncated, because the mode "w" of some providers keeps the end of a longer file which is replaced.
     static void writeJson(Context context, Uri uri, String json) throws IOException {
-        try (OutputStream os = context.getContentResolver().openOutputStream(uri)) {
+        try (OutputStream os = context.getContentResolver().openOutputStream(uri, "wt")) {
             if (os == null)
                 throw new IOException("Cannot open " + uri);
             os.write(json.replace("\\/", "/").getBytes(StandardCharsets.UTF_8));

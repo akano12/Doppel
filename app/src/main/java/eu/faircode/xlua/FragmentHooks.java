@@ -188,6 +188,7 @@ public class FragmentHooks extends FragmentBase {
         List<Object> items = new ArrayList<>();
         String group = null;
         List<XHook> inGroup = new ArrayList<>();
+        Context context = requireContext();
         for (XHook hook : all) {
             if (filter == Filter.CUSTOM && hook.isBuiltin())
                 continue;
@@ -197,7 +198,7 @@ public class FragmentHooks extends FragmentBase {
             if (!q.isEmpty() &&
                     !Ui.contains(hook.getId(), q) &&
                     !Ui.contains(hook.getGroup(), q) &&
-                    !Ui.contains(Groups.getTitle(requireContext(), hook.getGroup()), q) &&
+                    !Ui.contains(Groups.getTitle(context, hook.getGroup()), q) &&
                     !Ui.contains(hook.getClassName(), q))
                 continue;
             if (!hook.getGroup().equals(group)) {

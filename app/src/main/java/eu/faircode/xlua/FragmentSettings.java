@@ -43,6 +43,7 @@ import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
@@ -157,9 +158,12 @@ public class FragmentSettings extends FragmentBase {
                 ivStatus.setBackgroundTintList(ColorStateList.valueOf(Ui.color(requireContext(), available
                         ? R.attr.colorSuccess : R.attr.colorWarning)));
                 glStatus.removeAllViews();
-                addStatus(R.string.title_status_service, version < 0 ? "-" : Integer.toString(version));
-                addStatus(R.string.title_status_hooks, Integer.toString(hooks.size()));
-                addStatus(R.string.title_status_collections, Integer.toString(enabled.size()));
+                // Digits of the language, like the counts of the Activity tab
+                NumberFormat nf = NumberFormat.getIntegerInstance();
+                nf.setGroupingUsed(false);
+                addStatus(R.string.title_status_service, version < 0 ? "-" : nf.format(version));
+                addStatus(R.string.title_status_hooks, nf.format(hooks.size()));
+                addStatus(R.string.title_status_collections, nf.format(enabled.size()));
                 addStatus(R.string.title_status_android, Build.VERSION.RELEASE + " · SDK " + Build.VERSION.SDK_INT);
                 tvCollections.setText(TextUtils.join(", ", enabled));
 

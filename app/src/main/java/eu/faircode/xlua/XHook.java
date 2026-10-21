@@ -366,6 +366,10 @@ public class XHook implements Parcelable {
             throw new IllegalArgumentException("parameter types missing");
         if (TextUtils.isEmpty(this.luaScript))
             throw new IllegalArgumentException("Lua script missing");
+        // An invalid expression would fail each lookup of available hooks, see isAvailable
+        if (this.excludePackages != null)
+            for (String regex : this.excludePackages)
+                Pattern.compile(regex);
     }
 
     @Override

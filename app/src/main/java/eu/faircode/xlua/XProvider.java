@@ -292,6 +292,7 @@ class XProvider {
                 while (cursor.moveToNext())
                     try {
                         XHook hook = XHook.fromJSON(cursor.getString(1));
+                        hook.validate();
                         hook.resolveClassName(context);
                         hooks.put(hook.getId(), hook);
                     } catch (Throwable ex) {

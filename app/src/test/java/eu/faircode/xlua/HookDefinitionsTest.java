@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -141,6 +142,23 @@ public class HookDefinitionsTest {
                 globals.get("before").isfunction() || globals.get("after").isfunction());
     }
 
+    // Excluded packages are regular expressions, see XHook.validate
+    @Test
+    public void excludedPackagesCompile() throws Exception {
+        for (JSONObject hook : hooks)
+            compileExcluded(hook.getString("name"), hook);
+    }
+
+    private static void compileExcluded(String name, JSONObject hook) throws Exception {
+        if (hook.has("excludePackages"))
+            for (String regex : hook.getString("excludePackages").split(","))
+                try {
+                    Pattern.compile(regex);
+                } catch (PatternSyntaxException ex) {
+                    fail(name + " excludes invalid " + regex + ": " + ex.getMessage());
+                }
+    }
+
     // Groups of built-in hooks have an icon and a section, else they are shown like custom groups
     @Test
     public void groupsArePresented() throws Exception {
@@ -170,6 +188,7 @@ public class HookDefinitionsTest {
             for (String key : new String[]{"collection", "group", "name"})
                 assertEquals(file.getName() + " " + key, entry.getString(key), hook.getString(key));
             assertEquals(file.getName() + " version", entry.optInt("version", 0), hook.optInt("version", 0));
+            compileExcluded(file.getName(), hook);
             runScript(file.getName(), hook.getString("luaScript"));
         }
 

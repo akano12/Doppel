@@ -137,7 +137,7 @@ final class Ui {
                 DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE);
     }
 
-    // A file name with today's date, like xprivacylua-backup-2026-10-20.json, so backups do not replace each other
+    // A file name with today's date, like xprivacylua-backup-2026-10-20.json, so backups can be told apart
     static String datedFileName(String name) {
         return "xprivacylua-" + name + "-" +
                 new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new Date()) + ".json";
