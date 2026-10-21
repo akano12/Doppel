@@ -343,11 +343,10 @@ public class FragmentApps extends FragmentBase {
             try {
                 boolean revert = false;
                 for (XApp app : apps)
-                    for (XAssignment assignment : app.assignments)
-                        if (group.equals(assignment.hook.getGroup())) {
-                            revert = true;
-                            break;
-                        }
+                    if (!app.getAssignments(group).isEmpty()) {
+                        revert = true;
+                        break;
+                    }
                 Log.i(TAG, "Bulk group=" + group + " apps=" + apps.size() + " revert=" + revert);
                 for (XApp app : apps) {
                     List<XHook> available = Data.getAvailable(hooks, app, collection, group);

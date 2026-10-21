@@ -290,7 +290,6 @@
         <item name="android:textAppearance">@style/XLua.Text.Meta</item>
     </style>
 
-    <!-- Filter chips above lists -->
     <!-- Segments with a count, like User · 8, which fit three in a row on phones -->
     <style name="XLua.Button.Segment" parent="Widget.Material3.Button.OutlinedButton">
         <item name="android:paddingStart">6dp</item>
@@ -301,6 +300,7 @@
         <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
 
+    <!-- Filter chips above lists -->
     <style name="XLua.Chip.Filter" parent="Widget.Material3.Chip.Filter">
         <item name="chipBackgroundColor">@color/chip_background</item>
         <item name="android:textColor">@color/chip_text</item>

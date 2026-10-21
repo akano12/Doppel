@@ -39,6 +39,7 @@ An exported definition in [JSON](https://en.wikipedia.org/wiki/JSON) format look
   "group": "Read.Telephony",
   "name": "TelephonyManager.getDeviceId",
   "author": "M66B",
+  "version": 1,
   "description": "Let the telephony manager return NULL as device ID",
   "className": "android.telephony.TelephonyManager",
   "methodName": "getDeviceId",
@@ -67,7 +68,11 @@ Definitions can be imported from and exported to JSON files there too.
 
 * The *collection* and *name* attributes are used to uniquely identify a hook
 * For convenience XPrivacyLua applies hooks by *group*
+* The *version* is a number which *Downloads* uses to offer updates of an installed definition
+* The *description* is optional and is shown in the hook editor and in *Downloads*
 * The attributes *minSdk* and *maxSdk* determine for which [Android versions](https://source.android.com/setup/build-numbers) (API level) the hook should be used
+* The optional attributes *minApk* and *maxApk* limit the hook to a range of version codes of the app
+* The optional attribute *excludePackages* is a comma separated list of [regular expressions](https://developer.android.com/reference/java/util/regex/Pattern) of package names the hook should not be applied to, like `com\.google\..*`
 * Setting *enabled* to *false* will switch the hook off (default *true*)
 * Setting *optional* to *true* will suppress error messages about the class or method not being found (default *false*)
 * Setting *usage* to *false* means that executing the hook will not be reported (default *true*)

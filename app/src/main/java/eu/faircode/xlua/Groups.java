@@ -46,7 +46,7 @@ final class Groups {
 
     static {
         group("Determine.Activity", R.string.group_determine_activity, R.string.group_desc_determine_activity, R.drawable.ic_group_activity);
-        group("Get.Applications", R.string.group_get_applications, R.string.group_desc_get_applications, R.drawable.ic_group_applications);
+        group("Get.Applications", R.string.group_get_applications, R.string.group_desc_get_applications, R.drawable.ic_apps);
         group("Get.Calendars", R.string.group_get_calendars, R.string.group_desc_get_calendars, R.drawable.ic_group_calendars);
         group("Get.Call.log", R.string.group_get_call_log, R.string.group_desc_get_call_log, R.drawable.ic_group_call_log);
         group("Get.Contacts", R.string.group_get_contacts, R.string.group_desc_get_contacts, R.drawable.ic_group_contacts);

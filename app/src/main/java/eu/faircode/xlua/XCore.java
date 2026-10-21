@@ -160,14 +160,6 @@ class XCore {
                     version = (int) PackageInfoCompat.getLongVersionCode(pi);
                     Log.i(TAG, "Module version " + version);
 
-                    // public static UserManagerService getInstance()
-                    ClassLoader loader = call.thisObject.getClass().getClassLoader();
-                    Class<?> clsUM = Class.forName("com.android.server.pm.UserManagerService", false, loader);
-                    Object um = clsUM.getDeclaredMethod("getInstance").invoke(null);
-
-                    // public int[] getUserIds()
-                    int[] userids = (int[]) um.getClass().getDeclaredMethod("getUserIds").invoke(um);
-
                     // Listen for package changes
                     IntentFilter ifPackageAdd = new IntentFilter();
                     ifPackageAdd.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -184,6 +176,15 @@ class XCore {
                         Log.i(TAG, "Registered package listener for all users");
                     } catch (Throwable ex) {
                         Log.w(TAG, "Registering for all users: " + ex);
+
+                        // The existing users only; looked up here, so a change of these hidden methods
+                        // does not prevent registering for all users
+                        // public static UserManagerService getInstance()
+                        ClassLoader loader = call.thisObject.getClass().getClassLoader();
+                        Class<?> clsUM = Class.forName("com.android.server.pm.UserManagerService", false, loader);
+                        Object um = clsUM.getDeclaredMethod("getInstance").invoke(null);
+                        // public int[] getUserIds()
+                        int[] userids = (int[]) um.getClass().getDeclaredMethod("getUserIds").invoke(um);
                         for (int userid : userids) {
                             Log.i(TAG, "Registering package listener user=" + userid);
                             Context ctx = Util.createContextForUser(context, userid);

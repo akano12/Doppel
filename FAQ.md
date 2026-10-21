@@ -90,7 +90,7 @@ Turning the switch of the group off and on again applies all of its hooks.
 <a name="faq7"></a>
 **(7) How does XPrivacyLua compare to XPrivacy?**
 
-* XPrivacy supports Android 4.0.3 KitKat to Android 5.1.1 Lollipop and XPrivacyLua supports Android version 6.0 Marshmallow and later, see [here](README.md#compatibility) about compatibility
+* XPrivacy supports Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop and XPrivacyLua supports Android version 6.0 Marshmallow and later, see [here](README.md#compatibility) about compatibility
 * The user interface of XPrivacyLua is simpler than of XPrivacy, see also [question 4](#user-content-faq4)
 * The restrictions of XPrivacyLua are designed to prevent apps from crashing, while a number of XPrivacy restrictions can apps cause to crash, see also [question 4](#user-content-faq4)
 * XPrivacyLua has no on demand restricting for stability and maintenance reasons, see also [question 4](#user-content-faq4)
