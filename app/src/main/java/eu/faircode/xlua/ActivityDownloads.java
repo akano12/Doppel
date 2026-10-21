@@ -159,9 +159,7 @@ public class ActivityDownloads extends ActivityBase {
                 return (c == 0 ? e1.name.compareToIgnoreCase(e2.name) : c);
             });
 
-            Map<String, XHook> installed = new HashMap<>();
-            for (XHook hook : Data.getAllHooks(context, false))
-                installed.put(hook.getId(), hook);
+            Map<String, XHook> installed = getInstalled(context);
             Set<String> builtinIds = Data.getBuiltinIds(context);
             List<String> collection = Data.getCollection(context);
 
@@ -174,6 +172,14 @@ public class ActivityDownloads extends ActivityBase {
                 show();
             });
         });
+    }
+
+    // All definitions by id, built-in and custom
+    private static Map<String, XHook> getInstalled(Context context) {
+        Map<String, XHook> installed = new HashMap<>();
+        for (XHook hook : Data.getAllHooks(context, false))
+            installed.put(hook.getId(), hook);
+        return installed;
     }
 
     private static String readAsset(Context context, String name) throws Exception {
@@ -343,9 +349,7 @@ public class ActivityDownloads extends ActivityBase {
             final Context context = getApplicationContext();
             run(TAG, () -> {
                 Data.putHook(context, entry.getId(), null);
-                Map<String, XHook> installed = new HashMap<>();
-                for (XHook hook : Data.getAllHooks(context, false))
-                    installed.put(hook.getId(), hook);
+                Map<String, XHook> installed = getInstalled(context);
                 runOnUiThread(() -> {
                     this.installed = installed;
                     show();
@@ -422,8 +426,7 @@ public class ActivityDownloads extends ActivityBase {
                         confirmRemove(entry);
                     else
                         confirmInstall(entry);
-                }
-                else {
+                } else {
                     // Show or hide the full description
                     if (!expanded.remove(entry.id))
                         expanded.add(entry.id);

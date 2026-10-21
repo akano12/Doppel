@@ -62,6 +62,7 @@ public class ActivityHookEdit extends ActivityBase {
 
     private XHook hook = null; // null for a new definition
     private Set<String> builtinIds = null;
+    private String unchanged = null; // What was entered when loaded or saved, see getEntered
 
     private MaterialToolbar toolbar;
     private EditText etCollection;
@@ -173,8 +174,11 @@ public class ActivityHookEdit extends ActivityBase {
             swEnabled.setChecked(true);
             swUsage.setChecked(true);
             etScript.setText(TEMPLATE_SCRIPT);
+            unchanged = getEntered();
         }
         updateMenu();
+        // A definition which is still loading has no changes
+        confirmLeaving(() -> unchanged != null && !unchanged.equals(getEntered()));
 
         load(id);
     }
@@ -234,6 +238,19 @@ public class ActivityHookEdit extends ActivityBase {
         swNotify.setChecked(jhook.optBoolean("notify", false));
         etScript.setText(jhook.optString("luaScript"));
         highlighter.highlight();
+        unchanged = getEntered();
+    }
+
+    // All fields and switches, to tell whether something was changed
+    private String getEntered() {
+        StringBuilder sb = new StringBuilder();
+        for (EditText et : new EditText[]{etCollection, etGroup, etName, etAuthor, etVersion, etDescription,
+                etClass, etMethod, etParams, etReturn, etMinSdk, etMaxSdk, etMinApk, etMaxApk, etExclude,
+                etSettings, etScript})
+            sb.append(et.getText()).append('\0');
+        for (MaterialSwitch sw : new MaterialSwitch[]{swEnabled, swOptional, swUsage, swNotify})
+            sb.append(sw.isChecked());
+        return sb.toString();
     }
 
     private static String join(JSONArray jarray) {
@@ -371,11 +388,14 @@ public class ActivityHookEdit extends ActivityBase {
         if (jhook == null)
             return;
 
+        // The fields as saved, also when they change meanwhile
+        final String entered = getEntered();
         final Context context = getApplicationContext();
         run(TAG, () -> {
             final XHook saved = Data.putCustom(context, jhook);
             runOnUiThread(() -> {
                 hook = saved;
+                unchanged = entered;
                 toolbar.setTitle(saved.getId());
                 updateMenu();
             });

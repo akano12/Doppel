@@ -106,7 +106,7 @@ public class ActivityApp extends ActivityBase {
         toolbar.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == R.id.menu_launch)
-                Ui.launch(this, packageName);
+                Ui.launch(this, packageName, getLabel());
             else if (id == R.id.menu_log)
                 startActivity(ActivityLog.getIntent(this, packageName, uid, getLabel()));
             else if (id == R.id.menu_app_info)
@@ -172,6 +172,9 @@ public class ActivityApp extends ActivityBase {
 
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setTitle(getLabel());
+        // Most system apps cannot be opened
+        toolbar.getMenu().findItem(R.id.menu_launch)
+                .setVisible(getPackageManager().getLaunchIntentForPackage(app.packageName) != null);
 
         Ui.loadIcon(findViewById(R.id.ivIcon), app.packageName, app.icon);
         ((TextView) findViewById(R.id.tvPackage)).setText(app.packageName);
@@ -504,8 +507,9 @@ public class ActivityApp extends ActivityBase {
     @Override
     protected void onResume() {
         super.onResume();
-        // The service updates usage and errors while the app runs
-        if (app != null && !dirty)
+        // The service updates usage and errors while the app runs; changes made here are sent before,
+        // on the same background thread
+        if (app != null)
             load();
     }
 }

@@ -60,7 +60,7 @@ public class XHook implements Parcelable {
     private int minApk;
     private int maxApk;
     private String[] excludePackages;
-    private Pattern[] excludePatterns = null; // Compiled once, see isAvailable
+    private volatile Pattern[] excludePatterns = null; // Compiled once, see isAvailable, also by threads at once
     private boolean enabled;
     private boolean optional;
     private boolean usage;

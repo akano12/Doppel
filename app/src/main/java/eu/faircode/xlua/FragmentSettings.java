@@ -19,6 +19,7 @@ package eu.faircode.xlua;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.net.Uri;
@@ -38,6 +39,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -279,10 +281,14 @@ public class FragmentSettings extends FragmentBase {
         final boolean[] checked = new boolean[names.length];
         for (int i = 0; i < names.length; i++)
             checked[i] = enabled.contains(names[i]);
-        new MaterialAlertDialogBuilder(requireContext())
+        // At least one collection, because no setting is the default collection
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.title_collections)
-                .setMultiChoiceItems(names, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
-                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                .setMultiChoiceItems(names, checked, (d, which, isChecked) -> {
+                    checked[which] = isChecked;
+                    ((AlertDialog) d).getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(isAnyChecked(checked));
+                })
+                .setPositiveButton(android.R.string.ok, (d, which) -> {
                     List<String> selected = new ArrayList<>();
                     for (int i = 0; i < names.length; i++)
                         if (checked[i])
@@ -295,6 +301,14 @@ public class FragmentSettings extends FragmentBase {
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(isAnyChecked(checked));
+    }
+
+    private static boolean isAnyChecked(boolean[] checked) {
+        for (boolean c : checked)
+            if (c)
+                return true;
+        return false;
     }
 
     private void backup(Uri uri) {

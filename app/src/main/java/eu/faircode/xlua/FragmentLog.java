@@ -151,6 +151,7 @@ public class FragmentLog extends FragmentBase {
         executor.submit(() -> {
             try {
                 Map<String, XApp> apps = new HashMap<>();
+                Map<String, String> groups = new HashMap<>(); // By hook id, of the hooks available
                 List<Entry> errors = new ArrayList<>();
                 // The log of one app needs only that app; restrictions of other apps are left out, like of uninstalled apps
                 List<XApp> list = new ArrayList<>();
@@ -163,7 +164,8 @@ public class FragmentLog extends FragmentBase {
                 }
                 for (XApp app : list) {
                     apps.put(app.packageName + ":" + app.uid, app);
-                    for (XAssignment assignment : app.assignments)
+                    for (XAssignment assignment : app.assignments) {
+                        groups.put(assignment.hook.getId(), assignment.hook.getGroup());
                         if (assignment.exception != null) {
                             Entry entry = new Entry();
                             entry.app = app;
@@ -173,6 +175,7 @@ public class FragmentLog extends FragmentBase {
                             entry.exception = assignment.exception;
                             errors.add(entry);
                         }
+                    }
                 }
 
                 List<Entry> entries = new ArrayList<>();
@@ -189,9 +192,7 @@ public class FragmentLog extends FragmentBase {
                         entry.time = cursor.getLong(cursor.getColumnIndexOrThrow("used"));
                         entry.oldValue = cursor.getString(cursor.getColumnIndexOrThrow("old"));
                         entry.newValue = cursor.getString(cursor.getColumnIndexOrThrow("new"));
-                        for (XAssignment assignment : app.assignments)
-                            if (assignment.hook.getId().equals(entry.hook))
-                                entry.group = assignment.hook.getGroup();
+                        entry.group = groups.get(entry.hook);
                         entries.add(entry);
                     }
                 }

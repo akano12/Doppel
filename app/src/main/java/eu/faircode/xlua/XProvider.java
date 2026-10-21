@@ -42,6 +42,7 @@ import android.util.Log;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -55,11 +56,13 @@ import java.util.Set;
 class XProvider {
     private static final String TAG = "XLua.Provider";
 
+    // Loading and changing the definitions is serialized; the maps are replaced instead of changed,
+    // so they are read without the lock, also during database calls
     private static final Object lock = new Object();
 
     private static XDatabase db = null;
-    private static Map<String, XHook> hooks = null;
-    private static Map<String, XHook> builtins = null;
+    private static volatile Map<String, XHook> hooks = null;
+    private static volatile Map<String, XHook> builtins = null;
 
     static Uri getURI() {
         return Settings.System.CONTENT_URI;
@@ -81,7 +84,7 @@ class XProvider {
             throw new RemoteException(ex.getMessage());
         }
 
-        // Without holding the lock, see assignRestricting; restrictions keep working without the new assignments
+        // Without holding the lock; restrictions keep working without the new assignments
         if (loaded)
             try {
                 assignNewBuiltins();
@@ -216,21 +219,23 @@ class XProvider {
 
         // Cache hook
         synchronized (lock) {
+            Map<String, XHook> next = new HashMap<>(hooks);
             if (hook == null) {
-                if (hooks.containsKey(id) && hooks.get(id).isBuiltin())
+                if (next.containsKey(id) && next.get(id).isBuiltin())
                     throw new IllegalArgumentException("builtin");
                 Log.i(TAG, "Deleting hook id=" + id);
-                hooks.remove(id);
+                next.remove(id);
                 // A deleted custom definition can have replaced a built-in definition
                 if (builtins.containsKey(id)) {
                     Log.i(TAG, "Restoring builtin id=" + id);
                     // The class name is resolved already
-                    hooks.put(id, builtins.get(id));
+                    next.put(id, builtins.get(id));
                 }
             } else {
                 Log.i(TAG, "Storing hook id=" + id);
-                hooks.put(id, hook);
+                next.put(id, hook);
             }
+            hooks = next;
         }
 
         db.write(d -> {
@@ -259,11 +264,9 @@ class XProvider {
         List<String> collection = getCollection(Util.getUserId(Binder.getCallingUid()));
 
         List<XHook> hv = new ArrayList<>();
-        synchronized (lock) {
-            for (XHook hook : hooks.values())
-                if (all || hook.isAvailable(null, collection))
-                    hv.add(hook);
-        }
+        for (XHook hook : hooks.values())
+            if (all || hook.isAvailable(null, collection))
+                hv.add(hook);
         Collections.sort(hv, (h1, h2) -> h1.getId().compareTo(h2.getId()));
 
         MatrixCursor result = new MatrixCursor(new String[]{"blob"});
@@ -314,13 +317,8 @@ class XProvider {
     // all enabled built-in hooks count as new, which completes the restricted groups once.
     private static void assignNewBuiltins() throws Throwable {
         final String[] where = new String[]{"-1", "service", "builtins_enabled"};
-        // Copies, because database calls are not made while holding the lock
-        final Map<String, XHook> all;
-        final List<XHook> builtin;
-        synchronized (lock) {
-            all = new HashMap<>(hooks);
-            builtin = new ArrayList<>(builtins.values());
-        }
+        final Map<String, XHook> all = hooks;
+        final Collection<XHook> builtin = builtins.values();
         db.write(d -> {
             Set<String> known = new HashSet<>();
             try (Cursor cursor = d.query("setting", new String[]{"value"},
@@ -413,12 +411,8 @@ class XProvider {
     private static Bundle assignRestricting(Bundle extras) throws Throwable {
         final List<String> hookids = extras.getStringArrayList("hooks");
         final int userid = Util.getUserId(Binder.getCallingUid());
-        // A copy, because database calls are not made while holding the lock
-        final Map<String, XHook> all;
+        final Map<String, XHook> all = hooks;
         final List<XHook> targets = new ArrayList<>();
-        synchronized (lock) {
-            all = new HashMap<>(hooks);
-        }
         for (String id : hookids)
             if (all.containsKey(id))
                 targets.add(all.get(id));
@@ -484,6 +478,7 @@ class XProvider {
         Log.i(TAG, "Installed apps=" + apps.size() + " cuid=" + cuid);
 
         final List<String> collection = getCollection(userid);
+        final Map<String, XHook> all = hooks;
         db.read(d -> {
             // Force stop settings
             try (Cursor cursor = d.query("setting", new String[]{"category", "value"},
@@ -506,19 +501,17 @@ class XProvider {
                     if (app == null || app.uid != cursor.getInt(1))
                         continue;
                     String hookid = cursor.getString(2);
-                    synchronized (lock) {
-                        XHook hook = hooks.get(hookid);
-                        if (hook != null && hook.isAvailable(pkg, collection)) {
-                            XAssignment assignment = new XAssignment(hook);
-                            assignment.installed = cursor.getLong(3);
-                            assignment.used = cursor.getLong(4);
-                            assignment.restricted = (cursor.getInt(5) == 1);
-                            assignment.exception = cursor.getString(6);
-                            assignment.assigned = (cursor.isNull(7) ? -1 : cursor.getLong(7));
-                            app.assignments.add(assignment);
-                        } else if (hook == null && BuildConfig.DEBUG)
-                            Log.w(TAG, "Hook " + hookid + " not found (assignment)");
-                    }
+                    XHook hook = all.get(hookid);
+                    if (hook != null && hook.isAvailable(pkg, collection)) {
+                        XAssignment assignment = new XAssignment(hook);
+                        assignment.installed = cursor.getLong(3);
+                        assignment.used = cursor.getLong(4);
+                        assignment.restricted = (cursor.getInt(5) == 1);
+                        assignment.exception = cursor.getString(6);
+                        assignment.assigned = (cursor.isNull(7) ? -1 : cursor.getLong(7));
+                        app.assignments.add(assignment);
+                    } else if (hook == null && BuildConfig.DEBUG)
+                        Log.w(TAG, "Hook " + hookid + " not found (assignment)");
                 }
             }
             return null;
@@ -543,13 +536,11 @@ class XProvider {
         // Restoring a backup does not make apps restricted recently
         final long now = (extras.getBoolean("restore") ? -1 : System.currentTimeMillis());
 
+        final Map<String, XHook> all = hooks;
         db.write(d -> {
             List<String> groups = new ArrayList<>();
             for (String hookid : hookids) {
-                XHook hook;
-                synchronized (lock) {
-                    hook = hooks.get(hookid);
-                }
+                XHook hook = all.get(hookid);
                 if (hook != null && !groups.contains(hook.getGroup()))
                     groups.add(hook.getGroup());
 
@@ -601,6 +592,7 @@ class XProvider {
         enforceCallerOrPermission(context, uid);
 
         final List<String> collection = getCollection(Util.getUserId(uid));
+        final Map<String, XHook> all = hooks;
         final MatrixCursor result = new MatrixCursor(new String[]{"blob"});
         db.read(d -> {
             try (Cursor cursor = d.query("assignment", new String[]{"hook"},
@@ -608,14 +600,12 @@ class XProvider {
                     null, null, "hook")) {
                 while (cursor.moveToNext()) {
                     String hookid = cursor.getString(0);
-                    synchronized (lock) {
-                        XHook hook = hooks.get(hookid);
-                        if (hook == null) {
-                            if (BuildConfig.DEBUG)
-                                Log.w(TAG, "Hook " + hookid + " not found");
-                        } else if (hook.isAvailable(packageName, collection))
-                            result.newRow().add(hook.marshall(true));
-                    }
+                    XHook hook = all.get(hookid);
+                    if (hook == null) {
+                        if (BuildConfig.DEBUG)
+                            Log.w(TAG, "Hook " + hookid + " not found");
+                    } else if (hook.isAvailable(packageName, collection))
+                        result.newRow().add(hook.marshall(true));
                 }
             }
             return null;
@@ -641,10 +631,7 @@ class XProvider {
         Log.i(TAG, "Hook " + hookid + " pkg=" + packageName + ":" + uid + " event=" + event +
                 (BuildConfig.DEBUG ? toString(data) : ""));
 
-        final XHook hook;
-        synchronized (lock) {
-            hook = hooks.get(hookid);
-        }
+        final XHook hook = hooks.get(hookid);
 
         // A failing hook can fail on each call, so only its first error since the start is notified
         final boolean[] firstError = new boolean[]{false};
@@ -764,11 +751,9 @@ class XProvider {
 
         List<String> collection = getCollection(userid);
         final List<String> hookids = new ArrayList<>();
-        synchronized (lock) {
-            for (XHook hook : hooks.values())
-                if (hook.isAvailable(packageName, collection))
-                    hookids.add(hook.getId());
-        }
+        for (XHook hook : hooks.values())
+            if (hook.isAvailable(packageName, collection))
+                hookids.add(hook.getId());
 
         final long now = System.currentTimeMillis();
         db.write(d -> {

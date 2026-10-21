@@ -258,13 +258,17 @@ public class FragmentHooks extends FragmentBase {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
         run(TAG, () -> {
-            String text = Util.readText(context, uri);
-            JSONArray jarray = (text.trim().startsWith("[")
-                    ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
-            for (int i = 0; i < jarray.length(); i++)
-                Data.putCustom(context, jarray.getJSONObject(i));
-            Ui.message(activity, activity.getResources().getQuantityString(R.plurals.msg_hooks_imported, jarray.length(), jarray.length()));
-            post(this::load);
+            try {
+                String text = Util.readText(context, uri);
+                JSONArray jarray = (text.trim().startsWith("[")
+                        ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
+                for (int i = 0; i < jarray.length(); i++)
+                    Data.putCustom(context, jarray.getJSONObject(i));
+                Ui.message(activity, activity.getResources().getQuantityString(R.plurals.msg_hooks_imported, jarray.length(), jarray.length()));
+            } finally {
+                // Also the definitions imported before an error
+                post(this::load);
+            }
         });
     }
 

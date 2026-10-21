@@ -30,13 +30,16 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
+import androidx.core.util.Supplier;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -69,14 +72,40 @@ public class ActivityBase extends AppCompatActivity {
         });
     }
 
-    // Toolbar with an up button, which finishes the screen
+    // Toolbar with an up button, which goes back, like the back gesture
     protected MaterialToolbar setupToolbar(CharSequence title) {
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setTitle(title);
         toolbar.setNavigationIcon(R.drawable.ic_arrow_back);
         toolbar.setNavigationContentDescription(R.string.title_back);
-        toolbar.setNavigationOnClickListener(view -> finish());
+        toolbar.setNavigationOnClickListener(view -> getOnBackPressedDispatcher().onBackPressed());
         return toolbar;
+    }
+
+    // Going back from a screen with changes which are not saved asks first
+    protected void confirmLeaving(Supplier<Boolean> changed) {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (changed.get())
+                    confirmDiscard(ActivityBase.this::finish, null);
+                else
+                    finish();
+            }
+        });
+    }
+
+    // Discard changes which are not saved, or keep them
+    protected void confirmDiscard(Runnable onDiscard, @Nullable Runnable onKeep) {
+        new MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.msg_discard_changes)
+                .setPositiveButton(R.string.title_discard, (dialog, which) -> onDiscard.run())
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> {
+                    if (onKeep != null)
+                        onKeep.run();
+                })
+                .setCancelable(false)
+                .show();
     }
 
     // Log an error and show it, from any thread

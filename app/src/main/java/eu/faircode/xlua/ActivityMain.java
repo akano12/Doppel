@@ -38,7 +38,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
     private static final String TAG = "XLua.Main";
 
     // Opens the restrictions of an app, used by notifications
-    public static final String EXTRA_SEARCH_PACKAGE = "package";
+    public static final String EXTRA_PACKAGE = "package";
 
     private static final String TAB_APPS = "apps";
     private static final String TAB_ACTIVITY = "activity";
@@ -130,10 +130,10 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
     }
 
     private void handleIntent(Intent intent) {
-        String packageName = intent.getStringExtra(EXTRA_SEARCH_PACKAGE);
+        String packageName = intent.getStringExtra(EXTRA_PACKAGE);
         if (packageName != null) {
             Log.i(TAG, "Show pkg=" + packageName);
-            intent.removeExtra(EXTRA_SEARCH_PACKAGE);
+            intent.removeExtra(EXTRA_PACKAGE);
             startActivity(ActivityApp.getIntent(this, packageName, -1));
         }
     }

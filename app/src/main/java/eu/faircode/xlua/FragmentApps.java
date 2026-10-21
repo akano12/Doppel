@@ -60,7 +60,7 @@ public class FragmentApps extends FragmentBase {
     private static final String TAG = "XLua.Apps";
 
     private static final String PREF_FILTER = "apps_filter";
-    // Collapsed sections, comma separated; the others are collapsed at first
+    // Collapsed sections, comma separated; at first only all apps
     private static final String PREF_COLLAPSED = "apps_collapsed";
 
     // Same order as AdapterApp.Filter
@@ -107,7 +107,7 @@ public class FragmentApps extends FragmentBase {
 
             @Override
             public void onLaunch(XApp app) {
-                Ui.launch(context, app.packageName);
+                Ui.launch(requireActivity(), app.packageName, app.getLabel());
             }
 
             @Override

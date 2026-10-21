@@ -118,7 +118,7 @@ final class XNotify {
         Intent main = context.getPackageManager().getLaunchIntentForPackage(BuildConfig.APPLICATION_ID);
         if (main == null)
             return null;
-        main.putExtra(ActivityMain.EXTRA_SEARCH_PACKAGE, packageName);
+        main.putExtra(ActivityMain.EXTRA_PACKAGE, packageName);
         return PendingIntent.getActivity(context, requestCode, main,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }

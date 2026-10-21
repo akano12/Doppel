@@ -175,11 +175,13 @@ final class Ui {
             message(activity, activity.getString(R.string.msg_error, ex.toString()));
     }
 
-    // Start an app, if it can be started
-    static void launch(Context context, String packageName) {
-        Intent launch = context.getPackageManager().getLaunchIntentForPackage(packageName);
-        if (launch != null)
-            context.startActivity(launch);
+    // Start an app, else say that it cannot be started, like most system apps
+    static void launch(Activity activity, String packageName, String label) {
+        Intent launch = activity.getPackageManager().getLaunchIntentForPackage(packageName);
+        if (launch == null)
+            message(activity, activity.getString(R.string.msg_cannot_open, label));
+        else
+            activity.startActivity(launch);
     }
 
     static void browse(Activity activity, String url) {

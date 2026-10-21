@@ -137,15 +137,25 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             tgScope.setVisibility(View.VISIBLE);
             tgScope.check(R.id.btnScopeApp);
             tgScope.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-                if (!isChecked)
+                String selected = (checkedId == R.id.btnScopeApp ? packageName : GLOBAL);
+                if (!isChecked || selected.equals(category))
                     return;
-                category = (checkedId == R.id.btnScopeApp ? packageName : GLOBAL);
-                load();
+                Runnable change = () -> {
+                    category = selected;
+                    load();
+                };
+                // Switching discards changes which are not saved, keeping them selects the values shown again
+                if (getChanges().isEmpty())
+                    change.run();
+                else
+                    confirmDiscard(change, () ->
+                            group.check(GLOBAL.equals(category) ? R.id.btnScopeGlobal : R.id.btnScopeApp));
             });
         }
 
         findViewById(R.id.btnSave).setOnClickListener(view -> save());
         findViewById(R.id.btnReset).setOnClickListener(view -> reset());
+        confirmLeaving(() -> !getChanges().isEmpty());
 
         load();
     }
@@ -289,8 +299,24 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         return (TextUtils.isEmpty(value) ? null : value);
     }
 
+    // Values entered which are not saved, null for an empty field
+    private Map<String, String> getChanges() {
+        Map<String, String> changed = new HashMap<>();
+        for (Object item : form) {
+            if (!(item instanceof Field))
+                continue;
+            Field field = (Field) item;
+            TextInputLayout til = inputs.get(field.key);
+            if (til == null)
+                continue;
+            String value = getValue(field, til.getEditText());
+            if (!Objects.equals(value, values.get(field.key)))
+                changed.put(field.key, value);
+        }
+        return changed;
+    }
+
     private void save() {
-        final Map<String, String> changed = new HashMap<>();
         for (Object item : form) {
             if (!(item instanceof Field))
                 continue;
@@ -306,10 +332,9 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 input.requestFocus();
                 return;
             }
-            if (!Objects.equals(value, values.get(field.key)))
-                changed.put(field.key, value);
         }
 
+        final Map<String, String> changed = getChanges();
         if (changed.isEmpty()) {
             Ui.message(this, getString(R.string.msg_no_changes));
             return;

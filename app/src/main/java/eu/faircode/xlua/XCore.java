@@ -78,7 +78,7 @@ class XCore {
     private static volatile XBackend backend = null;
     private static volatile int version = -1;
 
-    // Usage reports are sent in batches, with the last report per hook and event
+    // Usage reports are sent in batches, with the last report per hook and event, and the last error
     private final Map<String, Map<String, Bundle>> queue = new HashMap<>();
     private boolean flushing = false;
     private final ScheduledExecutorService reporter = Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -540,7 +540,9 @@ class XCore {
         args.putBundle("data", data);
 
         synchronized (queue) {
-            String key = (function == null ? "*" : function) + ":" + event;
+            // An error does not replace a restriction of the same function, nor the other way around
+            String key = (function == null ? "*" : function) + ":" + event +
+                    (data.containsKey("exception") ? ":error" : "");
             if (!queue.containsKey(key))
                 queue.put(key, new HashMap<>());
             queue.get(key).put(hook, args);
@@ -555,10 +557,15 @@ class XCore {
     private void flush(Context context, String packageName, int uid) {
         Log.i(TAG, "Processing event queue package=" + packageName + ":" + uid);
 
+        // Errors first, so a restriction reported after them is what the log shows
         List<Bundle> work = new ArrayList<>();
         synchronized (queue) {
-            for (Map<String, Bundle> hooks : queue.values())
-                work.addAll(hooks.values());
+            for (Map.Entry<String, Map<String, Bundle>> entry : queue.entrySet())
+                if (entry.getKey().endsWith(":error"))
+                    work.addAll(entry.getValue().values());
+            for (Map.Entry<String, Map<String, Bundle>> entry : queue.entrySet())
+                if (!entry.getKey().endsWith(":error"))
+                    work.addAll(entry.getValue().values());
             queue.clear();
             flushing = false;
         }
