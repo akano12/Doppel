@@ -34,17 +34,26 @@ local DEVICE = {
     { '0', { 'ro.build.date.utc', 'ro.*.build.date.utc' } },
 }
 
--- The Lua patterns of the property names, made once because properties are read often
+-- The fake values by property name and the Lua patterns of the names with a *,
+-- made once because properties are read often
+local NAMES = {}
 local PATTERNS = {}
 for _, rule in ipairs(DEVICE) do
     for _, name in ipairs(rule[2]) do
-        local pattern = '^' .. string.gsub(name, '[%.%*]', { ['.'] = '%.', ['*'] = '.+' }) .. '$'
-        PATTERNS[#PATTERNS + 1] = { pattern, rule[1] }
+        if string.find(name, '*', 1, true) then
+            local pattern = '^' .. string.gsub(name, '[%.%*]', { ['.'] = '%.', ['*'] = '.+' }) .. '$'
+            PATTERNS[#PATTERNS + 1] = { pattern, rule[1] }
+        else
+            NAMES[name] = rule[1]
+        end
     end
 end
 
 -- The fake value of a device property, nil when it is not faked
 function fakedevice(key)
+    if NAMES[key] ~= nil then
+        return NAMES[key]
+    end
     for _, entry in ipairs(PATTERNS) do
         if string.match(key, entry[1]) then
             return entry[2]

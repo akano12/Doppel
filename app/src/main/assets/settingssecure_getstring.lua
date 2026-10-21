@@ -171,6 +171,27 @@ function fakeany(param, group, key, result)
     return false
 end
 
+-- The setting a query selects with name=?, for rows without the name column; nil when none
+function selected(hook, param)
+    local selection, args
+    if string.find(hook:getName(), 'query26', 1, true) then
+        local bundle = param:getArgument(2)
+        if bundle == nil then
+            return nil
+        end
+        selection = bundle:getString('android:query-arg-sql-selection')
+        args = bundle:getStringArray('android:query-arg-sql-selection-args')
+    else
+        selection = param:getArgument(2)
+        args = param:getArgument(3)
+    end
+    if selection == nil or args == nil or args['length'] ~= 1 or
+            (string.gsub(selection, '%s', '')) ~= 'name=?' then
+        return nil
+    end
+    return args[1]
+end
+
 -- Apps can read settings from the settings provider too, which Settings.*.getString use:
 -- call(GET_secure, name) returns a bundle with the value, a query rows of names and values
 function provider(hook, param, group)
@@ -217,6 +238,8 @@ function provider(hook, param, group)
     local pathKey
     if segments:size() == 2 then
         pathKey = segments:get(1)
+    else
+        pathKey = selected(hook, param)
     end
 
     local fakecursor = luajava.newInstance('android.database.MatrixCursor', columns)
