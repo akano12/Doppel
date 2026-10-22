@@ -6903,9 +6903,6 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 1,
-    "settings": [
-      "value.serial"
-    ],
     "luaScript": "@shell_commands"
   },
   {
@@ -6960,6 +6957,132 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 1,
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ProcessBuilder.start/identifiers",
+    "author": "XPrivacyLua",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Runtime.exec",
+    "author": "XPrivacyLua",
+    "className": "java.lang.Runtime",
+    "methodName": "exec",
+    "parameterTypes": [
+      "[Ljava.lang.String;",
+      "[Ljava.lang.String;",
+      "java.io.File"
+    ],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "maxSdk": 23,
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Runtime.exec/identifiers",
+    "author": "XPrivacyLua",
+    "className": "java.lang.Runtime",
+    "methodName": "exec",
+    "parameterTypes": [
+      "[Ljava.lang.String;",
+      "[Ljava.lang.String;",
+      "java.io.File"
+    ],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "maxSdk": 23,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Runtime.exec/packages",
+    "author": "XPrivacyLua",
+    "className": "java.lang.Runtime",
+    "methodName": "exec",
+    "parameterTypes": [
+      "[Ljava.lang.String;",
+      "[Ljava.lang.String;",
+      "java.io.File"
+    ],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "maxSdk": 23,
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "Runtime.exec/timezone",
+    "author": "XPrivacyLua",
+    "className": "java.lang.Runtime",
+    "methodName": "exec",
+    "parameterTypes": [
+      "[Ljava.lang.String;",
+      "[Ljava.lang.String;",
+      "java.io.File"
+    ],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "maxSdk": 23,
+    "settings": [
+      "value.timezone"
+    ],
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "Runtime.exec/features",
+    "author": "XPrivacyLua",
+    "className": "java.lang.Runtime",
+    "methodName": "exec",
+    "parameterTypes": [
+      "[Ljava.lang.String;",
+      "[Ljava.lang.String;",
+      "java.io.File"
+    ],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "maxSdk": 23,
+    "settings": [
+      "features.hide"
+    ],
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Runtime.exec/biometrics",
+    "author": "XPrivacyLua",
+    "className": "java.lang.Runtime",
+    "methodName": "exec",
+    "parameterTypes": [
+      "[Ljava.lang.String;",
+      "[Ljava.lang.String;",
+      "java.io.File"
+    ],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "maxSdk": 23,
     "luaScript": "@shell_commands"
   },
   // The text of network objects contains the values their getters hide

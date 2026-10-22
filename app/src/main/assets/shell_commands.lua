@@ -16,56 +16,103 @@
 -- Apps run commands to read what the other hooks fake, like FingerprintJS runs getprop:
 -- getprop reads the system properties behind the fields of android.os.Build, the serial, the operator
 -- and the time zone, uname and /proc/version the kernel build of Os.uname, pm the installed packages
--- and the features of the device. These commands print the same fake values: they run in a shell with
--- functions of the same names in front, which run the real command and replace the values, so the output
--- keeps its format. Commands without them are not touched. Runtime.exec starts processes with
--- ProcessBuilder.start, so one hook covers both. Shells reading commands from their input are not
--- covered, filtering their input could break apps which wait for output.
+-- and the features of the device, date the time zone. These commands print the same fake values: they run
+-- in a shell with functions of the same names in front, which run the real command and replace the values,
+-- so the output keeps its format; date gets the fake time zone in its environment (TZ).
+-- The functions cover commands run directly, also with their path, with toybox, toolbox or env in front,
+-- the pm script run with sh, and scripts of sh -c naming the commands, also with toybox or toolbox.
+-- Not covered are shells reading commands from their input (filtering their input could break apps
+-- which wait for output), script files, command and env in scripts, names made while the script runs
+-- and native code. Runtime.exec starts processes with ProcessBuilder.start from Android 7,
+-- on Android 6 its hooks change the arguments of Runtime.exec(String[], String[], File) instead.
 -- Each variant fakes the values of its group. The hooks of all variants run for the same command:
 -- each one adds its variant to the variants of the command so far and makes the command again from
 -- the original one, so the last one makes the command with the functions of all variants.
 
 local SH = '/system/bin/sh'
 
+-- The security patch level per quarter, like 2025-04-01 for 2025-05-05 (see security_patch)
+local QUARTER = {}
+
+-- Shell patterns of the properties behind the fields of android.os.Build with their fake values, the same
+-- as systemproperties_get (DEVICE), which a unit test checks; a * matches the partition, like ro.vendor.build.id
+local DEVICE = {
+    { 'unknown', { 'ro.product.model', 'ro.product.*.model', 'ro.product.brand', 'ro.product.*.brand',
+                   'ro.product.manufacturer', 'ro.product.*.manufacturer', 'ro.product.device',
+                   'ro.product.*.device', 'ro.product.name', 'ro.product.*.name', 'ro.product.board',
+                   'ro.product.*.board', 'ro.soc.model', 'ro.soc.manufacturer', 'ro.hardware',
+                   'ro.boot.hardware', 'ro.boot.hardware.platform', 'ro.board.platform',
+                   'ro.boot.hardware.sku', 'ro.boot.product.hardware.sku', 'ro.boot.vbmeta.digest',
+                   'ro.bootloader', 'ro.boot.bootloader', 'ro.build.expect.bootloader',
+                   'gsm.version.baseband', 'ro.build.expect.baseband' } },
+    { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
+                   'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
+                   'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
+                   'ro.*.build.tags', 'ro.build.type', 'ro.*.build.type', 'ro.build.description',
+                   'ro.build.flavor', 'ro.build.product', 'ro.build.date', 'ro.*.build.date' } },
+    { QUARTER, { 'ro.build.version.security_patch', 'ro.*.build.version.security_patch',
+                 'ro.*.build.security_patch' } },
+    { '0', { 'ro.build.date.utc', 'ro.*.build.date.utc' } },
+}
+
+-- The operator of the test network, like TelephonyManager.getNetworkOperator (see test_network)
+local OPERATOR = {
+    { 'unknown', { 'gsm.operator.alpha', 'gsm.sim.operator.alpha' } },
+    { '00101', { 'gsm.operator.numeric', 'gsm.sim.operator.numeric' } },
+    { 'xx', { 'gsm.operator.iso-country', 'gsm.sim.operator.iso-country' } },
+}
+
+-- The properties of the serial, like Build.SERIAL (see systemproperties_get)
+local SERIAL = { 'ro.serialno', 'ro.boot.serialno', 'ril.serialnumber', 'ro.boot.ap_serial', 'sys.serialnumber',
+                 'ro.ril.oem.sno', 'ro.ril.oem.psno', 'gsm.serial' }
+
+-- The variants faking properties, which getprop prints
+local PROPERTIES = { 'tracking', 'identifiers', 'timezone' }
+
+-- The biometric sensors, like biometrics (FEATURES)
+local BIOMETRIC = { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
+                    'android.hardware.biometrics.iris' }
+
+-- The shared libraries of the system which are part of the Android platform, like features (PLATFORM and GOOGLE)
+local LIBRARIES = { 'android.', 'androidx.', 'com.android.', 'javax.', 'org.apache.' }
+local GOOGLE = { 'com.google.android.maps', 'com.google.android.media.effects' }
+
+-- Programs running a command of their arguments: multiplexers run the command named by their first argument,
+-- env the command after its options and variables
+local MULTIPLEXERS = { toybox = true, toolbox = true, busybox = true }
+local SHELLS = { sh = true, mksh = true, bash = true }
+
+-- The fake time zone, like timezone
+function fakezone(param)
+    local zone = param:getSetting('value.timezone')
+    if zone == nil or zone == '' then
+        zone = 'UTC'
+    end
+    return zone
+end
+
 -- Shell patterns of property names and their fake values for a variant, like the fields of
--- android.os.Build and the hooks of SystemProperties.get (systemproperties_get has the same device properties)
+-- android.os.Build and the hooks of SystemProperties.get
 function rules(param, variant)
     if variant == 'timezone' then
-        local zone = param:getSetting('value.timezone')
-        if zone == nil or zone == '' then
-            zone = 'UTC'
+        return { { fakezone(param), { 'persist.sys.timezone' } } }
+    elseif variant == 'identifiers' then
+        local serial = param:getSetting('value.serial')
+        if serial == nil then
+            serial = 'unknown'
         end
-        return { { zone, { 'persist.sys.timezone' } } }
+        return { { serial, SERIAL } }
+    else
+        -- tracking
+        local result = {}
+        for _, rule in ipairs(DEVICE) do
+            result[#result + 1] = rule
+        end
+        for _, rule in ipairs(OPERATOR) do
+            result[#result + 1] = rule
+        end
+        return result
     end
-    if variant ~= 'tracking' then
-        return {}
-    end
-
-    local serial = param:getSetting('value.serial')
-    if serial == nil then
-        serial = 'unknown'
-    end
-    return {
-        { serial, { 'ro.serialno', 'ro.boot.serialno', 'ril.serialnumber', 'ro.boot.ap_serial', 'sys.serialnumber',
-                    'ro.ril.oem.sno', 'ro.ril.oem.psno', 'gsm.serial' } },
-        { 'unknown', { 'ro.product.model', 'ro.product.*.model', 'ro.product.brand', 'ro.product.*.brand',
-                       'ro.product.manufacturer', 'ro.product.*.manufacturer', 'ro.product.device',
-                       'ro.product.*.device', 'ro.product.name', 'ro.product.*.name', 'ro.product.board',
-                       'ro.product.*.board', 'ro.soc.model', 'ro.soc.manufacturer', 'ro.hardware',
-                       'ro.boot.hardware.sku', 'ro.boot.product.hardware.sku', 'ro.boot.vbmeta.digest',
-                       'ro.bootloader', 'ro.boot.bootloader', 'gsm.version.baseband' } },
-        { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
-                       'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
-                       'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
-                       'ro.*.build.tags', 'ro.build.type', 'ro.*.build.type', 'ro.build.description',
-                       'ro.build.flavor', 'ro.build.product', 'ro.build.date', 'ro.*.build.date',
-                       'ro.build.version.security_patch', 'ro.*.build.version.security_patch',
-                       'ro.*.build.security_patch' } },
-        { '0', { 'ro.build.date.utc', 'ro.*.build.date.utc' } },
-        { 'unknown', { 'gsm.operator.alpha', 'gsm.sim.operator.alpha' } },
-        { '00101', { 'gsm.operator.numeric', 'gsm.sim.operator.numeric' } }, -- test network
-        { 'xx', { 'gsm.operator.iso-country', 'gsm.sim.operator.iso-country' } },
-    }
 end
 
 -- A literal for the shell
@@ -73,37 +120,61 @@ function quote(value)
     return "'" .. (string.gsub(value, "'", "'\\''")) .. "'"
 end
 
+-- A basic regular expression of a property pattern, where * matches the partition like the Lua pattern
+-- of systemproperties_get does (one or more characters)
+function propertyregex(pattern)
+    return (string.gsub(pattern, '[%.%*]', { ['.'] = '\\.', ['*'] = '[^]][^]]*' }))
+end
+
 -- A sed command replacing the value of matching lines of getprop like [ro.product.model]: [Pixel 9];
 -- empty values stay, like SystemProperties.get keeps them
 function sedcommand(pattern, value)
-    local regex = string.gsub(pattern, '[%.%*]', { ['.'] = '\\.', ['*'] = '[^]]*' })
     local replacement = string.gsub(value, '[\\&/\n]', { ['\\'] = '\\\\', ['&'] = '\\&', ['/'] = '\\/', ['\n'] = ' ' })
-    return 's/^\\[\\(' .. regex .. '\\)\\]: \\[..*\\]$/[\\1]: [' .. replacement .. ']/'
+    return 's/^\\[\\(' .. propertyregex(pattern) .. '\\)\\]: \\[..*\\]$/[\\1]: [' .. replacement .. ']/'
 end
 
--- getprop without arguments lists all properties, with a name prints its value
+-- sed commands replacing a date like 2025-05-05 by the first day of its quarter, like systemproperties_get;
+-- other values stay, like there
+function quartercommands(pattern)
+    local result = {}
+    for _, quarter in ipairs({ { '01', '0[123]' }, { '04', '0[456]' }, { '07', '0[789]' }, { '10', '1[012]' } }) do
+        result[#result + 1] = 's/^\\[\\(' .. propertyregex(pattern) .. '\\)\\]: \\[\\([0-9]\\{4\\}\\)-' ..
+                quarter[2] .. '-[0-9][0-9]\\]$/[\\1]: [\\2-' .. quarter[1] .. '-01]/'
+    end
+    return result
+end
+
+-- getprop without arguments lists all properties, with a name prints its value;
+-- the value goes through the same sed as the list, so both are the same
 function getpropfunction(rules)
-    local cases = {}
+    local patterns = {}
     local seds = {}
     for _, rule in ipairs(rules) do
-        cases[#cases + 1] = '  ' .. table.concat(rule[2], '|') .. ') __xlua_value=' .. quote(rule[1]) .. ' ;;'
         for _, pattern in ipairs(rule[2]) do
-            seds[#seds + 1] = '-e ' .. quote(sedcommand(pattern, rule[1]))
+            patterns[#patterns + 1] = (string.gsub(pattern, '%*', '?*'))
+            local commands = (rule[1] == QUARTER and quartercommands(pattern) or { sedcommand(pattern, rule[1]) })
+            for _, command in ipairs(commands) do
+                seds[#seds + 1] = '-e ' .. quote(command)
+            end
         end
     end
     return table.concat({
         '__xlua_property() {',
         ' case "$1" in',
-        table.concat(cases, '\n'),
-        '  *) return 1 ;;',
+        '  ' .. table.concat(patterns, '|') .. ') return 0 ;;',
         ' esac',
+        ' return 1',
+        '}',
+        '__xlua_properties() {',
+        ' /system/bin/sed ' .. table.concat(seds, ' '),
         '}',
         'getprop() {',
         ' if [ $# -eq 0 ]; then',
-        '  /system/bin/getprop | /system/bin/sed ' .. table.concat(seds, ' '),
+        '  /system/bin/getprop | __xlua_properties',
         ' elif [ $# -le 2 ] && [ "${1#-}" = "$1" ] && __xlua_property "$1" &&',
-        '   [ -n "$(/system/bin/getprop "$1")" ]; then',
-        "  /system/bin/printf '%s\\n' \"$__xlua_value\"",
+        '   __xlua_value=$(/system/bin/getprop "$1") && [ -n "$__xlua_value" ]; then',
+        "  /system/bin/printf '[%s]: [%s]\\n' \"$1\" \"$__xlua_value\" | __xlua_properties |",
+        "   /system/bin/sed -e 's/^\\[[^]]*\\]: \\[\\(.*\\)\\]$/\\1/'",
         ' else',
         '  /system/bin/getprop "$@"',
         ' fi',
@@ -168,115 +239,243 @@ function ownpackages(param)
     return own
 end
 
--- Features hidden by a variant and whether only platform features stay: Read.Features hides features
--- outside android.* and the features of setting features.hide (see features), Read.Biometrics
--- the biometric sensors (see biometrics); nil when the variant hides none
-function hiddenfeatures(param, variant)
-    if variant == 'features' then
-        local hidden = {}
-        local extra = param:getSetting('features.hide')
-        if extra ~= nil then
-            for feature in string.gmatch(extra, '[^,%s]+') do
-                hidden[#hidden + 1] = feature
-            end
+-- Features hidden by Read.Features, besides the features outside android.*: the features of setting
+-- features.hide (see features)
+function hiddenfeatures(param)
+    local hidden = {}
+    local extra = param:getSetting('features.hide')
+    if extra ~= nil then
+        for feature in string.gmatch(extra, '[^,%s]+') do
+            hidden[#hidden + 1] = feature
         end
-        return hidden, true
-    elseif variant == 'biometrics' then
-        return { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
-                 'android.hardware.biometrics.iris' }, false
     end
-    return nil
+    return hidden
 end
 
--- pm and cmd package: list packages lists the packages of the app only, like the package lists of
--- Get.Applications, path finds the packages which an app can look up (see package_probe):
--- its own and system packages; list features lists the features hasSystemFeature finds
-function packagefunctions(param, variants)
-    local result = {}
-    local branches = {}
-    if variants['packages'] then
-        -- Lines like package:com.example or package:/data/app/.../base.apk=com.example versionCode:1;
-        -- one sed for all lines, starting a command for each line takes seconds
-        local patterns = {}
-        local seds = {}
-        for _, name in ipairs(ownpackages(param)) do
-            patterns[#patterns + 1] = quote(name)
-            seds[#seds + 1] = '-e ' .. quote('/^package:\\([^ ]*=\\)\\{0,1\\}' .. regex(name) .. '\\( .*\\)\\{0,1\\}$/p')
-        end
-        result[#result + 1] = table.concat({
-            '__xlua_packages() {',
-            ' /system/bin/sed -n ' .. table.concat(seds, ' '),
-            '}',
-            '__xlua_visible() {',
-            ' case "$1" in',
-            '  ' .. table.concat(patterns, '|') .. ') return 0 ;;',
-            ' esac',
-            ' /system/bin/pm list packages -s | /system/bin/grep -qxF "package:$1"',
-            '}',
-        }, '\n')
-        branches[#branches + 1] = ' if [ "$1" = list ] && [ "$2" = packages ]; then\n' ..
-                '  __xlua_package "$@" | __xlua_packages'
-        branches[#branches + 1] = ' elif [ "$1" = path ] && [ $# -eq 2 ] && ! __xlua_visible "$2"; then\n' ..
-                '  return 1'
+-- The functions of Get.Applications for pm and cmd package and the cases of __xlua_pm they add:
+-- the package lists list the packages of the app only, like the package lists of Get.Applications, path finds
+-- the packages which an app can look up (see package_probe): its own and system packages; the queries of
+-- activities, services and receivers find nothing when they find other apps, like the queries of PackageManager,
+-- resolve-activity finds nothing for other apps than these (see package_resolve). The arguments are parsed
+-- like PackageManagerShellCommand does, with the short forms -l, -lf and -p of former versions.
+function applicationfunctions(param, lists, cases)
+    -- Lines like package:com.example or package:/data/app/.../base.apk=com.example versionCode:1, and
+    -- instrumentation:com.example.test/androidx.test.runner.AndroidJUnitRunner (target=com.example);
+    -- one sed for all lines, starting a command for each line takes seconds
+    local patterns = {}
+    local packages = {}
+    local instrumentations = {}
+    for _, name in ipairs(ownpackages(param)) do
+        patterns[#patterns + 1] = quote(name)
+        packages[#packages + 1] = '-e ' ..
+                quote('/^package:\\([^ ]*=\\)\\{0,1\\}' .. regex(name) .. '\\( .*\\)\\{0,1\\}$/p')
+        instrumentations[#instrumentations + 1] = '-e ' ..
+                quote('/^instrumentation:\\([^ ]*=\\)\\{0,1\\}' .. regex(name) .. '\\//p')
     end
 
+    lists[#lists + 1] = '   package|packages) __xlua_package "$@" | __xlua_packages ;;'
+    lists[#lists + 1] = '   instrumentation) __xlua_package "$@" | __xlua_instrumentations ;;'
+    cases[#cases + 1] = '  path) __xlua_path "$@" ;;'
+    cases[#cases + 1] = '  -[lL]|-[lL][fF]) if [ $# -eq 1 ]; then __xlua_package "$@" | __xlua_packages;' ..
+            ' else __xlua_package "$@"; fi ;;'
+    cases[#cases + 1] = '  -[pP]) if [ $# -eq 2 ] && ! __xlua_visible "$2"; then return 1; fi; __xlua_package "$@" ;;'
+    cases[#cases + 1] = '  query-activities) __xlua_query __xlua_own \'No activities found\' "$@" ;;'
+    cases[#cases + 1] = '  query-services) __xlua_query __xlua_own \'No services found\' "$@" ;;'
+    cases[#cases + 1] = '  query-receivers) __xlua_query __xlua_own \'No receivers found\' "$@" ;;'
+    cases[#cases + 1] = '  resolve-activity) __xlua_query __xlua_visible \'No activity found\' "$@" ;;'
+
+    return table.concat({
+        '__xlua_packages() {',
+        ' /system/bin/sed -n ' .. table.concat(packages, ' '),
+        '}',
+        '__xlua_instrumentations() {',
+        ' /system/bin/sed -n ' .. table.concat(instrumentations, ' '),
+        '}',
+        '__xlua_own() {',
+        ' case "$1" in',
+        '  ' .. table.concat(patterns, '|') .. ') return 0 ;;',
+        ' esac',
+        ' return 1',
+        '}',
+        '__xlua_visible() {',
+        ' __xlua_own "$1" && return 0',
+        ' [ -n "${__xlua_system-}" ] || __xlua_system=$(/system/bin/pm list packages -s)',
+        " /system/bin/printf '%s\\n' \"$__xlua_system\" | /system/bin/grep -qxF \"package:$1\"",
+        '}',
+        -- path [--user USER] PACKAGE: one option, like -u or --user with its value, then the package
+        '__xlua_path() {',
+        ' case "${2-}" in',
+        '  --user) __xlua_name=${4-} ;;',
+        '  -|--|--*|-?) __xlua_name=${3-} ;;',
+        '  -*) __xlua_name=${2#-?} ;;',
+        '  *) __xlua_name=${2-} ;;',
+        ' esac',
+        ' if [ -n "$__xlua_name" ] && ! __xlua_visible "$__xlua_name"; then',
+        '  return 1',
+        ' fi',
+        ' __xlua_package "$@"',
+        '}',
+        -- The packages a query found: of dumps like packageName=com.example and of components like com.example/.Main
+        '__xlua_found() {',
+        " /system/bin/printf '%s\\n' \"$1\" | /system/bin/sed -n -e 's/^ *packageName=\\(.*\\)$/\\1/p'" ..
+                " -e 's|^ *\\([A-Za-z0-9_.]*\\)/[^ ]*$|\\1|p'",
+        '}',
+        -- A query printing what it found when the check allows all packages, else the answer of nothing found;
+        -- the lines of one result do not tell which result they belong to, so all of them or none stay
+        '__xlua_query() {',
+        ' __xlua_check=$1',
+        ' __xlua_none=$2',
+        ' shift 2',
+        ' __xlua_status=0',
+        ' __xlua_out=$(__xlua_package "$@") || __xlua_status=$?',
+        ' if __xlua_found "$__xlua_out" |',
+        '   (while read -r __xlua_name; do $__xlua_check "$__xlua_name" || exit 1; done); then',
+        '  [ -z "$__xlua_out" ] || /system/bin/printf \'%s\\n\' "$__xlua_out"',
+        '  return $__xlua_status',
+        ' fi',
+        " /system/bin/printf '%s\\n' \"$__xlua_none\"",
+        '}',
+    }, '\n')
+end
+
+-- The functions of Read.Features and Read.Biometrics for pm and cmd package: list features and has-feature
+-- find the features which hasSystemFeature finds, list libraries the libraries of getSystemSharedLibraryNames
+-- (see features and biometrics)
+function featurefunctions(param, variants, lists, cases)
     local hidden = {}
-    local platform = false
-    for _, variant in ipairs({ 'features', 'biometrics' }) do
-        if variants[variant] then
-            local names, only = hiddenfeatures(param, variant)
-            for _, name in ipairs(names) do
-                hidden[#hidden + 1] = name
-            end
-            platform = platform or only
+    if variants['features'] then
+        for _, name in ipairs(hiddenfeatures(param)) do
+            hidden[#hidden + 1] = name
         end
+    end
+    if variants['biometrics'] then
+        for _, name in ipairs(BIOMETRIC) do
+            hidden[#hidden + 1] = name
+        end
+    end
+
+    -- Lines like feature:android.hardware.wifi or feature:android.hardware.vulkan.level=1;
+    -- the OpenGL ES version (feature:reqGlEsVersion=0x30000) and other lines stay
+    local seds = { "-e '/^feature:/!b'", "-e '/^feature:reqGlEsVersion=/b'" }
+    local names = {}
+    for _, name in ipairs(hidden) do
+        seds[#seds + 1] = '-e ' .. quote('/^feature:' .. regex(name) .. '\\(=.*\\)\\{0,1\\}$/d')
+        names[#names + 1] = quote(name)
+    end
+    local checks = {}
+    if #names > 0 then
+        checks[#checks + 1] = '  ' .. table.concat(names, '|') .. ') return 0 ;;'
+    end
+    if variants['features'] then
+        -- Only platform features stay
+        seds[#seds + 1] = "-e '/^feature:android\\./!d'"
+        checks[#checks + 1] = '  android.*) return 1 ;;'
+        checks[#checks + 1] = '  *) return 0 ;;'
+    else
+        checks[#checks + 1] = '  *) return 1 ;;'
+    end
+
+    lists[#lists + 1] = '   features) __xlua_package "$@" | __xlua_features ;;'
+    cases[#cases + 1] = "  has-feature) if [ -n \"${2-}\" ] && __xlua_hidden \"$2\"; then echo false; return 1; fi;" ..
+            ' __xlua_package "$@" ;;'
+    local result = {
+        '__xlua_features() {',
+        ' /system/bin/sed ' .. table.concat(seds, ' '),
+        '}',
+        '__xlua_hidden() {',
+        ' case "$1" in',
+        table.concat(checks, '\n'),
+        ' esac',
+        '}',
+    }
+
+    if variants['features'] then
+        -- Lines like library:com.google.android.dialer.support or library:android.test.base path:/system/...
+        local libraries = { "-e '/^library:/!b'" }
+        for _, prefix in ipairs(LIBRARIES) do
+            libraries[#libraries + 1] = '-e ' .. quote('/^library:' .. regex(prefix) .. '/b')
+        end
+        for _, name in ipairs(GOOGLE) do
+            libraries[#libraries + 1] = '-e ' .. quote('/^library:' .. regex(name) .. '\\( .*\\)\\{0,1\\}$/b')
+        end
+        libraries[#libraries + 1] = '-e d'
+        lists[#lists + 1] = '   libraries) __xlua_package "$@" | __xlua_libraries ;;'
+        result[#result + 1] = '__xlua_libraries() {'
+        result[#result + 1] = ' /system/bin/sed ' .. table.concat(libraries, ' ')
+        result[#result + 1] = '}'
+    end
+    return table.concat(result, '\n')
+end
+
+-- pm and cmd package (also cmd -w package) with the cases of the variants, other commands stay
+function packagefunctions(param, variants)
+    local result = {}
+    local lists = {}
+    local cases = {}
+    if variants['packages'] then
+        result[#result + 1] = applicationfunctions(param, lists, cases)
     end
     if variants['features'] or variants['biometrics'] then
-        -- Lines like feature:android.hardware.wifi or feature:android.hardware.vulkan.level=1;
-        -- the OpenGL ES version (feature:reqGlEsVersion=0x30000) and other lines stay
-        local seds = { "-e '/^feature:/!b'", "-e '/^feature:reqGlEsVersion=/b'" }
-        for _, name in ipairs(hidden) do
-            seds[#seds + 1] = '-e ' .. quote('/^feature:' .. regex(name) .. '\\(=.*\\)\\{0,1\\}$/d')
-        end
-        if platform then
-            seds[#seds + 1] = "-e '/^feature:android\\./!d'"
-        end
-        result[#result + 1] = table.concat({
-            '__xlua_features() {',
-            ' /system/bin/sed ' .. table.concat(seds, ' '),
-            '}',
-        }, '\n')
-        branches[#branches + 1] = (#branches == 0 and ' if' or ' elif') ..
-                ' [ "$1" = list ] && [ "$2" = features ]; then\n' ..
-                '  __xlua_package "$@" | __xlua_features'
+        result[#result + 1] = featurefunctions(param, variants, lists, cases)
     end
+    if #lists > 0 then
+        lists[#lists + 1] = '   *) __xlua_package "$@" ;;'
+        table.insert(cases, 1, '  list) case "${2-}" in\n' .. table.concat(lists, '\n') .. '\n  esac ;;')
+    end
+    cases[#cases + 1] = '  *) __xlua_package "$@" ;;'
 
     result[#result + 1] = table.concat({
         '__xlua_package() {',
-        ' if [ "$__xlua_cmd" = 1 ]; then /system/bin/cmd package "$@"; else /system/bin/pm "$@"; fi',
+        ' if [ "$__xlua_cmd" = 1 ]; then /system/bin/cmd $__xlua_wait package "$@"; else /system/bin/pm "$@"; fi',
         '}',
         '__xlua_pm() {',
-        table.concat(branches, '\n'),
-        ' else',
-        '  __xlua_package "$@"',
-        ' fi',
+        ' case "${1-}" in',
+        table.concat(cases, '\n'),
+        ' esac',
         '}',
         'pm() {',
         ' __xlua_cmd=0',
+        ' __xlua_wait=',
         ' __xlua_pm "$@"',
         '}',
         'cmd() {',
-        ' if [ "$1" = package ]; then',
+        ' __xlua_wait=',
+        ' if [ "${1-}" = -w ]; then',
+        '  __xlua_wait=-w',
+        '  shift',
+        ' fi',
+        ' if [ "${1-}" = package ]; then',
         '  shift',
         '  __xlua_cmd=1',
         '  __xlua_pm "$@"',
         ' else',
-        '  /system/bin/cmd "$@"',
+        '  /system/bin/cmd $__xlua_wait "$@"',
         ' fi',
         '}',
         ''
     }, '\n')
     return table.concat(result, '\n')
+end
+
+-- Scripts can run the commands with toybox or toolbox, which would skip the functions
+function multiplexerfunctions(text, names)
+    local result = ''
+    local multiplexers = {}
+    for _, multiplexer in ipairs({ 'toybox', 'toolbox' }) do
+        if hasword(text, multiplexer) then
+            multiplexers[#multiplexers + 1] = multiplexer
+            result = result .. table.concat({
+                multiplexer .. '() {',
+                ' case "${1-}" in',
+                '  ' .. table.concat(names, '|') .. ') "$@" ;;',
+                '  *) /system/bin/' .. multiplexer .. ' "$@" ;;',
+                ' esac',
+                '}',
+                ''
+            }, '\n')
+        end
+    end
+    return result, multiplexers
 end
 
 -- Whether the text contains the word, like a command in a script
@@ -298,11 +497,12 @@ function commands(text, variant)
         if #names > 0 then
             return names
         end
-    elseif variant == 'timezone' then
+    elseif variant == 'identifiers' or variant == 'timezone' then
         if string.find(text, 'getprop', 1, true) then
             return { 'getprop' }
         end
-    elseif variant == 'packages' or variant == 'features' or variant == 'biometrics' then
+    else
+        -- packages, features, biometrics
         if hasword(text, 'pm') or hasword(text, 'cmd') then
             return { 'pm', 'cmd' }
         end
@@ -310,8 +510,9 @@ function commands(text, variant)
     return nil
 end
 
--- The shell functions of the variants and the names of the commands
-function functions(param, text, variants)
+-- The shell functions of the variants and the names of the commands; scripts get functions for toybox and
+-- toolbox too
+function functions(param, text, variants, script)
     local result = ''
     local names = {}
     local seen = {}
@@ -326,7 +527,7 @@ function functions(param, text, variants)
 
     if seen['getprop'] then
         local all = {}
-        for _, variant in ipairs({ 'tracking', 'timezone' }) do
+        for _, variant in ipairs(PROPERTIES) do
             if variants[variant] then
                 for _, rule in ipairs(rules(param, variant)) do
                     all[#all + 1] = rule
@@ -341,6 +542,13 @@ function functions(param, text, variants)
     if seen['pm'] then
         result = result .. packagefunctions(param, variants)
     end
+    if script then
+        local multiplexers, more = multiplexerfunctions(text, names)
+        result = result .. multiplexers
+        for _, name in ipairs(more) do
+            names[#names + 1] = name
+        end
+    end
     return result, names
 end
 
@@ -348,9 +556,8 @@ function basename(path)
     return string.match(path, '[^/]*$')
 end
 
--- The words of a command, nil when one is missing
-function wordsof(command)
-    local args = command:toArray()
+-- The words of a command (a Java array), nil when one is missing
+function wordsof(args)
     local words = {}
     for index = 1, args['length'] do
         if args[index] == nil then
@@ -361,47 +568,195 @@ function wordsof(command)
     return words
 end
 
+-- The index of the command in the words, after multiplexers and env with its options and variables,
+-- and the words in front which stay: env runs the shell of the functions with the same environment
+function commandof(words)
+    local at = 1
+    local prefix = {}
+    while at < #words do
+        local name = basename(words[at])
+        if MULTIPLEXERS[name] then
+            at = at + 1
+        elseif name == 'env' then
+            prefix[#prefix + 1] = words[at]
+            at = at + 1
+            while at < #words and (string.sub(words[at], 1, 1) == '-' or string.find(words[at], '=', 1, true)) do
+                local option = words[at]
+                prefix[#prefix + 1] = option
+                at = at + 1
+                if option == '--' then
+                    break
+                elseif (option == '-u' or option == '-C') and at < #words then
+                    prefix[#prefix + 1] = words[at]
+                    at = at + 1
+                end
+            end
+        else
+            break
+        end
+    end
+    return at, prefix
+end
+
+-- The index of the first operand of a shell after its options, like sh -c script or sh -ec script,
+-- and whether the operand is a script (option c)
+function shelloperand(words, at)
+    local index = at + 1
+    local script = false
+    while index <= #words do
+        local word = words[index]
+        if word == '--' or word == '-' then
+            index = index + 1
+            break
+        elseif word == '-o' or word == '+o' then
+            index = index + 2
+        elseif string.match(word, '^[-+]%a+$') then
+            if string.sub(word, 1, 1) == '-' and string.find(word, 'c', 2, true) then
+                script = true
+            end
+            index = index + 1
+        else
+            break
+        end
+    end
+    return index, script
+end
+
+-- Scripts can run the commands with their path, which would skip the functions; a path next to another one
+-- shares the character between them with it, so it is replaced the next time
+function unpath(script, name)
+    local text = ' ' .. script .. ' '
+    for _, dir in ipairs({ '/system/bin/', '/bin/' }) do
+        local count
+        repeat
+            text, count = string.gsub(text, '([^%w_./-])' .. dir .. name .. '([^%w_.-])', '%1' .. name .. '%2')
+        until count == 0
+    end
+    return string.sub(text, 2, -2)
+end
+
+-- The environment of Runtime.exec with the fake time zone, nil when it has a time zone already
+function runtimeenvironment(envp, zone)
+    local list = luajava.newInstance('java.util.ArrayList')
+    if envp == nil then
+        -- The environment of the app
+        local env = luajava.bindClass('java.lang.System'):getenv()
+        if env:containsKey('TZ') then
+            return nil
+        end
+        local entries = env:entrySet():toArray()
+        for index = 1, entries['length'] do
+            list:add(entries[index]:getKey() .. '=' .. entries[index]:getValue())
+        end
+    else
+        for index = 1, envp['length'] do
+            local entry = envp[index]
+            if entry ~= nil and string.sub(entry, 1, 3) == 'TZ=' then
+                return nil
+            end
+            list:add(entry)
+        end
+    end
+    list:add('TZ=' .. zone)
+    local stringClass = luajava.bindClass('java.lang.String')
+    local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+    return list:toArray(arrayClass:newInstance(stringClass, 0))
+end
+
+-- date prints the time in the time zone of its environment, which is the real one,
+-- unless the app sets one; whether the fake time zone was set
+function settimezone(param, runtime, builder)
+    local zone = fakezone(param)
+    if runtime then
+        local envp = runtimeenvironment(param:getArgument(1), zone)
+        if envp == nil then
+            return false
+        end
+        param:setArgument(1, envp)
+    else
+        local environment = builder:environment()
+        if environment:get('TZ') ~= nil then
+            return false
+        end
+        environment:put('TZ', zone)
+        param:putValue('shell.timezone', zone, builder)
+    end
+    return true
+end
+
 function before(hook, param)
-    local builder = param:getThis()
-    -- The command of the app, also when the hook of another variant changed it already
-    local command = param:getValue('shell.command', builder)
-    if command == nil then
-        command = builder:command()
-    end
-    if command == nil or command:isEmpty() then
-        return false
-    end
-
-    local words = wordsof(command)
-    if words == nil then
-        return false
-    end
-    local line = table.concat(words, ' ')
-
     -- Hook names are like Function/variant
     local variant = string.match(hook:getName(), '/(.*)$')
     if variant == nil then
         variant = 'tracking'
     end
-    if commands(line, variant) == nil then
+
+    -- The command of the app, also when the hook of another variant changed it already:
+    -- ProcessBuilder.start has it in the builder, Runtime.exec of Android 6 as its first argument
+    local runtime = (hook:getMethodName() == 'exec')
+    local scope
+    local command
+    local words
+    if runtime then
+        scope = param:getArgument(0)
+        if scope == nil then
+            return false
+        end
+        command = param:getValue('shell.command', scope)
+        if command == nil then
+            command = scope
+        end
+        words = wordsof(command)
+    else
+        scope = param:getThis()
+        command = param:getValue('shell.command', scope)
+        if command == nil then
+            command = scope:command()
+        end
+        if command == nil then
+            return false
+        end
+        words = wordsof(command:toArray())
+    end
+    if words == nil or #words == 0 then
         return false
+    end
+    local line = table.concat(words, ' ')
+
+    local zone = (variant == 'timezone' and hasword(line, 'date') and settimezone(param, runtime, scope))
+    local names = commands(line, variant)
+    if names == nil then
+        return zone, line
     end
 
-    local program = basename(words[1])
-    local shell = (program == 'sh' or program == 'mksh' or program == 'bash') and #words >= 3 and words[2] == '-c'
-    local direct = false
-    for _, name in ipairs(commands(line, variant)) do
-        if program == name and (name ~= 'cat' or (#words == 2 and words[2] == '/proc/version')) then
-            direct = true
+    local at, prefix = commandof(words)
+    local program = basename(words[at])
+    local script
+    if SHELLS[program] then
+        local operand, option = shelloperand(words, at)
+        if option and operand <= #words then
+            script = operand
+        elseif not option and operand <= #words and basename(words[operand]) == 'pm' then
+            -- sh /system/bin/pm runs the script of pm
+            at = operand
+            program = 'pm'
         end
     end
-    if not direct and not shell then
-        return false
+    if script == nil then
+        local direct = false
+        for _, name in ipairs(names) do
+            if program == name and (name ~= 'cat' or (#words == at + 1 and words[at + 1] == '/proc/version')) then
+                direct = true
+            end
+        end
+        if not direct then
+            return zone, line
+        end
     end
 
     -- The variants of the hooks which ran before for this command
     local variants = {}
-    local list = param:getValue('shell.variants', builder)
+    local list = param:getValue('shell.variants', scope)
     if list ~= nil then
         for name in string.gmatch(list, '[^,]+') do
             variants[name] = true
@@ -409,45 +764,67 @@ function before(hook, param)
     end
     variants[variant] = true
 
-    local prelude, names = functions(param, line, variants)
+    local prelude, functionnames = functions(param, line, variants, script ~= nil)
     local fake = luajava.newInstance('java.util.ArrayList')
-    if shell then
-        -- Scripts can run the commands with their path, which would skip the functions
-        local script = words[3]
-        for _, name in ipairs(names) do
-            script = string.gsub(script, '/system/bin/' .. name, name)
+    if script ~= nil then
+        local text = words[script]
+        for _, name in ipairs(functionnames) do
+            text = unpath(text, name)
         end
         for index = 1, #words do
-            fake:add(index == 3 and (prelude .. script) or words[index])
+            fake:add(index == script and (prelude .. text) or words[index])
         end
     else
-        -- getprop -> sh -c '<functions> getprop "$@"' getprop
+        -- getprop -> sh -c '<functions> getprop "$@"' getprop, after env and its variables
+        for _, word in ipairs(prefix) do
+            fake:add(word)
+        end
         fake:add(SH)
         fake:add('-c')
         fake:add(prelude .. program .. ' "$@"')
-        for index = 1, #words do
-            fake:add(index == 1 and program or words[index])
+        fake:add(program)
+        for index = at + 1, #words do
+            fake:add(words[index])
         end
     end
 
-    -- The builder gets its own command back after the start, apps can start it again
     local all = {}
     for name, _ in pairs(variants) do
         all[#all + 1] = name
     end
-    param:putValue('shell.command', command, builder)
-    param:putValue('shell.variants', table.concat(all, ','), builder)
-    builder:command(fake)
+    if runtime then
+        -- The other variants find the original command with the new arguments
+        local stringClass = luajava.bindClass('java.lang.String')
+        local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+        local args = fake:toArray(arrayClass:newInstance(stringClass, 0))
+        param:putValue('shell.command', command, args)
+        param:putValue('shell.variants', table.concat(all, ','), args)
+        param:setArgument(0, args)
+    else
+        -- The builder gets its own command back after the start, apps can start it again
+        param:putValue('shell.command', command, scope)
+        param:putValue('shell.variants', table.concat(all, ','), scope)
+        scope:command(fake)
+    end
     return true, line
 end
 
 function after(hook, param)
+    -- Runtime.exec got new arguments, which the app does not see
+    if hook:getMethodName() == 'exec' then
+        return false
+    end
+
     local builder = param:getThis()
     local command = param:getValue('shell.command', builder)
     if command ~= nil then
         builder:command(command)
         param:putValue('shell.command', nil, builder)
         param:putValue('shell.variants', nil, builder)
+    end
+    if param:getValue('shell.timezone', builder) ~= nil then
+        builder:environment():remove('TZ')
+        param:putValue('shell.timezone', nil, builder)
     end
     return false
 end
