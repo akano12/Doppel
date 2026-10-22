@@ -114,11 +114,14 @@ final class Data {
                 new String[]{packageName, Integer.toString(uid)}, XHook.CREATOR);
     }
 
-    // Ids of the definitions which are part of the app
+    // Ids of the definitions which are part of the app, of the module version which runs,
+    // which decides whether deleting a custom definition restores a built-in definition
     static Set<String> getBuiltinIds(Context context) throws Exception {
         Set<String> ids = new HashSet<>();
-        for (XHook builtin : XHook.readHooks(context.getApplicationInfo().publicSourceDir, false))
-            ids.add(builtin.getId());
+        try (Cursor cursor = query(context, "getBuiltinIds", null)) {
+            while (cursor != null && cursor.moveToNext())
+                ids.add(cursor.getString(0));
+        }
         return ids;
     }
 

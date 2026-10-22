@@ -27,9 +27,13 @@ import android.util.Log;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-// Package changes of all users, registered in system server (see XCore.hookAndroid)
+// Package changes of all users and removed users, registered in system server (see XCore.hookAndroid)
 public class ReceiverPackage extends BroadcastReceiver {
     private static final String TAG = "XLua.Receiver";
+
+    // Hidden Intent.ACTION_USER_REMOVED and Intent.EXTRA_USER_HANDLE, sent to system server
+    static final String ACTION_USER_REMOVED = "android.intent.action.USER_REMOVED";
+    private static final String EXTRA_USER_HANDLE = "android.intent.extra.user_handle";
 
     // One thread, so the changes of a package are handled in order, like a removal before a new install
     private static final ExecutorService executor = Executors.newSingleThreadExecutor(
@@ -40,9 +44,12 @@ public class ReceiverPackage extends BroadcastReceiver {
     public void onReceive(final Context context, final Intent intent) {
         final PendingResult result = goAsync();
         executor.execute(() -> {
+            // Without the hooks of system server, see XCore.enterService
+            XCore.enterService();
             try {
                 handle(context, intent);
             } finally {
+                XCore.leaveService();
                 result.finish();
             }
         });
@@ -50,6 +57,16 @@ public class ReceiverPackage extends BroadcastReceiver {
 
     private static void handle(Context context, Intent intent) {
         try {
+            // The restrictions and settings of a removed user would else apply to a new user with the same id,
+            // whose apps have the same uids; the system user cannot be removed
+            if (ACTION_USER_REMOVED.equals(intent.getAction())) {
+                int userid = intent.getIntExtra(EXTRA_USER_HANDLE, -1);
+                Log.i(TAG, "Received " + intent + " user=" + userid);
+                if (userid > 0)
+                    Data.clearData(context, userid, false);
+                return;
+            }
+
             String packageName = intent.getData().getSchemeSpecificPart();
             int uid = intent.getIntExtra(Intent.EXTRA_UID, -1);
             boolean replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false);
@@ -74,7 +91,7 @@ public class ReceiverPackage extends BroadcastReceiver {
                     Data.clearData(context, userid, userid == 0);
                 else {
                     Data.clearApp(context, packageName, uid, true);
-                    XNotify.cancelNewApp(ctx, userid, uid);
+                    XNotify.cancelApp(ctx, userid, uid);
                 }
             }
         } catch (Throwable ex) {

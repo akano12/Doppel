@@ -204,12 +204,8 @@ public class XHook implements Parcelable {
         }
     }
 
-    // Read the built-in hook definitions of the app, optionally without the scripts in separate files
+    // Read the built-in hook definitions of the app, with the scripts in separate files
     static ArrayList<XHook> readHooks(String apk) throws IOException, JSONException {
-        return readHooks(apk, true);
-    }
-
-    static ArrayList<XHook> readHooks(String apk, boolean scripts) throws IOException, JSONException {
         try (ZipFile zipFile = new ZipFile(apk)) {
             ZipEntry zipEntry = zipFile.getEntry("assets/hooks.json");
             if (zipEntry == null)
@@ -227,7 +223,7 @@ public class XHook implements Parcelable {
                 hook.builtin = true;
 
                 // Scripts in separate files
-                if (scripts && hook.luaScript.startsWith("@")) {
+                if (hook.luaScript.startsWith("@")) {
                     ZipEntry luaEntry = zipFile.getEntry("assets/" + hook.luaScript.substring(1) + ".lua");
                     if (luaEntry == null)
                         throw new IllegalArgumentException(hook.luaScript + " not found for " + hook.getId());

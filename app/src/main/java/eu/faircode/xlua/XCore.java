@@ -90,6 +90,28 @@ class XCore {
         XCore.backend = backend;
     }
 
+    // The hooks assigned to "android" apply to all of system server, but not to the service and the code of this
+    // class there, which look up packages and call the service themselves: a restriction like Get.Applications
+    // would else hide the module and the apps from the service. See installMethod.
+    private static final ThreadLocal<int[]> serviceCalls = new ThreadLocal<int[]>() {
+        @Override
+        protected int[] initialValue() {
+            return new int[1];
+        }
+    };
+
+    static void enterService() {
+        serviceCalls.get()[0]++;
+    }
+
+    static void leaveService() {
+        serviceCalls.get()[0]--;
+    }
+
+    private static boolean inService() {
+        return (serviceCalls.get()[0] > 0);
+    }
+
     // A framework can load both the modern and the legacy entry point:
     // only the first one to claim a process is allowed to hook
     static boolean claim(XBackend backend) {
@@ -139,17 +161,21 @@ class XCore {
         backend.hookAll(clsAM, "systemReady", new XBackend.Callback() {
             @Override
             void before(XCall call) {
+                enterService();
                 try {
                     log("Preparing system");
                     Context context = findContext(call.thisObject);
                     hookPackage("android", Process.myUid(), context);
                 } catch (Throwable ex) {
                     log(ex);
+                } finally {
+                    leaveService();
                 }
             }
 
             @Override
             void after(XCall call) {
+                enterService();
                 try {
                     log("System ready");
                     Context context = findContext(call.thisObject);
@@ -158,6 +184,25 @@ class XCore {
                     PackageInfo pi = context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, 0);
                     version = (int) PackageInfoCompat.getLongVersionCode(pi);
                     Log.i(TAG, "Module version " + version);
+
+                    // The texts of notifications of the module version which runs, also after an update
+                    try {
+                        XNotify.loadResources(context);
+                    } catch (Throwable ex) {
+                        log(ex);
+                    }
+
+                    // Listen for removed users and profiles; the broadcast has no data, so a filter of its own
+                    try {
+                        IntentFilter ifUser = new IntentFilter(ReceiverPackage.ACTION_USER_REMOVED);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                            context.registerReceiver(new ReceiverPackage(), ifUser, Context.RECEIVER_NOT_EXPORTED);
+                        else
+                            context.registerReceiver(new ReceiverPackage(), ifUser);
+                        Log.i(TAG, "Registered user listener");
+                    } catch (Throwable ex) {
+                        log(ex);
+                    }
 
                     // Listen for package changes
                     IntentFilter ifPackageAdd = new IntentFilter();
@@ -195,6 +240,8 @@ class XCore {
                     }
                 } catch (Throwable ex) {
                     log(ex);
+                } finally {
+                    leaveService();
                 }
             }
 
@@ -230,36 +277,46 @@ class XCore {
                     if (!"xlua".equals(method))
                         return;
 
-                    // Other apps get no result, like without XPrivacyLua, so they cannot detect it this way
-                    if ("getVersion".equals(arg)) {
-                        Bundle result = null;
-                        if (XProvider.hasPermission(getContext(call.thisObject))) {
-                            result = new Bundle();
-                            result.putInt("version", version);
-                        }
-                        call.setResult(result);
-                        return;
-                    }
-
-                    // Other apps get the answer of the settings provider, like without XPrivacyLua
-                    if (!XProvider.answers(getContext(call.thisObject)))
-                        return;
-
+                    enterService();
                     try {
-                        call.setResult(XProvider.call(getContext(call.thisObject), arg, extras));
-                    } catch (IllegalArgumentException ex) {
-                        Log.i(TAG, "Error: " + ex.getMessage());
-                        call.setThrowable(ex);
-                    } catch (SecurityException ex) {
-                        // A refused app gets no result, like before
-                        Log.w(TAG, "Call " + arg + ": " + ex.getMessage());
-                        call.setResult(null);
-                    } catch (Throwable ex) {
-                        log(ex);
-                        call.setResult(null);
+                        call(call, getContext(call.thisObject), arg, extras);
+                    } finally {
+                        leaveService();
                     }
                 } catch (Throwable ex) {
                     log(ex);
+                }
+            }
+
+            private void call(XCall call, Context context, String arg, Bundle extras) throws Throwable {
+                // Other apps get no result, like without XPrivacyLua, so they cannot detect it this way
+                if ("getVersion".equals(arg)) {
+                    Bundle result = null;
+                    if (XProvider.hasPermission(context)) {
+                        result = new Bundle();
+                        result.putInt("version", version);
+                    }
+                    call.setResult(result);
+                    return;
+                }
+
+                // Other apps get the answer of the settings provider, like without XPrivacyLua
+                int caller = XProvider.answers(context);
+                if (caller == XProvider.CALLER_NONE)
+                    return;
+
+                try {
+                    call.setResult(XProvider.call(context, arg, extras, caller == XProvider.CALLER_PERMITTED));
+                } catch (IllegalArgumentException ex) {
+                    Log.i(TAG, "Error: " + ex.getMessage());
+                    call.setThrowable(ex);
+                } catch (SecurityException ex) {
+                    // A refused app gets no result, like before
+                    Log.w(TAG, "Call " + arg + ": " + ex.getMessage());
+                    call.setResult(null);
+                } catch (Throwable ex) {
+                    log(ex);
+                    call.setResult(null);
                 }
             }
         });
@@ -276,22 +333,32 @@ class XCore {
                             projection[0] == null || !projection[0].startsWith("xlua."))
                         return;
 
-                    // Other apps get the answer of the settings provider, an error for these columns
-                    if (!XProvider.answers(getContext(call.thisObject)))
-                        return;
-
+                    enterService();
                     try {
-                        String method = projection[0].split("\\.")[1];
-                        call.setResult(XProvider.query(getContext(call.thisObject), method, selection));
-                    } catch (SecurityException ex) {
-                        Log.w(TAG, "Query " + projection[0] + ": " + ex.getMessage());
-                        call.setResult(null);
-                    } catch (Throwable ex) {
-                        log(ex);
-                        call.setResult(null);
+                        query(call, getContext(call.thisObject), projection[0], selection);
+                    } finally {
+                        leaveService();
                     }
                 } catch (Throwable ex) {
                     log(ex);
+                }
+            }
+
+            private void query(XCall call, Context context, String column, String[] selection) throws Throwable {
+                // Other apps get the answer of the settings provider, an error for these columns
+                int caller = XProvider.answers(context);
+                if (caller == XProvider.CALLER_NONE)
+                    return;
+
+                try {
+                    String method = column.split("\\.")[1];
+                    call.setResult(XProvider.query(context, method, selection, caller == XProvider.CALLER_PERMITTED));
+                } catch (SecurityException ex) {
+                    Log.w(TAG, "Query " + column + ": " + ex.getMessage());
+                    call.setResult(null);
+                } catch (Throwable ex) {
+                    log(ex);
+                    call.setResult(null);
                 }
             }
         });
@@ -395,17 +462,6 @@ class XCore {
         ClassLoader loader = context.getClassLoader();
         Class<?> cls = Class.forName(hook.getResolvedClassName(), false, loader);
 
-        // A method of an object in a static field: field:method
-        String methodName = hook.getMethodName();
-        if (methodName != null) {
-            String[] m = methodName.split(":");
-            if (m.length > 1) {
-                Object obj = cls.getField(m[0]).get(null);
-                cls = obj.getClass();
-            }
-            methodName = m[m.length - 1];
-        }
-
         String[] p = hook.getParameterTypes();
         Class<?>[] paramTypes = new Class<?>[p.length];
         for (int i = 0; i < p.length; i++)
@@ -413,21 +469,13 @@ class XCore {
 
         Class<?> returnType = (hook.getReturnType() == null ? null : XResolver.resolveClass(hook.getReturnType(), loader));
 
-        if (methodName != null && methodName.startsWith("#")) {
-            if (paramTypes.length > 0)
-                throw new NoSuchFieldException("Field with parameters");
-            Field field = XResolver.resolveField(cls, methodName.substring(1), returnType);
+        Member member = XResolver.resolveTarget(cls, hook.getMethodName(), paramTypes, returnType);
+        if (member instanceof Field) {
+            Field field = (Field) member;
             field.setAccessible(true);
             installField(context, hook, script, settings, field);
-        } else {
-            Member member = XResolver.resolveMember(cls, methodName, paramTypes);
-            if (methodName != null && returnType != null) {
-                Class<?> memberReturnType = ((Method) member).getReturnType();
-                if (!memberReturnType.isAssignableFrom(returnType))
-                    throw new Throwable("Invalid return type " + memberReturnType + " got " + returnType);
-            }
+        } else
             installMethod(context, hook, script, settings, member);
-        }
     }
 
     // Static fields are changed once, by the after function
@@ -468,6 +516,8 @@ class XCore {
             }
 
             private void execute(XCall call, String function) {
+                if (inService())
+                    return;
                 try {
                     // Initialize the Lua runtime once per thread
                     Globals globals = threadGlobals.get();
@@ -537,7 +587,12 @@ class XCore {
         String message = "Exception:\n" + Log.getStackTraceString(ex) + "\n" +
                 "\nPackage:\n" + context.getPackageName() + ":" + context.getApplicationInfo().uid + "\n" +
                 details;
-        Log.e(TAG, message);
+        // The details have the real arguments and result, which release builds do not write to the system log,
+        // like the service (see XProvider.report); the report stores them for the app
+        if (BuildConfig.DEBUG)
+            Log.e(TAG, message);
+        else
+            Log.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(ex));
 
         Bundle data = new Bundle();
         data.putString("exception", message);
@@ -582,12 +637,18 @@ class XCore {
             flushing = false;
         }
 
-        for (Bundle args : work)
-            try {
-                context.getContentResolver().call(XProvider.getURI(), "xlua", "report", args);
-            } catch (Throwable ex) {
-                log(ex);
-            }
+        // The hooks of the app do not apply to its reports, see installMethod
+        enterService();
+        try {
+            for (Bundle args : work)
+                try {
+                    context.getContentResolver().call(XProvider.getURI(), "xlua", "report", args);
+                } catch (Throwable ex) {
+                    log(ex);
+                }
+        } finally {
+            leaveService();
+        }
     }
 
     // The standard libraries, once per thread, because loading them takes much longer than running a script:
@@ -613,16 +674,9 @@ class XCore {
     // Scripts can define functions, but no other globals; the libraries are shared by the hooks of a thread
     private static class LuaLocals extends Globals {
         LuaLocals(Globals libraries) {
-            // Same runtime, so errors have a traceback in debug builds
-            this.STDOUT = libraries.STDOUT;
-            this.STDERR = libraries.STDERR;
-            this.finder = libraries.finder;
-            this.baselib = libraries.baselib;
-            this.package_ = libraries.package_;
+            // Same runtime, so errors have a traceback in debug builds; closures read only these fields
+            // of their globals, the libraries use the globals they were loaded into
             this.debuglib = libraries.debuglib;
-            this.loader = libraries.loader;
-            this.compiler = libraries.compiler;
-            this.undumper = libraries.undumper;
             this.running = libraries.running;
             super.setmetatable(LuaValue.tableOf(new LuaValue[]{LuaValue.INDEX, libraries}));
             // Else _G would be the shared libraries, and its globals visible to the other hooks
@@ -654,9 +708,11 @@ class XCore {
         }
     }
 
-    // hook(object, method, function, args...): hook the methods with a name of the class of an object
+    // hook(object, method, function, args...): hook the methods with a name which the class of an object
+    // declares or inherits from a super class
     private static class LuaHook extends VarArgFunction {
-        // Dynamic hooks are installed on classes, so install each one only once
+        // Dynamic hooks are installed on classes, so install each one only once,
+        // also when objects of several subclasses inherit the method
         private static final Set<String> installed = new HashSet<>();
 
         private final Context context;
@@ -675,50 +731,74 @@ class XCore {
             String m = args.arg(2).checkjstring();
             args.arg(3).checkfunction();
 
+            String key = hookId + "/" + cls.getName() + "." + m;
+            List<Method> methods = new ArrayList<>();
             synchronized (installed) {
-                if (!installed.add(hookId + "/" + cls.getName() + "." + m))
+                if (!installed.add(key))
                     return LuaValue.NIL;
+
+                // Not an error, which would stop the script, which can hook other methods next
+                List<Method> resolved = XResolver.resolveMethods(cls, m);
+                if (resolved.isEmpty())
+                    Log.w(TAG, "Dynamic hook " + key + " not found");
+                for (Method method : resolved)
+                    if (installed.add(hookId + "/" + method))
+                        methods.add(method);
             }
-            Log.i(TAG, "Dynamic hook " + cls.getName() + "." + m);
+            if (methods.isEmpty())
+                return LuaValue.NIL;
+
+            Log.i(TAG, "Dynamic hook " + cls.getName() + "." + m + " methods=" + methods.size());
             final LuaValue fun = args.arg(3);
             final List<LuaValue> xargs = new ArrayList<>();
             for (int i = 4; i <= args.narg(); i++)
                 xargs.add(args.arg(i));
 
-            try {
-                backend.hookAll(cls, m, new XBackend.Callback() {
-                    @Override
-                    void before(XCall call) {
-                        execute("before", call);
-                    }
+            XBackend.Callback callback = new XBackend.Callback() {
+                @Override
+                void before(XCall call) {
+                    execute("before", call);
+                }
 
-                    @Override
-                    void after(XCall call) {
-                        execute("after", call);
-                    }
+                @Override
+                void after(XCall call) {
+                    execute("after", call);
+                }
 
-                    // Errors must not reach the app, which the modern API would let through
-                    private void execute(String when, XCall call) {
-                        try {
-                            if (BuildConfig.DEBUG)
-                                Log.i(TAG, "Dynamic invoke " + call.method);
-                            List<LuaValue> values = new ArrayList<>();
-                            values.add(LuaValue.valueOf(when));
-                            values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
-                            values.addAll(xargs);
-                            // The function is of the Lua runtime of the thread which installed the hook,
-                            // which is not thread safe, see installMethod
-                            synchronized (fun) {
-                                fun.invoke(values.toArray(new LuaValue[0]));
-                            }
-                        } catch (Throwable ex) {
-                            Log.e(TAG, "Dynamic hook " + hookId + " " + call.method + ": " + Log.getStackTraceString(ex));
+                // Errors must not reach the app, which the modern API would let through
+                private void execute(String when, XCall call) {
+                    if (inService())
+                        return;
+                    try {
+                        if (BuildConfig.DEBUG)
+                            Log.i(TAG, "Dynamic invoke " + call.method);
+                        List<LuaValue> values = new ArrayList<>();
+                        values.add(LuaValue.valueOf(when));
+                        values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
+                        values.addAll(xargs);
+                        // The function is of the Lua runtime of the thread which installed the hook,
+                        // which is not thread safe, see installMethod
+                        synchronized (fun) {
+                            fun.invoke(values.toArray(new LuaValue[0]));
                         }
+                    } catch (Throwable ex) {
+                        Log.e(TAG, "Dynamic hook " + hookId + " " + call.method + ": " + Log.getStackTraceString(ex));
                     }
-                });
-            } catch (Throwable ex) {
-                throw new LuaError(ex);
-            }
+                }
+            };
+
+            // The hooks which could not be installed are tried again on the next call
+            for (int i = 0; i < methods.size(); i++)
+                try {
+                    backend.hook(methods.get(i), callback);
+                } catch (Throwable ex) {
+                    synchronized (installed) {
+                        installed.remove(key);
+                        for (int j = i; j < methods.size(); j++)
+                            installed.remove(hookId + "/" + methods.get(j));
+                    }
+                    throw new LuaError(ex);
+                }
 
             return LuaValue.NIL;
         }

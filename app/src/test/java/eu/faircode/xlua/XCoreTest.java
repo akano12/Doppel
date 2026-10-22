@@ -1,0 +1,172 @@
+/*
+    This file is part of XPrivacyLua.
+
+    XPrivacyLua is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    XPrivacyLua is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package eu.faircode.xlua;
+
+import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.pm.ApplicationInfo;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.luaj.vm2.Prototype;
+import org.luaj.vm2.compiler.LuaC;
+
+import java.io.ByteArrayInputStream;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+
+// Hooks installed by the engine, with a backend which records them
+public class XCoreTest {
+    private final List<Member> members = new ArrayList<>();
+    private final List<XBackend.Callback> callbacks = new ArrayList<>();
+    private XCore core;
+    private Context context;
+
+    @SuppressWarnings("unused")
+    public static class Target {
+        public String get() {
+            return "real";
+        }
+
+        public void inherited() {
+        }
+    }
+
+    public static class First extends Target {
+    }
+
+    public static class Second extends Target {
+    }
+
+    @Before
+    public void setUp() {
+        members.clear();
+        callbacks.clear();
+        core = new XCore(new XBackend() {
+            @Override
+            public String getName() {
+                return "test";
+            }
+
+            @Override
+            public void hook(Member member, Callback callback) {
+                members.add(member);
+                callbacks.add(callback);
+            }
+
+            @Override
+            public void log(String message) {
+            }
+
+            @Override
+            public void log(Throwable ex) {
+            }
+        });
+
+        ApplicationInfo ai = new ApplicationInfo();
+        ai.uid = 10123;
+        context = new ContextWrapper(null) {
+            @Override
+            public String getPackageName() {
+                return "test.app";
+            }
+
+            @Override
+            public ApplicationInfo getApplicationInfo() {
+                return ai;
+            }
+        };
+    }
+
+    // Like XCore.install, without the class lookup through the class loader of an app
+    private void install(String name, String script, Member member) throws Exception {
+        XHook hook = XHook.fromJSON("{\"collection\": \"Test\", \"group\": \"Test.Group\", \"name\": \"" + name + "\"," +
+                " \"author\": \"Test\", \"className\": \"" + Target.class.getName() + "\", \"parameterTypes\": []," +
+                " \"minSdk\": 1, \"usage\": false, \"luaScript\": \"\"}");
+        Prototype prototype = LuaC.instance.compile(
+                new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)), "script");
+        Method installMethod = XCore.class.getDeclaredMethod("installMethod",
+                Context.class, XHook.class, Prototype.class, Map.class, Member.class);
+        installMethod.setAccessible(true);
+        installMethod.invoke(core, context, hook, prototype, new HashMap<String, String>(), member);
+    }
+
+    @Test
+    public void scriptRuns() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        install("scriptRuns", "function before(hook, param) param:setResult('fake') return true end", get);
+        assertEquals(1, callbacks.size());
+
+        XCall call = new XCall(get, new Target(), new Object[0]);
+        callbacks.get(0).before(call);
+        assertEquals("fake", call.getResult());
+    }
+
+    // In system server the hooks of "android" do not apply to the service and the engine itself
+    @Test
+    public void notInService() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        install("notInService", "function before(hook, param) param:setResult('fake') return true end", get);
+
+        XCall call = new XCall(get, new Target(), new Object[0]);
+        XCore.enterService();
+        try {
+            callbacks.get(0).before(call);
+        } finally {
+            XCore.leaveService();
+        }
+        assertNull(call.getResult());
+        assertFalse(call.isReturnEarly());
+
+        // Only while in the service
+        callbacks.get(0).before(call);
+        assertEquals("fake", call.getResult());
+    }
+
+    // Dynamic hooks of methods which objects inherit are installed once, in the class declaring the method
+    @Test
+    public void dynamicInheritedMethod() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        install("dynamicInheritedMethod",
+                "function after(h, param)\n" +
+                        "  hook(param:getThis(), 'inherited', function(when, p) end)\n" +
+                        "  hook(param:getThis(), 'missing', function(when, p) end)\n" +
+                        "  return false\n" +
+                        "end", get);
+        assertEquals(1, members.size());
+
+        XCall first = new XCall(get, new First(), new Object[0]);
+        callbacks.get(0).after(first);
+        assertEquals(2, members.size());
+        assertEquals(Target.class.getMethod("inherited"), members.get(1));
+
+        // An object of another subclass shares the hook, the same object does not hook again
+        callbacks.get(0).after(new XCall(get, new Second(), new Object[0]));
+        callbacks.get(0).after(first);
+        assertEquals(2, members.size());
+    }
+}

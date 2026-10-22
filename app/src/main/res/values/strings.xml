@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name" translatable="false">XPrivacyLua</string>
     <string name="app_description">Privacy manager feeding apps fake data instead of real data</string>
-    <string name="channel_privacy" translatable="false">XPrivacyLua</string>
 
     <string name="title_license" translatable="false">
         This app is meant to be used to protect your privacy.
@@ -402,4 +401,6 @@
         <item>com.android.providers.settings</item>
     </string-array>
 
+    <string name="channel_alerts">XPrivacyLua new apps and errors</string>
+    <string name="channel_usage">XPrivacyLua restrictions</string>
 </resources>

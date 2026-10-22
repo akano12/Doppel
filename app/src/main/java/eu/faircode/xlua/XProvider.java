@@ -64,6 +64,14 @@ class XProvider {
     private static volatile Map<String, XHook> hooks = null;
     private static volatile Map<String, XHook> builtins = null;
 
+    // The uid of the app, see enforcePermission
+    private static volatile int moduleUid = -1;
+
+    // Callers the service answers, see answers
+    static final int CALLER_NONE = 0;
+    static final int CALLER_ASSIGNED = 1; // An app with assignments, which can call for itself only
+    static final int CALLER_PERMITTED = 2; // System server or the app, of which the permission was checked
+
     static Uri getURI() {
         return Settings.System.CONTENT_URI;
     }
@@ -93,7 +101,9 @@ class XProvider {
             }
     }
 
-    static Bundle call(Context context, String method, Bundle extras) throws RemoteException, IllegalArgumentException {
+    // Permitted: the permission of the caller was checked already, see answers
+    static Bundle call(Context context, String method, Bundle extras, boolean permitted)
+            throws RemoteException, IllegalArgumentException {
         loadData(context);
 
         StrictMode.ThreadPolicy originalPolicy = StrictMode.getThreadPolicy();
@@ -102,7 +112,7 @@ class XProvider {
             StrictMode.allowThreadDiskWrites();
 
             // Apps report their own usage, see report
-            if (!"report".equals(method))
+            if (!permitted && !"report".equals(method))
                 enforcePermission(context);
 
             switch (method) {
@@ -140,8 +150,8 @@ class XProvider {
         }
     }
 
-    // Methods ending in 2 return parcels
-    static Cursor query(Context context, String method, String[] selection) throws RemoteException {
+    // Methods ending in 2 return parcels; permitted: the permission of the caller was checked already, see answers
+    static Cursor query(Context context, String method, String[] selection, boolean permitted) throws RemoteException {
         loadData(context);
 
         Cursor result;
@@ -156,24 +166,28 @@ class XProvider {
                 case "getSettings":
                     break;
                 default:
-                    enforcePermission(context);
+                    if (!permitted)
+                        enforcePermission(context);
             }
 
             switch (method) {
                 case "getHooks2":
                     result = getHooks(selection);
                     break;
+                case "getBuiltinIds":
+                    result = getBuiltinIds();
+                    break;
                 case "getApps2":
                     result = getApps(context, selection);
                     break;
                 case "getAssignedHooks2":
-                    result = getAssignedHooks(context, selection);
+                    result = getAssignedHooks(context, selection, permitted);
                     break;
                 case "getAssignments":
                     result = getAssignments();
                     break;
                 case "getSettings":
-                    result = getSettings(context, selection);
+                    result = getSettings(context, selection, permitted);
                     break;
                 case "getAllSettings":
                     result = getAllSettings();
@@ -275,6 +289,14 @@ class XProvider {
         return result;
     }
 
+    // Ids of the built-in definitions, which custom definitions can replace, of the module version which runs
+    private static Cursor getBuiltinIds() {
+        MatrixCursor result = new MatrixCursor(new String[]{"id"});
+        for (String id : builtins.keySet())
+            result.addRow(new Object[]{id});
+        return result;
+    }
+
     // The definitions are kept only when all could be loaded, so a failure is retried on the next call
     private static void loadHooks(Context context) throws Throwable {
         final Map<String, XHook> hooks = new HashMap<>();
@@ -283,6 +305,7 @@ class XProvider {
         // Built-in definitions
         PackageManager pm = context.getPackageManager();
         ApplicationInfo ai = pm.getApplicationInfo(BuildConfig.APPLICATION_ID, 0);
+        moduleUid = ai.uid;
         for (XHook builtin : XHook.readHooks(ai.publicSourceDir)) {
             builtin.resolveClassName(context);
             builtins.put(builtin.getId(), builtin);
@@ -445,10 +468,13 @@ class XProvider {
         // Access package manager as system user
         long ident = Binder.clearCallingIdentity();
         try {
+            // System server ("android") is shared by all users and uses the restrictions of the owner,
+            // see XCore.hookAndroid, so other users cannot restrict it
             PackageManager pm = Util.createContextForUser(context, userid).getPackageManager();
             for (PackageInfo pi : pm.getInstalledPackages(0))
                 if (pi.applicationInfo != null &&
                         !BuildConfig.APPLICATION_ID.equals(pi.packageName) &&
+                        !(userid != 0 && "android".equals(pi.packageName)) &&
                         (only == null || only.equals(pi.packageName)))
                     try {
                         ApplicationInfo ai = pi.applicationInfo;
@@ -533,13 +559,32 @@ class XProvider {
         final int uid = extras.getInt("uid");
         final boolean delete = extras.getBoolean("delete");
         boolean kill = extras.getBoolean("kill");
-        // Restoring a backup does not make apps restricted recently
-        final long now = (extras.getBoolean("restore") ? -1 : System.currentTimeMillis());
+        // Restoring a backup does not make apps restricted recently,
+        // and keeps the assignments the app has already, with their usage data
+        final boolean restore = extras.getBoolean("restore");
+        final long now = (restore ? -1 : System.currentTimeMillis());
+
+        // Like a restored backup of another user, see getApps
+        if (!delete && "android".equals(packageName) && Util.getUserId(uid) != 0) {
+            Log.w(TAG, packageName + ":" + uid + " not assigned, system server uses the restrictions of the owner");
+            return new Bundle();
+        }
 
         final Map<String, XHook> all = hooks;
         db.write(d -> {
+            Set<String> existing = new HashSet<>();
+            if (restore)
+                try (Cursor cursor = d.query("assignment", new String[]{"hook"}, "package = ? AND uid = ?",
+                        new String[]{packageName, Integer.toString(uid)}, null, null, null)) {
+                    while (cursor.moveToNext())
+                        existing.add(cursor.getString(0));
+                }
+
             List<String> groups = new ArrayList<>();
             for (String hookid : hookids) {
+                if (existing.contains(hookid))
+                    continue;
+
                 XHook hook = all.get(hookid);
                 if (hook != null && !groups.contains(hook.getGroup()))
                     groups.add(hook.getGroup());
@@ -583,13 +628,14 @@ class XProvider {
             throw new Throwable("Error inserting assignment");
     }
 
-    private static Cursor getAssignedHooks(Context context, String[] selection) throws Throwable {
+    private static Cursor getAssignedHooks(Context context, String[] selection, boolean permitted) throws Throwable {
         if (selection == null || selection.length != 2)
             throw new IllegalArgumentException("selection invalid");
 
         final String packageName = selection[0];
         int uid = Integer.parseInt(selection[1]);
-        enforceCallerOrPermission(context, uid);
+        if (!permitted)
+            enforceCallerOrPermission(context, uid);
 
         final List<String> collection = getCollection(Util.getUserId(uid));
         final Map<String, XHook> all = hooks;
@@ -815,6 +861,8 @@ class XProvider {
                 d.delete("`group`", null, null);
                 // The built-in hooks known to the service (user -1) are not data of a user
                 d.delete("setting", "user >= 0", null);
+                // Custom definitions are shared by all users
+                d.delete("hook", null, null);
             } else {
                 String[] range = getUidRange(userid);
                 d.delete("assignment", "uid >= ? AND uid <= ?", range);
@@ -823,6 +871,11 @@ class XProvider {
             }
             return null;
         });
+
+        if (all)
+            synchronized (lock) {
+                hooks = new HashMap<>(builtins);
+            }
 
         return new Bundle();
     }
@@ -912,16 +965,18 @@ class XProvider {
     }
 
     // Settings of a category (global or a package name) of an app
-    private static Cursor getSettings(Context context, String[] selection) throws Throwable {
+    private static Cursor getSettings(Context context, String[] selection, boolean permitted) throws Throwable {
         if (selection == null || selection.length != 2)
             throw new IllegalArgumentException("selection invalid");
 
         final String category = selection[0];
         int uid = Integer.parseInt(selection[1]);
-        enforceCallerOrPermission(context, uid);
-        // Apps read the settings for all apps and of their own packages only
-        if (!"global".equals(category) && !isPackageOf(context, category, uid))
-            enforcePermission(context);
+        if (!permitted) {
+            enforceCallerOrPermission(context, uid);
+            // Apps read the settings for all apps and of their own packages only
+            if (!"global".equals(category) && !isPackageOf(context, category, uid))
+                enforcePermission(context);
+        }
         final int userid = Util.getUserId(uid);
 
         return db.read(d -> {
@@ -965,17 +1020,36 @@ class XProvider {
 
     // The service answers system server, the app and apps with assignments, which are hooked. Other apps get
     // the answers of a device without XPrivacyLua, so they cannot detect it nor read the values of settings.
-    static boolean answers(Context context) throws RemoteException {
+    // Assignments of a removed package do not count, its uid can be of another app now.
+    static int answers(Context context) throws RemoteException {
         loadData(context);
-        final String[] uid = new String[]{Integer.toString(Binder.getCallingUid())};
+        int cuid = Binder.getCallingUid();
         try {
-            boolean assigned = db.read(d -> {
-                try (Cursor cursor = d.query("assignment", new String[]{"uid"}, "uid = ?", uid,
-                        null, null, null, "1")) {
-                    return cursor.moveToFirst();
-                }
-            });
-            return (assigned || hasPermission(context));
+            String[] packages;
+            long ident = Binder.clearCallingIdentity();
+            try {
+                packages = context.getPackageManager().getPackagesForUid(cuid);
+            } finally {
+                Binder.restoreCallingIdentity(ident);
+            }
+
+            if (packages != null && packages.length > 0) {
+                final List<String> args = new ArrayList<>();
+                args.add(Integer.toString(cuid));
+                args.addAll(Arrays.asList(packages));
+                final String where = "uid = ? AND package IN (" +
+                        TextUtils.join(",", Collections.nCopies(packages.length, "?")) + ")";
+                boolean assigned = db.read(d -> {
+                    try (Cursor cursor = d.query("assignment", new String[]{"uid"}, where,
+                            args.toArray(new String[0]), null, null, null, "1")) {
+                        return cursor.moveToFirst();
+                    }
+                });
+                if (assigned)
+                    return CALLER_ASSIGNED;
+            }
+
+            return (hasPermission(context) ? CALLER_PERMITTED : CALLER_NONE);
         } catch (Throwable ex) {
             Log.e(TAG, Log.getStackTraceString(ex));
             throw new RemoteException(ex.getMessage());
@@ -1008,10 +1082,16 @@ class XProvider {
             if (cuid == Process.SYSTEM_UID)
                 return;
 
-            // Same signature
+            // Same signature; the uid of the app changes when it is installed again
             PackageManager pm = context.getPackageManager();
-            int uid = pm.getApplicationInfo(BuildConfig.APPLICATION_ID, 0).uid;
-            if (pm.checkSignatures(cuid, uid) == PackageManager.SIGNATURE_MATCH)
+            int uid = moduleUid;
+            int signatures = (uid < 0 ? PackageManager.SIGNATURE_UNKNOWN_PACKAGE : pm.checkSignatures(cuid, uid));
+            if (signatures == PackageManager.SIGNATURE_UNKNOWN_PACKAGE) {
+                uid = pm.getApplicationInfo(BuildConfig.APPLICATION_ID, 0).uid;
+                moduleUid = uid;
+                signatures = pm.checkSignatures(cuid, uid);
+            }
+            if (signatures == PackageManager.SIGNATURE_MATCH)
                 return;
 
             throw new SecurityException("Signature error cuid=" + cuid);

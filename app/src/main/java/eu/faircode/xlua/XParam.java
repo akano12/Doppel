@@ -21,7 +21,10 @@ package eu.faircode.xlua;
 
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Process;
 import android.util.Log;
 
 import java.lang.reflect.Constructor;
@@ -44,8 +47,9 @@ public class XParam {
     // Values scripts keep per scope, like per object, see putValue and getValue
     private static final Map<Object, Map<String, Object>> scopedValues = new WeakHashMap<>();
 
-    // See isPackageVisible
+    // See isPackageVisible and isUidVisible
     private static final Map<String, Boolean> visiblePackages = new ConcurrentHashMap<>();
+    private static final Map<Integer, Boolean> visibleUids = new ConcurrentHashMap<>();
     private static final ThreadLocal<Boolean> checkingPackage = new ThreadLocal<>();
 
     // Field param
@@ -144,9 +148,15 @@ public class XParam {
         return (object != null && findClass(className).isInstance(object));
     }
 
-    // Packages which stay visible to an app checking for a specific package:
-    // its own package, packages sharing its user id and system packages, which the Android framework,
-    // like WebView, looks up in the app process
+    // Packages which stay visible to an app: its own package, packages sharing its user id and system packages,
+    // which the Android framework, like WebView, looks up in the app process; null has no package to hide
+    @SuppressWarnings("unused")
+    public boolean isVisible(ApplicationInfo ai) {
+        return (ai == null || ai.uid == getUid() ||
+                (ai.flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
+    }
+
+    // Whether a package, which a hooked call found, stays visible to the app checking for it, see isVisible
     @SuppressWarnings("unused")
     public boolean isPackageVisible(String packageName) {
         if (packageName == null || packageName.equals(this.context.getPackageName()))
@@ -162,19 +172,76 @@ public class XParam {
 
         checkingPackage.set(true);
         try {
-            ApplicationInfo ai = this.context.getPackageManager().getApplicationInfo(packageName, 0);
-            visible = (ai.uid == getUid() ||
-                    (ai.flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
+            visible = isVisible(getPackageInfo(this.context.getPackageManager(), packageName).applicationInfo);
         } catch (PackageManager.NameNotFoundException ignored) {
-            // Not installed or not visible because of the package visibility rules;
+            // The hooked call found the package, the lookup, which finds system packages, did not;
             // not kept, the package can be installed while the app runs
-            return true;
+            return false;
         } finally {
             checkingPackage.remove();
         }
 
         visiblePackages.put(packageName, visible);
         return visible;
+    }
+
+    // Whether a uid stays visible to the app: its own uid, the uids of the system (app ids below 10000)
+    // and the uids with a visible package, see isVisible
+    @SuppressWarnings("unused")
+    public boolean isUidVisible(int uid) {
+        if (uid == getUid() || Util.getAppId(uid) < Process.FIRST_APPLICATION_UID)
+            return true;
+
+        Boolean visible = visibleUids.get(uid);
+        if (visible != null)
+            return visible;
+
+        // The check below calls hooked methods
+        if (Boolean.TRUE.equals(checkingPackage.get()))
+            return true;
+
+        boolean found = false;
+        visible = false;
+        checkingPackage.set(true);
+        try {
+            PackageManager pm = this.context.getPackageManager();
+            String[] packages = pm.getPackagesForUid(uid);
+            if (packages != null)
+                for (String packageName : packages)
+                    try {
+                        PackageInfo pi = getPackageInfo(pm, packageName);
+                        found = true;
+                        if (isVisible(pi.applicationInfo)) {
+                            visible = true;
+                            break;
+                        }
+                    } catch (PackageManager.NameNotFoundException ignored) {
+                    }
+        } finally {
+            checkingPackage.remove();
+        }
+
+        // Not kept without packages, an app with the uid can be installed while the app runs
+        if (found)
+            visibleUids.put(uid, visible);
+        return visible;
+    }
+
+    // Also packages which only some flags of hooked calls find: hidden, archived, uninstalled with data kept
+    // and, before Android 16, of another user (profile); and system packages which are not installed for the user
+    // getPackageInfo(String, int) of Android 12 and before; the flag of Android 7 is the same as the one of Android 6
+    @SuppressWarnings({"deprecation", "InlinedApi"})
+    private static PackageInfo getPackageInfo(PackageManager pm, String packageName)
+            throws PackageManager.NameNotFoundException {
+        // MATCH_UNINSTALLED_PACKAGES has the value of GET_UNINSTALLED_PACKAGES of Android 6
+        long flags = PackageManager.MATCH_UNINSTALLED_PACKAGES;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+            flags |= PackageManager.MATCH_APEX;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            flags |= PackageManager.MATCH_ARCHIVED_PACKAGES;
+            return pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags));
+        }
+        return pm.getPackageInfo(packageName, (int) flags);
     }
 
     @SuppressWarnings("unused")

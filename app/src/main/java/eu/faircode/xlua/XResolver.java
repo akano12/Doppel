@@ -26,8 +26,14 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 // Resolves the target of a hook definition: used by the hook engine and by the hook editor
 final class XResolver {
@@ -54,6 +60,35 @@ final class XResolver {
         return Class.forName(name, false, loader);
     }
 
+    // The field, method or constructor a definition hooks:
+    // field:method is a method of the class of the object in a static field, #field a field,
+    // no method name the constructor; the return type, when given, must fit
+    static Member resolveTarget(Class<?> cls, String methodName, Class<?>[] paramTypes, Class<?> returnType)
+            throws Throwable {
+        if (methodName != null) {
+            String[] m = methodName.split(":");
+            if (m.length > 1) {
+                Object obj = cls.getField(m[0]).get(null);
+                cls = obj.getClass();
+            }
+            methodName = m[m.length - 1];
+        }
+
+        if (methodName != null && methodName.startsWith("#")) {
+            if (paramTypes.length > 0)
+                throw new NoSuchFieldException("Field with parameters");
+            return resolveField(cls, methodName.substring(1), returnType);
+        }
+
+        Member member = resolveMember(cls, methodName, paramTypes);
+        if (methodName != null && returnType != null) {
+            Class<?> memberReturnType = ((Method) member).getReturnType();
+            if (!memberReturnType.isAssignableFrom(returnType))
+                throw new Throwable("Invalid return type " + memberReturnType + " got " + returnType);
+        }
+        return member;
+    }
+
     // A field of the class or a super class, of any type when the type is null
     static Field resolveField(Class<?> cls, String name, Class<?> type) throws NoSuchFieldException {
         for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass())
@@ -71,10 +106,10 @@ final class XResolver {
         throw new NoSuchFieldException(name);
     }
 
-    // A method, or a constructor when the name is null, of the class or a super class,
-    // with parameters which the given types can be assigned to
+    // A method of the class or a super class, or a constructor of the class itself when the name is null
+    // (constructors are not inherited), with parameters which the given types can be assigned to
     static Member resolveMember(Class<?> cls, String name, Class<?>[] params) throws NoSuchMethodException {
-        for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass()) {
+        for (Class<?> c = cls; c != null && !c.equals(Object.class) && (name != null || c == cls); c = c.getSuperclass()) {
             try {
                 return (name == null ? c.getDeclaredConstructor(params) : c.getDeclaredMethod(name, params));
             } catch (NoSuchMethodException ignored) {
@@ -103,12 +138,34 @@ final class XResolver {
 
         // Help finding the right definition, in debug builds only
         if (BuildConfig.DEBUG)
-            for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass()) {
+            for (Class<?> c = cls; c != null && !c.equals(Object.class) && (name != null || c == cls); c = c.getSuperclass()) {
                 Log.i(TAG, c.toString());
                 for (Member member : name == null ? c.getDeclaredConstructors() : c.getDeclaredMethods())
                     if (name == null || name.equals(member.getName()))
                         Log.i(TAG, "- " + member);
             }
-        throw new NoSuchMethodException(name);
+        throw new NoSuchMethodException(name == null ? cls.getName() + ".<init>" : name);
+    }
+
+    // The methods with a name which objects of the class run: declared by the class or inherited from a super class.
+    // Without methods overridden by a subclass, abstract methods, which have no code, bridge methods,
+    // which call the method they bridge, and the methods of Object, which all objects share.
+    static List<Method> resolveMethods(Class<?> cls, String name) {
+        List<Method> result = new ArrayList<>();
+        Set<List<Class<?>>> overridden = new HashSet<>();
+        for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass()) {
+            // A bridge method of a covariant return type has the parameters of the method it bridges
+            Set<List<Class<?>>> declared = new HashSet<>();
+            for (Method method : c.getDeclaredMethods())
+                if (name.equals(method.getName())) {
+                    List<Class<?>> params = Arrays.asList(method.getParameterTypes());
+                    declared.add(params);
+                    if (!overridden.contains(params) &&
+                            !method.isBridge() && !Modifier.isAbstract(method.getModifiers()))
+                        result.add(method);
+                }
+            overridden.addAll(declared);
+        }
+        return result;
     }
 }

@@ -29,6 +29,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.UserHandle;
+import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
 import java.lang.reflect.Method;
@@ -38,17 +39,33 @@ import java.lang.reflect.Method;
 final class XNotify {
     private static final String TAG = "XLua.Notify";
 
-    private static final String CHANNEL = "xlua";
+    // New apps and errors, which pop up; restrictions, which do not. The importance of a channel cannot be changed,
+    // so the former channel of all notifications is the channel which pops up.
+    private static final String CHANNEL_ALERTS = "xlua";
+    private static final String CHANNEL_USAGE = "xlua_usage";
+
+    // The tags of all notifications start with xlua_, the id is the uid of the app
+    private static final String TAG_PREFIX = "xlua_";
     private static final String TAG_NEW_APP = "xlua_new_app";
+
+    // Resources of the module version which runs, see loadResources
+    private static volatile Resources resources = null;
 
     private XNotify() {
     }
 
-    // An app used a restricted function
+    // The code in system server keeps running after an update of the module until a reboot,
+    // with the resource ids of its own version, which an update can change, so the resources are kept
+    static void loadResources(Context context) throws PackageManager.NameNotFoundException {
+        resources = context.getPackageManager().getResourcesForApplication(BuildConfig.APPLICATION_ID);
+    }
+
+    // An app used a restricted function; hooks which notify on each use update the notification without alerting
     static void notifyUsage(Context context, int userid, int uid, String packageName, String group, String hookid)
             throws Throwable {
         Resources resources = getResources(context);
         Notification.Builder builder = getBuilder(context, false);
+        builder.setOnlyAlertOnce(true);
         builder.setSmallIcon(android.R.drawable.ic_dialog_info);
         builder.setContentTitle(resources.getString(R.string.msg_usage, Groups.getTitle(resources, group)));
         builder.setContentText(getLabel(context, packageName));
@@ -79,18 +96,28 @@ final class XNotify {
         notifyAsUser(context, TAG_NEW_APP, uid, builder.build(), userid);
     }
 
-    static void cancelNewApp(Context context, int userid, int uid) throws Throwable {
+    // An app was removed: its usage, error and new app notifications, which are notifications of system server
+    static void cancelApp(Context context, int userid, int uid) throws Throwable {
         NotificationManager nm = context.getSystemService(NotificationManager.class);
         // public void cancelAsUser(String tag, int id, UserHandle user)
         Method mCancelAsUser = nm.getClass().getDeclaredMethod(
                 "cancelAsUser", String.class, int.class, UserHandle.class);
-        mCancelAsUser.invoke(nm, TAG_NEW_APP, uid, Util.getUserHandle(userid));
-        Log.i(TAG, "Cancelled " + TAG_NEW_APP + ":" + uid + " as " + userid);
+        // The active notifications of system server of the user of the context, all tags of custom groups too
+        for (StatusBarNotification sbn : nm.getActiveNotifications()) {
+            String tag = sbn.getTag();
+            if (sbn.getId() == uid && tag != null && tag.startsWith(TAG_PREFIX)) {
+                mCancelAsUser.invoke(nm, tag, uid, Util.getUserHandle(userid));
+                Log.i(TAG, "Cancelled " + tag + ":" + uid + " as " + userid);
+            }
+        }
     }
 
     // Resources of the module, not of system server
     private static Resources getResources(Context context) throws PackageManager.NameNotFoundException {
-        return context.getPackageManager().getResourcesForApplication(BuildConfig.APPLICATION_ID);
+        Resources loaded = resources;
+        return (loaded == null
+                ? context.getPackageManager().getResourcesForApplication(BuildConfig.APPLICATION_ID)
+                : loaded);
     }
 
     private static CharSequence getLabel(Context context, String packageName) throws PackageManager.NameNotFoundException {
@@ -102,7 +129,7 @@ final class XNotify {
     private static Notification.Builder getBuilder(Context context, boolean high) {
         Notification.Builder builder;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            builder = new Notification.Builder(context, CHANNEL);
+            builder = new Notification.Builder(context, high ? CHANNEL_ALERTS : CHANNEL_USAGE);
         else {
             builder = new Notification.Builder(context);
             builder.setPriority(high ? Notification.PRIORITY_HIGH : Notification.PRIORITY_DEFAULT);
@@ -127,10 +154,16 @@ final class XNotify {
         NotificationManager nm = context.getSystemService(NotificationManager.class);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL, getResources(context).getString(R.string.channel_privacy), NotificationManager.IMPORTANCE_HIGH);
-            channel.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
-            nm.createNotificationChannel(channel);
+            Resources resources = getResources(context);
+            NotificationChannel alerts = new NotificationChannel(CHANNEL_ALERTS,
+                    resources.getString(R.string.channel_alerts), NotificationManager.IMPORTANCE_HIGH);
+            alerts.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
+            nm.createNotificationChannel(alerts);
+
+            NotificationChannel usage = new NotificationChannel(CHANNEL_USAGE,
+                    resources.getString(R.string.channel_usage), NotificationManager.IMPORTANCE_DEFAULT);
+            usage.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
+            nm.createNotificationChannel(usage);
         }
 
         // public void notifyAsUser(String tag, int id, Notification notification, UserHandle user)

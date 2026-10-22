@@ -35,7 +35,8 @@ androidComponents {
     }
 }
 
-// Release signing is optional: without keystore.properties the release build is left unsigned
+// Release signing is optional: without keystore.properties the release build is left unsigned.
+// A relative storeFile is next to keystore.properties, in the project root.
 def keystorePropertiesFile = rootProject.file('keystore.properties')
 def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists())
@@ -60,7 +61,7 @@ android {
     signingConfigs {
         if (keystoreProperties['storeFile']) {
             release {
-                storeFile = file(keystoreProperties['storeFile'])
+                storeFile = rootProject.file(keystoreProperties['storeFile'])
                 storePassword = keystoreProperties['storePassword']
                 keyAlias = keystoreProperties['keyAlias']
                 keyPassword = keystoreProperties['keyPassword']
@@ -85,6 +86,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        // Engine code logs in debug builds; the methods of the Android stubs return defaults instead of failing
+        unitTests.returnDefaultValues = true
     }
 
     lint {

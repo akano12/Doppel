@@ -17,14 +17,26 @@
 
 package eu.faircode.xlua;
 
+import android.content.ContextWrapper;
+import android.content.pm.ApplicationInfo;
+
 import org.junit.Test;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
-import static org.junit.Assert.assertEquals;
+import java.util.HashMap;
 
-// Lua values set by scripts are converted to the types of the hooked methods
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+// Lua values set by scripts are converted to the types of the hooked methods,
+// and scripts hide the packages of other apps
 public class XParamTest {
+    private static final int UID = 10123;
+
+    @SuppressWarnings("unused")
+    private static String field;
     // Like a Lua number returned to Java code expecting an Object
     private static Object lua(double value) {
         return CoerceLuaToJava.coerce(LuaValue.valueOf(value), Object.class);
@@ -59,5 +71,47 @@ public class XParamTest {
         assertEquals(42, XParam.coerceValue(int.class, "42"));
         assertEquals(42L, XParam.coerceValue(long.class, "42"));
         assertEquals("42", XParam.coerceValue(String.class, "42"));
+    }
+
+    private static ApplicationInfo app(int uid, int flags) {
+        ApplicationInfo ai = new ApplicationInfo();
+        ai.uid = uid;
+        ai.flags = flags;
+        return ai;
+    }
+
+    private static XParam param() throws NoSuchFieldException {
+        ApplicationInfo ai = app(UID, 0);
+        return new XParam(new ContextWrapper(null) {
+            @Override
+            public String getPackageName() {
+                return "test.app";
+            }
+
+            @Override
+            public ApplicationInfo getApplicationInfo() {
+                return ai;
+            }
+        }, XParamTest.class.getDeclaredField("field"), new HashMap<>());
+    }
+
+    @Test
+    public void visibleApplications() throws NoSuchFieldException {
+        XParam param = param();
+        assertTrue(param.isVisible(null));
+        assertTrue("Own uid", param.isVisible(app(UID, 0)));
+        assertTrue("System", param.isVisible(app(1000, ApplicationInfo.FLAG_SYSTEM)));
+        assertTrue("Updated system", param.isVisible(app(10001, ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)));
+        assertFalse("Other app", param.isVisible(app(10124, ApplicationInfo.FLAG_INSTALLED)));
+    }
+
+    // Uids which do not need a lookup
+    @Test
+    public void visibleUids() throws NoSuchFieldException {
+        XParam param = param();
+        assertTrue("Own uid", param.isUidVisible(UID));
+        assertTrue("System", param.isUidVisible(1000));
+        assertTrue("System of another user", param.isUidVisible(1001000));
+        assertTrue("Root", param.isUidVisible(0));
     }
 }
