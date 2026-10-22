@@ -108,12 +108,13 @@ class Util {
         return bos.toString(StandardCharsets.UTF_8.name());
     }
 
-    // All text of a file chosen by the user
+    // All text of a file chosen by the user, without the byte order mark which some editors write
     static String readText(Context context, Uri uri) throws IOException {
         try (InputStream is = context.getContentResolver().openInputStream(uri)) {
             if (is == null)
                 throw new IOException("Cannot open " + uri);
-            return readText(is);
+            String text = readText(is);
+            return (text.startsWith("\uFEFF") ? text.substring(1) : text);
         }
     }
 

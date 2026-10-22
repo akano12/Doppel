@@ -622,10 +622,13 @@ class XProvider {
         String event = extras.getString("event");
         final long time = extras.getLong("time");
         final Bundle data = extras.getBundle("data");
-        final int restricted = data.getInt("restricted", 0);
 
         if (uid != Binder.getCallingUid())
             throw new SecurityException();
+        // Any app can call, see call
+        if (hookid == null || packageName == null || event == null || data == null)
+            throw new IllegalArgumentException("report invalid");
+        final int restricted = data.getInt("restricted", 0);
 
         // The data has the real values, like an IMEI, which release builds do not write to the system log
         Log.i(TAG, "Hook " + hookid + " pkg=" + packageName + ":" + uid + " event=" + event +
