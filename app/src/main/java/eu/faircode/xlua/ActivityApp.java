@@ -317,7 +317,7 @@ public class ActivityApp extends ActivityBase {
         else if (error)
             gv.tvMeta.setText(R.string.title_group_error);
         else if (assignments.size() < hooks.size())
-            gv.tvMeta.setText(getString(R.string.title_group_partial, assignments.size(), hooks.size()));
+            gv.tvMeta.setText(getResources().getQuantityString(R.plurals.title_group_partial, hooks.size(), assignments.size(), hooks.size()));
         else if (used > 0)
             gv.tvMeta.setText(getString(R.string.title_restricted_when, Ui.ago(used)));
         else
@@ -406,7 +406,7 @@ public class ActivityApp extends ActivityBase {
             if (!isComplete(group))
                 complete = false;
         }
-        tvSummary.setText(getString(R.string.title_groups_restricted, restricted, available.size()));
+        tvSummary.setText(getResources().getQuantityString(R.plurals.title_groups_restricted, available.size(), restricted, available.size()));
         swAll.setChecked(restricted > 0);
         setPartial(swAll, trackAll, restricted > 0 && !complete);
     }

@@ -184,7 +184,7 @@ public class FragmentHooks extends FragmentBase {
                 custom++;
             groups.add(hook.getGroup());
         }
-        tvSummary.setText(getString(R.string.title_hooks_summary, builtin, custom, groups.size()));
+        tvSummary.setText(getResources().getQuantityString(R.plurals.title_hooks_summary, groups.size(), builtin, custom, groups.size()));
 
         String q = (query == null ? "" : query.trim());
         List<Object> items = new ArrayList<>();

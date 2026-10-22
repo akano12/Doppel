@@ -559,14 +559,14 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 h.sbGroups.setVisibility(View.VISIBLE);
                 h.sbGroups.set(row.groups, row.restricted);
                 h.sbGroups.setContentDescription(
-                        context.getString(R.string.title_groups_restricted, row.restricted, row.groups));
+                        context.getResources().getQuantityString(R.plurals.title_groups_restricted, row.groups, row.restricted, row.groups));
                 break;
 
             default:
                 if (row.restricted == 0)
                     summary = context.getString(R.string.title_not_restricted);
                 else {
-                    summary = context.getString(R.string.title_groups_of, row.restricted, row.groups);
+                    summary = context.getResources().getQuantityString(R.plurals.title_groups_of, row.groups, row.restricted, row.groups);
                     if (row.used > 0)
                         summary = context.getString(R.string.title_last_used, summary,
                                 context.getString(R.string.title_last_used, Groups.getTitle(context, row.usedGroup), Ui.ago(row.used)));

@@ -120,7 +120,11 @@
     <string name="menu_search">Search</string>
     <string name="title_close_search">Close search</string>
     <string name="title_no_apps">No apps</string>
-    <string name="title_groups_of">%1$d of %2$d groups</string>
+    <!-- The quantity is the number of groups -->
+    <plurals name="title_groups_of">
+        <item quantity="one">%1$d of %2$d group</item>
+        <item quantity="other">%1$d of %2$d groups</item>
+    </plurals>
     <string name="title_last_used">%1$s · %2$s</string>
     <string name="title_not_used">Restricted · not used yet</string>
     <string name="title_not_restricted">Not restricted</string>
@@ -131,7 +135,11 @@
     <!-- Restrictions of an app -->
     <string name="title_app_meta">uid %1$d · version %2$s · %3$s</string>
     <string name="title_restrict_all_groups">Restrict all</string>
-    <string name="title_groups_restricted">%1$d of %2$d groups restricted</string>
+    <!-- The quantity is the number of groups -->
+    <plurals name="title_groups_restricted">
+        <item quantity="one">%1$d of %2$d group restricted</item>
+        <item quantity="other">%1$d of %2$d groups restricted</item>
+    </plurals>
     <string name="title_force_stop_hint">Stop the app to apply changes right away</string>
     <string name="title_notify_usage">Notify on restriction</string>
     <string name="title_notify_usage_hint">Show a notification the first time each group restricts something</string>
@@ -140,7 +148,11 @@
     <string name="title_apply_restart">Changes apply the next time %1$s starts</string>
     <string name="title_apply_reboot">Changes apply after restarting the device</string>
     <string name="title_restricted_when">Restricted · %1$s</string>
-    <string name="title_group_partial">Partially restricted · %1$d of %2$d hooks</string>
+    <!-- The quantity is the number of hooks -->
+    <plurals name="title_group_partial">
+        <item quantity="one">Partially restricted · %1$d of %2$d hook</item>
+        <item quantity="other">Partially restricted · %1$d of %2$d hooks</item>
+    </plurals>
     <string name="title_group_error">Failed · see the details</string>
     <string name="title_show_error">Show the error</string>
     <string name="title_values_hint">Values which restricted groups return instead</string>
@@ -178,7 +190,11 @@
     <string name="title_search_hooks">Class, method or group</string>
     <string name="title_search_log">App, group or hook</string>
     <string name="title_search_log_app">Group or hook</string>
-    <string name="title_hooks_summary">%1$d built-in · %2$d custom · %3$d groups</string>
+    <!-- The quantity is the number of groups -->
+    <plurals name="title_hooks_summary">
+        <item quantity="one">%1$d built-in · %2$d custom · %3$d group</item>
+        <item quantity="other">%1$d built-in · %2$d custom · %3$d groups</item>
+    </plurals>
     <string name="title_no_hooks">No hook definitions</string>
     <string name="title_hook_collection_off">%1$s off</string>
     <string name="menu_export_custom">Export custom definitions</string>
