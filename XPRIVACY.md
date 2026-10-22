@@ -130,13 +130,15 @@ If you want to fake offline state, you can install the hook definition *NetworkI
 <a name="network"></a>
 * Network
 	* ~~return fake IP's~~ see [this FAQ](FAQ.md#user-content-faq4)
-	* ~~return fake MAC's (network, Wi-Fi, bluetooth)~~ see remark below
+	* **return fake MAC's (network, Wi-Fi, bluetooth)** see remark below
 	* **return fake BSSID/SSID**
 	* **return an empty list of Wi-Fi scan results**
 	* **return an empty list of configured Wi-Fi networks**
-	* ~~return an empty list of bluetooth adapters/devices~~ tracking related
+	* **return an empty list of bluetooth devices** (paired and connected devices, scans are blocked)
 
-MAC addresses are [not available anymore](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m) on supported Android versions.
+The fake Wi-Fi and Bluetooth MAC address is the one Android gives apps (02:00:00:00:00:00) and network interfaces return no MAC address.
+Android [hides](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m) the Wi-Fi and Bluetooth addresses from apps since Android 6
+and the addresses of the network interfaces since Android 11, but only from apps targeting Android 11 or later.
 
 <a name="nfc"></a>
 * NFC

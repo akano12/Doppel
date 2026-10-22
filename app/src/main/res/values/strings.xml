@@ -97,7 +97,7 @@
     <string name="title_back">Back</string>
     <string name="title_more">More options</string>
     <string name="title_retry">Retry</string>
-    <string name="msg_no_service_help">Enable XPrivacyLua in the Xposed manager (like LSPosed) with System Framework in its scope, then restart the device.</string>
+    <string name="msg_no_service_help">Enable XPrivacyLua in the Xposed manager (like LSPosed) with System Framework in its scope, and also Settings Storage with the legacy Xposed API (like EdXposed), then restart the device.</string>
 
     <!-- Apps -->
     <string name="title_search_apps">Search name, package or uid</string>

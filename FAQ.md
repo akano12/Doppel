@@ -24,7 +24,8 @@ Since XPrivacyLua is [in many aspects better](#user-content-faq7) than XPrivacy,
 This message means either that:
 
 * The Xposed framework is not running: check if the framework is active in its manager app (like LSPosed).
-* The XPrivacyLua module is not running: check if XPrivacyLua is enabled in the manager app, with *System Framework* in its scope,
+* The XPrivacyLua module is not running: check if XPrivacyLua is enabled in the manager app, with *System Framework* in its scope
+  (with the legacy Xposed API, like with EdXposed, also *Settings Storage*, see [here](README.md#installation)),
   and make sure you restarted your device (hard reboot) after installing/updating XPrivacyLua.
 * There is a problem with the XPrivacyLua service: check the log of the manager app for XPrivacyLua problems.
 
@@ -58,7 +59,9 @@ You are adviced to use a firewall app to control internet access, for example [N
 If you still want to fake offline state, you can install the hook definition *NetworkInfo.createFromParcel*
 with *Downloads* on the *Hooks* tab.
 
-MAC addresses are restricted with *Read identifiers*: the addresses of Wi-Fi, Bluetooth and the network interfaces. Android 8 and higher [hide](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m) most of them from apps already, but older versions, apps targeting them and some manufacturers do not.
+MAC addresses are restricted with *Read identifiers*: the addresses of Wi-Fi, Bluetooth and the network interfaces.
+Android [hides](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m) the Wi-Fi and Bluetooth addresses from apps since Android 6
+and the addresses of the network interfaces since Android 11, but only from apps targeting Android 11 or later.
 
 You can enable status bar notifications on applying restrictions with *Notify on restriction* on the screen of an app.
 This can be used as a replacement for on demand restricting by removing a restriction when needed.
@@ -125,7 +128,8 @@ If you suspect that a restriction is causing a crash because there is a bug in t
 <a name="faq11"></a>
 **(11) How can I filter on ...?**
 
-You can filter on restricted apps, on not restricted apps, on system apps and on user apps by typing special characters into the search field:
+The buttons *User*, *System* and *All* above the list select which apps are shown.
+You can filter these apps on restricted apps, on not restricted apps, on system apps and on user apps by typing special characters into the search field:
 
 * Filter on restricted apps: exclamation mark (!)
 * Filter on not restricted apps: question mark (?)
@@ -134,6 +138,7 @@ You can filter on restricted apps, on not restricted apps, on system apps and on
 
 The special search characters should be the first characters in the search field (it is possible to combine special characters)
 and can be followed by additional characters to refine the search result.
+Since the search filters the apps of the selected button, select *All* or *System* to find system apps with #.
 
 You can also search for the uid of an app, like 10123.
 

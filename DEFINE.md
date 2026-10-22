@@ -70,7 +70,7 @@ Definitions can be imported from and exported to JSON files there too.
 * For convenience XPrivacyLua applies hooks by *group*
 * The *version* is a number which *Downloads* uses to offer updates of an installed definition
 * The *description* is optional and is shown in the hook editor and in *Downloads*
-* The attributes *minSdk* and *maxSdk* determine for which [Android versions](https://source.android.com/setup/build-numbers) (API level) the hook should be used
+* The attributes *minSdk* and *maxSdk* determine for which [Android versions](https://source.android.com/setup/build-numbers) (API level) the hook should be used (*maxSdk* is optional, default 999: all later versions)
 * The optional attributes *minApk* and *maxApk* limit the hook to a range of version codes of the app
 * The optional attribute *excludePackages* is a comma separated list of [regular expressions](https://developer.android.com/reference/java/util/regex/Pattern) of package names the hook should not be applied to, like `com\.google\..*`
 * Setting *enabled* to *false* will switch the hook off (default *true*)
@@ -202,7 +202,8 @@ You could for example enable usage notifications or change returned fake values.
 Deleting copied definitions will restore the built-in definitions.
 
 With *Downloads* on the *Hooks* tab you can install hook definitions shared by others, which are part of the app (folder *repo*).
-To share a definition, export it in the hook editor and offer it as a pull request.
+To share a definition, export it in the hook editor and offer it as a pull request,
+as *repo/hook_N.json* with an entry with the id N, the time of the update (seconds since 1970) and 0 downloads in *repo/list.json*.
 
 You can find example definitions in the [repository](repo), which *Downloads* offers,
 and the definitions built into XPrivacyLua [here](app/src/main/assets).

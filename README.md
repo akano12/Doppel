@@ -54,8 +54,9 @@ Restrictions
 * Use camera (fake camera not available, hide cameras)
 * Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html) including the security patch level, the same values for the system properties and the shell commands getprop, uname and /proc/version, network/SIM country/operator, device and Bluetooth name)
 
-The tracking restrictions will work only if the code of the target app was not [obfuscated](https://developer.android.com/studio/build/shrink-code.html).
-The other restrictions will work always.
+*Use analytics* and some hooks of other restrictions (the advertising ID of Google Play services and Huawei, the app set ID, activity recognition and geofences)
+hook libraries inside the target app, which will work only if the app was not [obfuscated](https://developer.android.com/studio/build/shrink-code.html) in a way that renamed these libraries.
+The other restrictions hook Android itself and will work always.
 
 Management
 ----------
@@ -91,7 +92,7 @@ Notes
 
 * Some apps will start the camera app to take pictures. This cannot be restricted and there is no need for this, because only you can take pictures in this scenario, not the app.
 * Some apps will use [OpenSL ES for Android](https://developer.android.com/ndk/guides/audio/opensl-for-android.html) to record audio, an example is WhatsApp. Xposed cannot hook into native code, so this cannot be prevented.
-* The get applications restriction will not restrict getting information about individual apps for stability and performance reasons.
+* The get applications restriction does not hide the app itself, apps sharing its user id and system apps (also updated ones), because the Android code running in apps, like WebView, needs them.
 * The telephony data restriction will result in apps seeing a fake IMEI. However, this doesn't change the IMEI address of your device.
 
 Compatibility

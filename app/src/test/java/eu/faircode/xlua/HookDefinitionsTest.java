@@ -30,6 +30,7 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -38,14 +39,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -58,19 +64,90 @@ public class HookDefinitionsTest {
     private static final Set<String> HIDDEN = new HashSet<>(Arrays.asList(
             "android.os.SystemProperties", "android.app.ContextImpl"));
 
+    // The defaults XHook.fromJSONObject uses for missing attributes, see DEFINE.md
+    private static final Map<String, Object> DEFAULTS = new HashMap<>();
+
+    static {
+        DEFAULTS.put("builtin", false);
+        DEFAULTS.put("version", 0);
+        DEFAULTS.put("maxSdk", 999);
+        DEFAULTS.put("minApk", 0);
+        DEFAULTS.put("maxApk", Integer.MAX_VALUE);
+        DEFAULTS.put("enabled", true);
+        DEFAULTS.put("optional", false);
+        DEFAULTS.put("usage", true);
+        DEFAULTS.put("notify", false);
+    }
+
     private static List<JSONObject> hooks;
 
     @BeforeClass
     public static void load() throws Exception {
-        String json = read(new File(ASSETS, "hooks.json"));
-        // Android's org.json accepts comments, the reference implementation does not
-        json = json.replaceFirst("(?s)^\\s*/\\*.*?\\*/", "")
-                .replaceAll("(?m)^\\s*//.*$", "");
-        JSONArray jarray = new JSONArray(json);
+        JSONArray jarray = new JSONArray(stripComments(read(new File(ASSETS, "hooks.json"))));
         hooks = new ArrayList<>();
         for (int i = 0; i < jarray.length(); i++)
             hooks.add(jarray.getJSONObject(i));
         assertTrue(hooks.size() > 0);
+    }
+
+    // Android's org.json (JSONTokener) skips comments between tokens: /* */, and // and # up to the end of the line.
+    // The reference implementation, which the unit tests use, does not, so the comments outside strings become spaces,
+    // which keeps the positions in parse errors.
+    private static String stripComments(String json) {
+        StringBuilder sb = new StringBuilder(json);
+        char quote = 0;
+        for (int i = 0; i < sb.length(); i++) {
+            char c = sb.charAt(i);
+            char next = (i + 1 < sb.length() ? sb.charAt(i + 1) : 0);
+            if (quote != 0) {
+                if (c == '\\')
+                    i++;
+                else if (c == quote)
+                    quote = 0;
+            } else if (c == '"' || c == '\'')
+                quote = c;
+            else if (c == '#' || (c == '/' && next == '/')) {
+                for (; i < sb.length() && sb.charAt(i) != '\n' && sb.charAt(i) != '\r'; i++)
+                    sb.setCharAt(i, ' ');
+            } else if (c == '/' && next == '*') {
+                int end = sb.indexOf("*/", i + 2);
+                if (end < 0)
+                    throw new IllegalArgumentException("Unterminated comment at " + i);
+                for (; i < end + 2; i++)
+                    if (sb.charAt(i) != '\n' && sb.charAt(i) != '\r')
+                        sb.setCharAt(i, ' ');
+                i--;
+            }
+        }
+        return sb.toString();
+    }
+
+    // The comments hooks.json can have, also within a line
+    @Test
+    public void commentsAreSkippedLikeAndroid() throws Exception {
+        String json = "/* licence\n */\n" +
+                "[ // line\n" +
+                "  # line\n" +
+                "  {\"a\": \"// # /* */\", /* inline */ \"b\": 29, // trailing\n" +
+                "   \"c\": '/* \" */', \"d\": \"\\\" // \\\"\" # trailing\n" +
+                "  }/**/]# end";
+        String stripped = stripComments(json);
+        assertEquals(json.split("\n", -1).length, stripped.split("\n", -1).length);
+
+        JSONArray jarray = new JSONArray(stripped);
+        assertEquals(1, jarray.length());
+        JSONObject jobject = jarray.getJSONObject(0);
+        assertEquals(4, jobject.length());
+        assertEquals("// # /* */", jobject.getString("a"));
+        assertEquals(29, jobject.getInt("b"));
+        assertEquals("/* \" */", jobject.getString("c"));
+        assertEquals("\" // \"", jobject.getString("d"));
+
+        try {
+            stripComments("[] /* open");
+            fail("Unterminated comment accepted");
+        } catch (IllegalArgumentException ignored) {
+        }
     }
 
     @Test
@@ -169,25 +246,33 @@ public class HookDefinitionsTest {
         }
     }
 
-    // The definitions offered by Downloads (repo/), which are installed as they are
+    // The definitions offered by Downloads (repo/), which are installed as they are, see Data.putCustom.
+    // The list has the id, the time of the last update (seconds) and the number of downloads of each definition,
+    // the attributes Downloads shows otherwise, like the name and version, are those of the definition,
+    // see ActivityDownloads.load
     @Test
     public void repositoryIsValid() throws Exception {
         File repo = new File("../repo");
         JSONArray list = new JSONObject(read(new File(repo, "list.json"))).getJSONArray("list");
+        Set<String> attributes = new HashSet<>(Arrays.asList("id", "updated", "downloads"));
         Set<String> listed = new HashSet<>();
+        Set<String> ids = new HashSet<>();
         for (int i = 0; i < list.length(); i++) {
             JSONObject entry = list.getJSONObject(i);
             File file = new File(repo, "hook_" + entry.getInt("id") + ".json");
-            listed.add(file.getName());
+            assertEquals(file.getName() + " list attributes", attributes, keys(entry));
+            assertTrue(file.getName() + " listed twice", listed.add(file.getName()));
+            assertTrue(file.getName() + " updated", entry.getLong("updated") > 0);
+            assertTrue(file.getName() + " downloads", entry.getInt("downloads") >= 0);
             assertTrue("Missing " + file, file.exists());
 
             JSONObject hook = new JSONObject(read(file));
             for (String key : new String[]{
-                    "collection", "group", "name", "author", "className", "parameterTypes", "minSdk", "luaScript"})
+                    "collection", "group", "name", "author", "version", "className", "parameterTypes", "minSdk", "luaScript"})
                 assertTrue(file.getName() + " misses " + key, hook.has(key));
-            for (String key : new String[]{"collection", "group", "name"})
-                assertEquals(file.getName() + " " + key, entry.getString(key), hook.getString(key));
-            assertEquals(file.getName() + " version", entry.optInt("version", 0), hook.optInt("version", 0));
+            String id = hook.getString("collection") + "." + hook.getString("name");
+            assertTrue(file.getName() + " has the id of another definition " + id, ids.add(id));
+            checkRead(file.getName(), hook);
             compileExcluded(file.getName(), hook);
             runScript(file.getName(), hook.getString("luaScript"));
         }
@@ -310,6 +395,14 @@ public class HookDefinitionsTest {
         return max;
     }
 
+    // JSONObject.keySet is not in the org.json of Android, which the unit tests compile against
+    private static Set<String> keys(JSONObject jobject) {
+        Set<String> keys = new HashSet<>();
+        for (Iterator<String> it = jobject.keys(); it.hasNext(); )
+            keys.add(it.next());
+        return keys;
+    }
+
     private static String read(File file) throws Exception {
         return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
     }
@@ -326,10 +419,68 @@ public class HookDefinitionsTest {
         }
     }
 
+    // The built-in definitions as the app reads them, see XHook.readHooks: in the default collection,
+    // which the renames of XDatabase.upgrade assume, with the attributes the validation requires
+    // (XHook.validate uses TextUtils, which is a stub in unit tests)
     @Test
-    public void readerMatchesAndroidRuntime() throws Exception {
-        // Sanity check of the comment stripping: all hooks belong to a collection
-        for (JSONObject hook : hooks)
-            assertEquals("Privacy", hook.getString("collection"));
+    public void definitionsReadLikeApp() throws Exception {
+        for (JSONObject jhook : hooks) {
+            String name = jhook.getString("name");
+            assertEquals(name, Util.COLLECTION_DEFAULT, jhook.getString("collection"));
+            for (String key : new String[]{"collection", "group", "name", "author", "className", "luaScript"})
+                assertFalse(name + " has an empty " + key, jhook.getString(key).trim().isEmpty());
+            checkRead(name, jhook);
+        }
+    }
+
+    // Reads a definition like the app (XHook.fromJSONObject) and exports it again (toJSONObject, like the hook editor):
+    // the result is the definition with the defaults for missing attributes, so an unknown (misspelled) attribute,
+    // which the app would ignore, and a changed default fail
+    private static void checkRead(String name, JSONObject jhook) throws Exception {
+        JSONObject expected = new JSONObject(jhook.toString());
+        for (Map.Entry<String, Object> entry : DEFAULTS.entrySet())
+            if (!expected.has(entry.getKey()))
+                expected.put(entry.getKey(), entry.getValue());
+
+        JSONObject exported = XHook.fromJSONObject(jhook).toJSONObject();
+        // TextUtils.join is a stub in the Gradle unit tests, the expressions are checked by excludedPackagesCompile
+        if (!exported.has("excludePackages"))
+            expected.remove("excludePackages");
+
+        Set<String> keys = new TreeSet<>(keys(expected));
+        keys.addAll(keys(exported));
+        for (String key : keys)
+            assertEquals(name + " " + key, String.valueOf(expected.opt(key)), String.valueOf(exported.opt(key)));
+    }
+
+    // The app reads its definitions from its APK, with the scripts in separate files
+    @Test
+    public void definitionsReadFromApk() throws Exception {
+        File apk = File.createTempFile("hooks", ".apk");
+        try {
+            // The reference org.json of the unit tests does not accept comments, see stripComments
+            try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(apk))) {
+                zos.putNextEntry(new ZipEntry("assets/hooks.json"));
+                zos.write(stripComments(read(new File(ASSETS, "hooks.json"))).getBytes(StandardCharsets.UTF_8));
+                for (File file : ASSETS.listFiles((dir, name) -> name.endsWith(".lua"))) {
+                    zos.putNextEntry(new ZipEntry("assets/" + file.getName()));
+                    zos.write(Files.readAllBytes(file.toPath()));
+                }
+            }
+
+            List<XHook> builtin = XHook.readHooks(apk.getPath());
+            assertEquals(hooks.size(), builtin.size());
+            for (int i = 0; i < builtin.size(); i++) {
+                JSONObject jhook = hooks.get(i);
+                XHook hook = builtin.get(i);
+                String script = jhook.getString("luaScript");
+                assertEquals(jhook.getString("collection") + "." + jhook.getString("name"), hook.getId());
+                assertTrue(hook.getId() + " not built-in", hook.isBuiltin());
+                assertEquals(hook.getId() + " script", script.startsWith("@")
+                        ? read(new File(ASSETS, script.substring(1) + ".lua")) : script, hook.getLuaScript());
+            }
+        } finally {
+            apk.delete();
+        }
     }
 }
