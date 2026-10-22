@@ -241,6 +241,10 @@ class XCore {
                         return;
                     }
 
+                    // Other apps get the answer of the settings provider, like without XPrivacyLua
+                    if (!XProvider.answers(getContext(call.thisObject)))
+                        return;
+
                     try {
                         call.setResult(XProvider.call(getContext(call.thisObject), arg, extras));
                     } catch (IllegalArgumentException ex) {
@@ -270,6 +274,10 @@ class XCore {
                     String[] selection = (String[]) call.args[3];
                     if (projection == null || projection.length == 0 ||
                             projection[0] == null || !projection[0].startsWith("xlua."))
+                        return;
+
+                    // Other apps get the answer of the settings provider, an error for these columns
+                    if (!XProvider.answers(getContext(call.thisObject)))
                         return;
 
                     try {
@@ -327,7 +335,15 @@ class XCore {
     }
 
     private void hookPackage(final String packageName, int uid, final Context context) throws Throwable {
-        List<XHook> hooks = Data.getAssignedHooks(context, packageName, uid);
+        List<XHook> hooks;
+        try {
+            hooks = Data.getAssignedHooks(context, packageName, uid);
+        } catch (IllegalArgumentException ignored) {
+            // The settings provider refuses the query of an app without assignments, see XProvider.answers
+            return;
+        }
+        if (hooks.isEmpty())
+            return;
 
         // App settings replace global settings
         final Map<String, String> settings = new HashMap<>(Data.getSettings(context, "global"));
@@ -690,7 +706,11 @@ class XCore {
                             values.add(LuaValue.valueOf(when));
                             values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
                             values.addAll(xargs);
-                            fun.invoke(values.toArray(new LuaValue[0]));
+                            // The function is of the Lua runtime of the thread which installed the hook,
+                            // which is not thread safe, see installMethod
+                            synchronized (fun) {
+                                fun.invoke(values.toArray(new LuaValue[0]));
+                            }
                         } catch (Throwable ex) {
                             Log.e(TAG, "Dynamic hook " + hookId + " " + call.method + ": " + Log.getStackTraceString(ex));
                         }

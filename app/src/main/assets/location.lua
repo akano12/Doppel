@@ -69,6 +69,17 @@ function after(hook, param)
 
     result:setLatitude(latitude)
     result:setLongitude(longitude)
+
+    -- The altitude, the movement and the extras, like the number of satellites, belong to the real location;
+    -- the methods of newer versions are only there from that version
+    for _, name in ipairs({ 'removeAltitude', 'removeVerticalAccuracy', 'removeMslAltitude', 'removeMslAltitudeAccuracy',
+                            'removeSpeed', 'removeSpeedAccuracy', 'removeBearing', 'removeBearingAccuracy' }) do
+        if result[name] ~= nil then
+            result[name](result)
+        end
+    end
+    result:setExtras(nil)
+
     return true, old, result:toString()
 end
 

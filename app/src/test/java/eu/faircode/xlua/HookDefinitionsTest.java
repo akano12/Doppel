@@ -314,6 +314,18 @@ public class HookDefinitionsTest {
         return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
     }
 
+    // Assignments of renamed hooks move to the new id, see XDatabase.upgrade
+    @Test
+    public void renamedHooksExist() throws Exception {
+        Set<String> names = new HashSet<>();
+        for (JSONObject hook : hooks)
+            names.add(hook.getString("name"));
+        for (String[] renamed : XDatabase.RENAMED) {
+            assertTrue("Renamed into unknown hook " + renamed[1], names.contains(renamed[1]));
+            assertTrue("Renamed hook still exists " + renamed[0], !names.contains(renamed[0]));
+        }
+    }
+
     @Test
     public void readerMatchesAndroidRuntime() throws Exception {
         // Sanity check of the comment stripping: all hooks belong to a collection

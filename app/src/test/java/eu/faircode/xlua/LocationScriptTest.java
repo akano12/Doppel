@@ -39,12 +39,14 @@ import static org.junit.Assert.assertTrue;
 public class LocationScriptTest {
     private static final String STUBS = String.join("\n",
             "function location(latitude, longitude)",
-            "  return { latitude = latitude, longitude = longitude,",
+            "  return { latitude = latitude, longitude = longitude, altitude = 12, extras = {},",
             "    getLatitude = function(self) return self.latitude end,",
             "    getLongitude = function(self) return self.longitude end,",
             "    setLatitude = function(self, value) self.latitude = value end,",
             "    setLongitude = function(self, value) self.longitude = value end,",
             "    hasAccuracy = function(self) return false end,",
+            "    removeAltitude = function(self) self.altitude = nil end,",
+            "    setExtras = function(self, extras) self.extras = extras end,",
             "    toString = function(self) return self.latitude .. ',' .. self.longitude end }",
             "end",
             "function hookof(method)",
@@ -89,6 +91,17 @@ public class LocationScriptTest {
         assertTrue(result.arg(1).toboolean());
         assertEquals(10.5, result.arg(2).todouble(), 0);
         assertEquals(-20, result.arg(3).todouble(), 0);
+    }
+
+    // The altitude and the extras, like the number of satellites, are of the real location
+    @Test
+    public void realDetailsAreRemoved() {
+        Varargs result = globals.load(
+                "local result = location(52.37, 4.89)\n" +
+                        "after(hookof('CREATOR:createFromParcel'), paramof(result, '', true, {}))\n" +
+                        "return result.altitude, result.extras", "test").invoke();
+        assertTrue(result.arg(1).isnil());
+        assertTrue(result.arg(2).isnil());
     }
 
     @Test

@@ -15,6 +15,45 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The authority of a uri without the user, like 0@com.android.contacts, which apps can add for their own user
+function authorityof(uri)
+    local authority = uri:getAuthority()
+    if authority == nil then
+        return nil
+    end
+    return (string.gsub(authority, '^%d+@', ''))
+end
+
+-- Whether the selection of an app stays within its own parentheses, so the starred filter around it applies:
+-- like 1) OR (1 would undo it; quoted text and identifiers are skipped, comments and more statements refused
+function contained(where)
+    local depth = 0
+    local quote = nil
+    for index = 1, string.len(where) do
+        local c = string.sub(where, index, index)
+        local next = string.sub(where, index + 1, index + 1)
+        if quote ~= nil then
+            if c == quote then
+                quote = nil
+            end
+        elseif c == "'" or c == '"' or c == '`' then
+            quote = c
+        elseif c == '[' then
+            quote = ']'
+        elseif c == '(' then
+            depth = depth + 1
+        elseif c == ')' then
+            depth = depth - 1
+            if depth < 0 then
+                return false
+            end
+        elseif c == ';' or (c == '-' and next == '-') or (c == '/' and next == '*') then
+            return false
+        end
+    end
+    return (depth == 0 and quote == nil)
+end
+
 function before(hook, param)
     local uri = param:getArgument(0)
     if uri == nil then
@@ -29,7 +68,7 @@ function before(hook, param)
     -- Hook names are like Function/variant
     local func, name = string.match(hook:getName(), '^([^/]*)/?(.*)$')
     local bundled = (string.sub(func, -2) == '26')
-    local authority = uri:getAuthority()
+    local authority = authorityof(uri)
     if name == 'contacts' and authority == 'com.android.contacts' then
         local prefix = string.gmatch(path, '[^/]+')()
         if prefix == 'provider_status' then
@@ -51,16 +90,27 @@ function before(hook, param)
                 where = param:getArgument(2)
             end
 
+            -- A selection which could undo the filter selects nothing, its arguments are left out with it
+            local unsafe = false
             if where == nil or where == '' then
                 where = '(starred = ' .. starred .. ')'
-            else
+            elseif contained(where) then
                 where = '(starred = ' .. starred .. ') AND (' .. where .. ')'
+            else
+                where = '0'
+                unsafe = true
             end
 
             if bundled then
                 param:getArgument(2):putString('android:query-arg-sql-selection', where)
+                if unsafe then
+                    param:getArgument(2):remove('android:query-arg-sql-selection-args')
+                end
             else
                 param:setArgument(2, where)
+                if unsafe then
+                    param:setArgument(3, nil)
+                end
             end
         end
     end
@@ -77,13 +127,15 @@ function after(hook, param)
 
     -- Hook names are like Function/variant
     local func, name = string.match(hook:getName(), '^([^/]*)/?(.*)$')
-    local authority = uri:getAuthority()
+    local authority = authorityof(uri)
 
+    -- The authority contacts is of the former contacts API (Contacts.People), served by the same provider
     if (name == 'blockednumber' and authority == 'com.android.blockednumber') or
             (name == 'calendars' and authority == 'com.android.calendar') or
             (name == 'call_log' and authority == 'call_log') or
             (name == 'call_log' and authority == 'call_log_shadow') or
             (name == 'contacts' and authority == 'icc') or
+            (name == 'contacts' and authority == 'contacts') or
             (name == 'contacts' and authority == 'com.android.contacts') or
             (name == 'gsf_id' and authority == 'com.google.android.gsf.gservices') or
             (name == 'oaid' and authority == 'com.vivo.vms.IdProvider') or

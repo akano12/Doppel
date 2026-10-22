@@ -25,6 +25,9 @@ function after(hook, param)
     end
 
     local packageName = param:getArgument(0)
+    if type(packageName) == 'userdata' then
+        packageName = packageName:getPackageName() -- VersionedPackage
+    end
     if param:isPackageVisible(packageName) then
         return false
     end

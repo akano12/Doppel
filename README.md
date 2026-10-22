@@ -25,11 +25,11 @@ Restrictions
 ------------
 
 * Determine activity (fake unknown activity, hide activity transitions, see [here](https://developers.google.com/location-context/activity-recognition/))
-* Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html), usage statistics, keyboards and accessibility services of other apps, also for lookups by user, package contexts, launch intents and the shell command pm)
+* Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html), usage statistics and events, keyboards and accessibility services of other apps, also for lookups by user, by user id, of activities, services and content providers, package contexts, launch intents and the shell command pm)
 * Get calendars (hide calendars)
 * Get call log (hide call log)
 * Get contacts (hide contacts, optionally except (non) starred contacts, hide blocked numbers)
-* Get location (fake location, block [NMEA](https://en.wikipedia.org/wiki/NMEA_0183) messages and raw GNSS measurements)
+* Get location (fake location, without the real altitude, speed and bearing, block [NMEA](https://en.wikipedia.org/wiki/NMEA_0183) messages and raw GNSS measurements)
 * Get messages (hide MMS, SMS, SIM, voicemail)
 * Get sensors (hide all available sensors)
 * Read [account](https://developer.android.com/reference/android/accounts/Account.html) name (fake name, mostly e-mail address)
@@ -41,7 +41,7 @@ Restrictions
 * Read device settings (settings people change, like animation and font scale, screen timeout, proxy, alarm sound and automatic time zone, have the values of a new device)
 * Read identifiers (fake build serial number, Android ID, advertising ID, Privacy Sandbox ad ID, app set ID, GSF ID, limit ad tracking, random SD card ids on each start of the app, Wi-Fi, Bluetooth and network interface MAC addresses)
 * Read notifications (fake [status bar notifications](https://developer.android.com/reference/android/service/notification/StatusBarNotification.html))
-* Read network data (hide cell info, Wi-Fi networks, paired and connected Bluetooth devices, fake Wi-Fi network name, also in the text of Wi-Fi and network info, block Bluetooth scans and discovery of devices in the local network)
+* Read network data (hide cell info, also the cell of the service state, Wi-Fi networks, paired and connected Bluetooth devices, fake Wi-Fi network name, also in the text of Wi-Fi and network info, block Bluetooth scans and discovery of devices in the local network)
 * Read sync data (hide [sync data](https://developer.android.com/training/sync-adapters/creating-sync-adapter.html))
 * Read telephony data (fake IMEI, MEID, SIM serial number, phone number, voicemail number, type allocation code, etc)
 * Read time zone (fake time zone, also the system property, setting *value.timezone*, default UTC)

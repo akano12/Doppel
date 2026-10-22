@@ -90,11 +90,16 @@ class XDatabase {
             db -> {
                 // When a hook was assigned, for the apps restricted recently
                 db.execSQL("ALTER TABLE assignment ADD COLUMN assigned INTEGER");
+            },
+            db -> {
+                // Whether an app has assignments, see XProvider.answers
+                db.execSQL("CREATE INDEX idx_assignment_uid ON assignment(uid)");
             }
     };
 
-    // Hook ids renamed by former versions: old id, new id
-    private static final String[][] RENAMED = new String[][]{
+    // Hook names renamed by former versions: old name, new name; the ids of assignments have the collection
+    // in front (see XHook.getId), which the renames of former versions left out, so they never applied
+    static final String[][] RENAMED = new String[][]{
             {"TelephonyManager/getDeviceId", "TelephonyManager.getDeviceId"},
             {"TelephonyManager/getDeviceId/slot", "TelephonyManager.getDeviceId/slot"},
             {"TelephonyManager/getGroupIdLevel1", "TelephonyManager.getGroupIdLevel1"},
@@ -164,17 +169,16 @@ class XDatabase {
         Log.i(TAG, "Database version=" + db.getVersion());
 
         write(db -> {
-            // An assignment with the new id can exist already
-            for (String[] renamed : RENAMED)
-                try {
-                    ContentValues cv = new ContentValues();
-                    cv.put("hook", renamed[1]);
-                    long rows = db.update("assignment", cv, "hook = ?", new String[]{renamed[0]});
-                    if (rows > 0)
-                        Log.i(TAG, "Renamed hook " + renamed[0] + " into " + renamed[1] + " rows=" + rows);
-                } catch (Throwable ex) {
-                    Log.i(TAG, "Renamed hook " + renamed[0] + " into " + renamed[1] + " ex=" + ex.getMessage());
-                }
+            // An assignment with the new id can exist already, then the one with the old id is removed
+            for (String[] renamed : RENAMED) {
+                String[] from = new String[]{Util.COLLECTION_DEFAULT + "." + renamed[0]};
+                ContentValues cv = new ContentValues();
+                cv.put("hook", Util.COLLECTION_DEFAULT + "." + renamed[1]);
+                long rows = db.updateWithOnConflict("assignment", cv, "hook = ?", from, SQLiteDatabase.CONFLICT_IGNORE);
+                long removed = db.delete("assignment", "hook = ?", from);
+                if (rows > 0 || removed > 0)
+                    Log.i(TAG, "Renamed hook " + from[0] + " into " + cv.get("hook") + " rows=" + rows + " removed=" + removed);
+            }
 
             // Hooks are installed again and errors reported again after a restart
             ContentValues cv = new ContentValues();

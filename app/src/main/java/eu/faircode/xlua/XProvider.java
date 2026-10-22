@@ -658,7 +658,7 @@ class XProvider {
             }
             for (String key : new String[]{"exception", "old", "new"})
                 if (data.containsKey(key))
-                    cv.put(key, data.getString(key));
+                    cv.put(key, limit(data.getString(key), "exception".equals(key) ? MAX_EXCEPTION : MAX_VALUE));
             if (error)
                 try (Cursor cursor = d.query("assignment", new String[]{"exception"},
                         "package = ? AND uid = ? AND hook = ?",
@@ -710,6 +710,14 @@ class XProvider {
         }
 
         return new Bundle();
+    }
+
+    // Any app can report for itself, so the text stored in the database of system server is limited
+    private static final int MAX_EXCEPTION = 16384;
+    private static final int MAX_VALUE = 1024;
+
+    private static String limit(String text, int length) {
+        return (text == null || text.length() <= length ? text : text.substring(0, length) + "…");
     }
 
     @SuppressWarnings("deprecation") // Bundle.get: logging values of any type
@@ -952,6 +960,25 @@ class XProvider {
             return (packages != null && Arrays.asList(packages).contains(packageName));
         } finally {
             Binder.restoreCallingIdentity(ident);
+        }
+    }
+
+    // The service answers system server, the app and apps with assignments, which are hooked. Other apps get
+    // the answers of a device without XPrivacyLua, so they cannot detect it nor read the values of settings.
+    static boolean answers(Context context) throws RemoteException {
+        loadData(context);
+        final String[] uid = new String[]{Integer.toString(Binder.getCallingUid())};
+        try {
+            boolean assigned = db.read(d -> {
+                try (Cursor cursor = d.query("assignment", new String[]{"uid"}, "uid = ?", uid,
+                        null, null, null, "1")) {
+                    return cursor.moveToFirst();
+                }
+            });
+            return (assigned || hasPermission(context));
+        } catch (Throwable ex) {
+            Log.e(TAG, Log.getStackTraceString(ex));
+            throw new RemoteException(ex.getMessage());
         }
     }
 

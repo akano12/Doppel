@@ -194,11 +194,22 @@ end
 
 -- Apps can read settings from the settings provider too, which Settings.*.getString use:
 -- call(GET_secure, name) returns a bundle with the value, a query rows of names and values
+-- The methods of the settings provider which read a setting
+local GETTERS = { GET_secure = true, GET_system = true, GET_global = true }
+
 function provider(hook, param, group)
     local target = param:getArgument(0)
     local authority = target
-    if type(target) ~= 'string' then
+    -- ContentProviderClient.call(method, arg, extras) does not tell the provider, the getters are of settings
+    local client = (string.find(hook:getName(), 'ContentProviderClient.call/', 1, true) == 1)
+    if client then
+        authority = (GETTERS[target] and 'settings' or nil)
+    elseif type(target) ~= 'string' then
         authority = target:getAuthority()
+    end
+    -- Without the user, like 0@settings, which apps can add for their own user
+    if authority ~= nil then
+        authority = (string.gsub(authority, '^%d+@', ''))
     end
     if authority ~= 'settings' then
         return false
@@ -210,8 +221,9 @@ function provider(hook, param, group)
     end
 
     if hook:getMethodName() == 'call' then
-        local method = param:getArgument(1)
-        local key = param:getArgument(2)
+        local offset = (client and 0 or 1)
+        local method = param:getArgument(offset)
+        local key = param:getArgument(offset + 1)
         if method == nil or string.sub(method, 1, 4) ~= 'GET_' or not hooked(key) then
             return false
         end
@@ -287,7 +299,8 @@ end
 
 function after(hook, param)
     -- The getters are called for all settings, so check the name first; the second argument of
-    -- the provider hooks is the method of call (GET_secure) or the projection of a query
+    -- the provider hooks is the method of call (GET_secure), the name of the setting for
+    -- ContentProviderClient.call(method, arg, extras) or the projection of a query
     local key = param:getArgument(1)
     local getter = (type(key) == 'string' and string.sub(key, 1, 4) ~= 'GET_')
     if getter and not hooked(key) then
@@ -296,7 +309,8 @@ function after(hook, param)
 
     -- Hook names are like Function/variant
     local name = string.match(hook:getName(), '/(.*)$')
-    if not getter or hook:getClassName() == 'android.content.ContentResolver' then
+    local class = hook:getClassName()
+    if not getter or class == 'android.content.ContentResolver' or class == 'android.content.ContentProviderClient' then
         return provider(hook, param, name)
     end
 
