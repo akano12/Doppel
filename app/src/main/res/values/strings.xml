@@ -236,7 +236,6 @@
     <string name="title_check_hint">Check the target on this device</string>
     <string name="title_checking">Checking…</string>
     <string name="title_check_found">Found %1$s</string>
-    <string name="title_check_class">Found class %1$s</string>
     <string name="title_check_no_member">%1$s not found in the class or its super classes</string>
     <string name="title_check_no_class">Class %1$s not found here. It can still exist in the app the hook is for.</string>
     <string name="title_script_no_function">no before() or after()</string>

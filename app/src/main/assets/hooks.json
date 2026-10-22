@@ -6129,6 +6129,18 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "SubscriptionInfo.toString/operator",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 22,
+    "luaScript": "@operator_tostring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "SubscriptionInfo.getCountryIso",
     "author": "M66B",
     "className": "android.telephony.SubscriptionInfo",
@@ -6276,6 +6288,18 @@
     "returnType": "java.lang.String",
     "minSdk": 1,
     "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ServiceState.toString/operator",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.ServiceState",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "luaScript": "@operator_tostring"
   },
   {
     "collection": "Privacy",
@@ -8347,6 +8371,18 @@
     "returnType": "java.lang.String",
     "minSdk": 29,
     "luaScript": "@network_tostring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "NetworkRegistrationInfo.toString/operator",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.NetworkRegistrationInfo",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@operator_tostring"
   },
   {
     "collection": "Privacy",
