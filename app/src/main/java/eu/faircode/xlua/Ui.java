@@ -186,9 +186,15 @@ final class Ui {
 
     // Log an error and show it, from any thread; the activity can be gone already
     static void error(Activity activity, String tag, Throwable ex) {
+        error(activity, tag, ex, null);
+    }
+
+    // Log an error and show it, with an action to try again
+    static void error(Activity activity, String tag, Throwable ex, Runnable retry) {
         Log.e(tag, Log.getStackTraceString(ex));
         if (activity != null)
-            message(activity, activity.getString(R.string.msg_error, ex.toString()));
+            message(activity, activity.getString(R.string.msg_error, ex.toString()),
+                    retry == null ? null : activity.getString(R.string.title_retry), retry);
     }
 
     // Start an app, else say that it cannot be started, like most system apps

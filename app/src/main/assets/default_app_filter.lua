@@ -22,7 +22,8 @@
 
 -- The default app of a device on which the user did not choose one: the dialer of the system, or the SMS app
 -- the configuration of the system names, else a system app which can be the default; nil when there is none.
--- Like settingssecure_getstring, which tells it for the settings of the default apps.
+-- The same function as in settingssecure_getstring, which tells it for the settings of the default apps;
+-- a test compares them.
 function systemdefault(param, dialer)
     -- Its lookups are hooked themselves (see package_probe and generic_filter_by_uid),
     -- which would restrict them and report them as calls of the app

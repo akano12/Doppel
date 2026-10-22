@@ -24,6 +24,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -106,6 +107,19 @@ public class XResolverTest {
     @SuppressWarnings("unused")
     public static class Exposed extends Hidden {
         private void helper(String value) {
+        }
+    }
+
+    // Not public, with a public subclass which overloads the method, next to the bridge for it
+    @SuppressWarnings("unused")
+    static class Overloaded {
+        public void accept(Object value) {
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public static class Overloading extends Overloaded {
+        public void accept(String value) {
         }
     }
 
@@ -234,6 +248,13 @@ public class XResolverTest {
     public void visibilityBridges() throws NoSuchMethodException {
         assertTrue(Exposed.class.getDeclaredMethod("visible", String.class).isBridge());
         assertEquals(Collections.singletonList("Hidden.visible1"), methods(Exposed.class, "visible"));
+    }
+
+    // The bridge calls the method of the super class, not the overload of the class with narrower parameters
+    @Test
+    public void visibilityBridgesNextToOverloads() throws NoSuchMethodException {
+        assertTrue(Overloading.class.getDeclaredMethod("accept", Object.class).isBridge());
+        assertEquals(Arrays.asList("Overloading.accept1", "Overloaded.accept1"), methods(Overloading.class, "accept"));
     }
 
     // The bridge of a generic type calls the method of the class, which overrides the method of the super class

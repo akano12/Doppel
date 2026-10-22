@@ -122,6 +122,11 @@ public class ActivityBase extends AppCompatActivity {
         Ui.submit(executor, task, ex -> error(tag, ex));
     }
 
+    // Run on the background thread, an error is shown with a retry: for loads the screen cannot do without
+    protected void run(String tag, Ui.Task task, Runnable retry) {
+        Ui.submit(executor, task, ex -> Ui.error(this, tag, ex, retry));
+    }
+
     // Run on the main thread, from a background thread, unless the screen is closing or gone meanwhile,
     // because views cannot load images anymore then (Glide refuses a destroyed activity)
     protected void postUnlessGone(Runnable runnable) {

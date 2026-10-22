@@ -469,6 +469,11 @@ public class ShellCommandsScriptTest {
                 {"sh", "-c", "true && \\\n /system/bin/getprop ro.product.model"},
                 {"sh", "-c", "if true; then \"/system/bin/getprop\" ro.product.model; fi"},
                 {"sh", "-c", "f() { ! /system/bin/getprop ro.product.model; }; f || :"},
+                {"sh", "-c", "case 1 in *) /system/bin/getprop ro.product.model;; esac"},
+                {"sh", "-c", "case $(echo 1) in (1) /system/bin/getprop ro.product.model;; esac"},
+                {"sh", "-c", "eval /system/bin/getprop ro.product.model"},
+                {"sh", "-c", "eval \"/system/bin/getprop ro.product.model\""},
+                {"sh", "-c", "eval 'true; /system/bin/getprop ro.product.model'"},
                 {"sh", "-c", "/system/bin/toybox getprop ro.product.model </dev/null"}})
             assertEquals(String.join(" ", args), "unknown\n", run(start(args)).out);
         assertEquals("package:com.example\npackage:com.example.shared\n",
@@ -488,7 +493,9 @@ public class ShellCommandsScriptTest {
         for (String text : new String[]{"${ANDROID_ROOT:-/system}/bin/getprop ro.product.model",
                 "d=/system; \"$d\"/bin/getprop ro.product.model", "P=/system/bin/getprop; $P ro.product.model",
                 "uname -r; ls /system/bin/cat", "uname -r; $(dirname /system/x)/bin/cat /proc/version",
-                "echo /system/bin/getprop", "pm list packages 2>&1 /system/bin/pm", "ls -l /system/bin/toybox pm"}) {
+                "echo /system/bin/getprop", "pm list packages 2>&1 /system/bin/pm", "ls -l /system/bin/toybox pm",
+                "echo $(uname -r) /system/bin/getprop", "echo $((1)) /system/bin/getprop",
+                "echo \"/system/bin/getprop x\"", "x=\"/system/bin/getprop x\"; echo $x"}) {
             String script = script(start("sh", "-c", text));
             assertTrue(script, script.endsWith("\n" + text));
         }

@@ -202,6 +202,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         return findViewById(R.id.bar);
     }
 
+    // The form cannot be saved until it is built (see save), so a failed load is retried
     private void load() {
         final String category = this.category;
         final Context context = getApplicationContext();
@@ -247,7 +248,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     restored = null;
                 }
             });
-        });
+        }, this::load);
     }
 
     private void buildForm() {

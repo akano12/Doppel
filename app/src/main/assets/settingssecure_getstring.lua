@@ -116,7 +116,7 @@ end
 
 -- The default app of a device on which the user did not choose one: the dialer of the system, or the SMS app
 -- the configuration of the system names, else a system app which can be the default; nil when there is none.
--- Like default_app_filter, which tells it for the hidden default app too.
+-- The same function as in default_app_filter, which tells it for the hidden default app too; a test compares them.
 function systemdefault(param, dialer)
     -- Its lookups are hooked themselves (see package_probe and generic_filter_by_uid),
     -- which would restrict them and report them as calls of the app
@@ -168,10 +168,10 @@ function systemdefault(param, dialer)
     end)
 end
 
--- Whether the app can change secure settings: the system (app ids below 10000), like the system server,
+-- Whether the app can change secure settings: the system (see XParam.isSystem), like the system server,
 -- Settings and Phone, and apps given the permission, like with adb
 function writer(param)
-    if param:getUid() % 100000 < 10000 then
+    if param:isSystem() then
         return true
     end
     local context = param:getApplicationContext()

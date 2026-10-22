@@ -82,9 +82,10 @@ local GOOGLE = { 'com.google.android.maps', 'com.google.android.media.effects' }
 local MULTIPLEXERS = { toybox = true, toolbox = true, busybox = true }
 local SHELLS = { sh = true, mksh = true, bash = true }
 
--- Reserved words of the shell which a command follows, like if /system/bin/getprop ... or do /system/bin/getprop
+-- Reserved words of the shell which a command follows, like if /system/bin/getprop ... or do /system/bin/getprop,
+-- and eval, which runs its arguments as a command; not exec and command, which skip functions
 local RESERVED = { ['if'] = true, ['then'] = true, ['else'] = true, ['elif'] = true, ['while'] = true,
-                   ['until'] = true, ['do'] = true, ['time'] = true, ['!'] = true, ['{'] = true }
+                   ['until'] = true, ['do'] = true, ['time'] = true, ['!'] = true, ['{'] = true, ['eval'] = true }
 
 -- The fake time zone, like timezone
 function fakezone(param)
@@ -631,8 +632,30 @@ function shelloperand(words, at)
     return index, script
 end
 
+-- Whether the ) at the index ends a case pattern like *) or (a), which a command follows, or a function like f();
+-- not a command substitution like $(dirname x) or arithmetic like $((1)), which arguments follow
+function closespattern(text, index)
+    local depth = 1
+    local open = index
+    while depth > 0 do
+        open = open - 1
+        if open == 0 then
+            -- Without a ( before it
+            return true
+        end
+        local char = string.sub(text, open, open)
+        if char == ')' then
+            depth = depth + 1
+        elseif char == '(' then
+            depth = depth - 1
+        end
+    end
+    return (string.sub(text, open - 1, open - 1) ~= '$')
+end
+
 -- Whether the word at the index is in the place of a command: first in the script, after an operator like ;, &&,
--- | or $(, after a reserved word like then or do, or after variables like A=1 in such a place. Not the arguments
+-- | or $(, after a reserved word like then or do, after a case pattern like *), after variables like A=1 in such
+-- a place, or first in a quoted string in such a place, like eval "/system/bin/getprop ...". Not the arguments
 -- of commands, like those of [ -x, ls and for, and not words with something in front, like ${root}/bin/getprop.
 function commandplace(text, at)
     local index = at - 1
@@ -652,14 +675,17 @@ function commandplace(text, at)
     end
     local char = string.sub(text, index, index)
     local before = string.sub(text, index - 1, index - 1)
-    if string.find(char, '[;(`\n]') or (char == ')' and before == '(') then
-        -- Also the body of a function like f() { ...
+    if string.find(char, '[;(`\n]') then
         return true
+    elseif char == ')' then
+        -- Also the body of a function like f() { ...
+        return closespattern(text, index)
     elseif char == '&' or char == '|' then
         -- Not after redirections like 2>&1 and >|
         return not string.find(before, '[<>]')
     elseif index == at - 1 then
-        return false
+        -- The first word of a string, which eval runs as a command, else something in front of the word
+        return ((char == '"' or char == "'") and commandplace(text, index))
     end
     local first = index
     while first > 1 and not string.find(string.sub(text, first - 1, first - 1), '[%s;&|()`]') do

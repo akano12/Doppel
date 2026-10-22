@@ -227,7 +227,8 @@ public class ActivityHookEdit extends ActivityBase {
         super.onDestroy();
     }
 
-    // The fields show the definition, unless they show what was entered before a recreation
+    // The fields show the definition, unless they show what was entered before a recreation.
+    // An existing definition cannot be saved until it is loaded (see updateMenu), so a failed load is retried.
     private void load(final String id, final boolean fill) {
         final Context context = getApplicationContext();
         run(TAG, () -> {
@@ -254,7 +255,7 @@ public class ActivityHookEdit extends ActivityBase {
                 refill = false;
                 updateMenu();
             });
-        });
+        }, () -> load(id, fill));
     }
 
     private void fill(JSONObject jhook) {

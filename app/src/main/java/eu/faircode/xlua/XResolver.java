@@ -27,6 +27,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -164,7 +165,7 @@ final class XResolver {
             Set<List<Class<?>>> declared = new HashSet<>();
             for (Method method : methods) {
                 List<Class<?>> params = Arrays.asList(method.getParameterTypes());
-                if (!method.isBridge() || bridgesDeclared(method, methods))
+                if (!method.isBridge() || bridgesDeclared(c, method, methods))
                     declared.add(params);
                 if (!overridden.contains(params) &&
                         !method.isBridge() && !Modifier.isAbstract(method.getModifiers()))
@@ -175,22 +176,51 @@ final class XResolver {
         return result;
     }
 
-    // Whether a bridge method calls a method of its own class: one with a covariant return type
-    // or with the parameters of a generic type. Else it is the bridge javac adds to a public class
-    // for a public method of a class which is not public, which calls the method of the super class.
-    private static boolean bridgesDeclared(Method bridge, List<Method> methods) {
+    // Whether a bridge method calls a method of its own class: one with the same parameters and a covariant
+    // return type, or one with the parameters of a generic type, narrower than the type variables of the method
+    // of the super class or interface which the bridge has the signature of. Else it is the bridge javac adds
+    // to a public class for a public method of a class which is not public, which calls the method of the super
+    // class, also when the class overloads the method with narrower parameters.
+    private static boolean bridgesDeclared(Class<?> cls, Method bridge, List<Method> methods) {
         Class<?>[] bparams = bridge.getParameterTypes();
+        Type[] generic = null;
         for (Method method : methods) {
             Class<?>[] mparams = method.getParameterTypes();
             if (method.isBridge() || mparams.length != bparams.length ||
                     !bridge.getReturnType().isAssignableFrom(method.getReturnType()))
                 continue;
-            boolean assignable = true;
-            for (int i = 0; i < mparams.length && assignable; i++)
-                assignable = bparams[i].isAssignableFrom(mparams[i]);
-            if (assignable)
+            boolean bridged = true;
+            for (int i = 0; i < mparams.length && bridged; i++)
+                if (!mparams[i].equals(bparams[i])) {
+                    if (generic == null)
+                        generic = genericParameters(cls, bridge);
+                    bridged = (bparams[i].isAssignableFrom(mparams[i]) && !(generic[i] instanceof Class));
+                }
+            if (bridged)
                 return true;
         }
         return false;
+    }
+
+    // The generic parameter types of the method of a super class or interface which a bridge has the signature of:
+    // type variables for the parameters of a generic type, else classes, also when there is no such method
+    private static Type[] genericParameters(Class<?> cls, Method bridge) {
+        List<Class<?>> pending = new ArrayList<>();
+        Set<Class<?>> seen = new HashSet<>();
+        pending.add(cls);
+        while (!pending.isEmpty()) {
+            Class<?> c = pending.remove(0);
+            if (c != cls)
+                try {
+                    return c.getDeclaredMethod(bridge.getName(), bridge.getParameterTypes()).getGenericParameterTypes();
+                } catch (NoSuchMethodException ignored) {
+                }
+            if (c.getSuperclass() != null && seen.add(c.getSuperclass()))
+                pending.add(c.getSuperclass());
+            for (Class<?> i : c.getInterfaces())
+                if (seen.add(i))
+                    pending.add(i);
+        }
+        return bridge.getParameterTypes();
     }
 }

@@ -72,9 +72,13 @@ end
 -- none before Android 8, which has neither these libraries nor getSharedLibraries
 function applibraries(param)
     local names = {}
-    local pm = param:getApplicationContext():getPackageManager()
-    local ok, list = pcall(pm.getSharedLibraries, pm, 0)
-    if ok and list ~= nil then
+    -- The lookup is hooked itself (see after), which would restrict it and report it as a call of the app
+    local list = param:unhooked(function()
+        local pm = param:getApplicationContext():getPackageManager()
+        local ok, result = pcall(pm.getSharedLibraries, pm, 0)
+        return (ok and result or nil)
+    end)
+    if list ~= nil then
         local items = list:toArray()
         for index = 1, items['length'] do
             local kind = items[index]:getType()

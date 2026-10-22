@@ -239,6 +239,22 @@ public class DeviceValuesScriptTest {
             // An array of names as the list it becomes
             "function names(result) return (result.toArray and result or listof(table.unpack(result))):toString() end");
 
+    // settingssecure_getstring tells the default of the system for the settings with the same function
+    @Test
+    public void systemDefaultIsTheSameAsOfSettings() throws Exception {
+        assertEquals(function("default_app_filter", "systemdefault"), function("settingssecure_getstring", "systemdefault"));
+    }
+
+    // The text of a function of a script, up to its end
+    private static String function(String script, String name) throws Exception {
+        String source = new String(Files.readAllBytes(new File("src/main/assets/" + script + ".lua").toPath()),
+                StandardCharsets.UTF_8);
+        int start = source.indexOf("\nfunction " + name + "(");
+        int end = source.indexOf("\nend\n", start);
+        assertTrue(script + " " + name, start >= 0 && end > start);
+        return source.substring(start, end);
+    }
+
     private Varargs defaultApp(Globals globals, String method, String result) {
         return run(globals, "return run(hookof('" + method + "', '" + method + "'), appparamof(" + result + "))");
     }
