@@ -15,35 +15,57 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The user agent of a WebView contains the device model and firmware build, like
+-- '(Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv)', which is reduced like Chrome does:
+-- '(Linux; Android 15; K; wv)', the same as WebSettings.getDefaultUserAgent (see webview_useragent).
+-- It is set when the WebView is made, because pages see it (navigator.userAgent, the requests);
+-- user agents the app sets later with the model and build are reduced too, and so is the default
+-- the app brings back with null or an empty user agent. Other user agents of the app stay.
+
+function reduce(ua)
+    return (string.gsub(ua, '; [^;]*Build/[^;)]*', '; K', 1))
+end
+
+-- The parameter is not named hook, the function to hook a method is
 function after(h, param)
     local this = param:getThis()
-    if this == nil then
+    if this == nil or param:getValue('hooked', this) then
         return false
     end
-
-    local hooked = param:getValue('hooked', this)
-    if hooked then
-        return false
-    else
-        param:putValue('hooked', true, this)
-    end
+    param:putValue('hooked', true, this)
 
     local settings = this:getSettings()
     if settings == nil then
         return false
-    else
-        local ua = 'Mozilla/5.0 (Linux; U; Android; en-us) AppleWebKit/999+ (KHTML, like Gecko) Safari/999.9'
-        hook(settings, 'setUserAgentString', setUserAgentString, ua)
-        settings:setUserAgentString('dummy')
-        return true
     end
+    hook(settings, 'setUserAgentString', setUserAgentString)
+
+    local ua = settings:getUserAgentString()
+    if ua == nil then
+        return false
+    end
+    local fake = reduce(ua)
+    if fake == ua then
+        return false
+    end
+    settings:setUserAgentString(fake)
+    return true, ua, fake
 end
 
-function setUserAgentString(when, param, ua)
-    if when == 'before' then
-        if param:getArgument(0) ~= ua then
-            log('Setting ua=' .. ua)
-            param:setArgument(0, ua)
+function setUserAgentString(when, param)
+    if when ~= 'before' then
+        return
+    end
+    local ua = param:getArgument(0)
+    if ua == nil or ua == '' then
+        local webSettings = luajava.bindClass('android.webkit.WebSettings')
+        ua = webSettings:getDefaultUserAgent(param:getApplicationContext())
+        if ua == nil then
+            return
         end
+    end
+    local fake = reduce(ua)
+    if fake ~= param:getArgument(0) then
+        param:setArgument(0, fake)
     end
 end

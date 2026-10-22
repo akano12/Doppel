@@ -44,16 +44,15 @@ function after(hook, param)
         return false
     end
 
+    -- getIntProperty and getLongProperty give the same capacity
     local fake
-    if method == 'getIntProperty' then
-        if id == 4 then -- BATTERY_PROPERTY_CAPACITY, percent
-            if result < 0 then
-                return false
-            end
-            fake = math.floor(result / 10 + 0.5) * 10
-        else
-            fake = luajava.bindClass('java.lang.Integer').MIN_VALUE
+    if id == 4 then -- BATTERY_PROPERTY_CAPACITY, percent
+        if result < 0 then
+            return false
         end
+        fake = math.floor(result / 10 + 0.5) * 10
+    elseif method == 'getIntProperty' then
+        fake = luajava.bindClass('java.lang.Integer').MIN_VALUE
     else
         fake = luajava.bindClass('java.lang.Long').MIN_VALUE
     end

@@ -21,8 +21,9 @@ function after(hook, param)
         return false
     end
 
+    -- The provisioning id of Widevine is a device id too, on newer devices the inverted bits of the device id
     local propertyString = param:getArgument(0)
-    if propertyString == nil or propertyString ~= 'deviceUniqueId' then
+    if propertyString ~= 'deviceUniqueId' and propertyString ~= 'provisioningUniqueId' then
         return false
     end
 

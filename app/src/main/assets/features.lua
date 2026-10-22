@@ -19,6 +19,13 @@
 -- features.hide (comma separated); apps and the framework itself check single platform
 -- features to decide what works (like WebView), so these remain. getSystemAvailableFeatures
 -- lists the same features as hasSystemFeature finds, an empty list would tell it is filtered.
+-- The shared libraries of the system carry vendor names too, like com.google.android.dialer.support;
+-- the libraries of the Android platform and the ones of Google on every device stay. Libraries of apps
+-- (static and SDK libraries) stay too, apps use them. Apps can still load a library they know the name of.
+
+local PLATFORM = { 'android.', 'androidx.', 'com.android.', 'javax.', 'org.apache.' }
+local GOOGLE = { ['com.google.android.maps'] = true, ['com.google.android.media.effects'] = true }
+local TYPE_BUILTIN = 0 -- SharedLibraryInfo
 
 function hidden(name, param)
     if name == nil then
@@ -38,13 +45,55 @@ function hidden(name, param)
     return false
 end
 
+-- Whether a shared library of the system is not part of the Android platform
+function vendor(name)
+    if name == nil or GOOGLE[name] then
+        return false
+    end
+    for _, prefix in ipairs(PLATFORM) do
+        if string.sub(name, 1, string.len(prefix)) == prefix then
+            return false
+        end
+    end
+    return true
+end
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
         return false
     end
 
-    if hook:getMethodName() == 'hasSystemFeature' then
+    local method = hook:getMethodName()
+    if method == 'getSystemSharedLibraryNames' or method == 'getSharedLibraries' then
+        -- A string array of names, or a list of SharedLibraryInfo
+        local names = (method == 'getSystemSharedLibraryNames')
+        local items = (names and result or result:toArray())
+        local kept = luajava.newInstance('java.util.ArrayList')
+        for index = 1, items['length'] do
+            local item = items[index]
+            if names then
+                if not vendor(item) then
+                    kept:add(item)
+                end
+            elseif item:getType() ~= TYPE_BUILTIN or not vendor(item:getName()) then
+                kept:add(item)
+            end
+        end
+        if kept:size() == items['length'] then
+            return false
+        end
+        if names then
+            local stringClass = luajava.bindClass('java.lang.String')
+            local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+            param:setResult(kept:toArray(arrayClass:newInstance(stringClass, 0)))
+        else
+            param:setResult(kept)
+        end
+        return true, tostring(items['length']), tostring(kept:size())
+    end
+
+    if method == 'hasSystemFeature' then
         local name = param:getArgument(0)
         if result and hidden(name, param) then
             param:setResult(false)

@@ -15,6 +15,10 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The security patch level per quarter, like 2025-04-01 for 2025-05-05: a date of fewer values,
+-- which apps can still parse and compare (see security_patch)
+local QUARTER = {}
+
 -- Properties behind the fields of android.os.Build with their fake values, the same as getprop
 -- prints (see shell_commands); a * matches the partition, like ro.vendor.build.id
 local DEVICE = {
@@ -22,15 +26,17 @@ local DEVICE = {
                    'ro.product.manufacturer', 'ro.product.*.manufacturer', 'ro.product.device',
                    'ro.product.*.device', 'ro.product.name', 'ro.product.*.name', 'ro.product.board',
                    'ro.product.*.board', 'ro.soc.model', 'ro.soc.manufacturer', 'ro.hardware',
+                   'ro.boot.hardware', 'ro.boot.hardware.platform', 'ro.board.platform',
                    'ro.boot.hardware.sku', 'ro.boot.product.hardware.sku', 'ro.boot.vbmeta.digest',
-                   'ro.bootloader', 'ro.boot.bootloader', 'gsm.version.baseband' } },
+                   'ro.bootloader', 'ro.boot.bootloader', 'ro.build.expect.bootloader',
+                   'gsm.version.baseband', 'ro.build.expect.baseband' } },
     { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
                    'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
                    'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
                    'ro.*.build.tags', 'ro.build.type', 'ro.*.build.type', 'ro.build.description',
-                   'ro.build.flavor', 'ro.build.product', 'ro.build.date', 'ro.*.build.date',
-                   'ro.build.version.security_patch', 'ro.*.build.version.security_patch',
-                   'ro.*.build.security_patch' } },
+                   'ro.build.flavor', 'ro.build.product', 'ro.build.date', 'ro.*.build.date' } },
+    { QUARTER, { 'ro.build.version.security_patch', 'ro.*.build.version.security_patch',
+                 'ro.*.build.security_patch' } },
     { '0', { 'ro.build.date.utc', 'ro.*.build.date.utc' } },
 }
 
@@ -50,16 +56,71 @@ for _, rule in ipairs(DEVICE) do
 end
 
 -- The fake value of a device property, nil when it is not faked
-function fakedevice(key)
-    if NAMES[key] ~= nil then
-        return NAMES[key]
-    end
-    for _, entry in ipairs(PATTERNS) do
-        if string.match(key, entry[1]) then
-            return entry[2]
+function fakedevice(key, result)
+    local fake = NAMES[key]
+    if fake == nil then
+        for _, entry in ipairs(PATTERNS) do
+            if string.match(key, entry[1]) then
+                fake = entry[2]
+                break
+            end
         end
     end
-    return nil
+    if fake == QUARTER then
+        fake = quarter(result)
+    end
+    return fake
+end
+
+-- The first day of the quarter of a date like 2025-05-05, nil when it is no date
+function quarter(date)
+    local year, month = string.match(date, '^(%d%d%d%d)%-(%d%d)%-%d%d$')
+    if year == nil then
+        return nil
+    end
+    return string.format('%s-%02d-01', year, math.floor((tonumber(month) - 1) / 3) * 3 + 1)
+end
+
+-- The number of a property value, like SystemProperties.getInt and getLong parse it (android::base::ParseInt):
+-- decimal, or hexadecimal with 0x, and nothing else; nil when it is no number or out of range
+function number(value, method)
+    local text = string.match(value, '^%s*(.*)$')
+    local result
+    if string.match(text, '^0[xX]%x+$') then
+        result = tonumber(string.sub(text, 3), 16)
+    elseif string.match(text, '^%-?%d+$') then
+        result = tonumber(text)
+    end
+    local limit = (method == 'getInt' and 2 ^ 31 or 2 ^ 63)
+    if result == nil or result < -limit or result >= limit then
+        return nil
+    end
+    return result
+end
+
+-- SystemProperties.getInt and getLong read properties natively, not with get: the number of the fake value,
+-- else the default, like for 'unknown'. Properties which are not set or not a number give the default, which stays.
+function typed(hook, param, key, result, method)
+    local default = param:getArgument(1)
+    if result == default then
+        return false
+    end
+    local fake
+    if string.match(hook:getName(), '/(.*)$') == 'device' then
+        fake = fakedevice(key, '')
+    end
+    if fake == nil then
+        return false
+    end
+    fake = number(fake, method)
+    if fake == nil then
+        fake = default
+    end
+    if fake == result then
+        return false
+    end
+    param:setResult(fake)
+    return true, tostring(result), tostring(fake)
 end
 
 -- The value of a property which is not set: the default of get(key, def), else empty
@@ -78,8 +139,13 @@ function after(hook, param)
         return false
     end
 
-    -- Properties which are not set stay empty, a fake value would tell they are faked
     local result = param:getResult()
+    local method = hook:getMethodName()
+    if method == 'getInt' or method == 'getLong' then
+        return typed(hook, param, key, result, method)
+    end
+
+    -- Properties which are not set stay empty, a fake value would tell they are faked
     if result == nil or result == '' then
         return false
     end
@@ -118,7 +184,7 @@ function after(hook, param)
         return true, result, fake
     elseif name == 'device' then
         -- Like the fields of android.os.Build
-        local fake = fakedevice(key)
+        local fake = fakedevice(key, result)
         if fake == nil or fake == result then
             return false
         end

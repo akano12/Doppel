@@ -17,20 +17,20 @@
 
 -- Settings people change, which together recognize a device (the device state of FingerprintJS),
 -- with their values on a new device; NONE for settings which are not set on a new device.
--- The 12/24 hour clock is not included, because apps show times with it.
+-- The 12/24 hour clock is not included, because apps show times with it. Neither are the font scale,
+-- the animator duration scale and whether accessibility or touch exploration is on: the framework
+-- gives the real values too (Configuration.fontScale, ValueAnimator.getDurationScale, AccessibilityManager),
+-- which cannot be faked without changing how the app works, and fake settings next to them would stand out.
 local NONE = {}
 local PERSONAL = {
     -- Global
     http_proxy = NONE,
     transition_animation_scale = '1.0',
     window_animation_scale = '1.0',
-    animator_duration_scale = '1.0',
     data_roaming = '0',
     auto_time = '1',
     auto_time_zone = '1',
     -- Secure
-    accessibility_enabled = '0',
-    touch_exploration_enabled = '0',
     rtt_calling_mode = '0',
     -- System
     alarm_alert = NONE,
@@ -38,20 +38,51 @@ local PERSONAL = {
     notification_sound = NONE,
     date_format = NONE,
     end_button_behavior = '2',
-    font_scale = '1.0',
     screen_off_timeout = '60000',
     text_auto_replace = '1',
     text_auto_caps = '1',
     text_auto_punctuate = '1',
 }
 
--- Packages of the keyboards or accessibility services of system apps and of the app itself.
+-- Secure settings which name apps, and what tells which of them stay visible: the keyboards ('input_method')
+-- or the accessibility services ('accessibility'), see systemservices, else the package manager ('packages').
+-- Lists are like com.example/.Keyboard;subtype:com.other/.Keyboard or com.example:com.other.
+-- The voice recognition service and the text to speech engine are not included,
+-- because the framework reads them in the app process to start speech recognition and speech.
+local COMPONENTS = {
+    default_input_method = 'input_method',
+    enabled_input_methods = 'input_method',
+    input_methods_subtype_history = 'input_method',
+    selected_spell_checker = 'input_method',
+    enabled_accessibility_services = 'accessibility',
+    touch_exploration_granted_accessibility_services = 'accessibility',
+    accessibility_shortcut_target_service = 'accessibility',
+    accessibility_button_target_component = 'accessibility',
+    accessibility_button_targets = 'accessibility',
+    accessibility_gesture_targets = 'accessibility',
+    enabled_notification_listeners = 'packages',
+    enabled_notification_assistant = 'packages',
+    enabled_notification_policy_access_packages = 'packages',
+    autofill_service = 'packages',
+    voice_interaction_service = 'packages',
+    assistant = 'packages',
+    sms_default_application = 'packages',
+    dialer_default_application = 'packages',
+    enabled_print_services = 'packages',
+    enabled_vr_listeners = 'packages',
+}
+
+-- Shortcut targets of the framework itself, like com.android.server.accessibility/ColorInversion;
+-- magnification has no package, like com.android.server.accessibility.MagnificationController
+local FRAMEWORK = { android = true, ['com.android.server.accessibility'] = true }
+
+-- Whether packages of keyboards or accessibility services are visible, see XParam.isVisible.
 -- These come from the services, because the package manager does not tell about apps
 -- which are hidden by the package visibility rules, like a system keyboard. See service_filter too.
-function systemservices(param, name)
+function systemservices(param, source)
     local context = param:getApplicationContext()
     local infos = {}
-    if name == 'accessibility' then
+    if source == 'accessibility' then
         local am = context:getSystemService('accessibility')
         for _, list in ipairs({ am:getInstalledAccessibilityServiceList(), am:getEnabledAccessibilityServiceList(-1) }) do
             local items = list:toArray()
@@ -59,7 +90,7 @@ function systemservices(param, name)
                 infos[#infos + 1] = items[index]:getResolveInfo().serviceInfo.applicationInfo
             end
         end
-    else
+    elseif source == 'input_method' then
         local items = context:getSystemService('input_method'):getInputMethodList():toArray()
         for index = 1, items['length'] do
             infos[#infos + 1] = items[index]:getServiceInfo().applicationInfo
@@ -67,21 +98,62 @@ function systemservices(param, name)
     end
     local packages = {}
     for _, ai in ipairs(infos) do
-        -- ApplicationInfo.FLAG_SYSTEM (1) or FLAG_UPDATED_SYSTEM_APP (128)
-        if ai.uid == param:getUid() or bit32.band(ai.flags, 129) ~= 0 then
-            packages[ai.packageName] = true
-        end
+        packages[ai.packageName] = (packages[ai.packageName] or param:isVisible(ai))
     end
     return packages
 end
 
+-- Whether the package manager tells about an app, and it is a system app or the app itself;
+-- an app hidden by the package visibility rules is not visible
+function installed(param, packageName)
+    if packageName == param:getPackageName() then
+        return true
+    end
+    local pm = param:getApplicationContext():getPackageManager()
+    local ok, ai = pcall(pm.getApplicationInfo, pm, packageName, 0)
+    return (ok and ai ~= nil and param:isVisible(ai))
+end
+
+-- The entries of a list which name visible apps, nil when none are left
+function components(param, key, value)
+    local source = COMPONENTS[key]
+    local services
+    local kept = {}
+    for entry in string.gmatch(value, '[^:]+') do
+        local packageName = string.match(entry, '^[^/;]+')
+        local visible
+        if source == 'accessibility' and (not string.find(entry, '/', 1, true) or FRAMEWORK[packageName]) then
+            visible = true
+        else
+            if services == nil then
+                services = systemservices(param, source)
+            end
+            visible = services[packageName]
+            if visible == nil then
+                visible = installed(param, packageName)
+            end
+        end
+        if visible then
+            kept[#kept + 1] = entry
+        end
+    end
+    local fake = table.concat(kept, ':')
+    if fake == '' then
+        fake = nil
+    end
+    return fake
+end
+
+-- The other settings which hooks change
+local HOOKED = {
+    android_id = true, bluetooth_name = true, device_name = true, boot_count = true, pps_oaid = true,
+    adb_enabled = true, adb_wifi_enabled = true, development_settings_enabled = true, low_power = true,
+    bluetooth_address = true,
+}
+
 -- Whether hooks change the setting; the hooked methods are called for all settings, so check the name first
 function hooked(key)
-    return key == 'android_id' or key == 'bluetooth_name' or key == 'device_name' or key == 'boot_count' or
-            key == 'pps_oaid' or key == 'default_input_method' or key == 'enabled_input_methods' or
-            key == 'enabled_accessibility_services' or key == 'adb_enabled' or key == 'adb_wifi_enabled' or
-            key == 'development_settings_enabled' or key == 'low_power' or key == 'bluetooth_address' or
-            PERSONAL[key] ~= nil
+    return key ~= nil and (HOOKED[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil)
 end
 
 -- The fake value of a setting for a variant: true and the fake value, or false when it stays
@@ -91,6 +163,10 @@ function fakesetting(param, name, key, result)
         if fake == nil then
             fake = '0000000000000000'
         end
+        -- Settings.Secure.getString calls the hooked getStringForUser
+        if fake == result then
+            return false
+        end
         return true, fake
     elseif (name == 'bluetooth_name' and key == 'bluetooth_name') or
             (name == 'device_name' and key == 'device_name') or
@@ -98,23 +174,12 @@ function fakesetting(param, name, key, result)
             (name == 'oaid' and key == 'pps_oaid') then
         local fake
         return true, fake
-    elseif (name == 'input_method' and (key == 'default_input_method' or key == 'enabled_input_methods')) or
-            (name == 'accessibility' and key == 'enabled_accessibility_services') then
-        -- Components of keyboards or accessibility services, like com.example/.Keyboard;subtype:com.other/.Keyboard
-        local visible = systemservices(param, name)
-        local kept = {}
-        for entry in string.gmatch(result, '[^:]+') do
-            local packageName = string.match(entry, '^[^/]+')
-            if visible[packageName] then
-                kept[#kept + 1] = entry
-            end
-        end
-        local fake = table.concat(kept, ':')
+    elseif (name == 'accessibility' and COMPONENTS[key] == 'accessibility') or
+            (name == 'input_method' and COMPONENTS[key] ~= nil and COMPONENTS[key] ~= 'accessibility') then
+        -- Keyboards and accessibility services, and the other apps named by settings, like notification listeners
+        local fake = components(param, key, result)
         if fake == result then
             return false
-        end
-        if fake == '' then
-            fake = nil
         end
         return true, fake
     elseif name == 'settings' and PERSONAL[key] ~= nil then
@@ -171,13 +236,15 @@ function fakeany(param, group, key, result)
     return false
 end
 
--- The setting a query selects with name=?, for rows without the name column; nil when none
+-- The setting a query selects, for rows without the name column, and the selection; the name is nil
+-- when none. Like SettingsProvider: name=? or (name=?) with one argument, or name='android_id' or
+-- (name="android_id"), where the name is between the first and the last quote
 function selected(hook, param)
     local selection, args
     if string.find(hook:getName(), 'query26', 1, true) then
         local bundle = param:getArgument(2)
         if bundle == nil then
-            return nil
+            return nil, nil
         end
         selection = bundle:getString('android:query-arg-sql-selection')
         args = bundle:getStringArray('android:query-arg-sql-selection-args')
@@ -185,22 +252,75 @@ function selected(hook, param)
         selection = param:getArgument(2)
         args = param:getArgument(3)
     end
-    if selection == nil or args == nil or args['length'] ~= 1 or
-            (string.gsub(selection, '%s', '')) ~= 'name=?' then
-        return nil
+    if selection == nil then
+        return nil, nil
     end
-    return args[1]
+
+    -- Without spaces around and without brackets
+    local where = string.match(selection, '^%s*(.-)%s*$')
+    local inner = string.match(where, '^%((.*)%)$')
+    if inner ~= nil then
+        where = string.match(inner, '^%s*(.-)%s*$')
+    end
+    if string.match(where, '^name%s*=%s*%?$') then
+        if args ~= nil and args['length'] == 1 then
+            return args[1], selection
+        end
+    elseif string.match(where, '^name%s*=%s*[\'"].*[\'"]$') then
+        local first = math.max(string.find(selection, "'", 1, true) or 0, string.find(selection, '"', 1, true) or 0)
+        local last = math.max(string.match(selection, ".*()'") or 0, string.match(selection, '.*()"') or 0)
+        return string.sub(selection, first + 1, last - 1), selection
+    end
+    return nil, selection
+end
+
+-- call(LIST_secure) returns all settings, as lines like android_id=1234 (null when not set);
+-- settings without a value are left out, like they are not set
+function listed(param, group, result)
+    local list = result:getStringArrayList('result_settings_list')
+    if list == nil then
+        return false
+    end
+    local lines = list:toArray()
+    local kept = luajava.newInstance('java.util.ArrayList')
+    local names = {}
+    for index = 1, lines['length'] do
+        local line = lines[index]
+        local key, value = string.match(line, '^([^=]*)=(.*)$')
+        local changed, fake = false
+        if key ~= nil and value ~= 'null' and hooked(key) then
+            changed, fake = fakeany(param, group, key, value)
+        end
+        if changed then
+            names[#names + 1] = key
+            if fake ~= nil then
+                kept:add(key .. '=' .. fake)
+            end
+        else
+            kept:add(line)
+        end
+    end
+    if #names == 0 then
+        return false
+    end
+    result:putStringArrayList('result_settings_list', kept)
+    return true, table.concat(names, ',')
 end
 
 -- Apps can read settings from the settings provider too, which Settings.*.getString use:
--- call(GET_secure, name) returns a bundle with the value, a query rows of names and values
--- The methods of the settings provider which read a setting
-local GETTERS = { GET_secure = true, GET_system = true, GET_global = true }
+-- call(GET_secure, name) returns a bundle with the value, call(LIST_secure) all settings
+-- and a query rows of names and values
+-- The methods of the settings provider which read settings
+local GETTERS = {
+    GET_secure = true, GET_system = true, GET_global = true,
+    LIST_secure = true, LIST_system = true, LIST_global = true,
+}
 
 function provider(hook, param, group)
     local target = param:getArgument(0)
     local authority = target
-    -- ContentProviderClient.call(method, arg, extras) does not tell the provider, the getters are of settings
+    -- ContentProviderClient.call(method, arg, extras) does not tell the provider, the getters are of settings;
+    -- hooked up to Android 9 only, later it calls the hooked call(authority, method, arg, extras)
     local client = (string.find(hook:getName(), 'ContentProviderClient.call/', 1, true) == 1)
     if client then
         authority = (GETTERS[target] and 'settings' or nil)
@@ -223,6 +343,9 @@ function provider(hook, param, group)
     if hook:getMethodName() == 'call' then
         local offset = (client and 0 or 1)
         local method = param:getArgument(offset)
+        if method ~= nil and string.sub(method, 1, 5) == 'LIST_' then
+            return listed(param, group, result)
+        end
         local key = param:getArgument(offset + 1)
         if method == nil or string.sub(method, 1, 4) ~= 'GET_' or not hooked(key) then
             return false
@@ -250,8 +373,18 @@ function provider(hook, param, group)
     local pathKey
     if segments:size() == 2 then
         pathKey = segments:get(1)
-    else
-        pathKey = selected(hook, param)
+    elseif nameIndex < 0 then
+        local selection
+        pathKey, selection = selected(hook, param)
+        -- All settings without their names: which value is which cannot be told, so there are none
+        if selection == nil then
+            if result:getCount() == 0 then
+                return false
+            end
+            result:close()
+            param:setResult(luajava.newInstance('android.database.MatrixCursor', columns))
+            return true
+        end
     end
 
     local fakecursor = luajava.newInstance('android.database.MatrixCursor', columns)
@@ -299,10 +432,10 @@ end
 
 function after(hook, param)
     -- The getters are called for all settings, so check the name first; the second argument of
-    -- the provider hooks is the method of call (GET_secure), the name of the setting for
+    -- the provider hooks is the method of call (GET_secure, LIST_secure), the name of the setting for
     -- ContentProviderClient.call(method, arg, extras) or the projection of a query
     local key = param:getArgument(1)
-    local getter = (type(key) == 'string' and string.sub(key, 1, 4) ~= 'GET_')
+    local getter = (type(key) == 'string' and string.sub(key, 1, 4) ~= 'GET_' and string.sub(key, 1, 5) ~= 'LIST_')
     if getter and not hooked(key) then
         return false
     end

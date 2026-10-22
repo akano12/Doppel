@@ -16,7 +16,7 @@
 -- Whether a device has a fingerprint sensor, face or iris unlock, and whether fingerprints are enrolled,
 -- tells about the device and its user. Apps get the answers of a device without biometric hardware,
 -- so they offer their own login or the screen lock instead. Checks which include the screen lock
--- (device credential) stay, so apps can still use it.
+-- (device credential) stay, so apps can still use it (see biometrics_credential).
 
 local FEATURES = {
     ['android.hardware.fingerprint'] = true,
@@ -25,9 +25,26 @@ local FEATURES = {
 }
 local BIOMETRIC_ERROR_NO_HARDWARE = 12
 local DEVICE_CREDENTIAL = 32768
+-- The managers of the services, which are there with the hardware only
+local SERVICES = { fingerprint = true, face = true, iris = true }
 
 function after(hook, param)
     local method = hook:getMethodName()
+
+    if method == 'getSystemService' then
+        -- Context.getSystemService gives apps targeting Android 8 or later no manager without the service,
+        -- and never the iris manager; it is called for all services, so check the name first
+        local name = param:getArgument(0)
+        if not SERVICES[name] or param:getResult() == nil then
+            return false
+        end
+        if name ~= 'iris' and param:getApplicationContext():getApplicationInfo().targetSdkVersion < 26 then
+            return false
+        end
+        param:setResult(nil)
+        return true, name, nil
+    end
+
     local result = param:getResult()
 
     if method == 'getSystemAvailableFeatures' then
@@ -68,6 +85,14 @@ function after(hook, param)
         end
         param:setResult(BIOMETRIC_ERROR_NO_HARDWARE)
         return true, tostring(result), tostring(BIOMETRIC_ERROR_NO_HARDWARE)
+
+    elseif method == 'getBiometricSensorStrengths' then
+        -- BiometricManager, API 37: no sensors
+        if result == nil or result:isEmpty() then
+            return false
+        end
+        param:setResult(luajava.newInstance('java.util.HashMap'))
+        return true, result:toString(), '{}'
 
     else
         -- FingerprintManager.isHardwareDetected, hasEnrolledFingerprints

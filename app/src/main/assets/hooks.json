@@ -621,6 +621,56 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
+    "name": "TextServicesManager.getEnabledSpellCheckerInfos",
+    "author": "XPrivacyLua",
+    "className": "android.view.textservice.TextServicesManager",
+    "methodName": "getEnabledSpellCheckerInfos",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 31,
+    "luaScript": "@spellchecker_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TextServicesManager.getEnabledSpellCheckers",
+    "author": "XPrivacyLua",
+    "className": "android.view.textservice.TextServicesManager",
+    "methodName": "getEnabledSpellCheckers",
+    "parameterTypes": [],
+    "returnType": "[Landroid.view.textservice.SpellCheckerInfo;",
+    "minSdk": 23,
+    "optional": true,
+    "luaScript": "@spellchecker_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TextServicesManager.getCurrentSpellCheckerInfo",
+    "author": "XPrivacyLua",
+    "className": "android.view.textservice.TextServicesManager",
+    "methodName": "getCurrentSpellCheckerInfo",
+    "parameterTypes": [],
+    "returnType": "android.view.textservice.SpellCheckerInfo",
+    "minSdk": 31,
+    "luaScript": "@spellchecker_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TextServicesManager.getCurrentSpellChecker",
+    "author": "XPrivacyLua",
+    "className": "android.view.textservice.TextServicesManager",
+    "methodName": "getCurrentSpellChecker",
+    "parameterTypes": [],
+    "returnType": "android.view.textservice.SpellCheckerInfo",
+    "minSdk": 23,
+    "optional": true,
+    "luaScript": "@spellchecker_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
     "name": "Settings.Secure.getString/input_method",
     "author": "XPrivacyLua",
     "className": "android.provider.Settings$Secure",
@@ -631,6 +681,49 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 3,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getDefaultDialerPackage",
+    "author": "XPrivacyLua",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getDefaultDialerPackage",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 23,
+    "luaScript": "@default_app_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Telephony.Sms.getDefaultSmsPackage",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Telephony$Sms",
+    "methodName": "getDefaultSmsPackage",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 19,
+    "luaScript": "@default_app_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Settings.Secure.getStringForUser/input_method",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -2476,6 +2569,26 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
+    "name": "Settings.Secure.getStringForUser/android_id",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
     "name": "SystemProperties.get/serial",
     "author": "M66B",
     "className": "android.os.SystemProperties",
@@ -3140,14 +3253,10 @@
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getVoiceMailAlphaTag",
-    "parameterTypes": [
-    ],
+    "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "settings": [
-      "value.phone_number"
-    ],
-    "luaScript": "@value_phone_number"
+    "luaScript": "@generic_null_value"
   },
   {
     "collection": "Privacy",
@@ -3160,6 +3269,40 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@value_phone_number"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelecomManager.getVoiceMailNumber",
+    "author": "XPrivacyLua",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getVoiceMailNumber",
+    "parameterTypes": [
+      "android.telecom.PhoneAccountHandle"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 23,
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@value_phone_number"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelecomManager.getLine1Number",
+    "author": "XPrivacyLua",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getLine1Number",
+    "parameterTypes": [
+      "android.telecom.PhoneAccountHandle"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 23,
     "settings": [
       "value.phone_number"
     ],
@@ -4542,7 +4685,7 @@
     "returnType": "java.lang.String",
     "minSdk": 23,
     "usage": false,
-    "luaScript": "@generic_unknown_value"
+    "luaScript": "@security_patch"
   },
   {
     "collection": "Privacy",
@@ -4589,6 +4732,36 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "System.unchangeableSystemProperties",
+    "author": "XPrivacyLua",
+    "className": "java.lang.System",
+    "methodName": "#unchangeableSystemProperties",
+    "parameterTypes": [],
+    "returnType": "java.util.Properties",
+    "minSdk": 1,
+    "maxSdk": 23,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@system_properties"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "System.systemProperties",
+    "author": "XPrivacyLua",
+    "className": "java.lang.System",
+    "methodName": "#systemProperties",
+    "parameterTypes": [],
+    "returnType": "java.util.Properties",
+    "minSdk": 1,
+    "maxSdk": 23,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@system_properties"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "WebSettings.getDefaultUserAgent",
     "author": "XPrivacyLua",
     "className": "android.webkit.WebSettings",
@@ -4600,6 +4773,25 @@
     "minSdk": 17,
     "usage": false,
     "luaScript": "@webview_useragent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "WebView.constructor/useragent",
+    "author": "XPrivacyLua",
+    "className": "android.webkit.WebView",
+    "parameterTypes": [
+      "android.content.Context",
+      "android.util.AttributeSet",
+      "int",
+      "int",
+      "java.util.Map",
+      "boolean"
+    ],
+    "minSdk": 23,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@webview_constructor"
   },
   {
     "collection": "Privacy",
@@ -4779,6 +4971,23 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "Settings.Secure.getStringForUser/bluetooth_name",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "SystemProperties.get/build",
     "author": "M66B",
     "className": "android.os.SystemProperties",
@@ -4904,15 +5113,70 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "SystemProperties.getLong/device",
+    "author": "XPrivacyLua",
+    "className": "android.os.SystemProperties",
+    "methodName": "getLong",
+    "parameterTypes": [
+      "java.lang.String",
+      "long"
+    ],
+    "returnType": "long",
+    "minSdk": 1,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.getInt/device",
+    "author": "XPrivacyLua",
+    "className": "android.os.SystemProperties",
+    "methodName": "getInt",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 1,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "SubscriptionInfo.getCarrierName",
     "author": "M66B",
     "className": "android.telephony.SubscriptionInfo",
     "methodName": "getCarrierName",
-    "parameterTypes": [
-    ],
+    "parameterTypes": [],
     "returnType": "java.lang.CharSequence",
     "minSdk": 22,
-    "luaScript": "@generic_unknown_value"
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SubscriptionInfo.getCarrierId",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getCarrierId",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 29,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SubscriptionInfo.getDisplayName",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getDisplayName",
+    "parameterTypes": [],
+    "returnType": "java.lang.CharSequence",
+    "minSdk": 22,
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -4974,11 +5238,10 @@
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getNetworkOperatorName",
-    "parameterTypes": [
-    ],
+    "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "luaScript": "@generic_unknown_value"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -5013,11 +5276,106 @@
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getSimOperatorName",
-    "parameterTypes": [
-    ],
+    "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "luaScript": "@generic_unknown_value"
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "NetworkRegistrationInfo.getRegisteredPlmn",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.NetworkRegistrationInfo",
+    "methodName": "getRegisteredPlmn",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 30,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ServiceState.getOperatorAlphaShort",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.ServiceState",
+    "methodName": "getOperatorAlphaShort",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ServiceState.getOperatorAlphaLong",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.ServiceState",
+    "methodName": "getOperatorAlphaLong",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ServiceState.getOperatorNumeric",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.ServiceState",
+    "methodName": "getOperatorNumeric",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TelephonyManager.getSimSpecificCarrierIdName",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getSimSpecificCarrierIdName",
+    "parameterTypes": [],
+    "returnType": "java.lang.CharSequence",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TelephonyManager.getSimSpecificCarrierId",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getSimSpecificCarrierId",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 29,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TelephonyManager.getSimCarrierIdName",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getSimCarrierIdName",
+    "parameterTypes": [],
+    "returnType": "java.lang.CharSequence",
+    "minSdk": 28,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TelephonyManager.getSimCarrierId",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getSimCarrierId",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 28,
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
@@ -5142,7 +5500,6 @@
     "group": "Use.Tracking",
     "name": "MediaDrm.getPropertyByteArray",
     "author": "LuigiVampa92",
-    "description": "DRM manager will return fake unique device ID",
     "className": "android.media.MediaDrm",
     "methodName": "getPropertyByteArray",
     "parameterTypes": [
@@ -5151,7 +5508,8 @@
     "returnType": "byte[]",
     "minSdk": 18,
     "enabled": true,
-    "luaScript": "@mediadrm_unique_id"
+    "luaScript": "@mediadrm_unique_id",
+    "description": "DRM manager will return fake unique device and provisioning IDs"
   },
   // The device name is often set to the name of the owner
   {
@@ -5167,6 +5525,23 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 25,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Settings.Global.getStringForUser/device_name",
+    "author": "XPrivacyLua",
+    "className": "android.provider.Settings$Global",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 25,
+    "optional": true,
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -5335,6 +5710,46 @@
     "settings": [
       "features.hide"
     ],
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "PackageManager.getSharedLibraries/flags",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSharedLibraries",
+    "parameterTypes": [
+      "android.content.pm.PackageManager$PackageInfoFlags"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "PackageManager.getSharedLibraries",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSharedLibraries",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 26,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "PackageManager.getSystemSharedLibraryNames",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSystemSharedLibraryNames",
+    "parameterTypes": [],
+    "returnType": "[Ljava.lang.String;",
+    "minSdk": 3,
     "luaScript": "@features"
   },
   // Read VPN state
@@ -6348,6 +6763,96 @@
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",
+    "name": "BiometricManager.getBiometricSensorStrengths",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.biometrics.BiometricManager",
+    "methodName": "getBiometricSensorStrengths",
+    "parameterTypes": [],
+    "returnType": "java.util.Map",
+    "minSdk": 37,
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricManager.getLastAuthenticationTime",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.biometrics.BiometricManager",
+    "methodName": "getLastAuthenticationTime",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "long",
+    "minSdk": 35,
+    "luaScript": "@biometrics_credential"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricManager.Strings.getSettingName",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.biometrics.BiometricManager$Strings",
+    "methodName": "getSettingName",
+    "parameterTypes": [],
+    "returnType": "java.lang.CharSequence",
+    "minSdk": 31,
+    "luaScript": "@biometrics_credential"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricManager.Strings.getPromptMessage",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.biometrics.BiometricManager$Strings",
+    "methodName": "getPromptMessage",
+    "parameterTypes": [],
+    "returnType": "java.lang.CharSequence",
+    "minSdk": 31,
+    "luaScript": "@biometrics_credential"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricManager.Strings.getButtonLabel",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.biometrics.BiometricManager$Strings",
+    "methodName": "getButtonLabel",
+    "parameterTypes": [],
+    "returnType": "java.lang.CharSequence",
+    "minSdk": 31,
+    "luaScript": "@biometrics_credential"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricManager.getStrings",
+    "author": "XPrivacyLua",
+    "className": "android.hardware.biometrics.BiometricManager",
+    "methodName": "getStrings",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.hardware.biometrics.BiometricManager$Strings",
+    "minSdk": 31,
+    "luaScript": "@biometrics_credential"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Context.getSystemService/biometrics",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "getSystemService",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.Object",
+    "minSdk": 26,
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
     "name": "PackageManager.hasSystemFeature/biometrics",
     "author": "XPrivacyLua",
     "className": "android.content.pm.PackageManager",
@@ -6613,6 +7118,7 @@
     ],
     "returnType": "android.os.Bundle",
     "minSdk": 17,
+    "maxSdk": 28,
     "settings": [
       "value.android_id"
     ],
@@ -6776,6 +7282,7 @@
     ],
     "returnType": "android.os.Bundle",
     "minSdk": 17,
+    "maxSdk": 28,
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -6918,6 +7425,7 @@
     ],
     "returnType": "android.os.Bundle",
     "minSdk": 17,
+    "maxSdk": 28,
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -7060,6 +7568,7 @@
     ],
     "returnType": "android.os.Bundle",
     "minSdk": 17,
+    "maxSdk": 28,
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -7202,6 +7711,7 @@
     ],
     "returnType": "android.os.Bundle",
     "minSdk": 17,
+    "maxSdk": 28,
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -7344,6 +7854,7 @@
     ],
     "returnType": "android.os.Bundle",
     "minSdk": 17,
+    "maxSdk": 28,
     "luaScript": "@settingssecure_getstring"
   },
   {
