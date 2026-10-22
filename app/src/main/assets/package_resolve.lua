@@ -20,6 +20,8 @@
 -- find nothing, like the probes of packages (see package_probe). The app itself, apps sharing its user id
 -- and system apps stay visible, because the Android framework looks them up in the app process.
 
+local SIGNATURE_UNKNOWN_PACKAGE = -4 -- PackageManager
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
@@ -28,24 +30,37 @@ function after(hook, param)
 
     local method = hook:getMethodName()
     local packageName
-    if method == 'getPackagesForUid' or method == 'getNameForUid' then
-        local uid = param:getArgument(0)
-        -- Its own user id and the user ids of the system, like 1000 for Android itself
-        if uid == param:getUid() or uid % 100000 < 10000 then
+    if method == 'checkSignatures' then
+        -- The user ids of two apps, like for a uid which is not in use
+        if result == SIGNATURE_UNKNOWN_PACKAGE or
+                (param:isUidVisible(param:getArgument(0)) and param:isUidVisible(param:getArgument(1))) then
             return false
         end
+        param:setResult(SIGNATURE_UNKNOWN_PACKAGE)
+        return true, tostring(result), tostring(SIGNATURE_UNKNOWN_PACKAGE)
+    elseif method == 'hasSigningCertificate' then
+        -- Whether the app of a user id has a certificate
+        if not result or param:isUidVisible(param:getArgument(0)) then
+            return false
+        end
+        param:setResult(false)
+        return true
+    elseif method == 'getPackagesForUid' or method == 'getNameForUid' then
         if method == 'getPackagesForUid' then
             if result['length'] == 0 then
                 return false
             end
             packageName = result[1]
-        elseif string.find(result, ':', 1, true) then
-            -- The name of a shared user id, like com.example.shared:10123, which no package name checks
-            param:setResult(nil)
-            return true, result
         else
             packageName = result
         end
+        -- Its own user id, the user ids of the system, like 1000 for Android itself, and the user ids
+        -- with a visible app, also of a shared user id, which names like com.example.shared:10123 have
+        if param:isUidVisible(param:getArgument(0)) then
+            return false
+        end
+        param:setResult(nil)
+        return true, packageName
     elseif method == 'resolveContentProvider' then
         packageName = result.packageName -- ProviderInfo
     else

@@ -15,15 +15,33 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- An empty notification without content, extras and actions, built with the public API, so it has only the
+-- time, the small icon and the channel of the notification, which posted notifications have and listeners use;
+-- not the large icon, which is often a photo of the sender, nor the ids of the conversation or of its shortcut
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
         return false
     end
 
-    -- Empty notification without content, extras and actions
-    local fake = luajava.newInstance('android.app.Notification')
-    fake.when = result.when
+    local context = param:getApplicationContext()
+    local channel = nil
+    if luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 26 then
+        channel = result:getChannelId()
+    end
+    local builder
+    if channel == nil then
+        builder = luajava.newInstance('android.app.Notification$Builder', context)
+    else
+        builder = luajava.newInstance('android.app.Notification$Builder', context, channel)
+    end
+    if result:getSmallIcon() ~= nil then
+        builder:setSmallIcon(result:getSmallIcon())
+    end
+    builder:setWhen(result.when)
+
+    local fake = builder:build()
     fake.icon = result.icon
     param:setResult(fake)
     return true

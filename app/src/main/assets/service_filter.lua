@@ -17,8 +17,8 @@
 -- Services of other apps are hidden, like for checks for specific packages (package_probe),
 -- services of the system and of the app itself stay.
 
--- Whether a service is of a system app or of the app itself. The app of a service is part of the
--- service info, so this works for apps which are hidden by the package visibility rules too.
+-- Whether a service is of a system app or of the app itself (see XParam.isVisible). The app of a service is part
+-- of the service info, so this works for apps which are hidden by the package visibility rules too.
 function visible(hook, param, item)
     local ai
     if hook:getClassName() == 'android.view.accessibility.AccessibilityManager' then
@@ -26,8 +26,7 @@ function visible(hook, param, item)
     else
         ai = item:getServiceInfo().applicationInfo -- InputMethodInfo
     end
-    -- ApplicationInfo.FLAG_SYSTEM (1) or FLAG_UPDATED_SYSTEM_APP (128)
-    return ai.uid == param:getUid() or bit32.band(ai.flags, 129) ~= 0
+    return param:isVisible(ai)
 end
 
 function after(hook, param)

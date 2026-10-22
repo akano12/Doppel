@@ -15,6 +15,10 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- Lists of other apps keep only the app itself. The lists of components, like of the activities for an intent,
+-- and of properties also keep system apps, like the lookups of single packages (see package_probe), because the
+-- Android framework uses them in the app process, like for launch intents, text to speech and speech recognition.
+
 function after(hook, param)
     local list = param:getResult()
     if list == nil then
@@ -30,6 +34,8 @@ function after(hook, param)
         local item = info[index]
 
         local uid
+        local ai -- The app of a component
+        local packageName -- A package without its app
         if item == nil then
             uid = -1
         elseif name == 'PackageManager.getInstalledPackages' or
@@ -39,18 +45,30 @@ function after(hook, param)
         elseif name == 'PackageManager.queryIntentActivities' or
                 name == 'PackageManager.queryIntentActivityOptions' or
                 name == 'PackageManager.queryBroadcastReceivers' then
-            uid = item.activityInfo.applicationInfo.uid -- ResolveInfo
+            ai = item.activityInfo.applicationInfo -- ResolveInfo
         elseif name == 'PackageManager.queryIntentContentProviders' then
-            uid = item.providerInfo.applicationInfo.uid -- ResolveInfo
+            ai = item.providerInfo.applicationInfo -- ResolveInfo
         elseif name == 'PackageManager.queryIntentServices' then
-            uid = item.serviceInfo.applicationInfo.uid -- ResolveInfo
+            ai = item.serviceInfo.applicationInfo -- ResolveInfo
+        elseif name == 'PackageManager.queryContentProviders' then
+            ai = item.applicationInfo -- ProviderInfo
         elseif name == 'LauncherApps.getActivityList' then
-            uid = item:getApplicationInfo().uid -- LauncherActivityInfo
+            ai = item:getApplicationInfo() -- LauncherActivityInfo
+        elseif string.match(name, '^PackageManager%.query%a+Property$') then
+            packageName = item:getPackageName() -- PackageManager.Property
         else
             uid = item.uid
         end
 
-        if uid ~= cuid then
+        local visible
+        if ai ~= nil then
+            visible = param:isVisible(ai)
+        elseif packageName ~= nil then
+            visible = param:isPackageVisible(packageName)
+        else
+            visible = (uid == cuid)
+        end
+        if not visible then
             filtered = true
             list:remove(index - 1)
         end
