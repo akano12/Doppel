@@ -65,6 +65,38 @@ public class ApplicationEx extends Application {
         applyTheme(getPreferences(this).getString(PREF_THEME, null));
     }
 
+    // The color settings of the service: theme, palette and black background, see sync
+    static class Colors {
+        final String theme;
+        final String palette;
+        final boolean black;
+
+        private Colors(String theme, String palette, boolean black) {
+            this.theme = theme;
+            this.palette = palette;
+            this.black = black;
+        }
+
+        // Calls into system server, so not on the main thread
+        static Colors get(Context context) {
+            return new Colors(
+                    Data.getSetting(context, "global", "theme"),
+                    Data.getSetting(context, "global", "palette"),
+                    Data.getSettingBoolean(context, "global", "black"));
+        }
+    }
+
+    // Remember the color settings of the service, like after an update, a restored backup or cleared data;
+    // true when the palette or the black background changed, then the screen needs to be recreated,
+    // which applies the theme when it gets the settings again, so the screen is not recreated twice
+    static boolean sync(Context context, Colors colors) {
+        boolean changed = setPalette(context, colors.palette);
+        changed |= setBlack(context, colors.black);
+        if (!changed)
+            setTheme(context, colors.theme);
+        return changed;
+    }
+
     // Apply and remember the theme setting of the service, when it changed
     static void setTheme(Context context, String theme) {
         SharedPreferences prefs = getPreferences(context);

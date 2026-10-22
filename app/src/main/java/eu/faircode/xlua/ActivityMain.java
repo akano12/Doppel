@@ -48,6 +48,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
     private static final String STATE_AVAILABLE = "available";
 
     private boolean available = false;
+    private Runnable checked = null; // What to show after checking the service, when the screen was left meanwhile
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,27 +64,37 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
         final Context context = getApplicationContext();
         executor.submit(() -> {
             boolean available = Data.isAvailable(context);
-            // The local copy of the theme does not exist yet after an update
-            String theme = (available ? Data.getSetting(context, "global", "theme") : null);
-            String palette = (available ? Data.getSetting(context, "global", "palette") : null);
-            boolean black = (available && Data.getSettingBoolean(context, "global", "black"));
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed())
-                    return;
-                if (available) {
-                    ApplicationEx.setTheme(context, theme);
-                    // The colors are applied when the screen is created
-                    boolean changed = ApplicationEx.setPalette(context, palette);
-                    changed |= ApplicationEx.setBlack(context, black);
-                    if (changed) {
-                        recreate();
-                        return;
-                    }
-                    showMain(true);
-                } else
-                    showUnavailable();
+            // The local copies of the colors do not exist yet after an update
+            ApplicationEx.Colors colors = (available ? ApplicationEx.Colors.get(context) : null);
+            postUnlessGone(() -> {
+                Runnable show = () -> {
+                    if (available) {
+                        // The colors are applied when the screen is created
+                        if (ApplicationEx.sync(context, colors)) {
+                            recreate();
+                            return;
+                        }
+                        showMain(true);
+                    } else
+                        showUnavailable();
+                };
+                // Tabs cannot be added after the state of the screen was saved, like when it was left meanwhile
+                if (getSupportFragmentManager().isStateSaved())
+                    checked = show;
+                else
+                    show.run();
             });
         });
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (checked != null) {
+            Runnable show = checked;
+            checked = null;
+            show.run();
+        }
     }
 
     @Override

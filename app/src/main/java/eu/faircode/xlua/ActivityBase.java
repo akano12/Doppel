@@ -24,6 +24,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.PixelCopy;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,6 +38,7 @@ import androidx.core.graphics.Insets;
 import androidx.core.util.Supplier;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.Lifecycle;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -46,6 +48,8 @@ import java.util.concurrent.Executors;
 
 // Screens are drawn edge-to-edge and share a background thread for service calls
 public class ActivityBase extends AppCompatActivity {
+    private static final String TAG = "XLua.Base";
+
     protected final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     // The screen before it was recreated for other colors, see recreateSmoothly
@@ -118,23 +122,41 @@ public class ActivityBase extends AppCompatActivity {
         Ui.submit(executor, task, ex -> error(tag, ex));
     }
 
+    // Run on the main thread, from a background thread, unless the screen is closing or gone meanwhile,
+    // because views cannot load images anymore then (Glide refuses a destroyed activity)
+    protected void postUnlessGone(Runnable runnable) {
+        runOnUiThread(() -> {
+            if (!isFinishing() && !isDestroyed())
+                runnable.run();
+        });
+    }
+
     // Recreate the screen for other colors, which fades from the old screen into the new one, like a theme change;
-    // without the fade the new screen shows for a moment without the data, which is loaded in the background
+    // without the fade the new screen shows for a moment without the data, which is loaded in the background.
+    // A screen which is not in the foreground has no surface to copy, like after a restore which ended in the background.
     void recreateSmoothly() {
         View decor = getWindow().getDecorView();
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || decor.getWidth() == 0 || decor.getHeight() == 0) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || decor.getWidth() == 0 || decor.getHeight() == 0 ||
+                !getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.RESUMED)) {
             recreate();
             return;
         }
         Bitmap bitmap = Bitmap.createBitmap(decor.getWidth(), decor.getHeight(), Bitmap.Config.ARGB_8888);
-        PixelCopy.request(getWindow(), bitmap, result -> {
-            // A snapshot without the recreated screen would be shown over the next screen
-            if (isFinishing() || isDestroyed())
-                return;
-            if (result == PixelCopy.SUCCESS)
-                snapshot = bitmap;
+        try {
+            PixelCopy.request(getWindow(), bitmap, result -> {
+                // A snapshot without the recreated screen would be shown over the next screen
+                if (isFinishing() || isDestroyed())
+                    return;
+                if (result == PixelCopy.SUCCESS)
+                    snapshot = bitmap;
+                recreate();
+            }, new Handler(Looper.getMainLooper()));
+        } catch (IllegalArgumentException ex) {
+            // The surface can also be gone just before or after resuming
+            Log.w(TAG, "No snapshot: " + ex);
+            bitmap.recycle();
             recreate();
-        }, new Handler(Looper.getMainLooper()));
+        }
     }
 
     @Override

@@ -37,6 +37,7 @@ import android.widget.ImageButton;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
@@ -76,6 +77,7 @@ public class FragmentApps extends FragmentBase {
     private ImageButton ibSearch;
     private MaterialButtonToggleGroup tgFilter;
     private AdapterApp adapter;
+    private OnBackPressedCallback closeSearch;
 
     private SharedPreferences prefs;
     private final Set<AdapterApp.Section> collapsed = EnumSet.noneOf(AdapterApp.Section.class);
@@ -181,12 +183,52 @@ public class FragmentApps extends FragmentBase {
         return view;
     }
 
-    // Search replaces the title, closing it clears the search
-    private void showSearch(boolean show) {
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        // Back closes the search first, like its close button
+        closeSearch = new OnBackPressedCallback(false) {
+            @Override
+            public void handleOnBackPressed() {
+                showSearch(false);
+            }
+        };
+        requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), closeSearch);
+    }
+
+    // The search text is restored when the screen is recreated, like for other colors, and filters the apps,
+    // so the search is shown again, without the keyboard, since the tab can be hidden
+    @Override
+    public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
+        super.onViewStateRestored(savedInstanceState);
+        if (!TextUtils.isEmpty(etSearch.getText()))
+            setSearchShown(true);
+    }
+
+    @Override
+    public void onHiddenChanged(boolean hidden) {
+        super.onHiddenChanged(hidden);
+        updateBack();
+    }
+
+    // Search replaces the title
+    private void setSearchShown(boolean show) {
         tvTitle.setVisibility(show ? View.GONE : View.VISIBLE);
         tilSearch.setVisibility(show ? View.VISIBLE : View.GONE);
         ibSearch.setImageResource(show ? R.drawable.ic_close : R.drawable.ic_search);
         ibSearch.setContentDescription(getString(show ? R.string.title_close_search : R.string.menu_search));
+        updateBack();
+    }
+
+    // Back closes the search of the tab shown, else it leaves the app
+    private void updateBack() {
+        if (closeSearch != null && tilSearch != null)
+            closeSearch.setEnabled(tilSearch.getVisibility() == View.VISIBLE && !isHidden());
+    }
+
+    // Closing the search clears it
+    private void showSearch(boolean show) {
+        setSearchShown(show);
         WindowInsetsControllerCompat controller =
                 new WindowInsetsControllerCompat(requireActivity().getWindow(), etSearch);
         if (show) {
@@ -287,9 +329,12 @@ public class FragmentApps extends FragmentBase {
         }
     }
 
+    // A search without matches says so, rather than that there are no apps
     private void updateEmpty() {
-        if (tvEmpty != null && loaded)
+        if (tvEmpty != null && loaded) {
+            tvEmpty.setText(adapter.isSearching() ? R.string.title_no_matches : R.string.title_no_apps);
             tvEmpty.setVisibility(adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
+        }
     }
 
     // All available hooks, like Restrict all on the screen of the app, which stops the app when it is stopped automatically;
@@ -310,7 +355,7 @@ public class FragmentApps extends FragmentBase {
         });
     }
 
-    // Toggle a group for all shown apps: remove it when an app has it, else add it
+    // Toggle a group for all shown apps: remove it from the apps which have it, else add it to all of them
     private void bulk() {
         final Context context = requireContext();
         final List<String> groups = Data.getGroupNames(hooks);
@@ -325,34 +370,53 @@ public class FragmentApps extends FragmentBase {
                 .setTitle(R.string.menu_bulk)
                 .setItems(titles, (dialog, which) -> {
                     final String group = groups.get(which);
+                    final String title = titles[which];
                     final List<XApp> apps = new ArrayList<>();
                     for (AdapterApp.Row row : adapter.getShown())
                         apps.add(row.app);
-                    Ui.areYouSure(context,
-                            getString(R.string.msg_bulk_sure, titles[which], apps.size()),
-                            () -> bulk(group, apps));
+                    // The question tells which way, the restrictions of the shown apps are known
+                    final List<XApp> restricting = getRestricting(apps, group);
+                    if (restricting.isEmpty())
+                        Ui.areYouSure(context,
+                                getResources().getQuantityString(R.plurals.msg_bulk_add_sure, apps.size(), title, apps.size()),
+                                R.string.menu_add, () -> bulk(group, title, apps, true));
+                    else
+                        Ui.areYouSure(context,
+                                getResources().getQuantityString(R.plurals.msg_bulk_remove_sure, restricting.size(),
+                                        title, restricting.size(), apps.size()),
+                                R.string.title_remove, () -> bulk(group, title, restricting, false));
                 })
                 .show();
     }
 
-    private void bulk(String group, List<XApp> apps) {
-        final Context context = requireContext().getApplicationContext();
+    // The apps with one or more hooks of a group
+    static List<XApp> getRestricting(List<XApp> apps, String group) {
+        List<XApp> result = new ArrayList<>();
+        for (XApp app : apps)
+            if (!app.getAssignments(group).isEmpty())
+                result.add(app);
+        return result;
+    }
+
+    // Only the apps which are changed are stopped, when they are stopped automatically
+    private void bulk(String group, String title, List<XApp> apps, boolean assign) {
+        final Activity activity = requireActivity();
+        final Context context = activity.getApplicationContext();
         final List<XHook> hooks = this.hooks;
         final List<String> collection = this.collection;
         run(TAG, () -> {
             try {
-                boolean revert = false;
-                for (XApp app : apps)
-                    if (!app.getAssignments(group).isEmpty()) {
-                        revert = true;
-                        break;
-                    }
-                Log.i(TAG, "Bulk group=" + group + " apps=" + apps.size() + " revert=" + revert);
+                Log.i(TAG, "Bulk group=" + group + " apps=" + apps.size() + " assign=" + assign);
+                int changed = 0;
                 for (XApp app : apps) {
                     List<XHook> available = Data.getAvailable(hooks, app, collection, group);
-                    if (!available.isEmpty())
-                        Data.assign(context, app, available, !revert);
+                    if (!available.isEmpty()) {
+                        Data.assign(context, app, available, assign);
+                        changed++;
+                    }
                 }
+                Ui.message(activity, activity.getResources().getQuantityString(
+                        assign ? R.plurals.msg_bulk_added : R.plurals.msg_bulk_removed, changed, title, changed));
             } finally {
                 // Also the apps changed before an error
                 post(this::load);

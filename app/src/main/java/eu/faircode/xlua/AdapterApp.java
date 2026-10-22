@@ -32,6 +32,8 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.core.graphics.ColorUtils;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -40,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -187,6 +190,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private Filter filter = Filter.USER;
     private String query = null;
     private Set<Section> collapsed = new HashSet<>();
+    private final Set<Section> closed = EnumSet.noneOf(Section.class); // Sections closed for the current search
 
     AdapterApp(Listener listener) {
         this.listener = listener;
@@ -206,6 +210,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     void setQuery(String query) {
+        // Another search opens all sections again
+        if (!Objects.equals(this.query, query))
+            closed.clear();
         this.query = query;
         apply();
     }
@@ -240,7 +247,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
 
-    private boolean isSearching() {
+    boolean isSearching() {
         return (query != null && !query.trim().isEmpty());
     }
 
@@ -309,13 +316,13 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         Collections.sort(sections.get(Section.RECENT), (r1, r2) -> Long.compare(r2.getRecent(), r1.getRecent()));
         Collections.sort(sections.get(Section.ALL), byName);
 
-        // Searching shows the matches of all sections
+        // Searching shows the matches of all sections, unless closed for the search
         List<Object> next = new ArrayList<>();
         for (Section section : Section.values()) {
             List<Row> rows = sections.get(section);
             if (rows.isEmpty())
                 continue;
-            boolean expanded = (isSearching() || !collapsed.contains(section));
+            boolean expanded = !(isSearching() ? closed : collapsed).contains(section);
             next.add(new Header(section, rows.size(), expanded));
             if (expanded)
                 for (int i = 0; i < rows.size(); i++)
@@ -374,8 +381,16 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             ivExpand = itemView.findViewById(R.id.ivExpand);
             itemView.setOnClickListener(view -> {
                 int position = getBindingAdapterPosition();
-                if (position != RecyclerView.NO_POSITION)
-                    listener.onToggle(((Header) items.get(position)).section);
+                if (position == RecyclerView.NO_POSITION)
+                    return;
+                Section section = ((Header) items.get(position)).section;
+                // A section closed while searching is not remembered, like in the Hooks tab
+                if (isSearching()) {
+                    if (!closed.remove(section))
+                        closed.add(section);
+                    apply();
+                } else
+                    listener.onToggle(section);
             });
         }
     }
@@ -400,6 +415,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             btnAction = itemView.findViewById(R.id.btnAction);
             itemView.setOnClickListener(this);
             itemView.setOnLongClickListener(this);
+            // Screen readers tell what a long press does
+            ViewCompat.replaceAccessibilityAction(itemView, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK,
+                    itemView.getContext().getString(R.string.menu_launch), null);
             btnAction.setOnClickListener(view -> {
                 Row row = getRow();
                 if (row == null)
@@ -507,10 +525,11 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         XApp app = row.app;
         Context context = h.itemView.getContext();
 
-        // The apps of a section form one rounded block, the apps to look at are tinted with the accent color
+        // The apps of a section form one rounded block, the apps to look at are tinted with the accent color,
+        // lightly, so the summary in the accent color stays readable (contrast 4.5:1 with each palette)
         int background = Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerLow);
         if (item.section == Section.ATTENTION || item.section == Section.NEW)
-            background = ColorUtils.blendARGB(background, Ui.color(context, androidx.appcompat.R.attr.colorPrimary), 0.16f);
+            background = ColorUtils.blendARGB(background, Ui.color(context, androidx.appcompat.R.attr.colorPrimary), 0.12f);
         float radius = Ui.dp(context, 20);
         float top = (item.first ? radius : 0);
         float bottom = (item.last ? radius : 0);
@@ -523,8 +542,11 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.tvLabel.setText(app.getLabel());
 
         h.llBadges.removeAllViews();
+        // What the app is, like system; whether changes are waiting for a restart is shown on the screen of the app
         if (app.persistent)
-            Ui.addBadge(h.llBadges, context.getString(R.string.badge_reboot), Ui.Badge.WARNING);
+            Ui.addBadge(h.llBadges, context.getString(R.string.badge_persistent), Ui.Badge.NEUTRAL)
+                    .setContentDescription(context.getString(R.string.badge_persistent) + ", " +
+                            context.getString(R.string.title_apply_reboot));
         if (app.system)
             Ui.addBadge(h.llBadges, context.getString(R.string.badge_system), Ui.Badge.NEUTRAL);
 

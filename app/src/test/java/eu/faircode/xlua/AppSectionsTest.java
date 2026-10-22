@@ -20,8 +20,12 @@ package eu.faircode.xlua;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 // The sections of the Apps tab, see AdapterApp.Row.getSection
 public class AppSectionsTest {
@@ -105,6 +109,31 @@ public class AppSectionsTest {
         AdapterApp.Row row = row();
         row.assigned = NOW - HOUR;
         assertEquals(AdapterApp.Section.ALL, row.getSection(NOW));
+    }
+
+    private static XHook hook(String group, String name) throws Exception {
+        return XHook.fromJSON("{\"collection\": \"Privacy\", \"group\": \"" + group + "\", \"name\": \"" + name + "\"," +
+                " \"author\": \"Test\", \"className\": \"android.location.Location\", \"parameterTypes\": []," +
+                " \"minSdk\": 1, \"luaScript\": \"\"}");
+    }
+
+    // Toggling a group for the shown apps removes it from the apps which have it, and only from them,
+    // so only they are stopped; else it is added to all of them
+    @Test
+    public void bulkToggleRemovesFromRestrictingApps() throws Exception {
+        XHook location = hook("Get.Location", "LocationManager.getLastKnownLocation");
+        XHook camera = hook("Use.Camera", "Camera.open");
+        XApp restricting = row().app;
+        restricting.assignments.add(new XAssignment(location));
+        XApp other = row().app;
+        other.packageName = "com.example.other";
+        other.assignments.add(new XAssignment(camera));
+        XApp none = row().app;
+        none.packageName = "com.example.none";
+        List<XApp> apps = Arrays.asList(restricting, other, none);
+
+        assertEquals(Collections.singletonList(restricting), FragmentApps.getRestricting(apps, "Get.Location"));
+        assertTrue(FragmentApps.getRestricting(apps, "Read.Clipboard").isEmpty());
     }
 
     // Random IMEIs end with a Luhn check digit

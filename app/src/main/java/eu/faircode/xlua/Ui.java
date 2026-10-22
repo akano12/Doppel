@@ -38,6 +38,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.StringRes;
 import androidx.core.text.HtmlCompat;
 import androidx.core.util.Consumer;
 
@@ -116,7 +117,7 @@ final class Ui {
     }
 
     // Rounded label, like 'built-in' or 'system'
-    static void addBadge(ViewGroup parent, String text, Badge style) {
+    static TextView addBadge(ViewGroup parent, String text, Badge style) {
         Context context = parent.getContext();
         TextView badge = (TextView) LayoutInflater.from(context).inflate(R.layout.badge, parent, false);
         badge.setText(text);
@@ -129,6 +130,7 @@ final class Ui {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMarginEnd(dp(parent.getContext(), 6));
         parent.addView(badge, lp);
+        return badge;
     }
 
     static void loadIcon(ImageView iv, String packageName, int icon) {
@@ -276,9 +278,14 @@ final class Ui {
     }
 
     static void areYouSure(Context context, CharSequence question, Runnable onSure) {
+        areYouSure(context, question, android.R.string.ok, onSure);
+    }
+
+    // The button names the action, like Delete, so an action which cannot be undone is not confirmed with OK
+    static void areYouSure(Context context, CharSequence question, @StringRes int positive, Runnable onSure) {
         new MaterialAlertDialogBuilder(context)
                 .setMessage(question)
-                .setPositiveButton(android.R.string.ok, (dialog, which) -> onSure.run())
+                .setPositiveButton(positive, (dialog, which) -> onSure.run())
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }

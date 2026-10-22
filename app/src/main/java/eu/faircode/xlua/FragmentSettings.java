@@ -59,7 +59,9 @@ public class FragmentSettings extends FragmentBase {
     private TextView tvVersion;
     private GridLayout glStatus;
     private TextView tvCollections;
+    private View llRestrictNew;
     private MaterialSwitch swRestrictNew;
+    private View llNotifyNew;
     private MaterialSwitch swNotifyNew;
     private MaterialButtonToggleGroup tgTheme;
     private LinearLayout llPalettes;
@@ -77,7 +79,7 @@ public class FragmentSettings extends FragmentBase {
     private final ActivityResultLauncher<String[]> restoreLauncher = registerForActivityResult(
             new ActivityResultContracts.OpenDocument(), uri -> {
                 if (uri != null)
-                    Ui.areYouSure(requireContext(), getString(R.string.msg_restore_sure), () -> restore(uri));
+                    Ui.areYouSure(requireContext(), getString(R.string.msg_restore_sure), R.string.menu_restore, () -> restore(uri));
             });
 
     @Override
@@ -90,7 +92,9 @@ public class FragmentSettings extends FragmentBase {
         tvVersion = view.findViewById(R.id.tvVersion);
         glStatus = view.findViewById(R.id.glStatus);
         tvCollections = view.findViewById(R.id.tvCollections);
+        llRestrictNew = view.findViewById(R.id.llRestrictNew);
         swRestrictNew = view.findViewById(R.id.swRestrictNew);
+        llNotifyNew = view.findViewById(R.id.llNotifyNew);
         swNotifyNew = view.findViewById(R.id.swNotifyNew);
         tgTheme = view.findViewById(R.id.tgTheme);
         llPalettes = view.findViewById(R.id.llPalettes);
@@ -102,9 +106,14 @@ public class FragmentSettings extends FragmentBase {
         showPalettes(ApplicationEx.getPalette(activity));
         swBlack.setChecked(ApplicationEx.isBlack(activity));
 
-        view.findViewById(R.id.llRestrictNew).setOnClickListener(v -> swRestrictNew.toggle());
-        view.findViewById(R.id.llNotifyNew).setOnClickListener(v -> swNotifyNew.toggle());
-        view.findViewById(R.id.llBlack).setOnClickListener(v -> swBlack.toggle());
+        // The switches and the theme can be changed once the settings are loaded, which would else undo a change made before
+        View llBlack = view.findViewById(R.id.llBlack);
+        for (View v : new View[]{llRestrictNew, swRestrictNew, llNotifyNew, swNotifyNew, tgTheme, llBlack, swBlack})
+            v.setEnabled(false);
+
+        llRestrictNew.setOnClickListener(v -> swRestrictNew.toggle());
+        llNotifyNew.setOnClickListener(v -> swNotifyNew.toggle());
+        llBlack.setOnClickListener(v -> swBlack.toggle());
         view.findViewById(R.id.llCollections).setOnClickListener(v -> selectCollections());
         view.findViewById(R.id.llValues).setOnClickListener(v ->
                 startActivity(ActivityValues.getIntent(activity, null, null)));
@@ -113,7 +122,7 @@ public class FragmentSettings extends FragmentBase {
         view.findViewById(R.id.llRestore).setOnClickListener(v ->
                 restoreLauncher.launch(new String[]{"application/json", "text/*", "application/octet-stream"}));
         view.findViewById(R.id.llClear).setOnClickListener(v ->
-                Ui.areYouSure(activity, getString(R.string.msg_clear_sure), this::clear));
+                Ui.areYouSure(activity, getString(R.string.msg_clear_sure), R.string.title_reset, this::clear));
         view.findViewById(R.id.llDocs).setOnClickListener(v -> Ui.browse(activity, Ui.URL_README));
         view.findViewById(R.id.llFaq).setOnClickListener(v -> Ui.browse(activity, Ui.URL_FAQ));
         view.findViewById(R.id.llLicense).setOnClickListener(v -> Ui.showLicense(activity));
@@ -135,21 +144,17 @@ public class FragmentSettings extends FragmentBase {
             known.addAll(enabled);
             boolean restrictNew = Data.getSettingBoolean(context, "global", "restrict_new_apps");
             boolean notifyNew = Data.getSettingBoolean(context, "global", "notify_new_apps");
-            String theme = Data.getSetting(context, "global", "theme");
-            String palette = Data.getSetting(context, "global", "palette");
-            boolean black = Data.getSettingBoolean(context, "global", "black");
+            ApplicationEx.Colors colors = ApplicationEx.Colors.get(context);
 
             post(() -> {
-                // Restoring a backup or clearing data can change the colors
-                boolean changed = ApplicationEx.setPalette(context, palette);
-                changed |= ApplicationEx.setBlack(context, black);
-                if (changed) {
+                // Restoring a backup or clearing data can change the colors and the theme
+                if (ApplicationEx.sync(context, colors)) {
                     ((ActivityBase) requireActivity()).recreateSmoothly();
                     return;
                 }
                 showPalettes(ApplicationEx.getPalette(context));
                 swBlack.setOnCheckedChangeListener(null);
-                swBlack.setChecked(black);
+                swBlack.setChecked(colors.black);
                 swBlack.setOnCheckedChangeListener((button, checked) -> selectBlack(checked));
 
                 this.collections = new ArrayList<>(known);
@@ -177,12 +182,12 @@ public class FragmentSettings extends FragmentBase {
                 swNotifyNew.setChecked(notifyNew);
                 swNotifyNew.setOnCheckedChangeListener((button, checked) ->
                         put("notify_new_apps", Boolean.toString(checked)));
+                for (View v : new View[]{llRestrictNew, swRestrictNew, llNotifyNew, swNotifyNew, tgTheme})
+                    v.setEnabled(true);
 
-                // Restoring a backup or clearing data can change the theme
-                ApplicationEx.setTheme(context, theme);
                 tgTheme.clearOnButtonCheckedListeners();
-                tgTheme.check(ApplicationEx.THEME_DARK.equals(theme) ? R.id.btnThemeDark
-                        : ApplicationEx.THEME_LIGHT.equals(theme) ? R.id.btnThemeLight
+                tgTheme.check(ApplicationEx.THEME_DARK.equals(colors.theme) ? R.id.btnThemeDark
+                        : ApplicationEx.THEME_LIGHT.equals(colors.theme) ? R.id.btnThemeLight
                         : R.id.btnThemeSystem);
                 // Only the dark theme has a black background, also when the system theme is dark;
                 // choosing a theme or a change of the system theme recreates the screen

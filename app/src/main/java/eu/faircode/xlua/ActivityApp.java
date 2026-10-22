@@ -34,6 +34,8 @@ import android.widget.TextView;
 
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.graphics.ColorUtils;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.checkbox.MaterialCheckBox;
@@ -62,6 +64,7 @@ public class ActivityApp extends ActivityBase {
     private final Map<String, GroupView> views = new HashMap<>();
     private final Set<String> expanded = new HashSet<>(); // Groups which show their hooks
     private boolean dirty = false; // Changed restrictions which do not apply yet
+    private int changes = 0; // Changes made here, which a reload started before does not show yet
 
     private View svContent;
     private View pbLoading;
@@ -75,6 +78,7 @@ public class ActivityApp extends ActivityBase {
     private Button btnForceStop;
 
     private static class GroupView {
+        View llRow;
         View flIcon;
         ImageView ivIcon;
         TextView tvTitle;
@@ -144,19 +148,34 @@ public class ActivityApp extends ActivityBase {
 
     private void load() {
         final Context context = getApplicationContext();
+        final int started = changes;
         executor.submit(() -> {
             try {
                 XApp app = Data.getApp(context, packageName, uid);
                 if (app == null) {
-                    runOnUiThread(() -> pbLoading.setVisibility(View.GONE));
-                    Ui.message(this, getString(R.string.msg_app_not_found, packageName));
+                    postUnlessGone(() -> {
+                        // Uninstalled meanwhile, like with App info: its restrictions cannot be changed anymore
+                        if (this.app != null) {
+                            finish();
+                            return;
+                        }
+                        pbLoading.setVisibility(View.GONE);
+                        Ui.message(this, getString(R.string.msg_app_not_found, packageName));
+                    });
                     return;
                 }
                 List<XHook> hooks = Data.getAvailable(Data.getHooks(context), app, Data.getCollection(context), null);
                 boolean notify = Data.getSettingBoolean(context, app.packageName, "notify");
-                runOnUiThread(() -> show(app, hooks, notify));
+                postUnlessGone(() -> {
+                    // Changed while loading, which was sent after the data was read, on the same background thread;
+                    // loading again shows the change, else the switches would go back
+                    if (changes == started)
+                        show(app, hooks, notify);
+                    else
+                        load();
+                });
             } catch (Throwable ex) {
-                runOnUiThread(() -> pbLoading.setVisibility(View.GONE));
+                postUnlessGone(() -> pbLoading.setVisibility(View.GONE));
                 error(TAG, ex);
             }
         });
@@ -197,6 +216,7 @@ public class ActivityApp extends ActivityBase {
         final Context context = getApplicationContext();
         cbForceStop.setOnCheckedChangeListener((button, checked) -> {
             app.forceStop = checked;
+            changes++;
             run(TAG, () -> Data.putSettingBoolean(context, app.packageName, "forcestop", checked));
             updateRestart();
         });
@@ -204,8 +224,10 @@ public class ActivityApp extends ActivityBase {
         // Read by the service when a hook restricts something, see XProvider.report
         cbNotify.setOnCheckedChangeListener(null);
         cbNotify.setChecked(notify);
-        cbNotify.setOnCheckedChangeListener((button, checked) ->
-                run(TAG, () -> Data.putSettingBoolean(context, app.packageName, "notify", checked)));
+        cbNotify.setOnCheckedChangeListener((button, checked) -> {
+            changes++;
+            run(TAG, () -> Data.putSettingBoolean(context, app.packageName, "notify", checked));
+        });
 
         // Group the hooks
         available.clear();
@@ -244,6 +266,7 @@ public class ActivityApp extends ActivityBase {
             for (final String group : groups) {
                 View vGroup = inflater.inflate(R.layout.item_group, llRows, false);
                 GroupView gv = new GroupView();
+                gv.llRow = vGroup.findViewById(R.id.llRow);
                 gv.flIcon = vGroup.findViewById(R.id.flIcon);
                 gv.ivIcon = vGroup.findViewById(R.id.ivIcon);
                 gv.tvTitle = vGroup.findViewById(R.id.tvTitle);
@@ -262,11 +285,13 @@ public class ActivityApp extends ActivityBase {
                 tvDescription.setVisibility(description == null ? View.GONE : View.VISIBLE);
                 gv.swGroup.setContentDescription(title);
                 // The row shows the hooks, the switch restricts
-                vGroup.findViewById(R.id.llRow).setOnClickListener(view -> {
+                gv.llRow.setOnClickListener(view -> {
                     if (!expanded.remove(group))
                         expanded.add(group);
                     bind(group);
                 });
+                // Screen readers tell which group failed
+                gv.ibError.setContentDescription(getString(R.string.title_show_error) + ", " + title);
                 gv.ibError.setOnClickListener(view -> showErrors(group));
                 views.put(group, gv);
                 llRows.addView(vGroup);
@@ -329,7 +354,8 @@ public class ActivityApp extends ActivityBase {
         setPartial(gv.swGroup, gv.track, restricted && assignments.size() < hooks.size());
         gv.swGroup.setOnCheckedChangeListener(null);
         gv.swGroup.setChecked(!assignments.isEmpty());
-        gv.swGroup.setOnCheckedChangeListener((button, checked) -> assign(group, checked));
+        // A switch with a dash applies all hooks of the group, like Restrict all; only a complete group is switched off
+        gv.swGroup.setOnCheckedChangeListener((button, checked) -> assign(group, !isComplete(group)));
     }
 
     // The hooks of an expanded group, with whether they restricted something, each can be assigned on its own
@@ -337,7 +363,9 @@ public class ActivityApp extends ActivityBase {
         boolean show = expanded.contains(group);
         String title = Groups.getTitle(this, group);
         gv.ivExpand.setRotation(show ? 180 : 0);
-        gv.ivExpand.setContentDescription(getString(show ? R.string.title_hide_hooks : R.string.title_show_hooks, title));
+        // Screen readers tell what tapping the row does, after its title and state
+        ViewCompat.replaceAccessibilityAction(gv.llRow, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
+                getString(show ? R.string.title_hide_hooks : R.string.title_show_hooks, title), null);
         gv.llHooks.setVisibility(show ? View.VISIBLE : View.GONE);
         gv.llHooks.removeAllViews();
         if (!show)
@@ -351,19 +379,22 @@ public class ActivityApp extends ActivityBase {
             int index = app.assignments.indexOf(new XAssignment(hook));
             XAssignment assignment = (index < 0 ? null : app.assignments.get(index));
 
+            // The outline color is too light for text
             int color;
+            int dot;
             String status;
             if (assignment == null) {
-                color = com.google.android.material.R.attr.colorOutline;
+                color = com.google.android.material.R.attr.colorOnSurfaceVariant;
+                dot = com.google.android.material.R.attr.colorOutline;
                 status = getString(R.string.title_hook_not_restricted);
             } else if (assignment.exception != null) {
-                color = R.attr.colorWarning;
+                color = dot = R.attr.colorWarning;
                 status = getString(R.string.title_hook_state_failed);
             } else if (assignment.restricted && assignment.used > 0) {
-                color = androidx.appcompat.R.attr.colorPrimary;
+                color = dot = androidx.appcompat.R.attr.colorPrimary;
                 status = getString(R.string.title_restricted_when, Ui.ago(assignment.used));
             } else {
-                color = com.google.android.material.R.attr.colorOnSurfaceVariant;
+                color = dot = com.google.android.material.R.attr.colorOnSurfaceVariant;
                 status = getString(R.string.title_hook_not_used);
             }
 
@@ -371,7 +402,7 @@ public class ActivityApp extends ActivityBase {
             TextView tvStatus = vHook.findViewById(R.id.tvStatus);
             tvStatus.setText(status);
             tvStatus.setTextColor(Ui.color(this, color));
-            vHook.findViewById(R.id.vDot).setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, color)));
+            vHook.findViewById(R.id.vDot).setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, dot)));
 
             // Errors are shown with the button of the group
             MaterialSwitch swHook = vHook.findViewById(R.id.swHook);
@@ -423,7 +454,7 @@ public class ActivityApp extends ActivityBase {
         final List<String> groups = new ArrayList<>(available.keySet());
         if (assign && "android".equals(app.packageName)) {
             updateSummary();
-            Ui.areYouSure(this, getString(R.string.title_bootloop), () -> assign(groups, true));
+            Ui.areYouSure(this, getString(R.string.title_bootloop), R.string.title_restrict_all_groups, () -> assign(groups, true));
         } else
             assign(groups, assign);
     }
@@ -465,6 +496,7 @@ public class ActivityApp extends ActivityBase {
             return;
 
         dirty = true;
+        changes++;
         updateRestart();
 
         final Context context = getApplicationContext();

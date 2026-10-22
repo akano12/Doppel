@@ -87,7 +87,6 @@
     <string name="msg_review_settings">Review privacy settings</string>
     <string name="msg_usage">Restricted \'%1$s\'</string>
     <string name="msg_exception">Error in %1$s</string>
-    <string name="msg_bulk_sure">Toggle \'%1$s\' for the shown apps (%2$d)? When any of them has it, it is removed from all of them, otherwise it is added to all of them.</string>
     <string name="msg_no_browser">No browser available to open link</string>
 
     <!-- Navigation -->
@@ -128,7 +127,6 @@
     <string name="title_not_used">Restricted · not used yet</string>
     <string name="title_not_restricted">Not restricted</string>
     <string name="badge_system">System</string>
-    <string name="badge_reboot">Restart</string>
     <string name="menu_bulk">Toggle a group for shown apps</string>
 
     <!-- Restrictions of an app -->
@@ -403,4 +401,22 @@
 
     <string name="channel_alerts">XPrivacyLua new apps and errors</string>
     <string name="channel_usage">XPrivacyLua restrictions</string>
+
+    <string name="badge_persistent">Persistent</string>
+    <plurals name="msg_bulk_add_sure">
+        <item quantity="one">Add \'%1$s\' to %2$d shown app?</item>
+        <item quantity="other">Add \'%1$s\' to %2$d shown apps?</item>
+    </plurals>
+    <plurals name="msg_bulk_remove_sure">
+        <item quantity="one">Remove \'%1$s\' from the shown app which has it (%2$d of %3$d)?</item>
+        <item quantity="other">Remove \'%1$s\' from the shown apps which have it (%2$d of %3$d)?</item>
+    </plurals>
+    <plurals name="msg_bulk_added">
+        <item quantity="one">\'%1$s\' added to %2$d app</item>
+        <item quantity="other">\'%1$s\' added to %2$d apps</item>
+    </plurals>
+    <plurals name="msg_bulk_removed">
+        <item quantity="one">\'%1$s\' removed from %2$d app</item>
+        <item quantity="other">\'%1$s\' removed from %2$d apps</item>
+    </plurals>
 </resources>
