@@ -71,8 +71,7 @@ public class FragmentHooks extends FragmentBase {
     private List<XHook> all = new ArrayList<>();
     private Set<String> builtinIds = new HashSet<>();
     private List<String> collection = new ArrayList<>();
-    private String expanded = null; // null: the first group, empty: none
-    private final Set<String> closed = new HashSet<>(); // Groups collapsed while searching or filtering
+    private AdapterSections.Accordion accordion;
 
     private final ActivityResultLauncher<String[]> importLauncher = registerForActivityResult(
             new ActivityResultContracts.OpenDocument(), uri -> {
@@ -90,7 +89,10 @@ public class FragmentHooks extends FragmentBase {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_hooks, container, false);
         Context context = requireContext();
-        expanded = ApplicationEx.getPreferences(context).getString(PREF_EXPANDED, null);
+        // The open group is remembered
+        accordion = new AdapterSections.Accordion(
+                ApplicationEx.getPreferences(context).getString(PREF_EXPANDED, null),
+                open -> ApplicationEx.getPreferences(context).edit().putString(PREF_EXPANDED, open).apply());
 
         pbLoading = view.findViewById(R.id.pbLoading);
         tvEmpty = view.findViewById(R.id.tvEmpty);
@@ -131,14 +133,14 @@ public class FragmentHooks extends FragmentBase {
         EditText etSearch = view.findViewById(R.id.etSearch);
         Ui.onTextChanged(etSearch, text -> {
             query = text;
-            closed.clear();
+            accordion.reset();
             show();
         });
 
         ChipGroup cgFilter = view.findViewById(R.id.cgFilter);
         Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
             filter = selected;
-            closed.clear();
+            accordion.reset();
             show();
         });
 
@@ -216,41 +218,13 @@ public class FragmentHooks extends FragmentBase {
         tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
-    // At first the first group is open
-    private String getExpanded() {
-        return (expanded == null && !all.isEmpty() ? all.get(0).getGroup() : expanded);
-    }
-
-    // Searching or filtering shows all groups with matches
-    private boolean isFiltering() {
-        return (filter != Filter.ALL || (query != null && !query.trim().isEmpty()));
-    }
-
-    // One group is open at a time, which is remembered; while searching or filtering all groups are open
-    // unless closed for the current search
+    // One group is open at a time, at first the first one; searching or filtering shows all groups with matches
     private void addGroup(List<Object> items, String group, List<XHook> hooks) {
-        if (group == null || hooks.isEmpty())
-            return;
-        String title = Groups.getTitle(requireContext(), group);
-        boolean open = (isFiltering() ? !closed.contains(group) : group.equals(getExpanded()));
-        // The name of a group can be searched for, the editor of a definition shows it
-        items.add(new AdapterSections.Expandable(getString(R.string.title_count, title, hooks.size()), open,
-                getString(open ? R.string.title_hide_hooks : R.string.title_show_hooks, title),
-                () -> toggle(group)));
-        if (open)
-            items.addAll(hooks);
-    }
-
-    private void toggle(String group) {
-        if (isFiltering()) {
-            if (!closed.remove(group))
-                closed.add(group);
-        } else {
-            // Opening a group closes the open one
-            expanded = (group.equals(getExpanded()) ? "" : group);
-            ApplicationEx.getPreferences(requireContext()).edit().putString(PREF_EXPANDED, expanded).apply();
-        }
-        show();
+        Context context = requireContext();
+        accordion.add(context, items, group, group == null ? null : Groups.getTitle(context, group), hooks,
+                all.isEmpty() ? null : all.get(0).getGroup(),
+                filter != Filter.ALL || (query != null && !query.trim().isEmpty()),
+                this::show);
     }
 
     // A file with a definition or an array of definitions
@@ -262,9 +236,14 @@ public class FragmentHooks extends FragmentBase {
                 String text = Util.readText(context, uri);
                 JSONArray jarray = (text.trim().startsWith("[")
                         ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
+                List<XHook> imported = new ArrayList<>();
                 for (int i = 0; i < jarray.length(); i++)
-                    Data.putCustom(context, jarray.getJSONObject(i));
-                Ui.message(activity, activity.getResources().getQuantityString(R.plurals.msg_hooks_imported, jarray.length(), jarray.length()));
+                    imported.add(Data.putCustom(context, jarray.getJSONObject(i)));
+                // Apps get the definitions when asked, like when installing from Downloads
+                Ui.message(activity,
+                        activity.getResources().getQuantityString(R.plurals.msg_hooks_imported, imported.size(), imported.size()),
+                        activity.getString(R.string.title_restrict_too),
+                        () -> run(TAG, () -> Ui.message(activity, Data.restrictForGroups(context, imported))));
             } finally {
                 // Also the definitions imported before an error
                 post(this::load);

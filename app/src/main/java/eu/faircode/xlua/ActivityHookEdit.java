@@ -40,6 +40,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -391,6 +392,8 @@ public class ActivityHookEdit extends ActivityBase {
         // The fields as saved, also when they change meanwhile
         final String entered = getEntered();
         final Context context = getApplicationContext();
+        // A new definition, also one saved with another name, is not assigned to apps yet
+        final String before = (hook == null ? null : hook.getId());
         run(TAG, () -> {
             final XHook saved = Data.putCustom(context, jhook);
             runOnUiThread(() -> {
@@ -399,7 +402,12 @@ public class ActivityHookEdit extends ActivityBase {
                 toolbar.setTitle(saved.getId());
                 updateMenu();
             });
-            Ui.message(this, getString(R.string.msg_hook_saved));
+            if (saved.getId().equals(before))
+                Ui.message(this, getString(R.string.msg_hook_saved));
+            else
+                Ui.message(this, getString(R.string.msg_hook_saved), getString(R.string.title_restrict_too),
+                        () -> run(TAG, () -> Ui.message(this,
+                                Data.restrictForGroups(context, Collections.singletonList(saved)))));
         });
     }
 

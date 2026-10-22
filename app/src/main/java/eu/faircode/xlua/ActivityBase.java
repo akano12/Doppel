@@ -115,15 +115,7 @@ public class ActivityBase extends AppCompatActivity {
 
     // Run on the background thread, errors are shown; not anymore when the screen is gone
     protected void run(String tag, Ui.Task task) {
-        if (executor.isShutdown())
-            return;
-        executor.submit(() -> {
-            try {
-                task.run();
-            } catch (Throwable ex) {
-                error(tag, ex);
-            }
-        });
+        Ui.submit(executor, task, ex -> error(tag, ex));
     }
 
     // Recreate the screen for other colors, which fades from the old screen into the new one, like a theme change;

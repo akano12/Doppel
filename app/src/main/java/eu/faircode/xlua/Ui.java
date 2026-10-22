@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
 
 // Small view helpers shared by the screens
 final class Ui {
@@ -65,6 +66,19 @@ final class Ui {
     // Work for a background thread, see ActivityBase.run and FragmentBase.run
     interface Task {
         void run() throws Throwable;
+    }
+
+    // Run a task on the background thread of a screen, unless the screen is gone; errors go to onError
+    static void submit(ExecutorService executor, Task task, Consumer<Throwable> onError) {
+        if (executor.isShutdown())
+            return;
+        executor.submit(() -> {
+            try {
+                task.run();
+            } catch (Throwable ex) {
+                onError.accept(ex);
+            }
+        });
     }
 
     // Colors of badges: information, what differs from built-in, what needs attention

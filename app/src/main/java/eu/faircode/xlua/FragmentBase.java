@@ -67,14 +67,6 @@ public abstract class FragmentBase extends Fragment {
 
     // Run on the background thread, errors are shown; not anymore when the tab is gone, like for a late Undo
     protected void run(String tag, Ui.Task task) {
-        if (executor.isShutdown())
-            return;
-        executor.submit(() -> {
-            try {
-                task.run();
-            } catch (Throwable ex) {
-                error(tag, ex);
-            }
-        });
+        Ui.submit(executor, task, ex -> error(tag, ex));
     }
 }

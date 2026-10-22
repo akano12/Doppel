@@ -190,6 +190,18 @@ final class Data {
         return result;
     }
 
+    // Assign new definitions to the apps which restrict their groups, like installing from Downloads can,
+    // and tell for how many apps
+    static String restrictForGroups(Context context, List<XHook> hooks) {
+        ArrayList<String> hookids = new ArrayList<>();
+        for (XHook hook : hooks)
+            hookids.add(hook.getId());
+        int apps = assignRestricting(context, hookids);
+        return (apps == 0
+                ? context.getString(R.string.msg_restricted_no_apps)
+                : context.getResources().getQuantityString(R.plurals.msg_restricted_apps, apps, apps));
+    }
+
     // Assign or remove hooks, which stops the app when it is stopped automatically
     static void assign(Context context, XApp app, List<XHook> hooks, boolean assign) {
         ArrayList<String> hookids = new ArrayList<>();

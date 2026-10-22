@@ -93,8 +93,7 @@ public class ActivityDownloads extends ActivityBase {
     private Set<String> builtinIds = new HashSet<>();
     private List<String> collection = new ArrayList<>();
     private final Set<Integer> expanded = new HashSet<>(); // Entries showing their full description
-    private String open = null; // The collection which shows its definitions; null: the first one, empty: none
-    private final Set<String> closed = new HashSet<>(); // Collections collapsed while searching or filtering
+    private final AdapterSections.Accordion accordion = new AdapterSections.Accordion(null, null);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,14 +110,14 @@ public class ActivityDownloads extends ActivityBase {
         EditText etSearch = findViewById(R.id.etSearch);
         Ui.onTextChanged(etSearch, text -> {
             query = text;
-            closed.clear();
+            accordion.reset();
             show();
         });
 
         ChipGroup cgFilter = findViewById(R.id.cgFilter);
         Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
             filter = selected;
-            closed.clear();
+            accordion.reset();
             show();
         });
 
@@ -282,38 +281,13 @@ public class ActivityDownloads extends ActivityBase {
         adapter.set(items);
     }
 
-    // At first the first collection is open
-    private String getOpen() {
-        return (open == null && !all.isEmpty() ? all.get(0).collection : open);
-    }
-
-    // Searching or filtering shows all collections with matches
-    private boolean isFiltering() {
-        return (filter != Filter.ALL || (query != null && !query.trim().isEmpty()));
-    }
-
-    // One collection is open at a time, like the groups of the Hooks tab; while searching or filtering
-    // all collections are open unless closed for the current search
+    // One collection is open at a time, like the groups of the Hooks tab, at first the first one;
+    // searching or filtering shows all collections with matches
     private void addCollection(List<Object> items, String collection, List<Entry> entries) {
-        if (collection == null || entries.isEmpty())
-            return;
-        boolean expand = (isFiltering() ? !closed.contains(collection) : collection.equals(getOpen()));
-        items.add(new AdapterSections.Expandable(
-                getString(R.string.title_count, collection, entries.size()), expand,
-                getString(expand ? R.string.title_hide_hooks : R.string.title_show_hooks, collection),
-                () -> toggle(collection)));
-        if (expand)
-            items.addAll(entries);
-    }
-
-    private void toggle(String collection) {
-        if (isFiltering()) {
-            if (!closed.remove(collection))
-                closed.add(collection);
-        } else
-            // Opening a collection closes the open one
-            open = (collection.equals(getOpen()) ? "" : collection);
-        show();
+        accordion.add(this, items, collection, collection, entries,
+                all.isEmpty() ? null : all.get(0).collection,
+                filter != Filter.ALL || (query != null && !query.trim().isEmpty()),
+                this::show);
     }
 
     private void install(Entry entry, boolean restrict) {
