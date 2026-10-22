@@ -150,22 +150,47 @@ final class XResolver {
     // The methods with a name which objects of the class run: declared by the class or inherited from a super class.
     // Without methods overridden by a subclass, abstract methods, which have no code, bridge methods,
     // which call the method they bridge, and the methods of Object, which all objects share.
+    // Private and static methods of a super class are not inherited by the objects of the class.
     static List<Method> resolveMethods(Class<?> cls, String name) {
         List<Method> result = new ArrayList<>();
         Set<List<Class<?>>> overridden = new HashSet<>();
         for (Class<?> c = cls; c != null && !c.equals(Object.class); c = c.getSuperclass()) {
-            // A bridge method of a covariant return type has the parameters of the method it bridges
-            Set<List<Class<?>>> declared = new HashSet<>();
+            List<Method> methods = new ArrayList<>();
             for (Method method : c.getDeclaredMethods())
-                if (name.equals(method.getName())) {
-                    List<Class<?>> params = Arrays.asList(method.getParameterTypes());
+                if (name.equals(method.getName()) &&
+                        (c == cls || (method.getModifiers() & (Modifier.PRIVATE | Modifier.STATIC)) == 0))
+                    methods.add(method);
+
+            Set<List<Class<?>>> declared = new HashSet<>();
+            for (Method method : methods) {
+                List<Class<?>> params = Arrays.asList(method.getParameterTypes());
+                if (!method.isBridge() || bridgesDeclared(method, methods))
                     declared.add(params);
-                    if (!overridden.contains(params) &&
-                            !method.isBridge() && !Modifier.isAbstract(method.getModifiers()))
-                        result.add(method);
-                }
+                if (!overridden.contains(params) &&
+                        !method.isBridge() && !Modifier.isAbstract(method.getModifiers()))
+                    result.add(method);
+            }
             overridden.addAll(declared);
         }
         return result;
+    }
+
+    // Whether a bridge method calls a method of its own class: one with a covariant return type
+    // or with the parameters of a generic type. Else it is the bridge javac adds to a public class
+    // for a public method of a class which is not public, which calls the method of the super class.
+    private static boolean bridgesDeclared(Method bridge, List<Method> methods) {
+        Class<?>[] bparams = bridge.getParameterTypes();
+        for (Method method : methods) {
+            Class<?>[] mparams = method.getParameterTypes();
+            if (method.isBridge() || mparams.length != bparams.length ||
+                    !bridge.getReturnType().isAssignableFrom(method.getReturnType()))
+                continue;
+            boolean assignable = true;
+            for (int i = 0; i < mparams.length && assignable; i++)
+                assignable = bparams[i].isAssignableFrom(mparams[i]);
+            if (assignable)
+                return true;
+        }
+        return false;
     }
 }

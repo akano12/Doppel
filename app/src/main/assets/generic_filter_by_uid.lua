@@ -20,6 +20,11 @@
 -- Android framework uses them in the app process, like for launch intents, text to speech and speech recognition.
 
 function after(hook, param)
+    -- Processes of the system manage the packages of all apps
+    if param:isSystem() then
+        return false
+    end
+
     local list = param:getResult()
     if list == nil then
         return false

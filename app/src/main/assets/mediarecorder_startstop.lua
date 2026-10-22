@@ -17,23 +17,44 @@
 
 -- Recording with a restricted source (see mediarecorder_setsource) does not start, pause, resume and stop;
 -- Android throws for these methods when the recorder did not start, which would crash the app.
--- The hook of one group which skips the method skips the hooks of the other groups, so it handles all sources.
+-- Each group skips for its own source only, so the group of the source reports and notifies; the hook
+-- which skips the method skips the hooks of the other groups, so stopping forgets the sources of all groups.
+local KEYS = {
+    ['Record.Audio'] = 'mediarecorder.audio',
+    ['Record.Video'] = 'mediarecorder.video',
+    ['Use.Camera'] = 'mediarecorder.camera'
+}
+
 function before(hook, param)
     local this = param:getThis()
     if this == nil then
         return false
     end
 
-    if param:getValue('source', this) == nil and param:getValue('camera', this) == nil then
+    -- A recorder is configured again after a reset, like a new one, so it can be reused with another source;
+    -- the reset hooks of all groups run, because they do not skip the method
+    local method = hook:getMethodName()
+    if method == 'reset' then
+        forget(param, this)
         return false
     end
 
-    -- A recorder can be reused with another source
-    if hook:getMethodName() == 'stop' then
-        param:putValue('source', nil, this)
-        param:putValue('camera', nil, this)
+    local key = KEYS[hook:getGroup()]
+    if key == nil or param:getValue(key, this) == nil then
+        return false
+    end
+
+    -- Stopping resets the recorder too
+    if method == 'stop' then
+        forget(param, this)
     end
 
     param:setResult(nil)
     return true
+end
+
+function forget(param, this)
+    for _, key in pairs(KEYS) do
+        param:putValue(key, nil, this)
+    end
 end

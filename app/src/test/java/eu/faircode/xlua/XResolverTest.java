@@ -89,6 +89,39 @@ public class XResolverTest {
         }
     }
 
+    // Not public, so javac gives a public subclass a bridge method for each public method, which calls this method
+    @SuppressWarnings("unused")
+    static class Hidden {
+        public String visible(String value) {
+            return value;
+        }
+
+        private void helper(int value) {
+        }
+
+        public static void create() {
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public static class Exposed extends Hidden {
+        private void helper(String value) {
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public static class Holder<T> {
+        public void hold(T value) {
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public static class StringHolder extends Holder<String> {
+        @Override
+        public void hold(String value) {
+        }
+    }
+
     private static Member resolve(Class<?> cls, String methodName, Class<?>[] params, Class<?> returnType) throws Throwable {
         return XResolver.resolveTarget(cls, methodName, params, returnType);
     }
@@ -194,5 +227,27 @@ public class XResolverTest {
         assertEquals(2, result.size());
         assertTrue(result.contains("Concrete.set1"));
         assertTrue(result.contains("Generic.set2"));
+    }
+
+    // The bridge of a public class for a method of a super class which is not public calls that method
+    @Test
+    public void visibilityBridges() throws NoSuchMethodException {
+        assertTrue(Exposed.class.getDeclaredMethod("visible", String.class).isBridge());
+        assertEquals(Collections.singletonList("Hidden.visible1"), methods(Exposed.class, "visible"));
+    }
+
+    // The bridge of a generic type calls the method of the class, which overrides the method of the super class
+    @Test
+    public void genericBridges() {
+        assertEquals(Collections.singletonList("StringHolder.hold1"), methods(StringHolder.class, "hold"));
+    }
+
+    // Private and static methods of a super class are not methods of the objects of a class, but of the class itself
+    @Test
+    public void notInherited() {
+        assertEquals(Collections.singletonList("Exposed.helper1"), methods(Exposed.class, "helper"));
+        assertEquals(Collections.emptyList(), methods(Exposed.class, "create"));
+        assertEquals(Collections.singletonList("Hidden.helper1"), methods(Hidden.class, "helper"));
+        assertEquals(Collections.singletonList("Hidden.create0"), methods(Hidden.class, "create"));
     }
 }

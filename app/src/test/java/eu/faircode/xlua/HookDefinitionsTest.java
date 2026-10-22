@@ -83,7 +83,7 @@ public class HookDefinitionsTest {
 
     @BeforeClass
     public static void load() throws Exception {
-        JSONArray jarray = new JSONArray(stripComments(read(new File(ASSETS, "hooks.json"))));
+        JSONArray jarray = new JSONArray(readLikeAndroid(new File(ASSETS, "hooks.json")));
         hooks = new ArrayList<>();
         for (int i = 0; i < jarray.length(); i++)
             hooks.add(jarray.getJSONObject(i));
@@ -122,6 +122,42 @@ public class HookDefinitionsTest {
         return sb.toString();
     }
 
+    // A separator before the end of an array is an extra null element for Android's org.json, which fails
+    // XHook.readHooks ("Value at n is null"), and before the end of an object a parse error ("Expected literal value");
+    // the reference implementation ignores both. For JSON without comments, see stripComments.
+    private static void checkSeparators(String name, String json) {
+        char quote = 0;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (quote != 0) {
+                if (c == '\\')
+                    i++;
+                else if (c == quote)
+                    quote = 0;
+            } else if (c == '"' || c == '\'')
+                quote = c;
+            else if (c == ',') {
+                int next = i + 1;
+                while (next < json.length() && json.charAt(next) <= ' ')
+                    next++;
+                if (next < json.length() && (json.charAt(next) == ']' || json.charAt(next) == '}')) {
+                    int line = 1;
+                    for (int l = 0; l < i; l++)
+                        if (json.charAt(l) == '\n')
+                            line++;
+                    throw new IllegalArgumentException(name + ": separator before " + json.charAt(next) + " in line " + line);
+                }
+            }
+        }
+    }
+
+    // JSON as the app reads it with Android's org.json, for the reference implementation of the unit tests
+    private static String readLikeAndroid(File file) throws Exception {
+        String json = stripComments(read(file));
+        checkSeparators(file.getName(), json);
+        return json;
+    }
+
     // The comments hooks.json can have, also within a line
     @Test
     public void commentsAreSkippedLikeAndroid() throws Exception {
@@ -148,6 +184,22 @@ public class HookDefinitionsTest {
             fail("Unterminated comment accepted");
         } catch (IllegalArgumentException ignored) {
         }
+    }
+
+    // Separators at the end of arrays and objects, also before comments, fail; those in strings and comments do not
+    @Test
+    public void trailingSeparatorsFailLikeAndroid() throws Exception {
+        for (String json : new String[]{
+                "[{\"a\": 1},]", "[{\"a\": 1}, // last\n]", "[{\"a\": 1, /* last */ }]", "[{\"a\": [1,\n\t]}]"})
+            try {
+                checkSeparators("test", stripComments(json));
+                fail("Trailing separator accepted in " + json);
+            } catch (IllegalArgumentException ignored) {
+            }
+
+        String json = "[{\"a\": \",]\", \"b\": ',}', \"c\": \"\\\",]\"}, // ,]\n {\"d\": [1, 2]} /* ,} */]";
+        checkSeparators("test", stripComments(json));
+        assertEquals(2, new JSONArray(stripComments(json)).length());
     }
 
     @Test
@@ -253,7 +305,7 @@ public class HookDefinitionsTest {
     @Test
     public void repositoryIsValid() throws Exception {
         File repo = new File("../repo");
-        JSONArray list = new JSONObject(read(new File(repo, "list.json"))).getJSONArray("list");
+        JSONArray list = new JSONObject(readLikeAndroid(new File(repo, "list.json"))).getJSONArray("list");
         Set<String> attributes = new HashSet<>(Arrays.asList("id", "updated", "downloads"));
         Set<String> listed = new HashSet<>();
         Set<String> ids = new HashSet<>();
@@ -266,7 +318,7 @@ public class HookDefinitionsTest {
             assertTrue(file.getName() + " downloads", entry.getInt("downloads") >= 0);
             assertTrue("Missing " + file, file.exists());
 
-            JSONObject hook = new JSONObject(read(file));
+            JSONObject hook = new JSONObject(readLikeAndroid(file));
             for (String key : new String[]{
                     "collection", "group", "name", "author", "version", "className", "parameterTypes", "minSdk", "luaScript"})
                 assertTrue(file.getName() + " misses " + key, hook.has(key));
@@ -458,10 +510,10 @@ public class HookDefinitionsTest {
     public void definitionsReadFromApk() throws Exception {
         File apk = File.createTempFile("hooks", ".apk");
         try {
-            // The reference org.json of the unit tests does not accept comments, see stripComments
+            // The reference org.json of the unit tests does not accept comments, see readLikeAndroid
             try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(apk))) {
                 zos.putNextEntry(new ZipEntry("assets/hooks.json"));
-                zos.write(stripComments(read(new File(ASSETS, "hooks.json"))).getBytes(StandardCharsets.UTF_8));
+                zos.write(readLikeAndroid(new File(ASSETS, "hooks.json")).getBytes(StandardCharsets.UTF_8));
                 for (File file : ASSETS.listFiles((dir, name) -> name.endsWith(".lua"))) {
                     zos.putNextEntry(new ZipEntry("assets/" + file.getName()));
                     zos.write(Files.readAllBytes(file.toPath()));

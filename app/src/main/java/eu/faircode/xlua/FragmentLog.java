@@ -21,6 +21,8 @@ import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
+import android.icu.text.RelativeDateTimeFormatter;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
@@ -46,6 +48,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -339,6 +342,16 @@ public class FragmentLog extends FragmentBase {
             return new EntryHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_log, parent, false));
         }
 
+        // Like DateUtils.getRelativeDateTimeString, which formats the time without the 24-hour setting
+        private String getDayTime(Context context, long time) {
+            String day = DateUtils.getRelativeTimeSpanString(time, System.currentTimeMillis(),
+                    DateUtils.DAY_IN_MILLIS, DateUtils.FORMAT_ABBREV_ALL).toString();
+            String clock = DateUtils.formatDateTime(context, time, DateUtils.FORMAT_SHOW_TIME);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+                return RelativeDateTimeFormatter.getInstance(Locale.getDefault()).combineDateAndTime(day, clock);
+            return day + ", " + clock;
+        }
+
         @Override
         void onBindItem(@NonNull RecyclerView.ViewHolder holder, Entry entry) {
             EntryHolder h = (EntryHolder) holder;
@@ -351,8 +364,7 @@ public class FragmentLog extends FragmentBase {
             if (entry.time <= 0)
                 h.tvTime.setText(null);
             else if (error)
-                h.tvTime.setText(DateUtils.getRelativeDateTimeString(context, entry.time,
-                        DateUtils.DAY_IN_MILLIS, DateUtils.WEEK_IN_MILLIS, DateUtils.FORMAT_ABBREV_ALL));
+                h.tvTime.setText(getDayTime(context, entry.time));
             else
                 h.tvTime.setText(DateUtils.formatDateTime(context, entry.time, DateUtils.FORMAT_SHOW_TIME));
             // Ids are the collection and the name, like Privacy.TelephonyManager.getImei

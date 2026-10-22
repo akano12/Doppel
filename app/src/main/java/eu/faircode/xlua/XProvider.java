@@ -101,6 +101,16 @@ class XProvider {
             }
     }
 
+    // The groups of the definitions which are loaded, built-in and custom, see XNotify.cancelApp
+    static Set<String> getGroups() {
+        Set<String> groups = new HashSet<>();
+        Map<String, XHook> current = hooks;
+        if (current != null)
+            for (XHook hook : current.values())
+                groups.add(hook.getGroup());
+        return groups;
+    }
+
     // Permitted: the permission of the caller was checked already, see answers
     static Bundle call(Context context, String method, Bundle extras, boolean permitted)
             throws RemoteException, IllegalArgumentException {

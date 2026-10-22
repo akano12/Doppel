@@ -21,11 +21,15 @@
 -- lists the same features as hasSystemFeature finds, an empty list would tell it is filtered.
 -- The shared libraries of the system carry vendor names too, like com.google.android.dialer.support;
 -- the libraries of the Android platform and the ones of Google on every device stay. Libraries of apps
--- (static and SDK libraries) stay too, apps use them. Apps can still load a library they know the name of.
+-- (static and SDK libraries) stay too, apps use them, in the list of names as well as in the list
+-- of SharedLibraryInfo. Apps can still load a library they know the name of.
 
 local PLATFORM = { 'android.', 'androidx.', 'com.android.', 'javax.', 'org.apache.' }
 local GOOGLE = { ['com.google.android.maps'] = true, ['com.google.android.media.effects'] = true }
-local TYPE_BUILTIN = 0 -- SharedLibraryInfo
+-- SharedLibraryInfo: of the system (in its configuration or declared by a system app), static and SDK libraries
+-- are of apps
+local TYPE_BUILTIN = 0
+local TYPE_DYNAMIC = 1
 
 function hidden(name, param)
     if name == nil then
@@ -58,6 +62,30 @@ function vendor(name)
     return true
 end
 
+-- Whether a shared library is a vendor library of the system, see vendor
+function vendorlibrary(info)
+    local kind = info:getType()
+    return ((kind == TYPE_BUILTIN or kind == TYPE_DYNAMIC) and vendor(info:getName()))
+end
+
+-- The names of the libraries of apps, which getSystemSharedLibraryNames lists too, but without the type;
+-- none before Android 8, which has neither these libraries nor getSharedLibraries
+function applibraries(param)
+    local names = {}
+    local pm = param:getApplicationContext():getPackageManager()
+    local ok, list = pcall(pm.getSharedLibraries, pm, 0)
+    if ok and list ~= nil then
+        local items = list:toArray()
+        for index = 1, items['length'] do
+            local kind = items[index]:getType()
+            if kind ~= TYPE_BUILTIN and kind ~= TYPE_DYNAMIC then
+                names[items[index]:getName()] = true
+            end
+        end
+    end
+    return names
+end
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
@@ -70,13 +98,17 @@ function after(hook, param)
         local names = (method == 'getSystemSharedLibraryNames')
         local items = (names and result or result:toArray())
         local kept = luajava.newInstance('java.util.ArrayList')
+        local apps
         for index = 1, items['length'] do
             local item = items[index]
             if names then
-                if not vendor(item) then
+                if vendor(item) and apps == nil then
+                    apps = applibraries(param)
+                end
+                if not vendor(item) or apps[item] then
                     kept:add(item)
                 end
-            elseif item:getType() ~= TYPE_BUILTIN or not vendor(item:getName()) then
+            elseif not vendorlibrary(item) then
                 kept:add(item)
             end
         end

@@ -17,18 +17,27 @@
 
 package eu.faircode.xlua;
 
+import android.content.ContextWrapper;
+import android.content.pm.ApplicationInfo;
+import android.net.NetworkCapabilities;
+import android.net.TransportInfo;
+
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.HashMap;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 // The scripts of network, VPN, recording and analytics hooks with Lua stand-ins for the hook, the parameter
@@ -242,14 +251,8 @@ public class NetworkScriptsTest {
                         "after(hookof('toString', 'android.net.NetworkCapabilities'), nc)\n" +
                         "local text = paramof(lp, {}, nil, context)\n" +
                         "after(hookof('toString', 'android.net.LinkProperties'), text)\n" +
-                        "local function classof(name)\n" +
-                        "  return { getClass = function() return { getName = function() return name end } end } end\n" +
-                        "local vpn = paramof(classof('android.net.VpnTransportInfo'))\n" +
-                        "local wifi = paramof(classof('android.net.wifi.WifiInfo'))\n" +
                         "local tun = paramof({ getName = function() return 'tun0' end })\n" +
                         "return nc.result, text.result,\n" +
-                        "  after(hookof('getTransportInfo'), vpn), vpn.result,\n" +
-                        "  after(hookof('getTransportInfo'), wifi), wifi.set,\n" +
                         "  after(hookof('getByInetAddress'), tun), tun.result");
         assertEquals("[ Transports: WIFI Capabilities: NOT_VPN&INTERNET&TRUSTED&VALIDATED UnderlyingNetworks: null]",
                 result.arg(1).tojstring());
@@ -257,10 +260,73 @@ public class NetworkScriptsTest {
                 " Routes: [ 0.0.0.0/0 -> 0.0.0.0 rmnet_data0 mtu 0 ]}", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
         assertTrue(result.arg(4).isnil());
-        assertFalse(result.arg(5).toboolean());
-        assertFalse(result.arg(6).toboolean());
-        assertTrue(result.arg(7).toboolean());
-        assertTrue(result.arg(8).isnil());
+    }
+
+    // The transport info is a Java object, which the script checks with XParam, because Lua sees a Class
+    // as its static members; the loader of Android 10 and 11 does not have VpnTransportInfo
+    @Test
+    public void vpnTransportInfoIsHidden() throws Exception {
+        // VpnTransportInfo is not in the SDK of the unit tests: the check of XParam says it is one
+        Varargs vpn = run(load("vpn"),
+                "local param = { result = {},\n" +
+                        "  getResult = function(self) return self.result end,\n" +
+                        "  setResult = function(self, value) self.result = value end,\n" +
+                        "  isInstance = function(self, object, name) return name == 'android.net.VpnTransportInfo' end }\n" +
+                        "return after(hookof('getTransportInfo'), param), param.result");
+        assertTrue(vpn.arg1().toboolean());
+        assertTrue(vpn.arg(2).isnil());
+
+        ClassLoader loader = NetworkScriptsTest.class.getClassLoader();
+        ClassLoader old = new ClassLoader(loader) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (name.equals("android.net.VpnTransportInfo"))
+                    throw new ClassNotFoundException(name);
+                return super.loadClass(name, resolve);
+            }
+        };
+        TransportInfo wifi = new TransportInfo() {
+        };
+
+        XCall other = transportInfo(wifi, loader);
+        assertFalse(other.isReturnEarly());
+        assertSame(wifi, other.getResult());
+
+        XCall android11 = transportInfo(wifi, old);
+        assertFalse(android11.isReturnEarly());
+        assertSame(wifi, android11.getResult());
+
+        XCall none = transportInfo(null, loader);
+        assertFalse(none.isReturnEarly());
+    }
+
+    // Other transport infos, through XParam, stay
+    private static XCall transportInfo(TransportInfo info, ClassLoader loader) throws Exception {
+        Globals globals = load("vpn");
+        XCall call = new XCall(NetworkCapabilities.class.getMethod("getTransportInfo"), null, new Object[0]);
+        call.setOutcome(info, null);
+        // Debug builds log the package and uid of the app
+        ApplicationInfo ai = new ApplicationInfo();
+        ai.uid = 10200;
+        globals.set("param", CoerceJavaToLua.coerce(new XParam(new ContextWrapper(null) {
+            @Override
+            public ClassLoader getClassLoader() {
+                return loader;
+            }
+
+            @Override
+            public ApplicationInfo getApplicationInfo() {
+                return ai;
+            }
+
+            @Override
+            public String getPackageName() {
+                return "com.example.app";
+            }
+        }, call, new HashMap<>())));
+        Varargs result = run(globals, "return after(hookof('getTransportInfo'), param)");
+        assertFalse(result.arg1().toboolean());
+        return call;
     }
 
     // Stopping with the listener of a blocked call does nothing, because Android would throw
@@ -287,28 +353,87 @@ public class NetworkScriptsTest {
         assertFalse(result.arg(6).toboolean());
     }
 
+    // The parameters of the first script keep the values of both, like XParam; the hooks of the groups run
+    // in the given order, until one skips the method, like the backends
+    private static final String RECORDER = String.join("\n",
+            "function source(recorder, method, group, value)",
+            "  before(hookof(method, nil, group), paramof(nil, { [0] = value }, recorder))",
+            "end",
+            "function call(recorder, method, groups)",
+            "  for _, group in ipairs(groups) do",
+            "    local param = paramof(nil, {}, recorder)",
+            "    local restricted = control.before(control.hookof(method, nil, group), param)",
+            "    if param.set then return group, restricted end",
+            "  end",
+            "end",
+            "ALL = { 'Use.Camera', 'Record.Video', 'Record.Audio' }");
+
     // The media server opens the camera itself for the camera source; pause and resume would throw like stop
     @Test
     public void recorderWithCameraDoesNotStart() throws Exception {
-        // The parameters of the first script keep the values of both, like XParam
         Globals globals = load("mediarecorder_setsource");
         globals.set("control", load("mediarecorder_startstop"));
+        run(globals, RECORDER);
         Varargs result = run(globals,
                 "local camera, screen = {}, {}\n" +
-                        "local function call(recorder, method)\n" +
-                        "  local param = paramof(nil, {}, recorder)\n" +
-                        "  control.before(control.hookof(method, nil, 'Use.Camera'), param)\n" +
-                        "  return param.set\n" +
-                        "end\n" +
-                        "before(hookof('setVideoSource', nil, 'Use.Camera'), paramof(nil, { [0] = 1 }, camera))\n" +
-                        "before(hookof('setVideoSource', nil, 'Use.Camera'), paramof(nil, { [0] = 2 }, screen))\n" +
-                        "local started, paused, stopped = call(camera, 'start'), call(camera, 'pause'), call(camera, 'stop')\n" +
-                        "return started, paused, stopped, call(camera, 'start'), call(screen, 'start')");
-        assertTrue(result.arg(1).toboolean());
+                        "source(camera, 'setVideoSource', 'Use.Camera', 1)\n" +
+                        "source(screen, 'setVideoSource', 'Use.Camera', 2)\n" +
+                        "local camerao = { 'Use.Camera' }\n" +
+                        "local started, paused, stopped = call(camera, 'start', camerao), call(camera, 'pause', camerao),\n" +
+                        "  call(camera, 'stop', camerao)\n" +
+                        "return started, paused, stopped, call(camera, 'start', camerao), call(screen, 'start', camerao)");
+        assertEquals("Use.Camera", result.arg(1).tojstring());
+        assertEquals("Use.Camera", result.arg(2).tojstring());
+        assertEquals("Use.Camera", result.arg(3).tojstring());
+        assertTrue(result.arg(4).isnil());
+        assertTrue(result.arg(5).isnil());
+    }
+
+    // The group of the restricted source reports and notifies, whichever hook runs first
+    @Test
+    public void recorderIsBlockedByGroupOfSource() throws Exception {
+        Globals globals = load("mediarecorder_setsource");
+        globals.set("control", load("mediarecorder_startstop"));
+        run(globals, RECORDER);
+        Varargs result = run(globals,
+                "local voice, screen, video = {}, {}, {}\n" +
+                        "source(voice, 'setAudioSource', 'Record.Audio', 1)\n" +
+                        "source(screen, 'setVideoSource', 'Record.Video', 2)\n" +
+                        "source(screen, 'setVideoSource', 'Use.Camera', 2)\n" +
+                        "source(video, 'setVideoSource', 'Use.Camera', 1)\n" +
+                        "source(video, 'setVideoSource', 'Record.Video', 1)\n" +
+                        "source(video, 'setAudioSource', 'Record.Audio', 1)\n" +
+                        "local voiceg, voicer = call(voice, 'start', ALL)\n" +
+                        "local screeng = call(screen, 'start', ALL)\n" +
+                        "local pauseg = call(voice, 'pause', ALL)\n" +
+                        // The hook which skips stopping forgets the sources of the other groups
+                        "local stopg = call(video, 'stop', { 'Record.Audio', 'Use.Camera', 'Record.Video' })\n" +
+                        "return voiceg, voicer, screeng, pauseg, stopg, call(video, 'start', ALL)");
+        assertEquals("Record.Audio", result.arg(1).tojstring());
         assertTrue(result.arg(2).toboolean());
-        assertTrue(result.arg(3).toboolean());
-        assertFalse(result.arg(4).toboolean());
-        assertFalse(result.arg(5).toboolean());
+        assertEquals("Record.Video", result.arg(3).tojstring());
+        assertEquals("Record.Audio", result.arg(4).tojstring());
+        assertEquals("Record.Audio", result.arg(5).tojstring());
+        assertTrue(result.arg(6).isnil());
+    }
+
+    // A recorder is configured again after a reset, so an audio recording after a blocked camera recording starts
+    @Test
+    public void recorderResetForgetsSources() throws Exception {
+        Globals globals = load("mediarecorder_setsource");
+        globals.set("control", load("mediarecorder_startstop"));
+        run(globals, RECORDER);
+        Varargs result = run(globals,
+                "local recorder = {}\n" +
+                        "source(recorder, 'setVideoSource', 'Use.Camera', 1)\n" +
+                        "local blocked = call(recorder, 'start', { 'Use.Camera' })\n" +
+                        "local param = paramof(nil, {}, recorder)\n" +
+                        "local reset = control.before(control.hookof('reset', nil, 'Use.Camera'), param)\n" +
+                        "return blocked, reset, param.set, call(recorder, 'start', { 'Use.Camera' })");
+        assertEquals("Use.Camera", result.arg(1).tojstring());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).isnil());
     }
 
     @Test
@@ -326,6 +451,60 @@ public class NetworkScriptsTest {
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
+
+        // An app which fails on no cells, with a direct executor, does not let the real request through
+        Varargs failing = run(globals,
+                "local executor = { execute = function(self, runnable) runnable:run() end }\n" +
+                        "local callback = { onCellInfo = function(self, cells) error('no cells') end }\n" +
+                        "local param = paramof(nil, { [0] = executor, [1] = callback })\n" +
+                        "return before(hookof('requestCellInfoUpdate'), param), param.set");
+        assertTrue(failing.arg(1).toboolean());
+        assertTrue(failing.arg(2).toboolean());
+    }
+
+    // Handlers and loopers as Lua sees them, which keep the posted answers
+    private static final String HANDLERS = String.join("\n",
+            "posted = {}",
+            "function handlerof(name)",
+            "  return { name = name, post = function(self, runnable) posted[#posted + 1] = { self.name, runnable } end }",
+            "end",
+            "luajava = { createProxy = function(name, object) assert(name == 'java.lang.Runnable') return object end,",
+            "  bindClass = function(name) assert(name == 'android.os.Looper')",
+            "    return { getMainLooper = function(self) return 'main' end } end,",
+            "  newInstance = function(name, looper) assert(name == 'android.os.Handler') return handlerof(looper) end }");
+
+    // Android answers discovering, later on the thread of the listener or the callback
+    @Test
+    public void wifiDiscoveryIsAnswered() throws Exception {
+        Globals globals = load("wifi_discovery");
+        run(globals, HANDLERS);
+        Varargs result = run(globals,
+                "local failed = {}\n" +
+                        "local listener = { onFailure = function(self, reason) failed[#failed + 1] = reason end }\n" +
+                        "local callback = { onSessionConfigFailed = function(self) failed[#failed + 1] = 'aware' end }\n" +
+                        "local peers = paramof(nil, { [0] = 'channel', [1] = listener })\n" +
+                        "local frequency = paramof(nil, { [0] = 'channel', [1] = 2412, [2] = listener })\n" +
+                        "local quiet = paramof(nil, { [0] = 'channel', [1] = nil })\n" +
+                        "local aware = paramof(nil, { [0] = 'config', [1] = callback, [2] = handlerof('app') })\n" +
+                        "local restricted = before(hookof('discoverPeers', nil, nil, { length = 2 }), peers)\n" +
+                        "before(hookof('discoverPeersOnSpecificFrequency', nil, nil, { length = 3 }), frequency)\n" +
+                        "before(hookof('discoverServices', nil, nil, { length = 2 }), quiet)\n" +
+                        "before(hookof('subscribe', nil, nil, { length = 3 }), aware)\n" +
+                        "local early = #failed\n" +
+                        "for _, post in ipairs(posted) do post[2].run() end\n" +
+                        "return restricted, peers.set, quiet.set, aware.set, early, #posted,\n" +
+                        "  posted[1][1], posted[3][1], failed[1], failed[2], failed[3]");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals(0, result.arg(5).toint());
+        assertEquals(3, result.arg(6).toint());
+        assertEquals("main", result.arg(7).tojstring());
+        assertEquals("app", result.arg(8).tojstring());
+        assertEquals(0, result.arg(9).toint());
+        assertEquals(0, result.arg(10).toint());
+        assertEquals("aware", result.arg(11).tojstring());
     }
 
     @Test

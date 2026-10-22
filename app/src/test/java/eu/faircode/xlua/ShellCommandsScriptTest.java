@@ -363,6 +363,14 @@ public class ShellCommandsScriptTest {
                 run(start("cmd", "package", "resolve-activity", "-a", "android.intent.action.VIEW")).out);
         String system = run(start("cmd", "package", "resolve-activity", "-a", "android.intent.action.MAIN")).out;
         assertTrue(system, system.contains("packageName=com.android.settings\n"));
+
+        // Dumps of any length, which the shell writes itself
+        assertTrue(dump(LONG_OWN).length() > 128 * 1024);
+        Result found = run(start("cmd", "package", "query-activities", "-a", "com.example.LONG"));
+        assertEquals(dump(LONG_OWN), found.out);
+        assertEquals(0, found.status);
+        assertEquals("No activities found\n",
+                run(start("cmd", "package", "query-activities", "-a", "com.bank.LONG")).out);
     }
 
     // The features of features and biometrics, for each and both variants
@@ -455,12 +463,35 @@ public class ShellCommandsScriptTest {
                 {"sh", "-e", "-c", "getprop ro.product.model"}, {"sh", "-ec", "getprop ro.product.model"},
                 {"/system/bin/sh", "-c", "toybox getprop ro.product.model"},
                 {"sh", "-c", "/bin/getprop ro.product.model"},
-                {"sh", "-c", "x=$(/system/bin/getprop ro.product.model); echo $x"}})
+                {"sh", "-c", "x=$(/system/bin/getprop ro.product.model); echo $x"},
+                {"sh", "-c", "echo `/bin/getprop ro.product.model`"},
+                {"sh", "-c", "A=1 /system/bin/getprop ro.product.model"},
+                {"sh", "-c", "true && \\\n /system/bin/getprop ro.product.model"},
+                {"sh", "-c", "if true; then \"/system/bin/getprop\" ro.product.model; fi"},
+                {"sh", "-c", "f() { ! /system/bin/getprop ro.product.model; }; f || :"},
+                {"sh", "-c", "/system/bin/toybox getprop ro.product.model </dev/null"}})
             assertEquals(String.join(" ", args), "unknown\n", run(start(args)).out);
         assertEquals("package:com.example\npackage:com.example.shared\n",
                 run(start("sh", "/system/bin/pm", "list", "packages")).out);
         // Not the commands of other directories
         assertTrue(script(start("sh", "-c", "/usr/bin/getprop x")).contains("/usr/bin/getprop x"));
+    }
+
+    // Only paths in the place of a command become the functions: the paths of arguments, like checks for a tool,
+    // and paths with something in front, like a directory of a variable, stay
+    @Test
+    public void otherPathsStay() throws Exception {
+        tools().properties("[ro.product.model]: [Pixel 9]\n");
+        assertEquals("y\n", run(start("sh", "-c", "[ -x /system/bin/getprop ] && echo y")).out);
+        assertEquals("Pixel 9\n", run(start("sh", "-c", "for p in /system/bin/getprop /vendor/bin/getprop; do" +
+                " [ -x \"$p\" ] && { \"$p\" ro.product.model; break; }; done")).out);
+        for (String text : new String[]{"${ANDROID_ROOT:-/system}/bin/getprop ro.product.model",
+                "d=/system; \"$d\"/bin/getprop ro.product.model", "P=/system/bin/getprop; $P ro.product.model",
+                "uname -r; ls /system/bin/cat", "uname -r; $(dirname /system/x)/bin/cat /proc/version",
+                "echo /system/bin/getprop", "pm list packages 2>&1 /system/bin/pm", "ls -l /system/bin/toybox pm"}) {
+            String script = script(start("sh", "-c", text));
+            assertTrue(script, script.endsWith("\n" + text));
+        }
     }
 
     // date prints the time zone of its environment, which the builder gets for the start only
@@ -621,9 +652,22 @@ public class ShellCommandsScriptTest {
             write("instrumentation.txt",
                     "instrumentation:com.bank.test/androidx.test.runner.AndroidJUnitRunner (target=com.bank)\n" +
                             "instrumentation:com.example/androidx.test.runner.AndroidJUnitRunner (target=com.example)\n");
+            write("long-own.txt", dump(LONG_OWN));
+            write("long-other.txt", dump(LONG_OTHER));
             new Tools().properties("").features("").libraries("");
         }
         return new Tools();
+    }
+
+    // Dumps of queries longer than one argument of a program can be (128 KB), of the app and of the app and another one
+    private static final String[] LONG_OWN = new String[600];
+    private static final String[] LONG_OTHER = new String[600];
+
+    static {
+        for (int i = 0; i < LONG_OWN.length; i++) {
+            LONG_OWN[i] = (i % 2 == 0 ? "com.example" : "com.example.shared");
+            LONG_OTHER[i] = (i == LONG_OTHER.length - 1 ? "com.bank" : "com.example");
+        }
     }
 
     // A dump of a query, like PackageManagerShellCommand prints ResolveInfo
@@ -672,6 +716,8 @@ public class ShellCommandsScriptTest {
             "  echo \"package:/data/app/$1/base.apk\" ;;",
             " query-*)",
             "  case \"$*\" in",
+            "   *com.example.LONG*) cat $d/long-own.txt ;;",
+            "   *com.bank.LONG*) cat $d/long-other.txt ;;",
             "   *'-p com.example'*) printf '%s' '" + dump("com.example") + "' ;;",
             "   *--brief*) printf '2 activities found:\\n  Activity #0:\\n    priority=0\\n    com.bank/.Main\\n" +
                     "  Activity #1:\\n    priority=0\\n    com.example/.Main\\n' ;;",

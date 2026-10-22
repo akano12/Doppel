@@ -38,10 +38,10 @@ Restrictions
 * Read clipboard (fake paste)
 * Read debugging state (developer options and USB or wireless debugging appear off)
 * Read memory and storage (total memory and storage rounded up to the sizes devices are sold with, free space rounded down to two digits)
-* Read device settings (settings people change, like animation and font scale, screen timeout, proxy, alarm sound and automatic time zone, have the values of a new device)
+* Read device settings (settings people change, like the window and transition animation scale, screen timeout, proxy, alarm sound and automatic time zone, have the values of a new device; not the font scale, the animator duration scale and whether accessibility is on, because the framework gives apps their real values anyway)
 * Read identifiers (fake build serial number, Android ID, advertising ID, Privacy Sandbox ad ID, app set ID, GSF ID, limit ad tracking, random SD card ids on each start of the app, Wi-Fi, Bluetooth and network interface MAC addresses)
 * Read notifications (fake [status bar notifications](https://developer.android.com/reference/android/service/notification/StatusBarNotification.html))
-* Read network data (hide cell info, also the cell of the service state, Wi-Fi networks, paired and connected Bluetooth devices, fake Wi-Fi network name, also in the text of Wi-Fi and network info, block Bluetooth scans and discovery of devices in the local network)
+* Read network data (hide cell info, also the cell of the service state, Wi-Fi networks, paired and connected Bluetooth devices, fake Wi-Fi network name, also in the text of Wi-Fi and network info, block Bluetooth scans, network service discovery (NsdManager) and Wi-Fi Direct and Wi-Fi Aware discovery)
 * Read sync data (hide [sync data](https://developer.android.com/training/sync-adapters/creating-sync-adapter.html))
 * Read telephony data (fake IMEI, MEID, SIM serial number, phone number, voicemail number, type allocation code, etc)
 * Read time zone (fake time zone, also the system property, setting *value.timezone*, default UTC)
@@ -92,7 +92,8 @@ Notes
 
 * Some apps will start the camera app to take pictures. This cannot be restricted and there is no need for this, because only you can take pictures in this scenario, not the app.
 * Some apps will use [OpenSL ES for Android](https://developer.android.com/ndk/guides/audio/opensl-for-android.html) to record audio, an example is WhatsApp. Xposed cannot hook into native code, so this cannot be prevented.
-* The get applications restriction does not hide the app itself, apps sharing its user id and system apps (also updated ones), because the Android code running in apps, like WebView, needs them.
+* The get applications restriction does not hide the app itself, apps sharing its user id and system apps (also updated ones) from lookups of single apps and from lists of components, like the activities for an intent, keyboards and accessibility services, because the Android code running in apps, like WebView, needs them. The lists of installed apps and packages and of running processes and services keep only the app itself and apps sharing its user id.
+* The network data restriction blocks discovery of devices in the local network through Android (network service discovery, Wi-Fi Direct and Wi-Fi Aware). Apps discovering devices with their own code over plain sockets, like with mDNS or SSDP, cannot be prevented from doing so.
 * The telephony data restriction will result in apps seeing a fake IMEI. However, this doesn't change the IMEI address of your device.
 
 Compatibility

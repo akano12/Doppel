@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A badge wider than the row, like with a large font, shows where it is cut off -->
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
     style="@style/XLua.Badge"
+    android:ellipsize="end"
     android:maxLines="1" />

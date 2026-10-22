@@ -107,16 +107,5 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:indeterminate="true" />
-
-        <TextView
-            android:id="@+id/tvEmpty"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:gravity="center"
-            android:padding="32dp"
-            android:text="@string/title_no_matches"
-            android:textAppearance="@style/XLua.Text.Meta"
-            android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

@@ -146,8 +146,11 @@ function restrict(hook, param)
         end
 
     elseif method == 'getTransportInfo' then
-        -- Android 12 and later describe a VPN network with VpnTransportInfo, which is not in the SDK
-        if result ~= nil and result:getClass():getName() == 'android.net.VpnTransportInfo' then
+        -- Android 12 and later describe a VPN network with VpnTransportInfo, which is not in the SDK;
+        -- Lua sees a Class as its static members, so the class name cannot be read from Lua (see XParam.isInstance),
+        -- and Android 10 and 11 do not have the class, so finding it fails there
+        local ok, vpn = pcall(param.isInstance, param, result, 'android.net.VpnTransportInfo')
+        if ok and vpn then
             param:setResult(nil)
             return true, result, nil
         end

@@ -88,7 +88,8 @@ Tap a group to see its hooks; each hook has its own switch.
 
 Hooks added by a new version are applied automatically to the apps which restrict their group.
 A dash means that hooks were switched off, for example because an app did not work with them.
-Turning the switch of the group off and on again applies all of its hooks.
+Tapping a switch with a dash applies all hooks of its group, like the *Restrict all* switch does for all groups;
+tapping it again removes the restrictions of the group.
 
 <a name="faq7"></a>
 **(7) How does XPrivacyLua compare to XPrivacy?**

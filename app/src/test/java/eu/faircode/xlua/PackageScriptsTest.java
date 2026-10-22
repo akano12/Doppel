@@ -55,6 +55,7 @@ public class PackageScriptsTest {
             "  function param:setResult(value) self.result = value end",
             "  function param:getException() return self.exception end",
             "  function param:getUid() return 10001 end",
+            "  function param:isSystem() return self.system == true end",
             "  function param:isPackageVisible(name) return visible[name] == true end",
             "  function param:isUidVisible(uid) return visible[uid] == true end",
             "  function param:isVisible(ai) return ai.uid == 10001 or ai.system == true end",
@@ -324,6 +325,16 @@ public class PackageScriptsTest {
                         "return list:size(), list:get(0):getPackageName()");
         assertEquals(1, properties.arg(1).toint());
         assertEquals("com.android.vending", properties.arg(2).tojstring());
+
+        // Processes of the system manage all apps
+        Varargs managed = run(globals, items +
+                "local list = listof({ { applicationInfo = own }, { applicationInfo = other } })\n" +
+                "local param = paramof({}, {})\n" +
+                "param.result = list\n" +
+                "param.system = true\n" +
+                "return after(hookof('PackageManager.getInstalledPackages'), param), list:size()");
+        assertFalse(managed.arg(1).toboolean());
+        assertEquals(2, managed.arg(2).toint());
     }
 
     // Only visible packages are changed packages; no changes is null

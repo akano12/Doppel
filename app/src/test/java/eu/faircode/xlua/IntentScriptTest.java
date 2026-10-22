@@ -41,15 +41,24 @@ public class IntentScriptTest {
             "function hookof(name)",
             "  return { getName = function(self) return name end }",
             "end",
-            "function paramof(intent)",
+            // The packages which stay visible besides the app itself, and whether the process is of the system
+            "function paramof(intent, visible, system)",
             "  return { getResult = function(self) return intent end,",
             "    getPackageName = function(self) return 'com.example.app' end,",
-            "    getUid = function(self) return 10001 end }",
+            "    getUid = function(self) return 10001 end,",
+            "    isPackageVisible = function(self, name)",
+            "      return name == 'com.example.app' or (visible ~= nil and visible[name] == true) end,",
+            "    isSystem = function(self) return system == true end }",
             "end",
-            // An intent with a copy of its extras, like Intent.getExtras
-            "function intentof(action, extras)",
+            // An intent with a copy of its extras, like Intent.getExtras, and the package of its data
+            "function intentof(action, extras, package)",
             "  local intent = { action = action, extras = extras }",
+            "  if package ~= nil then",
+            "    intent.data = { getScheme = function(self) return 'package' end,",
+            "      getSchemeSpecificPart = function(self) return package end }",
+            "  end",
             "  function intent:getAction() return self.action end",
+            "  function intent:getData() return self.data end",
             "  function intent:setData(uri) self.data = uri end",
             "  function intent:putExtra(name, value) self.extras[name] = value end",
             "  function intent:replaceExtras(bundle) self.extras = bundle.values end",
@@ -96,14 +105,15 @@ public class IntentScriptTest {
         return globals.load(lua, "test").invoke();
     }
 
-    // The changed components are the package of the other app when all of it changed
+    // The changed components of a hidden app are the package of the app itself, like when all of it changed
     @Test
     public void changedPackageIsOwnPackage() {
         Varargs result = run(
                 "local intent = intentof('android.intent.action.PACKAGE_CHANGED', {\n" +
                         "  ['android.intent.extra.UID'] = 10060,\n" +
                         "  ['android.intent.extra.changed_component_name'] = 'com.example.bank',\n" +
-                        "  ['android.intent.extra.changed_component_name_list'] = { length = 1, 'com.example.bank' } })\n" +
+                        "  ['android.intent.extra.changed_component_name_list'] = { length = 1, 'com.example.bank' } },\n" +
+                        "  'com.example.bank')\n" +
                         "local restricted = after(hookof('Intent.createFromParcel/package'), paramof(intent))\n" +
                         "local list = intent.extras['android.intent.extra.changed_component_name_list']\n" +
                         "return restricted, intent.data, intent.extras['android.intent.extra.UID'],\n" +
@@ -114,6 +124,63 @@ public class IntentScriptTest {
         assertEquals("com.example.app", result.arg(4).tojstring());
         assertEquals(1, result.arg(5).toint());
         assertEquals("com.example.app", result.arg(6).tojstring());
+    }
+
+    // Broadcasts about the app itself, like about components it changed, and about system apps stay
+    @Test
+    public void visiblePackagesStay() {
+        Varargs own = run(
+                "local intent = intentof('android.intent.action.PACKAGE_CHANGED', {\n" +
+                        "  ['android.intent.extra.UID'] = 10001,\n" +
+                        "  ['android.intent.extra.changed_component_name'] = 'com.example.app.Alias',\n" +
+                        "  ['android.intent.extra.changed_component_name_list'] = { length = 1, 'com.example.app.Alias' } },\n" +
+                        "  'com.example.app')\n" +
+                        "local data = intent.data\n" +
+                        "local restricted = after(hookof('Intent.createFromParcel/package'), paramof(intent))\n" +
+                        "local list = intent.extras['android.intent.extra.changed_component_name_list']\n" +
+                        "return restricted, intent.data == data, intent.extras['android.intent.extra.changed_component_name'],\n" +
+                        "  list.length, list[1]");
+        assertFalse(own.arg(1).toboolean());
+        assertTrue(own.arg(2).toboolean());
+        assertEquals("com.example.app.Alias", own.arg(3).tojstring());
+        assertEquals(1, own.arg(4).toint());
+        assertEquals("com.example.app.Alias", own.arg(5).tojstring());
+
+        Varargs system = run(
+                "local intent = intentof('android.intent.action.PACKAGE_REPLACED',\n" +
+                        "  { ['android.intent.extra.UID'] = 10050 }, 'com.google.android.webview')\n" +
+                        "local param = paramof(intent, { ['com.google.android.webview'] = true })\n" +
+                        "return after(hookof('Intent.createFromParcel/package'), param),\n" +
+                        "  intent.data:getSchemeSpecificPart(), intent.extras['android.intent.extra.UID']");
+        assertFalse(system.arg(1).toboolean());
+        assertEquals("com.google.android.webview", system.arg(2).tojstring());
+        assertEquals(10050, system.arg(3).toint());
+    }
+
+    // Processes of the system get the broadcasts about packages as they are, the other variants apply
+    @Test
+    public void systemProcessesGetPackages() {
+        Varargs added = run(
+                "local intent = intentof('android.intent.action.PACKAGE_ADDED',\n" +
+                        "  { ['android.intent.extra.UID'] = 10060 }, 'com.example.bank')\n" +
+                        "return after(hookof('Intent.createFromParcel/package'), paramof(intent, nil, true)),\n" +
+                        "  intent.data:getSchemeSpecificPart(), intent.extras['android.intent.extra.UID']");
+        assertFalse(added.arg(1).toboolean());
+        assertEquals("com.example.bank", added.arg(2).tojstring());
+        assertEquals(10060, added.arg(3).toint());
+
+        Varargs suspended = run(
+                "local intent = intentof('android.intent.action.PACKAGES_SUSPENDED', {\n" +
+                        "  ['android.intent.extra.changed_package_list'] = { length = 1, 'com.example.bank' } })\n" +
+                        "return after(hookof('Intent.createFromParcel/package'), paramof(intent, nil, true)),\n" +
+                        "  intent.extras['android.intent.extra.changed_package_list'].length");
+        assertFalse(suspended.arg(1).toboolean());
+        assertEquals(1, suspended.arg(2).toint());
+
+        Varargs usb = run(
+                "local intent = intentof('android.hardware.usb.action.USB_STATE', { adb = true })\n" +
+                        "return after(hookof('Intent.createFromParcel/debugging'), paramof(intent, nil, true))");
+        assertTrue(usb.arg(1).toboolean());
     }
 
     // Android 15 tells registered receivers which app is started after it was stopped

@@ -33,6 +33,8 @@ import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
 import java.lang.reflect.Method;
+import java.util.HashSet;
+import java.util.Set;
 
 // Notifications of the service in system server, shown to the user of an app.
 // The context is a context of the user, with the resources of system server.
@@ -47,6 +49,8 @@ final class XNotify {
     // The tags of all notifications start with xlua_, the id is the uid of the app
     private static final String TAG_PREFIX = "xlua_";
     private static final String TAG_NEW_APP = "xlua_new_app";
+    private static final String TAG_EXCEPTION = "xlua_exception";
+    private static final String TAG_USAGE = "xlua_use_"; // + group
 
     // Resources of the module version which runs, see loadResources
     private static volatile Resources resources = null;
@@ -72,7 +76,7 @@ final class XNotify {
         if (BuildConfig.DEBUG)
             builder.setSubText(hookid);
         builder.setContentIntent(getAppIntent(context, uid, packageName));
-        notifyAsUser(context, "xlua_use_" + group, uid, builder.build(), userid);
+        notifyAsUser(context, TAG_USAGE + group, uid, builder.build(), userid);
     }
 
     // A hook of an app failed
@@ -83,7 +87,7 @@ final class XNotify {
         builder.setContentTitle(resources.getString(R.string.msg_exception, hookid));
         builder.setContentText(getLabel(context, packageName));
         builder.setContentIntent(getAppIntent(context, uid, packageName));
-        notifyAsUser(context, "xlua_exception", uid, builder.build(), userid);
+        notifyAsUser(context, TAG_EXCEPTION, uid, builder.build(), userid);
     }
 
     // An app was installed
@@ -102,14 +106,27 @@ final class XNotify {
         // public void cancelAsUser(String tag, int id, UserHandle user)
         Method mCancelAsUser = nm.getClass().getDeclaredMethod(
                 "cancelAsUser", String.class, int.class, UserHandle.class);
-        // The active notifications of system server of the user of the context, all tags of custom groups too
-        for (StatusBarNotification sbn : nm.getActiveNotifications()) {
-            String tag = sbn.getTag();
-            if (sbn.getId() == uid && tag != null && tag.startsWith(TAG_PREFIX)) {
-                mCancelAsUser.invoke(nm, tag, uid, Util.getUserHandle(userid));
-                Log.i(TAG, "Cancelled " + tag + ":" + uid + " as " + userid);
+
+        Set<String> tags = new HashSet<>();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P || userid == 0) {
+            // The active notifications of system server of the user of the context, all tags of custom groups too
+            for (StatusBarNotification sbn : nm.getActiveNotifications()) {
+                String tag = sbn.getTag();
+                if (sbn.getId() == uid && tag != null && tag.startsWith(TAG_PREFIX))
+                    tags.add(tag);
             }
+        } else {
+            // Before Android 9 these are the notifications of the user of system server, the owner,
+            // so the tags of other users are of the groups of the definitions
+            tags.add(TAG_NEW_APP);
+            tags.add(TAG_EXCEPTION);
+            for (String group : XProvider.getGroups())
+                tags.add(TAG_USAGE + group);
         }
+
+        for (String tag : tags)
+            mCancelAsUser.invoke(nm, tag, uid, Util.getUserHandle(userid));
+        Log.i(TAG, "Cancelled " + tags.size() + " tags of " + uid + " as " + userid);
     }
 
     // Resources of the module, not of system server

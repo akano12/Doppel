@@ -83,7 +83,7 @@ public class ActivityDownloads extends ActivityBase {
     }
 
     private View pbLoading;
-    private TextView tvEmpty;
+    private EmptyAdapter emptyAdapter;
     private Adapter adapter;
 
     private Filter filter = Filter.ALL;
@@ -102,11 +102,11 @@ public class ActivityDownloads extends ActivityBase {
         setupToolbar(getString(R.string.menu_downloads));
 
         pbLoading = findViewById(R.id.pbLoading);
-        tvEmpty = findViewById(R.id.tvEmpty);
+        emptyAdapter = new EmptyAdapter();
         adapter = new Adapter();
         RecyclerView rvDownloads = findViewById(R.id.rvDownloads);
         rvDownloads.setLayoutManager(new LinearLayoutManager(this));
-        rvDownloads.setAdapter(new ConcatAdapter(new NoticeAdapter(), adapter));
+        rvDownloads.setAdapter(new ConcatAdapter(new NoticeAdapter(), emptyAdapter, adapter));
 
         EditText etSearch = findViewById(R.id.etSearch);
         Ui.onTextChanged(etSearch, text -> {
@@ -283,8 +283,8 @@ public class ActivityDownloads extends ActivityBase {
         adapter.set(items);
 
         // The list is empty when nothing matches the filter or the search
-        tvEmpty.setText(filter == Filter.UPDATES && q.isEmpty() ? R.string.title_no_updates : R.string.title_no_matches);
-        tvEmpty.setVisibility(items.isEmpty() && !all.isEmpty() ? View.VISIBLE : View.GONE);
+        emptyAdapter.set(!items.isEmpty() || all.isEmpty() ? 0
+                : filter == Filter.UPDATES && q.isEmpty() ? R.string.title_no_updates : R.string.title_no_matches);
     }
 
     // One collection is open at a time, like the groups of the Hooks tab, at first the first one;
@@ -371,6 +371,42 @@ public class ActivityDownloads extends ActivityBase {
         @Override
         public int getItemCount() {
             return 1;
+        }
+    }
+
+    // What the list is empty for, below the notice: over the list it would cover the notice on a short screen
+    private static class EmptyAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+        private int text = 0; // String resource, none when the list is not empty
+
+        void set(int text) {
+            if (text == this.text)
+                return;
+            int was = this.text;
+            this.text = text;
+            if (text == 0)
+                notifyItemRemoved(0);
+            else if (was == 0)
+                notifyItemInserted(0);
+            else
+                notifyItemChanged(0);
+        }
+
+        @NonNull
+        @Override
+        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_downloads_empty, parent, false);
+            return new RecyclerView.ViewHolder(view) {
+            };
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+            ((TextView) holder.itemView).setText(text);
+        }
+
+        @Override
+        public int getItemCount() {
+            return (text == 0 ? 0 : 1);
         }
     }
 

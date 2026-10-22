@@ -18,6 +18,9 @@
 -- Android answers a request for the cell info once, with the cells or an error, so apps can wait for the answer;
 -- the answer is without cells, like Android gives it when location is not allowed
 function before(hook, param)
+    -- Skip the request first: an executor which runs the answer directly can throw, like the app on no cells,
+    -- and an error of the script would let the real request through; Android ignores errors of the answer as well
+    param:setResult(nil)
     local executor = param:getArgument(0)
     local callback = param:getArgument(1)
     if executor ~= nil and callback ~= nil then
@@ -26,8 +29,7 @@ function before(hook, param)
                 callback:onCellInfo(luajava.newInstance('java.util.ArrayList'))
             end
         })
-        executor:execute(answer)
+        pcall(executor.execute, executor, answer)
     end
-    param:setResult(nil)
     return true
 end

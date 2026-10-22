@@ -32,6 +32,8 @@
                 app:selectionRequired="true"
                 app:singleSelection="true">
 
+                <!-- Checked from the saved scope in onCreate: a restored check, like one made while
+                     asking to discard, would switch the scope after that without asking -->
                 <Button
                     android:id="@+id/btnScopeApp"
                     style="@style/XLua.Button.Segment"
@@ -39,7 +41,8 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:ellipsize="end"
-                    android:maxLines="1" />
+                    android:maxLines="1"
+                    android:saveEnabled="false" />
 
                 <Button
                     android:id="@+id/btnScopeGlobal"
@@ -47,6 +50,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:saveEnabled="false"
                     android:text="@string/title_all_apps" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 

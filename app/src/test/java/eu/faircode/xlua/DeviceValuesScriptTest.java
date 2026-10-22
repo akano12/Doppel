@@ -153,6 +153,159 @@ public class DeviceValuesScriptTest {
         assertFalse(operator(globals, "getOperatorNumeric", "nil").arg1().toboolean());
     }
 
+    // Stand-ins of the package manager, the system dialer and the configuration of the system, and of luajava,
+    // Java classes of the JDK cannot be used by luajava on a desktop JVM
+    private static final String APPS = String.join("\n",
+            "function arrayof(...)",
+            "  local array = { ... }",
+            "  array['length'] = select('#', ...)",
+            "  return array",
+            "end",
+            "function listof(...)",
+            "  return { items = { ... },",
+            "    add = function(self, value) self.items[#self.items + 1] = value end,",
+            "    size = function(self) return #self.items end,",
+            "    toArray = function(self) return arrayof(table.unpack(self.items)) end,",
+            "    toString = function(self)",
+            "      local strings = {}",
+            "      for index, item in ipairs(self.items) do strings[index] = (type(item) == 'table' and item:toString() or item) end",
+            "      return '[' .. table.concat(strings, ', ') .. ']'",
+            "    end }",
+            "end",
+            "function appof(packageName, uid, system)",
+            "  return { packageName = packageName, uid = uid, system = system }",
+            "end",
+            "apps = { ['com.android.dialer'] = appof('com.android.dialer', 10011, true),",
+            "  ['com.google.android.apps.messaging'] = appof('com.google.android.apps.messaging', 10012, true),",
+            "  ['com.third.visible'] = appof('com.third.visible', 10102, false) }",
+            // The apps which can be the default phone app: the app itself and the system dialer
+            "dialers = arrayof(",
+            "  { activityInfo = { applicationInfo = appof('com.example.app', 10200, false) } },",
+            "  { activityInfo = { applicationInfo = apps['com.android.dialer'] } })",
+            "dialer = 'com.android.dialer'",
+            "libraries = listof()",
+            "local pm = {",
+            "  getApplicationInfo = function(self, name, flags)",
+            "    if apps[name] == nil then error('NameNotFoundException ' .. name) end",
+            "    return apps[name]",
+            "  end,",
+            "  queryIntentActivities = function(self, intent, flags)",
+            "    assert(intent.action == 'android.intent.action.DIAL', intent.action)",
+            "    return { toArray = function(self) return dialers end }",
+            "  end,",
+            "  getSharedLibraries = function(self, flags) return libraries end }",
+            "local context = {",
+            "  getPackageManager = function(self) return pm end,",
+            "  getSystemService = function(self, name)",
+            "    assert(name == 'telecom', name)",
+            "    return { getSystemDialerPackage = function(self) return dialer end }",
+            "  end }",
+            "local resources = {",
+            "  getIdentifier = function(self, name, type, package)",
+            "    return (name == 'default_sms_application' and 2 or 0)",
+            "  end,",
+            "  getString = function(self, id) return 'com.google.android.apps.messaging' end }",
+            "luajava = {",
+            "  newInstance = function(name, action)",
+            "    if name == 'android.content.Intent' then return { action = action } end",
+            "    assert(name == 'java.util.ArrayList', name)",
+            "    return listof()",
+            "  end,",
+            "  bindClass = function(name)",
+            "    if name == 'android.content.res.Resources' then",
+            "      return { getSystem = function(self) return resources end }",
+            "    end",
+            "    return { newInstance = function(self, class, size) return {} end }",
+            "  end }",
+            "function appparamof(result)",
+            "  local param = paramof(result, {})",
+            "  param.getApplicationContext = function(self) return context end",
+            "  param.getPackageName = function(self) return 'com.example.app' end",
+            "  param.isVisible = function(self, ai) return ai.uid == 10200 or ai.system end",
+            // Like XParam: the lookup without hooks, the app itself visible
+            "  param.isInstalledVisible = function(self, name)",
+            "    if name == 'com.example.app' then return true end",
+            "    local ok, ai = pcall(pm.getApplicationInfo, pm, name, 0)",
+            "    return (ok and ai ~= nil and (ai.uid == 10200 or ai.system == true))",
+            "  end",
+            "  param.unhooked = function(self, fn) return fn() end",
+            "  return param",
+            "end",
+            // A SharedLibraryInfo
+            "function libraryof(name, type)",
+            "  return { getName = function(self) return name end, getType = function(self) return type end,",
+            "    toString = function(self) return name end }",
+            "end",
+            // An array of names as the list it becomes
+            "function names(result) return (result.toArray and result or listof(table.unpack(result))):toString() end");
+
+    private Varargs defaultApp(Globals globals, String method, String result) {
+        return run(globals, "return run(hookof('" + method + "', '" + method + "'), appparamof(" + result + "))");
+    }
+
+    // Apps compare the default SMS and phone app without checking for null: a hidden one becomes the one of the system
+    @Test
+    public void defaultAppsAreTheOnesOfTheSystem() throws Exception {
+        Globals globals = load("default_app_filter");
+        run(globals, APPS);
+        Varargs result = defaultApp(globals, "getDefaultDialerPackage", "'com.third.hidden'");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("com.android.dialer", result.arg(2).tojstring());
+        result = defaultApp(globals, "getDefaultSmsPackage", "'com.third.visible'");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("com.google.android.apps.messaging", result.arg(2).tojstring());
+
+        // Apps of the system, the app itself and none stay
+        assertFalse(defaultApp(globals, "getDefaultDialerPackage", "'com.android.dialer'").arg1().toboolean());
+        assertFalse(defaultApp(globals, "getDefaultSmsPackage", "'com.example.app'").arg1().toboolean());
+        assertFalse(defaultApp(globals, "getDefaultSmsPackage", "nil").arg1().toboolean());
+
+        // The configured SMS app is disabled
+        run(globals, "apps['com.google.android.apps.messaging'].enabled = false");
+        result = defaultApp(globals, "getDefaultSmsPackage", "'com.third.visible'");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+
+        // Without the system dialer an app which can be the default, but not the app itself
+        run(globals, "dialer = nil");
+        assertEquals("com.android.dialer", defaultApp(globals, "getDefaultDialerPackage", "'com.third.hidden'").arg(2).tojstring());
+        run(globals, "dialers = arrayof(dialers[1])");
+        result = defaultApp(globals, "getDefaultDialerPackage", "'com.third.hidden'");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+    }
+
+    // Both lists of shared libraries hide the vendor libraries of the system and keep the libraries of apps
+    @Test
+    public void sharedLibrariesAreFilteredAlike() throws Exception {
+        Globals globals = load("features");
+        run(globals, APPS);
+        run(globals, "libraries = listof(libraryof('android.test.base', 0), libraryof('com.qualcomm.qti.audio', 0), " +
+                "libraryof('com.samsung.android.sdk', 1), libraryof('com.google.android.trichromelibrary', 2), " +
+                "libraryof('com.example.sdk', 3))");
+        Varargs result = run(globals, "local param = appparamof(libraries)\n" +
+                "local restricted = after(hookof('PackageManager.getSharedLibraries', 'getSharedLibraries'), param)\n" +
+                "return restricted, param.result:toString()");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("[android.test.base, com.google.android.trichromelibrary, com.example.sdk]", result.arg(2).tojstring());
+
+        result = run(globals, "local param = appparamof(arrayof('android.test.base', 'com.qualcomm.qti.audio', " +
+                "'com.samsung.android.sdk', 'com.google.android.trichromelibrary', 'com.example.sdk', 'com.google.android.maps'))\n" +
+                "local restricted = after(hookof('PackageManager.getSystemSharedLibraryNames', 'getSystemSharedLibraryNames'), param)\n" +
+                "return restricted, names(param.result)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("[android.test.base, com.google.android.trichromelibrary, com.example.sdk, com.google.android.maps]",
+                result.arg(2).tojstring());
+
+        // Before Android 8 there is no getSharedLibraries
+        run(globals, "libraries = nil");
+        result = run(globals, "local param = appparamof(arrayof('android.test.base', 'com.qualcomm.qti.audio'))\n" +
+                "local restricted = after(hookof('PackageManager.getSystemSharedLibraryNames', 'getSystemSharedLibraryNames'), param)\n" +
+                "return restricted, names(param.result)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("[android.test.base]", result.arg(2).tojstring());
+    }
+
     @Test
     public void batteryCapacityIsRounded() throws Exception {
         Globals globals = load("battery");

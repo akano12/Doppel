@@ -115,7 +115,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private final Map<String, String> values = new HashMap<>();
     private final Map<String, String> globals = new HashMap<>();
     private final Map<String, TextInputLayout> inputs = new HashMap<>();
-    private Map<String, String> restored = null; // Entered before a recreation, until the form is built
+    private Map<String, String> restored = null; // Entered for the scope, until its form is built
     private final SecureRandom random = new SecureRandom();
 
     static Intent getIntent(Context context, String packageName, String label) {
@@ -160,13 +160,15 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 String selected = (checkedId == R.id.btnScopeApp ? packageName : GLOBAL);
                 if (!isChecked || selected.equals(category))
                     return;
+                // Nothing is entered for the other scope yet; the form shows the old scope until it is built,
+                // its discarded values should not be saved for the other scope on a recreation meanwhile
                 Runnable change = () -> {
                     category = selected;
-                    restored = null;
+                    restored = new HashMap<>();
                     load();
                 };
                 // Switching discards changes which are not saved, keeping them selects the values shown again
-                if (getChanges().isEmpty())
+                if (!hasChanges())
                     change.run();
                 else
                     confirmDiscard(change, () ->
@@ -176,7 +178,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
         findViewById(R.id.btnSave).setOnClickListener(view -> save());
         findViewById(R.id.btnReset).setOnClickListener(view -> reset());
-        confirmLeaving(() -> !getChanges().isEmpty());
+        confirmLeaving(this::hasChanges);
 
         load();
     }
@@ -221,6 +223,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                         custom.add(name);
 
             runOnUiThread(() -> {
+                // The scope was switched meanwhile, its form is built by the load which followed
+                if (!category.equals(this.category))
+                    return;
+
                 values.clear();
                 values.putAll(v);
                 globals.clear();
@@ -235,7 +241,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 buildForm();
 
                 // Values entered for this scope before a recreation
-                if (restored != null && category.equals(this.category)) {
+                if (restored != null) {
                     for (Map.Entry<String, String> entry : restored.entrySet())
                         setEntered(entry.getKey(), entry.getValue());
                     restored = null;
@@ -407,6 +413,11 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         return (TextUtils.isEmpty(value) ? null : value);
     }
 
+    // Until the form of the scope is built, the values entered are the ones kept for it
+    private boolean hasChanges() {
+        return !(restored == null ? getChanges() : restored).isEmpty();
+    }
+
     // Values entered which are not saved, null for an empty field
     private Map<String, String> getChanges() {
         Map<String, String> changed = new HashMap<>();
@@ -425,6 +436,9 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     }
 
     private void save() {
+        // The form shown is of the scope before a switch, or empty after a recreation, until it is built
+        if (restored != null)
+            return;
         for (Object item : form) {
             if (!(item instanceof Field))
                 continue;

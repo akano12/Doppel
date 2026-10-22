@@ -32,6 +32,11 @@ function after(hook, param)
     -- Hook names are like Function/variant
     local name = string.match(hook:getName(), '/(.*)$')
 
+    -- Processes of the system manage the packages of all apps
+    if name == 'package' and param:isSystem() then
+        return false
+    end
+
     if name == 'package' and (action == 'android.intent.action.PACKAGE_ADDED' or
             action == 'android.intent.action.PACKAGE_CHANGED' or
             action == 'android.intent.action.PACKAGE_DATA_CLEARED' or
@@ -44,6 +49,13 @@ function after(hook, param)
             action == 'android.intent.action.PACKAGE_RESTARTED' or
             action == 'android.intent.action.PACKAGE_UNSTOPPED' or
             action == 'android.intent.action.PACKAGE_VERIFIED') then
+        -- Packages which stay visible, like the app itself and system apps, stay, like their probes (see package_probe),
+        -- also the components of the app which it changed itself
+        local data = intent:getData()
+        if data ~= nil and data:getScheme() == 'package' and param:isPackageVisible(data:getSchemeSpecificPart()) then
+            return false
+        end
+
         local uriClass = luajava.bindClass('android.net.Uri')
         local uri = uriClass:parse('package:' .. param:getPackageName())
         intent:setData(uri)

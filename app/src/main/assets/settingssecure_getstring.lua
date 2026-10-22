@@ -81,21 +81,26 @@ local FRAMEWORK = { android = true, ['com.android.server.accessibility'] = true 
 -- which are hidden by the package visibility rules, like a system keyboard. See service_filter too.
 function systemservices(param, source)
     local context = param:getApplicationContext()
-    local infos = {}
-    if source == 'accessibility' then
-        local am = context:getSystemService('accessibility')
-        for _, list in ipairs({ am:getInstalledAccessibilityServiceList(), am:getEnabledAccessibilityServiceList(-1) }) do
-            local items = list:toArray()
+    -- The lists of the services are hooked themselves (see service_filter),
+    -- which would filter them and report them as calls of the app
+    local infos = param:unhooked(function()
+        local infos = {}
+        if source == 'accessibility' then
+            local am = context:getSystemService('accessibility')
+            for _, list in ipairs({ am:getInstalledAccessibilityServiceList(), am:getEnabledAccessibilityServiceList(-1) }) do
+                local items = list:toArray()
+                for index = 1, items['length'] do
+                    infos[#infos + 1] = items[index]:getResolveInfo().serviceInfo.applicationInfo
+                end
+            end
+        elseif source == 'input_method' then
+            local items = context:getSystemService('input_method'):getInputMethodList():toArray()
             for index = 1, items['length'] do
-                infos[#infos + 1] = items[index]:getResolveInfo().serviceInfo.applicationInfo
+                infos[#infos + 1] = items[index]:getServiceInfo().applicationInfo
             end
         end
-    elseif source == 'input_method' then
-        local items = context:getSystemService('input_method'):getInputMethodList():toArray()
-        for index = 1, items['length'] do
-            infos[#infos + 1] = items[index]:getServiceInfo().applicationInfo
-        end
-    end
+        return infos
+    end)
     local packages = {}
     for _, ai in ipairs(infos) do
         packages[ai.packageName] = (packages[ai.packageName] or param:isVisible(ai))
@@ -106,15 +111,75 @@ end
 -- Whether the package manager tells about an app, and it is a system app or the app itself;
 -- an app hidden by the package visibility rules is not visible
 function installed(param, packageName)
-    if packageName == param:getPackageName() then
-        return true
-    end
-    local pm = param:getApplicationContext():getPackageManager()
-    local ok, ai = pcall(pm.getApplicationInfo, pm, packageName, 0)
-    return (ok and ai ~= nil and param:isVisible(ai))
+    return param:isInstalledVisible(packageName)
 end
 
--- The entries of a list which name visible apps, nil when none are left
+-- The default app of a device on which the user did not choose one: the dialer of the system, or the SMS app
+-- the configuration of the system names, else a system app which can be the default; nil when there is none.
+-- Like default_app_filter, which tells it for the hidden default app too.
+function systemdefault(param, dialer)
+    -- Its lookups are hooked themselves (see package_probe and generic_filter_by_uid),
+    -- which would restrict them and report them as calls of the app
+    return param:unhooked(function()
+        local context = param:getApplicationContext()
+        local names = {}
+        if dialer then
+            -- Public as of Android 10, hidden before
+            local telecom = context:getSystemService('telecom')
+            if telecom ~= nil then
+                local ok, name = pcall(telecom.getSystemDialerPackage, telecom)
+                names[#names + 1] = (ok and name or nil)
+            end
+        else
+            -- The role default of Android 10 and later, the default of SmsApplication before
+            local resources = luajava.bindClass('android.content.res.Resources'):getSystem()
+            for _, config in ipairs({ 'config_defaultSms', 'default_sms_application' }) do
+                local id = resources:getIdentifier(config, 'string', 'android')
+                if id ~= 0 then
+                    names[#names + 1] = resources:getString(id)
+                end
+            end
+        end
+
+        -- The configured app need not be installed or enabled
+        local pm = context:getPackageManager()
+        local infos = {}
+        for _, name in ipairs(names) do
+            local ok, ai = pcall(pm.getApplicationInfo, pm, name, 0)
+            if ok then
+                infos[#infos + 1] = ai
+            end
+        end
+        local intent = luajava.newInstance('android.content.Intent',
+                dialer and 'android.intent.action.DIAL' or 'android.provider.Telephony.SMS_DELIVER')
+        local ok, list = pcall(dialer and pm.queryIntentActivities or pm.queryBroadcastReceivers, pm, intent, 0)
+        if ok and list ~= nil then
+            local items = list:toArray()
+            for index = 1, items['length'] do
+                infos[#infos + 1] = items[index].activityInfo.applicationInfo
+            end
+        end
+        for _, ai in ipairs(infos) do
+            if ai ~= nil and ai.enabled ~= false and ai.packageName ~= param:getPackageName() and param:isVisible(ai) then
+                return ai.packageName
+            end
+        end
+        return nil
+    end)
+end
+
+-- Whether the app can change secure settings: the system (app ids below 10000), like the system server,
+-- Settings and Phone, and apps given the permission, like with adb
+function writer(param)
+    if param:getUid() % 100000 < 10000 then
+        return true
+    end
+    local context = param:getApplicationContext()
+    return (context:checkSelfPermission('android.permission.WRITE_SECURE_SETTINGS') == 0)
+end
+
+-- The entries of a list which name visible apps, nil when none are left;
+-- the one default SMS or phone app becomes the one of the system, apps expect there is one
 function components(param, key, value)
     local source = COMPONENTS[key]
     local services
@@ -140,6 +205,9 @@ function components(param, key, value)
     local fake = table.concat(kept, ':')
     if fake == '' then
         fake = nil
+        if key == 'sms_default_application' or key == 'dialer_default_application' then
+            fake = systemdefault(param, key == 'dialer_default_application')
+        end
     end
     return fake
 end
@@ -176,7 +244,13 @@ function fakesetting(param, name, key, result)
         return true, fake
     elseif (name == 'accessibility' and COMPONENTS[key] == 'accessibility') or
             (name == 'input_method' and COMPONENTS[key] ~= nil and COMPONENTS[key] ~= 'accessibility') then
-        -- Keyboards and accessibility services, and the other apps named by settings, like notification listeners
+        -- Keyboards and accessibility services, and the other apps named by settings, like notification listeners.
+        -- Apps which can change the settings get them as they are: they write back what they read, like
+        -- the keyboards and spell checkers the system server chooses when there are none, or an app enabling
+        -- its accessibility service, which would remove the hidden apps for good
+        if writer(param) then
+            return false
+        end
         local fake = components(param, key, result)
         if fake == result then
             return false

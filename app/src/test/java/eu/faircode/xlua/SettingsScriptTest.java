@@ -55,10 +55,24 @@ public class SettingsScriptTest {
             "  { getResolveInfo = function(self) return { serviceInfo = { applicationInfo = appof('com.third.reader', 10101, false) } } end },",
             "  { getResolveInfo = function(self) return { serviceInfo = { applicationInfo = appof('com.google.android.marvin.talkback', 10051, true) } } end })",
             // The package manager does not tell about apps hidden by the package visibility rules
-            "local apps = { ['com.google.android.gms'] = appof('com.google.android.gms', 10010, true),",
-            "  ['com.third.visible'] = appof('com.third.visible', 10102, false) }",
+            "apps = { ['com.google.android.gms'] = appof('com.google.android.gms', 10010, true),",
+            "  ['com.third.visible'] = appof('com.third.visible', 10102, false),",
+            "  ['com.android.dialer'] = appof('com.android.dialer', 10011, true),",
+            "  ['com.google.android.apps.messaging'] = appof('com.google.android.apps.messaging', 10012, true) }",
+            // The apps which receive SMS: a third party app, the app itself and the SMS app of the system
+            "local receivers = arrayof(",
+            "  { activityInfo = { applicationInfo = apps['com.third.visible'] } },",
+            "  { activityInfo = { applicationInfo = appof('com.example.app', 10200, false) } },",
+            "  { activityInfo = { applicationInfo = apps['com.google.android.apps.messaging'] } })",
+            // The permissions the app has, and the system dialer
+            "permissions = {}",
+            "dialer = 'com.android.dialer'",
             "local context = {",
+            "  checkSelfPermission = function(self, name) return (permissions[name] and 0 or -1) end,",
             "  getSystemService = function(self, name)",
+            "    if name == 'telecom' then",
+            "      return { getSystemDialerPackage = function(self) return dialer end }",
+            "    end",
             "    if name == 'input_method' then",
             "      return { getInputMethodList = function(self) return { toArray = function(self) return keyboards end } end }",
             "    end",
@@ -68,16 +82,34 @@ public class SettingsScriptTest {
             "  end,",
             "  getPackageManager = function(self)",
             "    return { getApplicationInfo = function(self, name, flags)",
-            "      if apps[name] == nil then error('NameNotFoundException ' .. name) end",
-            "      return apps[name]",
-            "    end }",
+            "        if apps[name] == nil then error('NameNotFoundException ' .. name) end",
+            "        return apps[name]",
+            "      end,",
+            "      queryBroadcastReceivers = function(self, intent, flags)",
+            "        assert(intent.action == 'android.provider.Telephony.SMS_DELIVER', intent.action)",
+            "        return { toArray = function(self) return receivers end }",
+            "      end }",
             "  end }",
-            "function paramof(arguments, settings)",
+            // The configuration of the system names an SMS app which is not installed
+            "local resources = {",
+            "  getIdentifier = function(self, name, type, package)",
+            "    return (name == 'config_defaultSms' and type == 'string' and package == 'android' and 1 or 0)",
+            "  end,",
+            "  getString = function(self, id) assert(id == 1) return 'com.android.messaging' end }",
+            "function paramof(arguments, settings, uid)",
             "  return {",
             "    getApplicationContext = function(self) return context end,",
             "    getPackageName = function(self) return 'com.example.app' end,",
-            "    getUid = function(self) return 10200 end,",
+            "    getUid = function(self) return uid or 10200 end,",
             "    isVisible = function(self, ai) return ai.uid == 10200 or ai.system end,",
+            // Like XParam: the lookup without hooks, the app itself visible
+            "    isInstalledVisible = function(self, name)",
+            "      if name == 'com.example.app' then return true end",
+            "      local pm = context:getPackageManager()",
+            "      local ok, ai = pcall(pm.getApplicationInfo, pm, name, 0)",
+            "      return (ok and ai ~= nil and (ai.uid == 10200 or ai.system == true))",
+            "    end,",
+            "    unhooked = function(self, fn) return fn() end,",
             "    getArgument = function(self, index) return arguments[index] end,",
             "    getSetting = function(self, name) return settings[name] end }",
             "end",
@@ -94,7 +126,16 @@ public class SettingsScriptTest {
             "    toArray = function(self) return arrayof(table.unpack(self.items)) end,",
             "    toString = function(self) return '[' .. table.concat(self.items, ', ') .. ']' end }",
             "end",
-            "luajava = { newInstance = function(name) assert(name == 'java.util.ArrayList', name) return listof() end }",
+            "luajava = {",
+            "  newInstance = function(name, action)",
+            "    if name == 'android.content.Intent' then return { action = action } end",
+            "    assert(name == 'java.util.ArrayList', name)",
+            "    return listof()",
+            "  end,",
+            "  bindClass = function(name)",
+            "    assert(name == 'android.content.res.Resources', name)",
+            "    return { getSystem = function(self) return resources end }",
+            "  end }",
             // The bundle of call(LIST_secure)
             "function bundleof(...)",
             "  local list = listof()",
@@ -122,7 +163,11 @@ public class SettingsScriptTest {
 
     // The fake value of a setting of the applications variants, or "same" when it stays
     private String applications(String name, String key, String value) {
-        Varargs result = run("local changed, fake = fakesetting(paramof({}, {}), '" + name + "', '" + key + "', '" + value + "')\n" +
+        return applications(name, key, value, 10200);
+    }
+
+    private String applications(String name, String key, String value, int uid) {
+        Varargs result = run("local changed, fake = fakesetting(paramof({}, {}, " + uid + "), '" + name + "', '" + key + "', '" + value + "')\n" +
                 "if not changed then return 'same' end\n" +
                 "return fake");
         return (result.arg1().isnil() ? null : result.arg1().tojstring());
@@ -170,11 +215,41 @@ public class SettingsScriptTest {
         assertEquals("com.google.android.gms",
                 applications("input_method", "enabled_notification_policy_access_packages",
                         "com.third.visible:com.google.android.gms"));
-        assertEquals(null, applications("input_method", "sms_default_application", "com.third.visible"));
         assertEquals("same", applications("input_method", "sms_default_application", "com.example.app"));
         // Read by the framework to start speech recognition
         assertTrue(run("return hooked('voice_recognition_service')").arg1().isboolean());
         assertFalse(run("return hooked('voice_recognition_service')").arg1().toboolean());
+    }
+
+    // Apps expect a default SMS and phone app: the one of the system replaces a hidden one,
+    // the configured one when installed, else a system app which can be the default
+    @Test
+    public void defaultAppsAreTheOnesOfTheSystem() {
+        assertEquals("com.google.android.apps.messaging",
+                applications("input_method", "sms_default_application", "com.third.visible"));
+        assertEquals("com.android.dialer", applications("input_method", "dialer_default_application", "com.third.hidden"));
+        run("apps['com.android.messaging'] = appof('com.android.messaging', 10013, true)");
+        assertEquals("com.android.messaging", applications("input_method", "sms_default_application", "com.third.hidden"));
+        // None of the system
+        run("dialer = nil");
+        assertEquals(null, applications("input_method", "dialer_default_application", "com.third.hidden"));
+    }
+
+    // Apps which can change the settings write back what they read, which would remove the hidden apps for good
+    @Test
+    public void appsWhichChangeSettingsGetThemAsTheyAre() {
+        for (int uid : new int[]{1000, 1001, 1001000})
+            for (String key : new String[]{"default_input_method", "selected_spell_checker", "sms_default_application"})
+                assertEquals(key + " " + uid, "same", applications("input_method", key, "com.third.keyboard/.Keyboard", uid));
+        assertEquals("same", applications("accessibility", "enabled_accessibility_services", "com.third.reader/.Reader", 1000));
+        // Given the permission, like with adb
+        run("permissions['android.permission.WRITE_SECURE_SETTINGS'] = true");
+        assertEquals("same", applications("accessibility", "enabled_accessibility_services", "com.third.reader/.Reader"));
+        assertEquals("same", applications("input_method", "default_input_method", "com.third.keyboard/.Keyboard"));
+        // Other settings are faked still
+        assertEquals("0000000000000000", applications("android_id", "android_id", "1234abcd1234abcd", 1000));
+        run("permissions = {}");
+        assertEquals(null, applications("input_method", "default_input_method", "com.third.keyboard/.Keyboard", 1010200));
     }
 
     @Test

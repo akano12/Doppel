@@ -22,8 +22,8 @@
 -- The functions cover commands run directly, also with their path, with toybox, toolbox or env in front,
 -- the pm script run with sh, and scripts of sh -c naming the commands, also with toybox or toolbox.
 -- Not covered are shells reading commands from their input (filtering their input could break apps
--- which wait for output), script files, command and env in scripts, names made while the script runs
--- and native code. Runtime.exec starts processes with ProcessBuilder.start from Android 7,
+-- which wait for output), script files, command and env in scripts, names and paths made while the script runs
+-- (like "$dir"/bin/getprop) and native code. Runtime.exec starts processes with ProcessBuilder.start from Android 7,
 -- on Android 6 its hooks change the arguments of Runtime.exec(String[], String[], File) instead.
 -- Each variant fakes the values of its group. The hooks of all variants run for the same command:
 -- each one adds its variant to the variants of the command so far and makes the command again from
@@ -81,6 +81,10 @@ local GOOGLE = { 'com.google.android.maps', 'com.google.android.media.effects' }
 -- env the command after its options and variables
 local MULTIPLEXERS = { toybox = true, toolbox = true, busybox = true }
 local SHELLS = { sh = true, mksh = true, bash = true }
+
+-- Reserved words of the shell which a command follows, like if /system/bin/getprop ... or do /system/bin/getprop
+local RESERVED = { ['if'] = true, ['then'] = true, ['else'] = true, ['elif'] = true, ['while'] = true,
+                   ['until'] = true, ['do'] = true, ['time'] = true, ['!'] = true, ['{'] = true }
 
 -- The fake time zone, like timezone
 function fakezone(param)
@@ -297,10 +301,15 @@ function applicationfunctions(param, lists, cases)
         ' esac',
         ' return 1',
         '}',
+        -- A text of any length, like the dump of a query: the shell writes it itself, with print in mksh, the shell
+        -- of Android, else with printf; one argument of a program like /system/bin/printf can have 128 KB only
+        '__xlua_print() {',
+        ' if [ -n "${KSH_VERSION-}" ]; then print -r -- "$1"; else printf \'%s\\n\' "$1"; fi',
+        '}',
         '__xlua_visible() {',
         ' __xlua_own "$1" && return 0',
         ' [ -n "${__xlua_system-}" ] || __xlua_system=$(/system/bin/pm list packages -s)',
-        " /system/bin/printf '%s\\n' \"$__xlua_system\" | /system/bin/grep -qxF \"package:$1\"",
+        ' __xlua_print "$__xlua_system" | /system/bin/grep -qxF "package:$1"',
         '}',
         -- path [--user USER] PACKAGE: one option, like -u or --user with its value, then the package
         '__xlua_path() {',
@@ -317,7 +326,7 @@ function applicationfunctions(param, lists, cases)
         '}',
         -- The packages a query found: of dumps like packageName=com.example and of components like com.example/.Main
         '__xlua_found() {',
-        " /system/bin/printf '%s\\n' \"$1\" | /system/bin/sed -n -e 's/^ *packageName=\\(.*\\)$/\\1/p'" ..
+        " __xlua_print \"$1\" | /system/bin/sed -n -e 's/^ *packageName=\\(.*\\)$/\\1/p'" ..
                 " -e 's|^ *\\([A-Za-z0-9_.]*\\)/[^ ]*$|\\1|p'",
         '}',
         -- A query printing what it found when the check allows all packages, else the answer of nothing found;
@@ -330,10 +339,10 @@ function applicationfunctions(param, lists, cases)
         ' __xlua_out=$(__xlua_package "$@") || __xlua_status=$?',
         ' if __xlua_found "$__xlua_out" |',
         '   (while read -r __xlua_name; do $__xlua_check "$__xlua_name" || exit 1; done); then',
-        '  [ -z "$__xlua_out" ] || /system/bin/printf \'%s\\n\' "$__xlua_out"',
+        '  [ -z "$__xlua_out" ] || __xlua_print "$__xlua_out"',
         '  return $__xlua_status',
         ' fi',
-        " /system/bin/printf '%s\\n' \"$__xlua_none\"",
+        ' __xlua_print "$__xlua_none"',
         '}',
     }, '\n')
 end
@@ -622,17 +631,74 @@ function shelloperand(words, at)
     return index, script
 end
 
--- Scripts can run the commands with their path, which would skip the functions; a path next to another one
--- shares the character between them with it, so it is replaced the next time
-function unpath(script, name)
-    local text = ' ' .. script .. ' '
-    for _, dir in ipairs({ '/system/bin/', '/bin/' }) do
-        local count
-        repeat
-            text, count = string.gsub(text, '([^%w_./-])' .. dir .. name .. '([^%w_.-])', '%1' .. name .. '%2')
-        until count == 0
+-- Whether the word at the index is in the place of a command: first in the script, after an operator like ;, &&,
+-- | or $(, after a reserved word like then or do, or after variables like A=1 in such a place. Not the arguments
+-- of commands, like those of [ -x, ls and for, and not words with something in front, like ${root}/bin/getprop.
+function commandplace(text, at)
+    local index = at - 1
+    while index > 0 do
+        local char = string.sub(text, index, index)
+        if char == ' ' or char == '\t' then
+            index = index - 1
+        elseif char == '\n' and string.sub(text, index - 1, index - 1) == '\\' then
+            -- A continued line
+            index = index - 2
+        else
+            break
+        end
     end
-    return string.sub(text, 2, -2)
+    if index == 0 then
+        return true
+    end
+    local char = string.sub(text, index, index)
+    local before = string.sub(text, index - 1, index - 1)
+    if string.find(char, '[;(`\n]') or (char == ')' and before == '(') then
+        -- Also the body of a function like f() { ...
+        return true
+    elseif char == '&' or char == '|' then
+        -- Not after redirections like 2>&1 and >|
+        return not string.find(before, '[<>]')
+    elseif index == at - 1 then
+        return false
+    end
+    local first = index
+    while first > 1 and not string.find(string.sub(text, first - 1, first - 1), '[%s;&|()`]') do
+        first = first - 1
+    end
+    local word = string.sub(text, first, index)
+    if RESERVED[word] or string.match(word, '^[%a_][%w_]*=[^\'"`$\\()]*$') then
+        return commandplace(text, first)
+    end
+    return false
+end
+
+-- Scripts can run the commands with their path, which would skip the functions; only paths in the place of
+-- a command are replaced, also when quoted, others are arguments like [ -x /system/bin/getprop ], which stay
+function unpath(script, name)
+    local text = script
+    for _, dir in ipairs({ '/system/bin/', '/bin/' }) do
+        local path = dir .. name
+        local parts = {}
+        local from = 1
+        local at = string.find(text, path, 1, true)
+        while at ~= nil do
+            local first = at
+            local after = at + #path
+            local quote = string.sub(text, at - 1, at - 1)
+            if (quote == '"' or quote == "'") and string.sub(text, after, after) == quote then
+                first = at - 1
+                after = after + 1
+            end
+            if string.find(string.sub(text, after, after), '^[%s;&|)`<>]?$') and commandplace(text, first) then
+                parts[#parts + 1] = string.sub(text, from, at - 1) .. name
+                from = at + #path
+            end
+            at = string.find(text, path, at + 1, true)
+        end
+        parts[#parts + 1] = string.sub(text, from)
+        text = table.concat(parts)
+    end
+    return text
 end
 
 -- The environment of Runtime.exec with the fake time zone, nil when it has a time zone already

@@ -21,7 +21,9 @@ import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
 
 import org.junit.Test;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.lib.ZeroArgFunction;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
 import java.util.HashMap;
@@ -29,6 +31,7 @@ import java.util.HashMap;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 // Lua values set by scripts are converted to the types of the hooked methods,
 // and scripts hide the packages of other apps
@@ -81,7 +84,11 @@ public class XParamTest {
     }
 
     private static XParam param() throws NoSuchFieldException {
-        ApplicationInfo ai = app(UID, 0);
+        return param(UID);
+    }
+
+    private static XParam param(int uid) throws NoSuchFieldException {
+        ApplicationInfo ai = app(uid, 0);
         return new XParam(new ContextWrapper(null) {
             @Override
             public String getPackageName() {
@@ -113,5 +120,52 @@ public class XParamTest {
         assertTrue("System", param.isUidVisible(1000));
         assertTrue("System of another user", param.isUidVisible(1001000));
         assertTrue("Root", param.isUidVisible(0));
+    }
+
+    // Processes with a system uid, like system server, see all apps; without lookups, which need a package manager
+    @Test
+    public void systemProcess() throws NoSuchFieldException {
+        assertFalse(param().isSystem());
+        for (int uid : new int[]{1000, 1001, 1001000}) {
+            XParam param = param(uid);
+            assertTrue(param.isSystem());
+            assertTrue("Other app", param.isVisible(app(10124, ApplicationInfo.FLAG_INSTALLED)));
+            assertTrue("Other package", param.isPackageVisible("other.app"));
+            assertTrue("Other uid", param.isUidVisible(10124));
+        }
+    }
+
+    @Test
+    public void installedPackages() throws NoSuchFieldException {
+        XParam param = param();
+        assertTrue("Own package", param.isInstalledVisible("test.app"));
+        assertFalse("No package", param.isInstalledVisible(null));
+    }
+
+    // The lookups of scripts do not run the hooks of the app, also when they fail
+    @Test
+    public void unhooked() throws NoSuchFieldException {
+        XParam param = param();
+        assertFalse(XCore.inService());
+        LuaValue result = param.unhooked(new ZeroArgFunction() {
+            @Override
+            public LuaValue call() {
+                return LuaValue.valueOf(XCore.inService());
+            }
+        });
+        assertTrue(result.toboolean());
+        assertFalse(XCore.inService());
+
+        try {
+            param.unhooked(new ZeroArgFunction() {
+                @Override
+                public LuaValue call() {
+                    throw new LuaError("lookup");
+                }
+            });
+            fail("Error not passed on");
+        } catch (LuaError ignored) {
+        }
+        assertFalse(XCore.inService());
     }
 }

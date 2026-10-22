@@ -72,6 +72,8 @@ public class ActivityHookEdit extends ActivityBase {
     private String hookId = null; // Also while loading, null for a new definition which is not saved yet
     private Set<String> builtinIds = null;
     private String unchanged = null; // What was entered when loaded or saved, see getEntered
+    private boolean loading = true; // Until the definition is loaded, saving cannot tell whether it is new
+    private boolean refill = false; // The fields are replaced by the definition loading, see delete
 
     private MaterialToolbar toolbar;
     private TabLayout tabs;
@@ -205,7 +207,7 @@ public class ActivityHookEdit extends ActivityBase {
         super.onSaveInstanceState(outState);
         outState.putString(STATE_ID, hookId);
         // Not while loading, the fields are filled after a recreation then
-        if (unchanged != null)
+        if (unchanged != null && !refill)
             outState.putString(STATE_UNCHANGED, unchanged);
         outState.putInt(STATE_TAB, tabs.getSelectedTabPosition());
     }
@@ -248,6 +250,8 @@ public class ActivityHookEdit extends ActivityBase {
                     if (fill)
                         fill(jhook);
                 }
+                loading = false;
+                refill = false;
                 updateMenu();
             });
         });
@@ -382,6 +386,8 @@ public class ActivityHookEdit extends ActivityBase {
     }
 
     private void updateMenu() {
+        // Saving an existing definition while it loads would take it for a new one, see save
+        toolbar.getMenu().findItem(R.id.menu_save).setEnabled(hookId == null || !loading);
         boolean overrides = (hook != null && !hook.isBuiltin() && builtinIds != null && builtinIds.contains(hook.getId()));
         // Only custom definitions can be deleted; deleting one replacing a built-in restores the built-in
         MenuItem delete = toolbar.getMenu().findItem(R.id.menu_delete);
@@ -456,6 +462,8 @@ public class ActivityHookEdit extends ActivityBase {
         Ui.areYouSure(this,
                 getString(restores ? R.string.msg_remove_restores : R.string.msg_delete_sure, id),
                 restores ? R.string.menu_restore_builtin : R.string.menu_delete, () -> {
+                    // A recreation before the built-in one is shown shows it too, not what was deleted
+                    refill = restores;
                     final Context context = getApplicationContext();
                     run(TAG, () -> {
                         Data.putHook(context, id, null);

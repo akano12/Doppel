@@ -19,7 +19,9 @@ package eu.faircode.xlua;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Bundle;
@@ -153,9 +155,11 @@ public class ActivityApp extends ActivityBase {
             try {
                 XApp app = Data.getApp(context, packageName, uid);
                 if (app == null) {
+                    // The service gives no app on an error too, which should not close the screen
+                    boolean installed = isInstalled(context, packageName, uid);
                     postUnlessGone(() -> {
                         // Uninstalled meanwhile, like with App info: its restrictions cannot be changed anymore
-                        if (this.app != null) {
+                        if (this.app != null && !installed) {
                             finish();
                             return;
                         }
@@ -179,6 +183,15 @@ public class ActivityApp extends ActivityBase {
                 error(TAG, ex);
             }
         });
+    }
+
+    private static boolean isInstalled(Context context, String packageName, int uid) {
+        try {
+            ApplicationInfo ai = context.getPackageManager().getApplicationInfo(packageName, 0);
+            return (uid < 0 || ai.uid == uid);
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return false;
+        }
     }
 
     private String getLabel() {

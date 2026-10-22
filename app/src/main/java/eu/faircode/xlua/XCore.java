@@ -93,6 +93,7 @@ class XCore {
     // The hooks assigned to "android" apply to all of system server, but not to the service and the code of this
     // class there, which look up packages and call the service themselves: a restriction like Get.Applications
     // would else hide the module and the apps from the service. See installMethod.
+    // In apps the reports and the package lookups of XParam are not restricted and reported as calls of the app.
     private static final ThreadLocal<int[]> serviceCalls = new ThreadLocal<int[]>() {
         @Override
         protected int[] initialValue() {
@@ -108,7 +109,7 @@ class XCore {
         serviceCalls.get()[0]--;
     }
 
-    private static boolean inService() {
+    static boolean inService() {
         return (serviceCalls.get()[0] > 0);
     }
 

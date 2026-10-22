@@ -27,6 +27,8 @@ import android.os.Build;
 import android.os.Process;
 import android.util.Log;
 
+import org.luaj.vm2.LuaValue;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -50,7 +52,6 @@ public class XParam {
     // See isPackageVisible and isUidVisible
     private static final Map<String, Boolean> visiblePackages = new ConcurrentHashMap<>();
     private static final Map<Integer, Boolean> visibleUids = new ConcurrentHashMap<>();
-    private static final ThreadLocal<Boolean> checkingPackage = new ThreadLocal<>();
 
     // Field param
     public XParam(
@@ -148,29 +149,34 @@ public class XParam {
         return (object != null && findClass(className).isInstance(object));
     }
 
+    // Processes of the system, like system server and system apps with the system uid, see all apps
+    @SuppressWarnings("unused")
+    public boolean isSystem() {
+        return (Util.getAppId(getUid()) < Process.FIRST_APPLICATION_UID);
+    }
+
     // Packages which stay visible to an app: its own package, packages sharing its user id and system packages,
-    // which the Android framework, like WebView, looks up in the app process; null has no package to hide
+    // which the Android framework, like WebView, looks up in the app process; null has no package to hide.
+    // All packages are visible to processes of the system, see isSystem.
     @SuppressWarnings("unused")
     public boolean isVisible(ApplicationInfo ai) {
-        return (ai == null || ai.uid == getUid() ||
+        return (ai == null || isSystem() || ai.uid == getUid() ||
                 (ai.flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
     }
 
     // Whether a package, which a hooked call found, stays visible to the app checking for it, see isVisible
     @SuppressWarnings("unused")
     public boolean isPackageVisible(String packageName) {
-        if (packageName == null || packageName.equals(this.context.getPackageName()))
+        if (packageName == null || isSystem() || packageName.equals(this.context.getPackageName()))
             return true;
 
         Boolean visible = visiblePackages.get(packageName);
         if (visible != null)
             return visible;
 
-        // The check below calls hooked methods
-        if (Boolean.TRUE.equals(checkingPackage.get()))
-            return true;
-
-        checkingPackage.set(true);
+        // The lookup calls hooked methods, like the package probes, which would else hide the package
+        // and report a call the app did not make
+        XCore.enterService();
         try {
             visible = isVisible(getPackageInfo(this.context.getPackageManager(), packageName).applicationInfo);
         } catch (PackageManager.NameNotFoundException ignored) {
@@ -178,7 +184,7 @@ public class XParam {
             // not kept, the package can be installed while the app runs
             return false;
         } finally {
-            checkingPackage.remove();
+            XCore.leaveService();
         }
 
         visiblePackages.put(packageName, visible);
@@ -189,20 +195,17 @@ public class XParam {
     // and the uids with a visible package, see isVisible
     @SuppressWarnings("unused")
     public boolean isUidVisible(int uid) {
-        if (uid == getUid() || Util.getAppId(uid) < Process.FIRST_APPLICATION_UID)
+        if (isSystem() || uid == getUid() || Util.getAppId(uid) < Process.FIRST_APPLICATION_UID)
             return true;
 
         Boolean visible = visibleUids.get(uid);
         if (visible != null)
             return visible;
 
-        // The check below calls hooked methods
-        if (Boolean.TRUE.equals(checkingPackage.get()))
-            return true;
-
+        // The lookups call hooked methods, see isPackageVisible
         boolean found = false;
         visible = false;
-        checkingPackage.set(true);
+        XCore.enterService();
         try {
             PackageManager pm = this.context.getPackageManager();
             String[] packages = pm.getPackagesForUid(uid);
@@ -218,13 +221,46 @@ public class XParam {
                     } catch (PackageManager.NameNotFoundException ignored) {
                     }
         } finally {
-            checkingPackage.remove();
+            XCore.leaveService();
         }
 
         // Not kept without packages, an app with the uid can be installed while the app runs
         if (found)
             visibleUids.put(uid, visible);
         return visible;
+    }
+
+    // Whether the package manager tells the app about a package, which is installed for the user
+    // and not hidden by the package visibility rules of Android, and it stays visible, see isVisible.
+    // Not kept, the package can be installed or removed while the app runs.
+    @SuppressWarnings({"unused", "deprecation"})
+    public boolean isInstalledVisible(String packageName) {
+        if (packageName == null)
+            return false;
+        if (packageName.equals(this.context.getPackageName()))
+            return true;
+
+        // The lookup calls hooked methods, see isPackageVisible
+        XCore.enterService();
+        try {
+            return isVisible(this.context.getPackageManager().getApplicationInfo(packageName, 0));
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return false;
+        } finally {
+            XCore.leaveService();
+        }
+    }
+
+    // Runs a function of a script without the hooks of the app on this thread, for lookups of the script itself,
+    // which hooks would else restrict and report as calls of the app; returns the first value the function returns
+    @SuppressWarnings("unused")
+    public LuaValue unhooked(LuaValue function) {
+        XCore.enterService();
+        try {
+            return function.call();
+        } finally {
+            XCore.leaveService();
+        }
     }
 
     // Also packages which only some flags of hooked calls find: hidden, archived, uninstalled with data kept
