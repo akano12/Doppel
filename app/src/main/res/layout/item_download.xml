@@ -48,19 +48,31 @@
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
+        <!-- Badges wrap to the next line instead of being cut off; the group itself is not a list for screen readers -->
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/cgBadges"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:importantForAccessibility="no"
+            app:chipSpacingHorizontal="6dp"
+            app:chipSpacingVertical="4dp" />
+
+        <!-- Installed definitions can be removed, also when there is an update -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:gravity="center_vertical"
+            android:gravity="end|center_vertical"
             android:orientation="horizontal">
 
-            <LinearLayout
-                android:id="@+id/llBadges"
-                android:layout_width="0dp"
+            <Button
+                android:id="@+id/btnRemove"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="horizontal" />
+                android:layout_marginEnd="4dp"
+                android:text="@string/title_remove" />
 
             <Button
                 android:id="@+id/btnInstall"

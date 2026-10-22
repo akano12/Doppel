@@ -419,4 +419,17 @@
         <item quantity="one">\'%1$s\' removed from %2$d app</item>
         <item quantity="other">\'%1$s\' removed from %2$d apps</item>
     </plurals>
+
+    <string name="title_no_matches">No matches</string>
+    <string name="title_no_custom_hooks">No custom definitions</string>
+    <string name="title_log_no_errors">No hooks failed</string>
+    <string name="title_no_updates">No updates</string>
+    <string name="msg_builtin_restored">Restored built-in %1$s</string>
+    <string name="title_check_return_type">Found %1$s, but not with the return type %2$s</string>
+    <string name="title_check_field_params">Fields have no parameter types</string>
+    <string name="title_value_used_with">Used only when Location is %1$s</string>
+    <string name="msg_not_backup">This file is not an XPrivacyLua backup</string>
+    <string name="msg_backup_format">This backup has format %1$s, which this version cannot restore</string>
+    <string name="msg_no_hooks_file">This file has no hook definitions</string>
+    <string name="msg_import_backup">This file is a backup, restore it in Settings</string>
 </resources>

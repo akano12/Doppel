@@ -29,6 +29,8 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+
 import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputLayout;
@@ -53,6 +55,11 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private static final String EXTRA_LABEL = "label";
 
     private static final String GLOBAL = "global";
+
+    // A recreation, like for another theme, keeps the scope and the values entered, see onSaveInstanceState
+    private static final String STATE_CATEGORY = "category";
+    private static final String STATE_KEYS = "keys";
+    private static final String STATE_VALUES = "values";
 
     private enum Type {TEXT, NUMBER, TIMEZONE, LOCATION, CONTACTS}
 
@@ -108,6 +115,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private final Map<String, String> values = new HashMap<>();
     private final Map<String, String> globals = new HashMap<>();
     private final Map<String, TextInputLayout> inputs = new HashMap<>();
+    private Map<String, String> restored = null; // Entered before a recreation, until the form is built
     private final SecureRandom random = new SecureRandom();
 
     static Intent getIntent(Context context, String packageName, String label) {
@@ -128,6 +136,18 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             label = packageName;
         category = (packageName == null ? GLOBAL : packageName);
 
+        // The values entered are put back in the form when it is built, see load
+        if (savedInstanceState != null) {
+            category = savedInstanceState.getString(STATE_CATEGORY, category);
+            String[] keys = savedInstanceState.getStringArray(STATE_KEYS);
+            String[] entered = savedInstanceState.getStringArray(STATE_VALUES);
+            if (keys != null && entered != null && keys.length == entered.length) {
+                restored = new HashMap<>();
+                for (int i = 0; i < keys.length; i++)
+                    restored.put(keys[i], entered[i]);
+            }
+        }
+
         setupToolbar(getString(R.string.menu_values));
 
         // Values of an app replace the values for all apps
@@ -135,13 +155,14 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         if (packageName != null) {
             ((Button) findViewById(R.id.btnScopeApp)).setText(label);
             tgScope.setVisibility(View.VISIBLE);
-            tgScope.check(R.id.btnScopeApp);
+            tgScope.check(GLOBAL.equals(category) ? R.id.btnScopeGlobal : R.id.btnScopeApp);
             tgScope.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
                 String selected = (checkedId == R.id.btnScopeApp ? packageName : GLOBAL);
                 if (!isChecked || selected.equals(category))
                     return;
                 Runnable change = () -> {
                     category = selected;
+                    restored = null;
                     load();
                 };
                 // Switching discards changes which are not saved, keeping them selects the values shown again
@@ -158,6 +179,20 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         confirmLeaving(() -> !getChanges().isEmpty());
 
         load();
+    }
+
+    // Empty fields are kept too, as null values, they remove a value when saved
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        Map<String, String> changes = (restored == null ? getChanges() : restored);
+        outState.putString(STATE_CATEGORY, category);
+        List<String> keys = new ArrayList<>(changes.keySet());
+        String[] entered = new String[keys.size()];
+        for (int i = 0; i < entered.length; i++)
+            entered[i] = changes.get(keys.get(i));
+        outState.putStringArray(STATE_KEYS, keys.toArray(new String[0]));
+        outState.putStringArray(STATE_VALUES, entered);
     }
 
     @Override
@@ -198,6 +233,13 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                         form.add(new Field(name, 0, Type.TEXT, Random.NONE, null));
                 }
                 buildForm();
+
+                // Values entered for this scope before a recreation
+                if (restored != null && category.equals(this.category)) {
+                    for (Map.Entry<String, String> entry : restored.entrySet())
+                        setEntered(entry.getKey(), entry.getValue());
+                    restored = null;
+                }
             });
         });
     }
@@ -245,6 +287,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 dropdown.setSimpleItems(titles);
                 int index = Math.max(0, Arrays.asList(dropdownValues(field)).indexOf(value));
                 dropdown.setText(titles[index], false);
+                if (field.type == Type.LOCATION)
+                    Ui.onTextChanged(dropdown, text -> updateLocationHints());
             } else {
                 if (field.type == Type.TIMEZONE)
                     ((MaterialAutoCompleteTextView) input).setSimpleItems(TimeZone.getAvailableIDs());
@@ -252,13 +296,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     input.setInputType(InputType.TYPE_CLASS_NUMBER |
                             InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
                 input.setText(value);
-
-                // Show what applies when the field is empty
-                String fallback = globals.get(field.key);
-                if (fallback != null)
-                    til.setHelperText(getString(R.string.title_global, fallback));
-                else if (field.builtin != null)
-                    til.setHelperText(getString(R.string.title_default, field.builtin));
+                til.setHelperText(getFallbackHint(field));
 
                 if (field.random != Random.NONE) {
                     til.setEndIconMode(TextInputLayout.END_ICON_CUSTOM);
@@ -271,6 +309,76 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             rows.addView(til);
             inputs.put(field.key, til);
         }
+        updateLocationHints();
+    }
+
+    // What applies when the field is empty
+    private String getFallbackHint(Field field) {
+        String fallback = globals.get(field.key);
+        if (fallback != null)
+            return getString(R.string.title_global, fallback);
+        else if (field.builtin != null)
+            return getString(R.string.title_default, field.builtin);
+        else
+            return null;
+    }
+
+    // The coordinates are used for a fixed location only, the accuracy for a coarse real location only,
+    // see location.lua; for an app without its own location type, the type for all apps applies
+    private void updateLocationHints() {
+        Field typeField = null;
+        for (Object item : form)
+            if (item instanceof Field && ((Field) item).type == Type.LOCATION)
+                typeField = (Field) item;
+        TextInputLayout tilType = (typeField == null ? null : inputs.get(typeField.key));
+        if (tilType == null)
+            return;
+        String type = getValue(typeField, tilType.getEditText());
+        if (type == null)
+            type = globals.get(typeField.key);
+
+        String[] titles = getResources().getStringArray(R.array.location_types);
+        for (Object item : form)
+            if (item instanceof Field) {
+                Field field = (Field) item;
+                String needs = getLocationType(field);
+                TextInputLayout til = inputs.get(field.key);
+                if (needs == null || til == null)
+                    continue;
+                til.setHelperText(needs.equals(type)
+                        ? getFallbackHint(field)
+                        : getString(R.string.title_value_used_with, titles[Arrays.asList(LOCATION_VALUES).indexOf(needs)]));
+            }
+    }
+
+    // The location type which the script uses the value for, null when it is always used
+    private static String getLocationType(Field field) {
+        switch (field.key) {
+            case "location.latitude":
+            case "location.longitude":
+                return "set";
+            case "location.accuracy":
+                return "coarse";
+            default:
+                return null;
+        }
+    }
+
+    // Like entered by the user, an empty field for null
+    private void setEntered(String key, String value) {
+        Field field = null;
+        for (Object item : form)
+            if (item instanceof Field && ((Field) item).key.equals(key))
+                field = (Field) item;
+        TextInputLayout til = inputs.get(key);
+        EditText input = (til == null ? null : til.getEditText());
+        if (field == null || input == null)
+            return;
+        if (isDropdown(field)) {
+            int index = Math.max(0, Arrays.asList(dropdownValues(field)).indexOf(value));
+            ((MaterialAutoCompleteTextView) input).setText(getDropdownTitles(field)[index], false);
+        } else
+            input.setText(value);
     }
 
     // Empty fields remove the values, after saving

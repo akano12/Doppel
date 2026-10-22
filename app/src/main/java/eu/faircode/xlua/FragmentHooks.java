@@ -22,11 +22,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
@@ -41,12 +41,17 @@ import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 // All hook definitions: built-in, custom and custom replacing built-in
@@ -155,8 +160,17 @@ public class FragmentHooks extends FragmentBase {
                 List<XHook> hooks = Data.getAllHooks(context, false);
                 Set<String> ids = Data.getBuiltinIds(context);
                 List<String> collection = Data.getCollection(context);
+                // In the order of the group titles shown, like Groups.sortByTitle;
+                // by group next, so the hooks of a custom group with the title of another group stay together
+                Map<String, String> titles = new HashMap<>();
+                for (XHook hook : hooks)
+                    titles.put(hook.getGroup(), Groups.getTitle(context, hook.getGroup()));
+                Collator collator = Collator.getInstance(Locale.getDefault());
+                collator.setStrength(Collator.SECONDARY);
                 Collections.sort(hooks, (h1, h2) -> {
-                    int c = h1.getGroup().compareToIgnoreCase(h2.getGroup());
+                    int c = collator.compare(titles.get(h1.getGroup()), titles.get(h2.getGroup()));
+                    if (c == 0)
+                        c = h1.getGroup().compareTo(h2.getGroup());
                     return (c == 0 ? h1.getName().compareToIgnoreCase(h2.getName()) : c);
                 });
                 post(() -> {
@@ -215,7 +229,15 @@ public class FragmentHooks extends FragmentBase {
         adapter.set(items);
         // Another list can be too short to scroll the button back
         fabAdd.extend();
-        tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+        // No definitions, or none which the filter or the search matches
+        if (all.isEmpty())
+            tvEmpty.setText(R.string.title_no_hooks);
+        else if (filter == Filter.CUSTOM && q.isEmpty())
+            tvEmpty.setText(R.string.title_no_custom_hooks);
+        else
+            tvEmpty.setText(R.string.title_no_matches);
+        // Not while loading, like when a search is restored
+        tvEmpty.setVisibility(items.isEmpty() && pbLoading.getVisibility() != View.VISIBLE ? View.VISIBLE : View.GONE);
     }
 
     // One group is open at a time, at first the first one; searching or filtering shows all groups with matches
@@ -234,8 +256,24 @@ public class FragmentHooks extends FragmentBase {
         run(TAG, () -> {
             try {
                 String text = Util.readText(context, uri);
-                JSONArray jarray = (text.trim().startsWith("[")
-                        ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
+                JSONArray jarray;
+                try {
+                    jarray = (text.trim().startsWith("[")
+                            ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
+                } catch (JSONException ex) {
+                    Log.w(TAG, "Import: " + ex);
+                    Ui.message(activity, activity.getString(R.string.msg_no_hooks_file));
+                    return;
+                }
+                // Backups and exported definitions are both JSON files with a similar name, see Ui.datedFileName
+                for (int i = 0; i < jarray.length(); i++) {
+                    JSONObject jhook = jarray.optJSONObject(i);
+                    if (jhook == null || !jhook.has("collection")) {
+                        Ui.message(activity, activity.getString(jhook != null && jhook.has("format")
+                                ? R.string.msg_import_backup : R.string.msg_no_hooks_file));
+                        return;
+                    }
+                }
                 List<XHook> imported = new ArrayList<>();
                 for (int i = 0; i < jarray.length(); i++)
                     imported.add(Data.putCustom(context, jarray.getJSONObject(i)));
@@ -282,13 +320,13 @@ public class FragmentHooks extends FragmentBase {
         class HookHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
             final TextView tvName;
             final TextView tvClass;
-            final LinearLayout llBadges;
+            final ViewGroup cgBadges;
 
             HookHolder(View itemView) {
                 super(itemView);
                 tvName = itemView.findViewById(R.id.tvName);
                 tvClass = itemView.findViewById(R.id.tvClass);
-                llBadges = itemView.findViewById(R.id.llBadges);
+                cgBadges = itemView.findViewById(R.id.cgBadges);
                 itemView.setOnClickListener(this);
             }
 
@@ -317,18 +355,18 @@ public class FragmentHooks extends FragmentBase {
                     : com.google.android.material.R.attr.colorOnSurfaceVariant));
             h.tvClass.setText(getTarget(hook));
 
-            h.llBadges.removeAllViews();
+            h.cgBadges.removeAllViews();
             // Built-in definitions, which most are, have no badge of their own
             if (!hook.isBuiltin())
-                Ui.addBadge(h.llBadges, getString(builtinIds.contains(hook.getId())
+                Ui.addBadge(h.cgBadges, getString(builtinIds.contains(hook.getId())
                         ? R.string.title_hook_overridden : R.string.title_hook_custom), Ui.Badge.ACCENT);
             if (!hook.isEnabled())
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_disabled), Ui.Badge.NEUTRAL);
+                Ui.addBadge(h.cgBadges, getString(R.string.title_hook_disabled), Ui.Badge.NEUTRAL);
             if (!hook.isForThisSdk())
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_unavailable), Ui.Badge.WARNING);
+                Ui.addBadge(h.cgBadges, getString(R.string.title_hook_unavailable), Ui.Badge.WARNING);
             if (!collection.contains(hook.getCollection()))
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_collection_off, hook.getCollection()), Ui.Badge.NEUTRAL);
-            h.llBadges.setVisibility(h.llBadges.getChildCount() == 0 ? View.GONE : View.VISIBLE);
+                Ui.addBadge(h.cgBadges, getString(R.string.title_hook_collection_off, hook.getCollection()), Ui.Badge.NEUTRAL);
+            h.cgBadges.setVisibility(h.cgBadges.getChildCount() == 0 ? View.GONE : View.VISIBLE);
         }
     }
 }

@@ -27,7 +27,6 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -84,6 +83,7 @@ public class ActivityDownloads extends ActivityBase {
     }
 
     private View pbLoading;
+    private TextView tvEmpty;
     private Adapter adapter;
 
     private Filter filter = Filter.ALL;
@@ -102,6 +102,7 @@ public class ActivityDownloads extends ActivityBase {
         setupToolbar(getString(R.string.menu_downloads));
 
         pbLoading = findViewById(R.id.pbLoading);
+        tvEmpty = findViewById(R.id.tvEmpty);
         adapter = new Adapter();
         RecyclerView rvDownloads = findViewById(R.id.rvDownloads);
         rvDownloads.setLayoutManager(new LinearLayoutManager(this));
@@ -127,23 +128,24 @@ public class ActivityDownloads extends ActivityBase {
     private void load() {
         final Context context = getApplicationContext();
         run(TAG, () -> {
+            // The list has the time of the update and the downloads, the definition files, as installed, the rest
             List<Entry> entries = new ArrayList<>();
             JSONArray jlist = new JSONObject(readAsset(context, REPO + "list.json")).getJSONArray("list");
             for (int i = 0; i < jlist.length(); i++) {
                 JSONObject jentry = jlist.getJSONObject(i);
                 Entry entry = new Entry();
                 entry.id = jentry.getInt("id");
-                entry.collection = jentry.getString("collection");
-                entry.group = jentry.getString("group");
-                entry.name = jentry.getString("name");
-                entry.author = jentry.optString("author");
-                entry.version = jentry.optInt("version");
-                entry.description = jentry.optString("description", null);
                 entry.updated = jentry.optLong("updated") * 1000L;
                 entry.downloads = jentry.optInt("downloads");
 
-                // The hooked member, to find definitions hooking the same one
                 JSONObject jhook = new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
+                entry.collection = jhook.getString("collection");
+                entry.group = jhook.getString("group");
+                entry.name = jhook.getString("name");
+                entry.author = jhook.optString("author");
+                entry.version = jhook.optInt("version");
+                entry.description = jhook.optString("description", null);
+                // The hooked member, to find definitions hooking the same one
                 entry.className = jhook.getString("className");
                 entry.methodName = jhook.optString("methodName", null);
                 JSONArray jparams = jhook.getJSONArray("parameterTypes");
@@ -195,9 +197,9 @@ public class ActivityDownloads extends ActivityBase {
         return (hook.getVersion() < entry.version ? State.UPDATE : State.INSTALLED);
     }
 
-    // The installed definitions can be removed where they are listed by themselves
+    // Installed definitions can be removed, also the ones with an update
     private boolean canRemove(Entry entry) {
-        return (filter == Filter.INSTALLED && getState(entry) == State.INSTALLED);
+        return (getState(entry) != State.AVAILABLE);
     }
 
     // Other active definitions hooking the same member: both run, one after the other,
@@ -279,6 +281,10 @@ public class ActivityDownloads extends ActivityBase {
         }
         addCollection(items, collection, inCollection);
         adapter.set(items);
+
+        // The list is empty when nothing matches the filter or the search
+        tvEmpty.setText(filter == Filter.UPDATES && q.isEmpty() ? R.string.title_no_updates : R.string.title_no_matches);
+        tvEmpty.setVisibility(items.isEmpty() && !all.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
     // One collection is open at a time, like the groups of the Hooks tab, at first the first one;
@@ -319,7 +325,7 @@ public class ActivityDownloads extends ActivityBase {
     private void confirmRemove(Entry entry) {
         String message = getString(builtinIds.contains(entry.getId())
                 ? R.string.msg_remove_restores : R.string.msg_remove_sure, entry.getId());
-        Ui.areYouSure(this, message, () -> {
+        Ui.areYouSure(this, message, R.string.title_remove, () -> {
             final Context context = getApplicationContext();
             run(TAG, () -> {
                 Data.putHook(context, entry.getId(), null);
@@ -374,7 +380,8 @@ public class ActivityDownloads extends ActivityBase {
             final TextView tvGroup;
             final TextView tvMeta;
             final TextView tvDescription;
-            final LinearLayout llBadges;
+            final ViewGroup cgBadges;
+            final Button btnRemove;
             final Button btnInstall;
 
             EntryHolder(View itemView) {
@@ -383,9 +390,11 @@ public class ActivityDownloads extends ActivityBase {
                 tvGroup = itemView.findViewById(R.id.tvGroup);
                 tvMeta = itemView.findViewById(R.id.tvMeta);
                 tvDescription = itemView.findViewById(R.id.tvDescription);
-                llBadges = itemView.findViewById(R.id.llBadges);
+                cgBadges = itemView.findViewById(R.id.cgBadges);
+                btnRemove = itemView.findViewById(R.id.btnRemove);
                 btnInstall = itemView.findViewById(R.id.btnInstall);
                 itemView.setOnClickListener(this);
+                btnRemove.setOnClickListener(this);
                 btnInstall.setOnClickListener(this);
             }
 
@@ -395,12 +404,11 @@ public class ActivityDownloads extends ActivityBase {
                 if (position == RecyclerView.NO_POSITION)
                     return;
                 Entry entry = getItem(position);
-                if (view == btnInstall) {
-                    if (canRemove(entry))
-                        confirmRemove(entry);
-                    else
-                        confirmInstall(entry);
-                } else {
+                if (view == btnRemove)
+                    confirmRemove(entry);
+                else if (view == btnInstall)
+                    confirmInstall(entry);
+                else {
                     // Show or hide the full description
                     if (!expanded.remove(entry.id))
                         expanded.add(entry.id);
@@ -431,23 +439,24 @@ public class ActivityDownloads extends ActivityBase {
             h.tvDescription.setText(hasDescription ? entry.description.trim() : null);
             h.tvDescription.setMaxLines(expanded.contains(entry.id) ? Integer.MAX_VALUE : 3);
 
-            h.llBadges.removeAllViews();
+            h.cgBadges.removeAllViews();
             if (builtinIds.contains(entry.getId()))
-                Ui.addBadge(h.llBadges, getString(R.string.title_replaces_builtin), Ui.Badge.WARNING);
+                Ui.addBadge(h.cgBadges, getString(R.string.title_replaces_builtin), Ui.Badge.WARNING);
             int overlaps = getOverlaps(entry).size();
             if (overlaps > 0)
-                Ui.addBadge(h.llBadges, getResources().getQuantityString(R.plurals.title_overlaps, overlaps, overlaps),
+                Ui.addBadge(h.cgBadges, getResources().getQuantityString(R.plurals.title_overlaps, overlaps, overlaps),
                         Ui.Badge.WARNING);
             if (!collection.contains(entry.collection))
-                Ui.addBadge(h.llBadges, getString(R.string.title_hook_collection_off, entry.collection), Ui.Badge.NEUTRAL);
+                Ui.addBadge(h.cgBadges, getString(R.string.title_hook_collection_off, entry.collection), Ui.Badge.NEUTRAL);
+            h.cgBadges.setVisibility(h.cgBadges.getChildCount() == 0 ? View.GONE : View.VISIBLE);
 
-            boolean remove = canRemove(entry);
-            h.btnInstall.setEnabled(state != State.INSTALLED || remove);
-            h.btnInstall.setText(remove ? R.string.title_remove
-                    : state == State.UPDATE ? R.string.title_update
+            h.btnRemove.setVisibility(canRemove(entry) ? View.VISIBLE : View.GONE);
+            h.btnInstall.setEnabled(state != State.INSTALLED);
+            h.btnInstall.setText(state == State.UPDATE ? R.string.title_update
                     : state == State.INSTALLED ? R.string.title_installed
                     : R.string.title_install);
-            // Screen readers tell which definition the button is for
+            // Screen readers tell which definition the buttons are for
+            h.btnRemove.setContentDescription(h.btnRemove.getText() + ", " + entry.name);
             h.btnInstall.setContentDescription(h.btnInstall.getText() + ", " + entry.name);
         }
     }

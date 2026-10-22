@@ -129,11 +129,13 @@
                         android:paddingEnd="4dp"
                         android:paddingBottom="4dp">
 
+                        <!-- The result of the check is read by screen readers when it is shown -->
                         <TextView
                             android:id="@+id/tvCheck"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
+                            android:accessibilityLiveRegion="polite"
                             android:paddingTop="6dp"
                             android:paddingBottom="6dp"
                             android:text="@string/title_check_hint"
@@ -493,14 +495,15 @@
                     android:background="@null"
                     android:fontFamily="@font/plex_mono"
                     android:gravity="top|start"
+                    android:hint="@string/title_tab_script"
                     android:importantForAutofill="no"
                     android:inputType="textMultiLine|textNoSuggestions"
-                    android:labelFor="@id/etScript"
                     android:paddingStart="14dp"
                     android:paddingEnd="14dp"
                     android:paddingBottom="14dp"
                     android:scrollbars="vertical|horizontal"
                     android:textColor="@color/c_code_text"
+                    android:textColorHint="@color/c_code_comment"
                     android:textCursorDrawable="@null"
                     android:textSize="13sp" />
             </LinearLayout>

@@ -44,12 +44,15 @@
                 android:textAppearance="@style/XLua.Text.Mono"
                 android:textSize="11sp" />
 
-            <LinearLayout
-                android:id="@+id/llBadges"
+            <!-- Badges wrap to the next line instead of being cut off; the group itself is not a list for screen readers -->
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/cgBadges"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:orientation="horizontal" />
+                android:importantForAccessibility="no"
+                app:chipSpacingHorizontal="6dp"
+                app:chipSpacingVertical="4dp" />
         </LinearLayout>
 
         <ImageView

@@ -22,6 +22,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -32,6 +33,19 @@ import java.util.Map;
 // Restrictions are stored by package name, so a backup can be restored on another device.
 class Backup {
     private static final int FORMAT = 1;
+
+    // A file which is not a backup of this version, like exported definitions, which have a similar name;
+    // the message is for the user (see Ui.error, which shows toString), the cause for the log
+    static class FileException extends IllegalArgumentException {
+        FileException(String message, Throwable cause) {
+            super(message, cause);
+        }
+
+        @Override
+        public String toString() {
+            return getMessage();
+        }
+    }
 
     // Counts of settings, custom definitions and restricted apps
     static int[] save(Context context, Uri uri) throws Throwable {
@@ -72,9 +86,16 @@ class Backup {
 
     // Values with the same name are replaced, restrictions are added; apps are not stopped
     static int[] restore(Context context, Uri uri) throws Throwable {
-        JSONObject jroot = new JSONObject(Util.readText(context, uri));
+        JSONObject jroot;
+        try {
+            jroot = new JSONObject(Util.readText(context, uri));
+        } catch (JSONException ex) {
+            throw new FileException(context.getString(R.string.msg_not_backup), ex);
+        }
+        if (!jroot.has("format"))
+            throw new FileException(context.getString(R.string.msg_not_backup), null);
         if (jroot.optInt("format", 0) != FORMAT)
-            throw new IllegalArgumentException("Unsupported backup format " + jroot.optInt("format", 0));
+            throw new FileException(context.getString(R.string.msg_backup_format, jroot.optString("format")), null);
 
         // Definitions first, so restrictions can refer to them
         JSONArray jhooks = jroot.optJSONArray("hooks");

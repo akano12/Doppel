@@ -272,7 +272,15 @@ public class FragmentLog extends FragmentBase {
             }
         }
         adapter.set(items);
-        tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+        // Nothing logged, or nothing which the filter or the search matches
+        if (entries.isEmpty() && errors.isEmpty())
+            tvEmpty.setText(R.string.title_log_empty);
+        else if (filter == Filter.ERRORS && q.isEmpty())
+            tvEmpty.setText(R.string.title_log_no_errors);
+        else
+            tvEmpty.setText(R.string.title_no_matches);
+        // Not while loading, like when a search is restored
+        tvEmpty.setVisibility(items.isEmpty() && pbLoading.getVisibility() != View.VISIBLE ? View.VISIBLE : View.GONE);
     }
 
     // Search by app, like the name or the package name, and by restriction, like the group or the hook
@@ -339,8 +347,14 @@ public class FragmentLog extends FragmentBase {
 
             Ui.loadIcon(h.ivIcon, entry.app.packageName, entry.app.icon);
             h.tvApp.setText(entry.app.getLabel());
-            h.tvTime.setText(entry.time > 0
-                    ? DateUtils.formatDateTime(context, entry.time, DateUtils.FORMAT_SHOW_TIME) : "");
+            // Errors are not listed under the day, so they show it, like Yesterday, 09:15
+            if (entry.time <= 0)
+                h.tvTime.setText(null);
+            else if (error)
+                h.tvTime.setText(DateUtils.getRelativeDateTimeString(context, entry.time,
+                        DateUtils.DAY_IN_MILLIS, DateUtils.WEEK_IN_MILLIS, DateUtils.FORMAT_ABBREV_ALL));
+            else
+                h.tvTime.setText(DateUtils.formatDateTime(context, entry.time, DateUtils.FORMAT_SHOW_TIME));
             // Ids are the collection and the name, like Privacy.TelephonyManager.getImei
             int dot = entry.hook.indexOf('.');
             h.tvHook.setText(dot < 0 ? entry.hook : entry.hook.substring(dot + 1));

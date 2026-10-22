@@ -29,6 +29,7 @@ import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -39,6 +40,7 @@ import com.google.android.material.textfield.TextInputLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.lang.reflect.Member;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -49,6 +51,11 @@ public class ActivityHookEdit extends ActivityBase {
     private static final String TAG = "XLua.HookEdit";
 
     private static final String EXTRA_ID = "id";
+
+    // A recreation, like for another theme, keeps what was entered, see onSaveInstanceState
+    private static final String STATE_ID = "id";
+    private static final String STATE_UNCHANGED = "unchanged";
+    private static final String STATE_TAB = "tab";
 
     private static final String TEMPLATE_SCRIPT = "function after(hook, param)\n" +
             "    local result = param:getResult()\n" +
@@ -62,10 +69,12 @@ public class ActivityHookEdit extends ActivityBase {
             "end\n";
 
     private XHook hook = null; // null for a new definition
+    private String hookId = null; // Also while loading, null for a new definition which is not saved yet
     private Set<String> builtinIds = null;
     private String unchanged = null; // What was entered when loaded or saved, see getEntered
 
     private MaterialToolbar toolbar;
+    private TabLayout tabs;
     private EditText etCollection;
     private MaterialAutoCompleteTextView etGroup;
     private EditText etName;
@@ -108,8 +117,11 @@ public class ActivityHookEdit extends ActivityBase {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_hook_edit);
 
-        final String id = getIntent().getStringExtra(EXTRA_ID);
-        toolbar = setupToolbar(id == null ? getString(R.string.title_hook_new) : id);
+        // A definition saved meanwhile can have another id than the one the screen was started with
+        hookId = (savedInstanceState == null
+                ? getIntent().getStringExtra(EXTRA_ID)
+                : savedInstanceState.getString(STATE_ID));
+        toolbar = setupToolbar(hookId == null ? getString(R.string.title_hook_new) : hookId);
         toolbar.inflateMenu(R.menu.hookedit);
         toolbar.setOnMenuItemClickListener(this::onMenu);
 
@@ -143,7 +155,7 @@ public class ActivityHookEdit extends ActivityBase {
 
         final View svDefinition = findViewById(R.id.svDefinition);
         final View llScript = findViewById(R.id.llScript);
-        TabLayout tabs = findViewById(R.id.tabs);
+        tabs = findViewById(R.id.tabs);
         tabs.addTab(tabs.newTab().setText(R.string.title_tab_definition));
         tabs.addTab(tabs.newTab().setText(R.string.title_tab_script));
         tabs.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
@@ -166,7 +178,7 @@ public class ActivityHookEdit extends ActivityBase {
 
         findViewById(R.id.btnCheck).setOnClickListener(view -> check());
 
-        if (id == null) {
+        if (hookId == null) {
             etCollection.setText(Util.COLLECTION_DEFAULT);
             etGroup.setText("Custom");
             etAuthor.setText("me");
@@ -177,11 +189,34 @@ public class ActivityHookEdit extends ActivityBase {
             etScript.setText(TEMPLATE_SCRIPT);
             unchanged = getEntered();
         }
+        // The fields are restored after onCreate, the loaded definition does not replace them then
+        boolean restored = (savedInstanceState != null && savedInstanceState.containsKey(STATE_UNCHANGED));
+        if (restored)
+            unchanged = savedInstanceState.getString(STATE_UNCHANGED);
         updateMenu();
         // A definition which is still loading has no changes
         confirmLeaving(() -> unchanged != null && !unchanged.equals(getEntered()));
 
-        load(id);
+        load(hookId, !restored);
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_ID, hookId);
+        // Not while loading, the fields are filled after a recreation then
+        if (unchanged != null)
+            outState.putString(STATE_UNCHANGED, unchanged);
+        outState.putInt(STATE_TAB, tabs.getSelectedTabPosition());
+    }
+
+    // After the fields are restored, so the script info is of the script entered
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        TabLayout.Tab tab = tabs.getTabAt(savedInstanceState.getInt(STATE_TAB, 0));
+        if (tab != null)
+            tab.select();
     }
 
     @Override
@@ -190,7 +225,8 @@ public class ActivityHookEdit extends ActivityBase {
         super.onDestroy();
     }
 
-    private void load(final String id) {
+    // The fields show the definition, unless they show what was entered before a recreation
+    private void load(final String id, final boolean fill) {
         final Context context = getApplicationContext();
         run(TAG, () -> {
             // Only an existing definition needs the scripts
@@ -209,7 +245,8 @@ public class ActivityHookEdit extends ActivityBase {
                 etGroup.setSimpleItems(groups.toArray(new String[0]));
                 if (jhook != null) {
                     this.hook = hook;
-                    fill(jhook);
+                    if (fill)
+                        fill(jhook);
                 }
                 updateMenu();
             });
@@ -398,6 +435,7 @@ public class ActivityHookEdit extends ActivityBase {
             final XHook saved = Data.putCustom(context, jhook);
             runOnUiThread(() -> {
                 hook = saved;
+                hookId = saved.getId();
                 unchanged = entered;
                 toolbar.setTitle(saved.getId());
                 updateMenu();
@@ -411,15 +449,23 @@ public class ActivityHookEdit extends ActivityBase {
         });
     }
 
+    // Deleting a definition which replaces a built-in one brings back the built-in one, which is shown then
     private void delete() {
         final String id = hook.getId();
-        Ui.areYouSure(this, getString(R.string.msg_delete_sure, id), () -> {
-            final Context context = getApplicationContext();
-            run(TAG, () -> {
-                Data.putHook(context, id, null);
-                runOnUiThread(this::finish);
-            });
-        });
+        final boolean restores = (builtinIds != null && builtinIds.contains(id));
+        Ui.areYouSure(this,
+                getString(restores ? R.string.msg_remove_restores : R.string.msg_delete_sure, id),
+                restores ? R.string.menu_restore_builtin : R.string.menu_delete, () -> {
+                    final Context context = getApplicationContext();
+                    run(TAG, () -> {
+                        Data.putHook(context, id, null);
+                        if (restores) {
+                            load(id, true);
+                            Ui.message(this, getString(R.string.msg_builtin_restored, id));
+                        } else
+                            runOnUiThread(this::finish);
+                    });
+                });
     }
 
     private void export(final Uri uri) {
@@ -440,33 +486,62 @@ public class ActivityHookEdit extends ActivityBase {
         final String className = text(etClass);
         final String member = text(etMethod);
         final JSONArray params = split(etParams);
-        final ClassLoader loader = getClassLoader();
+        final String returnType = text(etReturn);
+        final Context context = getApplicationContext();
         tvCheck.setText(R.string.title_checking);
         executor.submit(() -> {
-            String result;
-            try {
-                Class<?> cls = XResolver.resolveClass(className, loader);
-                if (member.contains(":"))
-                    result = getString(R.string.title_check_class, cls.getName());
-                else if (member.startsWith("#"))
-                    result = getString(R.string.title_check_found,
-                            XResolver.resolveField(cls, member.substring(1), null).toString());
-                else {
-                    Class<?>[] types = new Class<?>[params.length()];
-                    for (int i = 0; i < types.length; i++)
-                        types[i] = XResolver.resolveClass(params.getString(i), loader);
-                    result = getString(R.string.title_check_found,
-                            XResolver.resolveMember(cls, member.isEmpty() ? null : member, types).toString());
-                }
-            } catch (NoSuchFieldException | NoSuchMethodException ex) {
-                result = getString(R.string.title_check_no_member, member.isEmpty() ? "<init>" : member);
-            } catch (ClassNotFoundException | NoClassDefFoundError ex) {
-                result = getString(R.string.title_check_no_class, className);
-            } catch (Throwable ex) {
-                result = getString(R.string.msg_error, ex.toString());
-            }
-            final String text = result;
-            runOnUiThread(() -> tvCheck.setText(text));
+            String result = getCheckResult(context, className, member, params, returnType);
+            runOnUiThread(() -> tvCheck.setText(result));
         });
+    }
+
+    // With the resolution of the engine, see XResolver.resolveTarget, so what is found here is what is hooked
+    private String getCheckResult(Context context, String className, String member, JSONArray params, String returnType) {
+        ClassLoader loader = context.getClassLoader();
+        String resolving = className; // For the message when a class is missing
+        try {
+            // System services are hooked in their implementation, like the engine does, see XHook.resolveClassName
+            XHook target = XHook.fromJSONObject(new JSONObject()
+                    .put("collection", "").put("group", "").put("name", "").put("author", "")
+                    .put("className", className).put("parameterTypes", new JSONArray())
+                    .put("minSdk", 1).put("luaScript", ""));
+            target.resolveClassName(context);
+            Class<?> cls = XResolver.resolveClass(target.getResolvedClassName(), loader);
+
+            Class<?>[] types = new Class<?>[params.length()];
+            for (int i = 0; i < types.length; i++) {
+                resolving = params.getString(i);
+                types[i] = XResolver.resolveClass(resolving, loader);
+            }
+            resolving = returnType;
+            Class<?> ret = (returnType.isEmpty() ? null : XResolver.resolveClass(returnType, loader));
+            resolving = className;
+
+            String name = (member.isEmpty() ? null : member);
+            try {
+                return getString(R.string.title_check_found, XResolver.resolveTarget(cls, name, types, ret).toString());
+            } catch (Throwable ex) {
+                // Tell when only the return type does not fit
+                if (ret != null)
+                    try {
+                        Member other = XResolver.resolveTarget(cls, name, types, null);
+                        return getString(R.string.title_check_return_type, other.toString(), returnType);
+                    } catch (Throwable ignored) {
+                    }
+                throw ex;
+            }
+        } catch (NoSuchFieldException | NoSuchMethodException ex) {
+            // The engine refuses a field with parameter types too
+            if (member.startsWith("#") && params.length() > 0)
+                return getString(R.string.title_check_field_params);
+            return getString(R.string.title_check_no_member, member.isEmpty() ? "<init>" : member);
+        } catch (NullPointerException ex) {
+            // field:method with a field which is null or not static
+            return getString(R.string.title_check_no_member, member);
+        } catch (ClassNotFoundException | NoClassDefFoundError ex) {
+            return getString(R.string.title_check_no_class, resolving);
+        } catch (Throwable ex) {
+            return getString(R.string.msg_error, ex.toString());
+        }
     }
 }
