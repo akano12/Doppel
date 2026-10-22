@@ -171,7 +171,8 @@ public class FragmentLog extends FragmentBase {
                             entry.app = app;
                             entry.hook = assignment.hook.getId();
                             entry.group = assignment.hook.getGroup();
-                            entry.time = Math.max(assignment.used, assignment.installed);
+                            // The time of the last error, see XProvider.report; a restriction can be later
+                            entry.time = assignment.installed;
                             entry.exception = assignment.exception;
                             errors.add(entry);
                         }

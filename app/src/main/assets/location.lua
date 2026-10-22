@@ -15,9 +15,17 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The location of a parcel, like of a location update, and the extra location of a bundle,
+-- like of a location update by intent, become the location set, a coarse location or 0, 0
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
+        return false
+    end
+
+    -- Bundle.get: other extras with the same name can be of any type
+    if hook:getMethodName() == 'get' and (param:getException() ~= nil or param:getArgument(0) ~= 'location' or
+            not param:isInstance(result, 'android.location.Location')) then
         return false
     end
     local old = result:toString()
@@ -39,12 +47,14 @@ function after(hook, param)
         if accuracy == nil or accuracy <= 0 then
             accuracy = 10000
         end
-        local clatitude = param:getValue('latitude', hook)
-        local clongitude = param:getValue('longitude', hook)
+        -- The same coarse location for all hooks of the app while it runs
+        local scope = param:getApplicationContext()
+        local clatitude = param:getValue('location.latitude', scope)
+        local clongitude = param:getValue('location.longitude', scope)
         if clatitude == nil or clongitude == nil then
             clatitude, clongitude = randomoffset(result:getLatitude(), result:getLongitude(), accuracy)
-            param:putValue('latitude', clatitude, hook)
-            param:putValue('longitude', clongitude, hook)
+            param:putValue('location.latitude', clatitude, scope)
+            param:putValue('location.longitude', clongitude, scope)
         end
         latitude = clatitude
         longitude = clongitude
@@ -76,5 +86,8 @@ function randomoffset(latitude, longitude, radius)
         lonoff = lonoff / scale
     end
 
-    return latitude + latoff, longitude + lonoff
+    -- Valid coordinates, also near the poles and the date line, which apps can check
+    latitude = math.max(-90, math.min(90, latitude + latoff))
+    longitude = (longitude + lonoff + 180) % 360 - 180
+    return latitude, longitude
 end

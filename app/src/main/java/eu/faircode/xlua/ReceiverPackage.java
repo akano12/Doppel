@@ -70,7 +70,8 @@ public class ReceiverPackage extends BroadcastReceiver {
                 }
             } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
                 if (BuildConfig.APPLICATION_ID.equals(packageName))
-                    Data.clearData(context, userid);
+                    // Removed by the owner: the data of all users
+                    Data.clearData(context, userid, userid == 0);
                 else {
                     Data.clearApp(context, packageName, uid, true);
                     XNotify.cancelNewApp(ctx, userid, uid);

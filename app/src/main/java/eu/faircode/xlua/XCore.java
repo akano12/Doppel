@@ -505,10 +505,16 @@ class XCore {
         Bundle data = new Bundle();
         data.putInt("restricted", 1);
         if (result.narg() > 1) {
-            data.putString("old", result.isnil(2) ? null : result.checkjstring(2));
-            data.putString("new", result.isnil(3) ? null : result.checkjstring(3));
+            data.putString("old", toText(result.arg(2)));
+            data.putString("new", toText(result.arg(3)));
         }
         report(context, hook.getId(), function, "use", data);
+    }
+
+    // Values of any type as text, like a number, a boolean or a Java object, which was applied already,
+    // so it should not count as an error of the hook
+    private static String toText(LuaValue value) {
+        return (value.isnil() ? null : value.tojstring());
     }
 
     private void reportError(Context context, XHook hook, String function, Throwable ex, String details) {

@@ -333,13 +333,14 @@ final class Data {
 
     // Restrictions and settings of the current user; custom definitions are kept
     static void clearData(Context context) {
-        clearData(context, Util.getUserId(Process.myUid()));
+        clearData(context, Util.getUserId(Process.myUid()), false);
     }
 
-    // Of all users for the owner (user 0)
-    static void clearData(Context context, int user) {
+    // Of one user, or of all users, like when the app is removed by the owner (user 0)
+    static void clearData(Context context, int user, boolean all) {
         Bundle args = new Bundle();
         args.putInt("user", user);
+        args.putBoolean("all", all);
         call(context, "clearData", args);
     }
 

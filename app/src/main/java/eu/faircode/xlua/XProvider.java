@@ -792,13 +792,14 @@ class XProvider {
         return new Bundle();
     }
 
-    // Restrictions and settings of a user, of all users for the owner
+    // Restrictions and settings of a user, or of all users
     private static Bundle clearData(Bundle extras) throws Throwable {
         final int userid = extras.getInt("user");
-        Log.i(TAG, "Clearing data user=" + userid);
+        final boolean all = extras.getBoolean("all");
+        Log.i(TAG, "Clearing data user=" + userid + " all=" + all);
 
         db.write(d -> {
-            if (userid == 0) {
+            if (all) {
                 d.delete("assignment", null, null);
                 d.delete("`group`", null, null);
                 // The built-in hooks known to the service (user -1) are not data of a user

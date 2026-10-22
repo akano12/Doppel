@@ -1045,7 +1045,13 @@
     "returnType": "java.lang.Object",
     "minSdk": 1,
     "enabled": false,
-    "luaScript": "@bundle_get_location"
+    "settings": [
+      "location.type",
+      "location.latitude",
+      "location.longitude",
+      "location.accuracy"
+    ],
+    "luaScript": "@location"
   },
   {
     "collection": "Privacy",
@@ -1065,7 +1071,7 @@
       "location.longitude",
       "location.accuracy"
     ],
-    "luaScript": "@location_createfromparcel"
+    "luaScript": "@location"
   },
   {
     "collection": "Privacy",
