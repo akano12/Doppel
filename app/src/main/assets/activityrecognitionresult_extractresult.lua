@@ -32,5 +32,5 @@ function after(hook, param)
     local fake = luajava.new(classResult, detected, time, elapsed)
 
     param:setResult(fake)
-    return true, result:toString(), fake:toString()
+    return true, result, fake
 end

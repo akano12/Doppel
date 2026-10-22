@@ -50,7 +50,7 @@
     "returnType": "com.google.android.gms.location.ActivityTransitionResult",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@activitytransitionresult_extractresult"
   },
   // Get applications
   // https://developer.android.com/reference/android/app/ActivityManager.html
@@ -3313,6 +3313,90 @@
     "minSdk": 1,
     "luaScript": "@wifiinfo_ssid_bssid"
   },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getInformationElements",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getInformationElements",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 31,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getApMldMacAddress",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getApMldMacAddress",
+    "parameterTypes": [],
+    "returnType": "android.net.MacAddress",
+    "minSdk": 33,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getAffiliatedMloLinks",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getAffiliatedMloLinks",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getAssociatedMloLinks",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getAssociatedMloLinks",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 34,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getPasspointFqdn",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getPasspointFqdn",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getPasspointProviderFriendlyName",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getPasspointProviderFriendlyName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getPasspointUniqueId",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getPasspointUniqueId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 35,
+    "luaScript": "@generic_null_value"
+  },
   // Addresses of the device and of the network
   {
     "collection": "Privacy",
@@ -3401,6 +3485,18 @@
   {
     "collection": "Privacy",
     "group": "Read.Network",
+    "name": "LinkProperties.getPrivateDnsServerName",
+    "author": "XPrivacyLua",
+    "className": "android.net.LinkProperties",
+    "methodName": "getPrivateDnsServerName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 28,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
     "name": "NetworkInterface.getInetAddresses",
     "author": "XPrivacyLua",
     "className": "java.net.NetworkInterface",
@@ -3448,7 +3544,7 @@
     ],
     "returnType": "void",
     "minSdk": 29,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@telephonymanager_requestcellinfoupdate"
   },
   // https://developer.android.com/reference/android/telephony/TelephonyCallback
   {
@@ -4076,6 +4172,56 @@
   {
     "collection": "Privacy",
     "group": "Record.Audio",
+    "name": "AudioManager.getAvailableCommunicationDevices",
+    "author": "XPrivacyLua",
+    "className": "android.media.AudioManager",
+    "methodName": "getAvailableCommunicationDevices",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 31,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioManager.getCommunicationDevice",
+    "author": "XPrivacyLua",
+    "className": "android.media.AudioManager",
+    "methodName": "getCommunicationDevice",
+    "parameterTypes": [],
+    "returnType": "android.media.AudioDeviceInfo",
+    "minSdk": 31,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioManager.getMicrophones",
+    "author": "XPrivacyLua",
+    "className": "android.media.AudioManager",
+    "methodName": "getMicrophones",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 28,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioManager.getAudioDevicesForAttributes",
+    "author": "XPrivacyLua",
+    "className": "android.media.AudioManager",
+    "methodName": "getAudioDevicesForAttributes",
+    "parameterTypes": [
+      "android.media.AudioAttributes"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
     "name": "AudioManager.registerAudioDeviceCallback",
     "author": "M66B",
     "className": "android.media.AudioManager",
@@ -4142,6 +4288,30 @@
     ],
     "returnType": "void",
     "minSdk": 1,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "MediaRecorder.pause.Audio",
+    "author": "XPrivacyLua",
+    "className": "android.media.MediaRecorder",
+    "methodName": "pause",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 24,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "MediaRecorder.resume.Audio",
+    "author": "XPrivacyLua",
+    "className": "android.media.MediaRecorder",
+    "methodName": "resume",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 24,
     "luaScript": "@mediarecorder_startstop"
   },
   // https://developer.android.com/reference/android/speech/SpeechRecognizer
@@ -4218,6 +4388,30 @@
     ],
     "returnType": "void",
     "minSdk": 1,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Video",
+    "name": "MediaRecorder.pause.Video",
+    "author": "XPrivacyLua",
+    "className": "android.media.MediaRecorder",
+    "methodName": "pause",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 24,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Video",
+    "name": "MediaRecorder.resume.Video",
+    "author": "XPrivacyLua",
+    "className": "android.media.MediaRecorder",
+    "methodName": "resume",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 24,
     "luaScript": "@mediarecorder_startstop"
   },
   // Send messages
@@ -4678,6 +4872,19 @@
   {
     "collection": "Privacy",
     "group": "Use.Analytics",
+    "name": "SegmentAnalytics.build",
+    "author": "XPrivacyLua",
+    "className": "com.segment.analytics.Analytics$Builder",
+    "methodName": "build",
+    "parameterTypes": [],
+    "returnType": "com.segment.analytics.Analytics",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@segment_getinstance"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
     "name": "SegmentAnalytics.optOut",
     "author": "M66B",
     "className": "com.segment.analytics.Analytics",
@@ -4829,6 +5036,36 @@
     "minSdk": 1,
     "optional": true,
     "luaScript": "@generic_false_argument"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "PackageManager.getApplicationInfo/analytics",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getApplicationInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.pm.ApplicationInfo",
+    "minSdk": 1,
+    "luaScript": "@analytics_metadata"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "PackageManager.getApplicationInfo/flags/analytics",
+    "author": "XPrivacyLua",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getApplicationInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$ApplicationInfoFlags"
+    ],
+    "returnType": "android.content.pm.ApplicationInfo",
+    "minSdk": 33,
+    "luaScript": "@analytics_metadata"
   },
   // https://dev.appsflyer.com/hc/docs/android-sdk-reference-appsflyerlib
   {
@@ -4999,6 +5236,69 @@
     "returnType": "[Ljava.lang.String;",
     "minSdk": 21,
     "luaScript": "@generic_empty_string_array"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "MediaRecorder.setVideoSource.Camera",
+    "author": "XPrivacyLua",
+    "className": "android.media.MediaRecorder",
+    "methodName": "setVideoSource",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 3,
+    "luaScript": "@mediarecorder_setsource"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "MediaRecorder.start.Camera",
+    "author": "XPrivacyLua",
+    "className": "android.media.MediaRecorder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 1,
+    "notify": true,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "MediaRecorder.stop.Camera",
+    "author": "XPrivacyLua",
+    "className": "android.media.MediaRecorder",
+    "methodName": "stop",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 1,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "MediaRecorder.pause.Camera",
+    "author": "XPrivacyLua",
+    "className": "android.media.MediaRecorder",
+    "methodName": "pause",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 24,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "MediaRecorder.resume.Camera",
+    "author": "XPrivacyLua",
+    "className": "android.media.MediaRecorder",
+    "methodName": "resume",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 24,
+    "luaScript": "@mediarecorder_startstop"
   },
   // Use tracking
   // https://developer.android.com/reference/android/os/Build.html
@@ -6457,10 +6757,34 @@
   {
     "collection": "Privacy",
     "group": "Read.VPN",
+    "name": "NetworkCapabilities.getTransportInfo",
+    "author": "XPrivacyLua",
+    "className": "android.net.NetworkCapabilities",
+    "methodName": "getTransportInfo",
+    "parameterTypes": [],
+    "returnType": "android.net.TransportInfo",
+    "minSdk": 29,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
     "name": "LinkProperties.getInterfaceName",
     "author": "XPrivacyLua",
     "className": "android.net.LinkProperties",
     "methodName": "getInterfaceName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 21,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "LinkProperties.toString/vpn",
+    "author": "XPrivacyLua",
+    "className": "android.net.LinkProperties",
+    "methodName": "toString",
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 21,
@@ -6554,6 +6878,20 @@
     ],
     "returnType": "java.net.NetworkInterface",
     "minSdk": 19,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInterface.getByInetAddress",
+    "author": "XPrivacyLua",
+    "className": "java.net.NetworkInterface",
+    "methodName": "getByInetAddress",
+    "parameterTypes": [
+      "java.net.InetAddress"
+    ],
+    "returnType": "java.net.NetworkInterface",
+    "minSdk": 1,
     "luaScript": "@vpn"
   },
   // Bluetooth scans reveal nearby beacons and devices, which locate the device like Wi-Fi scans
@@ -6793,7 +7131,7 @@
     ],
     "returnType": "void",
     "minSdk": 16,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@nsdmanager_listener"
   },
   {
     "collection": "Privacy",
@@ -6811,7 +7149,7 @@
     ],
     "returnType": "void",
     "minSdk": 33,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@nsdmanager_listener"
   },
   {
     "collection": "Privacy",
@@ -6829,7 +7167,24 @@
     ],
     "returnType": "void",
     "minSdk": 33,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@nsdmanager_listener"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.discoverServices/discoveryrequest",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "discoverServices",
+    "parameterTypes": [
+      "android.net.nsd.DiscoveryRequest",
+      "java.util.concurrent.Executor",
+      "android.net.nsd.NsdManager$DiscoveryListener"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@nsdmanager_listener"
   },
   {
     "collection": "Privacy",
@@ -6844,7 +7199,7 @@
     ],
     "returnType": "void",
     "minSdk": 16,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@nsdmanager_listener"
   },
   {
     "collection": "Privacy",
@@ -6859,8 +7214,8 @@
       "android.net.nsd.NsdManager$ResolveListener"
     ],
     "returnType": "void",
-    "minSdk": 34,
-    "luaScript": "@generic_block_method"
+    "minSdk": 33,
+    "luaScript": "@nsdmanager_listener"
   },
   {
     "collection": "Privacy",
@@ -6875,7 +7230,204 @@
       "android.net.nsd.NsdManager$ServiceInfoCallback"
     ],
     "returnType": "void",
-    "minSdk": 34,
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@nsdmanager_listener"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.registerServiceInfoCallback/request",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "registerServiceInfoCallback",
+    "parameterTypes": [
+      "android.net.nsd.DiscoveryRequest",
+      "java.util.concurrent.Executor",
+      "android.net.nsd.NsdManager$ServiceInfoCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@nsdmanager_listener"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.stopServiceDiscovery",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "stopServiceDiscovery",
+    "parameterTypes": [
+      "android.net.nsd.NsdManager$DiscoveryListener"
+    ],
+    "returnType": "void",
+    "minSdk": 16,
+    "luaScript": "@nsdmanager_listener"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.stopServiceResolution",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "stopServiceResolution",
+    "parameterTypes": [
+      "android.net.nsd.NsdManager$ResolveListener"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@nsdmanager_listener"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.unregisterServiceInfoCallback",
+    "author": "XPrivacyLua",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "unregisterServiceInfoCallback",
+    "parameterTypes": [
+      "android.net.nsd.NsdManager$ServiceInfoCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@nsdmanager_listener"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pManager.discoverPeers",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.p2p.WifiP2pManager",
+    "methodName": "discoverPeers",
+    "parameterTypes": [
+      "android.net.wifi.p2p.WifiP2pManager$Channel",
+      "android.net.wifi.p2p.WifiP2pManager$ActionListener"
+    ],
+    "returnType": "void",
+    "minSdk": 14,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pManager.discoverPeersOnSocialChannels",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.p2p.WifiP2pManager",
+    "methodName": "discoverPeersOnSocialChannels",
+    "parameterTypes": [
+      "android.net.wifi.p2p.WifiP2pManager$Channel",
+      "android.net.wifi.p2p.WifiP2pManager$ActionListener"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pManager.discoverPeersOnSpecificFrequency",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.p2p.WifiP2pManager",
+    "methodName": "discoverPeersOnSpecificFrequency",
+    "parameterTypes": [
+      "android.net.wifi.p2p.WifiP2pManager$Channel",
+      "int",
+      "android.net.wifi.p2p.WifiP2pManager$ActionListener"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pManager.startPeerDiscovery",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.p2p.WifiP2pManager",
+    "methodName": "startPeerDiscovery",
+    "parameterTypes": [
+      "android.net.wifi.p2p.WifiP2pManager$Channel",
+      "android.net.wifi.p2p.WifiP2pDiscoveryConfig",
+      "android.net.wifi.p2p.WifiP2pManager$ActionListener"
+    ],
+    "returnType": "void",
+    "minSdk": 35,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pManager.discoverServices",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.p2p.WifiP2pManager",
+    "methodName": "discoverServices",
+    "parameterTypes": [
+      "android.net.wifi.p2p.WifiP2pManager$Channel",
+      "android.net.wifi.p2p.WifiP2pManager$ActionListener"
+    ],
+    "returnType": "void",
+    "minSdk": 16,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pManager.discoverUsdBasedServices",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.p2p.WifiP2pManager",
+    "methodName": "discoverUsdBasedServices",
+    "parameterTypes": [
+      "android.net.wifi.p2p.WifiP2pManager$Channel",
+      "android.net.wifi.p2p.WifiP2pUsdBasedServiceDiscoveryConfig",
+      "android.net.wifi.p2p.WifiP2pManager$ActionListener"
+    ],
+    "returnType": "void",
+    "minSdk": 36,
+    "luaScript": "@generic_block_method"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pDeviceList.getDeviceList",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.p2p.WifiP2pDeviceList",
+    "methodName": "getDeviceList",
+    "parameterTypes": [],
+    "returnType": "java.util.Collection",
+    "minSdk": 14,
+    "luaScript": "@generic_empty_list"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pDeviceList.get",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.p2p.WifiP2pDeviceList",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.net.wifi.p2p.WifiP2pDevice",
+    "minSdk": 18,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiAwareSession.subscribe",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.aware.WifiAwareSession",
+    "methodName": "subscribe",
+    "parameterTypes": [
+      "android.net.wifi.aware.SubscribeConfig",
+      "android.net.wifi.aware.DiscoverySessionCallback",
+      "android.os.Handler"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
     "luaScript": "@generic_block_method"
   },
   // Accessibility services reveal installed apps, like password managers and automation apps
@@ -7770,6 +8322,42 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "luaScript": "@network_tostring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.toString",
+    "author": "XPrivacyLua",
+    "className": "android.net.LinkProperties",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 21,
+    "luaScript": "@network_tostring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NetworkRegistrationInfo.toString",
+    "author": "XPrivacyLua",
+    "className": "android.telephony.NetworkRegistrationInfo",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@network_tostring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pDeviceList.toString",
+    "author": "XPrivacyLua",
+    "className": "android.net.wifi.p2p.WifiP2pDeviceList",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 14,
     "luaScript": "@network_tostring"
   },
   {

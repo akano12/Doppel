@@ -124,6 +124,54 @@ public class LocationScriptTest {
         assertEquals(52.37, text.arg(2).todouble(), 0);
     }
 
+    // The coarse location is the center of a cell of a grid with the size of the accuracy,
+    // so another process or start of the app, or another location in the cell, gives the same location
+    @Test
+    public void coarseLocationIsStable() throws Exception {
+        String settings = "{ ['location.type'] = 'coarse', ['location.accuracy'] = '10000' }";
+        Varargs first = coarse(52.37, 4.89, settings);
+        assertTrue(first.arg(1).toboolean());
+
+        load(); // Like another process
+        Varargs again = coarse(52.37, 4.89, settings);
+        assertEquals(first.arg(2).todouble(), again.arg(2).todouble(), 0);
+        assertEquals(first.arg(3).todouble(), again.arg(3).todouble(), 0);
+
+        Varargs nearby = coarse(first.arg(2).todouble() + 0.01, first.arg(3).todouble() - 0.01, settings);
+        assertEquals(first.arg(2).todouble(), nearby.arg(2).todouble(), 0);
+        assertEquals(first.arg(3).todouble(), nearby.arg(3).todouble(), 0);
+
+        Varargs far = coarse(48.85, 2.35, settings);
+        assertTrue(Math.abs(far.arg(2).todouble() - 48.85) < 0.1);
+    }
+
+    @Test
+    public void coarseLocationIsInCell() {
+        double step = 10000 / 111000.0;
+        for (double latitude = -89.9; latitude < 90; latitude += 7.3)
+            for (double longitude = -179.9; longitude < 180; longitude += 11.7) {
+                Varargs result = coarse(latitude, longitude,
+                        "{ ['location.type'] = 'coarse', ['location.accuracy'] = '10000' }");
+                double clatitude = result.arg(2).todouble();
+                double clongitude = result.arg(3).todouble();
+                assertTrue("latitude " + clatitude, clatitude >= -90 && clatitude <= 90);
+                assertTrue("longitude " + clongitude, clongitude >= -180 && clongitude < 180);
+                assertTrue(latitude + " " + clatitude, Math.abs(clatitude - latitude) <= step / 2 + 1e-9);
+                double lonstep = step / Math.max(Math.cos(Math.toRadians(clatitude)), 0.01);
+                double distance = Math.abs(clongitude - longitude);
+                assertTrue(longitude + " " + clongitude,
+                        Math.min(distance, 360 - distance) <= lonstep / 2 + 1e-9);
+            }
+    }
+
+    private Varargs coarse(double latitude, double longitude, String settings) {
+        return globals.load(
+                "local result = location(" + latitude + ", " + longitude + ")\n" +
+                        "local restricted = after(hookof('CREATOR:createFromParcel'), paramof(result, '', true, " +
+                        settings + "))\n" +
+                        "return restricted, result.latitude, result.longitude", "test").invoke();
+    }
+
     @Test
     public void offsetsAreValidCoordinates() {
         for (int i = 0; i < 1000; i++) {

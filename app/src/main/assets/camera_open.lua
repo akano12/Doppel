@@ -15,8 +15,13 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The errors of Android when the camera service refuses the camera, like when it is disabled
 function before(hook, param)
-    local fake = luajava.newInstance('java.lang.RuntimeException', 'privacy')
+    local message = 'Fail to connect to camera service'
+    if hook:getMethodName() == 'getCameraInfo' then
+        message = 'Fail to get camera info'
+    end
+    local fake = luajava.newInstance('java.lang.RuntimeException', message)
     param:setResult(fake)
     return true
 end

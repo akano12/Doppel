@@ -15,6 +15,10 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The recorder of a restricted source does not start, see mediarecorder_startstop
+local VIDEO_SOURCE_DEFAULT = 0
+local VIDEO_SOURCE_CAMERA = 1
+
 function before(hook, param)
     local this = param:getThis()
     if this == nil then
@@ -22,6 +26,17 @@ function before(hook, param)
     end
 
     local source = param:getArgument(0)
+
+    -- With the camera as source the media server opens the camera for the app (Use camera), also by default;
+    -- the images of a surface source come from the app, like of the screen
+    if hook:getGroup() == 'Use.Camera' then
+        if source == VIDEO_SOURCE_DEFAULT or source == VIDEO_SOURCE_CAMERA then
+            param:putValue('camera', source, this)
+        else
+            param:putValue('camera', nil, this)
+        end
+        return false
+    end
 
     param:putValue('source', source, this)
     return false

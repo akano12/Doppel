@@ -14,7 +14,8 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- The addresses of the device, the gateway, DNS and DHCP servers and the domains
--- reveal the network the device is on and help to fingerprint it.
+-- reveal the network the device is on and help to fingerprint it;
+-- the private DNS server name can contain the account id of the user at a DNS service.
 -- Loopback addresses stay, because apps communicate with local services with them.
 
 function after(hook, param)
@@ -51,7 +52,8 @@ function after(hook, param)
         param:setResult(fake)
         return true, result:getHostAddress(), fake:getHostAddress()
 
-    elseif method == 'getDomains' or method == 'getDhcpServerAddress' then
+    elseif method == 'getDomains' or method == 'getDhcpServerAddress' or method == 'getPrivateDnsServerName' then
+        -- Like without domains, DHCP and private DNS with a server name (strict mode)
         param:setResult(nil)
         return true
 

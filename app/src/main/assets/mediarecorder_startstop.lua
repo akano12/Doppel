@@ -15,21 +15,23 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
--- Recording with a restricted source (see mediarecorder_setsource) does not start, and does not stop
+-- Recording with a restricted source (see mediarecorder_setsource) does not start, pause, resume and stop;
+-- Android throws for these methods when the recorder did not start, which would crash the app.
+-- The hook of one group which skips the method skips the hooks of the other groups, so it handles all sources.
 function before(hook, param)
     local this = param:getThis()
     if this == nil then
         return false
     end
 
-    local source = param:getValue('source', this)
-    if source == nil then
+    if param:getValue('source', this) == nil and param:getValue('camera', this) == nil then
         return false
     end
 
     -- A recorder can be reused with another source
     if hook:getMethodName() == 'stop' then
         param:putValue('source', nil, this)
+        param:putValue('camera', nil, this)
     end
 
     param:setResult(nil)

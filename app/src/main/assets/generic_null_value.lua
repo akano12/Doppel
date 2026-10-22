@@ -23,8 +23,5 @@ function after(hook, param)
 
     local fake
     param:setResult(fake)
-    if type(result) == 'userdata' then
-        result = result:toString()
-    end
     return true, result, fake
 end

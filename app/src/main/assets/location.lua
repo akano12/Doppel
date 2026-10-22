@@ -47,17 +47,9 @@ function after(hook, param)
         if accuracy == nil or accuracy <= 0 then
             accuracy = 10000
         end
-        -- The same coarse location for all hooks of the app while it runs
-        local scope = param:getApplicationContext()
-        local clatitude = param:getValue('location.latitude', scope)
-        local clongitude = param:getValue('location.longitude', scope)
-        if clatitude == nil or clongitude == nil then
-            clatitude, clongitude = randomoffset(result:getLatitude(), result:getLongitude(), accuracy)
-            param:putValue('location.latitude', clatitude, scope)
-            param:putValue('location.longitude', clongitude, scope)
-        end
-        latitude = clatitude
-        longitude = clongitude
+        -- The center of a cell of a grid of this size, like Android snaps locations for apps with coarse location:
+        -- the same for all hooks, processes and starts of the app, so averaging does not reveal the location
+        latitude, longitude = snaptogrid(result:getLatitude(), result:getLongitude(), accuracy)
     end
 
     if result:hasAccuracy() then
@@ -80,7 +72,19 @@ function after(hook, param)
     end
     result:setExtras(nil)
 
-    return true, old, result:toString()
+    return true, old, result
+end
+
+function snaptogrid(latitude, longitude, size)
+    local step = size / 111000 -- degrees
+    latitude = math.max(-90, math.min(90, math.floor(latitude / step + 0.5) * step))
+
+    -- A degree of longitude is shorter away from the equator, the cells of a row have the same width;
+    -- at the poles all longitudes meet
+    local scale = math.max(math.cos(math.rad(latitude)), 0.01)
+    local lonstep = step / scale
+    longitude = (math.floor(longitude / lonstep + 0.5) * lonstep + 180) % 360 - 180
+    return latitude, longitude
 end
 
 function randomoffset(latitude, longitude, radius)

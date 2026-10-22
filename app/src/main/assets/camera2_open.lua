@@ -15,9 +15,12 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The error of Android when the camera service refuses a disabled camera,
+-- with the message of the camera service; the text becomes CAMERA_DISABLED (1): ...
 function before(hook, param)
+    local message = 'Camera "' .. tostring(param:getArgument(0)) .. '" disabled by policy'
     local exception = luajava.bindClass('android.hardware.camera2.CameraAccessException')
-    local fake = luajava.new(exception, 1, 'privacy') -- 1=disabled
+    local fake = luajava.new(exception, 1, message) -- 1=disabled
     param:setResult(fake)
     return true
 end

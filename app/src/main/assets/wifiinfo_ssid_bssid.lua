@@ -15,6 +15,8 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The values Android shows without location permission and when not connected stay, they hide the network already;
+-- the access point is hidden like Android does, see also network_tostring
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
@@ -22,8 +24,13 @@ function after(hook, param)
     end
 
     local fake = '"private"'
+    local hidden = '<unknown ssid>'
     if hook:getMethodName() == 'getBSSID' then
-        fake = '00:00:00:00:00:00'
+        fake = '02:00:00:00:00:00'
+        hidden = fake
+    end
+    if result == hidden then
+        return false
     end
     param:setResult(fake)
     return true, result, fake

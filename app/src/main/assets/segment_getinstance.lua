@@ -15,8 +15,22 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- Analytics.with builds the singleton without setSingletonInstance, apps can build instances of their own
 function before(hook, param)
-    local analytics = param:getArgument(0)
+    if hook:getMethodName() == 'setSingletonInstance' then
+        return optout(param:getArgument(0))
+    end
+    return false
+end
+
+function after(hook, param)
+    if hook:getMethodName() == 'build' then
+        return optout(param:getResult())
+    end
+    return false
+end
+
+function optout(analytics)
     if analytics == nil or analytics.optOut == nil then
         return false
     end
