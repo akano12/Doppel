@@ -25,7 +25,7 @@ Restrictions
 ------------
 
 * Determine activity (fake unknown activity, hide activity transitions, see [here](https://developers.google.com/location-context/activity-recognition/))
-* Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html), usage statistics and events, keyboards and accessibility services of other apps, also for lookups by user, by user id, of activities, services and content providers, package contexts, launch intents and the shell command pm)
+* Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html), usage statistics and events, keyboards and accessibility services of other apps, also for lookups by user, by user id, of activities, services and content providers, package contexts, launch intents and the shell command pm; the content providers, services, screens and broadcasts of hidden apps cannot be reached, so apps cannot ask each other for the account signed in)
 * Get calendars (hide calendars)
 * Get call log (hide call log)
 * Get contacts (hide contacts, optionally except (non) starred contacts, hide blocked numbers)
@@ -92,7 +92,7 @@ Notes
 
 * Some apps will start the camera app to take pictures. This cannot be restricted and there is no need for this, because only you can take pictures in this scenario, not the app.
 * Some apps will use [OpenSL ES for Android](https://developer.android.com/ndk/guides/audio/opensl-for-android.html) to record audio, an example is WhatsApp. Xposed cannot hook into native code, so this cannot be prevented.
-* The get applications restriction does not hide the app itself, apps sharing its user id and system apps (also updated ones) from lookups of single apps and from lists of components, like the activities for an intent, keyboards and accessibility services, because the Android code running in apps, like WebView, needs them. The lists of installed apps and packages and of running processes and services keep only the app itself and apps sharing its user id.
+* The get applications restriction does not hide the app itself, apps sharing its user id and system apps (also updated ones) from lookups of single apps and from lists of components, like the activities for an intent, keyboards and accessibility services, because the Android code running in apps, like WebView, needs them. The lists of installed apps and packages and of running processes and services keep only the app itself and apps sharing its user id. The content providers, services, screens and broadcasts of hidden apps answer like the app is not installed, except for a content uri another app handed to the restricted app with a grant, like a shared photo, which it can still open.
 * The network data restriction blocks discovery of devices in the local network through Android (network service discovery, Wi-Fi Direct and Wi-Fi Aware). Apps discovering devices with their own code over plain sockets, like with mDNS or SSDP, cannot be prevented from doing so.
 * The telephony data restriction will result in apps seeing a fake IMEI. However, this doesn't change the IMEI address of your device.
 

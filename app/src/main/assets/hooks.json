@@ -600,6 +600,610 @@
     "excludePackages": "android",
     "luaScript": "@package_probe"
   },
+  // Providers, services, screens and broadcasts of hidden apps cannot be reached, like for apps which are not installed
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.query16/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "[Ljava.lang.String;",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 16,
+    "maxSdk": 25,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.query26/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Ljava.lang.String;",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 26,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.insert/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "insert",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.content.ContentValues"
+    ],
+    "returnType": "android.net.Uri",
+    "minSdk": 1,
+    "maxSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.insert.extras/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "insert",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.content.ContentValues",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.net.Uri",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.bulkInsert/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "bulkInsert",
+    "parameterTypes": [
+      "android.net.Uri",
+      "[Landroid.content.ContentValues;"
+    ],
+    "returnType": "int",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.delete/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "delete",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "[Ljava.lang.String;"
+    ],
+    "returnType": "int",
+    "minSdk": 1,
+    "maxSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.delete.extras/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "delete",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.os.Bundle"
+    ],
+    "returnType": "int",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.update/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "update",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.content.ContentValues",
+      "java.lang.String",
+      "[Ljava.lang.String;"
+    ],
+    "returnType": "int",
+    "minSdk": 1,
+    "maxSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.update.extras/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "update",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.content.ContentValues",
+      "android.os.Bundle"
+    ],
+    "returnType": "int",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.call.uri/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 11,
+    "maxSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.call/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.openAssetFileDescriptor/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "openAssetFileDescriptor",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.content.res.AssetFileDescriptor",
+    "minSdk": 19,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.openTypedAssetFileDescriptor/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "openTypedAssetFileDescriptor",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.content.res.AssetFileDescriptor",
+    "minSdk": 19,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.openTypedAssetFile/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "openTypedAssetFile",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.content.res.AssetFileDescriptor",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.getType/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "getType",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.getStreamTypes/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "getStreamTypes",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String"
+    ],
+    "returnType": "[Ljava.lang.String;",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.canonicalize/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "canonicalize",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.net.Uri",
+    "minSdk": 19,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.uncanonicalize/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "uncanonicalize",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.net.Uri",
+    "minSdk": 19,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.refresh/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "refresh",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "boolean",
+    "minSdk": 26,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.acquireContentProviderClient/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireContentProviderClient",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.content.ContentProviderClient",
+    "minSdk": 5,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.acquireContentProviderClient.name/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireContentProviderClient",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.ContentProviderClient",
+    "minSdk": 5,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.acquireUnstableContentProviderClient/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireUnstableContentProviderClient",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.content.ContentProviderClient",
+    "minSdk": 16,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.acquireUnstableContentProviderClient.name/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireUnstableContentProviderClient",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.ContentProviderClient",
+    "minSdk": 16,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.bindService/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.bindService.executor/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.util.concurrent.Executor",
+      "android.content.ServiceConnection"
+    ],
+    "returnType": "boolean",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.bindService.flags/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "android.content.Context$BindServiceFlags"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.bindService.flags.executor/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.Context$BindServiceFlags",
+      "java.util.concurrent.Executor",
+      "android.content.ServiceConnection"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.startService/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "startService",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "android.content.ComponentName",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.startForegroundService/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "startForegroundService",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "android.content.ComponentName",
+    "minSdk": 26,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendBroadcast/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendBroadcast",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendBroadcast.permission/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendBroadcast",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Instrumentation.execStartActivity/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.Instrumentation",
+    "methodName": "execStartActivity",
+    "parameterTypes": [
+      "android.content.Context",
+      "android.os.IBinder",
+      "android.os.IBinder",
+      "android.app.Activity",
+      "android.content.Intent",
+      "int",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.app.Instrumentation$ActivityResult",
+    "minSdk": 16,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Instrumentation.execStartActivity.fragment/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.Instrumentation",
+    "methodName": "execStartActivity",
+    "parameterTypes": [
+      "android.content.Context",
+      "android.os.IBinder",
+      "android.os.IBinder",
+      "java.lang.String",
+      "android.content.Intent",
+      "int",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.app.Instrumentation$ActivityResult",
+    "minSdk": 23,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Instrumentation.execStartActivity.user/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.Instrumentation",
+    "methodName": "execStartActivity",
+    "parameterTypes": [
+      "android.content.Context",
+      "android.os.IBinder",
+      "android.os.IBinder",
+      "android.app.Activity",
+      "android.content.Intent",
+      "int",
+      "android.os.Bundle",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.app.Instrumentation$ActivityResult",
+    "minSdk": 17,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Instrumentation.execStartActivitiesAsUser/hidden",
+    "author": "XPrivacyLua",
+    "className": "android.app.Instrumentation",
+    "methodName": "execStartActivitiesAsUser",
+    "parameterTypes": [
+      "android.content.Context",
+      "android.os.IBinder",
+      "android.os.IBinder",
+      "android.app.Activity",
+      "[Landroid.content.Intent;",
+      "android.os.Bundle",
+      "int"
+    ],
+    "minSdk": 17,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",

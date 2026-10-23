@@ -60,9 +60,9 @@ public class HookDefinitionsTest {
     private static final File ASSETS = new File("src/main/assets");
     private static final File STRINGS = new File("src/main/res/values/strings.xml");
 
-    // Hidden framework classes, which are not part of the SDK
+    // Hidden framework classes, which are not part of the SDK, and a class of which the hooked members are hidden
     private static final Set<String> HIDDEN = new HashSet<>(Arrays.asList(
-            "android.os.SystemProperties", "android.app.ContextImpl"));
+            "android.os.SystemProperties", "android.app.ContextImpl", "android.app.Instrumentation"));
 
     // The defaults XHook.fromJSONObject uses for missing attributes, see DEFINE.md
     private static final Map<String, Object> DEFAULTS = new HashMap<>();

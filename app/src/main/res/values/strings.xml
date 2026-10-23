@@ -363,7 +363,7 @@
 
     <!-- What the groups protect, below their titles -->
     <string name="group_desc_determine_activity">Physical activity, like walking or driving</string>
-    <string name="group_desc_get_applications">Installed apps, checks for specific apps, keyboards and accessibility services</string>
+    <string name="group_desc_get_applications">Installed apps, checks for specific apps, keyboards and accessibility services; hidden apps cannot be reached through their providers, services, screens and broadcasts</string>
     <string name="group_desc_get_calendars">Calendars and events</string>
     <string name="group_desc_get_call_log">Calls made and received</string>
     <string name="group_desc_get_contacts">Contacts and their details</string>
