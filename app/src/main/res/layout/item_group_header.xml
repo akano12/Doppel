@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A group of the Hooks tab: icon, title and what it holds; tapping shows or hides its hooks, see AdapterSections.Group -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:foreground="?attr/selectableItemBackground"
@@ -59,9 +60,18 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:ellipsize="end"
-                android:maxLines="1"
+                android:maxLines="2"
                 android:textAppearance="@style/XLua.Text.Meta" />
         </LinearLayout>
+
+        <!-- A state of the whole group, like a collection which is off; the colors are set from code -->
+        <TextView
+            android:id="@+id/tvPill"
+            style="@style/XLua.Pill"
+            android:layout_marginStart="8dp"
+            android:visibility="gone"
+            tools:text="Off"
+            tools:visibility="visible" />
 
         <ImageView
             android:id="@+id/ivExpand"

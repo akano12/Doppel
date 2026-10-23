@@ -287,7 +287,7 @@ public class FragmentHooks extends FragmentBase {
         if (unavailable > 0)
             parts.add(getResources().getQuantityString(R.plurals.title_hook_unavailable_count, unavailable, unavailable));
         accordion.addGroup(context, items, group, Groups.getTitle(context, group), String.join(" · ", parts),
-                Groups.getIcon(group), hooks,
+                null, Groups.getIcon(group), hooks,
                 all.isEmpty() ? null : all.get(0).getGroup(),
                 filter != Filter.ALL || (query != null && !query.trim().isEmpty()),
                 this::show);

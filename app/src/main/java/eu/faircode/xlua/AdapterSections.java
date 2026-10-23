@@ -59,14 +59,17 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
         }
     }
 
-    // An expandable header with an icon and a line under its title, a row of a block, like the groups of the Hooks tab
+    // An expandable header with an icon and a line under its title, a row of a block, like the groups of the Hooks tab;
+    // a word at the end, like Off, tells a state of the whole group
     static class Group extends Expandable {
         final String meta;
+        final String pill;
         final int icon;
 
-        Group(String text, String meta, int icon, boolean expanded, CharSequence description, Runnable onToggle) {
+        Group(String text, String meta, @Nullable String pill, int icon, boolean expanded, CharSequence description, Runnable onToggle) {
             super(text, expanded, description, onToggle);
             this.meta = meta;
+            this.pill = pill;
             this.icon = icon;
         }
     }
@@ -124,12 +127,12 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
         }
 
         // Like add, as a group row with an icon and a line, like the number of items, under the title
-        void addGroup(Context context, List<Object> items, String key, String title, String meta, int icon,
-                      List<?> children, String first, boolean filtering, Runnable show) {
+        void addGroup(Context context, List<Object> items, String key, String title, String meta, @Nullable String pill,
+                      int icon, List<?> children, String first, boolean filtering, Runnable show) {
             if (key == null || children.isEmpty())
                 return;
             boolean expanded = isOpen(key, first, filtering);
-            items.add(new Group(title, meta, icon, expanded,
+            items.add(new Group(title, meta, pill, icon, expanded,
                     context.getString(expanded ? R.string.title_hide_hooks : R.string.title_show_hooks, title),
                     () -> {
                         toggle(key, first, filtering);
@@ -245,6 +248,11 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
 
         ((TextView) view.findViewById(R.id.tvTitle)).setText(group.text);
         ((TextView) view.findViewById(R.id.tvMeta)).setText(group.meta);
+        TextView tvPill = view.findViewById(R.id.tvPill);
+        tvPill.setVisibility(group.pill == null ? View.GONE : View.VISIBLE);
+        tvPill.setText(group.pill);
+        tvPill.setBackgroundTintList(ColorStateList.valueOf(Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerHigh)));
+        tvPill.setTextColor(Ui.color(context, com.google.android.material.R.attr.colorOnSurfaceVariant));
         View flIcon = view.findViewById(R.id.flIcon);
         ImageView ivIcon = view.findViewById(R.id.ivIcon);
         ivIcon.setImageResource(group.icon);

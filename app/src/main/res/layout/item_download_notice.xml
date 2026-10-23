@@ -1,23 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- The use at own risk notice, a line above the definitions -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    style="@style/XLua.Banner"
-    android:layout_marginBottom="4dp"
-    android:gravity="top">
-
-    <ImageView
-        android:layout_width="20dp"
-        android:layout_height="20dp"
-        android:importantForAccessibility="no"
-        android:src="@drawable/ic_error"
-        app:tint="?attr/colorWarning" />
-
-    <TextView
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:layout_weight="1"
-        android:text="@string/title_downloads_notice"
-        android:textAppearance="?attr/textAppearanceBodySmall"
-        android:textColor="?attr/colorOnWarningContainer" />
-</LinearLayout>
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    android:drawablePadding="8dp"
+    android:gravity="center_vertical"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
+    android:text="@string/title_downloads_notice"
+    android:textAppearance="@style/XLua.Text.Meta"
+    app:drawableStartCompat="@drawable/ic_info"
+    app:drawableTint="?attr/colorOnSurfaceVariant" />

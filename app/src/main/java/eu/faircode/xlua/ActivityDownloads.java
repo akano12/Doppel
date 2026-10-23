@@ -18,18 +18,24 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
+import android.text.style.ForegroundColorSpan;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.content.res.AppCompatResources;
+import androidx.core.util.Consumer;
 import androidx.recyclerview.widget.ConcatAdapter;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -42,6 +48,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.InputStream;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -83,9 +90,12 @@ public class ActivityDownloads extends ActivityBase {
         }
     }
 
-    private View pbLoading;
+    private TextView tvSummary;
+    private TitleSearch search;
     private ChipGroup cgFilter;
-    private EmptyAdapter emptyAdapter;
+    private View pbLoading;
+    private HeaderAdapter updatesAdapter;
+    private HeaderAdapter emptyAdapter;
     private Adapter adapter;
 
     private Filter filter = Filter.ALL;
@@ -94,6 +104,8 @@ public class ActivityDownloads extends ActivityBase {
     private Map<String, XHook> installed = new HashMap<>();
     private Set<String> builtinIds = new HashSet<>();
     private List<String> collection = new ArrayList<>();
+    private int updates = 0; // Installed definitions with a newer version in the repository
+    private int emptyText = 0; // String resource telling why the list is empty, none when it is not
     private final Set<Integer> expanded = new HashSet<>(); // Entries showing their full description
     private final AdapterSections.Accordion accordion = new AdapterSections.Accordion(null, null);
 
@@ -101,21 +113,30 @@ public class ActivityDownloads extends ActivityBase {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_downloads);
-        setupToolbar(getString(R.string.menu_downloads));
+
+        findViewById(R.id.ibBack).setOnClickListener(view -> getOnBackPressedDispatcher().onBackPressed());
+        tvSummary = findViewById(R.id.tvSummary);
+        search = new TitleSearch(this, findViewById(R.id.llTitle), findViewById(R.id.tilSearch),
+                findViewById(R.id.etSearch), findViewById(R.id.ibSearch), text -> {
+                    query = text;
+                    accordion.reset();
+                    show();
+                });
+        search.attach();
 
         pbLoading = findViewById(R.id.pbLoading);
-        emptyAdapter = new EmptyAdapter();
+        updatesAdapter = new HeaderAdapter(R.layout.item_download_updates, false, view -> {
+            ((TextView) view.findViewById(R.id.tvUpdates)).setText(
+                    getResources().getQuantityString(R.plurals.title_update_count, updates, updates));
+            view.findViewById(R.id.btnUpdateAll).setOnClickListener(v -> confirmUpdateAll());
+        });
+        emptyAdapter = new HeaderAdapter(R.layout.item_downloads_empty, false, view -> ((TextView) view).setText(emptyText));
         adapter = new Adapter();
         RecyclerView rvDownloads = findViewById(R.id.rvDownloads);
         rvDownloads.setLayoutManager(new LinearLayoutManager(this));
-        rvDownloads.setAdapter(new ConcatAdapter(new NoticeAdapter(), emptyAdapter, adapter));
-
-        EditText etSearch = findViewById(R.id.etSearch);
-        Ui.onTextChanged(etSearch, text -> {
-            query = text;
-            accordion.reset();
-            show();
-        });
+        // What the list is empty for goes below the notice and the updates: over the list it would cover them on a short screen
+        rvDownloads.setAdapter(new ConcatAdapter(
+                new HeaderAdapter(R.layout.item_download_notice, true, null), updatesAdapter, emptyAdapter, adapter));
 
         cgFilter = findViewById(R.id.cgFilter);
         Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
@@ -125,6 +146,13 @@ public class ActivityDownloads extends ActivityBase {
         });
 
         load();
+    }
+
+    // A search restored with the views is shown again
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        search.restore();
     }
 
     private void load() {
@@ -199,11 +227,6 @@ public class ActivityDownloads extends ActivityBase {
         return (hook.getVersion() < entry.version ? State.UPDATE : State.INSTALLED);
     }
 
-    // Installed definitions can be removed, also the ones with an update
-    private boolean canRemove(Entry entry) {
-        return (getState(entry) != State.AVAILABLE);
-    }
-
     // Other active definitions hooking the same member: both run, one after the other,
     // and can undo or break the changes of the other
     private List<XHook> getOverlaps(Entry entry) {
@@ -255,11 +278,13 @@ public class ActivityDownloads extends ActivityBase {
     }
 
     private void show() {
-        // The chips count all definitions, whatever the search
+        // The summary, the chips and the updates count all definitions, whatever the search
+        Set<String> collections = new HashSet<>();
         int available = 0;
         int installed = 0;
         int updates = 0;
         for (Entry entry : all) {
+            collections.add(entry.collection);
             State state = getState(entry);
             if (state == State.AVAILABLE)
                 available++;
@@ -268,9 +293,19 @@ public class ActivityDownloads extends ActivityBase {
             if (state == State.UPDATE)
                 updates++;
         }
+        this.updates = updates;
+
+        List<String> parts = new ArrayList<>();
+        parts.add(getResources().getQuantityString(R.plurals.title_definition_count, all.size(), all.size()));
+        parts.add(getResources().getQuantityString(R.plurals.title_collection_count, collections.size(), collections.size()));
+        if (installed > 0)
+            parts.add(getResources().getQuantityString(R.plurals.title_installed_count, installed, installed));
+        tvSummary.setText(all.isEmpty() ? null : String.join(" · ", parts));
+
         ((Chip) cgFilter.findViewById(R.id.chipAvailable)).setText(getString(R.string.title_count, getString(R.string.title_not_installed), available));
         ((Chip) cgFilter.findViewById(R.id.chipInstalled)).setText(getString(R.string.title_count, getString(R.string.title_installed), installed));
         ((Chip) cgFilter.findViewById(R.id.chipUpdates)).setText(getString(R.string.title_count, getString(R.string.title_updates), updates));
+        updatesAdapter.show(updates > 0);
 
         String q = (query == null ? "" : query.trim());
         List<Object> items = new ArrayList<>();
@@ -302,13 +337,14 @@ public class ActivityDownloads extends ActivityBase {
         adapter.set(items);
 
         // The list is empty when nothing matches the filter or the search
-        emptyAdapter.set(!items.isEmpty() || all.isEmpty() ? 0
+        emptyText = (!items.isEmpty() || all.isEmpty() ? 0
                 : filter == Filter.UPDATES && q.isEmpty() ? R.string.title_no_updates : R.string.title_no_matches);
+        emptyAdapter.show(emptyText != 0);
     }
 
     // One collection is open at a time, like the groups of the Hooks tab, at first the first one;
     // searching or filtering shows all collections with matches. The row of a collection tells how many
-    // definitions it has, how many are installed and how many have an update.
+    // definitions it has, how many are installed and how many have an update, and when the collection is off.
     private void addCollection(List<Object> items, String collection, List<Entry> entries) {
         if (collection == null || entries.isEmpty())
             return;
@@ -321,13 +357,17 @@ public class ActivityDownloads extends ActivityBase {
             if (state == State.UPDATE)
                 updates++;
         }
+        boolean off = !this.collection.contains(collection);
         List<String> parts = new ArrayList<>();
         parts.add(getResources().getQuantityString(R.plurals.title_definition_count, entries.size(), entries.size()));
         if (installed > 0)
             parts.add(getResources().getQuantityString(R.plurals.title_installed_count, installed, installed));
         if (updates > 0)
             parts.add(getResources().getQuantityString(R.plurals.title_update_count, updates, updates));
-        accordion.addGroup(this, items, collection, collection, String.join(" · ", parts), R.drawable.ic_group_custom,
+        if (off)
+            parts.add(getString(R.string.title_collection_off));
+        accordion.addGroup(this, items, collection, collection, String.join(" · ", parts),
+                off ? getString(R.string.title_off) : null, R.drawable.ic_group_custom,
                 entries, all.isEmpty() ? null : all.get(0).collection,
                 filter != Filter.ALL || (query != null && !query.trim().isEmpty()),
                 this::show);
@@ -355,6 +395,30 @@ public class ActivityDownloads extends ActivityBase {
                 Ui.message(this, getResources().getQuantityString(R.plurals.msg_installed_restricted, apps, entry.name, apps));
             else
                 Ui.message(this, getString(R.string.msg_installed, entry.name));
+        });
+    }
+
+    // Updating keeps the id of a definition, so the apps restricting it keep it
+    private void confirmUpdateAll() {
+        final List<Entry> entries = new ArrayList<>();
+        for (Entry entry : all)
+            if (getState(entry) == State.UPDATE)
+                entries.add(entry);
+        if (entries.isEmpty())
+            return;
+        final int count = entries.size();
+        Ui.areYouSure(this, getResources().getQuantityString(R.plurals.msg_update_all, count, count), R.string.title_update, () -> {
+            final Context context = getApplicationContext();
+            run(TAG, () -> {
+                for (Entry entry : entries)
+                    Data.putCustom(context, new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json")));
+                Map<String, XHook> installed = getInstalled(context);
+                runOnUiThread(() -> {
+                    this.installed = installed;
+                    show();
+                });
+                Ui.message(this, getResources().getQuantityString(R.plurals.msg_updated, count, count));
+            });
         });
     }
 
@@ -391,59 +455,46 @@ public class ActivityDownloads extends ActivityBase {
         });
     }
 
-    // The use at own risk notice, above the definitions
-    private static class NoticeAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
-        @NonNull
-        @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_download_notice, parent, false);
-            return new RecyclerView.ViewHolder(view) {
-            };
+    // One view above the definitions, like the notice, shown or not; showing it again binds it again
+    private static class HeaderAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+        private final int layout;
+        private final Consumer<View> bind;
+        private boolean shown;
+
+        HeaderAdapter(int layout, boolean shown, @Nullable Consumer<View> bind) {
+            this.layout = layout;
+            this.shown = shown;
+            this.bind = bind;
         }
 
-        @Override
-        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-        }
-
-        @Override
-        public int getItemCount() {
-            return 1;
-        }
-    }
-
-    // What the list is empty for, below the notice: over the list it would cover the notice on a short screen
-    private static class EmptyAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
-        private int text = 0; // String resource, none when the list is not empty
-
-        void set(int text) {
-            if (text == this.text)
-                return;
-            int was = this.text;
-            this.text = text;
-            if (text == 0)
-                notifyItemRemoved(0);
-            else if (was == 0)
-                notifyItemInserted(0);
-            else
+        void show(boolean show) {
+            boolean was = shown;
+            shown = show;
+            if (show && was)
                 notifyItemChanged(0);
+            else if (show)
+                notifyItemInserted(0);
+            else if (was)
+                notifyItemRemoved(0);
         }
 
         @NonNull
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_downloads_empty, parent, false);
+            View view = LayoutInflater.from(parent.getContext()).inflate(layout, parent, false);
             return new RecyclerView.ViewHolder(view) {
             };
         }
 
         @Override
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-            ((TextView) holder.itemView).setText(text);
+            if (bind != null)
+                bind.accept(holder.itemView);
         }
 
         @Override
         public int getItemCount() {
-            return (text == 0 ? 0 : 1);
+            return (shown ? 1 : 0);
         }
     }
 
@@ -452,27 +503,41 @@ public class ActivityDownloads extends ActivityBase {
             final View llPanel;
             final View vDivider;
             final TextView tvName;
-            final TextView tvGroup;
             final TextView tvMeta;
             final TextView tvDescription;
             final ViewGroup cgBadges;
             final Button btnRemove;
+            final TextView tvInstalled;
             final Button btnInstall;
+            final Button btnUpdate;
 
             EntryHolder(View itemView) {
                 super(itemView);
                 llPanel = itemView.findViewById(R.id.llPanel);
                 vDivider = itemView.findViewById(R.id.vDivider);
                 tvName = itemView.findViewById(R.id.tvName);
-                tvGroup = itemView.findViewById(R.id.tvGroup);
                 tvMeta = itemView.findViewById(R.id.tvMeta);
                 tvDescription = itemView.findViewById(R.id.tvDescription);
                 cgBadges = itemView.findViewById(R.id.cgBadges);
                 btnRemove = itemView.findViewById(R.id.btnRemove);
+                tvInstalled = itemView.findViewById(R.id.tvInstalled);
                 btnInstall = itemView.findViewById(R.id.btnInstall);
+                btnUpdate = itemView.findViewById(R.id.btnUpdate);
                 itemView.setOnClickListener(this);
                 btnRemove.setOnClickListener(this);
                 btnInstall.setOnClickListener(this);
+                btnUpdate.setOnClickListener(this);
+
+                // The check in front of Installed, in the size of the text
+                Context context = itemView.getContext();
+                Drawable check = AppCompatResources.getDrawable(context, R.drawable.ic_check);
+                if (check != null) {
+                    check = check.mutate();
+                    int size = Ui.dp(context, 15);
+                    check.setBounds(0, 0, size, size);
+                    check.setTint(Ui.color(context, R.attr.colorOnSuccessContainer));
+                }
+                tvInstalled.setCompoundDrawablesRelative(check, null, null, null);
             }
 
             @Override
@@ -483,7 +548,7 @@ public class ActivityDownloads extends ActivityBase {
                 Entry entry = getItem(position);
                 if (view == btnRemove)
                     confirmRemove(entry);
-                else if (view == btnInstall)
+                else if (view == btnInstall || view == btnUpdate)
                     confirmInstall(entry);
                 else {
                     // Show or hide the full description
@@ -507,15 +572,22 @@ public class ActivityDownloads extends ActivityBase {
 
             joinInset(h, h.llPanel, h.vDivider, first, last);
             h.tvName.setText(entry.name);
-            h.tvGroup.setText(Groups.getTitle(context, entry.group));
-            h.tvMeta.setText(getString(R.string.title_download_meta, entry.author, entry.version,
-                    DateUtils.formatDateTime(context, entry.updated, DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR),
-                    getResources().getQuantityString(R.plurals.title_downloads_count, entry.downloads, entry.downloads)));
+
+            // The group leads, in the text color
+            SpannableStringBuilder meta = new SpannableStringBuilder(Groups.getTitle(context, entry.group));
+            meta.setSpan(new ForegroundColorSpan(Ui.color(context, com.google.android.material.R.attr.colorOnSurface)),
+                    0, meta.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            meta.append(" · ").append(getString(R.string.title_download_meta, entry.author, entry.version,
+                    DateUtils.formatDateTime(context, entry.updated, DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR |
+                            DateUtils.FORMAT_NO_MONTH_DAY | DateUtils.FORMAT_ABBREV_MONTH),
+                    getResources().getQuantityString(R.plurals.title_downloads_count, entry.downloads,
+                            NumberFormat.getIntegerInstance().format(entry.downloads))));
+            h.tvMeta.setText(meta);
 
             boolean hasDescription = !TextUtils.isEmpty(entry.description);
             h.tvDescription.setVisibility(hasDescription ? View.VISIBLE : View.GONE);
             h.tvDescription.setText(hasDescription ? entry.description.trim() : null);
-            h.tvDescription.setMaxLines(expanded.contains(entry.id) ? Integer.MAX_VALUE : 3);
+            h.tvDescription.setMaxLines(expanded.contains(entry.id) ? Integer.MAX_VALUE : 2);
 
             h.cgBadges.removeAllViews();
             if (builtinIds.contains(entry.getId()))
@@ -524,18 +596,19 @@ public class ActivityDownloads extends ActivityBase {
             if (overlaps > 0)
                 Ui.addBadge(h.cgBadges, getResources().getQuantityString(R.plurals.title_overlaps, overlaps, overlaps),
                         Ui.Badge.WARNING);
-            if (!collection.contains(entry.collection))
-                Ui.addBadge(h.cgBadges, getString(R.string.title_hook_collection_off, entry.collection), Ui.Badge.NEUTRAL);
-            h.cgBadges.setVisibility(h.cgBadges.getChildCount() == 0 ? View.GONE : View.VISIBLE);
+            if (state == State.UPDATE)
+                Ui.addBadge(h.cgBadges, getString(R.string.title_version_change,
+                        Objects.requireNonNull(installed.get(entry.getId())).getVersion(), entry.version), Ui.Badge.NEUTRAL);
 
-            h.btnRemove.setVisibility(canRemove(entry) ? View.VISIBLE : View.GONE);
-            h.btnInstall.setEnabled(state != State.INSTALLED);
-            h.btnInstall.setText(state == State.UPDATE ? R.string.title_update
-                    : state == State.INSTALLED ? R.string.title_installed
-                    : R.string.title_install);
+            // Installed definitions can be removed, also the ones with an update
+            h.btnRemove.setVisibility(state == State.AVAILABLE ? View.GONE : View.VISIBLE);
+            h.tvInstalled.setVisibility(state == State.INSTALLED ? View.VISIBLE : View.GONE);
+            h.btnInstall.setVisibility(state == State.AVAILABLE ? View.VISIBLE : View.GONE);
+            h.btnUpdate.setVisibility(state == State.UPDATE ? View.VISIBLE : View.GONE);
             // Screen readers tell which definition the buttons are for
             h.btnRemove.setContentDescription(h.btnRemove.getText() + ", " + entry.name);
             h.btnInstall.setContentDescription(h.btnInstall.getText() + ", " + entry.name);
+            h.btnUpdate.setContentDescription(h.btnUpdate.getText() + ", " + entry.name);
         }
     }
 }

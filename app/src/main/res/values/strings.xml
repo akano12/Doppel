@@ -326,7 +326,7 @@
     <!-- Downloads -->
     <string name="menu_downloads">Downloads</string>
     <string name="title_search_downloads">Name, group, author or description</string>
-    <string name="title_downloads_notice">Community hook definitions, from the repository snapshot packaged with this version. Definitions are provided as-is and using them is at your own risk.</string>
+    <string name="title_downloads_notice">Community definitions, as-is and at your own risk</string>
     <string name="title_not_installed">Not installed</string>
     <string name="title_installed">Installed</string>
     <string name="title_updates">Updates</string>
@@ -350,6 +350,22 @@
         <item quantity="one">%1$d update</item>
         <item quantity="other">%1$d updates</item>
     </plurals>
+    <plurals name="title_collection_count">
+        <item quantity="one">%1$d collection</item>
+        <item quantity="other">%1$d collections</item>
+    </plurals>
+    <string name="title_collection_off">not applied, the collection is off</string>
+    <string name="title_updates_snapshot">In the snapshot packaged with this version</string>
+    <string name="title_update_all">Update all</string>
+    <plurals name="msg_update_all">
+        <item quantity="one">Update %1$d definition?</item>
+        <item quantity="other">Update %1$d definitions?</item>
+    </plurals>
+    <plurals name="msg_updated">
+        <item quantity="one">Updated %1$d definition</item>
+        <item quantity="other">Updated %1$d definitions</item>
+    </plurals>
+    <string name="title_version_change">v%1$d → v%2$d</string>
     <plurals name="msg_hooks_imported">
         <item quantity="one">Imported %1$d definition</item>
         <item quantity="other">Imported %1$d definitions</item>
@@ -358,9 +374,10 @@
         <item quantity="one">Exported %1$d definition</item>
         <item quantity="other">Exported %1$d definitions</item>
     </plurals>
+    <!-- The number is formatted with its grouping separators -->
     <plurals name="title_downloads_count">
-        <item quantity="one">%1$d download</item>
-        <item quantity="other">%1$d downloads</item>
+        <item quantity="one">%1$s download</item>
+        <item quantity="other">%1$s downloads</item>
     </plurals>
     <string name="title_enable">Enable</string>
     <string name="msg_installed">Installed %1$s</string>
