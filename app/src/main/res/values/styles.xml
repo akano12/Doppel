@@ -82,12 +82,6 @@
         <item name="strokeWidth">0dp</item>
     </style>
 
-    <!-- Cards of a screen with an outline in the accent color, like the status and sections of Settings -->
-    <style name="XLua.Card.Outlined" parent="XLua.Card">
-        <item name="strokeColor">?attr/colorPrimary</item>
-        <item name="strokeWidth">2dp</item>
-    </style>
-
     <!-- Typography: IBM Plex Sans, medium for titles and labels -->
     <style name="XLua.TextAppearance.DisplayLarge" parent="TextAppearance.Material3.DisplayLarge">
         <item name="android:fontFamily">@font/plex_sans</item>
@@ -349,39 +343,13 @@
         <item name="android:paddingBottom">10dp</item>
     </style>
 
-    <!-- Number with a label, like the restrictions of today -->
-    <style name="XLua.Stat" parent="">
-        <item name="android:layout_width">match_parent</item>
+    <!-- Label of an axis, like the hours under the bars of the Activity tab -->
+    <style name="XLua.Text.Axis" parent="">
+        <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:orientation">vertical</item>
-        <item name="android:paddingStart">12dp</item>
-        <item name="android:paddingTop">10dp</item>
-        <item name="android:paddingEnd">12dp</item>
-        <item name="android:paddingBottom">10dp</item>
-    </style>
-
-    <style name="XLua.Stat.Value" parent="">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textAppearance">?attr/textAppearanceTitleLarge</item>
-    </style>
-
-    <style name="XLua.Stat.Label" parent="">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:maxLines">1</item>
-        <item name="android:ellipsize">end</item>
-        <item name="android:textAppearance">@style/XLua.Text.Meta</item>
-    </style>
-
-    <!-- Segments with a count, like User · 8, which fit three in a row on phones -->
-    <style name="XLua.Button.Segment" parent="Widget.Material3.Button.OutlinedButton">
-        <item name="android:paddingStart">6dp</item>
-        <item name="android:paddingEnd">6dp</item>
-        <item name="android:textSize">13sp</item>
-        <item name="android:maxLines">1</item>
-        <!-- The generated palettes have on-container colors of medium contrast, the fill shows the selection -->
-        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textAppearance">?attr/textAppearanceLabelSmall</item>
+        <item name="android:textColor">?attr/colorOutline</item>
     </style>
 
     <!-- Filter chips above lists -->

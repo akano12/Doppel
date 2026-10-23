@@ -1,20 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A color theme: its container color with its primary color and a check when selected -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="76dp"
-    android:layout_height="wrap_content"
-    android:background="?attr/selectableItemBackgroundBorderless"
-    android:gravity="center_horizontal"
-    android:orientation="vertical"
-    android:paddingTop="6dp"
-    android:paddingBottom="6dp">
+<!-- A color theme: its container color with its primary color and a check when selected; named for screen readers -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="48dp"
+    android:layout_height="48dp"
+    android:background="?attr/selectableItemBackgroundBorderless">
 
     <FrameLayout
         android:id="@+id/flSwatch"
-        android:layout_width="52dp"
-        android:layout_height="52dp"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="center"
         android:background="@drawable/bg_circle"
-        android:padding="12dp">
+        android:padding="8dp">
 
         <ImageView
             android:id="@+id/ivSwatch"
@@ -22,16 +19,7 @@
             android:layout_height="match_parent"
             android:background="@drawable/bg_circle"
             android:importantForAccessibility="no"
-            android:padding="5dp"
+            android:padding="3dp"
             android:src="@drawable/ic_check" />
     </FrameLayout>
-
-    <TextView
-        android:id="@+id/tvPalette"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:maxLines="1"
-        android:textAppearance="?attr/textAppearanceLabelMedium"
-        android:textColor="?attr/colorOnSurfaceVariant" />
-</LinearLayout>
+</FrameLayout>

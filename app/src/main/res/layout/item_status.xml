@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A value of the status card of Settings, like the number of definitions, with its name above -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="0dp"
     android:layout_height="wrap_content"
@@ -11,16 +12,15 @@
         android:id="@+id/tvKey"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:letterSpacing="0.04"
+        android:letterSpacing="0.06"
         android:textAllCaps="true"
-        android:textColor="#9AA3AB"
-        android:textSize="11sp" />
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?attr/colorOnSurfaceVariant" />
 
     <TextView
         android:id="@+id/tvValue"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:textColor="#FFFFFF"
-        android:textSize="13sp" />
+        android:layout_marginTop="1dp"
+        android:textAppearance="?attr/textAppearanceTitleSmall" />
 </LinearLayout>

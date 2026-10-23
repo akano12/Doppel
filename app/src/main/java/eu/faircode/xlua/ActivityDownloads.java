@@ -459,7 +459,7 @@ public class ActivityDownloads extends ActivityBase {
         }
 
         @Override
-        void onBindItem(@NonNull RecyclerView.ViewHolder holder, Entry entry) {
+        void onBindItem(@NonNull RecyclerView.ViewHolder holder, Entry entry, boolean first, boolean last) {
             EntryHolder h = (EntryHolder) holder;
             Context context = h.itemView.getContext();
             State state = getState(entry);

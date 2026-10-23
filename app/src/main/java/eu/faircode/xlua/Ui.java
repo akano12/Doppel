@@ -39,6 +39,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.StringRes;
+import androidx.core.graphics.ColorUtils;
 import androidx.core.text.HtmlCompat;
 import androidx.core.util.Consumer;
 
@@ -86,8 +87,8 @@ final class Ui {
     enum Badge {
         NEUTRAL(com.google.android.material.R.attr.colorSurfaceContainerHigh,
                 com.google.android.material.R.attr.colorOnSurfaceVariant),
-        ACCENT(com.google.android.material.R.attr.colorPrimaryContainer,
-                com.google.android.material.R.attr.colorOnPrimaryContainer),
+        ACCENT(com.google.android.material.R.attr.colorSecondaryContainer,
+                com.google.android.material.R.attr.colorOnSecondaryContainer),
         WARNING(R.attr.colorWarningContainer, R.attr.colorOnWarningContainer);
 
         final int background;
@@ -114,6 +115,28 @@ final class Ui {
         TypedValue value = new TypedValue();
         context.getTheme().resolveAttribute(attr, value, true);
         return value.data;
+    }
+
+    // Rows which form one block, like a card: the first row has the top corners rounded, the last the bottom ones
+    static void join(View view, int color, int radiusDp, boolean first, boolean last) {
+        float radius = dp(view.getContext(), radiusDp);
+        float top = (first ? radius : 0);
+        float bottom = (last ? radius : 0);
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(color);
+        shape.setCornerRadii(new float[]{top, top, top, top, bottom, bottom, bottom, bottom});
+        view.setBackground(shape);
+    }
+
+    // The hairline between the rows of a block, a shade of their background
+    static int dividerColor(Context context, int background) {
+        return ColorUtils.blendARGB(background, color(context, com.google.android.material.R.attr.colorOnSurface), 0.08f);
+    }
+
+    // Enables or disables the children, like the chips of a group
+    static void enable(ViewGroup group, boolean enabled) {
+        for (int i = 0; i < group.getChildCount(); i++)
+            group.getChildAt(i).setEnabled(enabled);
     }
 
     // Rounded label, like 'built-in' or 'system'

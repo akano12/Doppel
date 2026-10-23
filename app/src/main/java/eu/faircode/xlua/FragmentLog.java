@@ -29,6 +29,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -39,14 +40,15 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.chip.ChipGroup;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -76,10 +78,10 @@ public class FragmentLog extends FragmentBase {
     private SwipeRefreshLayout swipeRefresh;
     private View pbLoading;
     private TextView tvEmpty;
-    private TextView tvToday;
-    private TextView tvApps;
-    private TextView tvErrors;
-    private MaterialCardView cvErrors;
+    private TextView tvCalls;
+    private TextView tvCallsLabel;
+    private TextView tvStats;
+    private BarsView vBars;
     private Adapter adapter;
 
     private Filter filter = Filter.ALL;
@@ -102,46 +104,55 @@ public class FragmentLog extends FragmentBase {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_log, container, false);
+        Context context = requireContext();
         Bundle args = getArguments();
         if (args != null) {
             only = args.getString(ARG_PACKAGE);
             onlyUid = args.getInt(ARG_UID, -1);
         }
-        if (only != null) {
-            view.findViewById(R.id.tvTitle).setVisibility(View.GONE);
-            view.findViewById(R.id.llStats).setVisibility(View.GONE);
-        }
 
         swipeRefresh = view.findViewById(R.id.swipeRefresh);
         pbLoading = view.findViewById(R.id.pbLoading);
         tvEmpty = view.findViewById(R.id.tvEmpty);
-        tvToday = view.findViewById(R.id.tvToday);
-        tvApps = view.findViewById(R.id.tvApps);
-        tvErrors = view.findViewById(R.id.tvErrors);
-        cvErrors = view.findViewById(R.id.cvErrors);
-
-        adapter = new Adapter();
-        RecyclerView rvLog = view.findViewById(R.id.rvLog);
-        rvLog.setLayoutManager(new LinearLayoutManager(getContext()));
-        rvLog.setAdapter(adapter);
-
-        swipeRefresh.setColorSchemeColors(Ui.color(requireContext(), androidx.appcompat.R.attr.colorPrimary));
-        swipeRefresh.setOnRefreshListener(this::load);
-
+        tvCalls = view.findViewById(R.id.tvCalls);
+        tvCallsLabel = view.findViewById(R.id.tvCallsLabel);
+        tvStats = view.findViewById(R.id.tvStats);
+        vBars = view.findViewById(R.id.vBars);
+        View tvTitle = view.findViewById(R.id.tvTitle);
+        View tilSearch = view.findViewById(R.id.tilSearch);
         EditText etSearch = view.findViewById(R.id.etSearch);
-        if (only != null)
-            etSearch.setHint(R.string.title_search_log_app);
-        Ui.onTextChanged(etSearch, text -> {
+        ImageButton ibSearch = view.findViewById(R.id.ibSearch);
+        TitleSearch titleSearch = new TitleSearch(this, tvTitle, tilSearch, etSearch, ibSearch, text -> {
             query = text;
             show();
         });
+        if (only == null)
+            search = titleSearch;
+        else {
+            // The log of one app has a toolbar: the search field stays, without the search of the title,
+            // and the overview is of all apps
+            tvTitle.setVisibility(View.GONE);
+            ibSearch.setVisibility(View.GONE);
+            tilSearch.setVisibility(View.VISIBLE);
+            etSearch.setHint(R.string.title_search_log_app);
+            view.findViewById(R.id.cvOverview).setVisibility(View.GONE);
+            view.findViewById(R.id.llTitle).setPadding(Ui.dp(context, 16), Ui.dp(context, 8), Ui.dp(context, 16), 0);
+        }
+
+        adapter = new Adapter();
+        RecyclerView rvLog = view.findViewById(R.id.rvLog);
+        rvLog.setLayoutManager(new LinearLayoutManager(context));
+        rvLog.setAdapter(adapter);
+
+        swipeRefresh.setColorSchemeColors(Ui.color(context, androidx.appcompat.R.attr.colorPrimary));
+        swipeRefresh.setOnRefreshListener(this::load);
 
         ChipGroup cgFilter = view.findViewById(R.id.cgFilter);
         Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
             filter = selected;
             show();
         });
-        cvErrors.setOnClickListener(v -> cgFilter.check(R.id.chipErrors));
+        tvStats.setOnClickListener(v -> cgFilter.check(R.id.chipErrors));
 
         return view;
     }
@@ -224,23 +235,31 @@ public class FragmentLog extends FragmentBase {
         long today = Ui.startOfDay(System.currentTimeMillis());
         long yesterday = Ui.startOfDay(today - 1);
 
+        // The overview: the calls of today by hour, the apps of the log and the errors
         int countToday = 0;
+        int[] hours = new int[24];
+        Calendar calendar = Calendar.getInstance();
         Set<String> packages = new HashSet<>();
         for (Entry entry : entries) {
-            if (entry.time >= today)
+            if (entry.time >= today) {
                 countToday++;
+                calendar.setTimeInMillis(entry.time);
+                hours[calendar.get(Calendar.HOUR_OF_DAY)]++;
+            }
             packages.add(entry.app.packageName);
         }
         // Digits of the language, like Arabic digits
         NumberFormat nf = NumberFormat.getIntegerInstance();
-        tvToday.setText(nf.format(countToday));
-        tvApps.setText(nf.format(packages.size()));
-        tvErrors.setText(nf.format(errors.size()));
-        cvErrors.setCardBackgroundColor(Ui.color(context, errors.isEmpty()
-                ? com.google.android.material.R.attr.colorSurfaceContainerLowest
-                : R.attr.colorWarningContainer));
+        tvCalls.setText(nf.format(countToday));
+        tvCallsLabel.setText(getResources().getQuantityString(R.plurals.title_calls_today, countToday));
+        tvStats.setText(getString(R.string.title_last_used,
+                getResources().getQuantityString(R.plurals.title_stat_apps, packages.size(), packages.size()),
+                getResources().getQuantityString(R.plurals.title_stat_errors_count, errors.size(), errors.size())));
+        tvStats.setTextColor(Ui.color(context, errors.isEmpty()
+                ? com.google.android.material.R.attr.colorOnSurfaceVariant : R.attr.colorWarning));
+        vBars.setValues(hours);
 
-        // Items are entries or day headers
+        // Items are entries under the headers of their days, with the number of entries
         String q = (query == null ? "" : query.trim());
         List<Entry> failed = new ArrayList<>();
         for (Entry entry : errors)
@@ -249,29 +268,31 @@ public class FragmentLog extends FragmentBase {
         List<Object> items = new ArrayList<>();
         if (filter == Filter.ERRORS || (filter == Filter.ALL && !failed.isEmpty())) {
             if (filter == Filter.ALL)
-                items.add(getString(R.string.title_stat_errors));
+                items.add(getString(R.string.title_count, getString(R.string.title_stat_errors), failed.size()));
             items.addAll(failed);
         }
         if (filter != Filter.ERRORS) {
-            String day = null;
+            Map<String, List<Entry>> days = new LinkedHashMap<>();
             for (Entry entry : entries) {
                 if (filter == Filter.TODAY && entry.time < today)
                     continue;
                 if (!matches(context, entry, q))
                     continue;
-                String header;
+                String day;
                 if (entry.time >= today)
-                    header = getString(R.string.title_today);
+                    day = getString(R.string.title_today);
                 else if (entry.time >= yesterday)
-                    header = getString(R.string.title_yesterday);
+                    day = getString(R.string.title_yesterday);
                 else
-                    header = DateUtils.formatDateTime(context, entry.time,
+                    day = DateUtils.formatDateTime(context, entry.time,
                             DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_ABBREV_ALL);
-                if (!header.equals(day)) {
-                    items.add(header);
-                    day = header;
-                }
-                items.add(entry);
+                if (!days.containsKey(day))
+                    days.put(day, new ArrayList<>());
+                days.get(day).add(entry);
+            }
+            for (Map.Entry<String, List<Entry>> day : days.entrySet()) {
+                items.add(getString(R.string.title_count, day.getKey(), day.getValue().size()));
+                items.addAll(day.getValue());
             }
         }
         adapter.set(items);
@@ -298,25 +319,25 @@ public class FragmentLog extends FragmentBase {
 
     private class Adapter extends AdapterSections<Entry> {
         class EntryHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
-            final MaterialCardView card;
+            final View vDivider;
             final ImageView ivIcon;
             final TextView tvApp;
             final TextView tvTime;
             final TextView tvWhat;
-            final View llValues;
             final TextView tvOld;
+            final TextView tvArrow;
             final TextView tvNew;
             final TextView tvHook;
 
             EntryHolder(View itemView) {
                 super(itemView);
-                card = (MaterialCardView) itemView;
+                vDivider = itemView.findViewById(R.id.vDivider);
                 ivIcon = itemView.findViewById(R.id.ivIcon);
                 tvApp = itemView.findViewById(R.id.tvApp);
                 tvTime = itemView.findViewById(R.id.tvTime);
                 tvWhat = itemView.findViewById(R.id.tvWhat);
-                llValues = itemView.findViewById(R.id.llValues);
                 tvOld = itemView.findViewById(R.id.tvOld);
+                tvArrow = itemView.findViewById(R.id.tvArrow);
                 tvNew = itemView.findViewById(R.id.tvNew);
                 tvHook = itemView.findViewById(R.id.tvHook);
                 tvOld.setPaintFlags(tvOld.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
@@ -353,10 +374,21 @@ public class FragmentLog extends FragmentBase {
         }
 
         @Override
-        void onBindItem(@NonNull RecyclerView.ViewHolder holder, Entry entry) {
+        void onBindItem(@NonNull RecyclerView.ViewHolder holder, Entry entry, boolean first, boolean last) {
             EntryHolder h = (EntryHolder) holder;
             Context context = h.itemView.getContext();
             boolean error = (entry.exception != null);
+
+            // The rows of a day form one block, failed hooks are on the error color
+            int background = Ui.color(context, error
+                    ? com.google.android.material.R.attr.colorErrorContainer
+                    : com.google.android.material.R.attr.colorSurfaceContainerLowest);
+            Ui.join(h.itemView, background, 20, first, last);
+            h.vDivider.setVisibility(first ? View.GONE : View.VISIBLE);
+            h.vDivider.setBackgroundColor(Ui.dividerColor(context, background));
+            int meta = Ui.color(context, error
+                    ? com.google.android.material.R.attr.colorOnErrorContainer
+                    : com.google.android.material.R.attr.colorOnSurfaceVariant);
 
             Ui.loadIcon(h.ivIcon, entry.app.packageName, entry.app.icon);
             h.tvApp.setText(entry.app.getLabel());
@@ -367,16 +399,18 @@ public class FragmentLog extends FragmentBase {
                 h.tvTime.setText(getDayTime(context, entry.time));
             else
                 h.tvTime.setText(DateUtils.formatDateTime(context, entry.time, DateUtils.FORMAT_SHOW_TIME));
+            h.tvTime.setTextColor(meta);
             // Ids are the collection and the name, like Privacy.TelephonyManager.getImei
             int dot = entry.hook.indexOf('.');
             h.tvHook.setText(dot < 0 ? entry.hook : entry.hook.substring(dot + 1));
+            h.tvHook.setTextColor(meta);
             Drawable icon = AppCompatResources.getDrawable(context,
                     error ? R.drawable.ic_error : Groups.getIcon(entry.group));
             if (icon != null) {
                 icon = icon.mutate();
                 int size = Ui.dp(context, 16);
                 icon.setBounds(0, 0, size, size);
-                icon.setTint(Ui.color(context, error ? R.attr.colorWarning : androidx.appcompat.R.attr.colorPrimary));
+                icon.setTint(Ui.color(context, error ? androidx.appcompat.R.attr.colorError : androidx.appcompat.R.attr.colorPrimary));
             }
             h.tvWhat.setCompoundDrawablesRelative(icon, null, null, null);
 
@@ -384,22 +418,19 @@ public class FragmentLog extends FragmentBase {
             if (error) {
                 String line = entry.exception.trim().split("\n", 2)[0];
                 h.tvWhat.setText(context.getString(R.string.title_hook_failed, line));
-                h.tvWhat.setTextColor(Ui.color(context, R.attr.colorOnWarningContainer));
+                h.tvWhat.setTextColor(meta);
             } else {
                 h.tvWhat.setText(group == null ? entry.hook : group);
                 h.tvWhat.setTextColor(Ui.color(context, com.google.android.material.R.attr.colorOnSurface));
             }
 
             boolean values = (!error && (entry.oldValue != null || entry.newValue != null));
-            h.llValues.setVisibility(values ? View.VISIBLE : View.GONE);
+            for (View v : new View[]{h.tvOld, h.tvArrow, h.tvNew})
+                v.setVisibility(values ? View.VISIBLE : View.GONE);
             if (values) {
                 h.tvOld.setText(entry.oldValue == null ? "null" : entry.oldValue);
                 h.tvNew.setText(entry.newValue == null ? "null" : entry.newValue);
             }
-
-            h.card.setCardBackgroundColor(Ui.color(context, error
-                    ? R.attr.colorWarningContainer
-                    : com.google.android.material.R.attr.colorSurfaceContainerLowest));
         }
     }
 }

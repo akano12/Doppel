@@ -42,12 +42,14 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -57,6 +59,9 @@ public class ActivityApp extends ActivityBase {
 
     private static final String EXTRA_PACKAGE = "package";
     private static final String EXTRA_UID = "uid";
+
+    // Settings of an app which are no fake values, see ActivityValues
+    private static final Set<String> OPTIONS = new HashSet<>(java.util.Arrays.asList("forcestop", "notify"));
 
     private String packageName;
     private int uid;
@@ -70,11 +75,14 @@ public class ActivityApp extends ActivityBase {
 
     private View svContent;
     private View pbLoading;
+    private CircularProgressIndicator piAll;
+    private TextView tvAllCount;
     private TextView tvSummary;
     private MaterialSwitch swAll;
     private ColorStateList trackAll; // Of all groups fully restricted
     private MaterialCheckBox cbForceStop;
     private MaterialCheckBox cbNotify;
+    private TextView tvValues;
     private View llRestart;
     private TextView tvRestart;
     private Button btnForceStop;
@@ -123,11 +131,14 @@ public class ActivityApp extends ActivityBase {
 
         svContent = findViewById(R.id.svContent);
         pbLoading = findViewById(R.id.pbLoading);
+        piAll = findViewById(R.id.piAll);
+        tvAllCount = findViewById(R.id.tvAllCount);
         tvSummary = findViewById(R.id.tvSummary);
         swAll = findViewById(R.id.swAll);
         trackAll = swAll.getTrackTintList();
         cbForceStop = findViewById(R.id.cbForceStop);
         cbNotify = findViewById(R.id.cbNotify);
+        tvValues = findViewById(R.id.tvValues);
         llRestart = findViewById(R.id.llRestart);
         tvRestart = findViewById(R.id.tvRestart);
         btnForceStop = findViewById(R.id.btnForceStop);
@@ -169,12 +180,19 @@ public class ActivityApp extends ActivityBase {
                     return;
                 }
                 List<XHook> hooks = Data.getAvailable(Data.getHooks(context), app, Data.getCollection(context), null);
-                boolean notify = Data.getSettingBoolean(context, app.packageName, "notify");
+                Map<String, String> settings = Data.getSettings(context, app.packageName);
+                boolean notify = Boolean.parseBoolean(settings.get("notify"));
+                // The fake values of the app itself, the rest come from the values for all apps
+                int own = 0;
+                for (String name : settings.keySet())
+                    if (!OPTIONS.contains(name))
+                        own++;
+                final int values = own;
                 postUnlessGone(() -> {
                     // Changed while loading, which was sent after the data was read, on the same background thread;
                     // loading again shows the change, else the switches would go back
                     if (changes == started)
-                        show(app, hooks, notify);
+                        show(app, hooks, notify, values);
                     else
                         load();
                 });
@@ -198,7 +216,7 @@ public class ActivityApp extends ActivityBase {
         return (app == null ? packageName : app.getLabel());
     }
 
-    private void show(XApp app, List<XHook> hooks, boolean notify) {
+    private void show(XApp app, List<XHook> hooks, boolean notify, int values) {
         this.app = app;
         uid = app.uid;
 
@@ -210,15 +228,16 @@ public class ActivityApp extends ActivityBase {
 
         Ui.loadIcon(findViewById(R.id.ivIcon), app.packageName, app.icon);
         ((TextView) findViewById(R.id.tvPackage)).setText(app.packageName);
-        String version = null;
+        LinearLayout llBadges = findViewById(R.id.llBadges);
+        llBadges.removeAllViews();
+        Ui.addBadge(llBadges, getString(app.system ? R.string.badge_system : R.string.title_filter_user), Ui.Badge.NEUTRAL);
+        Ui.addBadge(llBadges, getString(R.string.title_uid, app.uid), Ui.Badge.NEUTRAL);
         try {
             PackageInfo pi = getPackageManager().getPackageInfo(app.packageName, 0);
-            version = pi.versionName;
+            if (pi.versionName != null)
+                Ui.addBadge(llBadges, pi.versionName, Ui.Badge.NEUTRAL);
         } catch (Throwable ignored) {
         }
-        ((TextView) findViewById(R.id.tvMeta)).setText(getString(R.string.title_app_meta,
-                app.uid, version == null ? "?" : version,
-                getString(app.system ? R.string.badge_system : R.string.title_filter_user)));
         findViewById(R.id.llAndroid).setVisibility("android".equals(app.packageName) ? View.VISIBLE : View.GONE);
 
         cbForceStop.setOnCheckedChangeListener(null);
@@ -244,15 +263,18 @@ public class ActivityApp extends ActivityBase {
 
         // Group the hooks
         available.clear();
-        boolean values = false;
+        boolean hasValues = false;
         for (XHook hook : hooks) {
             if (!available.containsKey(hook.getGroup()))
                 available.put(hook.getGroup(), new ArrayList<>());
             available.get(hook.getGroup()).add(hook);
             if (hook.getSettings().length > 0)
-                values = true;
+                hasValues = true;
         }
-        findViewById(R.id.llValues).setVisibility(values ? View.VISIBLE : View.GONE);
+        findViewById(R.id.llValues).setVisibility(hasValues ? View.VISIBLE : View.GONE);
+        tvValues.setText(values == 0
+                ? getString(R.string.title_values_none)
+                : getResources().getQuantityString(R.plurals.title_values_own, values, values));
 
         // Sections with their groups by title
         Map<Integer, List<String>> sections = new HashMap<>();
@@ -275,6 +297,7 @@ public class ActivityApp extends ActivityBase {
 
             View vSection = inflater.inflate(R.layout.item_section, llSections, false);
             ((TextView) vSection.findViewById(R.id.tvSection)).setText(section);
+            vSection.setTag(groups);
             LinearLayout llRows = vSection.findViewById(R.id.llRows);
             for (final String group : groups) {
                 View vGroup = inflater.inflate(R.layout.item_group, llRows, false);
@@ -324,8 +347,8 @@ public class ActivityApp extends ActivityBase {
             R.attr.colorWarning, R.attr.colorWarningContainer, R.attr.colorOnWarningContainer};
     private static final int[] COLORS_RESTRICTED = {
             androidx.appcompat.R.attr.colorPrimary,
-            com.google.android.material.R.attr.colorPrimaryContainer,
-            com.google.android.material.R.attr.colorOnPrimaryContainer};
+            com.google.android.material.R.attr.colorSecondaryContainer,
+            com.google.android.material.R.attr.colorOnSecondaryContainer};
     private static final int[] COLORS_NONE = {
             com.google.android.material.R.attr.colorOnSurfaceVariant,
             com.google.android.material.R.attr.colorSurfaceContainerHigh,
@@ -350,16 +373,20 @@ public class ActivityApp extends ActivityBase {
         gv.tvMeta.setTextColor(Ui.color(this, colors[0]));
         gv.flIcon.setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, colors[1])));
         gv.ivIcon.setImageTintList(ColorStateList.valueOf(Ui.color(this, colors[2])));
+        // A restricted group which did not restrict anything yet has nothing to say, the switch tells
+        String meta;
         if (assignments.isEmpty())
-            gv.tvMeta.setText(R.string.title_not_restricted);
+            meta = getString(R.string.title_not_restricted);
         else if (error)
-            gv.tvMeta.setText(R.string.title_group_error);
+            meta = getString(R.string.title_group_error);
         else if (assignments.size() < hooks.size())
-            gv.tvMeta.setText(getResources().getQuantityString(R.plurals.title_group_partial, hooks.size(), assignments.size(), hooks.size()));
+            meta = getResources().getQuantityString(R.plurals.title_group_partial, hooks.size(), assignments.size(), hooks.size());
         else if (used > 0)
-            gv.tvMeta.setText(getString(R.string.title_restricted_when, Ui.ago(ActivityApp.this, used)));
+            meta = getString(R.string.title_restricted_when, Ui.ago(this, used));
         else
-            gv.tvMeta.setText(R.string.title_not_used);
+            meta = null;
+        gv.tvMeta.setText(meta);
+        gv.tvMeta.setVisibility(meta == null ? View.GONE : View.VISIBLE);
 
         gv.ibError.setVisibility(error ? View.VISIBLE : View.GONE);
         bindHooks(group, gv, hooks);
@@ -405,7 +432,7 @@ public class ActivityApp extends ActivityBase {
                 status = getString(R.string.title_hook_state_failed);
             } else if (assignment.restricted && assignment.used > 0) {
                 color = dot = androidx.appcompat.R.attr.colorPrimary;
-                status = getString(R.string.title_restricted_when, Ui.ago(ActivityApp.this, assignment.used));
+                status = getString(R.string.title_restricted_when, Ui.ago(this, assignment.used));
             } else {
                 color = dot = com.google.android.material.R.attr.colorOnSurfaceVariant;
                 status = getString(R.string.title_hook_not_used);
@@ -442,6 +469,7 @@ public class ActivityApp extends ActivityBase {
         return (app.getAssignments(group).size() >= available.get(group).size());
     }
 
+    // The ring and the line of Restrict all, and the counts of the sections, like 3 of 3
     private void updateSummary() {
         int restricted = 0;
         boolean complete = true;
@@ -451,9 +479,39 @@ public class ActivityApp extends ActivityBase {
             if (!isComplete(group))
                 complete = false;
         }
-        tvSummary.setText(getResources().getQuantityString(R.plurals.title_groups_restricted, available.size(), restricted, available.size()));
+        // The last call restricted, of any group
+        long last = -1;
+        String lastGroup = null;
+        for (XAssignment assignment : app.assignments)
+            if (assignment.restricted && assignment.used > last) {
+                last = assignment.used;
+                lastGroup = assignment.hook.getGroup();
+            }
+
+        int groups = available.size();
+        piAll.setProgressCompat(groups == 0 ? 0 : Math.round(100f * restricted / groups), true);
+        tvAllCount.setText(String.format(Locale.getDefault(), "%d", restricted));
+        String summary = getResources().getQuantityString(R.plurals.title_groups_restricted, groups, restricted, groups);
+        if (last > 0)
+            summary = getString(R.string.title_last_used, summary,
+                    getString(R.string.title_last_call, Groups.getTitle(this, lastGroup), Ui.ago(this, last)));
+        tvSummary.setText(summary);
         swAll.setChecked(restricted > 0);
         setPartial(swAll, trackAll, restricted > 0 && !complete);
+
+        LinearLayout llSections = findViewById(R.id.llSections);
+        for (int i = 0; i < llSections.getChildCount(); i++) {
+            View vSection = llSections.getChildAt(i);
+            @SuppressWarnings("unchecked")
+            List<String> groupsOf = (List<String>) vSection.getTag();
+            int count = 0;
+            for (String group : groupsOf)
+                if (!app.getAssignments(group).isEmpty())
+                    count++;
+            TextView tvCount = vSection.findViewById(R.id.tvCount);
+            tvCount.setText(getString(R.string.title_of, count, groupsOf.size()));
+            tvCount.setVisibility(View.VISIBLE);
+        }
     }
 
     // Restrict all hooks of all groups, or remove all restrictions when all hooks are restricted

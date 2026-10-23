@@ -19,6 +19,7 @@ package eu.faircode.xlua;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -31,7 +32,8 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
-import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputLayout;
 
@@ -47,7 +49,8 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeSet;
 
-// Fake values read by the hook scripts (param:getSetting), for all apps or for a single app
+// Fake values read by the hook scripts (param:getSetting), for all apps or for a single app;
+// each value tells which group reads it and whether that group is restricted
 public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private static final String TAG = "XLua.Values";
 
@@ -118,6 +121,15 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private Map<String, String> restored = null; // Entered for the scope, until its form is built
     private final SecureRandom random = new SecureRandom();
 
+    // The groups which read a value, by its key, and whether they restrict the app, or how many apps they restrict
+    private final Map<String, List<String>> readers = new HashMap<>();
+    private final Set<String> restricted = new HashSet<>();
+    private final Map<String, Integer> restricting = new HashMap<>();
+    private final Map<String, List<View>> hints = new HashMap<>(); // By key, see bindHints
+    private XApp app = null; // The app of the values, when they are of one app
+    private List<XHook> hooks = new ArrayList<>();
+    private List<String> collection = new ArrayList<>();
+
     static Intent getIntent(Context context, String packageName, String label) {
         Intent intent = new Intent(context, ActivityValues.class);
         intent.putExtra(EXTRA_PACKAGE, packageName);
@@ -151,14 +163,16 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         setupToolbar(getString(R.string.menu_values));
 
         // Values of an app replace the values for all apps
-        MaterialButtonToggleGroup tgScope = findViewById(R.id.tgScope);
+        ChipGroup cgScope = findViewById(R.id.cgScope);
         if (packageName != null) {
-            ((Button) findViewById(R.id.btnScopeApp)).setText(label);
-            tgScope.setVisibility(View.VISIBLE);
-            tgScope.check(GLOBAL.equals(category) ? R.id.btnScopeGlobal : R.id.btnScopeApp);
-            tgScope.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-                String selected = (checkedId == R.id.btnScopeApp ? packageName : GLOBAL);
-                if (!isChecked || selected.equals(category))
+            ((Chip) findViewById(R.id.chipScopeApp)).setText(label);
+            cgScope.setVisibility(View.VISIBLE);
+            cgScope.check(GLOBAL.equals(category) ? R.id.chipScopeGlobal : R.id.chipScopeApp);
+            cgScope.setOnCheckedStateChangeListener((group, checkedIds) -> {
+                if (checkedIds.isEmpty())
+                    return;
+                String selected = (checkedIds.get(0) == R.id.chipScopeApp ? packageName : GLOBAL);
+                if (selected.equals(category))
                     return;
                 // Nothing is entered for the other scope yet; the form shows the old scope until it is built,
                 // its discarded values should not be saved for the other scope on a recreation meanwhile
@@ -172,7 +186,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     change.run();
                 else
                     confirmDiscard(change, () ->
-                            group.check(GLOBAL.equals(category) ? R.id.btnScopeGlobal : R.id.btnScopeApp));
+                            group.check(GLOBAL.equals(category) ? R.id.chipScopeGlobal : R.id.chipScopeApp));
             });
         }
 
@@ -205,23 +219,54 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     // The form cannot be saved until it is built (see save), so a failed load is retried
     private void load() {
         final String category = this.category;
+        final boolean global = GLOBAL.equals(category);
         final Context context = getApplicationContext();
         run(TAG, () -> {
             final Map<String, String> v = Data.getSettings(context, category);
-            final Map<String, String> g = (GLOBAL.equals(category)
-                    ? new HashMap<>()
-                    : Data.getSettings(context, GLOBAL));
+            final Map<String, String> g = (global ? new HashMap<>() : Data.getSettings(context, GLOBAL));
+            final List<XHook> hooks = Data.getHooks(context);
+            final List<String> collection = Data.getCollection(context);
 
-            // Settings declared by custom definitions
+            // Settings declared by custom definitions, and the groups which read each setting
             Set<String> known = new HashSet<>();
             for (Object item : SECTIONS)
                 if (item instanceof Field)
                     known.add(((Field) item).key);
             TreeSet<String> custom = new TreeSet<>();
-            for (XHook hook : Data.getHooks(context))
-                for (String name : hook.getSettings())
+            final Map<String, List<String>> readers = new HashMap<>();
+            for (XHook hook : hooks)
+                for (String name : hook.getSettings()) {
                     if (!known.contains(name))
                         custom.add(name);
+                    if (!readers.containsKey(name))
+                        readers.put(name, new ArrayList<>());
+                    if (!readers.get(name).contains(hook.getGroup()))
+                        readers.get(name).add(hook.getGroup());
+                }
+            for (List<String> groups : readers.values())
+                Groups.sortByTitle(context, groups);
+
+            // Whether the groups restrict the app, or how many apps they restrict
+            final Set<String> restricted = new HashSet<>();
+            final Map<String, Integer> restricting = new HashMap<>();
+            final XApp app;
+            if (global) {
+                app = null;
+                for (XApp other : Data.getApps(context)) {
+                    Set<String> groups = new HashSet<>();
+                    for (XAssignment assignment : other.assignments)
+                        groups.add(assignment.hook.getGroup());
+                    for (String group : groups) {
+                        Integer count = restricting.get(group);
+                        restricting.put(group, count == null ? 1 : count + 1);
+                    }
+                }
+            } else {
+                app = Data.getApp(context, category, -1);
+                if (app != null)
+                    for (XAssignment assignment : app.assignments)
+                        restricted.add(assignment.hook.getGroup());
+            }
 
             runOnUiThread(() -> {
                 // The scope was switched meanwhile, its form is built by the load which followed
@@ -232,6 +277,15 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 values.putAll(v);
                 globals.clear();
                 globals.putAll(g);
+                this.hooks = hooks;
+                this.collection = collection;
+                this.app = app;
+                this.readers.clear();
+                this.readers.putAll(readers);
+                this.restricted.clear();
+                this.restricted.addAll(restricted);
+                this.restricting.clear();
+                this.restricting.putAll(restricting);
                 form.clear();
                 form.addAll(Arrays.asList(SECTIONS));
                 if (!custom.isEmpty()) {
@@ -260,6 +314,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         LinearLayout container = findViewById(R.id.llValues);
         container.removeAllViews();
         inputs.clear();
+        hints.clear();
         LayoutInflater inflater = LayoutInflater.from(this);
         LinearLayout rows = null;
         for (Object item : form) {
@@ -315,8 +370,67 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
             rows.addView(til);
             inputs.put(field.key, til);
+
+            // The groups which read the value, under it
+            List<String> groups = readers.get(field.key);
+            if (groups != null)
+                for (String group : groups) {
+                    View hint = inflater.inflate(R.layout.item_value_hint, rows, false);
+                    hint.setTag(group);
+                    rows.addView(hint);
+                    if (!hints.containsKey(field.key))
+                        hints.put(field.key, new ArrayList<>());
+                    hints.get(field.key).add(hint);
+                }
         }
         updateLocationHints();
+        bindHints();
+    }
+
+    // Under each value: the group which reads it and whether it restricts the app, with the action to restrict it,
+    // or for all apps how many apps it restricts; a value no group reads has no line
+    private void bindHints() {
+        boolean global = GLOBAL.equals(category);
+        for (List<View> views : hints.values())
+            for (View view : views) {
+                final String group = (String) view.getTag();
+                String title = Groups.getTitle(this, group);
+                TextView tvHint = view.findViewById(R.id.tvHint);
+                Button btnRestrict = view.findViewById(R.id.btnRestrict);
+                int color;
+                if (global) {
+                    Integer count = restricting.get(group);
+                    int apps = (count == null ? 0 : count);
+                    tvHint.setText(apps == 0
+                            ? getString(R.string.title_hint_no_apps, title)
+                            : getResources().getQuantityString(R.plurals.title_hint_apps, apps, title, apps));
+                    color = (apps == 0 ? R.attr.colorWarning : R.attr.colorSuccess);
+                    btnRestrict.setVisibility(View.GONE);
+                } else {
+                    boolean on = restricted.contains(group);
+                    tvHint.setText(getString(on ? R.string.title_hint_restricted : R.string.title_hint_unrestricted, title));
+                    color = (on ? R.attr.colorSuccess : R.attr.colorWarning);
+                    btnRestrict.setVisibility(on || app == null ? View.GONE : View.VISIBLE);
+                    // Screen readers tell which group the button restricts
+                    btnRestrict.setContentDescription(getString(R.string.title_restrict) + ", " + title);
+                    btnRestrict.setOnClickListener(v -> restrict(group));
+                }
+                view.findViewById(R.id.vDot).setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, color)));
+            }
+    }
+
+    // All hooks of the group for the app, like the switch of the group on the screen of the app
+    private void restrict(String group) {
+        final Context context = getApplicationContext();
+        final XApp app = this.app;
+        final List<XHook> available = Data.getAvailable(hooks, app, collection, group);
+        final String title = Groups.getTitle(this, group);
+        restricted.add(group);
+        bindHints();
+        run(TAG, () -> {
+            Data.assign(context, app, available, true);
+            Ui.message(this, getString(R.string.msg_group_restricted, title, label));
+        });
     }
 
     // What applies when the field is empty

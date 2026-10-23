@@ -26,7 +26,6 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.EditText;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
@@ -37,6 +36,7 @@ import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 
@@ -54,20 +54,21 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-// All hook definitions: built-in, custom and custom replacing built-in
+// All hook definitions: built-in, custom and custom replacing built-in, under their groups
 public class FragmentHooks extends FragmentBase {
     private static final String TAG = "XLua.Hooks";
 
-    private enum Filter {ALL, CUSTOM, DISABLED}
+    private enum Filter {ALL, CUSTOM, DISABLED, UNAVAILABLE}
 
-    private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipCustom, R.id.chipDisabled};
+    private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipCustom, R.id.chipDisabled, R.id.chipUnavailable};
 
-    // The group which shows its hooks, the others show only their header
+    // The group which shows its hooks, the others show only their row
     private static final String PREF_EXPANDED = "hooks_group";
 
     private View pbLoading;
     private TextView tvEmpty;
     private TextView tvSummary;
+    private ChipGroup cgFilter;
     private ExtendedFloatingActionButton fabAdd;
     private Adapter adapter;
 
@@ -102,6 +103,7 @@ public class FragmentHooks extends FragmentBase {
         pbLoading = view.findViewById(R.id.pbLoading);
         tvEmpty = view.findViewById(R.id.tvEmpty);
         tvSummary = view.findViewById(R.id.tvSummary);
+        cgFilter = view.findViewById(R.id.cgFilter);
 
         adapter = new Adapter();
         RecyclerView rvHooks = view.findViewById(R.id.rvHooks);
@@ -135,14 +137,13 @@ public class FragmentHooks extends FragmentBase {
             popup.show();
         });
 
-        EditText etSearch = view.findViewById(R.id.etSearch);
-        Ui.onTextChanged(etSearch, text -> {
-            query = text;
-            accordion.reset();
-            show();
-        });
+        search = new TitleSearch(this, view.findViewById(R.id.llTitle), view.findViewById(R.id.tilSearch),
+                view.findViewById(R.id.etSearch), view.findViewById(R.id.ibSearch), text -> {
+                    query = text;
+                    accordion.reset();
+                    show();
+                });
 
-        ChipGroup cgFilter = view.findViewById(R.id.cgFilter);
         Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
             filter = selected;
             accordion.reset();
@@ -187,18 +188,40 @@ public class FragmentHooks extends FragmentBase {
         });
     }
 
+    private boolean matches(XHook hook) {
+        switch (filter) {
+            case CUSTOM:
+                return !hook.isBuiltin();
+            case DISABLED:
+                return !hook.isEnabled();
+            case UNAVAILABLE:
+                return !hook.isForThisSdk();
+            default:
+                return true;
+        }
+    }
+
     private void show() {
         int builtin = 0;
         int custom = 0;
+        int disabled = 0;
+        int unavailable = 0;
         Set<String> groups = new HashSet<>();
         for (XHook hook : all) {
             if (hook.isBuiltin())
                 builtin++;
             else
                 custom++;
+            if (!hook.isEnabled())
+                disabled++;
+            if (!hook.isForThisSdk())
+                unavailable++;
             groups.add(hook.getGroup());
         }
         tvSummary.setText(getResources().getQuantityString(R.plurals.title_hooks_summary, groups.size(), builtin, custom, groups.size()));
+        ((Chip) cgFilter.findViewById(R.id.chipCustom)).setText(getString(R.string.title_count, getString(R.string.title_hook_custom), custom));
+        ((Chip) cgFilter.findViewById(R.id.chipDisabled)).setText(getString(R.string.title_count, getString(R.string.title_hook_disabled), disabled));
+        ((Chip) cgFilter.findViewById(R.id.chipUnavailable)).setText(getString(R.string.title_count, getString(R.string.title_hook_unavailable_short), unavailable));
 
         String q = (query == null ? "" : query.trim());
         List<Object> items = new ArrayList<>();
@@ -206,9 +229,7 @@ public class FragmentHooks extends FragmentBase {
         List<XHook> inGroup = new ArrayList<>();
         Context context = requireContext();
         for (XHook hook : all) {
-            if (filter == Filter.CUSTOM && hook.isBuiltin())
-                continue;
-            if (filter == Filter.DISABLED && hook.isEnabled())
+            if (!matches(hook))
                 continue;
             // Groups by name and by the title shown, like 'call log' for Get.Call.log
             if (!q.isEmpty() &&
@@ -240,10 +261,33 @@ public class FragmentHooks extends FragmentBase {
         tvEmpty.setVisibility(items.isEmpty() && pbLoading.getVisibility() != View.VISIBLE ? View.VISIBLE : View.GONE);
     }
 
-    // One group is open at a time, at first the first one; searching or filtering shows all groups with matches
+    // One group is open at a time, at first the first one; searching or filtering shows all groups with matches.
+    // The row of a group tells how many hooks it has, and how many are custom, disabled or not for this Android.
     private void addGroup(List<Object> items, String group, List<XHook> hooks) {
+        if (group == null || hooks.isEmpty())
+            return;
         Context context = requireContext();
-        accordion.add(context, items, group, group == null ? null : Groups.getTitle(context, group), hooks,
+        int custom = 0;
+        int disabled = 0;
+        int unavailable = 0;
+        for (XHook hook : hooks) {
+            if (!hook.isBuiltin())
+                custom++;
+            if (!hook.isEnabled())
+                disabled++;
+            if (!hook.isForThisSdk())
+                unavailable++;
+        }
+        List<String> parts = new ArrayList<>();
+        parts.add(getResources().getQuantityString(R.plurals.title_hook_count, hooks.size(), hooks.size()));
+        if (custom > 0)
+            parts.add(getResources().getQuantityString(R.plurals.title_hook_custom_count, custom, custom));
+        if (disabled > 0)
+            parts.add(getResources().getQuantityString(R.plurals.title_hook_disabled_count, disabled, disabled));
+        if (unavailable > 0)
+            parts.add(getResources().getQuantityString(R.plurals.title_hook_unavailable_count, unavailable, unavailable));
+        accordion.addGroup(context, items, group, Groups.getTitle(context, group), String.join(" · ", parts),
+                Groups.getIcon(group), hooks,
                 all.isEmpty() ? null : all.get(0).getGroup(),
                 filter != Filter.ALL || (query != null && !query.trim().isEmpty()),
                 this::show);
@@ -318,12 +362,16 @@ public class FragmentHooks extends FragmentBase {
 
     private class Adapter extends AdapterSections<XHook> {
         class HookHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
+            final View llPanel;
+            final View vDivider;
             final TextView tvName;
             final TextView tvClass;
             final ViewGroup cgBadges;
 
             HookHolder(View itemView) {
                 super(itemView);
+                llPanel = itemView.findViewById(R.id.llPanel);
+                vDivider = itemView.findViewById(R.id.vDivider);
                 tvName = itemView.findViewById(R.id.tvName);
                 tvClass = itemView.findViewById(R.id.tvClass);
                 cgBadges = itemView.findViewById(R.id.cgBadges);
@@ -344,10 +392,21 @@ public class FragmentHooks extends FragmentBase {
         }
 
         @Override
-        void onBindItem(@NonNull RecyclerView.ViewHolder holder, XHook hook) {
+        void onBindItem(@NonNull RecyclerView.ViewHolder holder, XHook hook, boolean first, boolean last) {
             HookHolder h = (HookHolder) holder;
             Context context = h.itemView.getContext();
             boolean runs = (hook.isEnabled() && hook.isForThisSdk() && collection.contains(hook.getCollection()));
+
+            // The hooks of a group are an inset panel in the block of the group rows, which ends with the last hook
+            int position = h.getBindingAdapterPosition();
+            Ui.join(h.itemView, Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerLowest), 20,
+                    false, position == getItemCount() - 1);
+            int panel = Ui.color(context, com.google.android.material.R.attr.colorSurface);
+            Ui.join(h.llPanel, panel, 14, first, last);
+            ((ViewGroup.MarginLayoutParams) h.llPanel.getLayoutParams()).bottomMargin = (last ? Ui.dp(context, 10) : 0);
+            h.llPanel.requestLayout();
+            h.vDivider.setVisibility(first ? View.GONE : View.VISIBLE);
+            h.vDivider.setBackgroundColor(Ui.dividerColor(context, panel));
 
             h.tvName.setText(hook.getName());
             h.tvName.setTextColor(Ui.color(context, runs

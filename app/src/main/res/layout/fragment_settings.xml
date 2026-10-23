@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -22,12 +23,10 @@
             android:text="@string/nav_settings"
             android:textAppearance="@style/XLua.Text.ScreenTitle" />
 
+        <!-- Whether the hooks are live, the version and what is loaded; the colors are set by FragmentSettings -->
         <com.google.android.material.card.MaterialCardView
-            style="@style/XLua.Card.Outlined"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardBackgroundColor="@color/c_code_background"
-            app:cardCornerRadius="18dp">
+            android:layout_height="wrap_content">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -46,16 +45,14 @@
                         android:layout_width="44dp"
                         android:layout_height="44dp"
                         android:background="@drawable/bg_rounded"
-                        android:backgroundTint="@color/c_outline"
                         android:importantForAccessibility="no"
                         android:padding="10dp"
-                        android:src="@drawable/ic_shield"
-                        app:tint="#FFFFFF" />
+                        android:src="@drawable/ic_shield" />
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
+                        android:layout_marginStart="14dp"
                         android:layout_weight="1"
                         android:orientation="vertical">
 
@@ -64,14 +61,15 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textAppearance="?attr/textAppearanceTitleMedium"
-                            android:textColor="#FFFFFF" />
+                            tools:text="Module active" />
 
                         <TextView
                             android:id="@+id/tvVersion"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="#B8C0C7" />
+                            android:layout_marginTop="2dp"
+                            android:textAppearance="@style/XLua.Text.Meta"
+                            tools:text="XPrivacyLua 1.37 (138)" />
                     </LinearLayout>
                 </LinearLayout>
 
@@ -79,7 +77,7 @@
                     android:id="@+id/glStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
+                    android:layout_marginTop="12dp"
                     android:columnCount="2" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -89,7 +87,6 @@
             android:text="@string/section_new_apps" />
 
         <com.google.android.material.card.MaterialCardView
-            style="@style/XLua.Card.Outlined"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
@@ -100,49 +97,49 @@
                 android:orientation="vertical"
                 android:showDividers="middle">
 
-            <LinearLayout
-                android:id="@+id/llRestrictNew"
-                style="@style/XLua.Row">
+                <LinearLayout
+                    android:id="@+id/llRestrictNew"
+                    style="@style/XLua.Row">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                    <LinearLayout style="@style/XLua.Row.Text">
 
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/menu_restrict_new" />
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/menu_restrict_new" />
 
-                    <TextView
-                        style="@style/XLua.Row.Subtitle"
-                        android:text="@string/title_restrict_new_hint" />
+                        <TextView
+                            style="@style/XLua.Row.Subtitle"
+                            android:text="@string/title_restrict_new_hint" />
+                    </LinearLayout>
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/swRestrictNew"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:contentDescription="@string/menu_restrict_new" />
                 </LinearLayout>
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/swRestrictNew"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@string/menu_restrict_new" />
-            </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/llNotifyNew"
+                    style="@style/XLua.Row">
 
-            <LinearLayout
-                android:id="@+id/llNotifyNew"
-                style="@style/XLua.Row">
+                    <LinearLayout style="@style/XLua.Row.Text">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/menu_notify_new" />
 
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/menu_notify_new" />
+                        <TextView
+                            style="@style/XLua.Row.Subtitle"
+                            android:text="@string/title_notify_new_hint" />
+                    </LinearLayout>
 
-                    <TextView
-                        style="@style/XLua.Row.Subtitle"
-                        android:text="@string/title_notify_new_hint" />
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/swNotifyNew"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:contentDescription="@string/menu_notify_new" />
                 </LinearLayout>
-
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/swNotifyNew"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@string/menu_notify_new" />
-            </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -151,16 +148,8 @@
             android:text="@string/section_hooks" />
 
         <com.google.android.material.card.MaterialCardView
-            style="@style/XLua.Card.Outlined"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:divider="@drawable/divider"
-                android:orientation="vertical"
-                android:showDividers="middle">
 
             <LinearLayout
                 android:id="@+id/llCollections"
@@ -173,14 +162,13 @@
                         android:text="@string/title_collections" />
 
                     <TextView
-                        style="@style/XLua.Row.Subtitle"
-                        android:id="@+id/tvCollections" />
+                        android:id="@+id/tvCollections"
+                        style="@style/XLua.Row.Subtitle" />
                 </LinearLayout>
 
                 <ImageView
                     style="@style/XLua.Row.Icon"
                     android:importantForAccessibility="no" />
-            </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -188,79 +176,132 @@
             style="@style/XLua.SectionTitle"
             android:text="@string/section_appearance" />
 
-        <com.google.android.material.button.MaterialButtonToggleGroup
-            android:id="@+id/tgTheme"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:selectionRequired="true"
-            app:singleSelection="true">
-
-            <Button
-                android:id="@+id/btnThemeSystem"
-                style="@style/XLua.Button.Segment"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/title_theme_system" />
-
-            <Button
-                android:id="@+id/btnThemeLight"
-                style="@style/XLua.Button.Segment"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/title_theme_light" />
-
-            <Button
-                android:id="@+id/btnThemeDark"
-                style="@style/XLua.Button.Segment"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/title_theme_dark" />
-        </com.google.android.material.button.MaterialButtonToggleGroup>
-
-        <!-- Color themes, see FragmentSettings.showPalettes -->
-        <HorizontalScrollView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:contentDescription="@string/title_palette"
-            android:scrollbars="none">
-
-            <LinearLayout
-                android:id="@+id/llPalettes"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal" />
-        </HorizontalScrollView>
-
         <com.google.android.material.card.MaterialCardView
-            style="@style/XLua.Card.Outlined"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp">
+            android:layout_height="wrap_content">
 
             <LinearLayout
-                android:id="@+id/llBlack"
-                style="@style/XLua.Row">
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:divider="@drawable/divider"
+                android:orientation="vertical"
+                android:showDividers="middle">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                <!-- The theme, which is remembered by the service too, see FragmentSettings -->
+                <LinearLayout style="@style/XLua.Row">
 
                     <TextView
                         style="@style/XLua.Row.Title"
-                        android:text="@string/title_black" />
+                        android:layout_marginEnd="12dp"
+                        android:text="@string/title_theme" />
 
-                    <TextView
-                        style="@style/XLua.Row.Subtitle"
-                        android:text="@string/title_black_hint" />
+                    <HorizontalScrollView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:scrollbars="none">
+
+                        <com.google.android.material.chip.ChipGroup
+                            android:id="@+id/cgTheme"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="end"
+                            app:checkedChip="@id/chipThemeSystem"
+                            app:selectionRequired="true"
+                            app:singleLine="true"
+                            app:singleSelection="true">
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipThemeSystem"
+                                style="@style/XLua.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/title_theme_system" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipThemeLight"
+                                style="@style/XLua.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/title_theme_light" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipThemeDark"
+                                style="@style/XLua.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/title_theme_dark" />
+                        </com.google.android.material.chip.ChipGroup>
+                    </HorizontalScrollView>
                 </LinearLayout>
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/swBlack"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@string/title_black" />
+                <!-- Color themes, see FragmentSettings.showPalettes -->
+                <LinearLayout style="@style/XLua.Row">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:layout_marginEnd="12dp"
+                        android:text="@string/title_palette" />
+
+                    <HorizontalScrollView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:contentDescription="@string/title_palette"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/llPalettes"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="end"
+                            android:orientation="horizontal" />
+                    </HorizontalScrollView>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/llBlack"
+                    style="@style/XLua.Row">
+
+                    <LinearLayout style="@style/XLua.Row.Text">
+
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/title_black" />
+
+                        <TextView
+                            style="@style/XLua.Row.Subtitle"
+                            android:text="@string/title_black_hint" />
+                    </LinearLayout>
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/swBlack"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:contentDescription="@string/title_black" />
+                </LinearLayout>
+
+                <!-- The language of the app, see FragmentSettings.selectLanguage -->
+                <LinearLayout
+                    android:id="@+id/llLanguage"
+                    style="@style/XLua.Row">
+
+                    <LinearLayout style="@style/XLua.Row.Text">
+
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/title_language" />
+
+                        <TextView
+                            android:id="@+id/tvLanguage"
+                            style="@style/XLua.Row.Subtitle"
+                            tools:text="System" />
+                    </LinearLayout>
+
+                    <ImageView
+                        style="@style/XLua.Row.Icon"
+                        android:importantForAccessibility="no" />
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -269,7 +310,6 @@
             android:text="@string/section_data" />
 
         <com.google.android.material.card.MaterialCardView
-            style="@style/XLua.Card.Outlined"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
@@ -280,78 +320,82 @@
                 android:orientation="vertical"
                 android:showDividers="middle">
 
-            <LinearLayout
-                android:id="@+id/llValues"
-                style="@style/XLua.Row">
+                <LinearLayout
+                    android:id="@+id/llValues"
+                    style="@style/XLua.Row">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                    <LinearLayout style="@style/XLua.Row.Text">
 
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/title_values_global" />
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/title_values_global" />
+
+                        <TextView
+                            style="@style/XLua.Row.Subtitle"
+                            android:text="@string/title_values_global_sub" />
+                    </LinearLayout>
+
+                    <ImageView
+                        style="@style/XLua.Row.Icon"
+                        android:importantForAccessibility="no" />
                 </LinearLayout>
 
-                <ImageView
-                    style="@style/XLua.Row.Icon"
-                    android:importantForAccessibility="no" />
-            </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/llBackup"
+                    style="@style/XLua.Row">
 
-            <LinearLayout
-                android:id="@+id/llBackup"
-                style="@style/XLua.Row">
+                    <LinearLayout style="@style/XLua.Row.Text">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/menu_backup" />
 
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/menu_backup" />
+                        <TextView
+                            style="@style/XLua.Row.Subtitle"
+                            android:text="@string/title_backup_hint" />
+                    </LinearLayout>
 
-                    <TextView
-                        style="@style/XLua.Row.Subtitle"
-                        android:text="@string/title_backup_hint" />
+                    <ImageView
+                        style="@style/XLua.Row.Icon"
+                        android:importantForAccessibility="no" />
                 </LinearLayout>
 
-                <ImageView
-                    style="@style/XLua.Row.Icon"
-                    android:importantForAccessibility="no" />
-            </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/llRestore"
+                    style="@style/XLua.Row">
 
-            <LinearLayout
-                android:id="@+id/llRestore"
-                style="@style/XLua.Row">
+                    <LinearLayout style="@style/XLua.Row.Text">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/menu_restore" />
 
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/menu_restore" />
+                        <TextView
+                            style="@style/XLua.Row.Subtitle"
+                            android:text="@string/title_restore_hint" />
+                    </LinearLayout>
 
-                    <TextView
-                        style="@style/XLua.Row.Subtitle"
-                        android:text="@string/title_restore_hint" />
+                    <ImageView
+                        style="@style/XLua.Row.Icon"
+                        android:importantForAccessibility="no" />
                 </LinearLayout>
 
-                <ImageView
-                    style="@style/XLua.Row.Icon"
-                    android:importantForAccessibility="no" />
-            </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/llClear"
+                    style="@style/XLua.Row">
 
-            <LinearLayout
-                android:id="@+id/llClear"
-                style="@style/XLua.Row">
+                    <LinearLayout style="@style/XLua.Row.Text">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/title_clear_data"
+                            android:textColor="?attr/colorError" />
 
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/title_clear_data"
-                        android:textColor="?attr/colorError" />
-
-                    <TextView
-                        style="@style/XLua.Row.Subtitle"
-                        android:text="@string/title_clear_data_hint" />
+                        <TextView
+                            style="@style/XLua.Row.Subtitle"
+                            android:text="@string/title_clear_data_hint" />
+                    </LinearLayout>
                 </LinearLayout>
-            </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -360,7 +404,6 @@
             android:text="@string/section_about" />
 
         <com.google.android.material.card.MaterialCardView
-            style="@style/XLua.Card.Outlined"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
@@ -371,57 +414,56 @@
                 android:orientation="vertical"
                 android:showDividers="middle">
 
-            <LinearLayout
-                android:id="@+id/llDocs"
-                style="@style/XLua.Row">
+                <LinearLayout
+                    android:id="@+id/llDocs"
+                    style="@style/XLua.Row">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                    <LinearLayout style="@style/XLua.Row.Text">
 
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/menu_readme" />
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/menu_readme" />
+                    </LinearLayout>
+
+                    <ImageView
+                        style="@style/XLua.Row.Icon"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_open" />
                 </LinearLayout>
 
-                <ImageView
-                    style="@style/XLua.Row.Icon"
-                    android:importantForAccessibility="no"
-                    android:src="@drawable/ic_open" />
-            </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/llFaq"
+                    style="@style/XLua.Row">
 
-            <LinearLayout
-                android:id="@+id/llFaq"
-                style="@style/XLua.Row">
+                    <LinearLayout style="@style/XLua.Row.Text">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/menu_faq" />
+                    </LinearLayout>
 
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/menu_faq" />
+                    <ImageView
+                        style="@style/XLua.Row.Icon"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_open" />
                 </LinearLayout>
 
-                <ImageView
-                    style="@style/XLua.Row.Icon"
-                    android:importantForAccessibility="no"
-                    android:src="@drawable/ic_open" />
-            </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/llLicense"
+                    style="@style/XLua.Row">
 
-            <LinearLayout
-                android:id="@+id/llLicense"
-                style="@style/XLua.Row">
+                    <LinearLayout style="@style/XLua.Row.Text">
 
-                <LinearLayout style="@style/XLua.Row.Text">
+                        <TextView
+                            style="@style/XLua.Row.Title"
+                            android:text="@string/title_license_row" />
+                    </LinearLayout>
 
-                    <TextView
-                        style="@style/XLua.Row.Title"
-                        android:text="@string/title_license_row" />
+                    <ImageView
+                        style="@style/XLua.Row.Icon"
+                        android:importantForAccessibility="no" />
                 </LinearLayout>
-
-                <ImageView
-                    style="@style/XLua.Row.Icon"
-                    android:importantForAccessibility="no" />
-            </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
-
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

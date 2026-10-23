@@ -18,17 +18,38 @@
 package eu.faircode.xlua;
 
 import android.app.Activity;
+import android.os.Bundle;
+import android.view.View;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-// A tab of the main screen, which reloads its data each time it becomes visible
+// A tab of the main screen, which reloads its data each time it becomes visible, with a search in its title
 public abstract class FragmentBase extends Fragment {
     protected final ExecutorService executor = Executors.newSingleThreadExecutor();
 
+    // Set in onCreateView by the tabs with a search, which the view lifecycle below drives
+    protected TitleSearch search;
+
     protected abstract void load();
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        if (search != null)
+            search.attach();
+    }
+
+    @Override
+    public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
+        super.onViewStateRestored(savedInstanceState);
+        if (search != null)
+            search.restore();
+    }
 
     @Override
     public void onResume() {
@@ -40,6 +61,8 @@ public abstract class FragmentBase extends Fragment {
     @Override
     public void onHiddenChanged(boolean hidden) {
         super.onHiddenChanged(hidden);
+        if (search != null)
+            search.onHiddenChanged();
         if (!hidden && isResumed())
             load();
     }

@@ -109,6 +109,63 @@
     <string name="title_review_error">A hook failed</string>
     <string name="title_review">Review</string>
     <string name="title_restrictions_added">Restrictions added</string>
+    <string name="title_last_call">last call %1$s, %2$s</string>
+    <string name="title_uid">uid %1$d</string>
+    <string name="title_of">%1$d of %2$d</string>
+    <string name="title_values_none">All from the values for all apps</string>
+    <plurals name="title_values_own">
+        <item quantity="one">%1$d own value, the rest from all apps</item>
+        <item quantity="other">%1$d own values, the rest from all apps</item>
+    </plurals>
+    <plurals name="title_calls_today">
+        <item quantity="one">restricted call today</item>
+        <item quantity="other">restricted calls today</item>
+    </plurals>
+    <plurals name="title_stat_apps">
+        <item quantity="one">%1$d app</item>
+        <item quantity="other">%1$d apps</item>
+    </plurals>
+    <plurals name="title_stat_errors_count">
+        <item quantity="one">%1$d error</item>
+        <item quantity="other">%1$d errors</item>
+    </plurals>
+    <string name="title_calls_by_hour">Restricted calls of today by hour</string>
+    <string name="title_hour_0" translatable="false">0</string>
+    <string name="title_hour_6" translatable="false">6</string>
+    <string name="title_hour_12" translatable="false">12</string>
+    <string name="title_hour_18" translatable="false">18</string>
+    <string name="title_hour_24" translatable="false">24</string>
+    <plurals name="title_hook_count">
+        <item quantity="one">%1$d hook</item>
+        <item quantity="other">%1$d hooks</item>
+    </plurals>
+    <plurals name="title_hook_custom_count">
+        <item quantity="one">%1$d custom</item>
+        <item quantity="other">%1$d custom</item>
+    </plurals>
+    <plurals name="title_hook_disabled_count">
+        <item quantity="one">%1$d disabled</item>
+        <item quantity="other">%1$d disabled</item>
+    </plurals>
+    <plurals name="title_hook_unavailable_count">
+        <item quantity="one">%1$d not on this Android</item>
+        <item quantity="other">%1$d not on this Android</item>
+    </plurals>
+    <string name="title_hook_unavailable_short">Not on this Android</string>
+    <string name="title_theme">Theme</string>
+    <string name="title_language">Language</string>
+    <string name="title_language_system">System</string>
+    <string name="title_language_english">English</string>
+    <string name="title_values_global_sub">Identifiers, location, time zone and more</string>
+    <string name="title_hint_restricted">%1$s · restricted for this app</string>
+    <string name="title_hint_unrestricted">%1$s · not restricted, the real value is given</string>
+    <plurals name="title_hint_apps">
+        <item quantity="one">%1$s · restricted for %2$d app</item>
+        <item quantity="other">%1$s · restricted for %2$d apps</item>
+    </plurals>
+    <string name="title_hint_no_apps">%1$s · restricted for no app</string>
+    <string name="title_restrict">Restrict</string>
+    <string name="msg_group_restricted">%1$s restricted for %2$s</string>
     <string name="title_no_calls">No restricted call yet</string>
     <string name="title_installed_ago">Installed %1$s</string>
     <string name="title_off">Off</string>
@@ -151,13 +208,11 @@
     <string name="title_no_apps">No apps</string>
     <!-- The quantity is the number of groups -->
     <string name="title_last_used">%1$s · %2$s</string>
-    <string name="title_not_used">Restricted · not used yet</string>
     <string name="title_not_restricted">Not restricted</string>
     <string name="badge_system">System</string>
     <string name="menu_bulk">Toggle a group for shown apps</string>
 
     <!-- Restrictions of an app -->
-    <string name="title_app_meta">uid %1$d · version %2$s · %3$s</string>
     <string name="title_restrict_all_groups">Restrict all</string>
     <!-- The quantity is the number of groups -->
     <plurals name="title_groups_restricted">
@@ -179,7 +234,6 @@
     </plurals>
     <string name="title_group_error">Failed · see the details</string>
     <string name="title_show_error">Show the error</string>
-    <string name="title_values_hint">Values which restricted groups return instead</string>
     <string name="title_show_hooks">Show the hooks of %1$s</string>
     <string name="title_hide_hooks">Hide the hooks of %1$s</string>
     <string name="title_hook_not_used">Not used yet</string>

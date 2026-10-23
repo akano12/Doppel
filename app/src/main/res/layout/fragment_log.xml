@@ -1,97 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <!-- The title at the height of the title of the Apps tab; the log of one app has a toolbar instead,
+         with the search field always shown, see FragmentLog -->
     <LinearLayout
+        android:id="@+id/llTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:orientation="horizontal"
         android:paddingStart="20dp"
-        android:paddingTop="16dp"
-        android:paddingEnd="20dp">
+        android:paddingTop="26dp"
+        android:paddingEnd="8dp">
 
-        <!-- The log of one app has a toolbar instead of the title and the statistics -->
         <TextView
             android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_weight="1"
             android:text="@string/nav_activity"
             android:textAppearance="@style/XLua.Text.ScreenTitle" />
-
-        <LinearLayout
-            android:id="@+id/llStats"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:baselineAligned="false"
-            android:orientation="horizontal">
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                app:cardCornerRadius="12dp">
-
-                <LinearLayout style="@style/XLua.Stat">
-
-                    <TextView
-                        android:id="@+id/tvToday"
-                        style="@style/XLua.Stat.Value" />
-
-                    <TextView
-                        style="@style/XLua.Stat.Label"
-                        android:text="@string/title_today" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                app:cardCornerRadius="12dp">
-
-                <LinearLayout style="@style/XLua.Stat">
-
-                    <TextView
-                        android:id="@+id/tvApps"
-                        style="@style/XLua.Stat.Value" />
-
-                    <TextView
-                        style="@style/XLua.Stat.Label"
-                        android:text="@string/nav_apps" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cvErrors"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                app:cardCornerRadius="12dp">
-
-                <LinearLayout style="@style/XLua.Stat">
-
-                    <TextView
-                        android:id="@+id/tvErrors"
-                        style="@style/XLua.Stat.Value" />
-
-                    <TextView
-                        style="@style/XLua.Stat.Label"
-                        android:text="@string/title_stat_errors" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-        </LinearLayout>
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilSearch"
             style="@style/XLua.Search"
-            android:layout_marginTop="12dp">
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:visibility="gone">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etSearch"
@@ -99,44 +40,150 @@
                 android:hint="@string/title_search_log" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <HorizontalScrollView
+        <ImageButton
+            android:id="@+id/ibSearch"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/menu_search"
+            android:src="@drawable/ic_search" />
+    </LinearLayout>
+
+    <!-- The restricted calls of today, by hour, with the apps and the errors; the errors open the errors -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cvOverview"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="16dp">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:scrollbars="none">
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="10dp">
 
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/cgFilter"
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="bottom"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvCalls"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                    android:textColor="?attr/colorOnSurface"
+                    tools:text="44" />
+
+                <TextView
+                    android:id="@+id/tvCallsLabel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginBottom="5dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    tools:text="restricted calls today" />
+
+                <TextView
+                    android:id="@+id/tvStats"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginBottom="5dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:textAppearance="@style/XLua.Text.Meta"
+                    tools:text="7 apps · 0 errors" />
+            </LinearLayout>
+
+            <eu.faircode.xlua.BarsView
+                android:id="@+id/vBars"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:layout_marginTop="10dp"
+                android:contentDescription="@string/title_calls_by_hour" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:importantForAccessibility="noHideDescendants"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/XLua.Text.Axis"
+                    android:gravity="start"
+                    android:text="@string/title_hour_0" />
+
+                <TextView
+                    style="@style/XLua.Text.Axis"
+                    android:gravity="center"
+                    android:text="@string/title_hour_6" />
+
+                <TextView
+                    style="@style/XLua.Text.Axis"
+                    android:gravity="center"
+                    android:text="@string/title_hour_12" />
+
+                <TextView
+                    style="@style/XLua.Text.Axis"
+                    android:gravity="center"
+                    android:text="@string/title_hour_18" />
+
+                <TextView
+                    style="@style/XLua.Text.Axis"
+                    android:gravity="end"
+                    android:text="@string/title_hour_24" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="8dp"
+        android:scrollbars="none">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/cgFilter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:checkedChip="@id/chipAll"
+            app:selectionRequired="true"
+            app:singleLine="true"
+            app:singleSelection="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipAll"
+                style="@style/XLua.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                app:checkedChip="@id/chipAll"
-                app:selectionRequired="true"
-                app:singleLine="true"
-                app:singleSelection="true">
+                android:text="@string/title_all" />
 
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipAll"
-                    style="@style/XLua.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/title_all" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipToday"
+                style="@style/XLua.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/title_today" />
 
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipToday"
-                    style="@style/XLua.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/title_today" />
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipErrors"
-                    style="@style/XLua.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/title_stat_errors" />
-            </com.google.android.material.chip.ChipGroup>
-        </HorizontalScrollView>
-    </LinearLayout>
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipErrors"
+                style="@style/XLua.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/title_stat_errors" />
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
 
     <FrameLayout
         android:layout_width="match_parent"

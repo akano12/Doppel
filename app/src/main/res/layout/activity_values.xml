@@ -24,35 +24,37 @@
             android:paddingEnd="16dp"
             android:paddingBottom="24dp">
 
-            <com.google.android.material.button.MaterialButtonToggleGroup
-                android:id="@+id/tgScope"
+            <!-- Values of an app replace the values for all apps; checked from the saved scope in onCreate -->
+            <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:visibility="gone"
-                app:selectionRequired="true"
-                app:singleSelection="true">
+                android:scrollbars="none">
 
-                <!-- Checked from the saved scope in onCreate: a restored check, like one made while
-                     asking to discard, would switch the scope after that without asking -->
-                <Button
-                    android:id="@+id/btnScopeApp"
-                    style="@style/XLua.Button.Segment"
-                    android:layout_width="0dp"
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/cgScope"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:saveEnabled="false" />
+                    android:visibility="gone"
+                    app:selectionRequired="true"
+                    app:singleLine="true"
+                    app:singleSelection="true">
 
-                <Button
-                    android:id="@+id/btnScopeGlobal"
-                    style="@style/XLua.Button.Segment"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:saveEnabled="false"
-                    android:text="@string/title_all_apps" />
-            </com.google.android.material.button.MaterialButtonToggleGroup>
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipScopeApp"
+                        style="@style/XLua.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:saveEnabled="false" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipScopeGlobal"
+                        style="@style/XLua.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:saveEnabled="false"
+                        android:text="@string/title_all_apps" />
+                </com.google.android.material.chip.ChipGroup>
+            </HorizontalScrollView>
 
             <TextView
                 android:id="@+id/tvHint"

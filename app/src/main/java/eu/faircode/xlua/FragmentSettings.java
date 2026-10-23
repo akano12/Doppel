@@ -40,8 +40,10 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.os.LocaleListCompat;
 
-import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
@@ -54,6 +56,14 @@ import java.util.TreeSet;
 public class FragmentSettings extends FragmentBase {
     private static final String TAG = "XLua.Settings";
 
+    // Same order as the chips
+    private static final int[] THEME_CHIPS = {R.id.chipThemeSystem, R.id.chipThemeLight, R.id.chipThemeDark};
+    private static final String[] THEMES = {ApplicationEx.THEME_SYSTEM, ApplicationEx.THEME_LIGHT, ApplicationEx.THEME_DARK};
+
+    // The languages to choose from: the one of the device, or English, which every text has
+    private static final String[] LANGUAGES = {"", "en"};
+    private static final int[] LANGUAGE_TITLES = {R.string.title_language_system, R.string.title_language_english};
+
     private ImageView ivStatus;
     private TextView tvStatus;
     private TextView tvVersion;
@@ -63,9 +73,11 @@ public class FragmentSettings extends FragmentBase {
     private MaterialSwitch swRestrictNew;
     private View llNotifyNew;
     private MaterialSwitch swNotifyNew;
-    private MaterialButtonToggleGroup tgTheme;
+    private ChipGroup cgTheme;
     private LinearLayout llPalettes;
+    private View llBlack;
     private MaterialSwitch swBlack;
+    private TextView tvLanguage;
 
     private List<String> collections = new ArrayList<>(); // Known collections
     private List<String> enabled = new ArrayList<>(); // Enabled collections
@@ -96,9 +108,11 @@ public class FragmentSettings extends FragmentBase {
         swRestrictNew = view.findViewById(R.id.swRestrictNew);
         llNotifyNew = view.findViewById(R.id.llNotifyNew);
         swNotifyNew = view.findViewById(R.id.swNotifyNew);
-        tgTheme = view.findViewById(R.id.tgTheme);
+        cgTheme = view.findViewById(R.id.cgTheme);
         llPalettes = view.findViewById(R.id.llPalettes);
+        llBlack = view.findViewById(R.id.llBlack);
         swBlack = view.findViewById(R.id.swBlack);
+        tvLanguage = view.findViewById(R.id.tvLanguage);
 
         tvVersion.setText(getString(R.string.title_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
 
@@ -107,13 +121,14 @@ public class FragmentSettings extends FragmentBase {
         swBlack.setChecked(ApplicationEx.isBlack(activity));
 
         // The switches and the theme can be changed once the settings are loaded, which would else undo a change made before
-        View llBlack = view.findViewById(R.id.llBlack);
-        for (View v : new View[]{llRestrictNew, swRestrictNew, llNotifyNew, swNotifyNew, tgTheme, llBlack, swBlack})
+        for (View v : new View[]{llRestrictNew, swRestrictNew, llNotifyNew, swNotifyNew, llBlack, swBlack})
             v.setEnabled(false);
+        Ui.enable(cgTheme, false);
 
         llRestrictNew.setOnClickListener(v -> swRestrictNew.toggle());
         llNotifyNew.setOnClickListener(v -> swNotifyNew.toggle());
         llBlack.setOnClickListener(v -> swBlack.toggle());
+        view.findViewById(R.id.llLanguage).setOnClickListener(v -> selectLanguage());
         view.findViewById(R.id.llCollections).setOnClickListener(v -> selectCollections());
         view.findViewById(R.id.llValues).setOnClickListener(v ->
                 startActivity(ActivityValues.getIntent(activity, null, null)));
@@ -126,6 +141,7 @@ public class FragmentSettings extends FragmentBase {
         view.findViewById(R.id.llDocs).setOnClickListener(v -> Ui.browse(activity, Ui.URL_README));
         view.findViewById(R.id.llFaq).setOnClickListener(v -> Ui.browse(activity, Ui.URL_FAQ));
         view.findViewById(R.id.llLicense).setOnClickListener(v -> Ui.showLicense(activity));
+        showLanguage();
 
         return view;
     }
@@ -163,7 +179,9 @@ public class FragmentSettings extends FragmentBase {
                 tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
                 ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
                 ivStatus.setBackgroundTintList(ColorStateList.valueOf(Ui.color(requireContext(), available
-                        ? R.attr.colorSuccess : R.attr.colorWarning)));
+                        ? R.attr.colorSuccessContainer : R.attr.colorWarningContainer)));
+                ivStatus.setImageTintList(ColorStateList.valueOf(Ui.color(requireContext(), available
+                        ? R.attr.colorOnSuccessContainer : R.attr.colorOnWarningContainer)));
                 glStatus.removeAllViews();
                 // Digits of the language, like the counts of the Activity tab
                 NumberFormat nf = NumberFormat.getIntegerInstance();
@@ -182,32 +200,26 @@ public class FragmentSettings extends FragmentBase {
                 swNotifyNew.setChecked(notifyNew);
                 swNotifyNew.setOnCheckedChangeListener((button, checked) ->
                         put("notify_new_apps", Boolean.toString(checked)));
-                for (View v : new View[]{llRestrictNew, swRestrictNew, llNotifyNew, swNotifyNew, tgTheme})
+                for (View v : new View[]{llRestrictNew, swRestrictNew, llNotifyNew, swNotifyNew})
                     v.setEnabled(true);
+                Ui.enable(cgTheme, true);
 
-                tgTheme.clearOnButtonCheckedListeners();
-                tgTheme.check(ApplicationEx.THEME_DARK.equals(colors.theme) ? R.id.btnThemeDark
-                        : ApplicationEx.THEME_LIGHT.equals(colors.theme) ? R.id.btnThemeLight
-                        : R.id.btnThemeSystem);
+                // Selecting the chip of the theme loaded should not store it again
+                cgTheme.setOnCheckedStateChangeListener(null);
+                String theme = (ApplicationEx.THEME_DARK.equals(colors.theme) ? ApplicationEx.THEME_DARK
+                        : ApplicationEx.THEME_LIGHT.equals(colors.theme) ? ApplicationEx.THEME_LIGHT
+                        : ApplicationEx.THEME_SYSTEM);
+                Ui.chips(cgTheme, THEME_CHIPS, THEMES, theme, selected -> run(TAG, () -> {
+                    Data.putSetting(context, "global", "theme", selected);
+                    post(() -> ApplicationEx.setTheme(context, selected));
+                }));
                 // Only the dark theme has a black background, also when the system theme is dark;
                 // choosing a theme or a change of the system theme recreates the screen
                 boolean dark = ((getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
                         == Configuration.UI_MODE_NIGHT_YES);
-                View llBlack = requireView().findViewById(R.id.llBlack);
                 llBlack.setEnabled(dark);
                 llBlack.setAlpha(dark ? 1f : 0.38f);
                 swBlack.setEnabled(dark);
-                tgTheme.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-                    if (!isChecked)
-                        return;
-                    String selected = (checkedId == R.id.btnThemeDark ? ApplicationEx.THEME_DARK
-                            : checkedId == R.id.btnThemeLight ? ApplicationEx.THEME_LIGHT
-                            : ApplicationEx.THEME_SYSTEM);
-                    run(TAG, () -> {
-                        Data.putSetting(context, "global", "theme", selected);
-                        post(() -> ApplicationEx.setTheme(context, selected));
-                    });
-                });
             });
         });
     }
@@ -232,9 +244,7 @@ public class FragmentSettings extends FragmentBase {
             ivSwatch.setImageTintList(ColorStateList.valueOf(Ui.color(colors, com.google.android.material.R.attr.colorOnPrimary)));
             // The check of the selected palette
             ivSwatch.setImageAlpha(palette.equals(selected) ? 255 : 0);
-            String title = getString(ApplicationEx.PALETTE_TITLES[i]);
-            ((TextView) view.findViewById(R.id.tvPalette)).setText(title);
-            view.setContentDescription(title);
+            view.setContentDescription(getString(ApplicationEx.PALETTE_TITLES[i]));
             view.setSelected(palette.equals(selected));
             view.setOnClickListener(v -> selectPalette(palette));
             llPalettes.addView(view);
@@ -261,6 +271,33 @@ public class FragmentSettings extends FragmentBase {
             if (ApplicationEx.setBlack(context, black))
                 post(() -> ((ActivityBase) requireActivity()).recreateSmoothly());
         });
+    }
+
+    // The language of the app: the one of the device, or English; Android 13 and later remember it in
+    // the system settings of the app, earlier versions in a file of the app (see the manifest)
+    private static int getLanguage() {
+        LocaleListCompat locales = AppCompatDelegate.getApplicationLocales();
+        return (locales.isEmpty() ? 0 : 1);
+    }
+
+    private void showLanguage() {
+        tvLanguage.setText(LANGUAGE_TITLES[getLanguage()]);
+    }
+
+    private void selectLanguage() {
+        String[] titles = new String[LANGUAGE_TITLES.length];
+        for (int i = 0; i < titles.length; i++)
+            titles[i] = getString(LANGUAGE_TITLES[i]);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.title_language)
+                .setSingleChoiceItems(titles, getLanguage(), (dialog, which) -> {
+                    dialog.dismiss();
+                    // Screens are recreated in the new language
+                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(LANGUAGES[which]));
+                    showLanguage();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private void addStatus(int key, String value) {

@@ -21,7 +21,6 @@ package eu.faircode.xlua;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.graphics.drawable.GradientDrawable;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -32,7 +31,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.core.graphics.ColorUtils;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.recyclerview.widget.DiffUtil;
@@ -622,16 +620,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 background = com.google.android.material.R.attr.colorSurfaceContainerLowest;
         }
         int color = Ui.color(context, background);
-        float radius = Ui.dp(context, 20);
-        float top = (item.first ? radius : 0);
-        float bottom = (item.last ? radius : 0);
-        GradientDrawable shape = new GradientDrawable();
-        shape.setColor(color);
-        shape.setCornerRadii(new float[]{top, top, top, top, bottom, bottom, bottom, bottom});
-        h.itemView.setBackground(shape);
+        Ui.join(h.itemView, color, 20, item.first, item.last);
         h.vDivider.setVisibility(item.first ? View.GONE : View.VISIBLE);
-        h.vDivider.setBackgroundColor(ColorUtils.blendARGB(color,
-                Ui.color(context, com.google.android.material.R.attr.colorOnSurface), 0.08f));
+        h.vDivider.setBackgroundColor(Ui.dividerColor(context, color));
 
         Ui.loadIcon(h.ivIcon, app.packageName, app.icon);
         h.tvLabel.setText(app.getLabel());

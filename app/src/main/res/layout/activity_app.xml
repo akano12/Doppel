@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/colorSurface"
@@ -30,6 +31,7 @@
                 android:paddingEnd="16dp"
                 android:paddingBottom="24dp">
 
+                <!-- The app, and all of its groups at once -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -41,7 +43,7 @@
                         android:paddingStart="16dp"
                         android:paddingTop="16dp"
                         android:paddingEnd="16dp"
-                        android:paddingBottom="8dp">
+                        android:paddingBottom="6dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
@@ -58,7 +60,7 @@
                             <LinearLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
-                                android:layout_marginStart="12dp"
+                                android:layout_marginStart="14dp"
                                 android:layout_weight="1"
                                 android:orientation="vertical">
 
@@ -69,33 +71,65 @@
                                     android:textAppearance="@style/XLua.Text.Mono"
                                     android:textIsSelectable="true" />
 
-                                <TextView
-                                    android:id="@+id/tvMeta"
+                                <!-- User or system, the uid and the version, see ActivityApp -->
+                                <LinearLayout
+                                    android:id="@+id/llBadges"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:textAppearance="@style/XLua.Text.Meta" />
+                                    android:layout_marginTop="6dp"
+                                    android:orientation="horizontal" />
                             </LinearLayout>
                         </LinearLayout>
 
                         <com.google.android.material.divider.MaterialDivider
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
+                            android:layout_marginTop="14dp"
                             app:dividerColor="?attr/colorOutlineVariant" />
 
+                        <!-- The share of the groups restricted and the last call, with a dash when not all hooks are -->
                         <LinearLayout
                             android:id="@+id/llAll"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:background="?attr/selectableItemBackground"
                             android:gravity="center_vertical"
-                            android:minHeight="56dp"
+                            android:minHeight="64dp"
                             android:orientation="horizontal">
+
+                            <FrameLayout
+                                android:layout_width="44dp"
+                                android:layout_height="44dp">
+
+                                <com.google.android.material.progressindicator.CircularProgressIndicator
+                                    android:id="@+id/piAll"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_gravity="center"
+                                    android:importantForAccessibility="no"
+                                    android:indeterminate="false"
+                                    android:max="100"
+                                    app:indicatorColor="?attr/colorPrimary"
+                                    app:indicatorSize="44dp"
+                                    app:trackColor="?attr/colorSurfaceContainerHigh"
+                                    app:trackCornerRadius="3dp"
+                                    app:trackThickness="5dp"
+                                    tools:progress="100" />
+
+                                <TextView
+                                    android:id="@+id/tvAllCount"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_gravity="center"
+                                    android:textAppearance="?attr/textAppearanceLabelMedium"
+                                    android:textColor="?attr/colorOnSurface"
+                                    tools:text="29" />
+                            </FrameLayout>
 
                             <LinearLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
+                                android:layout_marginStart="14dp"
                                 android:layout_weight="1"
                                 android:orientation="vertical">
 
@@ -103,50 +137,54 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="@string/title_restrict_all_groups"
-                                    android:textAppearance="?attr/textAppearanceTitleSmall" />
+                                    android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                                 <TextView
                                     android:id="@+id/tvSummary"
-                                    android:layout_width="wrap_content"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:textAppearance="@style/XLua.Text.Meta" />
+                                    android:layout_marginTop="2dp"
+                                    android:textAppearance="@style/XLua.Text.Meta"
+                                    tools:text="29 of 29 groups restricted · last call Read VPN state, just now" />
                             </LinearLayout>
 
-                            <!-- On: some or all groups, with a dash when not all hooks are restricted -->
                             <com.google.android.material.materialswitch.MaterialSwitch
                                 android:id="@+id/swAll"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
                                 android:contentDescription="@string/title_restrict_all_groups" />
                         </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Options of the app -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:divider="@drawable/divider"
+                        android:orientation="vertical"
+                        android:showDividers="middle">
 
                         <LinearLayout
                             android:id="@+id/llForceStop"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:background="?attr/selectableItemBackground"
-                            android:gravity="center_vertical"
-                            android:minHeight="56dp"
-                            android:orientation="horizontal">
+                            style="@style/XLua.Row">
 
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
+                            <LinearLayout style="@style/XLua.Row.Text">
 
                                 <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/title_force_stop"
-                                    android:textAppearance="?attr/textAppearanceTitleSmall" />
+                                    style="@style/XLua.Row.Title"
+                                    android:text="@string/title_force_stop" />
 
                                 <TextView
                                     android:id="@+id/tvForceStop"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/title_force_stop_hint"
-                                    android:textAppearance="@style/XLua.Text.Meta" />
+                                    style="@style/XLua.Row.Subtitle"
+                                    android:text="@string/title_force_stop_hint" />
                             </LinearLayout>
 
                             <com.google.android.material.checkbox.MaterialCheckBox
@@ -158,30 +196,17 @@
 
                         <LinearLayout
                             android:id="@+id/llNotify"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:background="?attr/selectableItemBackground"
-                            android:gravity="center_vertical"
-                            android:minHeight="56dp"
-                            android:orientation="horizontal">
+                            style="@style/XLua.Row">
 
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
+                            <LinearLayout style="@style/XLua.Row.Text">
 
                                 <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/title_notify_usage"
-                                    android:textAppearance="?attr/textAppearanceTitleSmall" />
+                                    style="@style/XLua.Row.Title"
+                                    android:text="@string/title_notify_usage" />
 
                                 <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/title_notify_usage_hint"
-                                    android:textAppearance="@style/XLua.Text.Meta" />
+                                    style="@style/XLua.Row.Subtitle"
+                                    android:text="@string/title_notify_usage_hint" />
                             </LinearLayout>
 
                             <com.google.android.material.checkbox.MaterialCheckBox
@@ -194,40 +219,24 @@
                         <!-- Shown when groups with fake values can be restricted -->
                         <LinearLayout
                             android:id="@+id/llValues"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:background="?attr/selectableItemBackground"
-                            android:gravity="center_vertical"
-                            android:minHeight="56dp"
-                            android:orientation="horizontal"
+                            style="@style/XLua.Row"
                             android:visibility="gone">
 
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
+                            <LinearLayout style="@style/XLua.Row.Text">
 
                                 <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/menu_values_app"
-                                    android:textAppearance="?attr/textAppearanceTitleSmall" />
+                                    style="@style/XLua.Row.Title"
+                                    android:text="@string/menu_values_app" />
 
                                 <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/title_values_hint"
-                                    android:textAppearance="@style/XLua.Text.Meta" />
+                                    android:id="@+id/tvValues"
+                                    style="@style/XLua.Row.Subtitle"
+                                    tools:text="3 own values, the rest from all apps" />
                             </LinearLayout>
 
                             <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_marginEnd="14dp"
-                                android:importantForAccessibility="no"
-                                android:src="@drawable/ic_chevron_right"
-                                app:tint="?attr/colorOnSurfaceVariant" />
+                                style="@style/XLua.Row.Icon"
+                                android:importantForAccessibility="no" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

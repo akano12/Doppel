@@ -9,61 +9,44 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
+        <!-- The title at the height of the title of the Apps tab, the search replaces it and the summary -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:minHeight="48dp"
+            android:orientation="horizontal"
             android:paddingStart="20dp"
-            android:paddingTop="16dp"
-            android:paddingEnd="12dp">
+            android:paddingTop="26dp"
+            android:paddingEnd="8dp">
 
             <LinearLayout
-                android:layout_width="match_parent"
+                android:id="@+id/llTitle"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-                <LinearLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:text="@string/nav_hooks"
+                    android:textAppearance="@style/XLua.Text.ScreenTitle" />
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/nav_hooks"
-                        android:textAppearance="@style/XLua.Text.ScreenTitle" />
-
-                    <TextView
-                        android:id="@+id/tvSummary"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textAppearance="@style/XLua.Text.Meta" />
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/ibDownloads"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/menu_downloads"
-                    android:src="@drawable/ic_download" />
-
-                <ImageButton
-                    android:id="@+id/ibMore"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/title_more"
-                    android:src="@drawable/ic_more" />
+                <TextView
+                    android:id="@+id/tvSummary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textAppearance="@style/XLua.Text.Meta" />
             </LinearLayout>
 
             <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilSearch"
                 style="@style/XLua.Search"
-                android:layout_marginTop="12dp"
-                android:layout_marginEnd="8dp">
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:visibility="gone">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etSearch"
@@ -71,44 +54,77 @@
                     android:hint="@string/title_search_hooks" />
             </com.google.android.material.textfield.TextInputLayout>
 
-            <HorizontalScrollView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:scrollbars="none">
+            <ImageButton
+                android:id="@+id/ibDownloads"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/menu_downloads"
+                android:src="@drawable/ic_download" />
 
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/cgFilter"
+            <ImageButton
+                android:id="@+id/ibSearch"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/menu_search"
+                android:src="@drawable/ic_search" />
+
+            <ImageButton
+                android:id="@+id/ibMore"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/title_more"
+                android:src="@drawable/ic_more" />
+        </LinearLayout>
+
+        <!-- Which definitions, with their counts, see FragmentHooks -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="12dp"
+            android:scrollbars="none">
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/cgFilter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:checkedChip="@id/chipAll"
+                app:selectionRequired="true"
+                app:singleLine="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipAll"
+                    style="@style/XLua.Chip.Filter"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    app:checkedChip="@id/chipAll"
-                    app:selectionRequired="true"
-                    app:singleLine="true"
-                    app:singleSelection="true">
+                    android:text="@string/title_all" />
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipAll"
-                        style="@style/XLua.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/title_all" />
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipCustom"
+                    style="@style/XLua.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/title_hook_custom" />
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipCustom"
-                        style="@style/XLua.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/title_hook_custom" />
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDisabled"
+                    style="@style/XLua.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/title_hook_disabled" />
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipDisabled"
-                        style="@style/XLua.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/title_hook_disabled" />
-                </com.google.android.material.chip.ChipGroup>
-            </HorizontalScrollView>
-        </LinearLayout>
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipUnavailable"
+                    style="@style/XLua.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/title_hook_unavailable_short" />
+            </com.google.android.material.chip.ChipGroup>
+        </HorizontalScrollView>
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -121,6 +137,7 @@
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
                 android:paddingStart="16dp"
+                android:paddingTop="8dp"
                 android:paddingEnd="16dp"
                 android:paddingBottom="96dp" />
 

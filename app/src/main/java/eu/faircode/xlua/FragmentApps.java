@@ -34,18 +34,14 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
-import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.content.ContextCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -81,10 +77,6 @@ public class FragmentApps extends FragmentBase {
     private SwipeRefreshLayout swipeRefresh;
     private View pbLoading;
     private TextView tvEmpty;
-    private TextView tvTitle;
-    private View tilSearch;
-    private EditText etSearch;
-    private ImageButton ibSearch;
     private TextView tvStatus;
     private View cvOverview;
     private CircularProgressIndicator piShare;
@@ -94,7 +86,6 @@ public class FragmentApps extends FragmentBase {
     private ChipGroup cgFilter;
     private ImageButton ibSort;
     private AdapterApp adapter;
-    private OnBackPressedCallback closeSearch;
 
     private SharedPreferences prefs;
     private AdapterApp.Sort sort = AdapterApp.Sort.NAME;
@@ -113,10 +104,6 @@ public class FragmentApps extends FragmentBase {
         swipeRefresh = view.findViewById(R.id.swipeRefresh);
         pbLoading = view.findViewById(R.id.pbLoading);
         tvEmpty = view.findViewById(R.id.tvEmpty);
-        tvTitle = view.findViewById(R.id.tvTitle);
-        tilSearch = view.findViewById(R.id.tilSearch);
-        etSearch = view.findViewById(R.id.etSearch);
-        ibSearch = view.findViewById(R.id.ibSearch);
         tvStatus = view.findViewById(R.id.tvStatus);
         cvOverview = view.findViewById(R.id.cvOverview);
         piShare = view.findViewById(R.id.piShare);
@@ -175,10 +162,9 @@ public class FragmentApps extends FragmentBase {
         swipeRefresh.setColorSchemeColors(Ui.color(context, androidx.appcompat.R.attr.colorPrimary));
         swipeRefresh.setOnRefreshListener(this::load);
 
-        ibSearch.setOnClickListener(v -> showSearch(tilSearch.getVisibility() != View.VISIBLE));
+        search = new TitleSearch(this, view.findViewById(R.id.tvTitle), view.findViewById(R.id.tilSearch),
+                view.findViewById(R.id.etSearch), view.findViewById(R.id.ibSearch), text -> adapter.setQuery(text));
         view.findViewById(R.id.ibMore).setOnClickListener(this::showMenu);
-
-        Ui.onTextChanged(etSearch, text -> adapter.setQuery(text));
 
         AdapterApp.Filter filter = AdapterApp.Filter.USER;
         try {
@@ -215,63 +201,6 @@ public class FragmentApps extends FragmentBase {
         adapter.setCollapsed(collapsed);
 
         return view;
-    }
-
-    @Override
-    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-        // Back closes the search first, like its close button
-        closeSearch = new OnBackPressedCallback(false) {
-            @Override
-            public void handleOnBackPressed() {
-                showSearch(false);
-            }
-        };
-        requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), closeSearch);
-    }
-
-    // The search text is restored when the screen is recreated, like for other colors, and filters the apps,
-    // so the search is shown again, without the keyboard, since the tab can be hidden
-    @Override
-    public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
-        super.onViewStateRestored(savedInstanceState);
-        if (!TextUtils.isEmpty(etSearch.getText()))
-            setSearchShown(true);
-    }
-
-    @Override
-    public void onHiddenChanged(boolean hidden) {
-        super.onHiddenChanged(hidden);
-        updateBack();
-    }
-
-    // Search replaces the title
-    private void setSearchShown(boolean show) {
-        tvTitle.setVisibility(show ? View.GONE : View.VISIBLE);
-        tilSearch.setVisibility(show ? View.VISIBLE : View.GONE);
-        ibSearch.setImageResource(show ? R.drawable.ic_close : R.drawable.ic_search);
-        ibSearch.setContentDescription(getString(show ? R.string.title_close_search : R.string.menu_search));
-        updateBack();
-    }
-
-    // Back closes the search of the tab shown, else it leaves the app
-    private void updateBack() {
-        if (closeSearch != null && tilSearch != null)
-            closeSearch.setEnabled(tilSearch.getVisibility() == View.VISIBLE && !isHidden());
-    }
-
-    // Closing the search clears it
-    private void showSearch(boolean show) {
-        setSearchShown(show);
-        WindowInsetsControllerCompat controller =
-                new WindowInsetsControllerCompat(requireActivity().getWindow(), etSearch);
-        if (show) {
-            etSearch.requestFocus();
-            controller.show(WindowInsetsCompat.Type.ime());
-        } else {
-            etSearch.setText(null);
-            controller.hide(WindowInsetsCompat.Type.ime());
-        }
     }
 
     private void showMenu(View anchor) {
