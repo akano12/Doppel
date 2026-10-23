@@ -156,6 +156,22 @@ public class ActivityDownloads extends ActivityBase {
         search.restore();
     }
 
+    // The editor can change or delete an installed definition
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!loaded)
+            return;
+        final Context context = getApplicationContext();
+        run(TAG, () -> {
+            Map<String, XHook> installed = getInstalled(context);
+            runOnUiThread(() -> {
+                this.installed = installed;
+                show();
+            });
+        });
+    }
+
     private void load() {
         final Context context = getApplicationContext();
         run(TAG, () -> {
@@ -555,6 +571,9 @@ public class ActivityDownloads extends ActivityBase {
                     confirmRemove(entry);
                 else if (view == btnInstall || view == btnUpdate)
                     confirmInstall(entry);
+                else if (getState(entry) != State.AVAILABLE)
+                    // An installed definition is a custom hook, which the editor shows in full
+                    startActivity(ActivityHookEdit.getIntent(ActivityDownloads.this, entry.getId()));
                 else {
                     // Show or hide the full description
                     if (!expanded.remove(entry.id))
