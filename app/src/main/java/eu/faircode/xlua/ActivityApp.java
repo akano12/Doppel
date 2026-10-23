@@ -421,7 +421,8 @@ public class ActivityApp extends ActivityBase {
             MaterialSwitch swHook = vHook.findViewById(R.id.swHook);
             swHook.setChecked(assignment != null);
             swHook.setContentDescription(hook.getName());
-            swHook.setOnCheckedChangeListener((button, checked) -> assign(group, Collections.singletonList(hook), checked));
+            swHook.setOnCheckedChangeListener((button, checked) ->
+                    assign(Collections.singletonList(group), Collections.singletonList(hook), checked));
             vHook.setOnClickListener(view -> swHook.toggle());
             gv.llHooks.addView(vHook);
         }
@@ -481,10 +482,6 @@ public class ActivityApp extends ActivityBase {
         for (String group : groups)
             candidates.addAll(available.get(group));
         assign(groups, candidates, assign);
-    }
-
-    private void assign(String group, List<XHook> candidates, boolean assign) {
-        assign(Collections.singletonList(group), candidates, assign);
     }
 
     // Updates the assignments shown right away, the service in the background, with one call,

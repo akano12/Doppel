@@ -22,11 +22,6 @@ package eu.faircode.xlua;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.jse.JsePlatform;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -55,16 +50,11 @@ public class DeviceValuesScriptTest {
             "end");
 
     private static Globals load(String script) throws Exception {
-        Globals globals = JsePlatform.standardGlobals();
-        String source = new String(Files.readAllBytes(new File("src/main/assets/" + script + ".lua").toPath()),
-                StandardCharsets.UTF_8);
-        globals.load(source, script).call();
-        globals.load(STUBS, "stubs").call();
-        return globals;
+        return Scripts.load(script, STUBS);
     }
 
     private static Varargs run(Globals globals, String lua) {
-        return globals.load(lua, "test").invoke();
+        return Scripts.run(globals, lua);
     }
 
     @Test
@@ -247,8 +237,7 @@ public class DeviceValuesScriptTest {
 
     // The text of a function of a script, up to its end; a checkout can have CRLF line ends
     private static String function(String script, String name) throws Exception {
-        String source = new String(Files.readAllBytes(new File("src/main/assets/" + script + ".lua").toPath()),
-                StandardCharsets.UTF_8).replace("\r\n", "\n");
+        String source = Scripts.read(script).replace("\r\n", "\n");
         int start = source.indexOf("\nfunction " + name + "(");
         int end = source.indexOf("\nend\n", start);
         assertTrue(script + " " + name, start >= 0 && end > start);

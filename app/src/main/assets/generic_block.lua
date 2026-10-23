@@ -15,7 +15,17 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The method is skipped, with the result of its return type (see the definition): false for a boolean method,
+-- like a registration, 0 for a method returning a result code, of which 0 means success, nothing for a void method
+
 function before(hook, param)
-    param:setResult(nil)
+    local returnType = hook:getReturnType()
+    if returnType == 'boolean' then
+        param:setResult(false)
+    elseif returnType == 'int' then
+        param:setResult(0)
+    else
+        param:setResult(nil)
+    end
     return true
 end

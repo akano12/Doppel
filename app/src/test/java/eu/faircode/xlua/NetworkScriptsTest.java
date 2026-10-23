@@ -27,11 +27,7 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
-import org.luaj.vm2.lib.jse.JsePlatform;
 
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.HashMap;
 
 import static org.junit.Assert.assertEquals;
@@ -67,16 +63,11 @@ public class NetworkScriptsTest {
             "classes = {}");
 
     private static Globals load(String script) throws Exception {
-        Globals globals = JsePlatform.standardGlobals();
-        String source = new String(Files.readAllBytes(new File("src/main/assets/" + script + ".lua").toPath()),
-                StandardCharsets.UTF_8);
-        globals.load(source, script).call();
-        globals.load(STUBS, "stubs").call();
-        return globals;
+        return Scripts.load(script, STUBS);
     }
 
     private static Varargs run(Globals globals, String lua) {
-        return globals.load(lua, "test").invoke();
+        return Scripts.run(globals, lua);
     }
 
     private static String tostring(Globals globals, String className, String text) {

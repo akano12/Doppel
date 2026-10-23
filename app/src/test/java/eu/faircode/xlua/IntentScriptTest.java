@@ -23,11 +23,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.jse.JsePlatform;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -94,15 +89,11 @@ public class IntentScriptTest {
 
     @Before
     public void load() throws Exception {
-        globals = JsePlatform.standardGlobals();
-        String script = new String(Files.readAllBytes(new File("src/main/assets/intent_createfromparcel.lua").toPath()),
-                StandardCharsets.UTF_8);
-        globals.load(script, "intent_createfromparcel").call();
-        globals.load(STUBS, "stubs").call();
+        globals = Scripts.load("intent_createfromparcel", STUBS);
     }
 
     private Varargs run(String lua) {
-        return globals.load(lua, "test").invoke();
+        return Scripts.run(globals, lua);
     }
 
     // The changed components of a hidden app are the package of the app itself, like when all of it changed

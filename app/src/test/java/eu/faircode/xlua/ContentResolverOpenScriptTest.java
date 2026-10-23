@@ -23,11 +23,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.jse.JsePlatform;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -104,11 +99,7 @@ public class ContentResolverOpenScriptTest {
 
     @Before
     public void load() throws Exception {
-        globals = JsePlatform.standardGlobals();
-        String script = new String(Files.readAllBytes(new File("src/main/assets/contentresolver_open.lua").toPath()),
-                StandardCharsets.UTF_8);
-        globals.load(script, "contentresolver_open").call();
-        globals.load(STUBS, "stubs").call();
+        globals = Scripts.load("contentresolver_open", STUBS);
     }
 
     // Whether restricted, the class and the message of the exception and the queries, separated by a comma;

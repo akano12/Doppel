@@ -24,11 +24,6 @@ import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.jse.JsePlatform;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -69,11 +64,7 @@ public class LocationScriptTest {
 
     @Before
     public void load() throws Exception {
-        globals = JsePlatform.standardGlobals();
-        String script = new String(Files.readAllBytes(new File("src/main/assets/location.lua").toPath()),
-                StandardCharsets.UTF_8);
-        globals.load(script, "location").call();
-        globals.load(STUBS, "stubs").call();
+        globals = Scripts.load("location", STUBS);
     }
 
     private Varargs after(String method, String key, boolean isLocation, String settings) {

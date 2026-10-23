@@ -23,11 +23,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.jse.JsePlatform;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -150,15 +145,11 @@ public class SettingsScriptTest {
 
     @Before
     public void load() throws Exception {
-        globals = JsePlatform.standardGlobals();
-        String script = new String(Files.readAllBytes(new File("src/main/assets/settingssecure_getstring.lua").toPath()),
-                StandardCharsets.UTF_8);
-        globals.load(script, "settingssecure_getstring").call();
-        globals.load(STUBS, "stubs").call();
+        globals = Scripts.load("settingssecure_getstring", STUBS);
     }
 
     private Varargs run(String lua) {
-        return globals.load(lua, "test").invoke();
+        return Scripts.run(globals, lua);
     }
 
     // The fake value of a setting of the applications variants, or "same" when it stays

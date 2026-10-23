@@ -113,18 +113,9 @@ function substitute(param, value, suffix, substitutes)
     return nil
 end
 
--- All occurrences of a text, without patterns
+-- All occurrences of a text, without patterns: the characters which are magic in patterns are escaped
 function replace(text, old, new)
-    local result = ''
-    local index = 1
-    while true do
-        local first, last = string.find(text, old, index, true)
-        if first == nil then
-            return result .. string.sub(text, index)
-        end
-        result = result .. string.sub(text, index, first - 1) .. new
-        index = last + 1
-    end
+    return (string.gsub(text, (string.gsub(old, '%W', '%%%0')), (string.gsub(new, '%%', '%%%%'))))
 end
 
 function before(hook, param)

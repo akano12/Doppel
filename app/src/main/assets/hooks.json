@@ -98,7 +98,7 @@
     "returnType": "java.util.List",
     "minSdk": 3,
     "excludePackages": "android",
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -114,7 +114,7 @@
     "returnType": "java.util.List",
     "minSdk": 26,
     "excludePackages": "android",
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -129,7 +129,7 @@
     "returnType": "java.util.List",
     "minSdk": 21,
     "excludePackages": "android",
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -1080,23 +1080,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
-    "name": "Settings.Secure.getString/input_method",
-    "author": "XPrivacyLua",
-    "className": "android.provider.Settings$Secure",
-    "methodName": "getString",
-    "parameterTypes": [
-      "android.content.ContentResolver",
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.String",
-    "minSdk": 3,
-    "enabled": false,
-    "excludePackages": "android",
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
     "name": "TelecomManager.getDefaultDialerPackage",
     "author": "XPrivacyLua",
     "className": "android.telecom.TelecomManager",
@@ -1588,7 +1571,7 @@
     "returnType": "java.util.List",
     "minSdk": 21,
     "excludePackages": "android",
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -1623,26 +1606,6 @@
   },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html API 14
-  {
-    "collection": "Privacy",
-    "group": "Get.Calendars",
-    "name": "ContentResolver.query1/calendars",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "[Ljava.lang.String;",
-      "java.lang.String",
-      "[Ljava.lang.String;",
-      "java.lang.String"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 1,
-    "maxSdk": 25,
-    "enabled": false,
-    "luaScript": "@contentresolver_query"
-  },
   {
     "collection": "Privacy",
     "group": "Get.Calendars",
@@ -1719,26 +1682,6 @@
   },
   // Get call log
   // https://developer.android.com/reference/android/provider/CallLog.html API 1
-  {
-    "collection": "Privacy",
-    "group": "Get.Call.log",
-    "name": "ContentResolver.query1/call_log",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "[Ljava.lang.String;",
-      "java.lang.String",
-      "[Ljava.lang.String;",
-      "java.lang.String"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 1,
-    "maxSdk": 25,
-    "enabled": false,
-    "luaScript": "@contentresolver_query"
-  },
   {
     "collection": "Privacy",
     "group": "Get.Call.log",
@@ -1820,29 +1763,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Contacts",
-    "name": "ContentResolver.query1/contacts",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "[Ljava.lang.String;",
-      "java.lang.String",
-      "[Ljava.lang.String;",
-      "java.lang.String"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 1,
-    "maxSdk": 25,
-    "enabled": false,
-    "settings": [
-      "contacts.starred"
-    ],
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Contacts",
     "name": "ContentResolver.query16/contacts",
     "author": "M66B",
     "className": "android.content.ContentResolver",
@@ -1904,26 +1824,6 @@
     "settings": [
       "contacts.starred"
     ],
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Contacts",
-    "name": "ContentResolver.query1/blockednumber",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "[Ljava.lang.String;",
-      "java.lang.String",
-      "[Ljava.lang.String;",
-      "java.lang.String"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 1,
-    "maxSdk": 25,
-    "enabled": false,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -2196,7 +2096,7 @@
     "returnType": "boolean",
     "minSdk": 5,
     "optional": true,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -2210,7 +2110,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 24,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -2225,7 +2125,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 24,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -2243,7 +2143,7 @@
     ],
     "returnType": "void",
     "minSdk": 1,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -2275,7 +2175,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 30,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   // Raw GNSS measurements can be used to compute the location
   {
@@ -2290,7 +2190,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 24,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -2305,7 +2205,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 24,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -2320,7 +2220,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 30,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -2336,7 +2236,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 31,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   // Get messages
   // https://developer.android.com/reference/android/provider/Telephony.Sms.Intents#SMS_RECEIVED_ACTION
@@ -2358,26 +2258,6 @@
     "returnType": "android.content.Intent",
     "minSdk": 1,
     "luaScript": "@intent_createfromparcel"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Messages",
-    "name": "ContentResolver.query1/mmssms",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "[Ljava.lang.String;",
-      "java.lang.String",
-      "[Ljava.lang.String;",
-      "java.lang.String"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 1,
-    "maxSdk": 25,
-    "enabled": false,
-    "luaScript": "@contentresolver_query"
   },
   {
     "collection": "Privacy",
@@ -2434,26 +2314,6 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 26,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Messages",
-    "name": "ContentResolver.query1/voicemail",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "[Ljava.lang.String;",
-      "java.lang.String",
-      "[Ljava.lang.String;",
-      "java.lang.String"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 1,
-    "maxSdk": 25,
-    "enabled": false,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -2525,7 +2385,7 @@
     "returnType": "java.util.ArrayList",
     "minSdk": 4,
     "optional": true,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -2704,7 +2564,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 24,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -2718,7 +2578,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 3,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -2822,27 +2682,6 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
-    "name": "ContentResolver.query1/gsf_id",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "[Ljava.lang.String;",
-      "java.lang.String",
-      "[Ljava.lang.String;",
-      "java.lang.String"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 1,
-    "maxSdk": 25,
-    "enabled": false,
-    "excludePackages": "com\\.android\\..*,com\\.google\\.android\\..*",
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
     "name": "ContentResolver.query16/gsf_id",
     "author": "M66B",
     "className": "android.content.ContentResolver",
@@ -2917,28 +2756,6 @@
     "minSdk": 26,
     "excludePackages": "com\\.android\\..*,com\\.google\\.android\\..*",
     "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "ContentResolver.query1/fb_attribution",
-    "author": "XPrivacyLua",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "[Ljava.lang.String;",
-      "java.lang.String",
-      "[Ljava.lang.String;",
-      "java.lang.String"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 1,
-    "maxSdk": 25,
-    "enabled": false,
-    "excludePackages": "com\\.facebook\\..*",
-    "luaScript": "@contentresolver_query",
-    "description": "Attribution id of the Facebook apps, which the Facebook SDK uses to track users across apps"
   },
   {
     "collection": "Privacy",
@@ -3019,27 +2836,6 @@
     "luaScript": "@contentresolver_query"
   },
   // Advertising ids of device makers
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "ContentResolver.query1/oaid",
-    "author": "XPrivacyLua",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "[Ljava.lang.String;",
-      "java.lang.String",
-      "[Ljava.lang.String;",
-      "java.lang.String"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 1,
-    "maxSdk": 25,
-    "enabled": false,
-    "luaScript": "@contentresolver_query",
-    "description": "Advertising id (OAID) of the system of Vivo and Meizu devices"
-  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -3223,25 +3019,6 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
-    "name": "Settings.Secure.getString/android_id",
-    "author": "M66B",
-    "className": "android.provider.Settings$Secure",
-    "methodName": "getString",
-    "parameterTypes": [
-      "android.content.ContentResolver",
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.String",
-    "minSdk": 3,
-    "enabled": false,
-    "settings": [
-      "value.android_id"
-    ],
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
     "name": "Settings.Secure.getStringForUser/android_id",
     "author": "XPrivacyLua",
     "className": "android.provider.Settings$Secure",
@@ -3322,7 +3099,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 17,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3362,7 +3139,7 @@
     "minSdk": 3,
     "maxSdk": 28,
     "optional": true,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3390,7 +3167,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 1,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3403,7 +3180,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 1,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3441,7 +3218,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 31,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3465,7 +3242,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 33,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3477,7 +3254,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 34,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3647,7 +3424,7 @@
     "parameterTypes": [],
     "returnType": "java.util.Set",
     "minSdk": 5,
-    "luaScript": "@generic_empty_set"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3721,7 +3498,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 29,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3733,7 +3510,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 29,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -3786,7 +3563,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 11,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   // Read telephony data
   // https://developer.android.com/reference/android/telephony/SubscriptionInfo.html
@@ -4239,7 +4016,7 @@
     "returnType": "void",
     "minSdk": 3,
     "notify": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4254,7 +4031,7 @@
     "returnType": "void",
     "minSdk": 16,
     "notify": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4267,7 +4044,7 @@
     ],
     "returnType": "void",
     "minSdk": 3,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   // Record audio
   // https://developer.android.com/reference/android/media/AudioManager.html
@@ -4283,7 +4060,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 24,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -4309,7 +4086,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 31,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -4333,7 +4110,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 28,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -4347,7 +4124,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 33,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -4362,7 +4139,7 @@
     ],
     "returnType": "void",
     "minSdk": 23,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4377,7 +4154,7 @@
     ],
     "returnType": "void",
     "minSdk": 24,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4470,7 +4247,7 @@
     "returnType": "void",
     "minSdk": 8,
     "notify": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   // Hidden implementation subclass on Android 15 and later
   {
@@ -4487,7 +4264,7 @@
     "minSdk": 35,
     "optional": true,
     "notify": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   // Record video
   // https://developer.android.com/reference/android/media/MediaRecorder.html
@@ -4587,7 +4364,7 @@
     ],
     "returnType": "void",
     "minSdk": 4,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4605,7 +4382,7 @@
     ],
     "returnType": "void",
     "minSdk": 21,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4624,7 +4401,7 @@
     ],
     "returnType": "void",
     "minSdk": 31,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4642,7 +4419,7 @@
     ],
     "returnType": "void",
     "minSdk": 4,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4660,7 +4437,7 @@
     ],
     "returnType": "void",
     "minSdk": 4,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4679,7 +4456,7 @@
     ],
     "returnType": "void",
     "minSdk": 30,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4698,7 +4475,7 @@
     ],
     "returnType": "void",
     "minSdk": 30,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4718,7 +4495,7 @@
     ],
     "returnType": "void",
     "minSdk": 30,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4736,7 +4513,7 @@
     ],
     "returnType": "void",
     "minSdk": 28,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4758,7 +4535,7 @@
     "returnType": "void",
     "minSdk": 23,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4780,7 +4557,7 @@
     "returnType": "void",
     "minSdk": 23,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   // Use analytics
   // https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/FirebaseAnalytics
@@ -4830,7 +4607,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4846,7 +4623,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4861,7 +4638,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4877,7 +4654,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4893,7 +4670,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4910,7 +4687,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   // logPurchase is not hooked to prevent trouble with purchases
   {
@@ -4926,7 +4703,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4942,7 +4719,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4957,7 +4734,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4973,7 +4750,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -4990,7 +4767,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -5006,7 +4783,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -5066,7 +4843,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   // https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/FirebaseAnalytics
   {
@@ -5083,7 +4860,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -5098,7 +4875,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -5114,7 +4891,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   // https://firebase.google.com/docs/reference/android/com/google/firebase/crashlytics/FirebaseCrashlytics
   {
@@ -5249,7 +5026,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -5264,7 +5041,7 @@
     "returnType": "void",
     "minSdk": 1,
     "optional": true,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   // Use camera
   // https://developer.android.com/reference/android/hardware/Camera.html
@@ -5389,7 +5166,7 @@
     "parameterTypes": [],
     "returnType": "[Ljava.lang.String;",
     "minSdk": 21,
-    "luaScript": "@generic_empty_string_array"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -6032,26 +5809,6 @@
     "optional": true,
     "luaScript": "@advertisingidclient$info_getid"
   },
-  // android_id moved to Settings.Secure, but Settings.System still returns it
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "Settings.System.getString/android_id",
-    "author": "XPrivacyLua",
-    "className": "android.provider.Settings$System",
-    "methodName": "getString",
-    "parameterTypes": [
-      "android.content.ContentResolver",
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.String",
-    "minSdk": 3,
-    "enabled": false,
-    "settings": [
-      "value.android_id"
-    ],
-    "luaScript": "@settingssecure_getstring"
-  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -6067,22 +5824,6 @@
     "usage": false,
     "enabled": false,
     "luaScript": "@configuration_createfromparcel"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Settings.Secure.getString/bluetooth_name",
-    "author": "M66B",
-    "className": "android.provider.Settings$Secure",
-    "methodName": "getString",
-    "parameterTypes": [
-      "android.content.ContentResolver",
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.String",
-    "minSdk": 3,
-    "enabled": false,
-    "luaScript": "@settingssecure_getstring"
   },
   {
     "collection": "Privacy",
@@ -6654,22 +6395,6 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "Settings.Global.getString/device_name",
-    "author": "XPrivacyLua",
-    "className": "android.provider.Settings$Global",
-    "methodName": "getString",
-    "parameterTypes": [
-      "android.content.ContentResolver",
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.String",
-    "minSdk": 25,
-    "enabled": false,
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
     "name": "Settings.Global.getStringForUser/device_name",
     "author": "XPrivacyLua",
     "className": "android.provider.Settings$Global",
@@ -7099,7 +6824,7 @@
     ],
     "returnType": "void",
     "minSdk": 21,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -7115,7 +6840,7 @@
     ],
     "returnType": "void",
     "minSdk": 21,
-    "luaScript": "@generic_block_method"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -7131,7 +6856,7 @@
     ],
     "returnType": "int",
     "minSdk": 26,
-    "luaScript": "@generic_block_zero"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -7145,7 +6870,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 18,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -7160,7 +6885,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 18,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -7172,7 +6897,7 @@
     "parameterTypes": [],
     "returnType": "boolean",
     "minSdk": 5,
-    "luaScript": "@generic_block_false"
+    "luaScript": "@generic_block"
   },
   // Connected Bluetooth devices, like a car or headphones, reveal where and with what someone is
   {
@@ -7187,7 +6912,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 18,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -7202,7 +6927,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 18,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -7214,7 +6939,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 11,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -7228,7 +6953,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 11,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -7240,7 +6965,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 11,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -7254,7 +6979,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 11,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -7266,7 +6991,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 29,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -7280,7 +7005,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 29,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -7292,7 +7017,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 33,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -7306,7 +7031,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 33,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   // Network service discovery finds the devices in the local network, like TVs, printers and phones with names
   {
@@ -7590,7 +7315,7 @@
     "parameterTypes": [],
     "returnType": "java.util.Collection",
     "minSdk": 14,
-    "luaScript": "@generic_empty_list"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",

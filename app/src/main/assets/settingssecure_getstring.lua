@@ -108,12 +108,6 @@ function systemservices(param, source)
     return packages
 end
 
--- Whether the package manager tells about an app, and it is a system app or the app itself;
--- an app hidden by the package visibility rules is not visible
-function installed(param, packageName)
-    return param:isInstalledVisible(packageName)
-end
-
 -- The default app of a device on which the user did not choose one: the dialer of the system, or the SMS app
 -- the configuration of the system names, else a system app which can be the default; nil when there is none.
 -- The same function as in default_app_filter, which tells it for the hidden default app too; a test compares them.
@@ -195,7 +189,9 @@ function components(param, key, value)
             end
             visible = services[packageName]
             if visible == nil then
-                visible = installed(param, packageName)
+                -- Whether the package manager tells about the app, and it is a system app or the app itself;
+                -- an app hidden by the package visibility rules is not visible
+                visible = param:isInstalledVisible(packageName)
             end
         end
         if visible then

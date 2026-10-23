@@ -23,11 +23,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.jse.JsePlatform;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -64,11 +59,7 @@ public class NotificationScriptTest {
 
     @Before
     public void load() throws Exception {
-        globals = JsePlatform.standardGlobals();
-        String script = new String(Files.readAllBytes(
-                new File("src/main/assets/statusbarnotification_getnotification.lua").toPath()), StandardCharsets.UTF_8);
-        globals.load(script, "statusbarnotification_getnotification").call();
-        globals.load(STUBS, "stubs").call();
+        globals = Scripts.load("statusbarnotification_getnotification", STUBS);
     }
 
     // Listeners show the small icon, which posted notifications have, and use the channel

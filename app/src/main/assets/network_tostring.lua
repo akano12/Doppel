@@ -26,25 +26,9 @@ local NONE = '<none>'
 -- The address Android shows to apps without permission, also for the access point
 local HIDDEN_MAC = '02:00:00:00:00:00'
 
--- Replaces the value after label up to nextLabel, unless it is one of the kept values
+-- Replaces the value after each label up to nextLabel, like of the links stacked in LinkProperties,
+-- unless it is one of the kept values
 function replace(text, label, nextLabel, fake, kept)
-    local _, last = string.find(text, label, 1, true)
-    if last == nil then
-        return text, false
-    end
-    local following = string.find(text, nextLabel, last + 1, true)
-    if following == nil then
-        return text, false
-    end
-    local value = string.sub(text, last + 1, following - 1)
-    if value == fake or (kept ~= nil and kept[value]) then
-        return text, false
-    end
-    return string.sub(text, 1, last) .. fake .. string.sub(text, following), true
-end
-
--- Replaces the values after each label, like of the links stacked in LinkProperties, see replace
-function replaceall(text, label, nextLabel, fake, kept)
     local restricted = false
     local start = 1
     while true do
@@ -170,7 +154,7 @@ function linkproperties(text)
     end
 
     -- The domains are a list with spaces up to the MTU, which is always there, null like the getter
-    text, changed = replaceall(text, 'Domains: ', ' MTU: ', 'null', nil)
+    text, changed = replace(text, 'Domains: ', ' MTU: ', 'null', nil)
     restricted = restricted or changed
 
     -- The DHCP server and the private DNS server name are null, like their getters;
@@ -180,7 +164,7 @@ function linkproperties(text)
     if string.find(text, 'LinkAddresses: [ ', 1, true) then
         text, changed = removesection(text, '( )PrivateDnsServerName: [^%s}]+ ?')
     else
-        text, changed = replaceall(text, 'PrivateDnsServerName: ', ' ', 'null', nil)
+        text, changed = replace(text, 'PrivateDnsServerName: ', ' ', 'null', nil)
     end
     restricted = restricted or changed
 
@@ -189,7 +173,7 @@ end
 
 function networkregistrationinfo(text)
     -- The cell, null like the getter and like Android shows it to apps without location permission
-    return replaceall(text, ' cellIdentity=', ' voiceSpecificInfo=', 'null', nil)
+    return replace(text, ' cellIdentity=', ' voiceSpecificInfo=', 'null', nil)
 end
 
 function wifip2pdevicelist(text)

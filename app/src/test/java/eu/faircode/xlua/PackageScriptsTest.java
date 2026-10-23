@@ -23,11 +23,6 @@ import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
-import org.luaj.vm2.lib.jse.JsePlatform;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -105,16 +100,11 @@ public class PackageScriptsTest {
     }
 
     private static Globals load(String name) throws Exception {
-        Globals globals = JsePlatform.standardGlobals();
-        String script = new String(Files.readAllBytes(new File("src/main/assets/" + name + ".lua").toPath()),
-                StandardCharsets.UTF_8);
-        globals.load(script, name).call();
-        globals.load(STUBS, "stubs").call();
-        return globals;
+        return Scripts.load(name, STUBS);
     }
 
     private static Varargs run(Globals globals, String lua) {
-        return globals.load(lua, "test").invoke();
+        return Scripts.run(globals, lua);
     }
 
     // A hidden package is looked up under a name which is not installed, so Android itself answers

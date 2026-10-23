@@ -15,15 +15,29 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- An empty collection or array of the kind of the result, which stays when it is empty already:
+-- a list, a set or an array like String[], of the component type of the return type of the definition
+
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or result.length == 0 then
+    if result == nil then
         return false
     end
 
-    local stringClass = luajava.bindClass('java.lang.String')
-    local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-    local fake = arrayClass:newInstance(stringClass, 0)
+    local fake
+    if param:isInstance(result, 'java.util.Collection') then
+        if result:isEmpty() then
+            return false
+        end
+        fake = luajava.newInstance(param:isInstance(result, 'java.util.Set') and 'java.util.HashSet' or 'java.util.ArrayList')
+    else
+        if result.length == 0 then
+            return false
+        end
+        local component = string.match(hook:getReturnType(), '^%[L(.*);$')
+        local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+        fake = arrayClass:newInstance(luajava.bindClass(component), 0)
+    end
     param:setResult(fake)
     return true
 end

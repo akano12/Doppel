@@ -283,10 +283,6 @@ final class Ui {
         });
     }
 
-    static void areYouSure(Context context, CharSequence question, Runnable onSure) {
-        areYouSure(context, question, android.R.string.ok, onSure);
-    }
-
     // The button names the action, like Delete, so an action which cannot be undone is not confirmed with OK
     static void areYouSure(Context context, CharSequence question, @StringRes int positive, Runnable onSure) {
         new MaterialAlertDialogBuilder(context)

@@ -113,9 +113,25 @@ class XDatabase {
             {"TelephonyManager/getSubscriberId", "TelephonyManager.getSubscriberId"},
             {"TelephonyManager/getVoiceMailAlphaTag", "TelephonyManager.getVoiceMailAlphaTag"},
             {"TelephonyManager/getVoiceMailNumber", "TelephonyManager.getVoiceMailNumber"},
-            {"Settings.Secure.getString", "Settings.Secure.getString/android_id"},
             {"SystemProperties.get", "SystemProperties.get/serial"},
             {"SystemProperties.get/default", "SystemProperties.get.default/serial"},
+            // Settings.*.getString calls getStringForUser, which is hooked; Settings.System gives android_id from Secure
+            {"Settings.Secure.getString", "Settings.Secure.getStringForUser/android_id"},
+            {"Settings.Secure.getString/android_id", "Settings.Secure.getStringForUser/android_id"},
+            {"Settings.System.getString/android_id", "Settings.Secure.getStringForUser/android_id"},
+            {"Settings.Secure.getString/input_method", "Settings.Secure.getStringForUser/input_method"},
+            {"Settings.Secure.getString/bluetooth_name", "Settings.Secure.getStringForUser/bluetooth_name"},
+            {"Settings.Global.getString/device_name", "Settings.Global.getStringForUser/device_name"},
+            // ContentResolver.query without a cancellation signal calls the hooked query with one (API 16 and later)
+            {"ContentResolver.query1/calendars", "ContentResolver.query16/calendars"},
+            {"ContentResolver.query1/call_log", "ContentResolver.query16/call_log"},
+            {"ContentResolver.query1/contacts", "ContentResolver.query16/contacts"},
+            {"ContentResolver.query1/blockednumber", "ContentResolver.query16/blockednumber"},
+            {"ContentResolver.query1/mmssms", "ContentResolver.query16/mmssms"},
+            {"ContentResolver.query1/voicemail", "ContentResolver.query16/voicemail"},
+            {"ContentResolver.query1/gsf_id", "ContentResolver.query16/gsf_id"},
+            {"ContentResolver.query1/fb_attribution", "ContentResolver.query16/fb_attribution"},
+            {"ContentResolver.query1/oaid", "ContentResolver.query16/oaid"},
     };
 
     private final SQLiteDatabase db;

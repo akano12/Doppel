@@ -91,6 +91,10 @@ android {
     testOptions {
         // Engine code logs in debug builds; the methods of the Android stubs return defaults instead of failing
         unitTests.returnDefaultValues = true
+        // Scripts create Java collections and arrays, of which LuaJ looks at all members, like it can on Android
+        unitTests.all {
+            jvmArgs '--add-opens', 'java.base/java.util=ALL-UNNAMED', '--add-opens', 'java.base/java.lang.reflect=ALL-UNNAMED'
+        }
     }
 
     lint {
