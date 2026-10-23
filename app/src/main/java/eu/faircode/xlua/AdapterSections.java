@@ -219,6 +219,21 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
         }
     }
 
+    // The rows under a group row sit on an inset panel in the block of the group rows: the outer background
+    // continues the block and ends with the last row of the list, the panel has corners of its own
+    void joinInset(@NonNull RecyclerView.ViewHolder holder, View panel, View divider, boolean first, boolean last) {
+        Context context = holder.itemView.getContext();
+        int position = holder.getBindingAdapterPosition();
+        Ui.join(holder.itemView, Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerLowest), 20,
+                false, position == items.size() - 1);
+        int background = Ui.color(context, com.google.android.material.R.attr.colorSurface);
+        Ui.join(panel, background, 14, first, last);
+        ((ViewGroup.MarginLayoutParams) panel.getLayoutParams()).bottomMargin = (last ? Ui.dp(context, 10) : 0);
+        panel.requestLayout();
+        divider.setVisibility(first ? View.GONE : View.VISIBLE);
+        divider.setBackgroundColor(Ui.dividerColor(context, background));
+    }
+
     // The group rows form one block with the rows of their items; an open group has the accent colors
     private void bindGroup(View view, Group group, int position) {
         Context context = view.getContext();

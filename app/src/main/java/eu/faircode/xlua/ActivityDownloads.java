@@ -34,6 +34,7 @@ import androidx.recyclerview.widget.ConcatAdapter;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -83,6 +84,7 @@ public class ActivityDownloads extends ActivityBase {
     }
 
     private View pbLoading;
+    private ChipGroup cgFilter;
     private EmptyAdapter emptyAdapter;
     private Adapter adapter;
 
@@ -115,7 +117,7 @@ public class ActivityDownloads extends ActivityBase {
             show();
         });
 
-        ChipGroup cgFilter = findViewById(R.id.cgFilter);
+        cgFilter = findViewById(R.id.cgFilter);
         Ui.chips(cgFilter, FILTER_CHIPS, Filter.values(), filter, selected -> {
             filter = selected;
             accordion.reset();
@@ -253,6 +255,23 @@ public class ActivityDownloads extends ActivityBase {
     }
 
     private void show() {
+        // The chips count all definitions, whatever the search
+        int available = 0;
+        int installed = 0;
+        int updates = 0;
+        for (Entry entry : all) {
+            State state = getState(entry);
+            if (state == State.AVAILABLE)
+                available++;
+            else
+                installed++;
+            if (state == State.UPDATE)
+                updates++;
+        }
+        ((Chip) cgFilter.findViewById(R.id.chipAvailable)).setText(getString(R.string.title_count, getString(R.string.title_not_installed), available));
+        ((Chip) cgFilter.findViewById(R.id.chipInstalled)).setText(getString(R.string.title_count, getString(R.string.title_installed), installed));
+        ((Chip) cgFilter.findViewById(R.id.chipUpdates)).setText(getString(R.string.title_count, getString(R.string.title_updates), updates));
+
         String q = (query == null ? "" : query.trim());
         List<Object> items = new ArrayList<>();
         String collection = null;
@@ -288,10 +307,28 @@ public class ActivityDownloads extends ActivityBase {
     }
 
     // One collection is open at a time, like the groups of the Hooks tab, at first the first one;
-    // searching or filtering shows all collections with matches
+    // searching or filtering shows all collections with matches. The row of a collection tells how many
+    // definitions it has, how many are installed and how many have an update.
     private void addCollection(List<Object> items, String collection, List<Entry> entries) {
-        accordion.add(this, items, collection, collection, entries,
-                all.isEmpty() ? null : all.get(0).collection,
+        if (collection == null || entries.isEmpty())
+            return;
+        int installed = 0;
+        int updates = 0;
+        for (Entry entry : entries) {
+            State state = getState(entry);
+            if (state != State.AVAILABLE)
+                installed++;
+            if (state == State.UPDATE)
+                updates++;
+        }
+        List<String> parts = new ArrayList<>();
+        parts.add(getResources().getQuantityString(R.plurals.title_definition_count, entries.size(), entries.size()));
+        if (installed > 0)
+            parts.add(getResources().getQuantityString(R.plurals.title_installed_count, installed, installed));
+        if (updates > 0)
+            parts.add(getResources().getQuantityString(R.plurals.title_update_count, updates, updates));
+        accordion.addGroup(this, items, collection, collection, String.join(" · ", parts), R.drawable.ic_group_custom,
+                entries, all.isEmpty() ? null : all.get(0).collection,
                 filter != Filter.ALL || (query != null && !query.trim().isEmpty()),
                 this::show);
     }
@@ -412,6 +449,8 @@ public class ActivityDownloads extends ActivityBase {
 
     private class Adapter extends AdapterSections<Entry> {
         class EntryHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
+            final View llPanel;
+            final View vDivider;
             final TextView tvName;
             final TextView tvGroup;
             final TextView tvMeta;
@@ -422,6 +461,8 @@ public class ActivityDownloads extends ActivityBase {
 
             EntryHolder(View itemView) {
                 super(itemView);
+                llPanel = itemView.findViewById(R.id.llPanel);
+                vDivider = itemView.findViewById(R.id.vDivider);
                 tvName = itemView.findViewById(R.id.tvName);
                 tvGroup = itemView.findViewById(R.id.tvGroup);
                 tvMeta = itemView.findViewById(R.id.tvMeta);
@@ -464,6 +505,7 @@ public class ActivityDownloads extends ActivityBase {
             Context context = h.itemView.getContext();
             State state = getState(entry);
 
+            joinInset(h, h.llPanel, h.vDivider, first, last);
             h.tvName.setText(entry.name);
             h.tvGroup.setText(Groups.getTitle(context, entry.group));
             h.tvMeta.setText(getString(R.string.title_download_meta, entry.author, entry.version,

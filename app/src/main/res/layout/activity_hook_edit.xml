@@ -42,7 +42,7 @@
                 <LinearLayout
                     android:id="@+id/llBuiltin"
                     style="@style/XLua.Banner"
-                    android:backgroundTint="?attr/colorPrimaryContainer"
+                    android:backgroundTint="?attr/colorSecondaryContainer"
                     android:visibility="gone">
 
                     <TextView
@@ -50,7 +50,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/title_hook_edit_builtin"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
-                        android:textColor="?attr/colorOnPrimaryContainer" />
+                        android:textColor="?attr/colorOnSecondaryContainer" />
                 </LinearLayout>
 
                 <TextView
@@ -377,67 +377,86 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:divider="@drawable/divider"
                         android:orientation="vertical"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp"
-                        android:paddingBottom="14dp">
+                        android:showDividers="middle">
 
-                        <com.google.android.material.materialswitch.MaterialSwitch
-                            android:id="@+id/swEnabled"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:minHeight="48dp"
-                            android:text="@string/title_hook_enabled"
-                            android:textAppearance="?attr/textAppearanceBodyLarge" />
+                        <LinearLayout style="@style/XLua.Row">
 
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/title_hook_enabled_hint"
-                            android:textAppearance="@style/XLua.Text.Meta" />
-                        <com.google.android.material.materialswitch.MaterialSwitch
-                            android:id="@+id/swOptional"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:minHeight="48dp"
-                            android:text="@string/title_hook_optional"
-                            android:textAppearance="?attr/textAppearanceBodyLarge" />
+                            <LinearLayout style="@style/XLua.Row.Text">
 
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/title_hook_optional_hint"
-                            android:textAppearance="@style/XLua.Text.Meta" />
-                        <com.google.android.material.materialswitch.MaterialSwitch
-                            android:id="@+id/swUsage"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:minHeight="48dp"
-                            android:text="@string/title_hook_usage"
-                            android:textAppearance="?attr/textAppearanceBodyLarge" />
+                                <TextView
+                                    style="@style/XLua.Row.Title"
+                                    android:text="@string/title_hook_enabled" />
 
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/title_hook_usage_hint"
-                            android:textAppearance="@style/XLua.Text.Meta" />
-                        <com.google.android.material.materialswitch.MaterialSwitch
-                            android:id="@+id/swNotify"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:minHeight="48dp"
-                            android:text="@string/title_hook_notify"
-                            android:textAppearance="?attr/textAppearanceBodyLarge" />
+                                <TextView
+                                    style="@style/XLua.Row.Subtitle"
+                                    android:text="@string/title_hook_enabled_hint" />
+                            </LinearLayout>
 
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/title_hook_notify_hint"
-                            android:textAppearance="@style/XLua.Text.Meta" />
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/swEnabled"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:contentDescription="@string/title_hook_enabled" />
+                        </LinearLayout>
+                        <LinearLayout style="@style/XLua.Row">
+
+                            <LinearLayout style="@style/XLua.Row.Text">
+
+                                <TextView
+                                    style="@style/XLua.Row.Title"
+                                    android:text="@string/title_hook_optional" />
+
+                                <TextView
+                                    style="@style/XLua.Row.Subtitle"
+                                    android:text="@string/title_hook_optional_hint" />
+                            </LinearLayout>
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/swOptional"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:contentDescription="@string/title_hook_optional" />
+                        </LinearLayout>
+                        <LinearLayout style="@style/XLua.Row">
+
+                            <LinearLayout style="@style/XLua.Row.Text">
+
+                                <TextView
+                                    style="@style/XLua.Row.Title"
+                                    android:text="@string/title_hook_usage" />
+
+                                <TextView
+                                    style="@style/XLua.Row.Subtitle"
+                                    android:text="@string/title_hook_usage_hint" />
+                            </LinearLayout>
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/swUsage"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:contentDescription="@string/title_hook_usage" />
+                        </LinearLayout>
+                        <LinearLayout style="@style/XLua.Row">
+
+                            <LinearLayout style="@style/XLua.Row.Text">
+
+                                <TextView
+                                    style="@style/XLua.Row.Title"
+                                    android:text="@string/title_hook_notify" />
+
+                                <TextView
+                                    style="@style/XLua.Row.Subtitle"
+                                    android:text="@string/title_hook_notify_hint" />
+                            </LinearLayout>
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/swNotify"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:contentDescription="@string/title_hook_notify" />
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 

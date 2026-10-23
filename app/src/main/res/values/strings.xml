@@ -338,6 +338,18 @@
     <string name="msg_removed">Removed %1$s</string>
     <string name="title_replaces_builtin">replaces built-in</string>
     <string name="title_download_meta">%1$s · v%2$d · %3$s · %4$s</string>
+    <plurals name="title_definition_count">
+        <item quantity="one">%1$d definition</item>
+        <item quantity="other">%1$d definitions</item>
+    </plurals>
+    <plurals name="title_installed_count">
+        <item quantity="one">%1$d installed</item>
+        <item quantity="other">%1$d installed</item>
+    </plurals>
+    <plurals name="title_update_count">
+        <item quantity="one">%1$d update</item>
+        <item quantity="other">%1$d updates</item>
+    </plurals>
     <plurals name="msg_hooks_imported">
         <item quantity="one">Imported %1$d definition</item>
         <item quantity="other">Imported %1$d definitions</item>

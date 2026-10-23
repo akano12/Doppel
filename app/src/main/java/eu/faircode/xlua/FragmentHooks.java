@@ -397,16 +397,7 @@ public class FragmentHooks extends FragmentBase {
             Context context = h.itemView.getContext();
             boolean runs = (hook.isEnabled() && hook.isForThisSdk() && collection.contains(hook.getCollection()));
 
-            // The hooks of a group are an inset panel in the block of the group rows, which ends with the last hook
-            int position = h.getBindingAdapterPosition();
-            Ui.join(h.itemView, Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerLowest), 20,
-                    false, position == getItemCount() - 1);
-            int panel = Ui.color(context, com.google.android.material.R.attr.colorSurface);
-            Ui.join(h.llPanel, panel, 14, first, last);
-            ((ViewGroup.MarginLayoutParams) h.llPanel.getLayoutParams()).bottomMargin = (last ? Ui.dp(context, 10) : 0);
-            h.llPanel.requestLayout();
-            h.vDivider.setVisibility(first ? View.GONE : View.VISIBLE);
-            h.vDivider.setBackgroundColor(Ui.dividerColor(context, panel));
+            joinInset(h, h.llPanel, h.vDivider, first, last);
 
             h.tvName.setText(hook.getName());
             h.tvName.setTextColor(Ui.color(context, runs
