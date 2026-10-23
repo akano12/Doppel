@@ -19,10 +19,12 @@ package eu.faircode.xlua;
 
 import org.junit.Test;
 
+import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -134,6 +136,64 @@ public class AppSectionsTest {
 
         assertEquals(Collections.singletonList(restricting), FragmentApps.getRestricting(apps, "Get.Location"));
         assertTrue(FragmentApps.getRestricting(apps, "Read.Clipboard").isEmpty());
+    }
+
+    // The overview counts the apps of the filter: with restrictions, to review (new or failed) and recent
+    @Test
+    public void overviewCountsTheFilter() {
+        AdapterApp.Row restricted = row();
+        restricted.restricted = 29;
+        restricted.used = NOW - HOUR;
+        AdapterApp.Row fresh = row();
+        fresh.app.installed = NOW - HOUR;
+        AdapterApp.Row system = row();
+        system.app.system = true;
+        system.restricted = 3;
+        AdapterApp.Row idle = row();
+        List<AdapterApp.Row> rows = Arrays.asList(restricted, fresh, system, idle);
+
+        AdapterApp.Summary user = AdapterApp.Summary.of(rows, AdapterApp.Filter.USER, NOW);
+        assertEquals(3, user.total);
+        assertEquals(1, user.restricted);
+        assertEquals(1, user.review);
+        assertEquals(1, user.recent);
+        assertEquals(33, user.getPercent());
+
+        AdapterApp.Summary all = AdapterApp.Summary.of(rows, AdapterApp.Filter.ALL, NOW);
+        assertEquals(4, all.total);
+        assertEquals(2, all.restricted);
+        assertEquals(50, all.getPercent());
+        assertEquals(0, AdapterApp.Summary.of(Collections.emptyList(), AdapterApp.Filter.ALL, NOW).getPercent());
+    }
+
+    // All apps by name, by the last restriction or restricted call with the apps without one last, or by install time
+    @Test
+    public void allAppsAreSorted() {
+        Collator collator = Collator.getInstance(Locale.ENGLISH);
+        AdapterApp.Row older = row();
+        older.app.label = "Beta";
+        older.restricted = 2;
+        older.used = NOW - 2 * DAY;
+        AdapterApp.Row newer = row();
+        newer.app.label = "alpha";
+        newer.app.installed = NOW - DAY;
+        newer.restricted = 2;
+        newer.used = NOW - DAY;
+        AdapterApp.Row never = row();
+        never.app.label = "Gamma";
+        List<AdapterApp.Row> rows = new ArrayList<>(Arrays.asList(older, newer, never));
+
+        Collections.sort(rows, AdapterApp.comparator(AdapterApp.Sort.NAME, collator));
+        assertEquals(Arrays.asList(newer, older, never), rows);
+        Collections.sort(rows, AdapterApp.comparator(AdapterApp.Sort.RECENT, collator));
+        assertEquals(Arrays.asList(newer, older, never), rows);
+        Collections.sort(rows, AdapterApp.comparator(AdapterApp.Sort.INSTALLED, collator));
+        assertEquals(Arrays.asList(newer, older, never), rows);
+
+        // Equal times by name
+        never.app.installed = older.app.installed;
+        Collections.sort(rows, AdapterApp.comparator(AdapterApp.Sort.INSTALLED, collator));
+        assertEquals(Arrays.asList(newer, older, never), rows);
     }
 
     // Random IMEIs end with a Luhn check digit

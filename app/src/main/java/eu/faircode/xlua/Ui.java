@@ -147,10 +147,12 @@ final class Ui {
                 .into(iv);
     }
 
-    // Like '5 minutes ago'
-    static CharSequence ago(long time) {
-        return DateUtils.getRelativeTimeSpanString(time, System.currentTimeMillis(),
-                DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE);
+    // Like '5 min. ago', or 'just now' within a minute, which DateUtils calls '0 min. ago'
+    static CharSequence ago(Context context, long time) {
+        long now = System.currentTimeMillis();
+        if (now - time < DateUtils.MINUTE_IN_MILLIS)
+            return context.getString(R.string.title_just_now);
+        return DateUtils.getRelativeTimeSpanString(time, now, DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE);
     }
 
     // A file name with today's date, like xprivacylua-backup-2026-10-20.json, so backups can be told apart

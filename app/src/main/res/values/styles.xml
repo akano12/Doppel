@@ -4,6 +4,8 @@
     <attr name="colorWarningContainer" format="color" />
     <attr name="colorOnWarningContainer" format="color" />
     <attr name="colorSuccess" format="color" />
+    <attr name="colorSuccessContainer" format="color" />
+    <attr name="colorOnSuccessContainer" format="color" />
 
     <!-- Light and dark follow the theme setting, see ApplicationEx -->
     <style name="Theme.XLua" parent="Theme.Material3.DayNight.NoActionBar">
@@ -45,6 +47,8 @@
         <item name="colorOnWarningContainer">@color/c_on_warning_container</item>
 
         <item name="colorSuccess">@color/c_success</item>
+        <item name="colorSuccessContainer">@color/c_success_container</item>
+        <item name="colorOnSuccessContainer">@color/c_on_success_container</item>
 
         <!-- IBM Plex Sans for all text, see res/font -->
         <item name="android:fontFamily">@font/plex_sans</item>
@@ -187,6 +191,36 @@
         <item name="android:paddingBottom">2dp</item>
         <item name="android:textSize">11sp</item>
         <item name="android:fontFamily">@font/plex_mono</item>
+    </style>
+
+    <!-- Count at the end of a row, like 29/29; the colors are set from code -->
+    <style name="XLua.Pill" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">26dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:background">@drawable/bg_pill</item>
+    </style>
+
+    <!-- Word next to the title of a tab, like Active, with an icon in front; the colors are set from code -->
+    <style name="XLua.StatusChip" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">28dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:drawablePadding">5dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+        <item name="android:background">@drawable/bg_pill</item>
     </style>
 
     <!-- Caption above a card -->

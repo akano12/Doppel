@@ -34,8 +34,10 @@
     <color name="c_warning_container">#FFEBD6</color>
     <color name="c_on_warning_container">#5E3000</color>
 
-    <!-- Background of white icons, like the shield of an active module -->
+    <!-- Background of white icons, like the shield of an active module, and the chip Active of the Apps tab -->
     <color name="c_success">#1E7B3C</color>
+    <color name="c_success_container">#E3F3E8</color>
+    <color name="c_on_success_container">#1E7B3C</color>
 
     <color name="c_code_background">#14151F</color>
     <color name="c_code_text">#E5E6F0</color>

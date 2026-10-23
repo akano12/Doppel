@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -45,6 +46,15 @@
                 android:hint="@string/title_search_apps" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- Whether the hooks are live, like the status card of Settings tells; the colors are set by FragmentApps -->
+        <TextView
+            android:id="@+id/tvStatus"
+            style="@style/XLua.StatusChip"
+            android:layout_marginEnd="6dp"
+            android:visibility="gone"
+            tools:text="Active"
+            tools:visibility="visible" />
+
         <ImageButton
             android:id="@+id/ibSearch"
             android:layout_width="48dp"
@@ -62,40 +72,144 @@
             android:src="@drawable/ic_more" />
     </LinearLayout>
 
-    <!-- Which apps: user, system or all, the sections show what to look at, see AdapterApp -->
-    <com.google.android.material.button.MaterialButtonToggleGroup
-        android:id="@+id/tgFilter"
+    <!-- How many apps of the filter are restricted and what there is to look at; opens the Activity tab -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cvOverview"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
+        android:layout_marginTop="10dp"
         android:layout_marginEnd="16dp"
-        app:selectionRequired="true"
-        app:singleSelection="true">
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone"
+        tools:visibility="visible">
 
-        <Button
-            android:id="@+id/btnFilterUser"
-            style="@style/XLua.Button.Segment"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="14dp">
+
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="56dp">
+
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/piShare"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:indeterminate="false"
+                    android:max="100"
+                    app:indicatorColor="?attr/colorPrimary"
+                    app:indicatorSize="56dp"
+                    app:trackColor="?attr/colorSurfaceContainerHigh"
+                    app:trackCornerRadius="3dp"
+                    app:trackThickness="6dp"
+                    tools:progress="82" />
+
+                <TextView
+                    android:id="@+id/tvShare"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorOnSurface"
+                    tools:text="82%" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvOverview"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    tools:text="9 of 11 user apps restricted" />
+
+                <TextView
+                    android:id="@+id/tvOverviewMeta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textAppearance="@style/XLua.Text.Meta"
+                    tools:text="2 need review · 4 restricted recently" />
+            </LinearLayout>
+
+            <ImageView
+                style="@style/XLua.Row.Icon"
+                android:layout_marginStart="8dp"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Which apps: user, system or all, and the order of all apps; the sections show what to look at, see AdapterApp -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <HorizontalScrollView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/title_filter_user" />
+            android:scrollbars="none">
 
-        <Button
-            android:id="@+id/btnFilterSystem"
-            style="@style/XLua.Button.Segment"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/title_filter_system" />
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/cgFilter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:checkedChip="@id/chipUser"
+                app:selectionRequired="true"
+                app:singleLine="true"
+                app:singleSelection="true">
 
-        <Button
-            android:id="@+id/btnFilterAll"
-            style="@style/XLua.Button.Segment"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/title_all" />
-    </com.google.android.material.button.MaterialButtonToggleGroup>
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipUser"
+                    style="@style/XLua.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/title_filter_user" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipSystem"
+                    style="@style/XLua.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/title_filter_system" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipAll"
+                    style="@style/XLua.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/title_all" />
+            </com.google.android.material.chip.ChipGroup>
+        </HorizontalScrollView>
+
+        <ImageButton
+            android:id="@+id/ibSort"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/title_sort"
+            android:src="@drawable/ic_sort" />
+    </LinearLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -113,7 +227,7 @@
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
                 android:paddingStart="16dp"
-                android:paddingTop="8dp"
+                android:paddingTop="2dp"
                 android:paddingEnd="16dp"
                 android:paddingBottom="16dp" />
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

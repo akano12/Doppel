@@ -34,6 +34,8 @@
     <color name="c_on_warning_container">#FFDDB8</color>
 
     <color name="c_success">#2E8A4B</color>
+    <color name="c_success_container">#1A2E22</color>
+    <color name="c_on_success_container">#6CCB86</color>
 
     <color name="c_code_background">#0A0B10</color>
 

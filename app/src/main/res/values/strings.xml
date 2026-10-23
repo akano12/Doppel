@@ -109,6 +109,39 @@
     <string name="title_review_error">A hook failed</string>
     <string name="title_review">Review</string>
     <string name="title_restrictions_added">Restrictions added</string>
+    <string name="title_no_calls">No restricted call yet</string>
+    <string name="title_installed_ago">Installed %1$s</string>
+    <string name="title_off">Off</string>
+    <string name="badge_active">Active</string>
+    <string name="badge_inactive">Inactive</string>
+    <string name="title_sort">Sort</string>
+    <string name="title_sorted_by">Sort, %1$s</string>
+    <string name="sort_name">By name</string>
+    <string name="sort_recent">By recent activity</string>
+    <string name="sort_installed">By install date</string>
+    <string name="title_overview">Overview, opens the Activity tab</string>
+    <plurals name="title_overview_user">
+        <item quantity="one">%1$d of %2$d user app restricted</item>
+        <item quantity="other">%1$d of %2$d user apps restricted</item>
+    </plurals>
+    <plurals name="title_overview_system">
+        <item quantity="one">%1$d of %2$d system app restricted</item>
+        <item quantity="other">%1$d of %2$d system apps restricted</item>
+    </plurals>
+    <plurals name="title_overview_all">
+        <item quantity="one">%1$d of %2$d app restricted</item>
+        <item quantity="other">%1$d of %2$d apps restricted</item>
+    </plurals>
+    <plurals name="title_overview_review">
+        <item quantity="one">%1$d needs review</item>
+        <item quantity="other">%1$d need review</item>
+    </plurals>
+    <plurals name="title_overview_recent">
+        <item quantity="one">%1$d restricted recently</item>
+        <item quantity="other">%1$d restricted recently</item>
+    </plurals>
+    <string name="title_just_now">just now</string>
+    <string name="title_overview_none">Nothing needs review</string>
     <string name="title_expand">Expand</string>
     <string name="title_collapse">Collapse</string>
     <string name="msg_restricted_all">%1$s: all groups restricted</string>
@@ -117,10 +150,6 @@
     <string name="title_close_search">Close search</string>
     <string name="title_no_apps">No apps</string>
     <!-- The quantity is the number of groups -->
-    <plurals name="title_groups_of">
-        <item quantity="one">%1$d of %2$d group</item>
-        <item quantity="other">%1$d of %2$d groups</item>
-    </plurals>
     <string name="title_last_used">%1$s · %2$s</string>
     <string name="title_not_used">Restricted · not used yet</string>
     <string name="title_not_restricted">Not restricted</string>

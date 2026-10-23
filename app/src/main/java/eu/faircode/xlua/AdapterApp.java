@@ -20,6 +20,7 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
@@ -56,6 +57,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     enum Filter {USER, SYSTEM, ALL}
 
     enum Section {ATTENTION, NEW, RECENT, ALL}
+
+    // The order of all apps, the other sections have their own
+    enum Sort {NAME, RECENT, INSTALLED}
 
     // Apps installed this long ago are new, apps restricted or restricting this long ago are recent
     private static final long INSTALLED = 7 * DateUtils.DAY_IN_MILLIS;
@@ -154,6 +158,36 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
 
+    // The apps of a filter for the overview: how many, how many with restrictions, how many to look at
+    // (failed hooks and new apps) and how many restricted recently, see Row.getSection
+    static class Summary {
+        int total;
+        int restricted;
+        int review;
+        int recent;
+
+        static Summary of(List<Row> rows, Filter filter, long now) {
+            Summary summary = new Summary();
+            for (Row row : rows)
+                if (matches(row, filter)) {
+                    summary.total++;
+                    if (row.restricted > 0)
+                        summary.restricted++;
+                    Section section = row.getSection(now);
+                    if (section == Section.ATTENTION || section == Section.NEW)
+                        summary.review++;
+                    else if (section == Section.RECENT)
+                        summary.recent++;
+                }
+            return summary;
+        }
+
+        // The share of the apps with restrictions
+        int getPercent() {
+            return (total == 0 ? 0 : Math.round(100f * restricted / total));
+        }
+    }
+
     private static class Header {
         final Section section;
         final int count;
@@ -188,6 +222,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private List<Row> shown = new ArrayList<>();
     private List<Object> items = new ArrayList<>();
     private Filter filter = Filter.USER;
+    private Sort sort = Sort.NAME;
     private String query = null;
     private Set<Section> collapsed = new HashSet<>();
     private final Set<Section> closed = EnumSet.noneOf(Section.class); // Sections closed for the current search
@@ -206,6 +241,15 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     void setFilter(Filter filter) {
         this.filter = filter;
+        apply();
+    }
+
+    Filter getFilter() {
+        return filter;
+    }
+
+    void setSort(Sort sort) {
+        this.sort = sort;
         apply();
     }
 
@@ -236,6 +280,11 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return count;
     }
 
+    // The overview of the filter, without the search query
+    Summary getSummary() {
+        return Summary.of(all, filter, System.currentTimeMillis());
+    }
+
     private static boolean matches(Row row, Filter filter) {
         switch (filter) {
             case USER:
@@ -249,6 +298,26 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     boolean isSearching() {
         return (query != null && !query.trim().isEmpty());
+    }
+
+    // The order of all apps: by name, by the last restriction or restricted call (apps without one last),
+    // or by the install time, the latest first; equal times by name
+    static Comparator<Row> comparator(Sort sort, Collator collator) {
+        Comparator<Row> byName = (r1, r2) -> collator.compare(r1.app.getLabel(), r2.app.getLabel());
+        switch (sort) {
+            case RECENT:
+                return (r1, r2) -> {
+                    int order = Long.compare(r2.getRecent(), r1.getRecent());
+                    return (order == 0 ? byName.compare(r1, r2) : order);
+                };
+            case INSTALLED:
+                return (r1, r2) -> {
+                    int order = Long.compare(r2.app.installed, r1.app.installed);
+                    return (order == 0 ? byName.compare(r1, r2) : order);
+                };
+            default:
+                return byName;
+        }
     }
 
     private void apply() {
@@ -298,7 +367,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
         shown = result;
 
-        // Sections: failures by name, new apps and recent apps by time, all apps by name
+        // Sections: failures by name, new apps and recent apps by time, all apps as sorted
         long now = System.currentTimeMillis();
         Map<Section, List<Row>> sections = new EnumMap<>(Section.class);
         for (Section section : Section.values())
@@ -310,11 +379,10 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             sections.get(Section.ALL).add(row);
         }
 
-        Comparator<Row> byName = (r1, r2) -> collator.compare(r1.app.getLabel(), r2.app.getLabel());
-        Collections.sort(sections.get(Section.ATTENTION), byName);
+        Collections.sort(sections.get(Section.ATTENTION), comparator(Sort.NAME, collator));
         Collections.sort(sections.get(Section.NEW), (r1, r2) -> Long.compare(r2.app.installed, r1.app.installed));
         Collections.sort(sections.get(Section.RECENT), (r1, r2) -> Long.compare(r2.getRecent(), r1.getRecent()));
-        Collections.sort(sections.get(Section.ALL), byName);
+        Collections.sort(sections.get(Section.ALL), comparator(sort, collator));
 
         // Searching shows the matches of all sections, unless closed for the search
         List<Object> next = new ArrayList<>();
@@ -396,22 +464,22 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     private class AppHolder extends RecyclerView.ViewHolder implements View.OnClickListener, View.OnLongClickListener {
+        final View vDivider;
         final ImageView ivIcon;
         final TextView tvLabel;
         final LinearLayout llBadges;
-        final TextView tvTime;
         final TextView tvSummary;
-        final SegmentBar sbGroups;
+        final TextView tvCoverage;
         final Button btnAction;
 
         AppHolder(View itemView) {
             super(itemView);
+            vDivider = itemView.findViewById(R.id.vDivider);
             ivIcon = itemView.findViewById(R.id.ivIcon);
             tvLabel = itemView.findViewById(R.id.tvLabel);
             llBadges = itemView.findViewById(R.id.llBadges);
-            tvTime = itemView.findViewById(R.id.tvTime);
             tvSummary = itemView.findViewById(R.id.tvSummary);
-            sbGroups = itemView.findViewById(R.id.sbGroups);
+            tvCoverage = itemView.findViewById(R.id.tvCoverage);
             btnAction = itemView.findViewById(R.id.btnAction);
             itemView.setOnClickListener(this);
             itemView.setOnLongClickListener(this);
@@ -504,11 +572,23 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
 
+    // The sections to look at have the colors of their rows: failed hooks the error color, new apps the warning color
+    private static int getColor(Section section) {
+        switch (section) {
+            case ATTENTION:
+                return androidx.appcompat.R.attr.colorError;
+            case NEW:
+                return R.attr.colorWarning;
+            default:
+                return androidx.appcompat.R.attr.colorPrimary;
+        }
+    }
+
     private void bindHeader(HeaderHolder h, Header header) {
         Context context = h.itemView.getContext();
         String title = context.getString(getTitle(header.section));
         h.tvHeader.setText(context.getString(R.string.title_count, title, header.count));
-        h.tvHeader.setTextColor(Ui.color(context, androidx.appcompat.R.attr.colorPrimary));
+        h.tvHeader.setTextColor(Ui.color(context, getColor(header.section)));
         // Turning the arrow when the section is toggled, not when the header is shown
         float rotation = (header.expanded ? 180 : 0);
         if (h.itemView.getTag() == header.section)
@@ -525,18 +605,33 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         XApp app = row.app;
         Context context = h.itemView.getContext();
 
-        // The apps of a section form one rounded block, the apps to look at are tinted with the accent color,
-        // lightly, so the summary in the accent color stays readable (contrast 4.5:1 with each palette)
-        int background = Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerLow);
-        if (item.section == Section.ATTENTION || item.section == Section.NEW)
-            background = ColorUtils.blendARGB(background, Ui.color(context, androidx.appcompat.R.attr.colorPrimary), 0.12f);
+        // The apps of a section form one rounded block: apps with a failed hook on the error color,
+        // new apps on the warning color, the others on the lowest surface, like cards
+        int background;
+        int meta = com.google.android.material.R.attr.colorOnSurfaceVariant;
+        switch (item.section) {
+            case ATTENTION:
+                background = com.google.android.material.R.attr.colorErrorContainer;
+                meta = com.google.android.material.R.attr.colorOnErrorContainer;
+                break;
+            case NEW:
+                background = R.attr.colorWarningContainer;
+                meta = R.attr.colorOnWarningContainer;
+                break;
+            default:
+                background = com.google.android.material.R.attr.colorSurfaceContainerLowest;
+        }
+        int color = Ui.color(context, background);
         float radius = Ui.dp(context, 20);
         float top = (item.first ? radius : 0);
         float bottom = (item.last ? radius : 0);
         GradientDrawable shape = new GradientDrawable();
-        shape.setColor(background);
+        shape.setColor(color);
         shape.setCornerRadii(new float[]{top, top, top, top, bottom, bottom, bottom, bottom});
         h.itemView.setBackground(shape);
+        h.vDivider.setVisibility(item.first ? View.GONE : View.VISIBLE);
+        h.vDivider.setBackgroundColor(ColorUtils.blendARGB(color,
+                Ui.color(context, com.google.android.material.R.attr.colorOnSurface), 0.08f));
 
         Ui.loadIcon(h.ivIcon, app.packageName, app.icon);
         h.tvLabel.setText(app.getLabel());
@@ -550,21 +645,15 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (app.system)
             Ui.addBadge(h.llBadges, context.getString(R.string.badge_system), Ui.Badge.NEUTRAL);
 
-        h.tvTime.setVisibility(View.GONE);
-        h.sbGroups.setVisibility(View.GONE);
+        h.tvCoverage.setVisibility(View.GONE);
         h.btnAction.setVisibility(View.GONE);
-        int summaryColor = com.google.android.material.R.attr.colorOnSurfaceVariant;
         String summary;
         switch (item.section) {
             case ATTENTION:
             case NEW:
-                // A failed hook or a new app without restrictions, see Row.getSection
-                summary = context.getString(row.error ? R.string.title_review_error : R.string.title_not_restricted);
-                summaryColor = androidx.appcompat.R.attr.colorPrimary;
-                if (item.section == Section.NEW) {
-                    h.tvTime.setVisibility(View.VISIBLE);
-                    h.tvTime.setText(Ui.ago(app.installed));
-                }
+                // A failed hook, or when a new app without restrictions was installed, see Row.getSection
+                summary = context.getString(row.error ? R.string.title_review_error : R.string.title_installed_ago,
+                        Ui.ago(context, app.installed));
                 h.btnAction.setVisibility(View.VISIBLE);
                 h.btnAction.setText(row.canRestrictAll() ? R.string.title_restrict_all_groups : R.string.title_review);
                 // Screen readers tell which app the button is for
@@ -572,29 +661,49 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 break;
 
             case RECENT:
-                // What was restricted last, else that the app was restricted
+                // What was restricted last, else that the app was restricted, and when
                 boolean used = (row.used > 0 && row.used >= row.assigned);
-                summary = (used ? Groups.getTitle(context, row.usedGroup) : context.getString(R.string.title_restrictions_added));
-                summaryColor = androidx.appcompat.R.attr.colorPrimary;
-                h.tvTime.setVisibility(View.VISIBLE);
-                h.tvTime.setText(Ui.ago(row.getRecent()));
-                h.sbGroups.setVisibility(View.VISIBLE);
-                h.sbGroups.set(row.groups, row.restricted);
-                h.sbGroups.setContentDescription(
-                        context.getResources().getQuantityString(R.plurals.title_groups_restricted, row.groups, row.restricted, row.groups));
+                summary = context.getString(R.string.title_last_used,
+                        used ? Groups.getTitle(context, row.usedGroup) : context.getString(R.string.title_restrictions_added),
+                        Ui.ago(context, row.getRecent()));
+                bindCoverage(h.tvCoverage, row);
                 break;
 
             default:
                 if (row.restricted == 0)
                     summary = context.getString(R.string.title_not_restricted);
-                else {
-                    summary = context.getResources().getQuantityString(R.plurals.title_groups_of, row.groups, row.restricted, row.groups);
-                    if (row.used > 0)
-                        summary = context.getString(R.string.title_last_used, summary,
-                                context.getString(R.string.title_last_used, Groups.getTitle(context, row.usedGroup), Ui.ago(row.used)));
-                }
+                else if (row.used > 0)
+                    summary = context.getString(R.string.title_last_used,
+                            Groups.getTitle(context, row.usedGroup), Ui.ago(context, row.used));
+                else
+                    summary = context.getString(R.string.title_no_calls);
+                bindCoverage(h.tvCoverage, row);
         }
         h.tvSummary.setText(summary);
-        h.tvSummary.setTextColor(Ui.color(context, summaryColor));
+        h.tvSummary.setTextColor(Ui.color(context, meta));
+    }
+
+    // How much of the app is restricted: all groups on the secondary color, some on the warning color,
+    // none in grey; screen readers get the words
+    private static void bindCoverage(TextView tv, Row row) {
+        Context context = tv.getContext();
+        int background;
+        int text;
+        if (row.restricted == 0) {
+            background = com.google.android.material.R.attr.colorSurfaceContainerHigh;
+            text = com.google.android.material.R.attr.colorOnSurfaceVariant;
+            tv.setText(R.string.title_off);
+            tv.setContentDescription(context.getString(R.string.title_not_restricted));
+        } else {
+            boolean all = (row.restricted >= row.groups);
+            background = (all ? com.google.android.material.R.attr.colorSecondaryContainer : R.attr.colorWarningContainer);
+            text = (all ? com.google.android.material.R.attr.colorOnSecondaryContainer : R.attr.colorOnWarningContainer);
+            tv.setText(String.format(Locale.getDefault(), "%d/%d", row.restricted, row.groups));
+            tv.setContentDescription(context.getResources().getQuantityString(
+                    R.plurals.title_groups_restricted, row.groups, row.restricted, row.groups));
+        }
+        tv.setBackgroundTintList(ColorStateList.valueOf(Ui.color(context, background)));
+        tv.setTextColor(Ui.color(context, text));
+        tv.setVisibility(View.VISIBLE);
     }
 }

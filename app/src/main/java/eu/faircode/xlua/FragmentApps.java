@@ -25,13 +25,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.PopupMenu;
@@ -40,6 +42,7 @@ import android.widget.TextView;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -48,25 +51,32 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
-// Installed apps by what needs attention, see AdapterApp
+// Installed apps by what needs attention, with an overview of the filter, see AdapterApp
 public class FragmentApps extends FragmentBase {
     private static final String TAG = "XLua.Apps";
 
     private static final String PREF_FILTER = "apps_filter";
+    private static final String PREF_SORT = "apps_sort";
     // Collapsed sections, comma separated; at first only all apps
     private static final String PREF_COLLAPSED = "apps_collapsed";
 
     // Same order as AdapterApp.Filter
-    private static final int[] FILTER_BUTTONS = {R.id.btnFilterUser, R.id.btnFilterSystem, R.id.btnFilterAll};
+    private static final int[] FILTER_CHIPS = {R.id.chipUser, R.id.chipSystem, R.id.chipAll};
     private static final int[] FILTER_TITLES = {R.string.title_filter_user, R.string.title_filter_system, R.string.title_all};
+    private static final int[] OVERVIEW_TITLES = {R.plurals.title_overview_user, R.plurals.title_overview_system, R.plurals.title_overview_all};
+    // Same order as AdapterApp.Sort
+    private static final int[] SORT_TITLES = {R.string.sort_name, R.string.sort_recent, R.string.sort_installed};
 
     private SwipeRefreshLayout swipeRefresh;
     private View pbLoading;
@@ -75,11 +85,19 @@ public class FragmentApps extends FragmentBase {
     private View tilSearch;
     private EditText etSearch;
     private ImageButton ibSearch;
-    private MaterialButtonToggleGroup tgFilter;
+    private TextView tvStatus;
+    private View cvOverview;
+    private CircularProgressIndicator piShare;
+    private TextView tvShare;
+    private TextView tvOverview;
+    private TextView tvOverviewMeta;
+    private ChipGroup cgFilter;
+    private ImageButton ibSort;
     private AdapterApp adapter;
     private OnBackPressedCallback closeSearch;
 
     private SharedPreferences prefs;
+    private AdapterApp.Sort sort = AdapterApp.Sort.NAME;
     private final Set<AdapterApp.Section> collapsed = EnumSet.noneOf(AdapterApp.Section.class);
     private boolean loaded = false;
 
@@ -99,7 +117,14 @@ public class FragmentApps extends FragmentBase {
         tilSearch = view.findViewById(R.id.tilSearch);
         etSearch = view.findViewById(R.id.etSearch);
         ibSearch = view.findViewById(R.id.ibSearch);
-        tgFilter = view.findViewById(R.id.tgFilter);
+        tvStatus = view.findViewById(R.id.tvStatus);
+        cvOverview = view.findViewById(R.id.cvOverview);
+        piShare = view.findViewById(R.id.piShare);
+        tvShare = view.findViewById(R.id.tvShare);
+        tvOverview = view.findViewById(R.id.tvOverview);
+        tvOverviewMeta = view.findViewById(R.id.tvOverviewMeta);
+        cgFilter = view.findViewById(R.id.cgFilter);
+        ibSort = view.findViewById(R.id.ibSort);
 
         adapter = new AdapterApp(new AdapterApp.Listener() {
             @Override
@@ -162,15 +187,24 @@ public class FragmentApps extends FragmentBase {
             // Like the former filter restricted, which the sections replace
         }
         adapter.setFilter(filter);
-        tgFilter.check(FILTER_BUTTONS[filter.ordinal()]);
-        tgFilter.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-            if (!isChecked)
-                return;
-            for (AdapterApp.Filter f : AdapterApp.Filter.values())
-                if (FILTER_BUTTONS[f.ordinal()] == checkedId) {
-                    prefs.edit().putString(PREF_FILTER, f.name()).apply();
-                    adapter.setFilter(f);
-                }
+        Ui.chips(cgFilter, FILTER_CHIPS, AdapterApp.Filter.values(), filter, f -> {
+            prefs.edit().putString(PREF_FILTER, f.name()).apply();
+            adapter.setFilter(f);
+            updateOverview();
+        });
+
+        try {
+            sort = AdapterApp.Sort.valueOf(prefs.getString(PREF_SORT, sort.name()));
+        } catch (IllegalArgumentException ignored) {
+        }
+        adapter.setSort(sort);
+        setSortDescription();
+        ibSort.setOnClickListener(this::showSort);
+
+        // The recent events are on the Activity tab
+        cvOverview.setOnClickListener(v -> {
+            if (getActivity() instanceof ActivityMain)
+                ((ActivityMain) getActivity()).selectTab(R.id.nav_activity);
         });
 
         String value = prefs.getString(PREF_COLLAPSED, AdapterApp.Section.ALL.name());
@@ -251,6 +285,28 @@ public class FragmentApps extends FragmentBase {
         popup.show();
     }
 
+    // The order of all apps, which is remembered; the other sections have their own
+    private void showSort(View anchor) {
+        PopupMenu popup = new PopupMenu(requireContext(), anchor);
+        Menu menu = popup.getMenu();
+        for (AdapterApp.Sort s : AdapterApp.Sort.values())
+            menu.add(Menu.NONE, s.ordinal() + 1, s.ordinal(), SORT_TITLES[s.ordinal()]).setChecked(s == sort);
+        menu.setGroupCheckable(Menu.NONE, true, true);
+        popup.setOnMenuItemClickListener(item -> {
+            sort = AdapterApp.Sort.values()[item.getItemId() - 1];
+            prefs.edit().putString(PREF_SORT, sort.name()).apply();
+            adapter.setSort(sort);
+            setSortDescription();
+            return true;
+        });
+        popup.show();
+    }
+
+    // Screen readers tell the order
+    private void setSortDescription() {
+        ibSort.setContentDescription(getString(R.string.title_sorted_by, getString(SORT_TITLES[sort.ordinal()])));
+    }
+
     // Sections open and close when their header is tapped, which is remembered
     private void toggle(AdapterApp.Section section) {
         if (!collapsed.remove(section))
@@ -294,12 +350,13 @@ public class FragmentApps extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         executor.submit(() -> {
             try {
+                boolean available = Data.isAvailable(Data.getVersion(context));
                 List<XHook> hooks = Data.getHooks(context);
                 List<String> collection = Data.getCollection(context);
                 List<AdapterApp.Row> rows = new ArrayList<>();
                 for (XApp app : Data.getApps(context))
                     rows.add(AdapterApp.Row.summarize(app, hooks, collection));
-                Log.i(TAG, "Loaded apps=" + rows.size() + " hooks=" + hooks.size());
+                Log.i(TAG, "Loaded apps=" + rows.size() + " hooks=" + hooks.size() + " available=" + available);
 
                 post(() -> {
                     this.hooks = hooks;
@@ -308,7 +365,8 @@ public class FragmentApps extends FragmentBase {
                     adapter.set(rows);
                     swipeRefresh.setRefreshing(false);
                     pbLoading.setVisibility(View.GONE);
-                    updateCounts();
+                    setStatus(available);
+                    updateOverview();
                     updateEmpty();
                 });
             } catch (Throwable ex) {
@@ -321,12 +379,51 @@ public class FragmentApps extends FragmentBase {
         });
     }
 
-    private void updateCounts() {
+    // Whether the service answers, like the status card of Settings tells, with its shield
+    private void setStatus(boolean available) {
+        Context context = requireContext();
+        tvStatus.setText(available ? R.string.badge_active : R.string.badge_inactive);
+        int text = Ui.color(context, available ? R.attr.colorOnSuccessContainer : R.attr.colorOnWarningContainer);
+        tvStatus.setTextColor(text);
+        tvStatus.setBackgroundTintList(ColorStateList.valueOf(
+                Ui.color(context, available ? R.attr.colorSuccessContainer : R.attr.colorWarningContainer)));
+        Drawable icon = AppCompatResources.getDrawable(context, available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
+        if (icon != null) {
+            icon = icon.mutate();
+            int size = Ui.dp(context, 15);
+            icon.setBounds(0, 0, size, size);
+            icon.setTint(text);
+        }
+        tvStatus.setCompoundDrawablesRelative(icon, null, null, null);
+        tvStatus.setContentDescription(getString(available ? R.string.title_module_active : R.string.msg_no_service));
+        tvStatus.setVisibility(View.VISIBLE);
+    }
+
+    // The counts of the filter chips and the overview card follow the filter, not the search
+    private void updateOverview() {
+        if (!loaded)
+            return;
         for (AdapterApp.Filter filter : AdapterApp.Filter.values()) {
-            Button button = tgFilter.findViewById(FILTER_BUTTONS[filter.ordinal()]);
-            button.setText(getString(R.string.title_count,
+            Chip chip = cgFilter.findViewById(FILTER_CHIPS[filter.ordinal()]);
+            chip.setText(getString(R.string.title_count,
                     getString(FILTER_TITLES[filter.ordinal()]), adapter.getCount(filter)));
         }
+
+        AdapterApp.Summary summary = adapter.getSummary();
+        int percent = summary.getPercent();
+        piShare.setProgressCompat(percent, true);
+        tvShare.setText(String.format(Locale.getDefault(), "%d%%", percent));
+        tvOverview.setText(getResources().getQuantityString(OVERVIEW_TITLES[adapter.getFilter().ordinal()],
+                summary.total, summary.restricted, summary.total));
+        List<String> parts = new ArrayList<>();
+        if (summary.review > 0)
+            parts.add(getResources().getQuantityString(R.plurals.title_overview_review, summary.review, summary.review));
+        if (summary.recent > 0)
+            parts.add(getResources().getQuantityString(R.plurals.title_overview_recent, summary.recent, summary.recent));
+        tvOverviewMeta.setText(parts.isEmpty() ? getString(R.string.title_overview_none) : TextUtils.join(" · ", parts));
+        cvOverview.setContentDescription(getString(R.string.title_overview) + ", " +
+                tvOverview.getText() + ", " + tvOverviewMeta.getText());
+        cvOverview.setVisibility(View.VISIBLE);
     }
 
     // A search without matches says so, rather than that there are no apps

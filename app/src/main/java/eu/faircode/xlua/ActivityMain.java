@@ -47,6 +47,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
 
     private static final String STATE_AVAILABLE = "available";
 
+    private BottomNavigationView nav;
     private boolean available = false;
     private Runnable checked = null; // What to show after checking the service, when the screen was left meanwhile
 
@@ -112,7 +113,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
     private void showMain(boolean first) {
         available = true;
         setContentView(R.layout.activity_main);
-        BottomNavigationView nav = findViewById(R.id.nav);
+        nav = findViewById(R.id.nav);
         nav.setOnItemSelectedListener(item -> {
             show(getTab(item.getItemId()));
             return true;
@@ -147,6 +148,12 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
             intent.removeExtra(EXTRA_PACKAGE);
             startActivity(ActivityApp.getIntent(this, packageName, -1));
         }
+    }
+
+    // Opens a tab, like the overview card of the Apps tab opens the Activity tab
+    void selectTab(int itemId) {
+        if (nav != null)
+            nav.setSelectedItemId(itemId);
     }
 
     private static String getTab(int itemId) {
