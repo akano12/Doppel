@@ -137,6 +137,10 @@ function after(hook, param)
             extras:remove(extra)
         end
         intent:replaceExtras(extras)
+        -- The values shown in the log are the level, which can stay, like 100, when only the other extras changed
+        if level == old then
+            return true
+        end
         return true, tostring(old), tostring(level)
     elseif name == 'debugging' and action == 'android.hardware.usb.action.USB_STATE' then
         -- The sticky broadcast of the USB connection has the function adb when USB debugging is on,
