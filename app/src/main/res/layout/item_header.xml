@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:accessibilityHeading="true"
@@ -7,4 +8,5 @@
     android:paddingTop="14dp"
     android:paddingEnd="4dp"
     android:paddingBottom="6dp"
-    android:textAppearance="@style/XLua.Text.Section" />
+    android:textAppearance="@style/XLua.Text.Section"
+    tools:targetApi="p" />

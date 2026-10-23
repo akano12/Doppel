@@ -10,15 +10,13 @@
         <![CDATA[<br><br><strong>LuaJ</strong><br>]]>Copyright 2007-2013 LuaJ. All rights reserved. See the <![CDATA[<a href="http://luaj.sourceforge.net/license.txt">license</a>]]>.
         <![CDATA[<br><br><b>Glide</b><br>]]>Copyright 2014 Google, Inc. All rights reserved. See the <![CDATA[<a href="https://raw.githubusercontent.com/bumptech/glide/master/LICENSE">license</a>]]>.
         <![CDATA[<br><br><b>AndroidX</b><br>]]>Copyright 2011 The Android Open Source Project. See the <![CDATA[<a href="https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt">license</a>]]>.
-   </string>
+    </string>
     <string name="title_accept">I agree</string>
     <string name="title_deny">I disagree</string>
-
 
     <string name="title_all">All</string>
     <string name="title_bootloop">Restricting can cause a bootloop</string>
     <string name="title_force_stop">Stop automatically</string>
-
 
     <string name="menu_notify_new">Notify on new apps</string>
     <string name="menu_restrict_new">Restrict new apps</string>
@@ -238,6 +236,7 @@
     <string name="title_check_found">Found %1$s</string>
     <string name="title_check_no_member">%1$s not found in the class or its super classes</string>
     <string name="title_check_no_class">Class %1$s not found here. It can still exist in the app the hook is for.</string>
+    <string name="title_script_file" translatable="false">script.lua</string>
     <string name="title_script_no_function">no before() or after()</string>
     <string name="title_script_api">param: getResult() setResult(v) getArgument(i) setArgument(i, v) getThis() getException() getSetting(name) getValue(name, scope) putValue(name, value, scope) findClass(name) isInstance(object, class) getPackageName() getUid()\nReturn true, old and new value from before() or after() when restricted.</string>
 

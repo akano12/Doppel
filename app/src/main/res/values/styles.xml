@@ -233,6 +233,56 @@
         <item name="android:textAppearance">@style/XLua.Text.Meta</item>
     </style>
 
+    <!-- Icon at the end of a row which opens something, an arrow unless another icon is set;
+         the rows set importantForAccessibility, which lint only sees in the layout -->
+    <style name="XLua.Row.Icon" parent="">
+        <item name="android:layout_width">18dp</item>
+        <item name="android:layout_height">18dp</item>
+        <item name="android:src">@drawable/ic_chevron_right</item>
+        <item name="tint">?attr/colorOutline</item>
+    </style>
+
+    <!-- Search field above a list, with its text field -->
+    <style name="XLua.Search" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="boxBackgroundColor">?attr/colorSurfaceContainerLowest</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
+        <item name="endIconMode">clear_text</item>
+        <item name="hintEnabled">false</item>
+        <item name="startIconDrawable">@drawable/ic_search</item>
+    </style>
+
+    <style name="XLua.Search.Edit" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:imeOptions">actionSearch</item>
+        <item name="android:inputType">text</item>
+        <item name="android:maxLines">1</item>
+    </style>
+
+    <!-- Progress indicator in the middle of a list which loads -->
+    <style name="XLua.Loading" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_gravity">center</item>
+        <item name="android:indeterminate">true</item>
+    </style>
+
+    <!-- Why a list is empty, in the middle of it, shown by the screen -->
+    <style name="XLua.Empty" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_gravity">center</item>
+        <item name="android:gravity">center</item>
+        <item name="android:padding">32dp</item>
+        <item name="android:textAppearance">@style/XLua.Text.Meta</item>
+        <item name="android:visibility">gone</item>
+    </style>
+
     <!-- Text fields of forms -->
     <style name="XLua.Field" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense">
         <item name="android:layout_height">wrap_content</item>

@@ -245,10 +245,10 @@ public class DeviceValuesScriptTest {
         assertEquals(function("default_app_filter", "systemdefault"), function("settingssecure_getstring", "systemdefault"));
     }
 
-    // The text of a function of a script, up to its end
+    // The text of a function of a script, up to its end; a checkout can have CRLF line ends
     private static String function(String script, String name) throws Exception {
         String source = new String(Files.readAllBytes(new File("src/main/assets/" + script + ".lua").toPath()),
-                StandardCharsets.UTF_8);
+                StandardCharsets.UTF_8).replace("\r\n", "\n");
         int start = source.indexOf("\nfunction " + name + "(");
         int end = source.indexOf("\nend\n", start);
         assertTrue(script + " " + name, start >= 0 && end > start);

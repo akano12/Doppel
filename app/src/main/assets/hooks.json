@@ -6647,7 +6647,6 @@
     ],
     "returnType": "byte[]",
     "minSdk": 18,
-    "enabled": true,
     "luaScript": "@mediadrm_unique_id",
     "description": "DRM manager will return fake unique device and provisioning IDs"
   },

@@ -56,10 +56,7 @@
         </LinearLayout>
 
         <ImageView
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:importantForAccessibility="no"
-            android:src="@drawable/ic_chevron_right"
-            app:tint="?attr/colorOutline" />
+            style="@style/XLua.Row.Icon"
+            android:importantForAccessibility="no" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

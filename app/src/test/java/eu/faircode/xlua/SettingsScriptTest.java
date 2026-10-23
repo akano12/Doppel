@@ -22,7 +22,6 @@ package eu.faircode.xlua;
 import org.junit.Before;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
-import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.JsePlatform;
 

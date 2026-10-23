@@ -41,12 +41,8 @@
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etSearch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="@string/title_search_apps"
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:maxLines="1" />
+                style="@style/XLua.Search.Edit"
+                android:hint="@string/title_search_apps" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <ImageButton
@@ -124,19 +120,11 @@
 
         <com.google.android.material.progressindicator.CircularProgressIndicator
             android:id="@+id/pbLoading"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:indeterminate="true" />
+            style="@style/XLua.Loading" />
 
         <TextView
             android:id="@+id/tvEmpty"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:padding="32dp"
-            android:text="@string/title_no_apps"
-            android:textAppearance="@style/XLua.Text.Meta"
-            android:visibility="gone" />
+            style="@style/XLua.Empty"
+            android:text="@string/title_no_apps" />
     </FrameLayout>
 </LinearLayout>

@@ -18,27 +18,12 @@
         android:paddingStart="16dp"
         android:paddingEnd="16dp">
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:boxBackgroundColor="?attr/colorSurfaceContainerLowest"
-            app:boxCornerRadiusBottomEnd="12dp"
-            app:boxCornerRadiusBottomStart="12dp"
-            app:boxCornerRadiusTopEnd="12dp"
-            app:boxCornerRadiusTopStart="12dp"
-            app:endIconMode="clear_text"
-            app:hintEnabled="false"
-            app:startIconDrawable="@drawable/ic_search">
+        <com.google.android.material.textfield.TextInputLayout style="@style/XLua.Search">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etSearch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="@string/title_search_downloads"
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:maxLines="1" />
+                style="@style/XLua.Search.Edit"
+                android:hint="@string/title_search_downloads" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <HorizontalScrollView
@@ -103,9 +88,6 @@
 
         <com.google.android.material.progressindicator.CircularProgressIndicator
             android:id="@+id/pbLoading"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:indeterminate="true" />
+            style="@style/XLua.Loading" />
     </FrameLayout>
 </LinearLayout>

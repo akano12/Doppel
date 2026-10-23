@@ -116,7 +116,7 @@ final class Data {
 
     // Ids of the definitions which are part of the app, of the module version which runs,
     // which decides whether deleting a custom definition restores a built-in definition
-    static Set<String> getBuiltinIds(Context context) throws Exception {
+    static Set<String> getBuiltinIds(Context context) {
         Set<String> ids = new HashSet<>();
         try (Cursor cursor = query(context, "getBuiltinIds", null)) {
             while (cursor != null && cursor.moveToNext())

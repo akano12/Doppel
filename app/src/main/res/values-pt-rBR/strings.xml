@@ -2,11 +2,9 @@
     <string name="title_accept">Eu concordo</string>
     <string name="title_deny">Eu discordo</string>
 
-
     <string name="title_all">Todos</string>
     <string name="title_bootloop">Restringir pode causar bootloop</string>
     <string name="title_force_stop">Forçar parada automaticamente</string>
-
 
     <string name="menu_search">Pesquisar</string>
     <string name="menu_notify_new">Notificar sobre novos apps</string>
