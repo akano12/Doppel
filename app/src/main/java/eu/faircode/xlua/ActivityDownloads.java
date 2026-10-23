@@ -104,6 +104,7 @@ public class ActivityDownloads extends ActivityBase {
     private Map<String, XHook> installed = new HashMap<>();
     private Set<String> builtinIds = new HashSet<>();
     private List<String> collection = new ArrayList<>();
+    private boolean loaded = false; // The chips count once the repository is read, not before
     private int updates = 0; // Installed definitions with a newer version in the repository
     private int emptyText = 0; // String resource telling why the list is empty, none when it is not
     private final Set<Integer> expanded = new HashSet<>(); // Entries showing their full description
@@ -199,6 +200,7 @@ public class ActivityDownloads extends ActivityBase {
                 this.installed = installed;
                 this.builtinIds = builtinIds;
                 this.collection = collection;
+                loaded = true;
                 pbLoading.setVisibility(View.GONE);
                 show();
             });
@@ -278,6 +280,9 @@ public class ActivityDownloads extends ActivityBase {
     }
 
     private void show() {
+        if (!loaded)
+            return;
+
         // The summary, the chips and the updates count all definitions, whatever the search
         Set<String> collections = new HashSet<>();
         int available = 0;
