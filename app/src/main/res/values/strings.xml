@@ -43,7 +43,7 @@
     <string name="title_value_phone_number">Phone number</string>
     <string name="title_value_email">Account name (e-mail)</string>
     <string name="title_value_timezone">Time zone (like Europe/Amsterdam)</string>
-    <string name="title_value_features">Hidden device features (comma separated)</string>
+    <string name="title_value_features">Shown device features (comma separated, like android.hardware.camera*)</string>
     <string name="title_value_location_type">Location</string>
     <string name="title_value_latitude">Latitude</string>
     <string name="title_value_longitude">Longitude</string>

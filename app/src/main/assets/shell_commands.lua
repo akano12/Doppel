@@ -244,17 +244,17 @@ function ownpackages(param)
     return own
 end
 
--- Features hidden by Read.Features, besides the features outside android.*: the features of setting
--- features.hide (see features)
-function hiddenfeatures(param)
-    local hidden = {}
-    local extra = param:getSetting('features.hide')
-    if extra ~= nil then
-        for feature in string.gmatch(extra, '[^,%s]+') do
-            hidden[#hidden + 1] = feature
+-- The features which Read.Features shows, of setting features.keep; a name ending in * matches the features
+-- starting with it (see features)
+function keptfeatures(param)
+    local kept = {}
+    local keep = param:getSetting('features.keep')
+    if keep ~= nil then
+        for feature in string.gmatch(keep, '[^,%s]+') do
+            kept[#kept + 1] = feature
         end
     end
-    return hidden
+    return kept
 end
 
 -- The functions of Get.Applications for pm and cmd package and the cases of __xlua_pm they add:
@@ -352,34 +352,32 @@ end
 -- find the features which hasSystemFeature finds, list libraries the libraries of getSystemSharedLibraryNames
 -- (see features and biometrics)
 function featurefunctions(param, variants, lists, cases)
-    local hidden = {}
-    if variants['features'] then
-        for _, name in ipairs(hiddenfeatures(param)) do
-            hidden[#hidden + 1] = name
-        end
-    end
-    if variants['biometrics'] then
-        for _, name in ipairs(BIOMETRIC) do
-            hidden[#hidden + 1] = name
-        end
-    end
-
     -- Lines like feature:android.hardware.wifi or feature:android.hardware.vulkan.level=1;
     -- the OpenGL ES version (feature:reqGlEsVersion=0x30000) and other lines stay
     local seds = { "-e '/^feature:/!b'", "-e '/^feature:reqGlEsVersion=/b'" }
-    local names = {}
-    for _, name in ipairs(hidden) do
-        seds[#seds + 1] = '-e ' .. quote('/^feature:' .. regex(name) .. '\\(=.*\\)\\{0,1\\}$/d')
-        names[#names + 1] = quote(name)
-    end
     local checks = {}
-    if #names > 0 then
+    if variants['biometrics'] then
+        -- The biometric features go first, also when Read.Features keeps them
+        local names = {}
+        for _, name in ipairs(BIOMETRIC) do
+            seds[#seds + 1] = '-e ' .. quote('/^feature:' .. regex(name) .. '\\(=.*\\)\\{0,1\\}$/d')
+            names[#names + 1] = quote(name)
+        end
         checks[#checks + 1] = '  ' .. table.concat(names, '|') .. ') return 0 ;;'
     end
     if variants['features'] then
-        -- Only platform features stay
-        seds[#seds + 1] = "-e '/^feature:android\\./!d'"
-        checks[#checks + 1] = '  android.*) return 1 ;;'
+        -- The kept features stay, all others go; a name ending in * matches the features starting with it
+        for _, name in ipairs(keptfeatures(param)) do
+            if string.sub(name, -1) == '*' then
+                local prefix = string.sub(name, 1, -2)
+                seds[#seds + 1] = '-e ' .. quote('/^feature:' .. regex(prefix) .. '/b')
+                checks[#checks + 1] = '  ' .. quote(prefix) .. '*) return 1 ;;'
+            else
+                seds[#seds + 1] = '-e ' .. quote('/^feature:' .. regex(name) .. '\\(=.*\\)\\{0,1\\}$/b')
+                checks[#checks + 1] = '  ' .. quote(name) .. ') return 1 ;;'
+            end
+        end
+        seds[#seds + 1] = "-e '/^feature:/d'"
         checks[#checks + 1] = '  *) return 0 ;;'
     else
         checks[#checks + 1] = '  *) return 1 ;;'

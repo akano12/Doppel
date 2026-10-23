@@ -52,7 +52,7 @@ public class ShellCommandsScriptTest {
     private static final File ASSETS = new File("src/main/assets");
     private static final String[] ALL = {"tracking", "identifiers", "timezone", "packages", "features", "biometrics"};
     private static final String SETTINGS = "{ ['value.serial'] = 'SERIAL1', ['value.timezone'] = 'Asia/Tokyo'," +
-            " ['features.hide'] = 'android.hardware.nfc, android.hardware.camera' }";
+            " ['features.keep'] = 'android.hardware.nfc, android.hardware.camera*' }";
     // The value of the properties compared, a date for the security patch level
     private static final String REAL = "2025-05-05";
 
@@ -379,7 +379,8 @@ public class ShellCommandsScriptTest {
         Globals features = script("features", FEATURE_STUBS);
         Globals biometrics = script("biometrics", FEATURE_STUBS);
         Set<String> names = new LinkedHashSet<>(Arrays.asList("android.hardware.wifi", "android.hardware.nfc",
-                "android.hardware.camera", "android.software.webview", "android.hardware.vulkan.level",
+                "android.hardware.nfc.hce", "android.hardware.camera", "android.hardware.camera.front",
+                "android.software.webview", "android.hardware.vulkan.level",
                 "com.google.android.feature.PIXEL_EXPERIENCE", "com.samsung.feature.samsung_experience_mobile"));
         for (String script : new String[]{"features", "biometrics"}) {
             Matcher m = Pattern.compile("'(android\\.(?:hardware|software)\\.[A-Za-z0-9_.]+)'")

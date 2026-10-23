@@ -14,11 +14,13 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Device features
--- Hide features which are not part of the Android platform (vendor features like
--- com.google.android.feature.* identify the manufacturer) and features listed in setting
--- features.hide (comma separated); apps and the framework itself check single platform
--- features to decide what works (like WebView), so these remain. getSystemAvailableFeatures
--- lists the same features as hasSystemFeature finds, an empty list would tell it is filtered.
+-- The features of a device (android.hardware.* and android.software.*, some with a version, and the ones
+-- of its maker, like com.google.android.feature.* or com.samsung.feature.*) tell its model. Apps get none:
+-- hasSystemFeature answers false and getSystemAvailableFeatures lists only the OpenGL ES version, which has
+-- no name, except the features of setting features.keep (comma separated; a name ending in * matches the
+-- features starting with it, like android.hardware.camera*), for apps which need a feature to offer something,
+-- like the camera. WebView does not start on a device without android.software.webview: the framework itself
+-- (android.webkit) keeps that answer, an app asking gets false like for the other features.
 -- The shared libraries of the system carry vendor names too, like com.google.android.dialer.support;
 -- the libraries of the Android platform and the ones of Google on every device stay. Libraries of apps
 -- (static and SDK libraries) stay too, apps use them, in the list of names as well as in the list
@@ -31,22 +33,47 @@ local GOOGLE = { ['com.google.android.maps'] = true, ['com.google.android.media.
 local TYPE_BUILTIN = 0
 local TYPE_DYNAMIC = 1
 
-function hidden(name, param)
-    if name == nil then
+-- Whether a feature is one of setting features.keep; a name ending in * matches the features starting with it
+function kept(name, param)
+    local keep = param:getSetting('features.keep')
+    if keep == nil then
         return false
     end
-    if string.sub(name, 1, 8) ~= 'android.' then
-        return true
-    end
-    local extra = param:getSetting('features.hide')
-    if extra ~= nil then
-        for feature in string.gmatch(extra, '[^,%s]+') do
-            if feature == name then
+    for feature in string.gmatch(keep, '[^,%s]+') do
+        if string.sub(feature, -1) == '*' then
+            local prefix = string.sub(feature, 1, -2)
+            if string.sub(name, 1, string.len(prefix)) == prefix then
                 return true
             end
+        elseif feature == name then
+            return true
         end
     end
     return false
+end
+
+-- The classes on the stack, which tell the calls of the framework from the ones of the app
+function callers()
+    return luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
+end
+
+-- Whether a class of a package is on the stack, like android.webkit. when WebView checks its feature
+function calledby(prefix)
+    local frames = callers()
+    for index = 1, frames['length'] do
+        if string.sub(frames[index]:getClassName(), 1, string.len(prefix)) == prefix then
+            return true
+        end
+    end
+    return false
+end
+
+-- Whether a feature is hidden from the app: all but the kept ones; the OpenGL ES version has no name
+function hidden(name, param)
+    if name == nil or kept(name, param) then
+        return false
+    end
+    return not (name == 'android.software.webview' and calledby('android.webkit.'))
 end
 
 -- Whether a shared library of the system is not part of the Android platform

@@ -45,7 +45,7 @@ Restrictions
 * Read sync data (hide [sync data](https://developer.android.com/training/sync-adapters/creating-sync-adapter.html))
 * Read telephony data (fake IMEI, MEID, SIM serial number, phone number, voicemail number, type allocation code, etc)
 * Read time zone (fake time zone, also the system property, setting *value.timezone*, default UTC)
-* Read device features (hide features which are not part of the Android platform and features listed in setting *features.hide*, also in the list of features and for the shell command pm; hide external input devices, like keyboards and game controllers)
+* Read device features (hide all features but the ones listed in setting *features.keep*, also in the list of features and for the shell command pm; a name ending in * matches the features starting with it, like `android.hardware.camera*`; WebView keeps its feature, it does not start without it; hide external input devices, like keyboards and game controllers)
 * Read VPN state (hide VPN transports, networks and interfaces)
 * Record audio (prevent recording and speech recognition)
 * Record video (prevent recording)

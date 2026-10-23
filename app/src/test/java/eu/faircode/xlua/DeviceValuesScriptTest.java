@@ -311,6 +311,78 @@ public class DeviceValuesScriptTest {
         assertEquals("[android.test.base]", result.arg(2).tojstring());
     }
 
+    // Real FeatureInfo and arrays, the setting and the classes on the stack (callers of features)
+    private static final String FEATURES = String.join("\n",
+            "function featureof(name)",
+            "  local info = luajava.newInstance('android.content.pm.FeatureInfo')",
+            "  info.name = name",
+            "  return info",
+            "end",
+            "function featuresof(...)",
+            "  local infos = { ... }",
+            "  local array = luajava.bindClass('java.lang.reflect.Array'):newInstance(",
+            "    luajava.bindClass('android.content.pm.FeatureInfo'), #infos)",
+            "  for index, info in ipairs(infos) do array[index] = info end",
+            "  return array",
+            "end",
+            "function featureparamof(result, name, keep)",
+            "  local param = paramof(result, { [0] = name })",
+            "  param.getSetting = function(self, key) assert(key == 'features.keep', key) return keep end",
+            "  return param",
+            "end",
+            "function stackof(...)",
+            "  local frames = { length = select('#', ...) }",
+            "  for index, name in ipairs({ ... }) do frames[index] = { getClassName = function(self) return name end } end",
+            "  return frames",
+            "end",
+            "stack = stackof('com.example.app.Main')",
+            "function callers() return stack end",
+            "function names(result)",
+            "  local list = {}",
+            "  for index = 1, result['length'] do list[index] = tostring(result[index].name) end",
+            "  return table.concat(list, ',')",
+            "end");
+
+    // All features are hidden but the kept ones; WebView gets its feature when the framework asks
+    @Test
+    public void featuresAreHiddenButTheKeptOnes() throws Exception {
+        Globals globals = load("features");
+        run(globals, FEATURES);
+        String has = "return run(hookof('PackageManager.hasSystemFeature', 'hasSystemFeature'), featureparamof(";
+        String keep = "'android.hardware.nfc, android.hardware.camera*'";
+
+        Varargs result = run(globals, has + "true, 'android.hardware.wifi', nil))");
+        assertTrue(result.arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(run(globals, has + "true, 'com.google.android.feature.PIXEL_EXPERIENCE', " + keep + "))").arg1().toboolean());
+        // Kept by name or by a name ending in *
+        assertFalse(run(globals, has + "true, 'android.hardware.nfc', " + keep + "))").arg1().toboolean());
+        assertTrue(run(globals, has + "true, 'android.hardware.nfc.hce', " + keep + "))").arg1().toboolean());
+        assertFalse(run(globals, has + "true, 'android.hardware.camera.front', " + keep + "))").arg1().toboolean());
+        // A feature the device does not have
+        assertFalse(run(globals, has + "false, 'android.hardware.wifi', nil))").arg1().toboolean());
+
+        // WebView checks its feature itself and does not start without it
+        assertTrue(run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
+        run(globals, "stack = stackof('android.webkit.WebViewFactory', 'android.webkit.WebView', 'com.example.app.Main')");
+        assertFalse(run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
+        assertTrue(run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+        run(globals, "stack = stackof('com.example.app.Main')");
+
+        // The list has the same features, and the OpenGL ES version, which has no name
+        String list = "local param = featureparamof(featuresof(%s), nil, " + keep + ")\n" +
+                "local restricted = after(hookof('PackageManager.getSystemAvailableFeatures', 'getSystemAvailableFeatures'), param)\n" +
+                "return restricted, names(param.result)";
+        result = run(globals, String.format(list, "featureof('android.hardware.wifi'), featureof('android.hardware.nfc'), " +
+                "featureof('android.hardware.camera.flash'), featureof('android.software.webview'), " +
+                "featureof('com.samsung.feature.samsung_experience_mobile'), featureof(nil)"));
+        assertTrue(result.arg1().toboolean());
+        assertEquals("android.hardware.nfc,android.hardware.camera.flash,nil", result.arg(2).tojstring());
+        result = run(globals, String.format(list, "featureof('android.hardware.nfc'), featureof(nil)"));
+        assertFalse(result.arg1().toboolean());
+        assertEquals("android.hardware.nfc,nil", result.arg(2).tojstring());
+    }
+
     @Test
     public void batteryCapacityIsRounded() throws Exception {
         Globals globals = load("battery");

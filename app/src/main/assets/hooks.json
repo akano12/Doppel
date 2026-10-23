@@ -7130,7 +7130,7 @@
   },
   // Read device features
   // https://developer.android.com/reference/android/content/pm/PackageManager#getSystemAvailableFeatures()
-  // Hides features outside android.*, and features listed in setting features.hide
+  // Hides all features but the ones of setting features.keep (comma separated, a name ending in * matches a prefix)
   {
     "collection": "Privacy",
     "group": "Read.Features",
@@ -7142,7 +7142,7 @@
     "returnType": "[Landroid.content.pm.FeatureInfo;",
     "minSdk": 5,
     "settings": [
-      "features.hide"
+      "features.keep"
     ],
     "luaScript": "@features"
   },
@@ -7159,7 +7159,7 @@
     "returnType": "boolean",
     "minSdk": 5,
     "settings": [
-      "features.hide"
+      "features.keep"
     ],
     "luaScript": "@features"
   },
@@ -7177,7 +7177,7 @@
     "returnType": "boolean",
     "minSdk": 24,
     "settings": [
-      "features.hide"
+      "features.keep"
     ],
     "luaScript": "@features"
   },
@@ -8682,7 +8682,7 @@
     "returnType": "java.lang.Process",
     "minSdk": 1,
     "settings": [
-      "features.hide"
+      "features.keep"
     ],
     "luaScript": "@shell_commands"
   },
@@ -8804,7 +8804,7 @@
     "minSdk": 1,
     "maxSdk": 23,
     "settings": [
-      "features.hide"
+      "features.keep"
     ],
     "luaScript": "@shell_commands"
   },
