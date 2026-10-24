@@ -7,6 +7,13 @@
     <attr name="colorSuccessContainer" format="color" />
     <attr name="colorOnSuccessContainer" format="color" />
 
+    <!-- The splash screen of the main screen: the app icon on its plum, in light and dark alike, see ActivityMain -->
+    <style name="Theme.XLua.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.XLua</item>
+    </style>
+
     <!-- Light and dark follow the theme setting, see ApplicationEx -->
     <style name="Theme.XLua" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Edge-to-edge is enabled by ActivityBase -->

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed icon, one color: the masks of Doppel, a sinister mask in front of an innocent one; in the safe zone of an adaptive icon -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.66"
+        android:scaleY="0.66"
+        android:translateX="21"
+        android:translateY="21">
+        <group
+            android:pivotX="36"
+            android:pivotY="44"
+            android:rotation="-16">
+            <path
+                android:fillAlpha="0.5"
+                android:fillColor="#FFFFFFFF"
+                android:fillType="evenOdd"
+                android:pathData="M15.76 21.92 Q36 13.64 56.24 21.92 C59 45.84 49.8 67.92 36 72.52 C22.2 67.92 13 45.84 15.76 21.92 Z M23.58,37.56 a4.14,4.14 0 1,0 8.28,0 a4.14,4.14 0 1,0 -8.28,0 Z M40.14,37.56 a4.14,4.14 0 1,0 8.28,0 a4.14,4.14 0 1,0 -8.28,0 Z M26.06 51.73 Q36 62.86 45.94 51.73 Q36 57.8 26.06 51.73 Z" />
+        </group>
+        <group
+            android:pivotX="62"
+            android:pivotY="56"
+            android:rotation="12">
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:fillType="evenOdd"
+                android:pathData="M40.44 32.48 Q62 23.66 83.56 32.48 C86.5 57.96 76.7 81.48 62 86.38 C47.3 81.48 37.5 57.96 40.44 32.48 Z M46.32 43.26 L59.06 50.12 L48.28 54.04 Z M77.68 43.26 L64.94 50.12 L75.72 54.04 Z M49.26 62.86 Q62 79.52 74.74 62.86 Q62 70.7 49.26 62.86 Z" />
+        </group>
+    </group>
+</vector>

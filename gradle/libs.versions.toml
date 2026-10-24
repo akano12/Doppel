@@ -2,6 +2,7 @@
 agp = "9.4.1"
 appcompat = "1.8.0"
 core = "1.19.1"
+splashscreen = "1.2.0"
 glide = "5.0.9"
 json = "20260814"
 junit = "4.13.2"
@@ -14,6 +15,7 @@ xposed = "82"
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-core = { module = "androidx.core:core", version.ref = "core" }
+androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
 androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
 androidx-swiperefreshlayout = { module = "androidx.swiperefreshlayout:swiperefreshlayout", version.ref = "swiperefreshlayout" }
 glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }

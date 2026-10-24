@@ -28,6 +28,7 @@ import android.util.Log;
 import android.view.View;
 
 import androidx.annotation.NonNull;
+import androidx.core.splashscreen.SplashScreen;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
@@ -54,6 +55,8 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // The masks on plum while the app starts, then the theme of the app, see Theme.XLua.Starting
+        SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
 
         // The tabs restored by the framework need the main layout right away
