@@ -7,10 +7,10 @@
     <string name="title_bootloop">Ang pagbabawal nito ay maaaring maging sanhi ng bootloop</string>
     <string name="title_force_stop">Awtomatikong ititigil</string>
     <string name="menu_search">Hanapin</string>
-    <string name="menu_notify_new">I-notify tuwing may bagong app</string>
-    <string name="menu_restrict_new">Paghigpitan ang nga bagong app</string>
-    <string name="menu_readme">Pagdudukumento</string>
-    <string name="menu_faq">FAQ</string>
+    <string name="title_notify_new">I-notify tuwing may bagong app</string>
+    <string name="title_restrict_new">Paghigpitan ang nga bagong app</string>
+    <string name="title_readme">Pagdudukumento</string>
+    <string name="title_faq">FAQ</string>
     <string name="msg_no_service">Ang modyul ay hindi gumagana o hindi na-update</string>
     <string name="msg_review_settings">Tingnan ang mga setting ng privacy</string>
     <string name="msg_usage">Pinagbabawal \'%1$s\'</string>

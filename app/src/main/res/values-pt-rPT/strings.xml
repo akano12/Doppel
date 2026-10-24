@@ -7,10 +7,10 @@
     <string name="title_force_stop">Forçar parada automaticamente</string>
 
     <string name="menu_search">Pesquisar</string>
-    <string name="menu_notify_new">Notificar sobre novos apps</string>
-    <string name="menu_restrict_new">Restringir novos apps</string>
-    <string name="menu_readme">Documentação</string>
-    <string name="menu_faq">Perguntas Frequentes</string>
+    <string name="title_notify_new">Notificar sobre novos apps</string>
+    <string name="title_restrict_new">Restringir novos apps</string>
+    <string name="title_readme">Documentação</string>
+    <string name="title_faq">Perguntas Frequentes</string>
 
     <string name="msg_no_service">O módulo não está em execução ou foi atualizado</string>
     <string name="msg_review_settings">Revise as configurações de privacidade</string>

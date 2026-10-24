@@ -28,6 +28,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.UserHandle;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
@@ -48,6 +49,7 @@ final class XNotify {
 
     // The tags of all notifications start with xlua_, the id is the uid of the app
     private static final String TAG_PREFIX = "xlua_";
+    private static final String APP_NAME = "XPrivacyLua"; // Like app_name, which is not translated
     private static final String TAG_NEW_APP = "xlua_new_app";
     private static final String TAG_EXCEPTION = "xlua_exception";
     private static final String TAG_USAGE = "xlua_use_"; // + group
@@ -154,6 +156,11 @@ final class XNotify {
         builder.setCategory(Notification.CATEGORY_STATUS);
         builder.setVisibility(Notification.VISIBILITY_SECRET);
         builder.setAutoCancel(true);
+        // The service posts as system server, which would show as Settings Storage; system server may name the app
+        // (Notification.EXTRA_SUBSTITUTE_APP_NAME, a system API)
+        Bundle extras = new Bundle();
+        extras.putString("android.substName", APP_NAME);
+        builder.addExtras(extras);
         return builder;
     }
 

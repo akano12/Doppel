@@ -7,10 +7,10 @@
     <string name="title_bootloop">Innskrenking kan føre til en omstartsløyfe (bootloop)</string>
     <string name="title_force_stop">Fremtving avslutting automatisk</string>
     <string name="menu_search">Søk</string>
-    <string name="menu_notify_new">Varsling om nye apper</string>
-    <string name="menu_restrict_new">Innskrenk nye apper</string>
-    <string name="menu_readme">Dokumentasjon</string>
-    <string name="menu_faq">Ofte stilte spørsmål (FAQ)</string>
+    <string name="title_notify_new">Varsling om nye apper</string>
+    <string name="title_restrict_new">Innskrenk nye apper</string>
+    <string name="title_readme">Dokumentasjon</string>
+    <string name="title_faq">Ofte stilte spørsmål (FAQ)</string>
     <string name="msg_no_service">Modulen kjører ikke eller har blitt oppdatert</string>
     <string name="msg_review_settings">Sjekk personverninnstillinger</string>
     <string name="msg_usage">Innskrenket \'%1$s\'</string>

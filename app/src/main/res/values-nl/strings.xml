@@ -6,10 +6,10 @@
     <string name="title_bootloop">Restricting can cause a bootloop</string>
     <string name="title_force_stop">Automatisch geforceerd stoppen</string>
     <string name="menu_search">Zoeken</string>
-    <string name="menu_notify_new">Meldt nieuwe apps</string>
-    <string name="menu_restrict_new">Beperk nieuwe apps</string>
-    <string name="menu_readme">Documentatie</string>
-    <string name="menu_faq">FAQ</string>
+    <string name="title_notify_new">Meldt nieuwe apps</string>
+    <string name="title_restrict_new">Beperk nieuwe apps</string>
+    <string name="title_readme">Documentatie</string>
+    <string name="title_faq">FAQ</string>
     <string name="msg_no_service">Module niet actief of bijgwerkt</string>
     <string name="msg_review_settings">Herzie privacy instellingen</string>
     <string name="msg_usage">\'%1$s\' werd beperkt</string>

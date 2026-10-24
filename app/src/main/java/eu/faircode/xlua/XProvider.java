@@ -15,6 +15,7 @@
     along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
     Copyright 2017-2019 Marcel Bokhorst (M66B)
+    Copyright 2026 akano12
  */
 
 package eu.faircode.xlua;
@@ -104,9 +105,28 @@ class XProvider {
         if (loaded)
             try {
                 assignNewBuiltins();
+                removeObsoleteAssignments();
             } catch (Throwable ex) {
                 Log.e(TAG, Log.getStackTraceString(ex));
             }
+    }
+
+    // Assignments of removed built-in definitions are dead rows, which getApps only reports as missing;
+    // a custom definition with the same id, like one of Downloads, keeps its assignments,
+    // also when it is stored but could not be loaded, see loadHooks
+    private static void removeObsoleteAssignments() throws Throwable {
+        final Map<String, XHook> all = hooks;
+        db.write(d -> {
+            for (String name : XDatabase.REMOVED) {
+                String id = Util.COLLECTION_DEFAULT + "." + name;
+                if (all.containsKey(id))
+                    continue;
+                int rows = d.delete("assignment", "hook = ? AND hook NOT IN (SELECT id FROM hook)", new String[]{id});
+                if (rows > 0)
+                    Log.i(TAG, "Removed assignments of hook " + id + " rows=" + rows);
+            }
+            return null;
+        });
     }
 
     // The groups of the definitions which are loaded, built-in and custom, see XNotify.cancelApp
@@ -1091,7 +1111,8 @@ class XProvider {
 
     // System server and the app
     private static void enforcePermission(Context context) throws SecurityException {
-        int cuid = Util.getAppId(Binder.getCallingUid());
+        int callingUid = Binder.getCallingUid(); // Before the identity is cleared, which makes it the uid of system server
+        int cuid = Util.getAppId(callingUid);
 
         // Access package manager as system user
         long ident = Binder.clearCallingIdentity();
@@ -1099,7 +1120,11 @@ class XProvider {
             if (cuid == Process.SYSTEM_UID)
                 return;
 
-            // Same signature; the uid of the app changes when it is installed again
+            // The module itself, for any user: a package name belongs to one app on the device
+            if (isPackageOf(context, BuildConfig.APPLICATION_ID, callingUid))
+                return;
+
+            // Other apps with the same signature; the uid of the module changes when it is installed again
             PackageManager pm = context.getPackageManager();
             int uid = moduleUid;
             int signatures = (uid < 0 ? PackageManager.SIGNATURE_UNKNOWN_PACKAGE : pm.checkSignatures(cuid, uid));

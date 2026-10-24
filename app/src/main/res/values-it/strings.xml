@@ -7,10 +7,10 @@
     <string name="title_bootloop">La restrizione può causare un bootloop</string>
     <string name="title_force_stop">Forza arresto automatico</string>
     <string name="menu_search">Cerca</string>
-    <string name="menu_notify_new">Notifica nuove applicazioni</string>
-    <string name="menu_restrict_new">Applica tutte le restrizioni alle nuove app</string>
-    <string name="menu_readme">Documentazione</string>
-    <string name="menu_faq">FAQ</string>
+    <string name="title_notify_new">Notifica nuove applicazioni</string>
+    <string name="title_restrict_new">Applica tutte le restrizioni alle nuove app</string>
+    <string name="title_readme">Documentazione</string>
+    <string name="title_faq">FAQ</string>
     <string name="msg_no_service">Modulo non in esecuzione o aggiornato</string>
     <string name="msg_review_settings">Ricontrolla le impostazioni per la privacy</string>
     <string name="msg_usage">\'%1$s\' Ristretta</string>

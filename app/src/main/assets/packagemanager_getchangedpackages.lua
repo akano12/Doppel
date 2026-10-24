@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The packages installed, updated or removed since the device started, without those of other apps,
 -- like the package lists are filtered (see generic_filter_by_uid); no changes is null

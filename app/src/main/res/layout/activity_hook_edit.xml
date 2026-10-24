@@ -170,38 +170,29 @@
                         android:paddingEnd="14dp"
                         android:paddingBottom="14dp">
 
-                        <LinearLayout
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:baselineAligned="false"
-                            android:orientation="horizontal">
+                            android:hint="@string/title_field_collection">
 
-                            <com.google.android.material.textfield.TextInputLayout
-                                style="@style/XLua.Field"
-                                android:layout_width="0dp"
-                                android:layout_marginEnd="8dp"
-                                android:layout_weight="1"
-                                android:hint="@string/title_field_collection">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etCollection"
+                                style="@style/XLua.Field.Edit"
+                                android:inputType="text" />
+                        </com.google.android.material.textfield.TextInputLayout>
 
-                                <com.google.android.material.textfield.TextInputEditText
-                                    android:id="@+id/etCollection"
-                                    style="@style/XLua.Field.Edit"
-                                    android:inputType="text" />
-                            </com.google.android.material.textfield.TextInputLayout>
+                        <!-- A row of its own, the names of groups are long, like Determine.Activity -->
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/XLua.Field.Dropdown"
+                            android:layout_width="match_parent"
+                            android:hint="@string/title_field_group">
 
-                            <com.google.android.material.textfield.TextInputLayout
-                                style="@style/XLua.Field.Dropdown"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:hint="@string/title_field_group">
-
-                                <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                                    android:id="@+id/etGroup"
-                                    style="@style/XLua.Field.Edit"
-                                    android:completionThreshold="1"
-                                    android:inputType="text" />
-                            </com.google.android.material.textfield.TextInputLayout>
-                        </LinearLayout>
+                            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                                android:id="@+id/etGroup"
+                                style="@style/XLua.Field.Edit"
+                                android:completionThreshold="1"
+                                android:inputType="text" />
+                        </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
                             style="@style/XLua.Field"

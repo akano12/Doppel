@@ -12,6 +12,8 @@ Secondary users can clear their own data by uninstalling XPrivacyLua *while it i
 
 All data is stored in the system folder */data/system/xlua* and can therefore not be backed up by regular backup apps.
 You can backup and restore all restrictions, settings and custom hook definitions in *Settings* > *Backup* and *Restore*.
+*Settings* > *Clear restrictions and settings* removes all restrictions and settings, including the fake values, of the current user
+and keeps the custom hook definitions.
 
 <a name="faq2"></a>
 **(2) Can I run XPrivacy and XPrivacyLua side by side?**
@@ -54,7 +56,7 @@ see for example [here](https://www.privateinternetaccess.com/pages/whats-my-ip/)
 Revoking internet permission will result in apps crashing
 and faking offline state doesn't prevent apps from accessing the internet.
 Therefore internet restriction cannot properly be implemented.
-You are adviced to use a firewall app to control internet access, for example [NetGuard](https://forum.xda-developers.com/android/apps-games/app-netguard-root-firewall-t3233012).
+You are advised to use a firewall app to control internet access, for example [NetGuard](https://forum.xda-developers.com/android/apps-games/app-netguard-root-firewall-t3233012).
 
 If you still want to fake offline state, you can install the hook definition *NetworkInfo.createFromParcel*
 with *Downloads* on the *Hooks* tab.
@@ -96,9 +98,9 @@ tapping it again removes the restrictions of the group.
 
 * XPrivacy supports Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop and XPrivacyLua supports Android version 6.0 Marshmallow and later, see [here](README.md#compatibility) about compatibility
 * The user interface of XPrivacyLua is simpler than of XPrivacy, see also [question 4](#user-content-faq4)
-* The restrictions of XPrivacyLua are designed to prevent apps from crashing, while a number of XPrivacy restrictions can apps cause to crash, see also [question 4](#user-content-faq4)
+* The restrictions of XPrivacyLua are designed to prevent apps from crashing, while a number of XPrivacy restrictions can cause apps to crash, see also [question 4](#user-content-faq4)
 * XPrivacyLua has no on demand restricting for stability and maintenance reasons, see also [question 4](#user-content-faq4)
-* XPrivacyLua can unlike XPrivacy restrict analytics services like [Google Analytics](https://www.google.com/analytics/) and [Fabric/Crashlytics](https://get.fabric.io/)
+* XPrivacyLua can unlike XPrivacy restrict analytics services like [Firebase Analytics](https://firebase.google.com/docs/analytics/) and [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics)
 * XPrivacyLua [is user extensible](DEFINE.md) while XPrivacy is not
 * XPrivacyLua is easier to maintain than XPrivacy, so XPrivacyLua is easier to update for new Android versions
 

@@ -13,6 +13,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
+
 -- Apps send the user agent of WebView with their own requests. It contains the device model and firmware build,
 -- like '(Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv)', which is reduced like Chrome does: '(Linux; Android 15; K; wv)'
 

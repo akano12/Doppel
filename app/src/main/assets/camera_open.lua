@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The errors of Android when the camera service refuses the camera, like when it is disabled
 function before(hook, param)

@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The security patch level per quarter, like 2025-04-01 for 2025-05-05: a date of fewer values,
 -- which apps can still parse and compare (see security_patch)

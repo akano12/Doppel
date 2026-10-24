@@ -7,10 +7,10 @@
     <string name="title_bootloop">التقييد يمكن أن يسبب بوتلوب</string>
     <string name="title_force_stop">فرض إيقاف تلقائياً</string>
     <string name="menu_search">بحث</string>
-    <string name="menu_notify_new">نبه عند إضافة تطبيقات جديدة</string>
-    <string name="menu_restrict_new">قيّد التطبيقات الجديدة</string>
-    <string name="menu_readme">التوثيق</string>
-    <string name="menu_faq">الأسئلة الأكثر شيوعاً</string>
+    <string name="title_notify_new">نبه عند إضافة تطبيقات جديدة</string>
+    <string name="title_restrict_new">قيّد التطبيقات الجديدة</string>
+    <string name="title_readme">التوثيق</string>
+    <string name="title_faq">الأسئلة الأكثر شيوعاً</string>
     <string name="msg_no_service">الوحدة لا تعمل أو تحت التحديث</string>
     <string name="msg_review_settings">راجع إعدادات الخصوصية</string>
     <string name="msg_usage">تم تقييد \'%1$s\'</string>

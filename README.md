@@ -75,9 +75,9 @@ Using the app
   searchable by app or restriction; *View log* on the screen of an app shows the log of that app only.
 * **Hooks** lets you view, edit, enable, disable, add, import and export hook definitions,
   and install and remove definitions shared by others with *Downloads*.
-* **Settings** has the fake values used for all apps (like the IMEI, Android ID, location and time zone),
-  the theme and colors, the collections of definitions, and backup and restore of settings,
-  custom hook definitions and restrictions.
+* **Settings** has restricting of and notifications on new apps, the collections of definitions,
+  the theme, colors and language, the fake values used for all apps (like the IMEI, Android ID, location and time zone),
+  backup and restore of settings, custom hook definitions and restrictions, and clearing all restrictions and settings.
 
 The (no longer available) pro companion app is not needed anymore.
 To add your own restriction definitions, see [this FAQ](FAQ.md#user-content-faq8) and [DEFINE.md](DEFINE.md).
@@ -156,6 +156,8 @@ with JDK 17 or later and the Android SDK (platform 37):
 
 The release build is signed with the key described in *keystore.properties*
 (storeFile, storePassword, keyAlias, keyPassword), next to this file.
+Sign with the v1 and v2 schemes only, like the build does: LSPosed cannot read an APK with a v3 signature,
+so the module would not load (with apksigner: `--v3-signing-enabled false --v4-signing-enabled false`).
 There is no support on building.
 
 Attribution

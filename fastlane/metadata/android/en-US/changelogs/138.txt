@@ -1,0 +1,7 @@
+First release of the maintained fork:
+* New Material 3 interface: Apps, Activity, Hooks and Settings
+* Fake values, a log with the real and fake values, a hook editor and backup built in, no pro app needed
+* Modern Xposed API (LSPosed) next to the legacy API
+* Hooks updated for current Android versions
+* New restrictions: battery, biometrics, debugging state, device settings and features, memory and storage, time zone, VPN state
+* Shared definitions available offline

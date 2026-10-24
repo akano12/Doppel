@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The user agent of a WebView contains the device model and firmware build, like
 -- '(Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv)', which is reduced like Chrome does:

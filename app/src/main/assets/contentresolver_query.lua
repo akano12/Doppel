@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The authority of a uri without the user, like 0@com.android.contacts, which apps can add for their own user
 function authorityof(uri)

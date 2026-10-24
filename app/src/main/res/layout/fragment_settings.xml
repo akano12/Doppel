@@ -106,7 +106,7 @@
 
                         <TextView
                             style="@style/XLua.Row.Title"
-                            android:text="@string/menu_restrict_new" />
+                            android:text="@string/title_restrict_new" />
 
                         <TextView
                             style="@style/XLua.Row.Subtitle"
@@ -117,7 +117,7 @@
                         android:id="@+id/swRestrictNew"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:contentDescription="@string/menu_restrict_new" />
+                        android:contentDescription="@string/title_restrict_new" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -128,7 +128,7 @@
 
                         <TextView
                             style="@style/XLua.Row.Title"
-                            android:text="@string/menu_notify_new" />
+                            android:text="@string/title_notify_new" />
 
                         <TextView
                             style="@style/XLua.Row.Subtitle"
@@ -139,7 +139,7 @@
                         android:id="@+id/swNotifyNew"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:contentDescription="@string/menu_notify_new" />
+                        android:contentDescription="@string/title_notify_new" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -349,7 +349,7 @@
 
                         <TextView
                             style="@style/XLua.Row.Title"
-                            android:text="@string/menu_backup" />
+                            android:text="@string/title_backup" />
 
                         <TextView
                             style="@style/XLua.Row.Subtitle"
@@ -369,7 +369,7 @@
 
                         <TextView
                             style="@style/XLua.Row.Title"
-                            android:text="@string/menu_restore" />
+                            android:text="@string/title_restore" />
 
                         <TextView
                             style="@style/XLua.Row.Subtitle"
@@ -423,7 +423,7 @@
 
                         <TextView
                             style="@style/XLua.Row.Title"
-                            android:text="@string/menu_readme" />
+                            android:text="@string/title_readme" />
                     </LinearLayout>
 
                     <ImageView
@@ -440,7 +440,7 @@
 
                         <TextView
                             style="@style/XLua.Row.Title"
-                            android:text="@string/menu_faq" />
+                            android:text="@string/title_faq" />
                     </LinearLayout>
 
                     <ImageView

@@ -6,10 +6,10 @@
     <string name="title_bootloop">制限するとブートループが発生する可能性が有ります</string>
     <string name="title_force_stop">自動強制停止</string>
     <string name="menu_search">検索</string>
-    <string name="menu_notify_new">新しいアプリ追加で通知</string>
-    <string name="menu_restrict_new">新しいアプリを制限</string>
-    <string name="menu_readme">ドキュメンテーション</string>
-    <string name="menu_faq">FAQ</string>
+    <string name="title_notify_new">新しいアプリ追加で通知</string>
+    <string name="title_restrict_new">新しいアプリを制限</string>
+    <string name="title_readme">ドキュメンテーション</string>
+    <string name="title_faq">FAQ</string>
     <string name="msg_no_service">モジュールが実行又は更新されていません</string>
     <string name="msg_review_settings">プライバシー設定を確認</string>
     <string name="msg_usage">\'%1$s\' を制限しました</string>

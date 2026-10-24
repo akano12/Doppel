@@ -7,10 +7,10 @@
     <string name="title_bootloop">Hạn chế có thể gây ra một bootloop</string>
     <string name="title_force_stop">Buộc dừng tự động</string>
     <string name="menu_search">Tìm</string>
-    <string name="menu_notify_new">Thông báo khi có ứng dụng mới</string>
-    <string name="menu_restrict_new">Chặn ứng dụng mới</string>
-    <string name="menu_readme">Tài liệu hướng dẫn</string>
-    <string name="menu_faq">CÂU HỎI THƯỜNG GẶP</string>
+    <string name="title_notify_new">Thông báo khi có ứng dụng mới</string>
+    <string name="title_restrict_new">Chặn ứng dụng mới</string>
+    <string name="title_readme">Tài liệu hướng dẫn</string>
+    <string name="title_faq">CÂU HỎI THƯỜNG GẶP</string>
     <string name="msg_no_service">Module không chạy hoặc chưa cập nhật</string>
     <string name="msg_review_settings">Xem lại thiết lập bảo mật</string>
     <string name="msg_usage">Đã chặn \'\'%1$s\'</string>

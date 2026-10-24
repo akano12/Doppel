@@ -7,10 +7,10 @@
     <string name="title_bootloop">限制後可能導致卡在開機畫面</string>
     <string name="title_force_stop">自動強制停止</string>
     <string name="menu_search">搜尋</string>
-    <string name="menu_notify_new">通知新安裝程式</string>
-    <string name="menu_restrict_new">限制新安裝程式</string>
-    <string name="menu_readme">文件</string>
-    <string name="menu_faq">常見問題</string>
+    <string name="title_notify_new">通知新安裝程式</string>
+    <string name="title_restrict_new">限制新安裝程式</string>
+    <string name="title_readme">文件</string>
+    <string name="title_faq">常見問題</string>
     <string name="msg_no_service">模組尚未執行或是剛更新</string>
     <string name="msg_review_settings">查看隱私設定</string>
     <string name="msg_usage">\'%1$s\' 已限制</string>

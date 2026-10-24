@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Lists of other apps keep only the app itself. The lists of components, like of the activities for an intent,
 -- and of properties also keep system apps, like the lookups of single packages (see package_probe), because the

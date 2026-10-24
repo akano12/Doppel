@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Settings people change, which together recognize a device (the device state of FingerprintJS),
 -- with their values on a new device; NONE for settings which are not set on a new device.

@@ -7,10 +7,10 @@
     <string name="title_bootloop">Обмеження можуть викликати бутлуп</string>
     <string name="title_force_stop">Змусити зупинитися автоматично</string>
     <string name="menu_search">Пошук</string>
-    <string name="menu_notify_new">Сповіщати про нові програми</string>
-    <string name="menu_restrict_new">Обмежити нові програми</string>
-    <string name="menu_readme">Документація</string>
-    <string name="menu_faq">Часті Питання</string>
+    <string name="title_notify_new">Сповіщати про нові програми</string>
+    <string name="title_restrict_new">Обмежити нові програми</string>
+    <string name="title_readme">Документація</string>
+    <string name="title_faq">Часті Питання</string>
     <string name="msg_no_service">Модуль не запущений або не оновлений</string>
     <string name="msg_review_settings">Налаштування конфіденційності</string>
     <string name="msg_usage">Обмежено \'%1$s\'</string>

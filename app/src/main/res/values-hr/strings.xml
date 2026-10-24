@@ -7,10 +7,10 @@
     <string name="title_bootloop">Ograničenje može uzrokovati petlju podizanja sustava (bootloop)</string>
     <string name="title_force_stop">Automatski prisilno zatvori</string>
     <string name="menu_search">Pretraži</string>
-    <string name="menu_notify_new">Obavijesti o novim aplikacijama</string>
-    <string name="menu_restrict_new">Ograniči nove aplikacije</string>
-    <string name="menu_readme">Dokumentacija</string>
-    <string name="menu_faq">ČPP</string>
+    <string name="title_notify_new">Obavijesti o novim aplikacijama</string>
+    <string name="title_restrict_new">Ograniči nove aplikacije</string>
+    <string name="title_readme">Dokumentacija</string>
+    <string name="title_faq">ČPP</string>
     <string name="msg_no_service">Modul nije aktivan ili ažuriran</string>
     <string name="msg_review_settings">Pregledajte postavke privatnosti</string>
     <string name="msg_usage">Ograničeno \'%1$s\'</string>

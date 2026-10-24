@@ -12,8 +12,9 @@ trim_trailing_whitespace = true
 [*.java]
 max_line_length = 140
 
-[*.{xml,json,gradle,toml}]
-indent_size = 4
+# hooks.json is indented with 2 spaces
+[*.json]
+indent_size = 2
 
 [*.bat]
 end_of_line = crlf

@@ -769,16 +769,16 @@ class XCore {
             XBackend.Callback callback = new XBackend.Callback() {
                 @Override
                 void before(XCall call) {
-                    execute("before", call);
+                    execute(call, "before");
                 }
 
                 @Override
                 void after(XCall call) {
-                    execute("after", call);
+                    execute(call, "after");
                 }
 
                 // Errors must not reach the app, which the modern API would let through
-                private void execute(String when, XCall call) {
+                private void execute(XCall call, String when) {
                     if (inService())
                         return;
                     try {

@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The usage events of the device tell which apps were used when, like the usage statistics.
 -- The events are read from the result, so the app gets them as already read, like when there are none.

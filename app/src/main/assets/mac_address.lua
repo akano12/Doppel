@@ -13,6 +13,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
+
 -- MAC addresses are fixed hardware ids. Recent Android versions hide them from apps,
 -- older versions and apps targeting them still get the real ones.
 -- The fake values are those of Android: 02:00:00:00:00:00 for text, nothing for the bytes of an interface.

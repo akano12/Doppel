@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- An empty notification without content, extras and actions, built with the public API, so it has only the
 -- time, the small icon and the channel of the notification, which posted notifications have and listeners use;

@@ -7,10 +7,10 @@
     <string name="title_bootloop">Begrænsning kan forårsage en boot-løkke</string>
     <string name="title_force_stop">Auto-gennnemtving stop</string>
     <string name="menu_search">Søg</string>
-    <string name="menu_notify_new">Advisér om nye apps</string>
-    <string name="menu_restrict_new">Begrænse nye apps</string>
-    <string name="menu_readme">Dokumentation</string>
-    <string name="menu_faq">Ofte stillede spørgsmål (FAQ)</string>
+    <string name="title_notify_new">Advisér om nye apps</string>
+    <string name="title_restrict_new">Begrænse nye apps</string>
+    <string name="title_readme">Dokumentation</string>
+    <string name="title_faq">Ofte stillede spørgsmål (FAQ)</string>
     <string name="msg_no_service">Modul kører ikke eller er ikke opdateret</string>
     <string name="msg_review_settings">Gennemse privatlivsindstillinger</string>
     <string name="msg_usage">\'%1$s\' begrænset</string>

@@ -13,6 +13,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil or result.stop == nil or type(result.stop) ~= 'function' then

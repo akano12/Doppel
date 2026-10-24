@@ -42,7 +42,7 @@ public class ActivityLog extends ActivityBase {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_log);
-        setupToolbar(getString(R.string.menu_log)).setSubtitle(getIntent().getStringExtra(EXTRA_LABEL));
+        setupToolbar(getString(R.string.title_log)).setSubtitle(getIntent().getStringExtra(EXTRA_LABEL));
 
         // Else the fragment is restored by the framework
         if (savedInstanceState == null)

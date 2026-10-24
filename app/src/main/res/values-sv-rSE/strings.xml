@@ -6,10 +6,10 @@
     <string name="title_bootloop">Begränsning kan orsaka en bootloop</string>
     <string name="title_force_stop">Tvinga stopp automatiskt</string>
     <string name="menu_search">Sök</string>
-    <string name="menu_notify_new">Meddela om nya appar</string>
-    <string name="menu_restrict_new">Begränsa nya appar</string>
-    <string name="menu_readme">Dokumentation</string>
-    <string name="menu_faq">Vanliga frågor &amp; svar</string>
+    <string name="title_notify_new">Meddela om nya appar</string>
+    <string name="title_restrict_new">Begränsa nya appar</string>
+    <string name="title_readme">Dokumentation</string>
+    <string name="title_faq">Vanliga frågor &amp; svar</string>
     <string name="msg_no_service">Modulen körs inte eller uppdateras</string>
     <string name="msg_review_settings">Granska sekretessinställningar</string>
     <string name="msg_usage">Begränsad \'%1$s\'</string>

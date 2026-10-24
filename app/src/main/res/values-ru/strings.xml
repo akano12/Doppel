@@ -6,10 +6,10 @@
     <string name="title_bootloop">Ограничения могут вызвать циклическую перезагрузку</string>
     <string name="title_force_stop">Останавливать автоматически</string>
     <string name="menu_search">Поиск</string>
-    <string name="menu_notify_new">Уведомлять о новых приложениях</string>
-    <string name="menu_restrict_new">Ограничивать новые приложения</string>
-    <string name="menu_readme">Документация</string>
-    <string name="menu_faq">Часто задаваемые вопросы</string>
+    <string name="title_notify_new">Уведомлять о новых приложениях</string>
+    <string name="title_restrict_new">Ограничивать новые приложения</string>
+    <string name="title_readme">Документация</string>
+    <string name="title_faq">Часто задаваемые вопросы</string>
     <string name="msg_no_service">Модуль обновлен или не запущен</string>
     <string name="msg_review_settings">Настройки конфиденциальности</string>
     <string name="msg_usage">Ограничено \'%1$s\'</string>

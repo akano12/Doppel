@@ -445,7 +445,7 @@ public class ActivityDownloads extends ActivityBase {
     // Deleting an installed definition restores the built-in definition it replaced
     private void confirmRemove(Entry entry) {
         String message = getString(builtinIds.contains(entry.getId())
-                ? R.string.msg_remove_restores : R.string.msg_remove_sure, entry.getId());
+                ? R.string.msg_remove_restores : R.string.msg_remove_sure, entry.name);
         Ui.areYouSure(this, message, R.string.title_remove, () -> {
             final Context context = getApplicationContext();
             run(TAG, () -> {

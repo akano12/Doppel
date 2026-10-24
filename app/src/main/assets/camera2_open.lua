@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The error of Android when the camera service refuses a disabled camera,
 -- with the message of the camera service; the text becomes CAMERA_DISABLED (1): ...

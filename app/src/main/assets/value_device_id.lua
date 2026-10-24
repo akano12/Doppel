@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The IMEI of GSM phones and the MEID of CDMA phones are replaced by the values set, nothing by default;
 -- getDeviceId returns the one of the phone type, getImei and getMeid only their own

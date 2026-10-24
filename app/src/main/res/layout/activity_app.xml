@@ -226,7 +226,7 @@
 
                                 <TextView
                                     style="@style/XLua.Row.Title"
-                                    android:text="@string/menu_values_app" />
+                                    android:text="@string/title_values_app" />
 
                                 <TextView
                                     android:id="@+id/tvValues"

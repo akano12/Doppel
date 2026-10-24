@@ -6,10 +6,10 @@
     <string name="title_bootloop">Restricting can cause a bootloop</string>
     <string name="title_force_stop">Force stop automatically</string>
     <string name="menu_search">Cari</string>
-    <string name="menu_notify_new">Beri tahu pada aplikasi baru</string>
-    <string name="menu_restrict_new">Batasi aplikasi baru</string>
-    <string name="menu_readme">Dokumentasi</string>
-    <string name="menu_faq">FAQ</string>
+    <string name="title_notify_new">Beri tahu pada aplikasi baru</string>
+    <string name="title_restrict_new">Batasi aplikasi baru</string>
+    <string name="title_readme">Dokumentasi</string>
+    <string name="title_faq">FAQ</string>
     <string name="msg_no_service">Modul tidak berjalan atau diperbarui</string>
     <string name="msg_review_settings">Tinjau pengaturan privasi</string>
     <string name="msg_usage">\'%1$s\' dibatasi</string>

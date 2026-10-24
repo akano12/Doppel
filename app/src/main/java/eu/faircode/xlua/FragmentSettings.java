@@ -93,7 +93,7 @@ public class FragmentSettings extends FragmentBase {
     private final ActivityResultLauncher<String[]> restoreLauncher = registerForActivityResult(
             new ActivityResultContracts.OpenDocument(), uri -> {
                 if (uri != null)
-                    Ui.areYouSure(requireContext(), getString(R.string.msg_restore_sure), R.string.menu_restore, () -> restore(uri));
+                    Ui.areYouSure(requireContext(), getString(R.string.msg_restore_sure), R.string.title_restore, () -> restore(uri));
             });
 
     @Override

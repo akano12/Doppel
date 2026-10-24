@@ -134,6 +134,34 @@ class XDatabase {
             {"ContentResolver.query1/oaid", "ContentResolver.query16/oaid"},
     };
 
+    // Built-in hook names removed by this and former versions, without a definition which took over; their assignments
+    // are removed unless a custom definition has the same id, like one of Downloads, see XProvider.removeObsoleteAssignments
+    static final String[] REMOVED = new String[]{
+            "ActivityManager.getRecentTasks", "ActivityManager.getRunningTasks",
+            "ActivityThread.handleBindService/notification", "AppEventsLogger.activateApp/context",
+            "AppEventsLogger.activateApp/context/id", "AppEventsLogger.deactivateApp/context",
+            "AppEventsLogger.deactivateApp/context/id", "BlockGuardOs.open",
+            "CameraManager2.registerAvailabilityCallback", "CameraManager2.registerTorchCallback",
+            "ContentProviderClient.query1/blockednumber", "ContentProviderClient.query1/calendars",
+            "ContentProviderClient.query1/call_log", "ContentProviderClient.query1/contacts",
+            "ContentProviderClient.query1/fb_attribution", "ContentProviderClient.query1/gsf_id",
+            "ContentProviderClient.query1/mmssms", "ContentProviderClient.query1/oaid",
+            "ContentProviderClient.query1/voicemail", "ContentResolver/query1", "ContentResolver/query16",
+            "ContentResolver/query26", "Fabric.with/kits", "FlurryAgent.endTimedEvent/id",
+            "FlurryAgent.endTimedEvent/id/parameters", "FlurryAgent.logEvent/id",
+            "FlurryAgent.logEvent/id/parameters", "FlurryAgent.logEvent/id/parameters/timed",
+            "FlurryAgent.logEvent/id/timed", "FlurryAgent.onEndSession", "FlurryAgent.onPageView",
+            "FlurryAgent.onStartSession", "FlurryAgent.onStartSession/apikey", "FlurryAgent.setAge",
+            "FlurryAgent.setGender", "FlurryAgent.setLocation", "GoogleAnalytics.getInstance",
+            "GoogleAnalytics.setDryRun", "Intent.createFromParcel", "Intent.createFromParcel/activity_recognition",
+            "MediaRecorder.start", "MediaRecorder.stop", "NetworkInfo.createFromParcel",
+            "NetworkInterface.networkInterfaces", "PlaceLikelihoodBuffer.get", "PlaceLikelihoodBuffer.getCount",
+            "ProcessBuilder.command/array", "ProcessBuilder.command/list", "Runtime.exec/array",
+            "Runtime.exec/array/env", "Runtime.exec/array/env/file", "Runtime.exec/cmd", "Runtime.exec/cmd/env",
+            "Runtime.exec/cmd/env/file", "SystemProperties.getBoolean", "SystemProperties.getInt",
+            "SystemProperties.getLong", "WebView.constructor.5"
+    };
+
     private final SQLiteDatabase db;
     // Reads do not wait for each other, writes are serialized
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);

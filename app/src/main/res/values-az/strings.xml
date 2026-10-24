@@ -7,10 +7,10 @@
     <string name="title_bootloop">Məhdudlaşdırma bootloop-a səbəb ola bilər</string>
     <string name="title_force_stop">Avtomatik dayandırmağa məcbur et</string>
     <string name="menu_search">Axtar</string>
-    <string name="menu_notify_new">Yeni tətbiq olanda bildir</string>
-    <string name="menu_restrict_new">Yeni tətbiqləri məhdudlaşdır</string>
-    <string name="menu_readme">Sənəd</string>
-    <string name="menu_faq">TSS</string>
+    <string name="title_notify_new">Yeni tətbiq olanda bildir</string>
+    <string name="title_restrict_new">Yeni tətbiqləri məhdudlaşdır</string>
+    <string name="title_readme">Sənəd</string>
+    <string name="title_faq">TSS</string>
     <string name="msg_no_service">Modul işləmir və ya yenilənməyib</string>
     <string name="msg_review_settings">Gizlilik tənzimləmələrinə nəzər yetir</string>
     <string name="msg_usage">\'%1$s\' məhdudlaşdırıldı</string>

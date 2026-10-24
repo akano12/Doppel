@@ -59,12 +59,23 @@ android {
     }
 
     signingConfigs {
+        // LSPosed reads the module with the legacy package parser, which fails on an APK with a v3 signature:
+        // the module would not load in system server
+        debug {
+            enableV3Signing = false
+            enableV4Signing = false
+        }
         if (keystoreProperties['storeFile']) {
             release {
                 storeFile = rootProject.file(keystoreProperties['storeFile'])
                 storePassword = keystoreProperties['storePassword']
                 keyAlias = keystoreProperties['keyAlias']
                 keyPassword = keystoreProperties['keyPassword']
+                // v1 and v2 only, like debug
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = false
+                enableV4Signing = false
             }
         }
     }

@@ -7,10 +7,10 @@
     <string name="title_bootloop">प्रतिबंधित करने से bootloop हो सकता है</string>
     <string name="title_force_stop">बलपूर्वक रोकें स्वचालित रूप से</string>
     <string name="menu_search">खोजें</string>
-    <string name="menu_notify_new">नए एप्स पर सूचित करें</string>
-    <string name="menu_restrict_new">नए ऐप्स प्रतिबंधित करें</string>
-    <string name="menu_readme">दस्तावेज़</string>
-    <string name="menu_faq">अक्सर पूछे जाने वाले सवाल</string>
+    <string name="title_notify_new">नए एप्स पर सूचित करें</string>
+    <string name="title_restrict_new">नए ऐप्स प्रतिबंधित करें</string>
+    <string name="title_readme">दस्तावेज़</string>
+    <string name="title_faq">अक्सर पूछे जाने वाले सवाल</string>
     <string name="msg_no_service">मॉड्यूल नहीं चल रहा या अद्यतित</string>
     <string name="msg_review_settings">गोपनीयता सेटिंग की समीक्षा करें</string>
     <string name="msg_usage">प्रतिबंधित \'%1$s</string>

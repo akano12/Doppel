@@ -6,10 +6,10 @@
     <string name="title_bootloop">הגבלה עלולה לגרום לאי עליית המכשיר - bootloop</string>
     <string name="title_force_stop">אלץ עצירה אוטומטית</string>
     <string name="menu_search">חיפוש</string>
-    <string name="menu_notify_new">התראה על יישומים חדשים</string>
-    <string name="menu_restrict_new">הגבל יישומים חדשים</string>
-    <string name="menu_readme">מסמכים</string>
-    <string name="menu_faq">שאלות נפוצות</string>
+    <string name="title_notify_new">התראה על יישומים חדשים</string>
+    <string name="title_restrict_new">הגבל יישומים חדשים</string>
+    <string name="title_readme">מסמכים</string>
+    <string name="title_faq">שאלות נפוצות</string>
     <string name="msg_no_service">מודול אינו פועל או שאינו מעודכן</string>
     <string name="msg_review_settings">סקור את הגדרות הפרטיות</string>
     <string name="msg_usage">מוגבל \'%1$s\'</string>

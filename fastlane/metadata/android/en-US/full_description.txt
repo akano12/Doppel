@@ -1,0 +1,52 @@
+<p>Really simple to use privacy manager for Android 6 and later, the successor of XPrivacy. This is a maintained fork of XPrivacyLua by M66B.</p>
+
+<p>Revoking Android permissions from apps often lets apps crash or malfunction. XPrivacyLua solves this by feeding apps fake data instead of real data.</p>
+
+<p><b>XPrivacyLua is an Xposed module</b>: it needs a rooted device with an Xposed framework, like LSPosed with System Framework in its scope (see the README).</p>
+
+<p>Features:</p>
+<ul>
+<li>Simple to use</li>
+<li>Manage any user or system app</li>
+<li>Fake values for all apps or per app</li>
+<li>A log of what each app tried, with the real and the fake value</li>
+<li>Extensible with your own hook definitions and definitions shared by others</li>
+<li>Light and dark theme, color themes and a pure black background</li>
+<li>Multi-user support</li>
+<li>Free and open source</li>
+</ul>
+
+<p>Restrictions:</p>
+<ul>
+<li>Determine activity</li>
+<li>Get applications</li>
+<li>Get calendars</li>
+<li>Get call log</li>
+<li>Get contacts</li>
+<li>Get location</li>
+<li>Get messages</li>
+<li>Get sensors</li>
+<li>Read account name</li>
+<li>Read biometric sensors</li>
+<li>Read battery</li>
+<li>Read clipboard</li>
+<li>Read debugging state</li>
+<li>Read memory and storage</li>
+<li>Read device settings</li>
+<li>Read identifiers</li>
+<li>Read notifications</li>
+<li>Read network data</li>
+<li>Read sync data</li>
+<li>Read telephony data</li>
+<li>Read time zone</li>
+<li>Read device features</li>
+<li>Read VPN state</li>
+<li>Record audio</li>
+<li>Record video</li>
+<li>Send messages</li>
+<li>Use analytics</li>
+<li>Use camera</li>
+<li>Use tracking</li>
+</ul>
+
+<p>A restriction hides data (an empty list) or fakes it (an empty or fake value). The README describes what each restriction does.</p>

@@ -7,10 +7,10 @@
     <string name="title_bootloop">A korlátozás bootloop-ot okozhat</string>
     <string name="title_force_stop">Automatikus leállítás</string>
     <string name="menu_search">Keresés</string>
-    <string name="menu_notify_new">Értesítés új app esetén</string>
-    <string name="menu_restrict_new">Új appok korlátozása</string>
-    <string name="menu_readme">Dokumentáció</string>
-    <string name="menu_faq">GYIK</string>
+    <string name="title_notify_new">Értesítés új app esetén</string>
+    <string name="title_restrict_new">Új appok korlátozása</string>
+    <string name="title_readme">Dokumentáció</string>
+    <string name="title_faq">GYIK</string>
     <string name="msg_no_service">A modul nem fut vagy frissítve lett</string>
     <string name="msg_review_settings">Adatvédelmi beállítások áttekintése</string>
     <string name="msg_usage">\"%1$s\" korlátozva</string>

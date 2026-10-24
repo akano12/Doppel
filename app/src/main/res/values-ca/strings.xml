@@ -7,10 +7,10 @@
     <string name="title_bootloop">La restricció pot causar un bootloop</string>
     <string name="title_force_stop">Força aturada automàtica</string>
     <string name="menu_search">Cerca</string>
-    <string name="menu_notify_new">Notificar per a noves apps</string>
-    <string name="menu_restrict_new">Restringeix noves apps</string>
-    <string name="menu_readme">Documentació</string>
-    <string name="menu_faq">Preguntes Més Freqüents</string>
+    <string name="title_notify_new">Notificar per a noves apps</string>
+    <string name="title_restrict_new">Restringeix noves apps</string>
+    <string name="title_readme">Documentació</string>
+    <string name="title_faq">Preguntes Més Freqüents</string>
     <string name="msg_no_service">El mòdul s\'ha actualitzat o no és actiu</string>
     <string name="msg_review_settings">Revisa els ajustaments de privadesa</string>
     <string name="msg_usage">S\'ha restringit %1$s</string>

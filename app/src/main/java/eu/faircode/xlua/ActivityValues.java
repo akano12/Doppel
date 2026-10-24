@@ -162,7 +162,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             }
         }
 
-        setupToolbar(getString(R.string.menu_values));
+        setupToolbar(getString(R.string.title_values));
 
         // Values of an app replace the values for all apps
         ChipGroup cgScope = findViewById(R.id.cgScope);

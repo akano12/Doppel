@@ -15,6 +15,7 @@
     along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
     Copyright 2017-2019 Marcel Bokhorst (M66B)
+    Copyright 2026 akano12
  */
 
 package eu.faircode.xlua;
@@ -60,7 +61,7 @@ public class XHook implements Parcelable {
     private int minApk;
     private int maxApk;
     private String[] excludePackages;
-    private volatile Pattern[] excludePatterns = null; // Compiled once, see isAvailable, also by threads at once
+    private volatile Pattern[] excludePatterns; // Compiled once, see isAvailable, also by threads at once
     private boolean enabled;
     private boolean optional;
     private boolean usage;

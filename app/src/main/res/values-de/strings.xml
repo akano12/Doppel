@@ -6,10 +6,10 @@
     <string name="title_bootloop">Die Beschränkung kann einen Bootlop verursachen</string>
     <string name="title_force_stop">Automatisches Beenden erzwingen</string>
     <string name="menu_search">Suche</string>
-    <string name="menu_notify_new">Benachrichtigung für neu installierte Apps</string>
-    <string name="menu_restrict_new">Neue Apps beschränken</string>
-    <string name="menu_readme">Dokumentation</string>
-    <string name="menu_faq">FAQ</string>
+    <string name="title_notify_new">Benachrichtigung für neu installierte Apps</string>
+    <string name="title_restrict_new">Neue Apps beschränken</string>
+    <string name="title_readme">Dokumentation</string>
+    <string name="title_faq">FAQ</string>
     <string name="msg_no_service">Modul nicht aktiv oder aktualisiert</string>
     <string name="msg_review_settings">Datenschutzeinstellungen überprüfen</string>
     <string name="msg_usage">Beschränkte \'%1$s\'</string>

@@ -4,13 +4,13 @@ Defining hooks
 Introduction
 ------------
 
-XPrivacyLua allows you do define Xposed hooks without developing an Xposed module.
+XPrivacyLua allows you to define Xposed hooks without developing an Xposed module.
 
 Defined hooks can be added and updated at run time,
 with the big advantage that no reboot is required to test a new or changed hook
 (with the exception of persistent system apps, which are clearly marked in XPrivacyLua).
 To apply an updated definition an app just needs to be stopped (force closed) and started again.
-An easy way to do this is by toggling a definition off/on in XPrivacyLua.
+An easy way to do this is with *Stop* or *Stop automatically* on the screen of the app in XPrivacyLua.
 
 XPrivacyLua allows you to select which apps a definition should be applied to.
 
@@ -175,7 +175,7 @@ You can write to the Android logcat using the *log* function:
     log(some_object) -- will call toString()
 ```
 
-A log line starts with the word *Log* followed by the package name and uid of the app and the name of the hook
+A log line starts with the word *Log* followed by the package name and uid of the app and the id of the hook (*collection.name*)
 and ends with the log text. This way it is always clear which hook/app logging belongs to.
 
 You can hook a method of an object the script gets hold of, like a listener or the settings of a WebView,

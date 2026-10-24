@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The method is skipped, with the result of its return type (see the definition): false for a boolean method,
 -- like a registration, 0 for a method returning a result code, of which 0 means success, nothing for a void method

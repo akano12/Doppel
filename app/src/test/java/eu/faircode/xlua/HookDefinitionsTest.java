@@ -463,6 +463,9 @@ public class HookDefinitionsTest {
             assertTrue("Renamed into unknown hook " + renamed[1], names.contains(renamed[1]));
             assertTrue("Renamed hook still exists " + renamed[0], !names.contains(renamed[0]));
         }
+        // A removed name which is a built-in definition again would lose the assignments of older versions
+        for (String removed : XDatabase.REMOVED)
+            assertFalse("Removed hook exists " + removed, names.contains(removed));
     }
 
     // The built-in definitions as the app reads them, see XHook.readHooks: in the default collection,

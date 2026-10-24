@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The recorder of a restricted source does not start, see mediarecorder_startstop,
 -- which skips the methods of a recorder for the source of the group of the hook
