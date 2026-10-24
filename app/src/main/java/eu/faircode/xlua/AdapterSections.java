@@ -19,7 +19,6 @@ package eu.faircode.xlua;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -29,6 +28,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.util.Consumer;
+import androidx.core.view.ViewCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
@@ -36,57 +36,49 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-// Items under headers, like the hooks of each group: strings and expandable headers are headers,
+// Items under headers, like the hooks of each group: strings and group rows are headers,
 // other objects items; the items under a header know whether they are the first or the last one
 abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private static final int TYPE_HEADER = 0;
     private static final int TYPE_ITEM = 1;
-    private static final int TYPE_EXPANDABLE = 2;
-    private static final int TYPE_GROUP = 3;
+    private static final int TYPE_GROUP = 2;
 
-    // A header which shows or hides its items when tapped; the items are left out when collapsed
-    static class Expandable {
+    // A header with an icon and a line under its title, a row of a block, like the groups of the Hooks tab,
+    // which shows or hides its items when tapped; the items are left out when collapsed;
+    // a word at the end, like Off, tells a state of the whole group
+    private static class Group {
         final String text;
+        final String meta;
+        final String pill;
+        final int icon;
         final boolean expanded;
         final CharSequence description; // What tapping does, for accessibility
         final Runnable onToggle;
 
-        Expandable(String text, boolean expanded, CharSequence description, Runnable onToggle) {
+        Group(String text, String meta, @Nullable String pill, int icon, boolean expanded, CharSequence description, Runnable onToggle) {
             this.text = text;
+            this.meta = meta;
+            this.pill = pill;
+            this.icon = icon;
             this.expanded = expanded;
             this.description = description;
             this.onToggle = onToggle;
         }
     }
 
-    // An expandable header with an icon and a line under its title, a row of a block, like the groups of the Hooks tab;
-    // a word at the end, like Off, tells a state of the whole group
-    static class Group extends Expandable {
-        final String meta;
-        final String pill;
-        final int icon;
-
-        Group(String text, String meta, @Nullable String pill, int icon, boolean expanded, CharSequence description, Runnable onToggle) {
-            super(text, expanded, description, onToggle);
-            this.meta = meta;
-            this.pill = pill;
-            this.icon = icon;
-        }
-    }
-
-    // Expandable headers of which one is open at a time, like the groups of the Hooks tab;
-    // while searching or filtering all headers are open, unless closed for the current search
+    // Group rows of which one is open at a time, like the groups of the Hooks tab;
+    // while searching or filtering all groups are open, unless closed for the current search
     static class Accordion {
-        private String open; // null: the first header, empty: none
+        private String open; // null: the first group, empty: none
         private final Set<String> closed = new HashSet<>();
-        private final Consumer<String> onOpen; // Remembers the open header
+        private final Consumer<String> onOpen; // Remembers the open group
 
         Accordion(@Nullable String open, @Nullable Consumer<String> onOpen) {
             this.open = open;
             this.onOpen = onOpen;
         }
 
-        // Another search or filter opens all headers again
+        // Another search or filter opens all groups again
         void reset() {
             closed.clear();
         }
@@ -97,7 +89,7 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
             return key.equals(open == null ? first : open);
         }
 
-        // Opening a header closes the open one
+        // Opening a group closes the open one
         private void toggle(String key, String first, boolean filtering) {
             if (filtering) {
                 if (!closed.remove(key))
@@ -109,24 +101,8 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
             }
         }
 
-        // The header of a key with the number of items and the items when it is open; first is the key open
-        // at first; tapping the header opens or closes it, then the list is shown again
-        void add(Context context, List<Object> items, String key, String title, List<?> children,
-                 String first, boolean filtering, Runnable show) {
-            if (key == null || children.isEmpty())
-                return;
-            boolean expanded = isOpen(key, first, filtering);
-            items.add(new Expandable(context.getString(R.string.title_count, title, children.size()), expanded,
-                    context.getString(expanded ? R.string.title_hide_hooks : R.string.title_show_hooks, title),
-                    () -> {
-                        toggle(key, first, filtering);
-                        show.run();
-                    }));
-            if (expanded)
-                items.addAll(children);
-        }
-
-        // Like add, as a group row with an icon and a line, like the number of items, under the title
+        // The row of a key, with an icon and a line, like the number of items, under its title, and the items when
+        // it is open; first is the key open at first; tapping the row opens or closes it, then the list is shown again
         void addGroup(Context context, List<Object> items, String key, String title, String meta, @Nullable String pill,
                       int icon, List<?> children, String first, boolean filtering, Runnable show) {
             if (key == null || children.isEmpty())
@@ -163,15 +139,13 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
     }
 
     private static boolean isHeader(Object item) {
-        return (item instanceof String || item instanceof Expandable);
+        return (item instanceof String || item instanceof Group);
     }
 
     @Override
     public int getItemViewType(int position) {
         Object item = items.get(position);
-        return (item instanceof String ? TYPE_HEADER
-                : item instanceof Group ? TYPE_GROUP
-                : item instanceof Expandable ? TYPE_EXPANDABLE : TYPE_ITEM);
+        return (item instanceof String ? TYPE_HEADER : item instanceof Group ? TYPE_GROUP : TYPE_ITEM);
     }
 
     @Override
@@ -185,18 +159,16 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
         LayoutInflater inflater = LayoutInflater.from(parent.getContext());
         if (viewType == TYPE_HEADER) {
             View view = inflater.inflate(R.layout.item_header, parent, false);
+            ViewCompat.setAccessibilityHeading(view, true);
             return new RecyclerView.ViewHolder(view) {
             };
         }
-        if (viewType == TYPE_EXPANDABLE || viewType == TYPE_GROUP) {
-            View view = inflater.inflate(viewType == TYPE_GROUP
-                    ? R.layout.item_group_header : R.layout.item_header_expandable, parent, false);
-            RecyclerView.ViewHolder holder = new RecyclerView.ViewHolder(view) {
-            };
-            view.setOnClickListener(v -> {
+        if (viewType == TYPE_GROUP) {
+            GroupHolder holder = new GroupHolder(inflater.inflate(R.layout.item_group_header, parent, false));
+            holder.itemView.setOnClickListener(v -> {
                 int position = holder.getBindingAdapterPosition();
                 if (position != RecyclerView.NO_POSITION)
-                    ((Expandable) items.get(position)).onToggle.run();
+                    ((Group) items.get(position)).onToggle.run();
             });
             return holder;
         }
@@ -209,13 +181,8 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
         if (type == TYPE_HEADER)
             ((TextView) holder.itemView).setText((String) items.get(position));
         else if (type == TYPE_GROUP)
-            bindGroup(holder.itemView, (Group) items.get(position), position);
-        else if (type == TYPE_EXPANDABLE) {
-            Expandable header = (Expandable) items.get(position);
-            ((TextView) holder.itemView.findViewById(R.id.tvHeader)).setText(header.text);
-            ((ImageView) holder.itemView.findViewById(R.id.ivExpand)).setRotation(header.expanded ? 180 : 0);
-            holder.itemView.setContentDescription(header.text + ", " + header.description);
-        } else {
+            bindGroup((GroupHolder) holder, (Group) items.get(position), position);
+        else {
             boolean first = (position == 0 || isHeader(items.get(position - 1)));
             boolean last = (position == items.size() - 1 || isHeader(items.get(position + 1)));
             onBindItem(holder, getItem(position), first, last);
@@ -237,35 +204,47 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
         divider.setBackgroundColor(Ui.dividerColor(context, background));
     }
 
-    // The group rows form one block with the rows of their items; an open group has the accent colors
-    private void bindGroup(View view, Group group, int position) {
-        Context context = view.getContext();
-        int background = Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerLowest);
-        Ui.join(view, background, 20, position == 0, position == items.size() - 1);
-        View divider = view.findViewById(R.id.vDivider);
-        divider.setVisibility(position == 0 ? View.GONE : View.VISIBLE);
-        divider.setBackgroundColor(Ui.dividerColor(context, background));
+    private static class GroupHolder extends RecyclerView.ViewHolder {
+        final View vDivider;
+        final View flIcon;
+        final ImageView ivIcon;
+        final TextView tvTitle;
+        final TextView tvMeta;
+        final TextView tvPill;
+        final ImageView ivExpand;
 
-        ((TextView) view.findViewById(R.id.tvTitle)).setText(group.text);
-        ((TextView) view.findViewById(R.id.tvMeta)).setText(group.meta);
-        TextView tvPill = view.findViewById(R.id.tvPill);
-        tvPill.setVisibility(group.pill == null ? View.GONE : View.VISIBLE);
-        tvPill.setText(group.pill);
-        tvPill.setBackgroundTintList(ColorStateList.valueOf(Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerHigh)));
-        tvPill.setTextColor(Ui.color(context, com.google.android.material.R.attr.colorOnSurfaceVariant));
-        View flIcon = view.findViewById(R.id.flIcon);
-        ImageView ivIcon = view.findViewById(R.id.ivIcon);
-        ivIcon.setImageResource(group.icon);
-        flIcon.setBackgroundTintList(ColorStateList.valueOf(Ui.color(context, group.expanded
+        GroupHolder(View itemView) {
+            super(itemView);
+            vDivider = itemView.findViewById(R.id.vDivider);
+            flIcon = itemView.findViewById(R.id.flIcon);
+            ivIcon = itemView.findViewById(R.id.ivIcon);
+            tvTitle = itemView.findViewById(R.id.tvTitle);
+            tvMeta = itemView.findViewById(R.id.tvMeta);
+            tvPill = itemView.findViewById(R.id.tvPill);
+            ivExpand = itemView.findViewById(R.id.ivExpand);
+        }
+    }
+
+    // The group rows form one block with the rows of their items; an open group has the accent colors
+    private void bindGroup(GroupHolder h, Group group, int position) {
+        Context context = h.itemView.getContext();
+        int background = Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerLowest);
+        Ui.joinRow(h.itemView, h.vDivider, background, position == 0, position == items.size() - 1);
+
+        h.tvTitle.setText(group.text);
+        h.tvMeta.setText(group.meta);
+        h.tvPill.setVisibility(group.pill == null ? View.GONE : View.VISIBLE);
+        h.tvPill.setText(group.pill);
+        h.ivIcon.setImageResource(group.icon);
+        h.flIcon.setBackgroundTintList(Ui.tint(context, group.expanded
                 ? com.google.android.material.R.attr.colorSecondaryContainer
-                : com.google.android.material.R.attr.colorSurfaceContainerHigh)));
-        ivIcon.setImageTintList(ColorStateList.valueOf(Ui.color(context, group.expanded
+                : com.google.android.material.R.attr.colorSurfaceContainerHigh));
+        h.ivIcon.setImageTintList(Ui.tint(context, group.expanded
                 ? com.google.android.material.R.attr.colorOnSecondaryContainer
-                : com.google.android.material.R.attr.colorOnSurfaceVariant)));
-        ImageView ivExpand = view.findViewById(R.id.ivExpand);
-        ivExpand.setRotation(group.expanded ? 180 : 0);
-        ivExpand.setImageTintList(ColorStateList.valueOf(Ui.color(context, group.expanded
-                ? androidx.appcompat.R.attr.colorPrimary : com.google.android.material.R.attr.colorOutline)));
-        view.setContentDescription(group.text + ", " + group.meta + ", " + group.description);
+                : com.google.android.material.R.attr.colorOnSurfaceVariant));
+        h.ivExpand.setRotation(group.expanded ? 180 : 0);
+        h.ivExpand.setImageTintList(Ui.tint(context, group.expanded
+                ? androidx.appcompat.R.attr.colorPrimary : com.google.android.material.R.attr.colorOutline));
+        h.itemView.setContentDescription(group.text + ", " + group.meta + ", " + group.description);
     }
 }

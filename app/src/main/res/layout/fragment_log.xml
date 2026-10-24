@@ -111,7 +111,9 @@
                 android:layout_marginTop="10dp"
                 android:contentDescription="@string/title_calls_by_hour" />
 
+            <!-- The hours, set by FragmentLog -->
             <LinearLayout
+                android:id="@+id/llAxis"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
@@ -121,27 +123,27 @@
                 <TextView
                     style="@style/XLua.Text.Axis"
                     android:gravity="start"
-                    android:text="@string/title_hour_0" />
+                    tools:text="0" />
 
                 <TextView
                     style="@style/XLua.Text.Axis"
                     android:gravity="center"
-                    android:text="@string/title_hour_6" />
+                    tools:text="6" />
 
                 <TextView
                     style="@style/XLua.Text.Axis"
                     android:gravity="center"
-                    android:text="@string/title_hour_12" />
+                    tools:text="12" />
 
                 <TextView
                     style="@style/XLua.Text.Axis"
                     android:gravity="center"
-                    android:text="@string/title_hour_18" />
+                    tools:text="18" />
 
                 <TextView
                     style="@style/XLua.Text.Axis"
                     android:gravity="end"
-                    android:text="@string/title_hour_24" />
+                    tools:text="24" />
             </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
@@ -212,6 +214,8 @@
         <TextView
             android:id="@+id/tvEmpty"
             style="@style/XLua.Empty"
-            android:text="@string/title_log_empty" />
+            android:layout_gravity="center"
+            android:text="@string/title_log_empty"
+            android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

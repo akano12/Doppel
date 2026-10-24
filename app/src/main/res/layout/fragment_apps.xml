@@ -204,8 +204,8 @@
 
         <ImageButton
             android:id="@+id/ibSort"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/title_sort"
             android:src="@drawable/ic_sort" />
@@ -239,6 +239,8 @@
         <TextView
             android:id="@+id/tvEmpty"
             style="@style/XLua.Empty"
-            android:text="@string/title_no_apps" />
+            android:layout_gravity="center"
+            android:text="@string/title_no_apps"
+            android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

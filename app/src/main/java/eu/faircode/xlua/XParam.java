@@ -29,7 +29,6 @@ import android.util.Log;
 
 import org.luaj.vm2.LuaValue;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -94,10 +93,7 @@ public class XParam {
 
     @SuppressWarnings("unused")
     public Object getThis() {
-        if (this.field == null)
-            return this.param.thisObject;
-        else
-            return null;
+        return (this.field == null ? this.param.thisObject : null);
     }
 
     @SuppressWarnings("unused")
@@ -111,22 +107,8 @@ public class XParam {
         checkArgument(index);
 
         // A copy, so only made when needed
-        Class<?>[] paramTypes = (this.param.method instanceof Method
-                ? ((Method) this.param.method).getParameterTypes()
-                : ((Constructor<?>) this.param.method).getParameterTypes());
-
-        if (value == null) {
-            // Calling with null for a primitive parameter would crash the app
-            if (paramTypes[index].isPrimitive())
-                throw new IllegalArgumentException("Expected argument #" + index + " " + paramTypes[index] + " got null");
-        } else {
-            value = coerceValue(paramTypes[index], value);
-            if (!boxType(paramTypes[index]).isInstance(value))
-                throw new IllegalArgumentException(
-                        "Expected argument #" + index + " " + paramTypes[index] + " got " + value.getClass());
-        }
-
-        this.param.args[index] = value;
+        Class<?>[] paramTypes = XResolver.parameterTypes(this.param.method);
+        this.param.args[index] = checkValue(paramTypes[index], value, "argument #" + index);
     }
 
     // Fields have no arguments
@@ -301,15 +283,9 @@ public class XParam {
         if (BuildConfig.DEBUG)
             Log.i(TAG, "Set " + this.getPackageName() + ":" + this.getUid() +
                     " result=" + result + " return=" + this.returnType);
-        // Returning null for a primitive would crash the app
-        if (result == null && this.returnType != null && this.returnType.isPrimitive() && this.returnType != void.class)
-            throw new IllegalArgumentException("Expected return " + this.returnType + " got null");
-        if (result != null && !(result instanceof Throwable) && this.returnType != null) {
-            result = coerceValue(this.returnType, result);
-            if (!boxType(this.returnType).isInstance(result))
-                throw new IllegalArgumentException(
-                        "Expected return " + this.returnType + " got " + result.getClass());
-        }
+        // A throwable is thrown instead of returned, a constructor has no return type
+        if (this.returnType != null && !(result instanceof Throwable))
+            result = checkValue(this.returnType, result, "return");
 
         if (this.field == null)
             if (result instanceof Throwable)
@@ -342,17 +318,28 @@ public class XParam {
 
     @SuppressWarnings("unused")
     public Object getValue(String name, Object scope) {
-        Object value = getValueInternal(name, scope);
+        Object value;
+        synchronized (scopedValues) {
+            Map<String, Object> values = scopedValues.get(scope);
+            value = (values == null ? null : values.get(name));
+        }
         if (BuildConfig.DEBUG)
             Log.i(TAG, "Get value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value + " @" + scope);
         return value;
     }
 
-    private static Object getValueInternal(String name, Object scope) {
-        synchronized (scopedValues) {
-            Map<String, Object> values = scopedValues.get(scope);
-            return (values == null ? null : values.get(name));
+    // The value converted to the type, of which it must be an instance; null for a primitive would crash the app,
+    // a void method returns null
+    private static Object checkValue(Class<?> type, Object value, String what) {
+        if (value == null) {
+            if (type.isPrimitive() && type != void.class)
+                throw new IllegalArgumentException("Expected " + what + " " + type + " got null");
+            return null;
         }
+        value = coerceValue(type, value);
+        if (!boxType(type).isInstance(value))
+            throw new IllegalArgumentException("Expected " + what + " " + type + " got " + value.getClass());
+        return value;
     }
 
     private static Class<?> boxType(Class<?> type) {

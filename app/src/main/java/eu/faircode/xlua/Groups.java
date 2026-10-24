@@ -45,7 +45,8 @@ final class Groups {
     private static final Map<String, Integer> ICON = new HashMap<>();
 
     static {
-        group("Determine.Activity", R.string.group_determine_activity, R.string.group_desc_determine_activity, R.drawable.ic_group_activity);
+        group("Determine.Activity", R.string.group_determine_activity, R.string.group_desc_determine_activity,
+                R.drawable.ic_group_activity);
         group("Get.Applications", R.string.group_get_applications, R.string.group_desc_get_applications, R.drawable.ic_apps);
         group("Get.Calendars", R.string.group_get_calendars, R.string.group_desc_get_calendars, R.drawable.ic_group_calendars);
         group("Get.Call.log", R.string.group_get_call_log, R.string.group_desc_get_call_log, R.drawable.ic_group_call_log);
@@ -61,7 +62,8 @@ final class Groups {
         group("Read.Features", R.string.group_read_features, R.string.group_desc_read_features, R.drawable.ic_group_features);
         group("Read.Identifiers", R.string.group_read_identifiers, R.string.group_desc_read_identifiers, R.drawable.ic_group_identifiers);
         group("Read.Network", R.string.group_read_network, R.string.group_desc_read_network, R.drawable.ic_group_network);
-        group("Read.Notifications", R.string.group_read_notifications, R.string.group_desc_read_notifications, R.drawable.ic_group_notifications);
+        group("Read.Notifications", R.string.group_read_notifications, R.string.group_desc_read_notifications,
+                R.drawable.ic_group_notifications);
         group("Read.Resources", R.string.group_read_resources, R.string.group_desc_read_resources, R.drawable.ic_group_resources);
         group("Read.Settings", R.string.group_read_settings, R.string.group_desc_read_settings, R.drawable.ic_group_settings);
         group("Read.Sync", R.string.group_read_sync, R.string.group_desc_read_sync, R.drawable.ic_group_sync);

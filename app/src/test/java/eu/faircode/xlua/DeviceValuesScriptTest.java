@@ -143,14 +143,11 @@ public class DeviceValuesScriptTest {
         assertFalse(operator(globals, "getOperatorNumeric", "nil").arg1().toboolean());
     }
 
-    // Stand-ins of the package manager, the system dialer and the configuration of the system, and of luajava,
-    // Java classes of the JDK cannot be used by luajava on a desktop JVM
+    // Stand-ins of the package manager, the system dialer and the configuration of the system, which are stubs
+    // in unit tests, and of luajava: the lists hold Lua tables and the test reads them back as such
     private static final String APPS = String.join("\n",
-            "function arrayof(...)",
-            "  local array = { ... }",
-            "  array['length'] = select('#', ...)",
-            "  return array",
-            "end",
+            Scripts.ARRAYOF,
+            Scripts.APPOF,
             "function listof(...)",
             "  return { items = { ... },",
             "    add = function(self, value) self.items[#self.items + 1] = value end,",
@@ -161,9 +158,6 @@ public class DeviceValuesScriptTest {
             "      for index, item in ipairs(self.items) do strings[index] = (type(item) == 'table' and item:toString() or item) end",
             "      return '[' .. table.concat(strings, ', ') .. ']'",
             "    end }",
-            "end",
-            "function appof(packageName, uid, system)",
-            "  return { packageName = packageName, uid = uid, system = system }",
             "end",
             "apps = { ['com.android.dialer'] = appof('com.android.dialer', 10011, true),",
             "  ['com.google.android.apps.messaging'] = appof('com.google.android.apps.messaging', 10012, true),",

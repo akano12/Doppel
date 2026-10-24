@@ -31,7 +31,7 @@ import static org.junit.Assert.assertTrue;
 
 // The script of the content providers (assets/contentresolver_query.lua) with Lua stand-ins,
 // like LocationScriptTest: ways around the restrictions of contacts and other providers;
-// cursors are stand-ins too, because luajava cannot make java.base classes accessible on a desktop JVM
+// cursors are stand-ins too, because the Android classes are stubs in unit tests
 public class ContentResolverScriptTest {
     private static final String STUBS = String.join("\n",
             "function urlof(authority, path)",

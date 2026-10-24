@@ -32,22 +32,17 @@ import static org.junit.Assert.assertTrue;
 // the settings which name other apps, the queries and the lists of the settings provider
 public class SettingsScriptTest {
     private static final String STUBS = String.join("\n",
-            // Java arrays as Lua sees them
-            "function arrayof(...)",
-            "  local array = { ... }",
-            "  array['length'] = select('#', ...)",
-            "  return array",
-            "end",
-            "function appof(packageName, uid, system)",
-            "  return { packageName = packageName, uid = uid, system = system }",
-            "end",
+            Scripts.ARRAYOF,
+            Scripts.APPOF,
             // A keyboard of a third party app, a system keyboard and accessibility services
             "local keyboards = arrayof(",
             "  { getServiceInfo = function(self) return { applicationInfo = appof('com.third.keyboard', 10100, false) } end },",
             "  { getServiceInfo = function(self) return { applicationInfo = appof('com.android.inputmethod.latin', 10050, true) } end })",
             "local services = arrayof(",
-            "  { getResolveInfo = function(self) return { serviceInfo = { applicationInfo = appof('com.third.reader', 10101, false) } } end },",
-            "  { getResolveInfo = function(self) return { serviceInfo = { applicationInfo = appof('com.google.android.marvin.talkback', 10051, true) } } end })",
+            "  { getResolveInfo = function(self)",
+            "    return { serviceInfo = { applicationInfo = appof('com.third.reader', 10101, false) } } end },",
+            "  { getResolveInfo = function(self)",
+            "    return { serviceInfo = { applicationInfo = appof('com.google.android.marvin.talkback', 10051, true) } } end })",
             // The package manager does not tell about apps hidden by the package visibility rules
             "apps = { ['com.google.android.gms'] = appof('com.google.android.gms', 10010, true),",
             "  ['com.third.visible'] = appof('com.third.visible', 10102, false),",
@@ -113,7 +108,7 @@ public class SettingsScriptTest {
             "    getClassName = function(self) return class end,",
             "    getMethodName = function(self) return method end }",
             "end",
-            // A java.util.ArrayList, Java classes of the JDK cannot be used by luajava on a desktop JVM
+            // A java.util.ArrayList as a Lua table, which the stand-in of luajava below hands out and the bundle of the test holds
             "function listof()",
             "  return { items = {},",
             "    add = function(self, value) self.items[#self.items + 1] = value end,",
@@ -158,7 +153,8 @@ public class SettingsScriptTest {
     }
 
     private String applications(String name, String key, String value, int uid) {
-        Varargs result = run("local changed, fake = fakesetting(paramof({}, {}, " + uid + "), '" + name + "', '" + key + "', '" + value + "')\n" +
+        Varargs result = run("local changed, fake = fakesetting(paramof({}, {}, " + uid + "), '" + name + "', '" + key +
+                "', '" + value + "')\n" +
                 "if not changed then return 'same' end\n" +
                 "return fake");
         return (result.arg1().isnil() ? null : result.arg1().tojstring());

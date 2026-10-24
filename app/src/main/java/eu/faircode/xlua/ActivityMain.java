@@ -63,7 +63,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
 
         // Checking the service is a call into system server, so not on the main thread
         final Context context = getApplicationContext();
-        executor.submit(() -> {
+        run(TAG, () -> {
             boolean available = Data.isAvailable(context);
             // The local copies of the colors do not exist yet after an update
             ApplicationEx.Colors colors = (available ? ApplicationEx.Colors.get(context) : null);
@@ -141,6 +141,8 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
             handleIntent(intent);
     }
 
+    // Only the package name is taken from the intent, for a new intent to the screen of the app, which is not exported;
+    // lint takes the factory ActivityApp.getIntent for the intent this activity was started with, see lint.xml
     private void handleIntent(Intent intent) {
         String packageName = intent.getStringExtra(EXTRA_PACKAGE);
         if (packageName != null) {

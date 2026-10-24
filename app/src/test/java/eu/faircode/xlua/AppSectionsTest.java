@@ -119,10 +119,9 @@ public class AppSectionsTest {
                 " \"minSdk\": 1, \"luaScript\": \"\"}");
     }
 
-    // Toggling a group for the shown apps removes it from the apps which have it, and only from them,
-    // so only they are stopped; else it is added to all of them
+    // The apps restricting a group, which a bulk toggle removes it from: those with a hook of the group, not of another
     @Test
-    public void bulkToggleRemovesFromRestrictingApps() throws Exception {
+    public void restrictingAppsHaveAHookOfTheGroup() throws Exception {
         XHook location = hook("Get.Location", "LocationManager.getLastKnownLocation");
         XHook camera = hook("Use.Camera", "Camera.open");
         XApp restricting = row().app;
@@ -130,9 +129,7 @@ public class AppSectionsTest {
         XApp other = row().app;
         other.packageName = "com.example.other";
         other.assignments.add(new XAssignment(camera));
-        XApp none = row().app;
-        none.packageName = "com.example.none";
-        List<XApp> apps = Arrays.asList(restricting, other, none);
+        List<XApp> apps = Arrays.asList(restricting, other);
 
         assertEquals(Collections.singletonList(restricting), FragmentApps.getRestricting(apps, "Get.Location"));
         assertTrue(FragmentApps.getRestricting(apps, "Read.Clipboard").isEmpty());

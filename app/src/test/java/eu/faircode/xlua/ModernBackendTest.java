@@ -34,7 +34,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 // The modern backend must provide the before/after semantics of the legacy Xposed API
@@ -213,7 +212,7 @@ public class ModernBackendTest {
         });
         invoke("a", 1);
         assertEquals(1, seen.size());
-        assertTrue(seen.get(0) == this);
+        assertSame(this, seen.get(0));
     }
 
     private class FakeChain implements XposedInterface.Chain {

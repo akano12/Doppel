@@ -64,11 +64,13 @@
                 android:textAppearance="@style/XLua.Text.Meta" />
         </LinearLayout>
 
-        <!-- A state of the whole group, like a collection which is off; the colors are set from code -->
+        <!-- A state of the whole group, like a collection which is off -->
         <TextView
             android:id="@+id/tvPill"
             style="@style/XLua.Pill"
             android:layout_marginStart="8dp"
+            android:backgroundTint="?attr/colorSurfaceContainerHigh"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:visibility="gone"
             tools:text="Off"
             tools:visibility="visible" />

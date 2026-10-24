@@ -61,6 +61,14 @@ final class XResolver {
         return Class.forName(name, false, loader);
     }
 
+    // The classes of several names, like the parameter types of a definition
+    static Class<?>[] resolveClasses(String[] names, ClassLoader loader) throws ClassNotFoundException {
+        Class<?>[] classes = new Class<?>[names.length];
+        for (int i = 0; i < names.length; i++)
+            classes[i] = resolveClass(names[i], loader);
+        return classes;
+    }
+
     // The field, method or constructor a definition hooks:
     // field:method is a method of the class of the object in a static field, #field a field,
     // no method name the constructor; the return type, when given, must fit
@@ -120,9 +128,7 @@ final class XResolver {
                 if (name != null && !name.equals(member.getName()))
                     continue;
 
-                Class<?>[] mparams = (member instanceof Method
-                        ? ((Method) member).getParameterTypes()
-                        : ((Constructor<?>) member).getParameterTypes());
+                Class<?>[] mparams = parameterTypes(member);
                 if (mparams.length != params.length)
                     continue;
 
@@ -146,6 +152,13 @@ final class XResolver {
                         Log.i(TAG, "- " + member);
             }
         throw new NoSuchMethodException(name == null ? cls.getName() + ".<init>" : name);
+    }
+
+    // The parameter types of a method or constructor; Executable, which has them for both, needs Android 8
+    static Class<?>[] parameterTypes(Member member) {
+        return (member instanceof Method
+                ? ((Method) member).getParameterTypes()
+                : ((Constructor<?>) member).getParameterTypes());
     }
 
     // The methods with a name which objects of the class run: declared by the class or inherited from a super class.

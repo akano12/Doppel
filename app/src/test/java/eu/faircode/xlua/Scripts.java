@@ -32,6 +32,19 @@ final class Scripts {
     private Scripts() {
     }
 
+    // Stand-ins of Java values which several tests share: an array as Lua sees it, with its length,
+    // and an ApplicationInfo with the fields the scripts read
+    static final String ARRAYOF = String.join("\n",
+            "function arrayof(...)",
+            "  local array = { ... }",
+            "  array['length'] = select('#', ...)",
+            "  return array",
+            "end");
+    static final String APPOF = String.join("\n",
+            "function appof(packageName, uid, system)",
+            "  return { packageName = packageName, uid = uid, system = system }",
+            "end");
+
     static Globals load(String script, String stubs) throws IOException {
         Globals globals = JsePlatform.standardGlobals();
         globals.load(read(script), script).call();

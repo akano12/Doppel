@@ -19,6 +19,7 @@
 
 package eu.faircode.xlua;
 
+import android.annotation.SuppressLint;
 import android.app.Application;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -195,11 +196,7 @@ class XCore {
 
                     // Listen for removed users and profiles; the broadcast has no data, so a filter of its own
                     try {
-                        IntentFilter ifUser = new IntentFilter(ReceiverPackage.ACTION_USER_REMOVED);
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                            context.registerReceiver(new ReceiverPackage(), ifUser, Context.RECEIVER_NOT_EXPORTED);
-                        else
-                            context.registerReceiver(new ReceiverPackage(), ifUser);
+                        registerReceiver(context, new IntentFilter(ReceiverPackage.ACTION_USER_REMOVED));
                         Log.i(TAG, "Registered user listener");
                     } catch (Throwable ex) {
                         log(ex);
@@ -232,11 +229,7 @@ class XCore {
                         int[] userids = (int[]) um.getClass().getDeclaredMethod("getUserIds").invoke(um);
                         for (int userid : userids) {
                             Log.i(TAG, "Registering package listener user=" + userid);
-                            Context ctx = Util.createContextForUser(context, userid);
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                                ctx.registerReceiver(new ReceiverPackage(), ifPackageAdd, Context.RECEIVER_NOT_EXPORTED);
-                            else
-                                ctx.registerReceiver(new ReceiverPackage(), ifPackageAdd);
+                            registerReceiver(Util.createContextForUser(context, userid), ifPackageAdd);
                         }
                     }
                 } catch (Throwable ex) {
@@ -261,6 +254,17 @@ class XCore {
         });
     }
 
+    // Protected broadcasts, which only the system sends, so the receiver is not exported, which Android 13
+    // and later are told. ContextCompat.registerReceiver would register with a permission of the package
+    // on earlier versions, which the package of system server does not declare.
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
+    private static void registerReceiver(Context context, IntentFilter filter) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            context.registerReceiver(new ReceiverPackage(), filter, Context.RECEIVER_NOT_EXPORTED);
+        else
+            context.registerReceiver(new ReceiverPackage(), filter);
+    }
+
     // Settings provider in system server, which hosts the XPrivacyLua service
     void hookSettings(ClassLoader classLoader) throws Throwable {
         // https://android.googlesource.com/platform/frameworks/base/+/master/packages/SettingsProvider/src/com/android/providers/settings/SettingsProvider.java
@@ -275,7 +279,7 @@ class XCore {
                     String method = (String) call.args[0];
                     String arg = (String) call.args[1];
                     Bundle extras = (Bundle) call.args[2];
-                    if (!"xlua".equals(method))
+                    if (!XProvider.METHOD.equals(method))
                         return;
 
                     enterService();
@@ -331,7 +335,7 @@ class XCore {
                     String[] projection = (String[]) call.args[1];
                     String[] selection = (String[]) call.args[3];
                     if (projection == null || projection.length == 0 ||
-                            projection[0] == null || !projection[0].startsWith("xlua."))
+                            projection[0] == null || !projection[0].startsWith(XProvider.COLUMN))
                         return;
 
                     enterService();
@@ -354,6 +358,9 @@ class XCore {
                 try {
                     String method = column.split("\\.")[1];
                     call.setResult(XProvider.query(context, method, selection, caller == XProvider.CALLER_PERMITTED));
+                } catch (IllegalArgumentException ex) {
+                    Log.i(TAG, "Error: " + ex.getMessage());
+                    call.setThrowable(ex);
                 } catch (SecurityException ex) {
                     Log.w(TAG, "Query " + column + ": " + ex.getMessage());
                     call.setResult(null);
@@ -463,11 +470,7 @@ class XCore {
         ClassLoader loader = context.getClassLoader();
         Class<?> cls = Class.forName(hook.getResolvedClassName(), false, loader);
 
-        String[] p = hook.getParameterTypes();
-        Class<?>[] paramTypes = new Class<?>[p.length];
-        for (int i = 0; i < p.length; i++)
-            paramTypes[i] = XResolver.resolveClass(p[i], loader);
-
+        Class<?>[] paramTypes = XResolver.resolveClasses(hook.getParameterTypes(), loader);
         Class<?> returnType = (hook.getReturnType() == null ? null : XResolver.resolveClass(hook.getReturnType(), loader));
 
         Member member = XResolver.resolveTarget(cls, hook.getMethodName(), paramTypes, returnType);
@@ -482,8 +485,7 @@ class XCore {
     // Static fields are changed once, by the after function
     private void installField(Context context, XHook hook, Prototype script, Map<String, String> settings, Field field) {
         try {
-            Globals globals = getGlobals(context, hook, settings);
-            new LuaClosure(script, globals).call();
+            Globals globals = getGlobals(context, hook, script, settings);
 
             LuaValue func = globals.get("after");
             if (func.isnil())
@@ -523,8 +525,7 @@ class XCore {
                     // Initialize the Lua runtime once per thread
                     Globals globals = threadGlobals.get();
                     if (globals == null) {
-                        globals = getGlobals(context, hook, settings);
-                        new LuaClosure(script, globals).call(); // Define functions
+                        globals = getGlobals(context, hook, script, settings);
                         threadGlobals.set(globals);
                     }
 
@@ -643,7 +644,7 @@ class XCore {
         try {
             for (Bundle args : work)
                 try {
-                    context.getContentResolver().call(XProvider.getURI(), "xlua", "report", args);
+                    Data.report(context, args);
                 } catch (Throwable ex) {
                     log(ex);
                 }
@@ -664,11 +665,12 @@ class XCore {
         }
     };
 
-    // The globals of a hook on the current thread
-    private static Globals getGlobals(Context context, XHook hook, Map<String, String> settings) {
+    // The globals of a hook on the current thread, with the functions the script defines
+    private static Globals getGlobals(Context context, XHook hook, Prototype script, Map<String, String> settings) {
         LuaLocals globals = new LuaLocals(libraries.get());
         globals.rawset("log", new LuaLog(context.getPackageName(), context.getApplicationInfo().uid, hook.getId()));
         globals.rawset("hook", new LuaHook(context, hook.getId(), settings));
+        new LuaClosure(script, globals).call();
         return globals;
     }
 
@@ -730,7 +732,7 @@ class XCore {
         public Varargs invoke(final Varargs args) {
             Class<?> cls = args.arg(1).checkuserdata().getClass();
             String m = args.arg(2).checkjstring();
-            args.arg(3).checkfunction();
+            final LuaValue fun = args.arg(3).checkfunction();
 
             String key = hookId + "/" + cls.getName() + "." + m;
             List<Method> methods = new ArrayList<>();
@@ -750,7 +752,6 @@ class XCore {
                 return LuaValue.NIL;
 
             Log.i(TAG, "Dynamic hook " + cls.getName() + "." + m + " methods=" + methods.size());
-            final LuaValue fun = args.arg(3);
             final List<LuaValue> xargs = new ArrayList<>();
             for (int i = 4; i <= args.narg(); i++)
                 xargs.add(args.arg(i));

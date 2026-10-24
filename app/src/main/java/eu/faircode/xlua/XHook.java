@@ -146,8 +146,10 @@ public class XHook implements Parcelable {
         return true;
     }
 
+    // The version code of an app is a long, which versionCodeMajor takes beyond the int of maxApk;
+    // without a maxApk a definition is for all versions
     public boolean isAvailable(long versionCode) {
-        return (versionCode >= this.minApk && versionCode <= maxApk);
+        return (versionCode >= this.minApk && (this.maxApk == Integer.MAX_VALUE || versionCode <= this.maxApk));
     }
 
     public boolean isEnabled() {

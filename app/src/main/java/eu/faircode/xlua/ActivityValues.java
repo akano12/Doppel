@@ -19,7 +19,6 @@ package eu.faircode.xlua;
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -31,6 +30,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.view.ViewCompat;
 
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
@@ -94,11 +94,11 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             new Field("value.phone_number", R.string.title_value_phone_number, Type.TEXT, Random.NONE, null),
             new Field("value.email", R.string.title_value_email, Type.TEXT, Random.NONE, "private@lua.xprivacy.eu"),
             R.string.title_values_location,
-            new Field("location.type", R.string.title_value_location_type, Type.LOCATION, Random.NONE, null),
+            new Field("location.type", R.string.title_values_location, Type.LOCATION, Random.NONE, null),
             new Field("location.latitude", R.string.title_value_latitude, Type.NUMBER, Random.NONE, "0"),
             new Field("location.longitude", R.string.title_value_longitude, Type.NUMBER, Random.NONE, "0"),
             new Field("location.accuracy", R.string.title_value_accuracy, Type.NUMBER, Random.NONE, "10000"),
-            R.string.title_values_other,
+            R.string.section_other,
             new Field("value.timezone", R.string.title_value_timezone, Type.TIMEZONE, Random.NONE, "UTC"),
             new Field("features.keep", R.string.title_value_features, Type.TEXT, Random.NONE, null),
             new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, Random.NONE, null),
@@ -125,7 +125,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private final Map<String, List<String>> readers = new HashMap<>();
     private final Set<String> restricted = new HashSet<>();
     private final Map<String, Integer> restricting = new HashMap<>();
-    private final Map<String, List<View>> hints = new HashMap<>(); // By key, see bindHints
+    private final List<View> hints = new ArrayList<>(); // Under the values, see bindHints
     private XApp app = null; // The app of the values, when they are of one app
     private List<XHook> hooks = new ArrayList<>();
     private List<String> collection = new ArrayList<>();
@@ -320,7 +320,9 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         for (Object item : form) {
             if (item instanceof Integer) {
                 View card = inflater.inflate(R.layout.item_card, container, false);
-                ((TextView) card.findViewById(R.id.tvSection)).setText((Integer) item);
+                TextView tvSection = card.findViewById(R.id.tvSection);
+                tvSection.setText((Integer) item);
+                ViewCompat.setAccessibilityHeading(tvSection, true);
                 rows = card.findViewById(R.id.llRows);
                 container.addView(card);
                 continue;
@@ -378,9 +380,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     View hint = inflater.inflate(R.layout.item_value_hint, rows, false);
                     hint.setTag(group);
                     rows.addView(hint);
-                    if (!hints.containsKey(field.key))
-                        hints.put(field.key, new ArrayList<>());
-                    hints.get(field.key).add(hint);
+                    hints.add(hint);
                 }
         }
         updateLocationHints();
@@ -391,32 +391,31 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     // or for all apps how many apps it restricts; a value no group reads has no line
     private void bindHints() {
         boolean global = GLOBAL.equals(category);
-        for (List<View> views : hints.values())
-            for (View view : views) {
-                final String group = (String) view.getTag();
-                String title = Groups.getTitle(this, group);
-                TextView tvHint = view.findViewById(R.id.tvHint);
-                Button btnRestrict = view.findViewById(R.id.btnRestrict);
-                int color;
-                if (global) {
-                    Integer count = restricting.get(group);
-                    int apps = (count == null ? 0 : count);
-                    tvHint.setText(apps == 0
-                            ? getString(R.string.title_hint_no_apps, title)
-                            : getResources().getQuantityString(R.plurals.title_hint_apps, apps, title, apps));
-                    color = (apps == 0 ? R.attr.colorWarning : R.attr.colorSuccess);
-                    btnRestrict.setVisibility(View.GONE);
-                } else {
-                    boolean on = restricted.contains(group);
-                    tvHint.setText(getString(on ? R.string.title_hint_restricted : R.string.title_hint_unrestricted, title));
-                    color = (on ? R.attr.colorSuccess : R.attr.colorWarning);
-                    btnRestrict.setVisibility(on || app == null ? View.GONE : View.VISIBLE);
-                    // Screen readers tell which group the button restricts
-                    btnRestrict.setContentDescription(getString(R.string.title_restrict) + ", " + title);
-                    btnRestrict.setOnClickListener(v -> restrict(group));
-                }
-                view.findViewById(R.id.vDot).setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, color)));
+        for (View view : hints) {
+            final String group = (String) view.getTag();
+            String title = Groups.getTitle(this, group);
+            TextView tvHint = view.findViewById(R.id.tvHint);
+            Button btnRestrict = view.findViewById(R.id.btnRestrict);
+            int color;
+            if (global) {
+                Integer count = restricting.get(group);
+                int apps = (count == null ? 0 : count);
+                tvHint.setText(apps == 0
+                        ? getString(R.string.title_hint_no_apps, title)
+                        : getResources().getQuantityString(R.plurals.title_hint_apps, apps, title, apps));
+                color = (apps == 0 ? R.attr.colorWarning : R.attr.colorSuccess);
+                btnRestrict.setVisibility(View.GONE);
+            } else {
+                boolean on = restricted.contains(group);
+                tvHint.setText(getString(on ? R.string.title_hint_restricted : R.string.title_hint_unrestricted, title));
+                color = (on ? R.attr.colorSuccess : R.attr.colorWarning);
+                btnRestrict.setVisibility(on || app == null ? View.GONE : View.VISIBLE);
+                // Screen readers tell which group the button restricts
+                btnRestrict.setContentDescription(getString(R.string.title_restrict) + ", " + title);
+                btnRestrict.setOnClickListener(v -> restrict(group));
             }
+            view.findViewById(R.id.vDot).setBackgroundTintList(Ui.tint(this, color));
+        }
     }
 
     // All hooks of the group for the app, like the switch of the group on the screen of the app

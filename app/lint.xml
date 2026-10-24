@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- ActivityMain opens the screen of an app with ActivityApp.getIntent, a static factory of a new intent, which lint
+         takes for the intent the activity was started with (UnsafeIntentLaunch), see ActivityMain.handleIntent -->
+    <issue id="UnsafeIntentLaunch">
+        <ignore path="src/main/java/eu/faircode/xlua/ActivityMain.java" />
+    </issue>
+</lint>

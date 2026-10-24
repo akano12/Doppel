@@ -33,8 +33,8 @@ import static org.junit.Assert.assertTrue;
 
 // The scripts of Get.Applications for single packages and user ids (package_probe, package_resolve)
 // and for lists (generic_filter_by_uid, packagemanager_getchangedpackages), with Lua stand-ins like
-// LocationScriptTest; luajava cannot make java.base classes accessible on a desktop JVM,
-// so lists and arrays are stand-ins too and exceptions are of the test
+// LocationScriptTest; lists and arrays are stand-ins too, which the tests read back as Lua tables,
+// and the exceptions are of the test, because those of Android are stubs in unit tests
 public class PackageScriptsTest {
     private static final String STUBS = String.join("\n",
             "function hookof(name, method)",
@@ -71,11 +71,7 @@ public class PackageScriptsTest {
             "    remove = function(self, index) table.remove(self.items, index + 1) end,",
             "    toArray = function(self) return arrayof(table.unpack(self.items)) end }",
             "end",
-            "function arrayof(...)",
-            "  local array = { ... }",
-            "  array.length = select('#', ...)",
-            "  return array",
-            "end",
+            Scripts.ARRAYOF,
             "local real = luajava",
             "luajava = { new = real.new,",
             "  newInstance = function(name, ...)",

@@ -67,12 +67,17 @@ final class Data {
     }
 
     private static Bundle call(Context context, String method, Bundle args) {
-        return context.getContentResolver().call(XProvider.getURI(), "xlua", method, args);
+        return context.getContentResolver().call(XProvider.getURI(), XProvider.METHOD, method, args);
+    }
+
+    // The usage of hooks collected by the engine, see XCore.flush
+    static void report(Context context, Bundle args) {
+        call(context, "report", args);
     }
 
     private static Cursor query(Context context, String method, String[] selection) {
         return context.getContentResolver()
-                .query(XProvider.getURI(), new String[]{"xlua." + method}, null, selection, null);
+                .query(XProvider.getURI(), new String[]{XProvider.COLUMN + method}, null, selection, null);
     }
 
     private static <T> List<T> query(Context context, String method, String[] selection, Parcelable.Creator<T> creator) {
@@ -196,10 +201,7 @@ final class Data {
     // Assign new definitions to the apps which restrict their groups, like installing from Downloads can,
     // and tell for how many apps
     static String restrictForGroups(Context context, List<XHook> hooks) {
-        ArrayList<String> hookids = new ArrayList<>();
-        for (XHook hook : hooks)
-            hookids.add(hook.getId());
-        int apps = assignRestricting(context, hookids);
+        int apps = assignRestricting(context, getIds(hooks));
         return (apps == 0
                 ? context.getString(R.string.msg_restricted_no_apps)
                 : context.getResources().getQuantityString(R.plurals.msg_restricted_apps, apps, apps));
@@ -207,10 +209,14 @@ final class Data {
 
     // Assign or remove hooks, which stops the app when it is stopped automatically
     static void assign(Context context, XApp app, List<XHook> hooks, boolean assign) {
+        assignHooks(context, getIds(hooks), app.packageName, app.uid, !assign, app.forceStop, false);
+    }
+
+    private static ArrayList<String> getIds(List<XHook> hooks) {
         ArrayList<String> hookids = new ArrayList<>();
         for (XHook hook : hooks)
             hookids.add(hook.getId());
-        assignHooks(context, hookids, app.packageName, app.uid, !assign, app.forceStop, false);
+        return hookids;
     }
 
     // Restored hooks do not count as restricted recently

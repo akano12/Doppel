@@ -20,7 +20,6 @@ package eu.faircode.xlua;
 import android.app.Activity;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
@@ -42,6 +41,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.os.LocaleListCompat;
+import androidx.core.view.ViewCompat;
 
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -62,7 +62,7 @@ public class FragmentSettings extends FragmentBase {
 
     // The languages to choose from: the one of the device, or English, which every text has
     private static final String[] LANGUAGES = {"", "en"};
-    private static final int[] LANGUAGE_TITLES = {R.string.title_language_system, R.string.title_language_english};
+    private static final int[] LANGUAGE_TITLES = {R.string.title_theme_system, R.string.title_language_english};
 
     private ImageView ivStatus;
     private TextView tvStatus;
@@ -116,6 +116,12 @@ public class FragmentSettings extends FragmentBase {
 
         tvVersion.setText(getString(R.string.title_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
 
+        // The title and the captions of the cards are the texts between the cards, headings for screen readers
+        LinearLayout llSettings = view.findViewById(R.id.llSettings);
+        for (int i = 0; i < llSettings.getChildCount(); i++)
+            if (llSettings.getChildAt(i) instanceof TextView)
+                ViewCompat.setAccessibilityHeading(llSettings.getChildAt(i), true);
+
         // The colors right away from the local copies of the settings, the service settings follow
         showPalettes(ApplicationEx.getPalette(activity));
         swBlack.setChecked(ApplicationEx.isBlack(activity));
@@ -135,12 +141,14 @@ public class FragmentSettings extends FragmentBase {
         view.findViewById(R.id.llBackup).setOnClickListener(v ->
                 backupLauncher.launch(Ui.datedFileName("backup")));
         view.findViewById(R.id.llRestore).setOnClickListener(v ->
-                restoreLauncher.launch(new String[]{"application/json", "text/*", "application/octet-stream"}));
+                restoreLauncher.launch(Ui.MIME_JSON));
         view.findViewById(R.id.llClear).setOnClickListener(v ->
                 Ui.areYouSure(activity, getString(R.string.msg_clear_sure), R.string.title_reset, this::clear));
         view.findViewById(R.id.llDocs).setOnClickListener(v -> Ui.browse(activity, Ui.URL_README));
         view.findViewById(R.id.llFaq).setOnClickListener(v -> Ui.browse(activity, Ui.URL_FAQ));
-        view.findViewById(R.id.llLicense).setOnClickListener(v -> Ui.showLicense(activity));
+        view.findViewById(R.id.llLicense).setOnClickListener(v -> Ui.getLicenseDialog(activity)
+                .setPositiveButton(android.R.string.ok, null)
+                .show());
         showLanguage();
 
         return view;
@@ -178,17 +186,17 @@ public class FragmentSettings extends FragmentBase {
 
                 tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
                 ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
-                ivStatus.setBackgroundTintList(ColorStateList.valueOf(Ui.color(requireContext(), available
-                        ? R.attr.colorSuccessContainer : R.attr.colorWarningContainer)));
-                ivStatus.setImageTintList(ColorStateList.valueOf(Ui.color(requireContext(), available
-                        ? R.attr.colorOnSuccessContainer : R.attr.colorOnWarningContainer)));
+                ivStatus.setBackgroundTintList(Ui.tint(requireContext(), available
+                        ? R.attr.colorSuccessContainer : R.attr.colorWarningContainer));
+                ivStatus.setImageTintList(Ui.tint(requireContext(), available
+                        ? R.attr.colorOnSuccessContainer : R.attr.colorOnWarningContainer));
                 glStatus.removeAllViews();
                 // Digits of the language, like the counts of the Activity tab
                 NumberFormat nf = NumberFormat.getIntegerInstance();
                 nf.setGroupingUsed(false);
                 addStatus(R.string.title_status_service, version < 0 ? "-" : nf.format(version));
                 addStatus(R.string.title_status_hooks, nf.format(hooks.size()));
-                addStatus(R.string.title_status_collections, nf.format(enabled.size()));
+                addStatus(R.string.title_collections, nf.format(enabled.size()));
                 addStatus(R.string.title_status_android, Build.VERSION.RELEASE + " · SDK " + Build.VERSION.SDK_INT);
                 tvCollections.setText(TextUtils.join(", ", enabled));
 
@@ -237,11 +245,11 @@ public class FragmentSettings extends FragmentBase {
                 colors.getTheme().applyStyle(style, true);
 
             View view = inflater.inflate(R.layout.item_palette, llPalettes, false);
-            view.findViewById(R.id.flSwatch).setBackgroundTintList(ColorStateList.valueOf(
-                    Ui.color(colors, com.google.android.material.R.attr.colorPrimaryContainer)));
+            view.findViewById(R.id.flSwatch).setBackgroundTintList(
+                    Ui.tint(colors, com.google.android.material.R.attr.colorPrimaryContainer));
             ImageView ivSwatch = view.findViewById(R.id.ivSwatch);
-            ivSwatch.setBackgroundTintList(ColorStateList.valueOf(Ui.color(colors, androidx.appcompat.R.attr.colorPrimary)));
-            ivSwatch.setImageTintList(ColorStateList.valueOf(Ui.color(colors, com.google.android.material.R.attr.colorOnPrimary)));
+            ivSwatch.setBackgroundTintList(Ui.tint(colors, androidx.appcompat.R.attr.colorPrimary));
+            ivSwatch.setImageTintList(Ui.tint(colors, com.google.android.material.R.attr.colorOnPrimary));
             // The check of the selected palette
             ivSwatch.setImageAlpha(palette.equals(selected) ? 255 : 0);
             view.setContentDescription(getString(ApplicationEx.PALETTE_TITLES[i]));

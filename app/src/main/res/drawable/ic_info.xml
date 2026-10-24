@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Material Symbols Rounded: info, Apache License 2.0; the error glyph (ic_error) upside down -->
+<!-- Material Symbols Rounded: info, Apache License 2.0; the error glyph (ic_error) upside down,
+     18 dp because a compound drawable, like in front of the notice of Downloads, keeps its own size -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="18dp"
     android:height="18dp"

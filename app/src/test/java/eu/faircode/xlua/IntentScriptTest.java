@@ -29,8 +29,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 // The script of received intents (assets/intent_createfromparcel.lua), like broadcasts, with Lua stand-ins
-// for the intent and its extras, like LocationScriptTest; arrays are stand-ins, because luajava
-// cannot make java.base classes accessible on a desktop JVM
+// for the intent and its extras, like LocationScriptTest; arrays are stand-ins, because their types are of
+// java.lang (String, Integer.TYPE), which luajava cannot read on a desktop JVM, and the tests read them back as tables
 public class IntentScriptTest {
     private static final String STUBS = String.join("\n",
             "function hookof(name)",

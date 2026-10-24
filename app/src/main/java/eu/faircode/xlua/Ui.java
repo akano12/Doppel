@@ -21,7 +21,9 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.text.Editable;
@@ -39,6 +41,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.StringRes;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.graphics.ColorUtils;
 import androidx.core.text.HtmlCompat;
 import androidx.core.util.Consumer;
@@ -47,6 +50,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
+import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
@@ -103,6 +107,8 @@ final class Ui {
     // Documentation of this fork
     static final String URL_README = "https://github.com/akano12/XPrivacyLua/blob/master/README.md";
     static final String URL_FAQ = "https://github.com/akano12/XPrivacyLua/blob/master/FAQ.md";
+    // What a definition or backup file may have been saved as, for the picker of an import
+    static final String[] MIME_JSON = {"application/json", "text/*", "application/octet-stream"};
 
     private Ui() {
     }
@@ -117,6 +123,11 @@ final class Ui {
         return value.data;
     }
 
+    // A color of the theme for the tint of a background or an image
+    static ColorStateList tint(Context context, int attr) {
+        return ColorStateList.valueOf(color(context, attr));
+    }
+
     // Rows which form one block, like a card: the first row has the top corners rounded, the last the bottom ones
     static void join(View view, int color, int radiusDp, boolean first, boolean last) {
         float radius = dp(view.getContext(), radiusDp);
@@ -128,9 +139,23 @@ final class Ui {
         view.setBackground(shape);
     }
 
+    // A row of a block with the hairline above it, which the first row has not
+    static void joinRow(View row, View divider, int color, boolean first, boolean last) {
+        join(row, color, 20, first, last);
+        divider.setVisibility(first ? View.GONE : View.VISIBLE);
+        divider.setBackgroundColor(dividerColor(row.getContext(), color));
+    }
+
     // The hairline between the rows of a block, a shade of their background
     static int dividerColor(Context context, int background) {
         return ColorUtils.blendARGB(background, color(context, com.google.android.material.R.attr.colorOnSurface), 0.08f);
+    }
+
+    // A filter chip with its count, like Custom · 3
+    static void setChipCount(ChipGroup group, int chipId, @StringRes int title, int count) {
+        Context context = group.getContext();
+        Chip chip = group.findViewById(chipId);
+        chip.setText(context.getString(R.string.title_count, context.getString(title), count));
     }
 
     // Enables or disables the children, like the chips of a group
@@ -151,9 +176,22 @@ final class Ui {
         badge.setBackground(background);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMarginEnd(dp(parent.getContext(), 6));
+        lp.setMarginEnd(dp(context, 6));
         parent.addView(badge, lp);
         return badge;
+    }
+
+    // Icon in front of the text of a label, in the size of the text instead of the 24 dp of the drawable
+    static void setStartIcon(TextView tv, int drawable, int sizeDp, int color) {
+        Context context = tv.getContext();
+        Drawable icon = AppCompatResources.getDrawable(context, drawable);
+        if (icon != null) {
+            icon = icon.mutate();
+            int size = dp(context, sizeDp);
+            icon.setBounds(0, 0, size, size);
+            icon.setTint(color);
+        }
+        tv.setCompoundDrawablesRelative(icon, null, null, null);
     }
 
     static void loadIcon(ImageView iv, String packageName, int icon) {
@@ -248,12 +286,6 @@ final class Ui {
         new MaterialAlertDialogBuilder(context)
                 .setTitle(title)
                 .setView(view)
-                .setPositiveButton(android.R.string.ok, null)
-                .show();
-    }
-
-    static void showLicense(Context context) {
-        getLicenseDialog(context)
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
     }

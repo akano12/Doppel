@@ -29,8 +29,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 // The script of files of providers (assets/contentresolver_open.lua) with Lua stand-ins, like LocationScriptTest;
-// the exception is a stand-in, because luajava cannot make java.base classes accessible on a desktop JVM,
-// and the uris which the script builds are text
+// the exception is a stand-in, because it is of java.io, which luajava cannot use on a desktop JVM, and the test
+// reads its class and message back; the uris which the script builds are text
 public class ContentResolverOpenScriptTest {
     private static final String STUBS = String.join("\n",
             "function hookof(name, method, class)",

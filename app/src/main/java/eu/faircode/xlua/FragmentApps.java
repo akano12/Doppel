@@ -25,8 +25,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.res.ColorStateList;
-import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -40,14 +38,12 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
@@ -70,7 +66,8 @@ public class FragmentApps extends FragmentBase {
     // Same order as AdapterApp.Filter
     private static final int[] FILTER_CHIPS = {R.id.chipUser, R.id.chipSystem, R.id.chipAll};
     private static final int[] FILTER_TITLES = {R.string.title_filter_user, R.string.title_filter_system, R.string.title_all};
-    private static final int[] OVERVIEW_TITLES = {R.plurals.title_overview_user, R.plurals.title_overview_system, R.plurals.title_overview_all};
+    private static final int[] OVERVIEW_TITLES = {
+            R.plurals.title_overview_user, R.plurals.title_overview_system, R.plurals.title_overview_all};
     // Same order as AdapterApp.Sort
     private static final int[] SORT_TITLES = {R.string.sort_name, R.string.sort_recent, R.string.sort_installed};
 
@@ -135,11 +132,6 @@ public class FragmentApps extends FragmentBase {
             }
         });
         adapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
-            @Override
-            public void onChanged() {
-                updateEmpty();
-            }
-
             @Override
             public void onItemRangeInserted(int positionStart, int itemCount) {
                 updateEmpty();
@@ -314,16 +306,9 @@ public class FragmentApps extends FragmentBase {
         tvStatus.setText(available ? R.string.badge_active : R.string.badge_inactive);
         int text = Ui.color(context, available ? R.attr.colorOnSuccessContainer : R.attr.colorOnWarningContainer);
         tvStatus.setTextColor(text);
-        tvStatus.setBackgroundTintList(ColorStateList.valueOf(
-                Ui.color(context, available ? R.attr.colorSuccessContainer : R.attr.colorWarningContainer)));
-        Drawable icon = AppCompatResources.getDrawable(context, available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
-        if (icon != null) {
-            icon = icon.mutate();
-            int size = Ui.dp(context, 15);
-            icon.setBounds(0, 0, size, size);
-            icon.setTint(text);
-        }
-        tvStatus.setCompoundDrawablesRelative(icon, null, null, null);
+        tvStatus.setBackgroundTintList(
+                Ui.tint(context, available ? R.attr.colorSuccessContainer : R.attr.colorWarningContainer));
+        Ui.setStartIcon(tvStatus, available ? R.drawable.ic_shield : R.drawable.ic_shield_off, 15, text);
         tvStatus.setContentDescription(getString(available ? R.string.title_module_active : R.string.msg_no_service));
         tvStatus.setVisibility(View.VISIBLE);
     }
@@ -332,11 +317,8 @@ public class FragmentApps extends FragmentBase {
     private void updateOverview() {
         if (!loaded)
             return;
-        for (AdapterApp.Filter filter : AdapterApp.Filter.values()) {
-            Chip chip = cgFilter.findViewById(FILTER_CHIPS[filter.ordinal()]);
-            chip.setText(getString(R.string.title_count,
-                    getString(FILTER_TITLES[filter.ordinal()]), adapter.getCount(filter)));
-        }
+        for (AdapterApp.Filter filter : AdapterApp.Filter.values())
+            Ui.setChipCount(cgFilter, FILTER_CHIPS[filter.ordinal()], FILTER_TITLES[filter.ordinal()], adapter.getCount(filter));
 
         AdapterApp.Summary summary = adapter.getSummary();
         int percent = summary.getPercent();
@@ -357,7 +339,7 @@ public class FragmentApps extends FragmentBase {
 
     // A search without matches says so, rather than that there are no apps
     private void updateEmpty() {
-        if (tvEmpty != null && loaded) {
+        if (loaded) {
             tvEmpty.setText(adapter.isSearching() ? R.string.title_no_matches : R.string.title_no_apps);
             tvEmpty.setVisibility(adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
         }

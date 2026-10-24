@@ -129,7 +129,7 @@ If you suspect that a restriction is causing a crash because there is a bug in t
 <a name="faq11"></a>
 **(11) How can I filter on ...?**
 
-The buttons *User*, *System* and *All* above the list select which apps are shown.
+The chips *User*, *System* and *All* above the list select which apps are shown.
 You can filter these apps on restricted apps, on not restricted apps, on system apps and on user apps by typing special characters into the search field:
 
 * Filter on restricted apps: exclamation mark (!)
@@ -139,7 +139,7 @@ You can filter these apps on restricted apps, on not restricted apps, on system 
 
 The special search characters should be the first characters in the search field (it is possible to combine special characters)
 and can be followed by additional characters to refine the search result.
-Since the search filters the apps of the selected button, select *All* or *System* to find system apps with #.
+Since the search filters the apps of the selected chip, select *All* or *System* to find system apps with #.
 
 You can also search for the uid of an app, like 10123.
 

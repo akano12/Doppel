@@ -15,7 +15,6 @@
         android:id="@+id/tabs"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/colorSurface"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         app:tabGravity="fill"
@@ -32,6 +31,7 @@
             android:layout_height="match_parent">
 
             <LinearLayout
+                android:id="@+id/llDefinition"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -77,9 +77,10 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etClass"
                                 style="@style/XLua.Field.Edit"
-                                android:inputType="text"
-                                android:fontFamily="@font/plex_mono" />
+                                android:fontFamily="@font/plex_mono"
+                                android:inputType="text" />
                         </com.google.android.material.textfield.TextInputLayout>
+
                         <com.google.android.material.textfield.TextInputLayout
                             style="@style/XLua.Field"
                             android:layout_width="match_parent"
@@ -89,9 +90,10 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etMethod"
                                 style="@style/XLua.Field.Edit"
-                                android:inputType="text"
-                                android:fontFamily="@font/plex_mono" />
+                                android:fontFamily="@font/plex_mono"
+                                android:inputType="text" />
                         </com.google.android.material.textfield.TextInputLayout>
+
                         <com.google.android.material.textfield.TextInputLayout
                             style="@style/XLua.Field"
                             android:layout_width="match_parent"
@@ -101,9 +103,10 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etParams"
                                 style="@style/XLua.Field.Edit"
-                                android:inputType="text"
-                                android:fontFamily="@font/plex_mono" />
+                                android:fontFamily="@font/plex_mono"
+                                android:inputType="text" />
                         </com.google.android.material.textfield.TextInputLayout>
+
                         <com.google.android.material.textfield.TextInputLayout
                             style="@style/XLua.Field"
                             android:layout_width="match_parent"
@@ -112,8 +115,8 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etReturn"
                                 style="@style/XLua.Field.Edit"
-                                android:inputType="text"
-                                android:fontFamily="@font/plex_mono" />
+                                android:fontFamily="@font/plex_mono"
+                                android:inputType="text" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <LinearLayout
@@ -147,13 +150,13 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="@string/title_check" />
-                    </LinearLayout>
+                        </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
                 <TextView
                     style="@style/XLua.SectionTitle"
-                    android:text="@string/title_section_definition" />
+                    android:text="@string/title_tab_definition" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -176,9 +179,9 @@
                             <com.google.android.material.textfield.TextInputLayout
                                 style="@style/XLua.Field"
                                 android:layout_width="0dp"
+                                android:layout_marginEnd="8dp"
                                 android:layout_weight="1"
-                                android:hint="@string/title_field_collection"
-                                android:layout_marginEnd="8dp">
+                                android:hint="@string/title_field_collection">
 
                                 <com.google.android.material.textfield.TextInputEditText
                                     android:id="@+id/etCollection"
@@ -198,62 +201,65 @@
                                     android:completionThreshold="1"
                                     android:inputType="text" />
                             </com.google.android.material.textfield.TextInputLayout>
-                    </LinearLayout>
-                    <com.google.android.material.textfield.TextInputLayout
-                        style="@style/XLua.Field"
-                        android:layout_width="match_parent"
-                        android:hint="@string/title_field_name"
-                        app:helperText="@string/title_field_name_hint">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etName"
-                            style="@style/XLua.Field.Edit"
-                            android:inputType="text"
-                            android:fontFamily="@font/plex_mono" />
-                    </com.google.android.material.textfield.TextInputLayout>
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:baselineAligned="false"
-                        android:orientation="horizontal">
+                        </LinearLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
                             style="@style/XLua.Field"
-                            android:layout_width="0dp"
-                            android:layout_weight="2"
-                            android:hint="@string/title_field_author"
-                            android:layout_marginEnd="8dp">
+                            android:layout_width="match_parent"
+                            android:hint="@string/title_field_name"
+                            app:helperText="@string/title_field_name_hint">
 
                             <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etAuthor"
+                                android:id="@+id/etName"
                                 style="@style/XLua.Field.Edit"
+                                android:fontFamily="@font/plex_mono"
                                 android:inputType="text" />
                         </com.google.android.material.textfield.TextInputLayout>
 
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:baselineAligned="false"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.textfield.TextInputLayout
+                                style="@style/XLua.Field"
+                                android:layout_width="0dp"
+                                android:layout_marginEnd="8dp"
+                                android:layout_weight="2"
+                                android:hint="@string/title_field_author">
+
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/etAuthor"
+                                    style="@style/XLua.Field.Edit"
+                                    android:inputType="text" />
+                            </com.google.android.material.textfield.TextInputLayout>
+
+                            <com.google.android.material.textfield.TextInputLayout
+                                android:id="@+id/tilVersion"
+                                style="@style/XLua.Field"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:hint="@string/title_field_version">
+
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/etVersion"
+                                    style="@style/XLua.Field.Edit"
+                                    android:inputType="number" />
+                            </com.google.android.material.textfield.TextInputLayout>
+                        </LinearLayout>
+
                         <com.google.android.material.textfield.TextInputLayout
-                            android:id="@+id/tilVersion"
                             style="@style/XLua.Field"
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
-                            android:hint="@string/title_field_version">
+                            android:layout_width="match_parent"
+                            android:hint="@string/title_field_description">
 
                             <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etVersion"
+                                android:id="@+id/etDescription"
                                 style="@style/XLua.Field.Edit"
-                                android:inputType="number" />
+                                android:inputType="textMultiLine"
+                                android:maxLines="8" />
                         </com.google.android.material.textfield.TextInputLayout>
-                    </LinearLayout>
-                    <com.google.android.material.textfield.TextInputLayout
-                        style="@style/XLua.Field"
-                        android:layout_width="match_parent"
-                        android:hint="@string/title_field_description">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etDescription"
-                            style="@style/XLua.Field.Edit"
-                            android:inputType="textMultiLine"
-                            android:maxLines="8" />
-                    </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -283,9 +289,9 @@
                                 android:id="@+id/tilMinSdk"
                                 style="@style/XLua.Field"
                                 android:layout_width="0dp"
+                                android:layout_marginEnd="8dp"
                                 android:layout_weight="1"
-                                android:hint="@string/title_field_min_sdk"
-                                android:layout_marginEnd="8dp">
+                                android:hint="@string/title_field_min_sdk">
 
                                 <com.google.android.material.textfield.TextInputEditText
                                     android:id="@+id/etMinSdk"
@@ -305,64 +311,67 @@
                                     style="@style/XLua.Field.Edit"
                                     android:inputType="number" />
                             </com.google.android.material.textfield.TextInputLayout>
-                    </LinearLayout>
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:baselineAligned="false"
-                        android:orientation="horizontal">
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:baselineAligned="false"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.textfield.TextInputLayout
+                                android:id="@+id/tilMinApk"
+                                style="@style/XLua.Field"
+                                android:layout_width="0dp"
+                                android:layout_marginEnd="8dp"
+                                android:layout_weight="1"
+                                android:hint="@string/title_field_min_apk">
+
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/etMinApk"
+                                    style="@style/XLua.Field.Edit"
+                                    android:inputType="number" />
+                            </com.google.android.material.textfield.TextInputLayout>
+
+                            <com.google.android.material.textfield.TextInputLayout
+                                android:id="@+id/tilMaxApk"
+                                style="@style/XLua.Field"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:hint="@string/title_field_max_apk">
+
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/etMaxApk"
+                                    style="@style/XLua.Field.Edit"
+                                    android:inputType="number" />
+                            </com.google.android.material.textfield.TextInputLayout>
+                        </LinearLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
-                            android:id="@+id/tilMinApk"
                             style="@style/XLua.Field"
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
-                            android:hint="@string/title_field_min_apk"
-                            android:layout_marginEnd="8dp">
+                            android:layout_width="match_parent"
+                            android:hint="@string/title_field_exclude"
+                            app:helperText="@string/title_field_comma">
 
                             <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etMinApk"
+                                android:id="@+id/etExclude"
                                 style="@style/XLua.Field.Edit"
-                                android:inputType="number" />
+                                android:fontFamily="@font/plex_mono"
+                                android:inputType="text" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
-                            android:id="@+id/tilMaxApk"
                             style="@style/XLua.Field"
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
-                            android:hint="@string/title_field_max_apk">
+                            android:layout_width="match_parent"
+                            android:hint="@string/title_field_settings"
+                            app:helperText="@string/title_field_settings_hint">
 
                             <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etMaxApk"
+                                android:id="@+id/etSettings"
                                 style="@style/XLua.Field.Edit"
-                                android:inputType="number" />
+                                android:fontFamily="@font/plex_mono"
+                                android:inputType="text" />
                         </com.google.android.material.textfield.TextInputLayout>
-                    </LinearLayout>
-                    <com.google.android.material.textfield.TextInputLayout
-                        style="@style/XLua.Field"
-                        android:layout_width="match_parent"
-                        android:hint="@string/title_field_exclude"
-                        app:helperText="@string/title_field_comma">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etExclude"
-                            style="@style/XLua.Field.Edit"
-                            android:inputType="text"
-                            android:fontFamily="@font/plex_mono" />
-                    </com.google.android.material.textfield.TextInputLayout>
-                    <com.google.android.material.textfield.TextInputLayout
-                        style="@style/XLua.Field"
-                        android:layout_width="match_parent"
-                        android:hint="@string/title_field_settings"
-                        app:helperText="@string/title_field_settings_hint">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etSettings"
-                            style="@style/XLua.Field.Edit"
-                            android:inputType="text"
-                            android:fontFamily="@font/plex_mono" />
-                    </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -400,6 +409,7 @@
                                 android:layout_height="wrap_content"
                                 android:contentDescription="@string/title_hook_enabled" />
                         </LinearLayout>
+
                         <LinearLayout style="@style/XLua.Row">
 
                             <LinearLayout style="@style/XLua.Row.Text">
@@ -419,6 +429,7 @@
                                 android:layout_height="wrap_content"
                                 android:contentDescription="@string/title_hook_optional" />
                         </LinearLayout>
+
                         <LinearLayout style="@style/XLua.Row">
 
                             <LinearLayout style="@style/XLua.Row.Text">
@@ -438,6 +449,7 @@
                                 android:layout_height="wrap_content"
                                 android:contentDescription="@string/title_hook_usage" />
                         </LinearLayout>
+
                         <LinearLayout style="@style/XLua.Row">
 
                             <LinearLayout style="@style/XLua.Row.Text">
@@ -459,7 +471,6 @@
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
-
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 

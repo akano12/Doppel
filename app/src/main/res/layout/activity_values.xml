@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/colorSurface"
@@ -72,6 +73,7 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
+    <!-- The actions of the form, not the button bar of a dialog -->
     <LinearLayout
         android:id="@+id/bar"
         android:layout_width="match_parent"
@@ -81,7 +83,8 @@
         android:paddingStart="16dp"
         android:paddingTop="8dp"
         android:paddingEnd="16dp"
-        android:paddingBottom="8dp">
+        android:paddingBottom="8dp"
+        tools:ignore="ButtonStyle">
 
         <Button
             android:id="@+id/btnReset"

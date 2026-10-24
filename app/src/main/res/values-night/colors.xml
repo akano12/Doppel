@@ -1,17 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Dark palette, see values/colors.xml; the primary and tertiary containers are the same in both -->
     <color name="c_primary">#92CCFF</color>
     <color name="c_on_primary">#003351</color>
-    <color name="c_primary_container">#4FAEF2</color>
-    <color name="c_on_primary_container">#004062</color>
     <color name="c_secondary">#ABCAE8</color>
     <color name="c_on_secondary">#11334B</color>
     <color name="c_secondary_container">#2A4A63</color>
     <color name="c_on_secondary_container">#99B9D6</color>
     <color name="c_tertiary">#FFBA45</color>
     <color name="c_on_tertiary">#442C00</color>
-    <color name="c_tertiary_container">#DC9A20</color>
-    <color name="c_on_tertiary_container">#533600</color>
 
     <color name="c_surface">#0E0F15</color>
     <color name="c_on_surface">#E4E4EF</color>

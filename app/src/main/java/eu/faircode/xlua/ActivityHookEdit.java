@@ -17,6 +17,7 @@
 
 package eu.faircode.xlua;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -25,11 +26,13 @@ import android.text.TextUtils;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.core.view.ViewCompat;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -57,6 +60,9 @@ public class ActivityHookEdit extends ActivityBase {
     private static final String STATE_UNCHANGED = "unchanged";
     private static final String STATE_TAB = "tab";
 
+    // Of a new definition; the group is a name like the ones of the built-in definitions, not text which is translated
+    private static final String GROUP_DEFAULT = "Custom";
+    private static final String AUTHOR_DEFAULT = "me";
     private static final String TEMPLATE_SCRIPT = "function after(hook, param)\n" +
             "    local result = param:getResult()\n" +
             "    if result == nil then\n" +
@@ -154,6 +160,13 @@ public class ActivityHookEdit extends ActivityBase {
         etScript.setHorizontallyScrolling(true);
         highlighter = new LuaHighlighter(etScript);
         etScript.addTextChangedListener(highlighter);
+        Ui.onTextChanged(etScript, text -> updateScriptInfo());
+
+        // The captions of the cards are the texts between the cards, headings for screen readers
+        LinearLayout llDefinition = findViewById(R.id.llDefinition);
+        for (int i = 0; i < llDefinition.getChildCount(); i++)
+            if (llDefinition.getChildAt(i) instanceof TextView)
+                ViewCompat.setAccessibilityHeading(llDefinition.getChildAt(i), true);
 
         final View svDefinition = findViewById(R.id.svDefinition);
         final View llScript = findViewById(R.id.llScript);
@@ -165,8 +178,6 @@ public class ActivityHookEdit extends ActivityBase {
             public void onTabSelected(TabLayout.Tab tab) {
                 svDefinition.setVisibility(tab.getPosition() == 0 ? View.VISIBLE : View.GONE);
                 llScript.setVisibility(tab.getPosition() == 1 ? View.VISIBLE : View.GONE);
-                if (tab.getPosition() == 1)
-                    updateScriptInfo();
             }
 
             @Override
@@ -182,8 +193,8 @@ public class ActivityHookEdit extends ActivityBase {
 
         if (hookId == null) {
             etCollection.setText(Util.COLLECTION_DEFAULT);
-            etGroup.setText("Custom");
-            etAuthor.setText("me");
+            etGroup.setText(GROUP_DEFAULT);
+            etAuthor.setText(AUTHOR_DEFAULT);
             etVersion.setText("1");
             etMinSdk.setText("1");
             swEnabled.setChecked(true);
@@ -258,6 +269,8 @@ public class ActivityHookEdit extends ActivityBase {
         }, () -> load(id, fill));
     }
 
+    // The number fields hold plain digits, see number, not numbers in the format of the language
+    @SuppressLint("SetTextI18n")
     private void fill(JSONObject jhook) {
         etCollection.setText(jhook.optString("collection"));
         etGroup.setText(jhook.optString("group"), false);

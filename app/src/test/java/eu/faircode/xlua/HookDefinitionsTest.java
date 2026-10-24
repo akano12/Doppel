@@ -386,9 +386,10 @@ public class HookDefinitionsTest {
                 Class<?> cls = Class.forName(className, false, getClass().getClassLoader());
 
                 JSONArray jparams = hook.getJSONArray("parameterTypes");
-                Class<?>[] params = new Class<?>[jparams.length()];
-                for (int i = 0; i < params.length; i++)
-                    params[i] = XResolver.resolveClass(jparams.getString(i), getClass().getClassLoader());
+                String[] names = new String[jparams.length()];
+                for (int i = 0; i < names.length; i++)
+                    names[i] = jparams.getString(i);
+                Class<?>[] params = XResolver.resolveClasses(names, getClass().getClassLoader());
 
                 // Like XCore.install: the return type of a method is the declared one or a subclass,
                 // the type of a field the declared one
@@ -399,11 +400,11 @@ public class HookDefinitionsTest {
                 if (methodName == null)
                     cls.getDeclaredConstructor(params);
                 else if (methodName.startsWith("#")) {
-                    Field field = findField(cls, methodName.substring(1));
+                    Field field = XResolver.resolveField(cls, methodName.substring(1), null);
                     if (returnType != null && !field.getType().equals(returnType))
                         errors.add(name + ": field type " + field.getType().getName() + " not " + returnName);
                 } else if (methodName.contains(":"))
-                    findField(cls, methodName.split(":")[0]);
+                    XResolver.resolveField(cls, methodName.split(":")[0], null);
                 else {
                     Method method = findMethod(cls, methodName, params);
                     if (returnType != null && !method.getReturnType().isAssignableFrom(returnType))
@@ -425,15 +426,6 @@ public class HookDefinitionsTest {
             } catch (NoSuchMethodException ignored) {
             }
         throw new NoSuchMethodException(cls.getName() + "." + name + Arrays.toString(params));
-    }
-
-    private static Field findField(Class<?> cls, String name) throws NoSuchFieldException {
-        for (Class<?> c = cls; c != null; c = c.getSuperclass())
-            try {
-                return c.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
-        throw new NoSuchFieldException(cls.getName() + "." + name);
     }
 
     // The SDK level of the android.jar on the unit test class path

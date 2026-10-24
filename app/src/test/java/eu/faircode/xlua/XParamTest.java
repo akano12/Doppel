@@ -17,6 +17,7 @@
 
 package eu.faircode.xlua;
 
+import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
 
@@ -26,10 +27,12 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.ZeroArgFunction;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -40,6 +43,16 @@ public class XParamTest {
 
     @SuppressWarnings("unused")
     private static String field;
+
+    @SuppressWarnings("unused")
+    public static int count(int value, String text) {
+        return value;
+    }
+
+    @SuppressWarnings("unused")
+    public static void run() {
+    }
+
     // Like a Lua number returned to Java code expecting an Object
     private static Object lua(double value) {
         return CoerceLuaToJava.coerce(LuaValue.valueOf(value), Object.class);
@@ -83,13 +96,9 @@ public class XParamTest {
         return ai;
     }
 
-    private static XParam param() throws NoSuchFieldException {
-        return param(UID);
-    }
-
-    private static XParam param(int uid) throws NoSuchFieldException {
+    private static Context context(int uid) {
         ApplicationInfo ai = app(uid, 0);
-        return new XParam(new ContextWrapper(null) {
+        return new ContextWrapper(null) {
             @Override
             public String getPackageName() {
                 return "test.app";
@@ -99,7 +108,85 @@ public class XParamTest {
             public ApplicationInfo getApplicationInfo() {
                 return ai;
             }
-        }, XParamTest.class.getDeclaredField("field"), new HashMap<>());
+        };
+    }
+
+    private static XParam param() throws NoSuchFieldException {
+        return param(UID);
+    }
+
+    private static XParam param(int uid) throws NoSuchFieldException {
+        return new XParam(context(uid), XParamTest.class.getDeclaredField("field"), new HashMap<>());
+    }
+
+    private static XParam param(XCall call) {
+        return new XParam(context(UID), call, new HashMap<>());
+    }
+
+    // Arguments set by scripts must fit the parameters of the method
+    @Test
+    public void arguments() throws NoSuchMethodException {
+        Method count = XParamTest.class.getMethod("count", int.class, String.class);
+        XParam param = param(new XCall(count, null, new Object[]{1, "one"}));
+        param.setArgument(0, lua(7));
+        assertEquals(7, param.getArgument(0));
+        param.setArgument(1, null);
+        assertNull(param.getArgument(1));
+
+        try {
+            param.setArgument(0, null);
+            fail("Null for a primitive");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Expected argument #0 int got null", ex.getMessage());
+        }
+        try {
+            param.setArgument(1, lua(7));
+            fail("Number for a string");
+        } catch (IllegalArgumentException ignored) {
+        }
+        try {
+            param.setArgument(2, null);
+            fail("Argument out of range");
+        } catch (ArrayIndexOutOfBoundsException ignored) {
+        }
+    }
+
+    // Results set by scripts must fit the return type, a throwable is thrown instead of returned
+    @Test
+    public void results() throws Throwable {
+        Method count = XParamTest.class.getMethod("count", int.class, String.class);
+        XCall call = new XCall(count, null, new Object[]{1, "one"});
+        XParam param = param(call);
+        param.setResult(lua(7));
+        assertEquals(7, param.getResult());
+        assertTrue(call.isReturnEarly());
+
+        try {
+            param.setResult(null);
+            fail("Null for a primitive");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Expected return int got null", ex.getMessage());
+        }
+        try {
+            param.setResult(true);
+            fail("Boolean for a number");
+        } catch (IllegalArgumentException ignored) {
+        }
+
+        param.setResult(new IllegalStateException("blocked"));
+        assertTrue(param.getException() instanceof IllegalStateException);
+        assertNull(param.getResult());
+
+        // A void method is skipped with a null result, which is the only result it can have
+        XCall run = new XCall(XParamTest.class.getMethod("run"), null, new Object[0]);
+        param = param(run);
+        param.setResult(null);
+        assertTrue(run.isReturnEarly());
+        try {
+            param.setResult(lua(7));
+            fail("Value for void");
+        } catch (IllegalArgumentException ignored) {
+        }
     }
 
     @Test

@@ -21,9 +21,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:accessibilityHeading="true"
-            android:textAppearance="@style/XLua.Text.Section"
-            tools:targetApi="p" />
+            android:textAppearance="@style/XLua.Text.Section" />
 
         <TextView
             android:id="@+id/tvCount"
@@ -31,9 +29,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textAppearance="@style/XLua.Text.Section"
-            android:visibility="gone"
-            tools:text="3 of 3"
-            tools:visibility="visible" />
+            tools:text="3 of 3" />
     </LinearLayout>
 
     <com.google.android.material.card.MaterialCardView

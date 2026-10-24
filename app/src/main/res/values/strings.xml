@@ -1,8 +1,8 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" translatable="false">XPrivacyLua</string>
     <string name="app_description">Privacy manager feeding apps fake data instead of real data</string>
 
-    <string name="title_license" translatable="false">
+    <string name="title_license" translatable="false" tools:ignore="PluralsCandidate">
         This app is meant to be used to protect your privacy.
         <![CDATA[<br><br>]]>Copyright 2017-%1$d Marcel Bokhorst. All rights reserved.
         <![CDATA[<br><br>]]>This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -34,7 +34,6 @@
     <string name="title_values_global">Fake values for all apps</string>
     <string name="title_values_identifiers">Identifiers</string>
     <string name="title_values_location">Location</string>
-    <string name="title_values_other">Other</string>
     <string name="title_values_custom">Custom definitions</string>
     <string name="title_value_serial">Serial number</string>
     <string name="title_value_android_id">Android ID</string>
@@ -44,7 +43,6 @@
     <string name="title_value_email">Account name (e-mail)</string>
     <string name="title_value_timezone">Time zone (like Europe/Amsterdam)</string>
     <string name="title_value_features">Shown device features (comma separated, like android.hardware.camera*)</string>
-    <string name="title_value_location_type">Location</string>
     <string name="title_value_latitude">Latitude</string>
     <string name="title_value_longitude">Longitude</string>
     <string name="title_value_accuracy">Coarse accuracy (meters)</string>
@@ -71,7 +69,6 @@
     <string name="title_hook_custom">Custom</string>
     <string name="title_hook_overridden">Custom (replaces built-in)</string>
     <string name="title_hook_disabled">Disabled</string>
-    <string name="title_hook_unavailable">Not for this Android version</string>
     <string name="title_hook_edit_builtin">Saving a built-in definition creates a custom copy. Deleting the copy restores the built-in definition.</string>
     <string name="msg_hook_saved">Saved, restart restricted apps to apply</string>
     <string name="msg_delete_sure">Delete \'%1$s\'?</string>
@@ -101,6 +98,7 @@
     <string name="title_search_apps">Search name, package or uid</string>
     <string name="title_filter_user">User</string>
     <string name="title_filter_system">System</string>
+    <!-- A title with a count, like a filter chip -->
     <string name="title_count">%1$s · %2$d</string>
     <string name="section_apps_attention">Needs attention</string>
     <string name="section_apps_new">Recently installed</string>
@@ -117,57 +115,7 @@
         <item quantity="one">%1$d own value, the rest from all apps</item>
         <item quantity="other">%1$d own values, the rest from all apps</item>
     </plurals>
-    <plurals name="title_calls_today">
-        <item quantity="one">restricted call today</item>
-        <item quantity="other">restricted calls today</item>
-    </plurals>
-    <plurals name="title_stat_apps">
-        <item quantity="one">%1$d app</item>
-        <item quantity="other">%1$d apps</item>
-    </plurals>
-    <plurals name="title_stat_errors_count">
-        <item quantity="one">%1$d error</item>
-        <item quantity="other">%1$d errors</item>
-    </plurals>
-    <string name="title_calls_by_hour">Restricted calls of today by hour</string>
-    <string name="title_hour_0" translatable="false">0</string>
-    <string name="title_hour_6" translatable="false">6</string>
-    <string name="title_hour_12" translatable="false">12</string>
-    <string name="title_hour_18" translatable="false">18</string>
-    <string name="title_hour_24" translatable="false">24</string>
-    <plurals name="title_hook_count">
-        <item quantity="one">%1$d hook</item>
-        <item quantity="other">%1$d hooks</item>
-    </plurals>
-    <plurals name="title_hook_custom_count">
-        <item quantity="one">%1$d custom</item>
-        <item quantity="other">%1$d custom</item>
-    </plurals>
-    <plurals name="title_hook_disabled_count">
-        <item quantity="one">%1$d disabled</item>
-        <item quantity="other">%1$d disabled</item>
-    </plurals>
-    <plurals name="title_hook_unavailable_count">
-        <item quantity="one">%1$d not on this Android</item>
-        <item quantity="other">%1$d not on this Android</item>
-    </plurals>
-    <string name="title_hook_unavailable_short">Not on this Android</string>
-    <string name="title_theme">Theme</string>
-    <string name="title_language">Language</string>
-    <string name="title_language_system">System</string>
-    <string name="title_language_english">English</string>
-    <string name="title_values_global_sub">Identifiers, location, time zone and more</string>
-    <string name="title_hint_restricted">%1$s · restricted for this app</string>
-    <string name="title_hint_unrestricted">%1$s · not restricted, the real value is given</string>
-    <plurals name="title_hint_apps">
-        <item quantity="one">%1$s · restricted for %2$d app</item>
-        <item quantity="other">%1$s · restricted for %2$d apps</item>
-    </plurals>
-    <string name="title_hint_no_apps">%1$s · restricted for no app</string>
-    <string name="title_restrict">Restrict</string>
-    <string name="msg_group_restricted">%1$s restricted for %2$s</string>
     <string name="title_no_calls">No restricted call yet</string>
-    <string name="title_installed_ago">Installed %1$s</string>
     <string name="title_off">Off</string>
     <string name="badge_active">Active</string>
     <string name="badge_inactive">Inactive</string>
@@ -206,11 +154,28 @@
     <string name="menu_search">Search</string>
     <string name="title_close_search">Close search</string>
     <string name="title_no_apps">No apps</string>
-    <!-- The quantity is the number of groups -->
-    <string name="title_last_used">%1$s · %2$s</string>
+    <string name="title_no_matches">No matches</string>
+    <!-- Two parts on one line, like the group restricted last and when, or the apps and the errors of the Activity tab -->
+    <string name="title_pair">%1$s · %2$s</string>
     <string name="title_not_restricted">Not restricted</string>
-    <string name="badge_system">System</string>
+    <string name="badge_persistent">Persistent</string>
     <string name="menu_bulk">Toggle a group for shown apps</string>
+    <plurals name="msg_bulk_add_sure">
+        <item quantity="one">Add \'%1$s\' to %2$d shown app?</item>
+        <item quantity="other">Add \'%1$s\' to %2$d shown apps?</item>
+    </plurals>
+    <plurals name="msg_bulk_remove_sure">
+        <item quantity="one">Remove \'%1$s\' from the shown app which has it (%2$d of %3$d)?</item>
+        <item quantity="other">Remove \'%1$s\' from the shown apps which have it (%2$d of %3$d)?</item>
+    </plurals>
+    <plurals name="msg_bulk_added">
+        <item quantity="one">\'%1$s\' added to %2$d app</item>
+        <item quantity="other">\'%1$s\' added to %2$d apps</item>
+    </plurals>
+    <plurals name="msg_bulk_removed">
+        <item quantity="one">\'%1$s\' removed from %2$d app</item>
+        <item quantity="other">\'%1$s\' removed from %2$d apps</item>
+    </plurals>
 
     <!-- Restrictions of an app -->
     <string name="title_restrict_all_groups">Restrict all</string>
@@ -237,7 +202,6 @@
     <string name="title_show_hooks">Show the hooks of %1$s</string>
     <string name="title_hide_hooks">Hide the hooks of %1$s</string>
     <string name="title_hook_not_used">Not used yet</string>
-    <string name="title_hook_not_restricted">Not restricted</string>
     <string name="title_hook_state_failed">Failed</string>
     <string name="menu_values_app">Fake values for this app</string>
     <string name="menu_launch">Open app</string>
@@ -263,11 +227,45 @@
     <string name="title_today">Today</string>
     <string name="title_yesterday">Yesterday</string>
     <string name="title_hook_failed">Hook failed: %1$s</string>
+    <string name="title_search_log">App, group or hook</string>
+    <string name="title_search_log_app">Group or hook</string>
+    <plurals name="title_calls_today">
+        <item quantity="one">restricted call today</item>
+        <item quantity="other">restricted calls today</item>
+    </plurals>
+    <plurals name="title_stat_apps">
+        <item quantity="one">%1$d app</item>
+        <item quantity="other">%1$d apps</item>
+    </plurals>
+    <plurals name="title_stat_errors_count">
+        <item quantity="one">%1$d error</item>
+        <item quantity="other">%1$d errors</item>
+    </plurals>
+    <string name="title_calls_by_hour">Restricted calls of today by hour</string>
+    <string name="title_log_no_errors">No hooks failed</string>
 
     <!-- Hooks -->
     <string name="title_search_hooks">Class, method or group</string>
-    <string name="title_search_log">App, group or hook</string>
-    <string name="title_search_log_app">Group or hook</string>
+    <plurals name="title_hook_count">
+        <item quantity="one">%1$d hook</item>
+        <item quantity="other">%1$d hooks</item>
+    </plurals>
+    <plurals name="title_hook_custom_count">
+        <item quantity="one">%1$d custom</item>
+        <item quantity="other">%1$d custom</item>
+    </plurals>
+    <plurals name="title_hook_disabled_count">
+        <item quantity="one">%1$d disabled</item>
+        <item quantity="other">%1$d disabled</item>
+    </plurals>
+    <plurals name="title_hook_unavailable_count">
+        <item quantity="one">%1$d not on this Android</item>
+        <item quantity="other">%1$d not on this Android</item>
+    </plurals>
+    <string name="title_hook_unavailable">Not on this Android</string>
+    <string name="title_no_custom_hooks">No custom definitions</string>
+    <string name="msg_no_hooks_file">This file has no hook definitions</string>
+    <string name="msg_import_backup">This file is a backup, restore it in Settings</string>
     <!-- The quantity is the number of groups -->
     <plurals name="title_hooks_summary">
         <item quantity="one">%1$d built-in · %2$d custom · %3$d group</item>
@@ -277,11 +275,11 @@
     <string name="title_hook_collection_off">%1$s off</string>
     <string name="menu_export_custom">Export custom definitions</string>
     <string name="menu_restore_builtin">Restore built-in</string>
+    <string name="msg_builtin_restored">Restored built-in %1$s</string>
     <string name="title_hook_new">New hook definition</string>
     <string name="title_tab_definition">Definition</string>
     <string name="title_tab_script">Script</string>
     <string name="title_section_target">Target</string>
-    <string name="title_section_definition">Definition</string>
     <string name="title_section_availability">Availability</string>
     <string name="title_section_behavior">Behavior</string>
     <string name="title_field_class">Class</string>
@@ -319,6 +317,8 @@
     <string name="title_check_found">Found %1$s</string>
     <string name="title_check_no_member">%1$s not found in the class or its super classes</string>
     <string name="title_check_no_class">Class %1$s not found here. It can still exist in the app the hook is for.</string>
+    <string name="title_check_return_type">Found %1$s, but not with the return type %2$s</string>
+    <string name="title_check_field_params">Fields have no parameter types</string>
     <string name="title_script_file" translatable="false">script.lua</string>
     <string name="title_script_no_function">no before() or after()</string>
     <string name="title_script_api">param: getResult() setResult(v) getArgument(i) setArgument(i, v) getThis() getException() getSetting(name) getValue(name, scope) putValue(name, value, scope) findClass(name) isInstance(object, class) getPackageName() getUid()\nReturn true, old and new value from before() or after() when restricted.</string>
@@ -356,6 +356,7 @@
     </plurals>
     <string name="title_collection_off">not applied, the collection is off</string>
     <string name="title_updates_snapshot">In the snapshot packaged with this version</string>
+    <string name="title_no_updates">No updates</string>
     <string name="title_update_all">Update all</string>
     <plurals name="msg_update_all">
         <item quantity="one">Update %1$d definition?</item>
@@ -409,13 +410,22 @@
     <string name="title_randomize_field">Randomize %1$s</string>
     <string name="title_reset">Clear</string>
     <string name="msg_no_changes">No changes</string>
+    <string name="title_hint_restricted">%1$s · restricted for this app</string>
+    <string name="title_hint_unrestricted">%1$s · not restricted, the real value is given</string>
+    <plurals name="title_hint_apps">
+        <item quantity="one">%1$s · restricted for %2$d app</item>
+        <item quantity="other">%1$s · restricted for %2$d apps</item>
+    </plurals>
+    <string name="title_hint_no_apps">%1$s · restricted for no app</string>
+    <string name="title_restrict">Restrict</string>
+    <string name="msg_group_restricted">%1$s restricted for %2$s</string>
+    <string name="title_value_used_with">Used only when Location is %1$s</string>
 
     <!-- Settings -->
     <string name="title_module_active">Module active</string>
     <string name="title_version">XPrivacyLua %1$s (%2$d)</string>
     <string name="title_status_service">Service</string>
     <string name="title_status_hooks">Definitions</string>
-    <string name="title_status_collections">Collections</string>
     <string name="title_status_android">Android</string>
     <string name="section_new_apps">New apps</string>
     <string name="section_hooks">Hooks</string>
@@ -425,6 +435,7 @@
     <string name="title_restrict_new_hint">Restrict all groups when an app is installed</string>
     <string name="title_notify_new_hint">Show a notification when an app is installed</string>
     <string name="title_collections">Collections</string>
+    <string name="title_theme">Theme</string>
     <string name="title_theme_system">System</string>
     <string name="title_theme_light">Light</string>
     <string name="title_theme_dark">Dark</string>
@@ -435,6 +446,8 @@
     <string name="title_palette_teal">Teal</string>
     <string name="title_black">Pure black background</string>
     <string name="title_black_hint">In the dark theme, which saves power on OLED screens</string>
+    <string name="title_language">Language</string>
+    <string name="title_language_english">English</string>
     <string name="title_backup_hint">Settings, custom definitions and restrictions</string>
     <string name="title_restore_hint">From a backup file</string>
     <string name="title_clear_data">Clear restrictions and settings</string>
@@ -442,6 +455,9 @@
     <string name="title_license_row">License</string>
     <string name="msg_clear_sure">Remove all restrictions and settings, including fake values? This cannot be undone.</string>
     <string name="msg_cleared">Restrictions and settings removed</string>
+    <string name="title_values_global_sub">Identifiers, location, time zone and more</string>
+    <string name="msg_not_backup">This file is not an XPrivacyLua backup</string>
+    <string name="msg_backup_format">This backup has format %1$s, which this version cannot restore</string>
 
     <string name="group_determine_activity">Determine activity</string>
     <string name="group_get_applications">Get applications</string>
@@ -511,35 +527,4 @@
 
     <string name="channel_alerts">XPrivacyLua new apps and errors</string>
     <string name="channel_usage">XPrivacyLua restrictions</string>
-
-    <string name="badge_persistent">Persistent</string>
-    <plurals name="msg_bulk_add_sure">
-        <item quantity="one">Add \'%1$s\' to %2$d shown app?</item>
-        <item quantity="other">Add \'%1$s\' to %2$d shown apps?</item>
-    </plurals>
-    <plurals name="msg_bulk_remove_sure">
-        <item quantity="one">Remove \'%1$s\' from the shown app which has it (%2$d of %3$d)?</item>
-        <item quantity="other">Remove \'%1$s\' from the shown apps which have it (%2$d of %3$d)?</item>
-    </plurals>
-    <plurals name="msg_bulk_added">
-        <item quantity="one">\'%1$s\' added to %2$d app</item>
-        <item quantity="other">\'%1$s\' added to %2$d apps</item>
-    </plurals>
-    <plurals name="msg_bulk_removed">
-        <item quantity="one">\'%1$s\' removed from %2$d app</item>
-        <item quantity="other">\'%1$s\' removed from %2$d apps</item>
-    </plurals>
-
-    <string name="title_no_matches">No matches</string>
-    <string name="title_no_custom_hooks">No custom definitions</string>
-    <string name="title_log_no_errors">No hooks failed</string>
-    <string name="title_no_updates">No updates</string>
-    <string name="msg_builtin_restored">Restored built-in %1$s</string>
-    <string name="title_check_return_type">Found %1$s, but not with the return type %2$s</string>
-    <string name="title_check_field_params">Fields have no parameter types</string>
-    <string name="title_value_used_with">Used only when Location is %1$s</string>
-    <string name="msg_not_backup">This file is not an XPrivacyLua backup</string>
-    <string name="msg_backup_format">This backup has format %1$s, which this version cannot restore</string>
-    <string name="msg_no_hooks_file">This file has no hook definitions</string>
-    <string name="msg_import_backup">This file is a backup, restore it in Settings</string>
 </resources>

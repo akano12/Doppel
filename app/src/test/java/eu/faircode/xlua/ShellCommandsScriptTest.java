@@ -24,7 +24,6 @@ import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -49,7 +48,6 @@ import static org.junit.Assert.assertTrue;
 // cmd and uname in place of /system/bin; Android runs mksh and toybox, which XLUA_TEST_BIN can point to
 // (a directory with sh, sed, grep, printf and cat), else the tools of this computer are used.
 public class ShellCommandsScriptTest {
-    private static final File ASSETS = new File("src/main/assets");
     private static final String[] ALL = {"tracking", "identifiers", "timezone", "packages", "features", "biometrics"};
     private static final String SETTINGS = "{ ['value.serial'] = 'SERIAL1', ['value.timezone'] = 'Asia/Tokyo'," +
             " ['features.keep'] = 'android.hardware.nfc, android.hardware.camera*' }";
@@ -84,8 +82,8 @@ public class ShellCommandsScriptTest {
             "function nameof(method, variant)",
             "  return method .. (variant == 'tracking' and '' or '/' .. variant)",
             "end",
-            // Java lists, maps and arrays as Lua sees them; luajava cannot make java.base classes accessible
-            // on recent Java versions, so the classes the script uses are stand-ins too
+            // Java lists, maps and arrays as Lua sees them, which the test reads back (see words); luajava cannot
+            // make the classes of java.lang accessible on recent Java versions, so System and String are stand-ins too
             "function listof(items)",
             "  local list = { items = {}, n = 0 }",
             "  list.add = function(self, value) self.n = self.n + 1; self.items[self.n] = value end",
@@ -208,7 +206,10 @@ public class ShellCommandsScriptTest {
             "    setResult = function(self, value) end,",
             "    getSetting = function(self, name) return settings[name] end }",
             "  return after(hook, param)",
-            "end");
+            "end",
+            // The classes on the stack (callers of features), a stand-in like in DeviceValuesScriptTest: those of
+            // the app, like for the commands it runs; luajava cannot make java.lang.Thread accessible on recent Java
+            "function callers() return { length = 0 } end");
 
     private static File bin;
     private Globals globals;
@@ -216,17 +217,8 @@ public class ShellCommandsScriptTest {
 
     @Before
     public void load() throws Exception {
-        globals = JsePlatform.standardGlobals();
-        globals.load(read(new File(ASSETS, "shell_commands.lua")), "shell_commands").call();
-        globals.load(STUBS, "stubs").call();
+        globals = Scripts.load("shell_commands", STUBS);
         settings = globals.load("return " + SETTINGS, "settings").call();
-    }
-
-    private Globals script(String name, String stubs) throws Exception {
-        Globals other = JsePlatform.standardGlobals();
-        other.load(read(new File(ASSETS, name + ".lua")), name).call();
-        other.load(stubs, "stubs").call();
-        return other;
     }
 
     // The fake value of SystemProperties.get for a property of value REAL, the real value when it is not faked;
@@ -246,7 +238,7 @@ public class ShellCommandsScriptTest {
     private Set<String> propertyNames() throws Exception {
         Set<String> names = new LinkedHashSet<>();
         Matcher m = Pattern.compile("'((?:ro|gsm|ril|sys|persist)\\.[A-Za-z0-9_.*-]+)'")
-                .matcher(read(new File(ASSETS, "systemproperties_get.lua")));
+                .matcher(Scripts.read("systemproperties_get"));
         while (m.find())
             names.add(m.group(1).replace("*", "vendor"));
         LuaValue patterns = globals.get("patternsof").call(settings);
@@ -257,7 +249,7 @@ public class ShellCommandsScriptTest {
 
     @Test
     public void propertiesAreTheSameAsSystemProperties() throws Exception {
-        Globals properties = script("systemproperties_get", PROPERTY_STUBS);
+        Globals properties = Scripts.load("systemproperties_get", PROPERTY_STUBS);
         String quarter = properties.get("quarter").call(LuaValue.valueOf(REAL)).tojstring();
         for (String key : propertyNames()) {
             String fake = globals.get("fakeof").call(LuaValue.valueOf(key), settings, LuaValue.valueOf(REAL))
@@ -269,7 +261,7 @@ public class ShellCommandsScriptTest {
     // getprop lists the same values as SystemProperties.get finds; empty values stay
     @Test
     public void getpropListsTheValuesOfSystemProperties() throws Exception {
-        Globals properties = script("systemproperties_get", PROPERTY_STUBS);
+        Globals properties = Scripts.load("systemproperties_get", PROPERTY_STUBS);
         StringBuilder listing = new StringBuilder();
         StringBuilder expected = new StringBuilder();
         for (String key : propertyNames()) {
@@ -376,15 +368,15 @@ public class ShellCommandsScriptTest {
     // The features of features and biometrics, for each and both variants
     @Test
     public void featuresAreTheSameAsHasSystemFeature() throws Exception {
-        Globals features = script("features", FEATURE_STUBS);
-        Globals biometrics = script("biometrics", FEATURE_STUBS);
+        Globals features = Scripts.load("features", FEATURE_STUBS);
+        Globals biometrics = Scripts.load("biometrics", FEATURE_STUBS);
         Set<String> names = new LinkedHashSet<>(Arrays.asList("android.hardware.wifi", "android.hardware.nfc",
                 "android.hardware.nfc.hce", "android.hardware.camera", "android.hardware.camera.front",
                 "android.software.webview", "android.hardware.vulkan.level",
                 "com.google.android.feature.PIXEL_EXPERIENCE", "com.samsung.feature.samsung_experience_mobile"));
         for (String script : new String[]{"features", "biometrics"}) {
             Matcher m = Pattern.compile("'(android\\.(?:hardware|software)\\.[A-Za-z0-9_.]+)'")
-                    .matcher(read(new File(ASSETS, script + ".lua")));
+                    .matcher(Scripts.read(script));
             while (m.find())
                 names.add(m.group(1));
         }
@@ -419,11 +411,11 @@ public class ShellCommandsScriptTest {
     // The libraries of getSystemSharedLibraryNames (see features)
     @Test
     public void librariesAreTheSameAsSharedLibraries() throws Exception {
-        Globals features = script("features", FEATURE_STUBS);
+        Globals features = Scripts.load("features", FEATURE_STUBS);
         Set<String> names = new LinkedHashSet<>(Arrays.asList("android.test.base", "com.google.android.dialer.support",
                 "com.qualcomm.qti.audio", "com.google.android.mapsx", "com.google.android.maps"));
         Matcher m = Pattern.compile("'([a-z]+(?:\\.[A-Za-z0-9_]+)*\\.?)'")
-                .matcher(read(new File(ASSETS, "features.lua")));
+                .matcher(Scripts.read("features"));
         while (m.find())
             if (m.group(1).contains("."))
                 names.add(m.group(1).endsWith(".") ? m.group(1) + "library" : m.group(1));
@@ -807,9 +799,5 @@ public class ShellCommandsScriptTest {
         for (int n = in.read(buffer); n > 0; n = in.read(buffer))
             out.write(buffer, 0, n);
         return new String(out.toByteArray(), StandardCharsets.UTF_8);
-    }
-
-    private static String read(File file) throws Exception {
-        return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
     }
 }

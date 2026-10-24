@@ -241,10 +241,12 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- Like the restart banner below, which has a button at the end -->
                 <LinearLayout
                     android:id="@+id/llAndroid"
                     style="@style/XLua.Banner"
-                    android:visibility="gone">
+                    android:visibility="gone"
+                    tools:ignore="UseCompoundDrawables">
 
                     <ImageView
                         android:layout_width="20dp"
@@ -287,7 +289,6 @@
 
                     <Button
                         android:id="@+id/btnForceStop"
-                        style="@style/Widget.Material3.Button"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:backgroundTint="?attr/colorWarning"

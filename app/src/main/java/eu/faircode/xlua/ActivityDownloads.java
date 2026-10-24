@@ -18,7 +18,6 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
-import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -34,13 +33,11 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.util.Consumer;
 import androidx.recyclerview.widget.ConcatAdapter;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -163,13 +160,7 @@ public class ActivityDownloads extends ActivityBase {
         if (!loaded)
             return;
         final Context context = getApplicationContext();
-        run(TAG, () -> {
-            Map<String, XHook> installed = getInstalled(context);
-            runOnUiThread(() -> {
-                this.installed = installed;
-                show();
-            });
-        });
+        run(TAG, () -> showInstalled(context));
     }
 
     private void load() {
@@ -229,6 +220,15 @@ public class ActivityDownloads extends ActivityBase {
         for (XHook hook : Data.getAllHooks(context, false))
             installed.put(hook.getId(), hook);
         return installed;
+    }
+
+    // The list after the installed definitions changed, from the background thread
+    private void showInstalled(Context context) {
+        Map<String, XHook> installed = getInstalled(context);
+        runOnUiThread(() -> {
+            this.installed = installed;
+            show();
+        });
     }
 
     private static String readAsset(Context context, String name) throws Exception {
@@ -323,9 +323,10 @@ public class ActivityDownloads extends ActivityBase {
             parts.add(getResources().getQuantityString(R.plurals.title_installed_count, installed, installed));
         tvSummary.setText(all.isEmpty() ? null : String.join(" · ", parts));
 
-        ((Chip) cgFilter.findViewById(R.id.chipAvailable)).setText(getString(R.string.title_count, getString(R.string.title_not_installed), available));
-        ((Chip) cgFilter.findViewById(R.id.chipInstalled)).setText(getString(R.string.title_count, getString(R.string.title_installed), installed));
-        ((Chip) cgFilter.findViewById(R.id.chipUpdates)).setText(getString(R.string.title_count, getString(R.string.title_updates), updates));
+        Ui.setChipCount(cgFilter, R.id.chipAll, R.string.title_all, all.size());
+        Ui.setChipCount(cgFilter, R.id.chipAvailable, R.string.title_not_installed, available);
+        Ui.setChipCount(cgFilter, R.id.chipInstalled, R.string.title_installed, installed);
+        Ui.setChipCount(cgFilter, R.id.chipUpdates, R.string.title_updates, updates);
         updatesAdapter.show(updates > 0);
 
         String q = (query == null ? "" : query.trim());
@@ -389,7 +390,7 @@ public class ActivityDownloads extends ActivityBase {
             parts.add(getString(R.string.title_collection_off));
         accordion.addGroup(this, items, collection, collection, String.join(" · ", parts),
                 off ? getString(R.string.title_off) : null, R.drawable.ic_group_custom,
-                entries, all.isEmpty() ? null : all.get(0).collection,
+                entries, all.get(0).collection,
                 filter != Filter.ALL || (query != null && !query.trim().isEmpty()),
                 this::show);
     }
@@ -433,11 +434,7 @@ public class ActivityDownloads extends ActivityBase {
             run(TAG, () -> {
                 for (Entry entry : entries)
                     Data.putCustom(context, new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json")));
-                Map<String, XHook> installed = getInstalled(context);
-                runOnUiThread(() -> {
-                    this.installed = installed;
-                    show();
-                });
+                showInstalled(context);
                 Ui.message(this, getResources().getQuantityString(R.plurals.msg_updated, count, count));
             });
         });
@@ -451,11 +448,7 @@ public class ActivityDownloads extends ActivityBase {
             final Context context = getApplicationContext();
             run(TAG, () -> {
                 Data.putHook(context, entry.getId(), null);
-                Map<String, XHook> installed = getInstalled(context);
-                runOnUiThread(() -> {
-                    this.installed = installed;
-                    show();
-                });
+                showInstalled(context);
                 Ui.message(this, getString(R.string.msg_removed, entry.name));
             });
         });
@@ -549,16 +542,8 @@ public class ActivityDownloads extends ActivityBase {
                 btnInstall.setOnClickListener(this);
                 btnUpdate.setOnClickListener(this);
 
-                // The check in front of Installed, in the size of the text
-                Context context = itemView.getContext();
-                Drawable check = AppCompatResources.getDrawable(context, R.drawable.ic_check);
-                if (check != null) {
-                    check = check.mutate();
-                    int size = Ui.dp(context, 15);
-                    check.setBounds(0, 0, size, size);
-                    check.setTint(Ui.color(context, R.attr.colorOnSuccessContainer));
-                }
-                tvInstalled.setCompoundDrawablesRelative(check, null, null, null);
+                Ui.setStartIcon(tvInstalled, R.drawable.ic_check, 15,
+                        Ui.color(itemView.getContext(), R.attr.colorOnSuccessContainer));
             }
 
             @Override

@@ -20,7 +20,6 @@ package eu.faircode.xlua;
 import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Paint;
-import android.graphics.drawable.Drawable;
 import android.icu.text.RelativeDateTimeFormatter;
 import android.os.Build;
 import android.os.Bundle;
@@ -35,7 +34,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.content.res.AppCompatResources;
+import androidx.core.util.Consumer;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -118,16 +117,21 @@ public class FragmentLog extends FragmentBase {
         tvCallsLabel = view.findViewById(R.id.tvCallsLabel);
         tvStats = view.findViewById(R.id.tvStats);
         vBars = view.findViewById(R.id.vBars);
+        // The hours under the bars in the digits of the language, like the counts
+        NumberFormat nf = NumberFormat.getIntegerInstance();
+        ViewGroup llAxis = view.findViewById(R.id.llAxis);
+        for (int i = 0; i < llAxis.getChildCount(); i++)
+            ((TextView) llAxis.getChildAt(i)).setText(nf.format(i * 6));
         View tvTitle = view.findViewById(R.id.tvTitle);
         View tilSearch = view.findViewById(R.id.tilSearch);
         EditText etSearch = view.findViewById(R.id.etSearch);
         ImageButton ibSearch = view.findViewById(R.id.ibSearch);
-        TitleSearch titleSearch = new TitleSearch(this, tvTitle, tilSearch, etSearch, ibSearch, text -> {
+        Consumer<String> onQuery = text -> {
             query = text;
             show();
-        });
+        };
         if (only == null)
-            search = titleSearch;
+            search = new TitleSearch(this, tvTitle, tilSearch, etSearch, ibSearch, onQuery);
         else {
             // The log of one app has a toolbar: the search field stays, without the search of the title,
             // and the overview is of all apps
@@ -135,6 +139,7 @@ public class FragmentLog extends FragmentBase {
             ibSearch.setVisibility(View.GONE);
             tilSearch.setVisibility(View.VISIBLE);
             etSearch.setHint(R.string.title_search_log_app);
+            Ui.onTextChanged(etSearch, onQuery);
             view.findViewById(R.id.cvOverview).setVisibility(View.GONE);
             view.findViewById(R.id.llTitle).setPadding(Ui.dp(context, 16), Ui.dp(context, 8), Ui.dp(context, 16), 0);
         }
@@ -252,7 +257,7 @@ public class FragmentLog extends FragmentBase {
         NumberFormat nf = NumberFormat.getIntegerInstance();
         tvCalls.setText(nf.format(countToday));
         tvCallsLabel.setText(getResources().getQuantityString(R.plurals.title_calls_today, countToday));
-        tvStats.setText(getString(R.string.title_last_used,
+        tvStats.setText(getString(R.string.title_pair,
                 getResources().getQuantityString(R.plurals.title_stat_apps, packages.size(), packages.size()),
                 getResources().getQuantityString(R.plurals.title_stat_errors_count, errors.size(), errors.size())));
         tvStats.setTextColor(Ui.color(context, errors.isEmpty()
@@ -383,9 +388,7 @@ public class FragmentLog extends FragmentBase {
             int background = Ui.color(context, error
                     ? com.google.android.material.R.attr.colorErrorContainer
                     : com.google.android.material.R.attr.colorSurfaceContainerLowest);
-            Ui.join(h.itemView, background, 20, first, last);
-            h.vDivider.setVisibility(first ? View.GONE : View.VISIBLE);
-            h.vDivider.setBackgroundColor(Ui.dividerColor(context, background));
+            Ui.joinRow(h.itemView, h.vDivider, background, first, last);
             int meta = Ui.color(context, error
                     ? com.google.android.material.R.attr.colorOnErrorContainer
                     : com.google.android.material.R.attr.colorOnSurfaceVariant);
@@ -404,15 +407,8 @@ public class FragmentLog extends FragmentBase {
             int dot = entry.hook.indexOf('.');
             h.tvHook.setText(dot < 0 ? entry.hook : entry.hook.substring(dot + 1));
             h.tvHook.setTextColor(meta);
-            Drawable icon = AppCompatResources.getDrawable(context,
-                    error ? R.drawable.ic_error : Groups.getIcon(entry.group));
-            if (icon != null) {
-                icon = icon.mutate();
-                int size = Ui.dp(context, 16);
-                icon.setBounds(0, 0, size, size);
-                icon.setTint(Ui.color(context, error ? androidx.appcompat.R.attr.colorError : androidx.appcompat.R.attr.colorPrimary));
-            }
-            h.tvWhat.setCompoundDrawablesRelative(icon, null, null, null);
+            Ui.setStartIcon(h.tvWhat, error ? R.drawable.ic_error : Groups.getIcon(entry.group), 16,
+                    Ui.color(context, error ? androidx.appcompat.R.attr.colorError : androidx.appcompat.R.attr.colorPrimary));
 
             String group = (entry.group == null ? null : Groups.getTitle(context, entry.group));
             if (error) {

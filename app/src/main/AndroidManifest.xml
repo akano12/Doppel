@@ -8,11 +8,11 @@
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
+    <!-- Backups are off; the extraction rules of Android 12 and later exclude everything as well -->
     <application
         android:name="ApplicationEx"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        tools:targetApi="33"
         android:appCategory="productivity"
         android:description="@string/app_description"
         android:icon="@mipmap/ic_launcher"
@@ -20,7 +20,9 @@
         android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.XLua">
+        android:theme="@style/Theme.XLua"
+        tools:ignore="DataExtractionRules"
+        tools:targetApi="33">
 
         <!-- The language chosen in Settings, kept by AppCompat before Android 13 -->
         <service

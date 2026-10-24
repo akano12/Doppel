@@ -38,8 +38,8 @@ public class GenericScriptsTest {
         }
     }
 
-    // Lua tables stand for the collections of the results, with the class they are an instance of:
-    // LuaJ cannot look up the members of the collections of recent Java versions (module encapsulation)
+    // Lua tables stand for the collections of the results, with the class they are an instance of
+    // and whether they are empty, which is all the script reads of them
     private static final String STUBS = String.join("\n",
             "function hookof(returnType)",
             "  return { getReturnType = function(self) return returnType end }",

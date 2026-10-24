@@ -38,6 +38,7 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 // Hooks installed by the engine, with a backend which records them
 public class XCoreTest {
@@ -113,6 +114,24 @@ public class XCoreTest {
                 Context.class, XHook.class, Prototype.class, Map.class, Member.class);
         installMethod.setAccessible(true);
         installMethod.invoke(core, context, hook, prototype, new HashMap<String, String>(), member);
+    }
+
+    // Definitions for a range of app versions; an app with a versionCodeMajor has a version code beyond an int
+    @Test
+    public void apkVersions() throws Throwable {
+        String json = "{\"collection\": \"Test\", \"group\": \"Test.Group\", \"name\": \"versions\"," +
+                " \"author\": \"Test\", \"className\": \"java.lang.Object\", \"parameterTypes\": []," +
+                " \"minSdk\": 1, \"luaScript\": \"\"";
+        XHook all = XHook.fromJSON(json + "}");
+        assertTrue(all.isAvailable(0));
+        assertTrue(all.isAvailable(Integer.MAX_VALUE));
+        assertTrue(all.isAvailable(1L << 32));
+        XHook range = XHook.fromJSON(json + ", \"minApk\": 10, \"maxApk\": 20}");
+        assertFalse(range.isAvailable(9));
+        assertTrue(range.isAvailable(10));
+        assertTrue(range.isAvailable(20));
+        assertFalse(range.isAvailable(21));
+        assertFalse(range.isAvailable(1L << 32));
     }
 
     @Test

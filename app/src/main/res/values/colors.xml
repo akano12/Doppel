@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Light palette: the default color theme Ocean (see palettes.xml) on cool neutrals, the dark palette is in values-night -->
+    <!-- Light palette: the default color theme Ocean (see palettes.xml) on cool neutrals, the dark palette is in values-night;
+         the primary and tertiary containers are the same in both themes, like in the other color themes -->
     <color name="c_primary">#006497</color>
     <color name="c_on_primary">#FFFFFF</color>
     <color name="c_primary_container">#4FAEF2</color>
@@ -34,7 +35,8 @@
     <color name="c_warning_container">#FFEBD6</color>
     <color name="c_on_warning_container">#5E3000</color>
 
-    <!-- Background of white icons, like the shield of an active module, and the chip Active of the Apps tab -->
+    <!-- Green of what is in order: the dot of a restricted group in Fake values, and the containers of the shield
+         of an active module, the chip Active of the Apps tab and the chip Installed of Downloads -->
     <color name="c_success">#1E7B3C</color>
     <color name="c_success_container">#E3F3E8</color>
     <color name="c_on_success_container">#1E7B3C</color>

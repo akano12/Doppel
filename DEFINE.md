@@ -52,8 +52,8 @@ An exported definition in [JSON](https://en.wikipedia.org/wiki/JSON) format look
   "usage": true,
   "notify": false,
   "settings": [
-	"setting_name1",
-	"setting_name2"
+    "setting_name1",
+    "setting_name2"
   ],
   "luaScript": "function after(hook, param)\n    local result = param:getResult()\n    if result == nil then\n        return false\n    end\n\n    param:setResult(nil)\n    return true\nend\n"
 }
@@ -92,13 +92,13 @@ The Lua script from the above definition without the JSON escapes looks like thi
 
 ```Lua
 function after(hook, param)
-	local result = param:getResult()
-	if result == nil then
-		return false
-	end
+    local result = param:getResult()
+    if result == nil then
+        return false
+    end
 
-	param:setResult(nil)
-	return true
+    param:setResult(nil)
+    return true
 end
 ```
 
@@ -113,8 +113,12 @@ or can be set *after* the hooked method has been executed.
 
 The most important functions of *hook* are:
 
-* *hook:getName()*
-* *hook:getClassName()*
+* *hook:getName()*: the name of the definition
+* *hook:getGroup()*: the group of the definition, like *Read.Telephony*
+* *hook:getClassName()*: the name of the hooked class
+* *hook:getMethodName()*: the name of the hooked method, on which a script shared by several definitions can branch
+* *hook:getParameterTypes()*: the parameter types of the definition as an array of class names
+* *hook:getReturnType()*: the return type of the definition as a class name, like to fake a value of the right type
 * For other functions, see [here](app/src/main/java/eu/faircode/xlua/XHook.java) for the available public methods
 
 The most important functions of *param* are:
@@ -161,29 +165,47 @@ A common problem when developing an Xposed module is getting [a context](https:/
 With XPrivacyLua you'll never have to worry about this because you can simply get a context like this:
 
 ```Lua
-	local context = param:getApplicationContext()
+    local context = param:getApplicationContext()
 ```
 
 You can write to the Android logcat using the *log* function:
 
 ```Lua
-	log('hello world')
-	log(some_object) -- will call toString()
+    log('hello world')
+    log(some_object) -- will call toString()
 ```
 
 A log line starts with the word *Log* followed by the package name and uid of the app and the name of the hook
 and ends with the log text. This way it is always clear which hook/app logging belongs to.
 
+You can hook a method of an object the script gets hold of, like a listener or the settings of a WebView,
+with the *hook* function:
+
+```Lua
+    hook(settings, 'setUserAgentString', function(when, param)
+        if when == 'before' then
+            log(param:getArgument(0))
+        end
+    end)
+```
+
+This hooks the methods with that name which the class of the object declares or inherits, once per definition.
+The function is called before and after each execution of them with *when* (*before* or *after*),
+a *param* like the one of the *before*/*after* functions, and the arguments given to *hook* after the function, if any.
+What it returns is not used; an error in it is written to the logcat, and a method which does not exist is only logged too.
+Inside a *before*/*after* function whose first parameter is named *hook* the global *hook* is hidden by that parameter,
+so name the parameter differently there, like [webview_constructor](app/src/main/assets/webview_constructor.lua) does.
+
 An error in the definition, like class or method not found, or a compile time or run time error of/in the Lua script will result in a status bar notification.
-By tapping on the error notification you can navigate to the app settings where you can tap on the corresponding **!**-icon to see the details of the error.
+Tapping the error notification opens the screen of the app, where the failed group has an error icon which shows the details of the error.
 
 *luajava.bindClass* and *luajava.newInstance* load classes with the context class loader of the current thread,
 which can be a class loader that does not know the classes of the app, like classes of Google Play services.
 To use such classes, load them with *param:findClass*:
 
 ```Lua
-	local cls = param:findClass('com.google.android.gms.location.DetectedActivity')
-	local detected = luajava.new(cls, 4, 100)
+    local cls = param:findClass('com.google.android.gms.location.DetectedActivity')
+    local detected = luajava.new(cls, 4, 100)
 ```
 
 A script is executed once per thread to define its functions, so a script should only define functions.
@@ -192,9 +214,9 @@ A script is executed once per thread to define its functions, so a script should
 If you need global caching, you can use something like this:
 
 ```Lua
-	local scope = param:getApplicationContext()
-	param:putValue(name, value, scope)
-	local value = param:getValue(name, scope)
+    local scope = param:getApplicationContext()
+    param:putValue(name, value, scope)
+    local value = param:getValue(name, scope)
 ```
 
 On the *Hooks* tab you can edit built-in definitions, which will result in making a copy of the definition.

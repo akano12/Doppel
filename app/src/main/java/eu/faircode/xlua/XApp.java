@@ -85,6 +85,16 @@ class XApp implements Parcelable {
         dest.writeTypedList(this.assignments);
     }
 
+    byte[] marshall() {
+        Parcel parcel = Parcel.obtain();
+        try {
+            writeToParcel(parcel, 0);
+            return parcel.marshall();
+        } finally {
+            parcel.recycle();
+        }
+    }
+
     protected XApp(Parcel in) {
         this.packageName = in.readString();
         this.uid = in.readInt();

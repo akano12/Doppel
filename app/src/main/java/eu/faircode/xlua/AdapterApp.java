@@ -20,7 +20,6 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -444,6 +443,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         HeaderHolder(View itemView) {
             super(itemView);
             tvHeader = itemView.findViewById(R.id.tvHeader);
+            ViewCompat.setAccessibilityHeading(tvHeader, true);
             ivExpand = itemView.findViewById(R.id.ivExpand);
             itemView.setOnClickListener(view -> {
                 int position = getBindingAdapterPosition();
@@ -620,9 +620,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 background = com.google.android.material.R.attr.colorSurfaceContainerLowest;
         }
         int color = Ui.color(context, background);
-        Ui.join(h.itemView, color, 20, item.first, item.last);
-        h.vDivider.setVisibility(item.first ? View.GONE : View.VISIBLE);
-        h.vDivider.setBackgroundColor(Ui.dividerColor(context, color));
+        Ui.joinRow(h.itemView, h.vDivider, color, item.first, item.last);
 
         Ui.loadIcon(h.ivIcon, app.packageName, app.icon);
         h.tvLabel.setText(app.getLabel());
@@ -634,7 +632,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     .setContentDescription(context.getString(R.string.badge_persistent) + ", " +
                             context.getString(R.string.title_apply_reboot));
         if (app.system)
-            Ui.addBadge(h.llBadges, context.getString(R.string.badge_system), Ui.Badge.NEUTRAL);
+            Ui.addBadge(h.llBadges, context.getString(R.string.title_filter_system), Ui.Badge.NEUTRAL);
 
         h.tvCoverage.setVisibility(View.GONE);
         h.btnAction.setVisibility(View.GONE);
@@ -643,7 +641,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             case ATTENTION:
             case NEW:
                 // A failed hook, or when a new app without restrictions was installed, see Row.getSection
-                summary = context.getString(row.error ? R.string.title_review_error : R.string.title_installed_ago,
+                summary = context.getString(row.error ? R.string.title_review_error : R.string.msg_installed,
                         Ui.ago(context, app.installed));
                 h.btnAction.setVisibility(View.VISIBLE);
                 h.btnAction.setText(row.canRestrictAll() ? R.string.title_restrict_all_groups : R.string.title_review);
@@ -654,7 +652,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             case RECENT:
                 // What was restricted last, else that the app was restricted, and when
                 boolean used = (row.used > 0 && row.used >= row.assigned);
-                summary = context.getString(R.string.title_last_used,
+                summary = context.getString(R.string.title_pair,
                         used ? Groups.getTitle(context, row.usedGroup) : context.getString(R.string.title_restrictions_added),
                         Ui.ago(context, row.getRecent()));
                 bindCoverage(h.tvCoverage, row);
@@ -664,7 +662,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 if (row.restricted == 0)
                     summary = context.getString(R.string.title_not_restricted);
                 else if (row.used > 0)
-                    summary = context.getString(R.string.title_last_used,
+                    summary = context.getString(R.string.title_pair,
                             Groups.getTitle(context, row.usedGroup), Ui.ago(context, row.used));
                 else
                     summary = context.getString(R.string.title_no_calls);
@@ -693,7 +691,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             tv.setContentDescription(context.getResources().getQuantityString(
                     R.plurals.title_groups_restricted, row.groups, row.restricted, row.groups));
         }
-        tv.setBackgroundTintList(ColorStateList.valueOf(Ui.color(context, background)));
+        tv.setBackgroundTintList(Ui.tint(context, background));
         tv.setTextColor(Ui.color(context, text));
         tv.setVisibility(View.VISIBLE);
     }

@@ -36,7 +36,6 @@ import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 
@@ -129,7 +128,7 @@ public class FragmentHooks extends FragmentBase {
             popup.inflate(R.menu.hooks);
             popup.setOnMenuItemClickListener(item -> {
                 if (item.getItemId() == R.id.menu_import)
-                    importLauncher.launch(new String[]{"application/json", "text/*", "application/octet-stream"});
+                    importLauncher.launch(Ui.MIME_JSON);
                 else if (item.getItemId() == R.id.menu_export)
                     exportLauncher.launch(Ui.datedFileName("hooks"));
                 return true;
@@ -218,10 +217,12 @@ public class FragmentHooks extends FragmentBase {
                 unavailable++;
             groups.add(hook.getGroup());
         }
-        tvSummary.setText(getResources().getQuantityString(R.plurals.title_hooks_summary, groups.size(), builtin, custom, groups.size()));
-        ((Chip) cgFilter.findViewById(R.id.chipCustom)).setText(getString(R.string.title_count, getString(R.string.title_hook_custom), custom));
-        ((Chip) cgFilter.findViewById(R.id.chipDisabled)).setText(getString(R.string.title_count, getString(R.string.title_hook_disabled), disabled));
-        ((Chip) cgFilter.findViewById(R.id.chipUnavailable)).setText(getString(R.string.title_count, getString(R.string.title_hook_unavailable_short), unavailable));
+        tvSummary.setText(getResources().getQuantityString(
+                R.plurals.title_hooks_summary, groups.size(), builtin, custom, groups.size()));
+        Ui.setChipCount(cgFilter, R.id.chipAll, R.string.title_all, all.size());
+        Ui.setChipCount(cgFilter, R.id.chipCustom, R.string.title_hook_custom, custom);
+        Ui.setChipCount(cgFilter, R.id.chipDisabled, R.string.title_hook_disabled, disabled);
+        Ui.setChipCount(cgFilter, R.id.chipUnavailable, R.string.title_hook_unavailable, unavailable);
 
         String q = (query == null ? "" : query.trim());
         List<Object> items = new ArrayList<>();
@@ -287,8 +288,7 @@ public class FragmentHooks extends FragmentBase {
         if (unavailable > 0)
             parts.add(getResources().getQuantityString(R.plurals.title_hook_unavailable_count, unavailable, unavailable));
         accordion.addGroup(context, items, group, Groups.getTitle(context, group), String.join(" · ", parts),
-                null, Groups.getIcon(group), hooks,
-                all.isEmpty() ? null : all.get(0).getGroup(),
+                null, Groups.getIcon(group), hooks, all.get(0).getGroup(),
                 filter != Filter.ALL || (query != null && !query.trim().isEmpty()),
                 this::show);
     }

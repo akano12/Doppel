@@ -45,6 +45,7 @@ import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,7 +62,7 @@ public class ActivityApp extends ActivityBase {
     private static final String EXTRA_UID = "uid";
 
     // Settings of an app which are no fake values, see ActivityValues
-    private static final Set<String> OPTIONS = new HashSet<>(java.util.Arrays.asList("forcestop", "notify"));
+    private static final Set<String> OPTIONS = new HashSet<>(Arrays.asList("forcestop", "notify"));
 
     private String packageName;
     private int uid;
@@ -73,6 +74,7 @@ public class ActivityApp extends ActivityBase {
     private boolean dirty = false; // Changed restrictions which do not apply yet
     private int changes = 0; // Changes made here, which a reload started before does not show yet
 
+    private MaterialToolbar toolbar;
     private View svContent;
     private View pbLoading;
     private CircularProgressIndicator piAll;
@@ -91,7 +93,6 @@ public class ActivityApp extends ActivityBase {
         View llRow;
         View flIcon;
         ImageView ivIcon;
-        TextView tvTitle;
         TextView tvMeta;
         ImageView ivExpand;
         MaterialSwitch swGroup;
@@ -115,7 +116,7 @@ public class ActivityApp extends ActivityBase {
         packageName = getIntent().getStringExtra(EXTRA_PACKAGE);
         uid = getIntent().getIntExtra(EXTRA_UID, -1);
 
-        MaterialToolbar toolbar = setupToolbar(packageName);
+        toolbar = setupToolbar(packageName);
         toolbar.inflateMenu(R.menu.app);
         toolbar.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
@@ -220,7 +221,6 @@ public class ActivityApp extends ActivityBase {
         this.app = app;
         uid = app.uid;
 
-        MaterialToolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setTitle(getLabel());
         // Most system apps cannot be opened
         toolbar.getMenu().findItem(R.id.menu_launch)
@@ -230,7 +230,7 @@ public class ActivityApp extends ActivityBase {
         ((TextView) findViewById(R.id.tvPackage)).setText(app.packageName);
         LinearLayout llBadges = findViewById(R.id.llBadges);
         llBadges.removeAllViews();
-        Ui.addBadge(llBadges, getString(app.system ? R.string.badge_system : R.string.title_filter_user), Ui.Badge.NEUTRAL);
+        Ui.addBadge(llBadges, getString(app.system ? R.string.title_filter_system : R.string.title_filter_user), Ui.Badge.NEUTRAL);
         Ui.addBadge(llBadges, getString(R.string.title_uid, app.uid), Ui.Badge.NEUTRAL);
         try {
             PackageInfo pi = getPackageManager().getPackageInfo(app.packageName, 0);
@@ -296,7 +296,9 @@ public class ActivityApp extends ActivityBase {
             Groups.sortByTitle(this, groups);
 
             View vSection = inflater.inflate(R.layout.item_section, llSections, false);
-            ((TextView) vSection.findViewById(R.id.tvSection)).setText(section);
+            TextView tvSection = vSection.findViewById(R.id.tvSection);
+            tvSection.setText(section);
+            ViewCompat.setAccessibilityHeading(tvSection, true);
             vSection.setTag(groups);
             LinearLayout llRows = vSection.findViewById(R.id.llRows);
             for (final String group : groups) {
@@ -305,7 +307,6 @@ public class ActivityApp extends ActivityBase {
                 gv.llRow = vGroup.findViewById(R.id.llRow);
                 gv.flIcon = vGroup.findViewById(R.id.flIcon);
                 gv.ivIcon = vGroup.findViewById(R.id.ivIcon);
-                gv.tvTitle = vGroup.findViewById(R.id.tvTitle);
                 gv.tvMeta = vGroup.findViewById(R.id.tvMeta);
                 gv.ivExpand = vGroup.findViewById(R.id.ivExpand);
                 gv.swGroup = vGroup.findViewById(R.id.swGroup);
@@ -313,7 +314,7 @@ public class ActivityApp extends ActivityBase {
                 gv.ibError = vGroup.findViewById(R.id.ibError);
                 gv.llHooks = vGroup.findViewById(R.id.llHooks);
                 String title = Groups.getTitle(this, group);
-                gv.tvTitle.setText(title);
+                ((TextView) vGroup.findViewById(R.id.tvTitle)).setText(title);
                 gv.ivIcon.setImageResource(Groups.getIcon(group));
                 TextView tvDescription = vGroup.findViewById(R.id.tvDescription);
                 String description = Groups.getDescription(this, group);
@@ -371,8 +372,8 @@ public class ActivityApp extends ActivityBase {
         boolean restricted = !assignments.isEmpty();
         int[] colors = (error ? COLORS_ERROR : restricted ? COLORS_RESTRICTED : COLORS_NONE);
         gv.tvMeta.setTextColor(Ui.color(this, colors[0]));
-        gv.flIcon.setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, colors[1])));
-        gv.ivIcon.setImageTintList(ColorStateList.valueOf(Ui.color(this, colors[2])));
+        gv.flIcon.setBackgroundTintList(Ui.tint(this, colors[1]));
+        gv.ivIcon.setImageTintList(Ui.tint(this, colors[2]));
         // A restricted group which did not restrict anything yet has nothing to say, the switch tells
         String meta;
         if (assignments.isEmpty())
@@ -393,7 +394,7 @@ public class ActivityApp extends ActivityBase {
 
         setPartial(gv.swGroup, gv.track, restricted && assignments.size() < hooks.size());
         gv.swGroup.setOnCheckedChangeListener(null);
-        gv.swGroup.setChecked(!assignments.isEmpty());
+        gv.swGroup.setChecked(restricted);
         // A switch with a dash applies all hooks of the group, like Restrict all; only a complete group is switched off
         gv.swGroup.setOnCheckedChangeListener((button, checked) -> assign(group, !isComplete(group)));
     }
@@ -426,7 +427,7 @@ public class ActivityApp extends ActivityBase {
             if (assignment == null) {
                 color = com.google.android.material.R.attr.colorOnSurfaceVariant;
                 dot = com.google.android.material.R.attr.colorOutline;
-                status = getString(R.string.title_hook_not_restricted);
+                status = getString(R.string.title_not_restricted);
             } else if (assignment.exception != null) {
                 color = dot = R.attr.colorWarning;
                 status = getString(R.string.title_hook_state_failed);
@@ -442,7 +443,7 @@ public class ActivityApp extends ActivityBase {
             TextView tvStatus = vHook.findViewById(R.id.tvStatus);
             tvStatus.setText(status);
             tvStatus.setTextColor(Ui.color(this, color));
-            vHook.findViewById(R.id.vDot).setBackgroundTintList(ColorStateList.valueOf(Ui.color(this, dot)));
+            vHook.findViewById(R.id.vDot).setBackgroundTintList(Ui.tint(this, dot));
 
             // Errors are shown with the button of the group
             MaterialSwitch swHook = vHook.findViewById(R.id.swHook);
@@ -493,7 +494,7 @@ public class ActivityApp extends ActivityBase {
         tvAllCount.setText(String.format(Locale.getDefault(), "%d", restricted));
         String summary = getResources().getQuantityString(R.plurals.title_groups_restricted, groups, restricted, groups);
         if (last > 0)
-            summary = getString(R.string.title_last_used, summary,
+            summary = getString(R.string.title_pair, summary,
                     getString(R.string.title_last_call, Groups.getTitle(this, lastGroup), Ui.ago(this, last)));
         tvSummary.setText(summary);
         swAll.setChecked(restricted > 0);
@@ -508,9 +509,7 @@ public class ActivityApp extends ActivityBase {
             for (String group : groupsOf)
                 if (!app.getAssignments(group).isEmpty())
                     count++;
-            TextView tvCount = vSection.findViewById(R.id.tvCount);
-            tvCount.setText(getString(R.string.title_of, count, groupsOf.size()));
-            tvCount.setVisibility(View.VISIBLE);
+            ((TextView) vSection.findViewById(R.id.tvCount)).setText(getString(R.string.title_of, count, groupsOf.size()));
         }
     }
 
@@ -532,7 +531,7 @@ public class ActivityApp extends ActivityBase {
     }
 
     private void assign(String group, boolean assign) {
-        assign(Collections.singletonList(group), available.get(group), assign);
+        assign(Collections.singletonList(group), assign);
     }
 
     private void assign(List<String> groups, boolean assign) {
