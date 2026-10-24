@@ -13,6 +13,19 @@ the same restrictions and hook definitions under a new name, with a new interfac
 <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Apps"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Screen of an app"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Activity"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Hooks">
 <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Hook editor"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Downloads"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Settings"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Dark theme">
 
+Why Doppel
+----------
+
+In German folklore, a doppelgänger, a "double-goer", is a person's ghostly twin:
+it looks like you, walks like you, answers like you, and isn't you.
+
+Doppel gives you that double, for every app on your phone.
+When an app asks for your location, your contacts or your device ID, your double answers in your place.
+The answers look real, so the app keeps working, but they lead nowhere and the app learns nothing true about you.
+
+The logo shows the same idea: a sinister mask in front, an innocent face behind it.
+Apps only ever meet the mask.
+
 Features
 --------
 
