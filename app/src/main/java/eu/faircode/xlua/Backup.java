@@ -116,8 +116,7 @@ class Backup {
                 Data.putSetting(context,
                         jsetting.getString("category"),
                         jsetting.getString("name"),
-                        jsetting.isNull("value") ? null : jsetting.getString("value"),
-                        false);
+                        jsetting.isNull("value") ? null : jsetting.getString("value"));
                 settings++;
             }
 

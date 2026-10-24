@@ -41,7 +41,15 @@ final class LauncherIcons {
     static final int[] TITLES = {
             R.string.title_icon_masks, R.string.title_icon_split, R.string.title_icon_twod, R.string.title_icon_echo};
 
+    // A screen waits for the result of another app, like the file picker of a backup: the screen would be closed
+    // with it when the icon is switched, so the result would be lost
+    private static boolean awaitingResult = false;
+
     private LauncherIcons() {
+    }
+
+    static void setAwaitingResult(boolean awaiting) {
+        awaitingResult = awaiting;
     }
 
     private static ComponentName getComponent(Context context, int index) {
@@ -54,13 +62,16 @@ final class LauncherIcons {
         return (chosen < 0 ? getEnabled(context) : chosen);
     }
 
-    static void choose(Context context, int index) {
+    // True when the icon is switched to later, false for the icon of the launcher, which cancels a choice made before
+    static boolean choose(Context context, int index) {
+        boolean pending = (index != getEnabled(context));
         SharedPreferences.Editor editor = getPreferences(context).edit();
-        if (index == getEnabled(context))
-            editor.remove(PREF_CHOSEN);
-        else
+        if (pending)
             editor.putInt(PREF_CHOSEN, index);
+        else
+            editor.remove(PREF_CHOSEN);
         editor.apply();
+        return pending;
     }
 
     private static int getEnabled(Context context) {
@@ -83,7 +94,7 @@ final class LauncherIcons {
 
             @Override
             public void onActivityStopped(@NonNull Activity activity) {
-                if (--started == 0 && !activity.isChangingConfigurations()) {
+                if (--started == 0 && !activity.isChangingConfigurations() && !awaitingResult) {
                     int chosen = getPreferences(app).getInt(PREF_CHOSEN, -1);
                     if (chosen >= 0) {
                         enable(app, chosen);

@@ -7,7 +7,5 @@
 .DS_Store
 /build
 /captures
-.externalNativeBuild
-.cxx
 /app/release
 keystore.properties

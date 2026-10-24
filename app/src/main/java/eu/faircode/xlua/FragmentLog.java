@@ -385,6 +385,8 @@ public class FragmentLog extends FragmentBase {
             EntryHolder h = (EntryHolder) holder;
             Context context = h.itemView.getContext();
             boolean error = (entry.exception != null);
+            // Without an action the row is no button, like a restriction in the log of one app, see onClick
+            h.itemView.setClickable(error || only == null);
 
             // The rows of a day form one block, failed hooks are on the error color
             int background = Ui.color(context, error

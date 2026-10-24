@@ -4651,7 +4651,6 @@
     "minSdk": 3,
     "luaScript": "@generic_block"
   },
-  // Record audio
   // https://developer.android.com/reference/android/media/AudioManager.html
   // https://developer.android.com/reference/android/media/MediaRecorder.html
   {
@@ -4679,7 +4678,7 @@
     ],
     "returnType": "[Landroid.media.AudioDeviceInfo;",
     "minSdk": 23,
-    "luaScript": "@audiomanager_getdevices"
+    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -6986,6 +6985,7 @@
     "group": "Use.Tracking",
     "name": "MediaDrm.getPropertyByteArray",
     "author": "LuigiVampa92",
+    "description": "DRM manager will return fake unique device and provisioning IDs",
     "className": "android.media.MediaDrm",
     "methodName": "getPropertyByteArray",
     "parameterTypes": [
@@ -6993,8 +6993,7 @@
     ],
     "returnType": "byte[]",
     "minSdk": 18,
-    "luaScript": "@mediadrm_unique_id",
-    "description": "DRM manager will return fake unique device and provisioning IDs"
+    "luaScript": "@mediadrm_unique_id"
   },
   // The device name is often set to the name of the owner
   {

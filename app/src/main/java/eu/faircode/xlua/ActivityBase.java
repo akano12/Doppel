@@ -20,6 +20,7 @@
 
 package eu.faircode.xlua;
 
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
@@ -61,6 +62,25 @@ public class ActivityBase extends AppCompatActivity {
         ApplicationEx.applyPalette(this);
         EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
+    }
+
+    // The icon of the launcher is not switched while another app returns a result, see LauncherIcons
+    @Override
+    public void startActivityForResult(Intent intent, int requestCode, @Nullable Bundle options) {
+        if (requestCode >= 0)
+            LauncherIcons.setAwaitingResult(true);
+        try {
+            super.startActivityForResult(intent, requestCode, options);
+        } catch (RuntimeException ex) {
+            LauncherIcons.setAwaitingResult(false);
+            throw ex;
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        LauncherIcons.setAwaitingResult(false);
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     // The layout keeps clear of the system bars, display cutouts and the keyboard

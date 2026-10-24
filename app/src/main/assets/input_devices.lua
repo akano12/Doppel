@@ -35,16 +35,20 @@ function after(hook, param)
         return true, result:getName(), nil
     end
 
-    -- InputManager.getInputDeviceIds, InputDevice.getDeviceIds
-    local inputDevice = luajava.bindClass('android.view.InputDevice')
-    local kept = {}
-    for index = 1, result['length'] do
-        -- Hooked too: nil for external devices, as for devices which were removed meanwhile
-        local device = inputDevice:getDevice(result[index])
-        if device ~= nil and not device:isExternal() then
-            kept[#kept + 1] = result[index]
+    -- InputManager.getInputDeviceIds, InputDevice.getDeviceIds; the lookups of the devices are hooked themselves
+    -- (getInputDevice and getDevice), which would report them as calls of the app
+    local kept = param:unhooked(function()
+        local inputDevice = luajava.bindClass('android.view.InputDevice')
+        local ids = {}
+        for index = 1, result['length'] do
+            -- nil for devices which were removed meanwhile
+            local device = inputDevice:getDevice(result[index])
+            if device ~= nil and not device:isExternal() then
+                ids[#ids + 1] = result[index]
+            end
         end
-    end
+        return ids
+    end)
     if #kept == result['length'] then
         return false
     end

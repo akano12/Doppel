@@ -11,7 +11,7 @@
 <li>Fake values for all apps or per app</li>
 <li>A log of what each app tried, with the real and the fake value</li>
 <li>Extensible with your own hook definitions and definitions shared by others</li>
-<li>Light and dark theme, color themes and a pure black background</li>
+<li>Light and dark theme, accent colors, a pure black background and a choice of app icons</li>
 <li>Multi-user support</li>
 <li>Free and open source</li>
 </ul>

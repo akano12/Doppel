@@ -10,10 +10,10 @@
         android:scaleY="0.66"
         android:translateX="20.4"
         android:translateY="21.3">
-            <group
-                android:pivotX="36"
-                android:pivotY="44"
-                android:rotation="-16">
+        <group
+            android:pivotX="36"
+            android:pivotY="44"
+            android:rotation="-16">
             <path
                 android:fillColor="#6E6E73"
                 android:pathData="M15.76 21.92 Q36 13.64 56.24 21.92 C59 45.84 49.8 67.92 36 72.52 C22.2 67.92 13 45.84 15.76 21.92 Z" />
@@ -25,11 +25,11 @@
                 android:strokeColor="#0B0B0C"
                 android:strokeWidth="3.68"
                 android:strokeLineCap="round" />
-            </group>
-            <group
-                android:pivotX="62"
-                android:pivotY="56"
-                android:rotation="12">
+        </group>
+        <group
+            android:pivotX="62"
+            android:pivotY="56"
+            android:rotation="12">
             <path
                 android:fillColor="#F5F5F5"
                 android:pathData="M40.44 32.48 Q62 23.66 83.56 32.48 C86.5 57.96 76.7 81.48 62 86.38 C47.3 81.48 37.5 57.96 40.44 32.48 Z"
@@ -38,6 +38,6 @@
             <path
                 android:fillColor="#0B0B0C"
                 android:pathData="M46.32 43.26 L59.06 50.12 L48.28 54.04 Z M77.68 43.26 L64.94 50.12 L75.72 54.04 Z M49.26 62.86 Q62 79.52 74.74 62.86 Q62 70.7 49.26 62.86 Z" />
-            </group>
+        </group>
     </group>
 </vector>

@@ -347,7 +347,7 @@ public class FragmentHooks extends FragmentBase {
     }
 
     // Where a hook applies, like android.os.Build#SERIAL or TelephonyManager.getImei(int)
-    static String getTarget(XHook hook) {
+    private static String getTarget(XHook hook) {
         StringBuilder sb = new StringBuilder(hook.getClassName());
         String method = hook.getMethodName();
         if (method != null && method.startsWith("#"))

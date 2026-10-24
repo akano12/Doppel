@@ -43,16 +43,31 @@ local FAKES = {
     getSimSpecificCarrierId = -1,
 }
 
+-- Whether a code of 0 is empty: getMcc and getMnc of a subscription give 0 without its codes. No MCC is 0,
+-- but an MNC can be (00), which is empty when the MCC is; the MCC is read without its hook, which would fake it
+function nocode(method, param)
+    if method == 'getMcc' then
+        return true
+    elseif method == 'getMnc' then
+        local this = param:getThis()
+        return (param:unhooked(function()
+            return this:getMcc()
+        end) == 0)
+    end
+    return false
+end
+
 function after(hook, param)
+    local method = hook:getMethodName()
     local result = param:getResult()
     if type(result) == 'userdata' then
         result = result:toString() -- CharSequence
     end
-    if result == nil or result == '' then
+    if result == nil or result == '' or (result == 0 and nocode(method, param)) then
         return false
     end
 
-    local fake = FAKES[hook:getMethodName()]
+    local fake = FAKES[method]
     if fake == nil or fake == result then
         return false
     end

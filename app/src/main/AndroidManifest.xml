@@ -10,7 +10,7 @@
 
     <!-- Backups are off; the extraction rules of Android 12 and later exclude everything as well -->
     <application
-        android:name="ApplicationEx"
+        android:name=".ApplicationEx"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:appCategory="productivity"

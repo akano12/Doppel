@@ -236,7 +236,7 @@
                     </HorizontalScrollView>
                 </LinearLayout>
 
-                <!-- Color themes, see FragmentSettings.showPalettes -->
+                <!-- The accent color, see FragmentSettings.showPalettes -->
                 <LinearLayout style="@style/XLua.Row">
 
                     <TextView

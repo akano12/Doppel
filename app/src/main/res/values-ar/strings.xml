@@ -35,7 +35,6 @@
     <string name="group_record_video">تسجيل الفيديو</string>
     <string name="group_send_messages">إرسال رسائل</string>
     <string name="group_use_analytics">استخدام أنشطة التحليلات</string>
-    <string name="group_use_camera">استخدام الكاميرا
- </string>
+    <string name="group_use_camera">استخدام الكاميرا</string>
     <string name="group_use_tracking">استخدام أنشطة التتبع</string>
 </resources>

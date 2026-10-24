@@ -286,9 +286,11 @@ public class FragmentSettings extends FragmentBase {
         Context context = requireContext();
         if (index == LauncherIcons.getSelected(context))
             return;
-        LauncherIcons.choose(context, index);
+        boolean pending = LauncherIcons.choose(context, index);
         showIcons();
-        Ui.message(requireActivity(), getString(R.string.msg_launcher_icon));
+        // Going back to the icon of the launcher changes nothing
+        if (pending)
+            Ui.message(requireActivity(), getString(R.string.msg_launcher_icon));
     }
 
     // The default palette is no setting; screens are recreated with the new colors

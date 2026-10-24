@@ -27,8 +27,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-// Scripts which fake values of the device (system properties, the operator, the battery, the security patch)
-// with Lua stand-ins, like LocationScriptTest
+// Scripts which fake values of the device (system properties, the operator, the battery, the security patch,
+// memory and storage, input devices and biometrics) with Lua stand-ins, like LocationScriptTest
 public class DeviceValuesScriptTest {
     private static final String STUBS = String.join("\n",
             "function hookof(name, method)",
@@ -141,6 +141,22 @@ public class DeviceValuesScriptTest {
         assertFalse(operator(globals, "getSimOperatorName", "''").arg1().toboolean());
         assertFalse(operator(globals, "getSimCarrierId", "-1").arg1().toboolean());
         assertFalse(operator(globals, "getOperatorNumeric", "nil").arg1().toboolean());
+
+        // The codes of a subscription are 0 without codes; an MNC of 0 (00) of a subscription with an MCC is a code
+        assertFalse(operator(globals, "getMcc", "0").arg1().toboolean());
+        assertFalse(subscription(globals, "getMnc", 0, 0).arg1().toboolean());
+        result = subscription(globals, "getMnc", 0, 460);
+        assertTrue(result.arg1().toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertEquals(1, operator(globals, "getMcc", "262").arg(2).toint());
+    }
+
+    // A code of a subscription, which getMcc of it tells whether the subscription has codes
+    private Varargs subscription(Globals globals, String method, int result, int mcc) {
+        return run(globals, "local param = paramof(" + result + ", {})\n" +
+                "param.getThis = function(self) return { getMcc = function(self) return " + mcc + " end } end\n" +
+                "param.unhooked = function(self, fn) return fn() end\n" +
+                "return run(hookof('SubscriptionInfo." + method + "', '" + method + "'), param)");
     }
 
     // Stand-ins of the package manager, the system dialer and the configuration of the system, which are stubs
@@ -386,5 +402,121 @@ public class DeviceValuesScriptTest {
             assertTrue(method, result.arg1().toboolean());
             assertEquals(method, 60, result.arg(2).toint());
         }
+    }
+
+    @Test
+    public void sizesAreRounded() throws Exception {
+        Globals globals = load("resources");
+        // 3919 MiB of memory is sold as 4 GiB, 118 GB of storage as 128 GB, free space has two digits
+        assertEquals(4294967296L, run(globals, "return memorysize(4109369344)").arg1().tolong());
+        assertEquals(128000000000L, run(globals, "return storagesize(118000000000)").arg1().tolong());
+        assertEquals(7900, run(globals, "return freesize(7917)").arg1().toint());
+        assertEquals(99, run(globals, "return freesize(99)").arg1().toint());
+
+        Varargs result = run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(118000000000, {}))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(128000000000L, result.arg(2).tolong());
+        // Small file systems keep their size
+        assertFalse(run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(500000000, {}))")
+                .arg1().toboolean());
+
+        // The memory info of the app is changed in place
+        result = run(globals, "local info = { totalMem = 4109369344, availMem = 1234567890 }\n" +
+                "local restricted = after(hookof('ActivityManager.getMemoryInfo', 'getMemoryInfo'), paramof(nil, { [0] = info }))\n" +
+                "return restricted, info.totalMem, info.availMem");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(4294967296L, result.arg(2).tolong());
+        assertEquals(1200000000L, result.arg(3).tolong());
+    }
+
+    // Input devices by id and luajava for the lookups, which must not run the hooks (see XParam.unhooked)
+    private static final String INPUT = String.join("\n",
+            Scripts.ARRAYOF,
+            "function deviceof(external, name)",
+            "  return { isExternal = function(self) return external end, getName = function(self) return name end }",
+            "end",
+            "devices = { [1] = deviceof(false, 'touchscreen'), [7] = deviceof(true, 'keyboard') }",
+            "unhooked = false",
+            "luajava = { bindClass = function(name)",
+            "  if name == 'android.view.InputDevice' then",
+            "    return { getDevice = function(self, id) assert(unhooked, 'hooked lookup') return devices[id] end }",
+            "  elseif name == 'java.lang.Integer' then",
+            "    return { TYPE = 'int' }",
+            "  end",
+            "  assert(name == 'java.lang.reflect.Array', name)",
+            "  return { newInstance = function(self, type, size) assert(type == 'int') return { length = size } end }",
+            "end }",
+            "function inputparamof(result)",
+            "  local param = paramof(result, {})",
+            "  param.unhooked = function(self, fn) unhooked = true local value = fn() unhooked = false return value end",
+            "  return param",
+            "end");
+
+    @Test
+    public void externalInputDevicesAreHidden() throws Exception {
+        Globals globals = Scripts.load("input_devices", STUBS + "\n" + INPUT);
+        // The keyboard and a device which was removed meanwhile (9) are left out
+        Varargs result = run(globals, "local param = inputparamof(arrayof(1, 7, 9))\n" +
+                "local restricted = after(hookof('InputManager.getInputDeviceIds', 'getInputDeviceIds'), param)\n" +
+                "return restricted, param.result.length, param.result[1]");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertEquals(1, result.arg(3).toint());
+        assertFalse(run(globals, "return run(hookof('InputDevice.getDeviceIds', 'getDeviceIds'), inputparamof(arrayof(1)))")
+                .arg1().toboolean());
+
+        result = run(globals, "return run(hookof('InputDevice.getDevice', 'getDevice'), inputparamof(devices[7]))");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertFalse(run(globals, "return run(hookof('InputManager.getInputDevice', 'getInputDevice'), inputparamof(devices[1]))")
+                .arg1().toboolean());
+    }
+
+    // A param of BiometricManager with the values of the scopes, like XParam.putValue
+    private static final String BIOMETRIC = String.join("\n",
+            "values = {}",
+            "function biometricparamof(result, authenticators, this)",
+            "  local param = paramof(result, { [0] = authenticators })",
+            "  param.setArgument = function(self, index, value) authenticators = value end",
+            "  param.getArgument = function(self, index) return authenticators end",
+            "  param.getException = function(self) return nil end",
+            "  param.getThis = function(self) return this end",
+            "  param.putValue = function(self, name, value, scope) values[name .. tostring(scope)] = value end",
+            "  param.getValue = function(self, name, scope) return values[name .. tostring(scope)] end",
+            "  return param",
+            "end");
+
+    @Test
+    public void biometricsAreTheScreenLockOnly() throws Exception {
+        Globals globals = Scripts.load("biometrics_credential", STUBS + "\n" + BIOMETRIC);
+        // BIOMETRIC_WEAK and DEVICE_CREDENTIAL become DEVICE_CREDENTIAL; biometrics only, the screen lock only
+        // and authenticators which are an error stay
+        Varargs result = run(globals, "local param = biometricparamof(nil, 33023)\n" +
+                "local restricted = before(hookof('BiometricManager.getStrings', 'getStrings'), param)\n" +
+                "return restricted, param:getArgument(0)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(32768, result.arg(2).toint());
+        for (String authenticators : new String[]{"255", "32768", "33024"})
+            assertFalse(authenticators, run(globals, "return before(hookof('BiometricManager.getStrings', 'getStrings'), " +
+                    "biometricparamof(nil, " + authenticators + "))").arg1().toboolean());
+
+        // There was no biometric authentication, the screen lock keeps its time
+        result = run(globals, "return run(hookof('BiometricManager.getLastAuthenticationTime', 'getLastAuthenticationTime'), " +
+                "biometricparamof(1234, 15))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(-1, result.arg(2).toint());
+        assertFalse(run(globals, "return run(hookof('BiometricManager.getLastAuthenticationTime', 'getLastAuthenticationTime'), " +
+                "biometricparamof(1234, 32768))").arg1().toboolean());
+
+        // The texts of biometrics only are none, the texts of the screen lock stay
+        result = run(globals, "local strings = {}\n" +
+                "after(hookof('BiometricManager.getStrings', 'getStrings'), biometricparamof(strings, 15))\n" +
+                "return run(hookof('BiometricManager.Strings.getButtonLabel', 'getButtonLabel'), biometricparamof('Use fingerprint', 0, strings))");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertFalse(run(globals, "local strings = {}\n" +
+                "after(hookof('BiometricManager.getStrings', 'getStrings'), biometricparamof(strings, 32768))\n" +
+                "return run(hookof('BiometricManager.Strings.getButtonLabel', 'getButtonLabel'), biometricparamof('Use PIN', 0, strings))")
+                .arg1().toboolean());
     }
 }

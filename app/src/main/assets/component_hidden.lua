@@ -55,8 +55,9 @@ end
 function before(hook, param)
     local method = hook:getMethodName()
 
-    -- Instrumentation.execStartActivities(AsUser): the first screen of a hidden app which cannot be found
-    if method == 'execStartActivities' or method == 'execStartActivitiesAsUser' then
+    -- Instrumentation.execStartActivitiesAsUser, which execStartActivities calls:
+    -- the first screen of a hidden app which cannot be found
+    if method == 'execStartActivitiesAsUser' then
         local intents = param:getArgument(4)
         if intents == nil then
             return false

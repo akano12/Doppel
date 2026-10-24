@@ -642,8 +642,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             case ATTENTION:
             case NEW:
                 // A failed hook, or when a new app without restrictions was installed, see Row.getSection
-                summary = context.getString(row.error ? R.string.title_review_error : R.string.msg_installed,
-                        Ui.ago(context, app.installed));
+                summary = (row.error
+                        ? context.getString(R.string.title_review_error)
+                        : context.getString(R.string.msg_installed, Ui.ago(context, app.installed)));
                 h.btnAction.setVisibility(View.VISIBLE);
                 h.btnAction.setText(row.canRestrictAll() ? R.string.title_restrict_all_groups : R.string.title_review);
                 // Screen readers tell which app the button is for

@@ -329,8 +329,15 @@ public class XHook implements Parcelable {
         hook.minApk = (jroot.has("minApk") ? jroot.getInt("minApk") : 0);
         hook.maxApk = (jroot.has("maxApk") ? jroot.getInt("maxApk") : Integer.MAX_VALUE);
 
-        hook.excludePackages = (jroot.has("excludePackages")
-                ? jroot.getString("excludePackages").split(",") : null);
+        // Patterns separated by commas, spaces around them do not count
+        if (jroot.has("excludePackages")) {
+            List<String> patterns = new ArrayList<>();
+            for (String pattern : jroot.getString("excludePackages").split(","))
+                if (!pattern.trim().isEmpty())
+                    patterns.add(pattern.trim());
+            hook.excludePackages = patterns.toArray(new String[0]);
+        } else
+            hook.excludePackages = null;
 
         hook.enabled = (jroot.has("enabled") ? jroot.getBoolean("enabled") : true);
         hook.optional = (jroot.has("optional") ? jroot.getBoolean("optional") : false);

@@ -49,10 +49,11 @@ final class XNotify {
 
     // The tags of all notifications start with xlua_, the id is the uid of the app
     private static final String TAG_PREFIX = "xlua_";
+    private static final String TAG_NEW_APP = TAG_PREFIX + "new_app";
+    private static final String TAG_EXCEPTION = TAG_PREFIX + "exception";
+    private static final String TAG_USAGE = TAG_PREFIX + "use_"; // + group
+
     private static final String APP_NAME = "Doppel"; // Like app_name, which is not translated
-    private static final String TAG_NEW_APP = "xlua_new_app";
-    private static final String TAG_EXCEPTION = "xlua_exception";
-    private static final String TAG_USAGE = "xlua_use_"; // + group
 
     // Resources of the module version which runs, see loadResources
     private static volatile Resources resources = null;

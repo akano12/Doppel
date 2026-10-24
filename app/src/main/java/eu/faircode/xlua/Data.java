@@ -209,9 +209,9 @@ final class Data {
                 : context.getResources().getQuantityString(R.plurals.msg_restricted_apps, apps, apps));
     }
 
-    // Assign or remove hooks, which stops the app when it is stopped automatically
+    // Assign or remove hooks, which stops the app when it is stopped automatically, unless it is persistent
     static void assign(Context context, XApp app, List<XHook> hooks, boolean assign) {
-        assignHooks(context, getIds(hooks), app.packageName, app.uid, !assign, app.forceStop, false);
+        assignHooks(context, getIds(hooks), app.packageName, app.uid, !assign, app.forceStop && !app.persistent, false);
     }
 
     private static ArrayList<String> getIds(List<XHook> hooks) {

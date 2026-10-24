@@ -7,7 +7,7 @@
     <attr name="colorSuccessContainer" format="color" />
     <attr name="colorOnSuccessContainer" format="color" />
 
-    <!-- The splash screen of the main screen: the app icon on its plum, in light and dark alike, see ActivityMain -->
+    <!-- The splash screen of the main screen: the two masks of the default app icon on its black, in light and dark alike, see ActivityMain -->
     <style name="Theme.XLua.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
@@ -192,7 +192,7 @@
         <item name="android:background">@drawable/bg_pill</item>
     </style>
 
-    <!-- Word next to the title of a tab, like Active, with an icon in front; the colors are set from code -->
+    <!-- State word with an icon in front, like Installed in Downloads; the icon is set from code -->
     <style name="XLua.StatusChip" parent="">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">28dp</item>

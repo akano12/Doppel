@@ -367,11 +367,18 @@ public class FragmentApps extends FragmentBase {
                         apps.add(row.app);
                     // The question tells which way, the restrictions of the shown apps are known
                     final List<XApp> restricting = getRestricting(apps, group);
-                    if (restricting.isEmpty())
-                        Ui.areYouSure(context,
-                                getResources().getQuantityString(R.plurals.msg_bulk_add_sure, apps.size(), title, apps.size()),
-                                R.string.menu_add, () -> bulk(group, title, apps, true));
-                    else
+                    if (restricting.isEmpty()) {
+                        // Like restricting all groups, adding leaves out system server, which can bootloop
+                        final List<XApp> adding = new ArrayList<>();
+                        for (XApp app : apps)
+                            if (!"android".equals(app.packageName))
+                                adding.add(app);
+                        if (!adding.isEmpty())
+                            Ui.areYouSure(context,
+                                    getResources().getQuantityString(R.plurals.msg_bulk_add_sure, adding.size(),
+                                            title, adding.size()),
+                                    R.string.menu_add, () -> bulk(group, title, adding, true));
+                    } else
                         Ui.areYouSure(context,
                                 getResources().getQuantityString(R.plurals.msg_bulk_remove_sure, restricting.size(),
                                         title, restricting.size(), apps.size()),

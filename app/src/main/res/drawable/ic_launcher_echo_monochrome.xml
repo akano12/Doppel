@@ -10,19 +10,19 @@
         android:scaleY="0.66"
         android:translateX="21.6"
         android:translateY="21.9">
-            <group
-                android:translateX="13"
-                android:translateY="-9">
+        <group
+            android:translateX="13"
+            android:translateY="-9">
             <path
                 android:fillAlpha="0.5"
                 android:pathData="M22 30 Q44 21 66 30 C69 56 59 80 44 85 C29 80 19 56 22 30 Z"
                 android:strokeColor="#FFFFFFFF"
                 android:strokeWidth="4.5"
                 android:strokeAlpha="0.5" />
-            </group>
-            <path
-                android:fillColor="#FFFFFFFF"
-                android:pathData="M22 30 Q44 21 66 30 C69 56 59 80 44 85 C29 80 19 56 22 30 Z M28 41 L41 48 L30 52 Z M60 41 L47 48 L58 52 Z M31 61 Q44 78 57 61 Q44 69 31 61 Z"
-                android:fillType="evenOdd" />
+        </group>
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M22 30 Q44 21 66 30 C69 56 59 80 44 85 C29 80 19 56 22 30 Z M28 41 L41 48 L30 52 Z M60 41 L47 48 L58 52 Z M31 61 Q44 78 57 61 Q44 69 31 61 Z"
+            android:fillType="evenOdd" />
     </group>
 </vector>

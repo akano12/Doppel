@@ -35,7 +35,7 @@ Features
 * Fake values for all apps or per app
 * A log of what each app tried, with the real and the fake value
 * [Extensible](DEFINE.md) with your own hook definitions and definitions shared by others
-* Light and dark theme, color themes and a pure black background
+* Light and dark theme, accent colors, a pure black background and a choice of app icons
 * Multi-user support
 * Free and open source
 

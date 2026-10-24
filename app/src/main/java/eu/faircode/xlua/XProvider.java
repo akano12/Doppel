@@ -56,10 +56,15 @@ import java.util.Set;
 class XProvider {
     private static final String TAG = "XLua.Provider";
 
-    // Selections of the rows of an app and of one of its assignments; the arguments are the package name,
-    // the uid as a string and the hook id
+    // Selections of the rows of an app and of one of its assignments or groups; the arguments are the package name,
+    // the uid as a string and the hook id or the group name
     private static final String WHERE_APP = "package = ? AND uid = ?";
     private static final String WHERE_ASSIGNMENT = "package = ? AND uid = ? AND hook = ?";
+    private static final String WHERE_GROUP = "package = ? AND uid = ? AND name = ?";
+    // Selection of the rows of the apps of a user, see getUidRange
+    private static final String WHERE_USER = "uid >= ? AND uid <= ?";
+    // Selection of a setting: the user, the category and the name
+    private static final String WHERE_SETTING = "user = ? AND category = ? AND name = ?";
 
     // Loading and changing the definitions is serialized; the maps are replaced instead of changed,
     // so they are read without the lock, also during database calls
@@ -281,10 +286,17 @@ class XProvider {
         }
 
         // The database is written first, so a definition which could not be stored is not active either
+        // A deleted definition which did not replace a built-in definition leaves no hook to assign:
+        // its assignments would not be shown anymore, but still be backed up and count for answers
+        final boolean orphan = (hook == null && !builtins.containsKey(id));
         db.write(d -> {
-            if (hook == null)
+            if (hook == null) {
                 d.delete("hook", "id = ?", new String[]{id});
-            else {
+                if (orphan) {
+                    int rows = d.delete("assignment", "hook = ?", new String[]{id});
+                    Log.i(TAG, "Deleted assignments hook=" + id + " rows=" + rows);
+                }
+            } else {
                 ContentValues cv = new ContentValues();
                 cv.put("id", id);
                 cv.put("definition", hook.toJSON());
@@ -433,7 +445,7 @@ class XProvider {
         Set<String> assigned = new HashSet<>();
         String[] range = (user == null ? null : getUidRange(user));
         try (Cursor cursor = d.query("assignment", new String[]{"package", "uid", "hook"},
-                range == null ? null : "uid >= ? AND uid <= ?", range, null, null, null)) {
+                range == null ? null : WHERE_USER, range, null, null, null)) {
             while (cursor.moveToNext()) {
                 String key = cursor.getInt(1) + ":" + cursor.getString(0);
                 assigned.add(key + "/" + cursor.getString(2));
@@ -561,7 +573,7 @@ class XProvider {
             // Assigned hooks
             try (Cursor cursor = d.query("assignment",
                     new String[]{"package", "uid", "hook", "installed", "used", "restricted", "exception", "assigned"},
-                    "uid >= ? AND uid <= ?", getUidRange(userid), null, null, null)) {
+                    WHERE_USER, getUidRange(userid), null, null, null)) {
                 while (cursor.moveToNext()) {
                     String pkg = cursor.getString(0);
                     XApp app = apps.get(pkg);
@@ -639,8 +651,7 @@ class XProvider {
             // Notify about usage again
             if (!delete)
                 for (String group : groups)
-                    d.delete("`group`", "package = ? AND uid = ? AND name = ?",
-                            new String[]{packageName, Integer.toString(uid), group});
+                    d.delete("`group`", WHERE_GROUP, new String[]{packageName, Integer.toString(uid), group});
             return null;
         });
 
@@ -754,10 +765,8 @@ class XProvider {
 
             long last = -1;
             if (countGroup) {
-                try (Cursor cursor = d.query("`group`", new String[]{"used"},
-                        "package = ? AND uid = ? AND name = ?",
-                        new String[]{packageName, Integer.toString(uid), hook.getGroup()},
-                        null, null, null)) {
+                try (Cursor cursor = d.query("`group`", new String[]{"used"}, WHERE_GROUP,
+                        new String[]{packageName, Integer.toString(uid), hook.getGroup()}, null, null, null)) {
                     if (cursor.moveToNext())
                         last = cursor.getLong(0);
                 }
@@ -816,7 +825,7 @@ class XProvider {
         final String[] range = getUidRange(Util.getUserId(Binder.getCallingUid()));
         return db.read(d -> {
             Cursor cursor = d.query("assignment", new String[]{"package", "uid", "hook"},
-                    "uid >= ? AND uid <= ?", range, null, null, "package, hook");
+                    WHERE_USER, range, null, null, "package, hook");
             // Fill the cursor window while holding the lock
             cursor.getCount();
             return cursor;
@@ -832,7 +841,7 @@ class XProvider {
         return db.read(d -> {
             Cursor cursor = d.query("assignment",
                     new String[]{"package", "uid", "hook", "used", "old", "new"},
-                    "restricted = 1 AND uid >= ? AND uid <= ?", range,
+                    "restricted = 1 AND " + WHERE_USER, range,
                     null, null, "used DESC");
             // Fill the cursor window while holding the lock
             cursor.getCount();
@@ -902,8 +911,8 @@ class XProvider {
                 d.delete("hook", null, null);
             } else {
                 String[] range = getUidRange(userid);
-                d.delete("assignment", "uid >= ? AND uid <= ?", range);
-                d.delete("`group`", "uid >= ? AND uid <= ?", range);
+                d.delete("assignment", WHERE_USER, range);
+                d.delete("`group`", WHERE_USER, range);
                 d.delete("setting", "user = ?", new String[]{Integer.toString(userid)});
             }
             return null;
@@ -945,10 +954,8 @@ class XProvider {
 
     // The value of a setting, null when it is not set
     private static String readSetting(SQLiteDatabase d, int userid, String category, String name) {
-        try (Cursor cursor = d.query("setting", new String[]{"value"},
-                "user = ? AND category = ? AND name = ?",
-                new String[]{Integer.toString(userid), category, name},
-                null, null, null)) {
+        try (Cursor cursor = d.query("setting", new String[]{"value"}, WHERE_SETTING,
+                new String[]{Integer.toString(userid), category, name}, null, null, null)) {
             return (cursor.moveToNext() && !cursor.isNull(0) ? cursor.getString(0) : null);
         }
     }
@@ -984,8 +991,7 @@ class XProvider {
     private static void writeSetting(SQLiteDatabase d, int userid, String category, String name, String value)
             throws Throwable {
         if (value == null)
-            d.delete("setting", "user = ? AND category = ? AND name = ?",
-                    new String[]{Integer.toString(userid), category, name});
+            d.delete("setting", WHERE_SETTING, new String[]{Integer.toString(userid), category, name});
         else {
             ContentValues cv = new ContentValues();
             cv.put("user", userid);

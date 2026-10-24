@@ -13,22 +13,22 @@
         android:scaleY="0.66"
         android:translateX="19.8"
         android:translateY="22.2">
-            <group
-                android:name="left">
-                <clip-path android:pathData="M0,0 H50 V100 H0 Z" />
-                <path
-                    android:fillAlpha="0.5"
-                    android:fillColor="#FFFFFFFF"
-                    android:pathData="M22.5 20 Q50 8.75 77.5 20 C81.25 52.5 68.75 82.5 50 88.75 C31.25 82.5 18.75 52.5 22.5 20 Z M32.9,41 a5.6,5.6 0 1,0 11.2,0 a5.6,5.6 0 1,0 -11.2,0 Z M36.5 59.5 Q43.5 72.5 50.5 69.5 L50.5 64.5 Q43.5 67.5 36.5 59.5 Z"
-                    android:fillType="evenOdd" />
-            </group>
-            <group
-                android:name="right">
-                <clip-path android:pathData="M50,0 H100 V100 H50 Z" />
-                <path
-                    android:fillColor="#FFFFFFFF"
-                    android:pathData="M22.5 20 Q50 8.75 77.5 20 C81.25 52.5 68.75 82.5 50 88.75 C31.25 82.5 18.75 52.5 22.5 20 Z M71 34 L54 42.5 L68 48 Z M50 60 Q58 67 67 59 Q61 79 50 73 Z"
-                    android:fillType="evenOdd" />
-            </group>
+        <group
+            android:name="left">
+            <clip-path android:pathData="M0,0 H50 V100 H0 Z" />
+            <path
+                android:fillAlpha="0.5"
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M22.5 20 Q50 8.75 77.5 20 C81.25 52.5 68.75 82.5 50 88.75 C31.25 82.5 18.75 52.5 22.5 20 Z M32.9,41 a5.6,5.6 0 1,0 11.2,0 a5.6,5.6 0 1,0 -11.2,0 Z M36.5 59.5 Q43.5 72.5 50.5 69.5 L50.5 64.5 Q43.5 67.5 36.5 59.5 Z"
+                android:fillType="evenOdd" />
+        </group>
+        <group
+            android:name="right">
+            <clip-path android:pathData="M50,0 H100 V100 H50 Z" />
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M22.5 20 Q50 8.75 77.5 20 C81.25 52.5 68.75 82.5 50 88.75 C31.25 82.5 18.75 52.5 22.5 20 Z M71 34 L54 42.5 L68 48 Z M50 60 Q58 67 67 59 Q61 79 50 73 Z"
+                android:fillType="evenOdd" />
+        </group>
     </group>
 </vector>

@@ -96,7 +96,7 @@ class XCore {
     // The hooks assigned to "android" apply to all of system server, but not to the service and the code of this
     // class there, which look up packages and call the service themselves: a restriction like Get.Applications
     // would else hide the module and the apps from the service. See installMethod.
-    // In apps the reports and the package lookups of XParam are not restricted and reported as calls of the app.
+    // In apps the reports and the package lookups of XParam are neither restricted nor reported as calls of the app.
     private static final ThreadLocal<int[]> serviceCalls = new ThreadLocal<int[]>() {
         @Override
         protected int[] initialValue() {
@@ -550,8 +550,13 @@ class XCore {
                     reportUse(context, hook, function, result);
                 } catch (Throwable ex) {
                     threadGlobals.remove();
-                    reportError(context, hook, function, ex,
-                            "\nMethod:\n" + function + " " + member + "\n" + describe(call));
+                    // Describing the call runs code of the app (toString), which must not fail the call of the app
+                    try {
+                        reportError(context, hook, function, ex,
+                                "\nMethod:\n" + function + " " + member + "\n" + describe(call));
+                    } catch (Throwable exex) {
+                        Log.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(exex));
+                    }
                 }
             }
         });
