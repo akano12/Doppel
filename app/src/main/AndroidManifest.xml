@@ -70,7 +70,8 @@
             android:name=".ActivityValues"
             android:configChanges="orientation|screenSize"
             android:exported="false"
-            android:parentActivityName=".ActivityMain" />
+            android:parentActivityName=".ActivityMain"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".ActivityLog"
@@ -90,6 +91,7 @@
             android:name=".ActivityDownloads"
             android:configChanges="orientation|screenSize"
             android:exported="false"
-            android:parentActivityName=".ActivityMain" />
+            android:parentActivityName=".ActivityMain"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

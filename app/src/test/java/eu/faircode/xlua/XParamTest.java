@@ -123,6 +123,16 @@ public class XParamTest {
         return new XParam(context(UID), call, new HashMap<>());
     }
 
+    // A field cannot be read with an exception
+    @Test
+    public void fieldThrowable() throws Throwable {
+        try {
+            param().setResult(new IllegalStateException("blocked"));
+            fail("Throwable for a field");
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
+
     // Arguments set by scripts must fit the parameters of the method
     @Test
     public void arguments() throws NoSuchMethodException {

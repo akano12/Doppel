@@ -292,6 +292,9 @@ public class XParam {
                 this.param.setThrowable((Throwable) result);
             else
                 this.param.setResult(result);
+        else if (result instanceof Throwable)
+            // Reading a field cannot throw
+            throw new IllegalArgumentException("Expected field " + this.returnType + " got " + result.getClass());
         else
             this.field.set(null, result);
     }

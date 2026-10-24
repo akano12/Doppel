@@ -28,17 +28,10 @@
         <!-- Search replaces the title -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilSearch"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+            style="@style/XLua.Search"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:visibility="gone"
-            app:boxBackgroundColor="?attr/colorSurfaceContainerLowest"
-            app:boxCornerRadiusBottomEnd="24dp"
-            app:boxCornerRadiusBottomStart="24dp"
-            app:boxCornerRadiusTopEnd="24dp"
-            app:boxCornerRadiusTopStart="24dp"
-            app:hintEnabled="false">
+            android:visibility="gone">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etSearch"

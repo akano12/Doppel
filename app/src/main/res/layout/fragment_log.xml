@@ -58,12 +58,13 @@
         android:layout_marginTop="10dp"
         android:layout_marginEnd="16dp">
 
+        <!-- 2 dp at the top and 12 dp more of the 48 dp of the errors line, which is a button, above the count -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingStart="16dp"
-            android:paddingTop="14dp"
+            android:paddingTop="2dp"
             android:paddingEnd="16dp"
             android:paddingBottom="10dp">
 
@@ -97,9 +98,13 @@
                     android:id="@+id/tvStats"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_marginBottom="5dp"
+                    android:layout_marginStart="4dp"
                     android:background="?attr/selectableItemBackground"
+                    android:gravity="bottom|start"
+                    android:minHeight="48dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:paddingBottom="5dp"
                     android:textAppearance="@style/XLua.Text.Meta"
                     tools:text="7 apps · 0 errors" />
             </LinearLayout>
