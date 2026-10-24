@@ -13,7 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Lookups which tell about other apps, like resolveActivity for an intent which only a banking app handles,
 -- resolveContentProvider for the provider of a messenger or getNameForUid for the user ids of other apps,

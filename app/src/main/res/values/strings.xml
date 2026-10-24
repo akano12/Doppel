@@ -4,7 +4,7 @@
 
     <string name="title_license" translatable="false" tools:ignore="PluralsCandidate">
         This app is meant to be used to protect your privacy.
-        <![CDATA[<br><br>]]>Copyright 2017-%1$d Marcel Bokhorst. All rights reserved.
+        <![CDATA[<br><br>]]>Copyright 2017-2022 Marcel Bokhorst, copyright 2026-%1$d akano12. All rights reserved.
         <![CDATA[<br><br>]]>This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
         <![CDATA[<br><br>]]>This program is distributed in the hope that it will be useful but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the <![CDATA[<a href="http://www.gnu.org/licenses/gpl.txt">GNU General Public License</a>]]> for more details.
         <![CDATA[<br><br><strong>LuaJ</strong><br>]]>Copyright 2007-2013 LuaJ. All rights reserved. See the <![CDATA[<a href="http://luaj.sourceforge.net/license.txt">license</a>]]>.

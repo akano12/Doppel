@@ -13,7 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The text of the service state, of its network registrations and of subscriptions names the operator,
 -- which the getters fake (see test_network): the same fake values replace the real ones in the text,

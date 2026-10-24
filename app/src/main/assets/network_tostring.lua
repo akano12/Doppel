@@ -13,6 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2026 akano12
+
 -- The text of network objects contains the values their getters hide, so the same fake values replace them
 -- in the text; the other fields stay:
 -- WifiInfo: the network name, the address of the access point, the MAC and IP address and the Passpoint provider

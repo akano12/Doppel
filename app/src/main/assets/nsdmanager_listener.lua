@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Network service discovery finds the devices in the local network, so discovering, resolving and following
 -- services does not start. Android throws for stopping with a listener that never started, which would crash

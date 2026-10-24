@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Recording with a restricted source (see mediarecorder_setsource) does not start, pause, resume and stop;
 -- Android throws for these methods when the recorder did not start, which would crash the app.

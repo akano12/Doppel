@@ -13,6 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2026 akano12
+
 -- Fake time zone: setting value.timezone (like Europe/Amsterdam), default UTC
 
 function fakeid(param)

@@ -13,7 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The default SMS app and the default phone app are only told when they are of the system or the app itself,
 -- else it is the one of the system, like for an app which is hidden by the package visibility rules

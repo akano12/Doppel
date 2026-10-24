@@ -13,6 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2026 akano12
+
 -- Java system properties with the kernel release (os.version) and with the device model and firmware build,
 -- like 'Dalvik/2.1.0 (Linux; U; Android 15; Pixel 9 Build/AP4A.250105.002)' (http.agent), which HTTP clients send.
 -- The properties are changed once, when the app starts, in the static fields of java.lang.System

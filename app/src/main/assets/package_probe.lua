@@ -13,7 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Apps check whether specific apps are installed, like banking apps, messengers or apps for rooted devices.
 -- The package is reported as not installed, like the package lists of the group Get.Applications are filtered.

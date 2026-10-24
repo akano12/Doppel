@@ -13,6 +13,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
+
 -- The ids of SD cards and USB drives stay the same across apps and devices they are used in.
 -- They are replaced by random ids in the same format, different each time the app starts,
 -- but the same while it runs, because apps compare them. Internal storage has no own id.

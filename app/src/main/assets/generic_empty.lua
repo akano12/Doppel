@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- An empty collection or array of the kind of the result, which stays when it is empty already:
 -- a list, a set or an array like String[], of the component type of the return type of the definition

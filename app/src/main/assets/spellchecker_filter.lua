@@ -13,7 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Spell checkers of other apps are hidden, like the keyboards they usually come with (service_filter),
 -- spell checkers of the system and of the app itself stay. The app of a spell checker is part of the

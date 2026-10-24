@@ -13,7 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Discovering Wi-Fi Direct peers and services and Wi-Fi Aware services finds the devices nearby, so it does not
 -- start. Android always answers, so apps can wait for the answer; the answer is a failure, like without permission,

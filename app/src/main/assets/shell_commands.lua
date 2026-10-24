@@ -13,6 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2026 akano12
+
 -- Apps run commands to read what the other hooks fake, like FingerprintJS runs getprop:
 -- getprop reads the system properties behind the fields of android.os.Build, the serial, the operator
 -- and the time zone, uname and /proc/version the kernel build of Os.uname, pm the installed packages

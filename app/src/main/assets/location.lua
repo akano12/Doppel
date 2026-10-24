@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- The location of a parcel, like of a location update, and the extra location of a bundle,
 -- like of a location update by intent, become the location set, a coarse location or 0, 0

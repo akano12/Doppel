@@ -13,7 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Files of the providers of contacts, messages and voicemails, like contact photos, vCards, attachments of MMS
 -- messages (content://mms/part/1) and voicemail recordings, which apps can open by id, without a query

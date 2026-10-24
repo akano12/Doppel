@@ -13,6 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2026 akano12
+
 -- Installed keyboards and accessibility services reveal installed apps and help to fingerprint devices.
 -- Services of other apps are hidden, like for checks for specific packages (package_probe),
 -- services of the system and of the app itself stay.

@@ -13,7 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
--- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- BiometricManager.getStrings and getLastAuthenticationTime answer like on a device without biometric hardware:
 -- with the screen lock (device credential) they answer for the screen lock only, else there are no texts

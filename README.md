@@ -1,23 +1,26 @@
 XPrivacyLua
 ===========
 
-Really simple to use privacy manager for Android 6 and later (successor of [XPrivacy](https://forum.xda-developers.com/xposed/modules/xprivacy-ultimate-android-privacy-app-t2320783)).
+Really simple to use privacy manager for Android 6 and later, the successor of
+[XPrivacy](https://forum.xda-developers.com/xposed/modules/xprivacy-ultimate-android-privacy-app-t2320783).
 
-<br>
+Revoking Android permissions from apps often lets apps crash or malfunction.
+XPrivacyLua solves this by feeding apps fake data instead of real data.
 
 This is a maintained fork of [XPrivacyLua by M66B](https://github.com/M66B/XPrivacyLua), which is not supported anymore.
 
-<br>
-
-Revoking Android permissions from apps often let apps crash or malfunction.
-XPrivacyLua solves this by feeding apps fake data instead of real data.
+<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Apps"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Screen of an app"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Activity"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Hooks">
+<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Hook editor"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Downloads"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Settings"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Dark theme">
 
 Features
 --------
 
 * Simple to use
 * Manage any user or system app
-* [Extensible](DEFINE.md)
+* Fake values for all apps or per app
+* A log of what each app tried, with the real and the fake value
+* [Extensible](DEFINE.md) with your own hook definitions and definitions shared by others
+* Light and dark theme, color themes and a pure black background
 * Multi-user support
 * Free and open source
 
@@ -54,38 +57,30 @@ Restrictions
 * Use camera (fake camera not available, hide cameras)
 * Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html) including the security patch level, the same values for the system properties and the shell commands getprop, uname and /proc/version, network/SIM country/operator, device and Bluetooth name)
 
-*Use analytics* and some hooks of other restrictions (the advertising ID of Google Play services and Huawei, the app set ID, activity recognition and geofences)
-hook libraries inside the target app, which will work only if the app was not [obfuscated](https://developer.android.com/studio/build/shrink-code.html) in a way that renamed these libraries.
-The other restrictions hook Android itself and will work always.
+*Use analytics* and some hooks of other restrictions (the advertising ID of Google Play services and Huawei, the app set ID,
+activity recognition and geofences) hook libraries inside the target app, which works only if the app was not
+[obfuscated](https://developer.android.com/studio/build/shrink-code.html) in a way that renamed these libraries.
+The other restrictions hook Android itself and always work.
 
-Management
-----------
+A restriction hides data (an empty list) or fakes it (an empty or fake value).
+All technical details are in [hooks.json](app/src/main/assets/hooks.json).
 
-The *Apps* tab shows the apps by what needs attention: apps with a failed hook,
-user apps installed in the last week without restrictions (which can be restricted with one tap),
-apps restricted or restricting something in the last day, and all apps; tap a section to show or hide its apps.
+Using the app
+-------------
 
-Besides restricting apps, the tabs of the app offer:
-
-* Light and dark theme, color themes and a pure black background for the dark theme (*Settings*)
-* Fake values (*Settings*): values used for all apps, like the IMEI, Android ID, location and time zone;
-  *Fake values for this app* on the screen of an app sets values for that app only
-* Activity: which app triggered which restriction, when, with the real and the fake value, and hook errors,
-  searchable by app or restriction; *View log* on the screen of an app shows the log of that app only
-* Hooks: view, edit, enable, disable, add, import and export hook definitions,
-  and install and remove definitions shared by others with *Downloads*
-* Backup and restore of settings, custom hook definitions and restrictions (*Settings*)
+* **Apps** shows the apps by what needs attention: apps with a failed hook, user apps installed in the last week
+  without restrictions (restricted with one tap), apps restricted or restricting something in the last day, and all apps.
+  Tap an app to restrict groups or single hooks, stop it automatically and set *Fake values for this app*.
+* **Activity** shows which app triggered which restriction and when, with the real and the fake value, and hook errors,
+  searchable by app or restriction; *View log* on the screen of an app shows the log of that app only.
+* **Hooks** lets you view, edit, enable, disable, add, import and export hook definitions,
+  and install and remove definitions shared by others with *Downloads*.
+* **Settings** has the fake values used for all apps (like the IMEI, Android ID, location and time zone),
+  the theme and colors, the collections of definitions, and backup and restore of settings,
+  custom hook definitions and restrictions.
 
 The (no longer available) pro companion app is not needed anymore.
-
-Hide or fake?
-
-* Hide: return empty list
-* Fake: return empty or fake value
-
-It is possible to add custom restriction definitions, see [this FAQ](FAQ.md#user-content-faq8) for details.
-
-You can see all technical details [here](app/src/main/assets/hooks.json).
+To add your own restriction definitions, see [this FAQ](FAQ.md#user-content-faq8) and [DEFINE.md](DEFINE.md).
 
 Notes
 -----
@@ -99,56 +94,59 @@ Notes
 Compatibility
 -------------
 
-XPrivacyLua is supported on Android 6.0 Marshmallow and later.
-For Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop you can use [XPrivacy](https://github.com/M66B/XPrivacy/blob/master/README.md) (unsupported though).
-
-XPrivacyLua is supported for smartphones and tablets only.
-
-Installation
-------------
-
-* Install [Magisk](https://www.xda-developers.com/how-to-install-magisk/)
-* Android 6-7: download, install, and activate [Xposed](http://forum.xda-developers.com/xposed)
-* Android 8.1 and later: download, install, and activate [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork
-* Build XPrivacyLua from source (see *Source code* below), install, and activate it
+XPrivacyLua supports Android 6.0 Marshmallow and later, on smartphones and tablets.
+For Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop there is [XPrivacy](https://github.com/M66B/XPrivacy/blob/master/README.md) (unsupported).
 
 XPrivacyLua uses the [modern Xposed API](https://github.com/libxposed/api) (API 101 or later) when the framework provides it,
 and the legacy Xposed API otherwise, for example with Xposed or EdXposed.
 
+Installation
+------------
+
+1. Install [Magisk](https://www.xda-developers.com/how-to-install-magisk/)
+2. Install and activate an Xposed framework:
+   [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork on Android 8.1 and later,
+   [Xposed](http://forum.xda-developers.com/xposed) on Android 6 and 7
+3. Download XPrivacyLua from the [releases](https://github.com/akano12/XPrivacyLua/releases), install it and activate it
+4. Reboot
+
 LSPosed: the scope needs to include *System Framework*, which hosts the XPrivacyLua service in the settings provider,
-and any app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
+and each app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
 With the legacy API, *Settings Storage* (com.android.providers.settings) needs to be in the scope too.
 
-Frequently Asked Questions
+A build signed with another key than the official release cannot update it: uninstall the official release first.
+
+Frequently asked questions
 --------------------------
 
-See [here](FAQ.md) for a list of often asked questions.
+See the [FAQ](FAQ.md).
 
 Support
 -------
 
-XPrivacyLua with [Island](http://forum.xda-developers.com/android/-t3366295), etc is not supported.
-
-* For support on Xposed, please go [here](http://forum.xda-developers.com/xposed)
 * For support on XPrivacyLua, please open an [issue](https://github.com/akano12/XPrivacyLua/issues)
+* For support on Xposed, please go [here](http://forum.xda-developers.com/xposed)
+
+XPrivacyLua with [Island](http://forum.xda-developers.com/android/-t3366295) and similar apps is not supported.
 
 Contributing
 ------------
 
-*Documentation*
+**Documentation**: contributions to this document and the FAQ are preferred as
+[pull requests](https://help.github.com/articles/creating-a-pull-request/).
 
-Contributions to this document and the frequently asked questions
-are prefered in the form of [pull requests](https://help.github.com/articles/creating-a-pull-request/).
+**Translations**: translations are welcome as pull requests of *app/src/main/res/values-xx/strings.xml*
+(xx is the language code), translated from *app/src/main/res/values/strings.xml*.
 
-*Translations*
+**Source code**: please open an [issue](https://github.com/akano12/XPrivacyLua/issues) first to tell what your plans are,
+then send a [pull request](https://help.github.com/articles/creating-a-pull-request/).
+By contributing you agree to the license below, including the copyright.
 
-Translations are welcome as pull requests of *app/src/main/res/values-xx/strings.xml* (xx is the language code),
-translated from *app/src/main/res/values/strings.xml*.
+Building
+--------
 
-*Source code*
-
-Building XPrivacyLua from source code is straightforward with [Android Studio](http://developer.android.com/sdk/)
-or from the command line with JDK 17 or later and the Android SDK (platform 37):
+Build with [Android Studio](http://developer.android.com/sdk/) or from the command line
+with JDK 17 or later and the Android SDK (platform 37):
 
 ```
 ./gradlew assembleDebug        # debug build
@@ -156,15 +154,9 @@ or from the command line with JDK 17 or later and the Android SDK (platform 37):
 ./gradlew testDebugUnitTest    # validates the built-in hook definitions and Lua scripts
 ```
 
-The release build is signed with the key described in *keystore.properties* (storeFile, storePassword, keyAlias, keyPassword).
-A build signed with another key than the official release needs to replace (uninstall) the official release.
-
-It is expected that you can solve build problems yourself, so there is no support on building.
-
-Source code contributions are prefered in the form of [pull requests](https://help.github.com/articles/creating-a-pull-request/).
-Please open an [issue](https://github.com/akano12/XPrivacyLua/issues) first to tell what your plans are.
-
-Please note that you agree to the license below by contributing, including the copyright.
+The release build is signed with the key described in *keystore.properties*
+(storeFile, storePassword, keyAlias, keyPassword), next to this file.
+There is no support on building.
 
 Attribution
 -----------
@@ -182,7 +174,8 @@ License
 
 [GNU General Public License version 3](https://www.gnu.org/licenses/gpl.txt)
 
-Copyright (c) 2017-2021 Marcel Bokhorst. All rights reserved
+Copyright (c) 2017-2022 Marcel Bokhorst. All rights reserved.<br>
+Copyright (c) 2026 akano12. All rights reserved.
 
 XPrivacyLua is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -200,4 +193,4 @@ along with XPrivacyLua. If not, see [https://www.gnu.org/licenses/](https://www.
 Trademarks
 ----------
 
-*Android is a trademark of Google Inc. Google Play is a trademark of Google Inc*
+*Android and Google Play are trademarks of Google LLC.*

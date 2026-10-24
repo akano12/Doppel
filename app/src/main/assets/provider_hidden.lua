@@ -13,6 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2026 akano12
+
 -- Apps talk to each other through content providers, like Instagram asking WhatsApp for the account signed in.
 -- The providers of the apps which Get.Applications hides (see package_probe) are not found, like Android answers
 -- when the app of a provider is not installed: no cursor, no type, an unknown url or authority for changes and

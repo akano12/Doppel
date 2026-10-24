@@ -14,6 +14,7 @@
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
+-- Copyright 2026 akano12
 
 -- Android answers a request for the cell info once, with the cells or an error, so apps can wait for the answer;
 -- the answer is without cells, like Android gives it when location is not allowed

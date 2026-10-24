@@ -13,6 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2026 akano12
+
 -- The addresses of the device, the gateway, DNS and DHCP servers and the domains
 -- reveal the network the device is on and help to fingerprint it;
 -- the private DNS server name can contain the account id of the user at a DNS service.

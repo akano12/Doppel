@@ -15,6 +15,7 @@
     along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
     Copyright 2017-2019 Marcel Bokhorst (M66B)
+    Copyright 2026 akano12
  */
 
 package eu.faircode.xlua;
@@ -30,6 +31,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.RemoteException;
 import android.os.Process;
 import android.os.UserHandle;
 import android.util.Log;
@@ -319,6 +321,10 @@ class XCore {
                     // A refused app gets no result, like before
                     Log.w(TAG, "Call " + arg + ": " + ex.getMessage());
                     call.setResult(null);
+                } catch (RemoteException ex) {
+                    // An error of the service, which XProvider logged with its cause already
+                    Log.w(TAG, "Call " + arg + ": " + ex.getMessage());
+                    call.setResult(null);
                 } catch (Throwable ex) {
                     log(ex);
                     call.setResult(null);
@@ -362,6 +368,10 @@ class XCore {
                     Log.i(TAG, "Error: " + ex.getMessage());
                     call.setThrowable(ex);
                 } catch (SecurityException ex) {
+                    Log.w(TAG, "Query " + column + ": " + ex.getMessage());
+                    call.setResult(null);
+                } catch (RemoteException ex) {
+                    // An error of the service, which XProvider logged with its cause already
                     Log.w(TAG, "Query " + column + ": " + ex.getMessage());
                     call.setResult(null);
                 } catch (Throwable ex) {

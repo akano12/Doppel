@@ -13,6 +13,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2026 akano12
+
 -- Apps talk to each other through services, screens and broadcasts they name, like an app binding the service
 -- of another app for the account signed in. The components of the apps which Get.Applications hides (see
 -- package_probe and provider_hidden) cannot be reached, like for an app which is not installed: binding a service
