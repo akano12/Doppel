@@ -101,7 +101,8 @@ and each app you want to restrict, see [here](https://github.com/LSPosed/LSPosed
 With the legacy API, *Settings Storage* (com.android.providers.settings) needs to be in the scope too.
 
 A build signed with another key than the official release cannot update it: uninstall the official release first.
-This also goes for XPrivacyLua by M66B, which Doppel replaces: uninstall it before installing Doppel.
+XPrivacyLua by M66B, which Doppel replaces, needs to be uninstalled before installing Doppel:
+both use the same service and data, so they cannot be active side by side.
 
 Restrictions
 ------------

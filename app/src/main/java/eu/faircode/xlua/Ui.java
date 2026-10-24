@@ -297,8 +297,10 @@ final class Ui {
         View view = LayoutInflater.from(context).inflate(R.layout.dialog_text, null, false);
         TextView tvText = view.findViewById(R.id.tvText);
         tvText.setMovementMethod(LinkMovementMethod.getInstance());
+        // The years of the copyright of Doppel: from 2026, a range once the year is later
         int year = Calendar.getInstance().get(Calendar.YEAR);
-        tvText.setText(HtmlCompat.fromHtml(context.getString(R.string.title_license, year), HtmlCompat.FROM_HTML_MODE_LEGACY));
+        String years = (year > 2026 ? "2026-" + year : "2026");
+        tvText.setText(HtmlCompat.fromHtml(context.getString(R.string.title_license, years), HtmlCompat.FROM_HTML_MODE_LEGACY));
         return new MaterialAlertDialogBuilder(context)
                 .setTitle(R.string.app_name)
                 .setView(view);

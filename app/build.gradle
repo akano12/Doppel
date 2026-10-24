@@ -43,15 +43,16 @@ if (keystorePropertiesFile.exists())
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 
 android {
+    // The code keeps the package of XPrivacyLua, the app has its own: Doppel is a module of its own in LSPosed
     namespace = 'eu.faircode.xlua'
     compileSdk = 37
 
     defaultConfig {
-        applicationId = 'eu.faircode.xlua'
+        applicationId = 'sk.akano12.doppel'
         minSdk = 23
         targetSdk = 35
-        versionCode = 138
-        versionName = '1.37'
+        versionCode = 200
+        versionName = '2.0'
     }
 
     base {

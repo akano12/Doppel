@@ -52,8 +52,10 @@ final class LauncherIcons {
         awaitingResult = awaiting;
     }
 
+    // The entries are named after the package of the code, which differs from the package of the app
     private static ComponentName getComponent(Context context, int index) {
-        return new ComponentName(context, BuildConfig.APPLICATION_ID + "." + ALIASES[index]);
+        String code = LauncherIcons.class.getName();
+        return new ComponentName(context, code.substring(0, code.lastIndexOf('.') + 1) + ALIASES[index]);
     }
 
     // The chosen icon, also when it is not switched to yet
