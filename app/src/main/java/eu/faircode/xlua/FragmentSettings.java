@@ -77,6 +77,7 @@ public class FragmentSettings extends FragmentBase {
     private MaterialSwitch swNotifyNew;
     private ChipGroup cgTheme;
     private LinearLayout llPalettes;
+    private LinearLayout llIcons;
     private View llBlack;
     private MaterialSwitch swBlack;
     private TextView tvLanguage;
@@ -112,6 +113,7 @@ public class FragmentSettings extends FragmentBase {
         swNotifyNew = view.findViewById(R.id.swNotifyNew);
         cgTheme = view.findViewById(R.id.cgTheme);
         llPalettes = view.findViewById(R.id.llPalettes);
+        llIcons = view.findViewById(R.id.llIcons);
         llBlack = view.findViewById(R.id.llBlack);
         swBlack = view.findViewById(R.id.swBlack);
         tvLanguage = view.findViewById(R.id.tvLanguage);
@@ -126,6 +128,7 @@ public class FragmentSettings extends FragmentBase {
 
         // The colors right away from the local copies of the settings, the service settings follow
         showPalettes(ApplicationEx.getPalette(activity));
+        showIcons();
         swBlack.setChecked(ApplicationEx.isBlack(activity));
 
         // The switches and the theme can be changed once the settings are loaded, which would else undo a change made before
@@ -259,6 +262,32 @@ public class FragmentSettings extends FragmentBase {
             view.setOnClickListener(v -> selectPalette(palette));
             llPalettes.addView(view);
         }
+    }
+
+    // The icon of the app in the launcher, see LauncherIcons
+    private void showIcons() {
+        Context context = requireContext();
+        llIcons.removeAllViews();
+        LayoutInflater inflater = LayoutInflater.from(context);
+        int selected = LauncherIcons.getSelected(context);
+        for (int i = 0; i < LauncherIcons.ALIASES.length; i++) {
+            final int index = i;
+            View view = inflater.inflate(R.layout.item_launcher_icon, llIcons, false);
+            ((ImageView) view.findViewById(R.id.ivIcon)).setImageResource(LauncherIcons.ICONS[i]);
+            view.setContentDescription(getString(LauncherIcons.TITLES[i]));
+            view.setSelected(i == selected);
+            view.setOnClickListener(v -> selectIcon(index));
+            llIcons.addView(view);
+        }
+    }
+
+    private void selectIcon(int index) {
+        Context context = requireContext();
+        if (index == LauncherIcons.getSelected(context))
+            return;
+        LauncherIcons.choose(context, index);
+        showIcons();
+        Ui.message(requireActivity(), getString(R.string.msg_launcher_icon));
     }
 
     // The default palette is no setting; screens are recreated with the new colors

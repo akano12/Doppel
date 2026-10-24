@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Two Ds, one mask: two D halves form one face, an innocent eye and a sinister one; one color, for themed icons, centered in the safe zone of an adaptive icon -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.66"
+        android:scaleY="0.66"
+        android:translateX="23.1"
+        android:translateY="21.3">
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M47 20 A30 30 0 0 0 47 80 Z M23 47 Q33 39 43 47 Q33 53 23 47 Z"
+                android:fillType="evenOdd" />
+            <path
+                android:fillAlpha="0.5"
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M53 20 A30 30 0 0 1 53 80 Z M77 44 L57 48 L75 53 Z"
+                android:fillType="evenOdd" />
+    </group>
+</vector>

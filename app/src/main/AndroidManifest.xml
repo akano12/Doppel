@@ -53,13 +53,64 @@
             android:theme="@style/Theme.XLua.Starting"
             android:configChanges="orientation|screenSize"
             android:launchMode="singleTask"
-            android:resizeableActivity="true">
+            android:resizeableActivity="true" />
+
+        <!-- The entries of the launcher, one per app icon, of which one is enabled, see LauncherIcons -->
+        <activity-alias
+            android:name=".IconMasks"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:targetActivity=".ActivityMain">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconSplit"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_split"
+            android:roundIcon="@mipmap/ic_launcher_split_round"
+            android:targetActivity=".ActivityMain">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconTwoD"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_twod"
+            android:roundIcon="@mipmap/ic_launcher_twod_round"
+            android:targetActivity=".ActivityMain">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".IconEcho"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_echo"
+            android:roundIcon="@mipmap/ic_launcher_echo_round"
+            android:targetActivity=".ActivityMain">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".ActivityApp"

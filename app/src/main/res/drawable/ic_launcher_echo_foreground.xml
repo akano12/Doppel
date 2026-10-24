@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mask and its echo: a sinister mask with its outline behind it; Noir, centered in the safe zone of an adaptive icon -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.66"
+        android:scaleY="0.66"
+        android:translateX="21.6"
+        android:translateY="21.9">
+            <group
+                android:translateX="13"
+                android:translateY="-9">
+            <path
+                android:pathData="M22 30 Q44 21 66 30 C69 56 59 80 44 85 C29 80 19 56 22 30 Z"
+                android:strokeColor="#6E6E73"
+                android:strokeWidth="4.5" />
+            </group>
+            <path
+                android:fillColor="#F5F5F5"
+                android:pathData="M22 30 Q44 21 66 30 C69 56 59 80 44 85 C29 80 19 56 22 30 Z"
+                android:strokeColor="#0B0B0C"
+                android:strokeWidth="4" />
+            <path
+                android:fillColor="#0B0B0C"
+                android:pathData="M28 41 L41 48 L30 52 Z M60 41 L47 48 L58 52 Z M31 61 Q44 78 57 61 Q44 69 31 61 Z" />
+    </group>
+</vector>

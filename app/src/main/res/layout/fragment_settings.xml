@@ -260,6 +260,30 @@
                     </HorizontalScrollView>
                 </LinearLayout>
 
+                <!-- The icon of the app in the launcher, see FragmentSettings.showIcons -->
+                <LinearLayout style="@style/XLua.Row">
+
+                    <TextView
+                        style="@style/XLua.Row.Title"
+                        android:layout_marginEnd="12dp"
+                        android:text="@string/title_launcher_icon" />
+
+                    <HorizontalScrollView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:contentDescription="@string/title_launcher_icon"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/llIcons"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="end"
+                            android:orientation="horizontal" />
+                    </HorizontalScrollView>
+                </LinearLayout>
+
                 <LinearLayout
                     android:id="@+id/llBlack"
                     style="@style/XLua.Row">

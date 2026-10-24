@@ -453,6 +453,12 @@
     <string name="title_palette_sky">Sky</string>
     <string name="title_palette_teal">Teal</string>
     <string name="title_black">Pure black background</string>
+    <string name="title_launcher_icon">App icon</string>
+    <string name="title_icon_masks">Two masks</string>
+    <string name="title_icon_split">Split mask</string>
+    <string name="title_icon_twod">Two Ds, one mask</string>
+    <string name="title_icon_echo">Mask and its echo</string>
+    <string name="msg_launcher_icon">The new icon appears when you leave the app; a shortcut on the home screen needs to be added again</string>
     <string name="title_black_hint">In the dark theme, which saves power on OLED screens</string>
     <string name="title_language">Language</string>
     <string name="title_language_english">English</string>

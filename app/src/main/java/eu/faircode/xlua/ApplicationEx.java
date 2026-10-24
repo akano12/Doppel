@@ -64,6 +64,7 @@ public class ApplicationEx extends Application {
         super.onCreate();
         Log.i(TAG, "Create version=" + BuildConfig.VERSION_NAME);
         applyTheme(getPreferences(this).getString(PREF_THEME, null));
+        LauncherIcons.register(this);
     }
 
     // The color settings of the service: theme, palette and black background, see sync

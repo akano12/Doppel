@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Split mask: one mask, a smiling half and a sinister half; Noir, centered in the safe zone of an adaptive icon -->
+<!-- Clipped halves: adaptive icons need Android 8 and themed icons Android 13, so no image of it is made for Android 6 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108"
+    tools:ignore="VectorRaster">
+    <group
+        android:scaleX="0.66"
+        android:scaleY="0.66"
+        android:translateX="19.8"
+        android:translateY="22.2">
+            <group
+                android:name="left">
+                <clip-path android:pathData="M0,0 H50 V100 H0 Z" />
+                <path
+                    android:fillColor="#6E6E73"
+                    android:pathData="M22.5 20 Q50 8.75 77.5 20 C81.25 52.5 68.75 82.5 50 88.75 C31.25 82.5 18.75 52.5 22.5 20 Z" />
+            </group>
+            <group
+                android:name="right">
+                <clip-path android:pathData="M50,0 H100 V100 H50 Z" />
+                <path
+                    android:fillColor="#F5F5F5"
+                    android:pathData="M22.5 20 Q50 8.75 77.5 20 C81.25 52.5 68.75 82.5 50 88.75 C31.25 82.5 18.75 52.5 22.5 20 Z" />
+            </group>
+            <path
+                android:fillColor="#0B0B0C"
+                android:pathData="M32.9,41 a5.6,5.6 0 1,0 11.2,0 a5.6,5.6 0 1,0 -11.2,0 Z M71 34 L54 42.5 L68 48 Z M50 60 Q58 67 67 59 Q61 79 50 73 Z" />
+            <path
+                android:pathData="M37 60 Q43.5 70 50 67"
+                android:strokeColor="#0B0B0C"
+                android:strokeWidth="5"
+                android:strokeLineCap="round" />
+    </group>
+</vector>
