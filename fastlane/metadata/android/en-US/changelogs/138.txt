@@ -1,4 +1,4 @@
-First release of the maintained fork:
+First release of Doppel, formerly XPrivacyLua:
 * New Material 3 interface: Apps, Activity, Hooks and Settings
 * Fake values, a log with the real and fake values, a hook editor and backup built in, no pro app needed
 * Modern Xposed API (LSPosed) next to the legacy API

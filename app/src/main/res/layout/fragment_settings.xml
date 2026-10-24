@@ -70,7 +70,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:textAppearance="@style/XLua.Text.Meta"
-                            tools:text="XPrivacyLua 1.37 (138)" />
+                            tools:text="Doppel 1.37 (138)" />
                     </LinearLayout>
                 </LinearLayout>
 

@@ -1,10 +1,11 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- The app and its license -->
-    <string name="app_name" translatable="false">XPrivacyLua</string>
+    <string name="app_name" translatable="false">Doppel</string>
     <string name="app_description">Privacy manager feeding apps fake data instead of real data</string>
 
     <string name="title_license" translatable="false" tools:ignore="PluralsCandidate">
         This app is meant to be used to protect your privacy.
+        <![CDATA[<br><br>]]>Doppel is based on XPrivacyLua by Marcel Bokhorst (M66B).
         <![CDATA[<br><br>]]>Copyright 2017-2022 Marcel Bokhorst, copyright 2026-%1$d akano12. All rights reserved.
         <![CDATA[<br><br>]]>This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
         <![CDATA[<br><br>]]>This program is distributed in the hope that it will be useful but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the <![CDATA[<a href="http://www.gnu.org/licenses/gpl.txt">GNU General Public License</a>]]> for more details.
@@ -96,7 +97,7 @@
     <string name="title_back">Back</string>
     <string name="title_more">More options</string>
     <string name="title_retry">Retry</string>
-    <string name="msg_no_service_help">Enable XPrivacyLua in the Xposed manager (like LSPosed) with System Framework in its scope, and also Settings Storage with the legacy Xposed API (like EdXposed), then restart the device.</string>
+    <string name="msg_no_service_help">Enable Doppel in the Xposed manager (like LSPosed) with System Framework in its scope, and also Settings Storage with the legacy Xposed API (like EdXposed), then restart the device.</string>
 
     <!-- Apps -->
     <string name="title_search_apps">Search name, package or uid</string>
@@ -430,7 +431,7 @@
 
     <!-- Settings -->
     <string name="title_module_active">Module active</string>
-    <string name="title_version">XPrivacyLua %1$s (%2$d)</string>
+    <string name="title_version">Doppel %1$s (%2$d)</string>
     <string name="title_status_service">Service</string>
     <string name="title_status_hooks">Definitions</string>
     <string name="title_status_android">Android</string>
@@ -463,7 +464,7 @@
     <string name="msg_clear_sure">Remove all restrictions and settings, including fake values? This cannot be undone.</string>
     <string name="msg_cleared">Restrictions and settings removed</string>
     <string name="title_values_global_sub">Identifiers, location, time zone and more</string>
-    <string name="msg_not_backup">This file is not an XPrivacyLua backup</string>
+    <string name="msg_not_backup">This file is not a backup of Doppel or XPrivacyLua</string>
     <string name="msg_backup_format">This backup has format %1$s, which this version cannot restore</string>
 
     <string name="group_determine_activity">Determine activity</string>
@@ -532,6 +533,6 @@
         <item>com.android.providers.settings</item>
     </string-array>
 
-    <string name="channel_alerts">XPrivacyLua new apps and errors</string>
-    <string name="channel_usage">XPrivacyLua restrictions</string>
+    <string name="channel_alerts">Doppel new apps and errors</string>
+    <string name="channel_usage">Doppel restrictions</string>
 </resources>

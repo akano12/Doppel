@@ -1,18 +1,18 @@
 /*
-    This file is part of XPrivacyLua.
+    This file is part of Doppel.
 
-    XPrivacyLua is free software: you can redistribute it and/or modify
+    Doppel is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    XPrivacyLua is distributed in the hope that it will be useful,
+    Doppel is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
+    along with Doppel.  If not, see <http://www.gnu.org/licenses/>.
 
     Copyright 2017-2019 Marcel Bokhorst (M66B)
     Copyright 2026 akano12
@@ -1064,7 +1064,7 @@ class XProvider {
     }
 
     // The service answers system server, the app and apps with assignments, which are hooked. Other apps get
-    // the answers of a device without XPrivacyLua, so they cannot detect it nor read the values of settings.
+    // the answers of a device without Doppel, so they cannot detect it nor read the values of settings.
     // Assignments of a removed package do not count, its uid can be of another app now.
     static int answers(Context context) throws RemoteException {
         loadData(context);

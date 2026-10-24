@@ -1,13 +1,14 @@
-XPrivacyLua
-===========
+Doppel
+======
 
 Really simple to use privacy manager for Android 6 and later, the successor of
 [XPrivacy](https://forum.xda-developers.com/xposed/modules/xprivacy-ultimate-android-privacy-app-t2320783).
 
 Revoking Android permissions from apps often lets apps crash or malfunction.
-XPrivacyLua solves this by feeding apps fake data instead of real data.
+Doppel solves this by feeding apps fake data instead of real data.
 
-This is a maintained fork of [XPrivacyLua by M66B](https://github.com/M66B/XPrivacyLua), which is not supported anymore.
+Doppel is the maintained continuation of [XPrivacyLua by M66B](https://github.com/M66B/XPrivacyLua), which is not supported anymore:
+the same restrictions and hook definitions under a new name, with a new interface and updates for current Android versions.
 
 <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Apps"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Screen of an app"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Activity"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Hooks">
 <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Hook editor"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Downloads"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Settings"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Dark theme">
@@ -94,10 +95,10 @@ Notes
 Compatibility
 -------------
 
-XPrivacyLua supports Android 6.0 Marshmallow and later, on smartphones and tablets.
+Doppel supports Android 6.0 Marshmallow and later, on smartphones and tablets.
 For Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop there is [XPrivacy](https://github.com/M66B/XPrivacy/blob/master/README.md) (unsupported).
 
-XPrivacyLua uses the [modern Xposed API](https://github.com/libxposed/api) (API 101 or later) when the framework provides it,
+Doppel uses the [modern Xposed API](https://github.com/libxposed/api) (API 101 or later) when the framework provides it,
 and the legacy Xposed API otherwise, for example with Xposed or EdXposed.
 
 Installation
@@ -107,10 +108,10 @@ Installation
 2. Install and activate an Xposed framework:
    [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork on Android 8.1 and later,
    [Xposed](http://forum.xda-developers.com/xposed) on Android 6 and 7
-3. Download XPrivacyLua from the [releases](https://github.com/akano12/XPrivacyLua/releases), install it and activate it
+3. Download Doppel from the [releases](https://github.com/akano12/Doppel/releases), install it and activate it
 4. Reboot
 
-LSPosed: the scope needs to include *System Framework*, which hosts the XPrivacyLua service in the settings provider,
+LSPosed: the scope needs to include *System Framework*, which hosts the Doppel service in the settings provider,
 and each app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
 With the legacy API, *Settings Storage* (com.android.providers.settings) needs to be in the scope too.
 
@@ -124,10 +125,10 @@ See the [FAQ](FAQ.md).
 Support
 -------
 
-* For support on XPrivacyLua, please open an [issue](https://github.com/akano12/XPrivacyLua/issues)
+* For support on Doppel, please open an [issue](https://github.com/akano12/Doppel/issues)
 * For support on Xposed, please go [here](http://forum.xda-developers.com/xposed)
 
-XPrivacyLua with [Island](http://forum.xda-developers.com/android/-t3366295) and similar apps is not supported.
+Doppel with [Island](http://forum.xda-developers.com/android/-t3366295) and similar apps is not supported.
 
 Contributing
 ------------
@@ -138,7 +139,7 @@ Contributing
 **Translations**: translations are welcome as pull requests of *app/src/main/res/values-xx/strings.xml*
 (xx is the language code), translated from *app/src/main/res/values/strings.xml*.
 
-**Source code**: please open an [issue](https://github.com/akano12/XPrivacyLua/issues) first to tell what your plans are,
+**Source code**: please open an [issue](https://github.com/akano12/Doppel/issues) first to tell what your plans are,
 then send a [pull request](https://help.github.com/articles/creating-a-pull-request/).
 By contributing you agree to the license below, including the copyright.
 
@@ -163,7 +164,7 @@ There is no support on building.
 Attribution
 -----------
 
-XPrivacyLua uses:
+Doppel uses:
 
 * [LuaJ](https://sourceforge.net/projects/luaj/). Copyright 2007-2013 LuaJ. All rights reserved. See [license](http://luaj.sourceforge.net/license.txt).
 * [Glide](https://bumptech.github.io/glide/). Copyright 2014 Google, Inc. All rights reserved. See [license](https://raw.githubusercontent.com/bumptech/glide/master/LICENSE).
@@ -179,18 +180,18 @@ License
 Copyright (c) 2017-2022 Marcel Bokhorst. All rights reserved.<br>
 Copyright (c) 2026 akano12. All rights reserved.
 
-XPrivacyLua is free software: you can redistribute it and/or modify
+Doppel is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-XPrivacyLua is distributed in the hope that it will be useful,
+Doppel is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with XPrivacyLua. If not, see [https://www.gnu.org/licenses/](https://www.gnu.org/licenses/).
+along with Doppel. If not, see [https://www.gnu.org/licenses/](https://www.gnu.org/licenses/).
 
 Trademarks
 ----------

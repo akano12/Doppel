@@ -4,17 +4,17 @@ Defining hooks
 Introduction
 ------------
 
-XPrivacyLua allows you to define Xposed hooks without developing an Xposed module.
+Doppel allows you to define Xposed hooks without developing an Xposed module.
 
 Defined hooks can be added and updated at run time,
 with the big advantage that no reboot is required to test a new or changed hook
-(with the exception of persistent system apps, which are clearly marked in XPrivacyLua).
+(with the exception of persistent system apps, which are clearly marked in Doppel).
 To apply an updated definition an app just needs to be stopped (force closed) and started again.
-An easy way to do this is with *Stop* or *Stop automatically* on the screen of the app in XPrivacyLua.
+An easy way to do this is with *Stop* or *Stop automatically* on the screen of the app in Doppel.
 
-XPrivacyLua allows you to select which apps a definition should be applied to.
+Doppel allows you to select which apps a definition should be applied to.
 
-You can edit hook definitions in XPrivacyLua itself, on the *Hooks* tab.
+You can edit hook definitions in Doppel itself, on the *Hooks* tab.
 
 Definition
 ----------
@@ -61,13 +61,13 @@ An exported definition in [JSON](https://en.wikipedia.org/wiki/JSON) format look
 
 <br>
 
-Note that you can conveniently edit hook definitions in XPrivacyLua (*Hooks* tab), so there is no need to edit JSON files.
+Note that you can conveniently edit hook definitions in Doppel (*Hooks* tab), so there is no need to edit JSON files.
 Definitions can be imported from and exported to JSON files there too.
 
 <br>
 
 * The *collection* and *name* attributes are used to uniquely identify a hook
-* For convenience XPrivacyLua applies hooks by *group*
+* For convenience Doppel applies hooks by *group*
 * The *version* is a number which *Downloads* uses to offer updates of an installed definition
 * The *description* is optional and is shown in the hook editor and in *Downloads*
 * The attributes *minSdk* and *maxSdk* determine for which [Android versions](https://source.android.com/setup/build-numbers) (API level) the hook should be used (*maxSdk* is optional, default 999: all later versions)
@@ -81,7 +81,7 @@ Definitions can be imported from and exported to JSON files there too.
   and read using *param:getSetting('setting_name1')*; an app setting takes precedence over the setting for all apps.
   List the names of the settings a script reads in *settings*, so that *Fake values* offers a field for each of them
 
-*Collections* in *Settings* selects which *collection*s of hooks XPrivacyLua should use.
+*Collections* in *Settings* selects which *collection*s of hooks Doppel should use.
 
 Parameter and return types are Java class names, like *java.lang.String*, *android.net.Uri* or *int*,
 nested classes with a $ sign, like *android.content.pm.PackageManager$NameNotFoundException*,
@@ -134,7 +134,7 @@ The most important functions of *param* are:
 * For other functions, see [here](app/src/main/java/eu/faircode/xlua/XParam.java) for the available public methods
 
 The before/after function **must** return *true* when something was done and **must** return *false* otherwise.
-XPrivacyLua will show the last date/time of the last time *true* was returned.
+Doppel will show the last date/time of the last time *true* was returned.
 Optionally the function can return the original and the fake value as text too, like *return true, old, fake*,
 which the *Activity* tab shows.
 
@@ -162,7 +162,7 @@ Remarks
 -------
 
 A common problem when developing an Xposed module is getting [a context](https://developer.android.com/reference/android/content/Context.html).
-With XPrivacyLua you'll never have to worry about this because you can simply get a context like this:
+With Doppel you'll never have to worry about this because you can simply get a context like this:
 
 ```Lua
     local context = param:getApplicationContext()
@@ -228,6 +228,6 @@ To share a definition, export it in the hook editor and offer it as a pull reque
 as *repo/hook_N.json* with an entry with the id N, the time of the update (seconds since 1970) and 0 downloads in *repo/list.json*.
 
 You can find example definitions in the [repository](repo), which *Downloads* offers,
-and the definitions built into XPrivacyLua [here](app/src/main/assets).
+and the definitions built into Doppel [here](app/src/main/assets).
 
-If you have questions, you can ask them in an [issue](https://github.com/akano12/XPrivacyLua/issues).
+If you have questions, you can ask them in an [issue](https://github.com/akano12/Doppel/issues).

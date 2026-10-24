@@ -1,5 +1,5 @@
-XPrivacyLua
-===========
+Doppel
+======
 
 Frequently Asked Questions
 --------------------------
@@ -7,8 +7,8 @@ Frequently Asked Questions
 <a name="faq1"></a>
 **(1) How can I clear all data?**
 
-Primary users can clear all data of all users by uninstalling XPrivacyLua *while it is running*.
-Secondary users can clear their own data by uninstalling XPrivacyLua *while it is running*.
+Primary users can clear all data of all users by uninstalling Doppel *while it is running*.
+Secondary users can clear their own data by uninstalling Doppel *while it is running*.
 
 All data is stored in the system folder */data/system/xlua* and can therefore not be backed up by regular backup apps.
 You can backup and restore all restrictions, settings and custom hook definitions in *Settings* > *Backup* and *Restore*.
@@ -16,9 +16,9 @@ You can backup and restore all restrictions, settings and custom hook definition
 and keeps the custom hook definitions.
 
 <a name="faq2"></a>
-**(2) Can I run XPrivacy and XPrivacyLua side by side?**
+**(2) Can I run XPrivacy and Doppel side by side?**
 
-Since XPrivacyLua is [in many aspects better](#user-content-faq7) than XPrivacy, running XPrivacy and XPrivacyLua side by side isn't supported.
+Since Doppel is [in many aspects better](#user-content-faq7) than XPrivacy, running XPrivacy and Doppel side by side isn't supported.
 
 <a name="faq3"></a>
 **(3) How can I fix 'Module not running or updated'?**
@@ -26,10 +26,10 @@ Since XPrivacyLua is [in many aspects better](#user-content-faq7) than XPrivacy,
 This message means either that:
 
 * The Xposed framework is not running: check if the framework is active in its manager app (like LSPosed).
-* The XPrivacyLua module is not running: check if XPrivacyLua is enabled in the manager app, with *System Framework* in its scope
+* The Doppel module is not running: check if Doppel is enabled in the manager app, with *System Framework* in its scope
   (with the legacy Xposed API, like with EdXposed, also *Settings Storage*, see [here](README.md#installation)),
-  and make sure you restarted your device (hard reboot) after installing/updating XPrivacyLua.
-* There is a problem with the XPrivacyLua service: check the log of the manager app for XPrivacyLua problems.
+  and make sure you restarted your device (hard reboot) after installing/updating Doppel.
+* There is a problem with the Doppel service: check the log of the manager app for Doppel problems.
 
 Rebooting too soon after updating an Xposed module (before the manager app shows the update notification) is known to cause problems.
 Disable and enable the module in the manager app and hard reboot again to fix this problem.
@@ -77,7 +77,7 @@ See also [question 7](#user-content-faq7).
 
 This error could mean that the downloaded file is corrupt, which could for example be caused by a connection problem or by a virus scanner.
 
-It could also mean that you are trying to install XPrivacyLua on an unsupported Android version.
+It could also mean that you are trying to install Doppel on an unsupported Android version.
 See [here](README.md#compatibility) for which Android versions are supported.
 
 <a name="faq6"></a>
@@ -94,17 +94,17 @@ Tapping a switch with a dash applies all hooks of its group, like the *Restrict 
 tapping it again removes the restrictions of the group.
 
 <a name="faq7"></a>
-**(7) How does XPrivacyLua compare to XPrivacy?**
+**(7) How does Doppel compare to XPrivacy?**
 
-* XPrivacy supports Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop and XPrivacyLua supports Android version 6.0 Marshmallow and later, see [here](README.md#compatibility) about compatibility
-* The user interface of XPrivacyLua is simpler than of XPrivacy, see also [question 4](#user-content-faq4)
-* The restrictions of XPrivacyLua are designed to prevent apps from crashing, while a number of XPrivacy restrictions can cause apps to crash, see also [question 4](#user-content-faq4)
-* XPrivacyLua has no on demand restricting for stability and maintenance reasons, see also [question 4](#user-content-faq4)
-* XPrivacyLua can unlike XPrivacy restrict analytics services like [Firebase Analytics](https://firebase.google.com/docs/analytics/) and [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics)
-* XPrivacyLua [is user extensible](DEFINE.md) while XPrivacy is not
-* XPrivacyLua is easier to maintain than XPrivacy, so XPrivacyLua is easier to update for new Android versions
+* XPrivacy supports Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop and Doppel supports Android version 6.0 Marshmallow and later, see [here](README.md#compatibility) about compatibility
+* The user interface of Doppel is simpler than of XPrivacy, see also [question 4](#user-content-faq4)
+* The restrictions of Doppel are designed to prevent apps from crashing, while a number of XPrivacy restrictions can cause apps to crash, see also [question 4](#user-content-faq4)
+* Doppel has no on demand restricting for stability and maintenance reasons, see also [question 4](#user-content-faq4)
+* Doppel can unlike XPrivacy restrict analytics services like [Firebase Analytics](https://firebase.google.com/docs/analytics/) and [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics)
+* Doppel [is user extensible](DEFINE.md) while XPrivacy is not
+* Doppel is easier to maintain than XPrivacy, so Doppel is easier to update for new Android versions
 
-In general XPrivacyLua and XPrivacy are comparable in protecting your privacy.
+In general Doppel and XPrivacy are comparable in protecting your privacy.
 For a detailed comparison with XPrivacy see [here](XPRIVACY.md).
 
 <a name="faq8"></a>
@@ -122,9 +122,9 @@ The app will see only the account you actually select.
 <a name="faq10"></a>
 **(10) Can applying a restriction let an app crash?**
 
-XPrivacyLua is designed to let apps not crash.
+Doppel is designed to let apps not crash.
 However, sometimes an app will crash because of a restriction because there is a bug in the app.
-For example XPrivacyLua can return no data to an app while the app is not expecting this but should be prepared to handle this because the Android API documentation says this might happen.
+For example Doppel can return no data to an app while the app is not expecting this but should be prepared to handle this because the Android API documentation says this might happen.
 
 If you suspect that a restriction is causing a crash because there is a bug in the restriction, please provide a logcat and I will check the restriction.
 
@@ -149,24 +149,24 @@ You can also search for the uid of an app, like 10123.
 **(12) Are there paid features?**
 
 No, all features are free. The features of the former pro companion app, like fake values, backup and restore,
-notifications on restriction and editing hook definitions, are part of XPrivacyLua itself.
+notifications on restriction and editing hook definitions, are part of Doppel itself.
 
 <a name="faq13"></a>
-**(13) Will XPrivacyLua slow down my apps?**
+**(13) Will Doppel slow down my apps?**
 
 Depending on the number of applied restrictions, you might notice a slight delay when starting apps,
 but you will generally not notice delays when using apps.
 
 <a name="faq14"></a>
-**(14) Will XPrivacyLua keep running after updating?**
+**(14) Will Doppel keep running after updating?**
 
-Yes, if XPrivacyLua was running before the update, it will keep running after the update,
+Yes, if Doppel was running before the update, it will keep running after the update,
 even though the user interface and new features will not be available until after a reboot.
 
 <a name="faq15"></a>
 **(15) Can I get a refund?**
 
-There is nothing to buy, XPrivacyLua is free.
+There is nothing to buy, Doppel is free.
 
 <a name="faq16"></a>
 **(16) Can apps with root access be restricted?**
@@ -178,7 +178,7 @@ There is no support on restricting apps with root access.
 <a name="faq17"></a>
 **(17) Can I import my XPrivacy settings?**
 
-XPrivacy and XPrivacyLua work differently, so this is not possible.
+XPrivacy and Doppel work differently, so this is not possible.
 
 <a name="faq18"></a>
 **(18) How do I selectively block/allow contacts?**
@@ -217,4 +217,4 @@ If you really don't want an app to receive SMSes, you can revoke the SMS receive
 
 <br>
 
-If you have another question, you can open an [issue](https://github.com/akano12/XPrivacyLua/issues).
+If you have another question, you can open an [issue](https://github.com/akano12/Doppel/issues).

@@ -4,7 +4,7 @@
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
-# XPrivacyLua
+# Doppel
 # XLua is the legacy Xposed entry point (assets/xposed_init),
 # XLuaModule the modern entry point (META-INF/xposed/java_init.list),
 # XHook and XParam are accessed from Lua scripts by reflection

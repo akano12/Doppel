@@ -1,18 +1,18 @@
 /*
-    This file is part of XPrivacyLua.
+    This file is part of Doppel.
 
-    XPrivacyLua is free software: you can redistribute it and/or modify
+    Doppel is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    XPrivacyLua is distributed in the hope that it will be useful,
+    Doppel is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
+    along with Doppel.  If not, see <http://www.gnu.org/licenses/>.
 
     Copyright 2026 akano12
  */
@@ -107,8 +107,8 @@ final class Ui {
     }
 
     // Documentation of this fork
-    static final String URL_README = "https://github.com/akano12/XPrivacyLua/blob/master/README.md";
-    static final String URL_FAQ = "https://github.com/akano12/XPrivacyLua/blob/master/FAQ.md";
+    static final String URL_README = "https://github.com/akano12/Doppel/blob/master/README.md";
+    static final String URL_FAQ = "https://github.com/akano12/Doppel/blob/master/FAQ.md";
     // What a definition or backup file may have been saved as, for the picker of an import
     static final String[] MIME_JSON = {"application/json", "text/*", "application/octet-stream"};
 
@@ -218,9 +218,9 @@ final class Ui {
         return DateUtils.getRelativeTimeSpanString(time, now, DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE);
     }
 
-    // A file name with today's date, like xprivacylua-backup-2026-10-20.json, so backups can be told apart
+    // A file name with today's date, like doppel-backup-2026-10-20.json, so backups can be told apart
     static String datedFileName(String name) {
-        return "xprivacylua-" + name + "-" +
+        return "doppel-" + name + "-" +
                 new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(new Date()) + ".json";
     }
 

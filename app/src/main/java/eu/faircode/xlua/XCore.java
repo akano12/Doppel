@@ -1,18 +1,18 @@
 /*
-    This file is part of XPrivacyLua.
+    This file is part of Doppel.
 
-    XPrivacyLua is free software: you can redistribute it and/or modify
+    Doppel is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    XPrivacyLua is distributed in the hope that it will be useful,
+    Doppel is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
+    along with Doppel.  If not, see <http://www.gnu.org/licenses/>.
 
     Copyright 2017-2019 Marcel Bokhorst (M66B)
     Copyright 2026 akano12
@@ -267,7 +267,7 @@ class XCore {
             context.registerReceiver(new ReceiverPackage(), filter);
     }
 
-    // Settings provider in system server, which hosts the XPrivacyLua service
+    // Settings provider in system server, which hosts the Doppel service
     void hookSettings(ClassLoader classLoader) throws Throwable {
         // https://android.googlesource.com/platform/frameworks/base/+/master/packages/SettingsProvider/src/com/android/providers/settings/SettingsProvider.java
         Class<?> clsSet = Class.forName("com.android.providers.settings.SettingsProvider", false, classLoader);
@@ -296,7 +296,7 @@ class XCore {
             }
 
             private void call(XCall call, Context context, String arg, Bundle extras) throws Throwable {
-                // Other apps get no result, like without XPrivacyLua, so they cannot detect it this way
+                // Other apps get no result, like without Doppel, so they cannot detect it this way
                 if ("getVersion".equals(arg)) {
                     Bundle result = null;
                     if (XProvider.hasPermission(context)) {
@@ -307,7 +307,7 @@ class XCore {
                     return;
                 }
 
-                // Other apps get the answer of the settings provider, like without XPrivacyLua
+                // Other apps get the answer of the settings provider, like without Doppel
                 int caller = XProvider.answers(context);
                 if (caller == XProvider.CALLER_NONE)
                     return;

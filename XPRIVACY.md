@@ -3,8 +3,8 @@ Comparison with XPrivacy
 
 The list below is [taken from](https://github.com/M66B/XPrivacy#restrictions) the XPrivacy documentation.
 
-* **Bold** means that XPrivacyLua supports the restriction
-* ~~Strike through~~ means that XPrivacyLua won't support the restriction
+* **Bold** means that Doppel supports the restriction
+* ~~Strike through~~ means that Doppel won't support the restriction
 
 Before asking questions, please read [this FAQ](FAQ.md#user-content-faq4).
 

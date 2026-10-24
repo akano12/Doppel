@@ -1,18 +1,18 @@
 /*
-    This file is part of XPrivacyLua.
+    This file is part of Doppel.
 
-    XPrivacyLua is free software: you can redistribute it and/or modify
+    Doppel is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    XPrivacyLua is distributed in the hope that it will be useful,
+    Doppel is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with XPrivacyLua.  If not, see <http://www.gnu.org/licenses/>.
+    along with Doppel.  If not, see <http://www.gnu.org/licenses/>.
 
     Copyright 2026 akano12
  */
@@ -49,7 +49,7 @@ final class XNotify {
 
     // The tags of all notifications start with xlua_, the id is the uid of the app
     private static final String TAG_PREFIX = "xlua_";
-    private static final String APP_NAME = "XPrivacyLua"; // Like app_name, which is not translated
+    private static final String APP_NAME = "Doppel"; // Like app_name, which is not translated
     private static final String TAG_NEW_APP = "xlua_new_app";
     private static final String TAG_EXCEPTION = "xlua_exception";
     private static final String TAG_USAGE = "xlua_use_"; // + group

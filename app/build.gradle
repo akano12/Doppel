@@ -55,7 +55,7 @@ android {
     }
 
     base {
-        archivesName = "XPrivacyLua-v${android.defaultConfig.versionName}-${android.defaultConfig.versionCode}"
+        archivesName = "Doppel-v${android.defaultConfig.versionName}-${android.defaultConfig.versionCode}"
     }
 
     signingConfigs {
