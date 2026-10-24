@@ -7,8 +7,9 @@ Really simple to use privacy manager for Android 6 and later, the successor of
 Revoking Android permissions from apps often lets apps crash or malfunction.
 Doppel solves this by feeding apps fake data instead of real data.
 
-Doppel is the maintained continuation of [XPrivacyLua by M66B](https://github.com/M66B/XPrivacyLua), which is not supported anymore:
-the same restrictions and hook definitions under a new name, with a new interface and updates for current Android versions.
+> Doppel is based on [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel Bokhorst (M66B), which is not maintained anymore.
+> It continues XPrivacyLua under a new name, with a new interface, updates for current Android versions and new restrictions,
+> under the same license, the [GPL version 3](#license).
 
 <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Apps"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Screen of an app"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Activity"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Hooks">
 <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Hook editor"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Downloads"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Settings"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Dark theme">
@@ -90,7 +91,7 @@ Using the app
 * **Hooks** lets you view, edit, enable, disable, add, import and export hook definitions,
   and install and remove definitions shared by others with *Downloads*.
 * **Settings** has restricting of and notifications on new apps, the collections of definitions,
-  the theme, colors and language, the fake values used for all apps (like the IMEI, Android ID, location and time zone),
+  the theme, accent color, app icon and language, the fake values used for all apps (like the IMEI, Android ID, location and time zone),
   backup and restore of settings, custom hook definitions and restrictions, and clearing all restrictions and settings.
 
 The (no longer available) pro companion app is not needed anymore.
@@ -129,6 +130,7 @@ and each app you want to restrict, see [here](https://github.com/LSPosed/LSPosed
 With the legacy API, *Settings Storage* (com.android.providers.settings) needs to be in the scope too.
 
 A build signed with another key than the official release cannot update it: uninstall the official release first.
+This also goes for XPrivacyLua by M66B, which Doppel replaces: uninstall it before installing Doppel.
 
 Frequently asked questions
 --------------------------
@@ -176,6 +178,8 @@ There is no support on building.
 
 Attribution
 -----------
+
+Doppel is based on [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel Bokhorst (M66B), the successor of XPrivacy.
 
 Doppel uses:
 
