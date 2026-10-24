@@ -1,6 +1,24 @@
-<img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="Doppel: fake data for apps, real privacy for you, next to a phone showing the Apps tab">
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="Doppel: fake data for apps, real privacy for you, next to a phone showing the Apps tab">
+</p>
 
-Really simple to use privacy manager for Android 6 and later, the successor of
+<p align="center">
+  <a href="https://github.com/akano12/Doppel/releases"><img src="https://img.shields.io/github/v/release/akano12/Doppel?label=release" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/Android-6.0%2B-3DDC84" alt="Android 6.0 and later">
+  <img src="https://img.shields.io/badge/Xposed-LSPosed%20%7C%20Xposed-6E6E73" alt="Xposed module for LSPosed or Xposed">
+  <a href="#license"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="License GPL version 3"></a>
+</p>
+
+<p align="center">
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="#restrictions">Restrictions</a> ·
+  <a href="FAQ.md">FAQ</a> ·
+  <a href="#building">Building</a>
+</p>
+
+Doppel is a really simple to use privacy manager for Android 6 and later, the successor of
 [XPrivacy](https://forum.xda-developers.com/xposed/modules/xprivacy-ultimate-android-privacy-app-t2320783).
 
 Revoking Android permissions from apps often lets apps crash or malfunction.
@@ -9,9 +27,6 @@ Doppel solves this by feeding apps fake data instead of real data.
 > Doppel is based on [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel Bokhorst (M66B), which is not maintained anymore.
 > It continues XPrivacyLua under a new name, with a new interface, updates for current Android versions and new restrictions,
 > under the same license, the [GPL version 3](#license).
-
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Apps"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Screen of an app"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Activity"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Hooks">
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Hook editor"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Downloads"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Settings"> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Dark theme">
 
 Why Doppel
 ----------
@@ -26,6 +41,14 @@ The answers look real, so the app keeps working, but they lead nowhere and the a
 The logo shows the same idea: a sinister mask in front, an innocent face behind it.
 Apps only ever meet the mask.
 
+Screenshots
+-----------
+
+<table>
+  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="180" alt="Apps"><br><sub>Apps</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="180" alt="An app"><br><sub>An app</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="180" alt="Activity"><br><sub>Activity</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="180" alt="Hooks"><br><sub>Hooks</sub></td></tr>
+  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="180" alt="Hook editor"><br><sub>Hook editor</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="180" alt="Downloads"><br><sub>Downloads</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="180" alt="Settings"><br><sub>Settings</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="180" alt="Dark theme"><br><sub>Dark theme</sub></td></tr>
+</table>
+
 Features
 --------
 
@@ -38,8 +61,53 @@ Features
 * Multi-user support
 * Free and open source
 
+### Using the app
+
+* **Apps** shows the apps by what needs attention: apps with a failed hook, user apps installed in the last week
+  without restrictions (restricted with one tap), apps restricted or restricting something in the last day, and all apps.
+  Tap an app to restrict groups or single hooks, stop it automatically and set *Fake values for this app*.
+* **Activity** shows which app triggered which restriction and when, with the real and the fake value, and hook errors,
+  searchable by app or restriction; *View log* on the screen of an app shows the log of that app only.
+* **Hooks** lets you view, edit, enable, disable, add, import and export hook definitions,
+  and install and remove definitions shared by others with *Downloads*.
+* **Settings** has restricting of and notifications on new apps, the collections of definitions,
+  the theme, accent color and app icon, the fake values used for all apps (like the IMEI, Android ID, location and time zone),
+  backup and restore of settings, custom hook definitions and restrictions, and clearing all restrictions and settings.
+
+The (no longer available) pro companion app is not needed anymore.
+To add your own restriction definitions, see [this FAQ](FAQ.md#user-content-faq8) and [DEFINE.md](DEFINE.md).
+
+Compatibility
+-------------
+
+Doppel supports Android 6.0 Marshmallow and later, on smartphones and tablets.
+For Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop there is [XPrivacy](https://github.com/M66B/XPrivacy/blob/master/README.md) (unsupported).
+
+Doppel uses the [modern Xposed API](https://github.com/libxposed/api) (API 101 or later) when the framework provides it,
+and the legacy Xposed API otherwise, for example with Xposed or EdXposed.
+
+Installation
+------------
+
+1. Install [Magisk](https://www.xda-developers.com/how-to-install-magisk/)
+2. Install and activate an Xposed framework:
+   [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork on Android 8.1 and later,
+   [Xposed](http://forum.xda-developers.com/xposed) on Android 6 and 7
+3. Download Doppel from the [releases](https://github.com/akano12/Doppel/releases), install it and activate it
+4. Reboot
+
+LSPosed: the scope needs to include *System Framework*, which hosts the Doppel service in the settings provider,
+and each app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
+With the legacy API, *Settings Storage* (com.android.providers.settings) needs to be in the scope too.
+
+A build signed with another key than the official release cannot update it: uninstall the official release first.
+This also goes for XPrivacyLua by M66B, which Doppel replaces: uninstall it before installing Doppel.
+
 Restrictions
 ------------
+
+A restriction hides data (an empty list) or fakes it (an empty or fake value).
+All technical details are in [hooks.json](app/src/main/assets/hooks.json).
 
 * Determine activity (fake unknown activity, hide activity transitions, see [here](https://developers.google.com/location-context/activity-recognition/))
 * Get applications (hide installed apps, launcher activities, broadcast receivers, [widgets](https://developer.android.com/reference/android/appwidget/AppWidgetManager.html), usage statistics and events, keyboards and accessibility services of other apps, also for lookups by user, by user id, of activities, services and content providers, package contexts, launch intents and the shell command pm; the content providers, services, screens and broadcasts of hidden apps cannot be reached, so apps cannot ask each other for the account signed in)
@@ -76,28 +144,7 @@ activity recognition and geofences) hook libraries inside the target app, which 
 [obfuscated](https://developer.android.com/studio/build/shrink-code.html) in a way that renamed these libraries.
 The other restrictions hook Android itself and always work.
 
-A restriction hides data (an empty list) or fakes it (an empty or fake value).
-All technical details are in [hooks.json](app/src/main/assets/hooks.json).
-
-Using the app
--------------
-
-* **Apps** shows the apps by what needs attention: apps with a failed hook, user apps installed in the last week
-  without restrictions (restricted with one tap), apps restricted or restricting something in the last day, and all apps.
-  Tap an app to restrict groups or single hooks, stop it automatically and set *Fake values for this app*.
-* **Activity** shows which app triggered which restriction and when, with the real and the fake value, and hook errors,
-  searchable by app or restriction; *View log* on the screen of an app shows the log of that app only.
-* **Hooks** lets you view, edit, enable, disable, add, import and export hook definitions,
-  and install and remove definitions shared by others with *Downloads*.
-* **Settings** has restricting of and notifications on new apps, the collections of definitions,
-  the theme, accent color and app icon, the fake values used for all apps (like the IMEI, Android ID, location and time zone),
-  backup and restore of settings, custom hook definitions and restrictions, and clearing all restrictions and settings.
-
-The (no longer available) pro companion app is not needed anymore.
-To add your own restriction definitions, see [this FAQ](FAQ.md#user-content-faq8) and [DEFINE.md](DEFINE.md).
-
-Notes
------
+### Limits
 
 * Some apps will start the camera app to take pictures. This cannot be restricted and there is no need for this, because only you can take pictures in this scenario, not the app.
 * Some apps will use [OpenSL ES for Android](https://developer.android.com/ndk/guides/audio/opensl-for-android.html) to record audio, an example is WhatsApp. Xposed cannot hook into native code, so this cannot be prevented.
@@ -105,42 +152,12 @@ Notes
 * The network data restriction blocks discovery of devices in the local network through Android (network service discovery, Wi-Fi Direct and Wi-Fi Aware). Apps discovering devices with their own code over plain sockets, like with mDNS or SSDP, cannot be prevented from doing so.
 * The telephony data restriction will result in apps seeing a fake IMEI. However, this doesn't change the IMEI address of your device.
 
-Compatibility
--------------
+Help
+----
 
-Doppel supports Android 6.0 Marshmallow and later, on smartphones and tablets.
-For Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop there is [XPrivacy](https://github.com/M66B/XPrivacy/blob/master/README.md) (unsupported).
-
-Doppel uses the [modern Xposed API](https://github.com/libxposed/api) (API 101 or later) when the framework provides it,
-and the legacy Xposed API otherwise, for example with Xposed or EdXposed.
-
-Installation
-------------
-
-1. Install [Magisk](https://www.xda-developers.com/how-to-install-magisk/)
-2. Install and activate an Xposed framework:
-   [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork on Android 8.1 and later,
-   [Xposed](http://forum.xda-developers.com/xposed) on Android 6 and 7
-3. Download Doppel from the [releases](https://github.com/akano12/Doppel/releases), install it and activate it
-4. Reboot
-
-LSPosed: the scope needs to include *System Framework*, which hosts the Doppel service in the settings provider,
-and each app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
-With the legacy API, *Settings Storage* (com.android.providers.settings) needs to be in the scope too.
-
-A build signed with another key than the official release cannot update it: uninstall the official release first.
-This also goes for XPrivacyLua by M66B, which Doppel replaces: uninstall it before installing Doppel.
-
-Frequently asked questions
---------------------------
-
-See the [FAQ](FAQ.md).
-
-Support
--------
-
-* For support on Doppel, please open an [issue](https://github.com/akano12/Doppel/issues)
-* For support on Xposed, please go [here](http://forum.xda-developers.com/xposed)
+* Questions: see the [FAQ](FAQ.md)
+* Support on Doppel: open an [issue](https://github.com/akano12/Doppel/issues)
+* Support on Xposed: see the [Xposed forum](http://forum.xda-developers.com/xposed)
 
 Doppel with [Island](http://forum.xda-developers.com/android/-t3366295) and similar apps is not supported.
 
