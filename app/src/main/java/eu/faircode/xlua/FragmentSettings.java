@@ -191,10 +191,11 @@ public class FragmentSettings extends FragmentBase {
 
                 tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
                 ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
+                // The shield of an active module has the accent color, see the palettes
                 ivStatus.setBackgroundTintList(Ui.tint(requireContext(), available
-                        ? R.attr.colorSuccessContainer : R.attr.colorWarningContainer));
+                        ? com.google.android.material.R.attr.colorPrimaryContainer : R.attr.colorWarningContainer));
                 ivStatus.setImageTintList(Ui.tint(requireContext(), available
-                        ? R.attr.colorOnSuccessContainer : R.attr.colorOnWarningContainer));
+                        ? com.google.android.material.R.attr.colorOnPrimaryContainer : R.attr.colorOnWarningContainer));
                 glStatus.removeAllViews();
                 // Digits of the language, like the counts of the Activity tab
                 NumberFormat nf = NumberFormat.getIntegerInstance();

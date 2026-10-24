@@ -74,7 +74,6 @@ public class FragmentApps extends FragmentBase {
     private SwipeRefreshLayout swipeRefresh;
     private View pbLoading;
     private TextView tvEmpty;
-    private TextView tvStatus;
     private View cvOverview;
     private CircularProgressIndicator piShare;
     private TextView tvShare;
@@ -101,7 +100,6 @@ public class FragmentApps extends FragmentBase {
         swipeRefresh = view.findViewById(R.id.swipeRefresh);
         pbLoading = view.findViewById(R.id.pbLoading);
         tvEmpty = view.findViewById(R.id.tvEmpty);
-        tvStatus = view.findViewById(R.id.tvStatus);
         cvOverview = view.findViewById(R.id.cvOverview);
         piShare = view.findViewById(R.id.piShare);
         tvShare = view.findViewById(R.id.tvShare);
@@ -271,13 +269,12 @@ public class FragmentApps extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         executor.submit(() -> {
             try {
-                boolean available = Data.isAvailable(Data.getVersion(context));
                 List<XHook> hooks = Data.getHooks(context);
                 List<String> collection = Data.getCollection(context);
                 List<AdapterApp.Row> rows = new ArrayList<>();
                 for (XApp app : Data.getApps(context))
                     rows.add(AdapterApp.Row.summarize(app, hooks, collection));
-                Log.i(TAG, "Loaded apps=" + rows.size() + " hooks=" + hooks.size() + " available=" + available);
+                Log.i(TAG, "Loaded apps=" + rows.size() + " hooks=" + hooks.size());
 
                 post(() -> {
                     this.hooks = hooks;
@@ -286,7 +283,6 @@ public class FragmentApps extends FragmentBase {
                     adapter.set(rows);
                     swipeRefresh.setRefreshing(false);
                     pbLoading.setVisibility(View.GONE);
-                    setStatus(available);
                     updateOverview();
                     updateEmpty();
                 });
@@ -298,19 +294,6 @@ public class FragmentApps extends FragmentBase {
                 error(TAG, ex);
             }
         });
-    }
-
-    // Whether the service answers, like the status card of Settings tells, with its shield
-    private void setStatus(boolean available) {
-        Context context = requireContext();
-        tvStatus.setText(available ? R.string.badge_active : R.string.badge_inactive);
-        int text = Ui.color(context, available ? R.attr.colorOnSuccessContainer : R.attr.colorOnWarningContainer);
-        tvStatus.setTextColor(text);
-        tvStatus.setBackgroundTintList(
-                Ui.tint(context, available ? R.attr.colorSuccessContainer : R.attr.colorWarningContainer));
-        Ui.setStartIcon(tvStatus, available ? R.drawable.ic_shield : R.drawable.ic_shield_off, 15, text);
-        tvStatus.setContentDescription(getString(available ? R.string.title_module_active : R.string.msg_no_service));
-        tvStatus.setVisibility(View.VISIBLE);
     }
 
     // The counts of the filter chips and the overview card follow the filter, not the search

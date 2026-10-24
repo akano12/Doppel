@@ -122,8 +122,6 @@
     </plurals>
     <string name="title_no_calls">No restricted call yet</string>
     <string name="title_off">Off</string>
-    <string name="badge_active">Active</string>
-    <string name="badge_inactive">Inactive</string>
     <string name="title_sort">Sort</string>
     <string name="title_sorted_by">Sort, %1$s</string>
     <string name="sort_name">By name</string>
@@ -447,7 +445,7 @@
     <string name="title_theme_system">System</string>
     <string name="title_theme_light">Light</string>
     <string name="title_theme_dark">Dark</string>
-    <string name="title_palette">Colors</string>
+    <string name="title_palette">Accent</string>
     <string name="title_palette_ocean">Ocean</string>
     <string name="title_palette_berry">Berry</string>
     <string name="title_palette_sky">Sky</string>
