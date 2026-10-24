@@ -41,8 +41,6 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatDelegate;
-import androidx.core.os.LocaleListCompat;
 import androidx.core.view.ViewCompat;
 
 import com.google.android.material.chip.ChipGroup;
@@ -62,10 +60,6 @@ public class FragmentSettings extends FragmentBase {
     private static final int[] THEME_CHIPS = {R.id.chipThemeSystem, R.id.chipThemeLight, R.id.chipThemeDark};
     private static final String[] THEMES = {ApplicationEx.THEME_SYSTEM, ApplicationEx.THEME_LIGHT, ApplicationEx.THEME_DARK};
 
-    // The languages to choose from: the one of the device, or English, which every text has
-    private static final String[] LANGUAGES = {"", "en"};
-    private static final int[] LANGUAGE_TITLES = {R.string.title_theme_system, R.string.title_language_english};
-
     private ImageView ivStatus;
     private TextView tvStatus;
     private TextView tvVersion;
@@ -80,7 +74,6 @@ public class FragmentSettings extends FragmentBase {
     private LinearLayout llIcons;
     private View llBlack;
     private MaterialSwitch swBlack;
-    private TextView tvLanguage;
 
     private List<String> collections = new ArrayList<>(); // Known collections
     private List<String> enabled = new ArrayList<>(); // Enabled collections
@@ -116,7 +109,6 @@ public class FragmentSettings extends FragmentBase {
         llIcons = view.findViewById(R.id.llIcons);
         llBlack = view.findViewById(R.id.llBlack);
         swBlack = view.findViewById(R.id.swBlack);
-        tvLanguage = view.findViewById(R.id.tvLanguage);
 
         tvVersion.setText(getString(R.string.title_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
 
@@ -139,7 +131,6 @@ public class FragmentSettings extends FragmentBase {
         llRestrictNew.setOnClickListener(v -> swRestrictNew.toggle());
         llNotifyNew.setOnClickListener(v -> swNotifyNew.toggle());
         llBlack.setOnClickListener(v -> swBlack.toggle());
-        view.findViewById(R.id.llLanguage).setOnClickListener(v -> selectLanguage());
         view.findViewById(R.id.llCollections).setOnClickListener(v -> selectCollections());
         view.findViewById(R.id.llValues).setOnClickListener(v ->
                 startActivity(ActivityValues.getIntent(activity, null, null)));
@@ -154,7 +145,6 @@ public class FragmentSettings extends FragmentBase {
         view.findViewById(R.id.llLicense).setOnClickListener(v -> Ui.getLicenseDialog(activity)
                 .setPositiveButton(android.R.string.ok, null)
                 .show());
-        showLanguage();
 
         return view;
     }
@@ -313,33 +303,6 @@ public class FragmentSettings extends FragmentBase {
             if (ApplicationEx.setBlack(context, black))
                 post(() -> ((ActivityBase) requireActivity()).recreateSmoothly());
         });
-    }
-
-    // The language of the app: the one of the device, or English; Android 13 and later remember it in
-    // the system settings of the app, earlier versions in a file of the app (see the manifest)
-    private static int getLanguage() {
-        LocaleListCompat locales = AppCompatDelegate.getApplicationLocales();
-        return (locales.isEmpty() ? 0 : 1);
-    }
-
-    private void showLanguage() {
-        tvLanguage.setText(LANGUAGE_TITLES[getLanguage()]);
-    }
-
-    private void selectLanguage() {
-        String[] titles = new String[LANGUAGE_TITLES.length];
-        for (int i = 0; i < titles.length; i++)
-            titles[i] = getString(LANGUAGE_TITLES[i]);
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.title_language)
-                .setSingleChoiceItems(titles, getLanguage(), (dialog, which) -> {
-                    dialog.dismiss();
-                    // Screens are recreated in the new language
-                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(LANGUAGES[which]));
-                    showLanguage();
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
     }
 
     private void addStatus(int key, String value) {

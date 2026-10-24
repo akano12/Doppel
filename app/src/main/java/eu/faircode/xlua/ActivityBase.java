@@ -65,6 +65,7 @@ public class ActivityBase extends AppCompatActivity {
     }
 
     // The icon of the launcher is not switched while another app returns a result, see LauncherIcons
+    @SuppressWarnings("deprecation")
     @Override
     public void startActivityForResult(Intent intent, int requestCode, @Nullable Bundle options) {
         if (requestCode >= 0)
@@ -77,6 +78,8 @@ public class ActivityBase extends AppCompatActivity {
         }
     }
 
+    // Deprecated for apps, but every result passes here, also of the result launchers
+    @SuppressWarnings("deprecation")
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         LauncherIcons.setAwaitingResult(false);

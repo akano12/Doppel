@@ -396,21 +396,25 @@ class XProvider {
     // Built-in hooks added by an update are assigned to the apps which restrict their group,
     // like the screens of the app assign all hooks of a group
     // Enabled built-in hooks are tracked, so a hook enabled by an update is assigned too.
-    // The former marker "builtins" included disabled hooks; without the current marker,
-    // all enabled built-in hooks count as new, which completes the restricted groups once.
+    // Hooks which were known already are never assigned again: a hook switched off for an app stays off.
+    // Without the current marker the former marker "builtins" tells which hooks were known, disabled ones too;
+    // without both, like at the first start, the current hooks are known.
     private static void assignNewBuiltins() throws Throwable {
         final Map<String, XHook> all = hooks;
         final Collection<XHook> builtin = builtins.values();
         db.write(d -> {
             Set<String> known = new HashSet<>();
-            String marker = readSetting(d, -1, "service", "builtins_enabled");
-            if (marker != null)
-                known.addAll(Arrays.asList(marker.split(",")));
-
             List<String> enabled = new ArrayList<>();
             for (XHook hook : builtin)
                 if (hook.isEnabled())
                     enabled.add(hook.getId());
+
+            String current = readSetting(d, -1, "service", "builtins_enabled");
+            String marker = (current == null ? readSetting(d, -1, "service", "builtins") : current);
+            if (marker == null)
+                known.addAll(enabled);
+            else
+                known.addAll(Arrays.asList(marker.split(",")));
 
             List<String> added = new ArrayList<>();
             for (String id : enabled)
@@ -427,7 +431,7 @@ class XProvider {
                 Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + counts[0]);
             }
 
-            if (!added.isEmpty() || known.size() != enabled.size()) {
+            if (current == null || !new HashSet<>(enabled).equals(known)) {
                 writeSetting(d, -1, "service", "builtins_enabled", TextUtils.join(",", enabled));
                 writeSetting(d, -1, "service", "builtins", null);
             }
@@ -622,17 +626,30 @@ class XProvider {
         final Map<String, XHook> all = hooks;
         db.write(d -> {
             Set<String> existing = new HashSet<>();
-            if (restore)
+            Set<String> stored = new HashSet<>();
+            if (restore) {
                 try (Cursor cursor = d.query("assignment", new String[]{"hook"}, WHERE_APP,
                         new String[]{packageName, Integer.toString(uid)}, null, null, null)) {
                     while (cursor.moveToNext())
                         existing.add(cursor.getString(0));
                 }
+                try (Cursor cursor = d.query("hook", new String[]{"id"}, null, null, null, null, null)) {
+                    while (cursor.moveToNext())
+                        stored.add(cursor.getString(0));
+                }
+            }
 
             List<String> groups = new ArrayList<>();
             for (String hookid : hookids) {
                 if (existing.contains(hookid))
                     continue;
+
+                // A backup can have definitions which this device does not have, like removed built-in ones,
+                // which would be dead rows, see removeObsoleteAssignments
+                if (restore && !all.containsKey(hookid) && !stored.contains(hookid)) {
+                    Log.i(TAG, packageName + ":" + uid + "/" + hookid + " not restored, unknown hook");
+                    continue;
+                }
 
                 XHook hook = all.get(hookid);
                 if (hook != null && !groups.contains(hook.getGroup()))

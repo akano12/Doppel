@@ -111,10 +111,6 @@ android {
     lint {
         // The service and the hook engine use reflection on hidden framework APIs by design, see XCore and XParam
         disable 'PrivateApi', 'DiscouragedPrivateApi', 'SoonBlockedPrivateApi', 'BlockedPrivateApi'
-        // Translations are maintained externally
-        disable 'MissingTranslation', 'ExtraTranslation'
-        // The folders he and id are what Android 5 and later expect, the old names iw and in are for before
-        disable 'LocaleFolder'
     }
 }
 

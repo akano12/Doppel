@@ -12,6 +12,7 @@ Secondary users can clear their own data by uninstalling Doppel *while it is run
 
 All data is stored in the system folder */data/system/xlua* and can therefore not be backed up by regular backup apps.
 You can backup and restore all restrictions, settings and custom hook definitions in *Settings* > *Backup* and *Restore*.
+Restrictions with hook definitions which the device does not have, like custom definitions which are not in the backup, are not restored.
 *Settings* > *Clear restrictions and settings* removes all restrictions and settings, including the fake values, of the current user
 and keeps the custom hook definitions.
 
@@ -38,7 +39,7 @@ Disable and enable the module in the manager app and hard reboot again to fix th
 **(4) Can you add ...?**
 
 * *Network and storage restrictions*: access to the internet and to the device storage can only be prevented by revoking Linux permission from an app, which will often result in the app crashing. Therefore this will not be added.
-* *User interface features* like *templates*: I want to limit the time I put into this project and I want to keep things simple, so don't expect anything more than basic restriction management.
+* *User interface features* like *templates*: Doppel keeps restriction management simple, so features like these will not be added.
 * *On demand restricting*: It is not really possible to add on demand restricting so that it works stable and can be supported on the long term, so this will not be added. See also [here](https://forum.xda-developers.com/showpost.php?p=75419161&postcount=49) and below.
 * *App specific*: anything specific for an app will not be added.
 * *Security specific*: features related to security only will not be added.
@@ -68,7 +69,7 @@ and the addresses of the network interfaces since Android 11, but only from apps
 You can enable status bar notifications on applying restrictions with *Notify on restriction* on the screen of an app.
 This can be used as a replacement for on demand restricting by removing a restriction when needed.
 
-You can ask for new restrictions, but you'll need to explain how it would improve your privacy as well.
+You can ask for new restrictions with an [issue](https://github.com/akano12/Doppel/issues), but you'll need to explain how it would improve your privacy as well.
 
 See also [question 7](#user-content-faq7).
 
@@ -89,6 +90,7 @@ and the *Restrict all* switch shows a dash when not all hooks of all groups are 
 Tap a group to see its hooks; each hook has its own switch.
 
 Hooks added by a new version are applied automatically to the apps which restrict their group.
+Hooks which you switched off stay off after an update.
 A dash means that hooks were switched off, for example because an app did not work with them.
 Tapping a switch with a dash applies all hooks of its group, like the *Restrict all* switch does for all groups;
 tapping it again removes the restrictions of the group.
@@ -126,7 +128,7 @@ Doppel is designed to let apps not crash.
 However, sometimes an app will crash because of a restriction because there is a bug in the app.
 For example Doppel can return no data to an app while the app is not expecting this but should be prepared to handle this because the Android API documentation says this might happen.
 
-If you suspect that a restriction is causing a crash because there is a bug in the restriction, please provide a logcat and I will check the restriction.
+If you suspect that a restriction is causing a crash because there is a bug in the restriction, please open an [issue](https://github.com/akano12/Doppel/issues) with a logcat, so the restriction can be checked.
 
 <a name="faq11"></a>
 **(11) How can I filter on ...?**

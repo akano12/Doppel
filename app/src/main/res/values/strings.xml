@@ -458,8 +458,6 @@
     <string name="title_icon_echo">Mask and its echo</string>
     <string name="msg_launcher_icon">The new icon appears when you leave the app; a shortcut on the home screen needs to be added again</string>
     <string name="title_black_hint">In the dark theme, which saves power on OLED screens</string>
-    <string name="title_language">Language</string>
-    <string name="title_language_english">English</string>
     <string name="title_backup_hint">Settings, custom definitions and restrictions</string>
     <string name="title_restore_hint">From a backup file</string>
     <string name="title_clear_data">Clear restrictions and settings</string>

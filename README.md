@@ -91,7 +91,7 @@ Using the app
 * **Hooks** lets you view, edit, enable, disable, add, import and export hook definitions,
   and install and remove definitions shared by others with *Downloads*.
 * **Settings** has restricting of and notifications on new apps, the collections of definitions,
-  the theme, accent color, app icon and language, the fake values used for all apps (like the IMEI, Android ID, location and time zone),
+  the theme, accent color and app icon, the fake values used for all apps (like the IMEI, Android ID, location and time zone),
   backup and restore of settings, custom hook definitions and restrictions, and clearing all restrictions and settings.
 
 The (no longer available) pro companion app is not needed anymore.
@@ -151,8 +151,8 @@ Contributing
 **Documentation**: contributions to this document and the FAQ are preferred as
 [pull requests](https://help.github.com/articles/creating-a-pull-request/).
 
-**Translations**: translations are welcome as pull requests of *app/src/main/res/values-xx/strings.xml*
-(xx is the language code), translated from *app/src/main/res/values/strings.xml*.
+**Translations**: Doppel is in English for now. Complete translations are welcome as pull requests of
+*app/src/main/res/values-xx/strings.xml* (xx is the language code), translated from *app/src/main/res/values/strings.xml*.
 
 **Source code**: please open an [issue](https://github.com/akano12/Doppel/issues) first to tell what your plans are,
 then send a [pull request](https://help.github.com/articles/creating-a-pull-request/).

@@ -119,7 +119,7 @@ final class Groups {
         return (id == null ? R.drawable.ic_group_custom : id);
     }
 
-    // Built-in groups have a translated title, custom groups are shown by name
+    // Built-in groups have a title in the strings, custom groups are shown by name
     static String getTitle(Context context, String group) {
         return getTitle(context.getResources(), group);
     }

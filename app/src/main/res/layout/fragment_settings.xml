@@ -305,28 +305,6 @@
                         android:layout_height="wrap_content"
                         android:contentDescription="@string/title_black" />
                 </LinearLayout>
-
-                <!-- The language of the app, see FragmentSettings.selectLanguage -->
-                <LinearLayout
-                    android:id="@+id/llLanguage"
-                    style="@style/XLua.Row">
-
-                    <LinearLayout style="@style/XLua.Row.Text">
-
-                        <TextView
-                            style="@style/XLua.Row.Title"
-                            android:text="@string/title_language" />
-
-                        <TextView
-                            android:id="@+id/tvLanguage"
-                            style="@style/XLua.Row.Subtitle"
-                            tools:text="System" />
-                    </LinearLayout>
-
-                    <ImageView
-                        style="@style/XLua.Row.Icon"
-                        android:importantForAccessibility="no" />
-                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
