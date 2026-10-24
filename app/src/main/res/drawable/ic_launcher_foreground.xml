@@ -8,8 +8,8 @@
     <group
         android:scaleX="0.66"
         android:scaleY="0.66"
-        android:translateX="21"
-        android:translateY="21">
+        android:translateX="22"
+        android:translateY="22.2">
         <group
             android:pivotX="36"
             android:pivotY="44"
