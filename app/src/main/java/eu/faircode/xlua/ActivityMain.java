@@ -26,14 +26,15 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.core.splashscreen.SplashScreen;
+import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
-
-import com.google.android.material.bottomnavigation.BottomNavigationView;
+import androidx.recyclerview.widget.RecyclerView;
 
 // Top level screens: apps, activity, hooks and settings
 public class ActivityMain extends ActivityBase implements Ui.Anchored {
@@ -49,13 +50,13 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
 
     private static final String STATE_AVAILABLE = "available";
 
-    private BottomNavigationView nav;
+    private NavBar nav;
     private boolean available = false;
     private Runnable checked = null; // What to show after checking the service, when the screen was left meanwhile
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // The masks on plum while the app starts, then the theme of the app, see Theme.XLua.Starting
+        // The masks on black while the app starts, then the theme of the app, see Theme.XLua.Starting
         SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
 
@@ -118,10 +119,16 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
         available = true;
         setContentView(R.layout.activity_main);
         nav = findViewById(R.id.nav);
-        nav.setOnItemSelectedListener(item -> {
-            show(getTab(item.getItemId()));
-            return true;
-        });
+        nav.setMenu(R.menu.nav);
+        nav.setOnItemSelectedListener(itemId -> show(getTab(itemId)));
+
+        // Also for the tabs which the framework restores
+        getSupportFragmentManager().registerFragmentLifecycleCallbacks(new FragmentManager.FragmentLifecycleCallbacks() {
+            @Override
+            public void onFragmentViewCreated(@NonNull FragmentManager fm, @NonNull Fragment f, @NonNull View v, Bundle state) {
+                keepClearOfBar(v);
+            }
+        }, false);
 
         // Else the selected tab and fragments are restored by the framework
         if (first) {
@@ -130,6 +137,25 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
         }
 
         checkFirstRun();
+    }
+
+    // The bar floats over the bottom of the tabs: their lists can scroll their end above it,
+    // and the add button of the Hooks tab stays above it
+    private void keepClearOfBar(View view) {
+        int space = getResources().getDimensionPixelSize(R.dimen.nav_floating_height) +
+                getResources().getDimensionPixelSize(R.dimen.nav_floating_margin);
+        if (view instanceof RecyclerView || view instanceof NestedScrollView) {
+            view.setPadding(view.getPaddingLeft(), view.getPaddingTop(), view.getPaddingRight(), view.getPaddingBottom() + space);
+            ((ViewGroup) view).setClipToPadding(false);
+        } else if (view.getId() == R.id.fabAdd) {
+            ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+            lp.bottomMargin += space;
+            view.setLayoutParams(lp);
+        } else if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++)
+                keepClearOfBar(group.getChildAt(i));
+        }
     }
 
     @Override

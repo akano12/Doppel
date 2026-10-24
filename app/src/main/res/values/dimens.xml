@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The floating bar of the tabs, see activity_main.xml and NavBar -->
+    <dimen name="nav_floating_height">64dp</dimen>
+    <dimen name="nav_floating_radius">32dp</dimen>
+    <dimen name="nav_floating_margin">12dp</dimen>
+    <dimen name="nav_floating_margin_sides">20dp</dimen>
+    <dimen name="nav_floating_padding">8dp</dimen>
+    <dimen name="nav_item_height">48dp</dimen>
+    <dimen name="nav_item_radius">24dp</dimen>
+    <dimen name="nav_item_padding">16dp</dimen>
+    <dimen name="nav_icon_size">24dp</dimen>
+    <dimen name="nav_label_spacing">8dp</dimen>
+</resources>

@@ -1,5 +1,4 @@
-Doppel
-======
+<img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="Doppel: fake data for apps, real privacy for you">
 
 Really simple to use privacy manager for Android 6 and later, the successor of
 [XPrivacy](https://forum.xda-developers.com/xposed/modules/xprivacy-ultimate-android-privacy-app-t2320783).

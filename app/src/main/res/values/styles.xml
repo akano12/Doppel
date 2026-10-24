@@ -74,7 +74,6 @@
         <item name="textAppearanceLabelSmall">@style/XLua.TextAppearance.LabelSmall</item>
 
         <item name="materialCardViewStyle">@style/XLua.Card</item>
-        <item name="bottomNavigationStyle">@style/XLua.BottomNavigation</item>
         <item name="toolbarStyle">@style/Widget.Material3.Toolbar.Surface</item>
     </style>
 
@@ -136,10 +135,6 @@
     <style name="XLua.TextAppearance.LabelSmall" parent="TextAppearance.Material3.LabelSmall">
         <item name="android:fontFamily">@font/plex_sans_title</item>
         <item name="fontFamily">@font/plex_sans_title</item>
-    </style>
-
-    <style name="XLua.BottomNavigation" parent="Widget.Material3.BottomNavigationView">
-        <item name="backgroundTint">?attr/colorSurfaceContainerLowest</item>
     </style>
 
     <!-- Screen title of the top level screens -->

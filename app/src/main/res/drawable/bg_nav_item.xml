@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A tab in the bar: a pill when it is selected, a ripple of the same shape when tapped, see NavBar -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?attr/colorControlHighlight">
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/nav_item_radius" />
+            <solid android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item>
+        <selector>
+            <item android:state_selected="true">
+                <shape android:shape="rectangle">
+                    <corners android:radius="@dimen/nav_item_radius" />
+                    <solid android:color="?attr/colorSecondaryContainer" />
+                </shape>
+            </item>
+        </selector>
+    </item>
+</ripple>
