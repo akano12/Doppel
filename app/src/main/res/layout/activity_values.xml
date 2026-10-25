@@ -12,7 +12,9 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize" />
 
+    <!-- The toolbar names the scope while the chips and the hint are scrolled away, see ToolbarSummary -->
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/svValues"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">

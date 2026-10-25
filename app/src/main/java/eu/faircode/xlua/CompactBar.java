@@ -27,14 +27,15 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import androidx.annotation.IdRes;
+import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 
-// The bar of a tab while its header is scrolled away (bar_compact.xml): the title with a summary of the header,
-// the filter of its chips as a menu and its search, which brings the header with the search field back.
+// The bar of a screen while its header is scrolled away (bar_compact.xml), like of the tabs: the title with a summary
+// of the header, the filter of its chips as a menu and its search, which brings the header with the search field back.
 // It fades in over the last part of the scroll, while the header fades out, and takes no taps while it is not shown.
 final class CompactBar {
     // The part of the scroll of the header over which the bar fades in
@@ -45,9 +46,9 @@ final class CompactBar {
     private final ImageButton filter;
     private final ChipGroup chips;
 
-    // The header (llHeader) and the bar are in the app bar (appBar) of the tab; search is the field of the header,
-    // which its button opens
-    CompactBar(View root, @StringRes int title, ChipGroup chips, View search, View searchButton) {
+    // The header (llHeader) and the bar are in the app bar (appBar) of the screen; search is the field of the header,
+    // which its button opens; without chips or search, like Settings, the bar has no buttons for them
+    CompactBar(View root, @StringRes int title, @Nullable ChipGroup chips, @Nullable View search, @Nullable View searchButton) {
         this.chips = chips;
         bar = root.findViewById(R.id.llCompact);
         subtitle = bar.findViewById(R.id.tvCompactSubtitle);
@@ -65,12 +66,27 @@ final class CompactBar {
             header.setAlpha(1 - alpha);
         });
 
-        filter.setOnClickListener(this::showFilter);
-        bar.findViewById(R.id.ibCompactSearch).setOnClickListener(v -> {
-            appBar.setExpanded(true, true);
-            if (search.getVisibility() != View.VISIBLE)
-                searchButton.performClick();
-        });
+        if (chips == null)
+            filter.setVisibility(View.GONE);
+        else
+            filter.setOnClickListener(this::showFilter);
+        View ibSearch = bar.findViewById(R.id.ibCompactSearch);
+        if (search == null || searchButton == null)
+            ibSearch.setVisibility(View.GONE);
+        else
+            ibSearch.setOnClickListener(v -> {
+                appBar.setExpanded(true, true);
+                if (search.getVisibility() != View.VISIBLE)
+                    searchButton.performClick();
+            });
+    }
+
+    // Back, of a screen of its own, like the back button of its header
+    void setBack(View.OnClickListener listener) {
+        ImageButton back = bar.findViewById(R.id.ibCompactBack);
+        back.setOnClickListener(listener);
+        back.setVisibility(View.VISIBLE);
+        bar.setPaddingRelative(Ui.dp(bar.getContext(), 4), 0, bar.getPaddingEnd(), 0);
     }
 
     // A small form of the overview, before the title, like the ring of the Apps tab
@@ -100,6 +116,8 @@ final class CompactBar {
     // The summary, after each change of the header, like of the filter; screen readers hear the filter with its button
     void setSubtitle(CharSequence text) {
         subtitle.setText(text);
+        if (chips == null)
+            return;
         Chip checked = chips.findViewById(chips.getCheckedChipId());
         if (checked != null)
             filter.setContentDescription(bar.getContext().getString(R.string.title_filter_by, checked.getText()));

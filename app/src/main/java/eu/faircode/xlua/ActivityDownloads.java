@@ -67,6 +67,8 @@ public class ActivityDownloads extends ActivityBase {
     private enum Filter {ALL, AVAILABLE, INSTALLED, UPDATES}
 
     private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipAvailable, R.id.chipInstalled, R.id.chipUpdates};
+    private static final int[] FILTER_TITLES = {
+            R.string.title_all, R.string.title_not_installed, R.string.title_installed, R.string.title_updates};
 
     private enum State {AVAILABLE, INSTALLED, UPDATE}
 
@@ -92,6 +94,7 @@ public class ActivityDownloads extends ActivityBase {
     private TextView tvSummary;
     private TitleSearch search;
     private ChipGroup cgFilter;
+    private CompactBar compact;
     private View pbLoading;
     private HeaderAdapter updatesAdapter;
     private HeaderAdapter emptyAdapter;
@@ -144,6 +147,11 @@ public class ActivityDownloads extends ActivityBase {
             accordion.reset();
             show();
         });
+
+        // While the header is scrolled away: back, the definitions with the filter, the filter and the search
+        compact = new CompactBar(findViewById(android.R.id.content), R.string.title_downloads, cgFilter,
+                findViewById(R.id.tilSearch), findViewById(R.id.ibSearch));
+        compact.setBack(view -> getOnBackPressedDispatcher().onBackPressed());
 
         load();
     }
@@ -324,6 +332,7 @@ public class ActivityDownloads extends ActivityBase {
         if (installed > 0)
             parts.add(getResources().getQuantityString(R.plurals.title_installed_count, installed, installed));
         tvSummary.setText(all.isEmpty() ? null : String.join(" · ", parts));
+        compact.setSubtitle(getString(R.string.title_pair, parts.get(0), getString(FILTER_TITLES[filter.ordinal()])));
 
         Ui.setChipCount(cgFilter, R.id.chipAll, R.string.title_all, all.size());
         Ui.setChipCount(cgFilter, R.id.chipAvailable, R.string.title_not_installed, available);

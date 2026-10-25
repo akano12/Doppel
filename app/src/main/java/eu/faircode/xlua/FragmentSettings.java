@@ -63,6 +63,7 @@ public class FragmentSettings extends FragmentBase {
     private ImageView ivStatus;
     private TextView tvStatus;
     private TextView tvVersion;
+    private CompactBar compact;
     private GridLayout glStatus;
     private TextView tvCollections;
     private View llRestrictNew;
@@ -112,11 +113,16 @@ public class FragmentSettings extends FragmentBase {
 
         tvVersion.setText(getString(R.string.title_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
 
-        // The title and the captions of the cards are the texts between the cards, headings for screen readers
+        // The title and the captions of the cards, which are the texts between the cards, are headings for screen readers
+        ViewCompat.setAccessibilityHeading(view.findViewById(R.id.tvTitle), true);
         LinearLayout llSettings = view.findViewById(R.id.llSettings);
         for (int i = 0; i < llSettings.getChildCount(); i++)
             if (llSettings.getChildAt(i) instanceof TextView)
                 ViewCompat.setAccessibilityHeading(llSettings.getChildAt(i), true);
+
+        // While the title is scrolled away: whether the hooks are live and the version
+        compact = new CompactBar(view, R.string.nav_settings, null, null, null);
+        compact.setSubtitle(tvVersion.getText());
 
         // The colors right away from the local copies of the settings, the service settings follow
         showPalettes(ApplicationEx.getPalette(activity));
@@ -180,6 +186,7 @@ public class FragmentSettings extends FragmentBase {
                 this.enabled = enabled;
 
                 tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
+                compact.setSubtitle(getString(R.string.title_pair, tvStatus.getText(), tvVersion.getText()));
                 ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
                 // The shield of an active module has the accent color, see the palettes
                 ivStatus.setBackgroundTintList(Ui.tint(requireContext(), available

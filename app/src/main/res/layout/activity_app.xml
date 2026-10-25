@@ -31,8 +31,9 @@
                 android:paddingEnd="16dp"
                 android:paddingBottom="24dp">
 
-                <!-- The app, and all of its groups at once -->
+                <!-- The app, and all of its groups at once; the toolbar sums it up while it is scrolled away -->
                 <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cvApp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 

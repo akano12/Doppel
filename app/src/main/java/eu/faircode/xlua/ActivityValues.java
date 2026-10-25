@@ -113,6 +113,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private static final String[] LOCATION_VALUES = new String[]{null, "set", "coarse"};
     private static final String[] CONTACTS_VALUES = new String[]{null, "1", "0"};
 
+    private ToolbarSummary toolbarSummary;
     private String packageName; // null for the values of all apps
     private String label;
     private String category;
@@ -162,7 +163,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             }
         }
 
-        setupToolbar(getString(R.string.title_values));
+        toolbarSummary = new ToolbarSummary(setupToolbar(getString(R.string.title_values)),
+                findViewById(R.id.svValues), findViewById(R.id.tvHint));
 
         // Values of an app replace the values for all apps
         ChipGroup cgScope = findViewById(R.id.cgScope);
@@ -309,6 +311,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
     private void buildForm() {
         boolean global = GLOBAL.equals(category);
+        toolbarSummary.setSummary(global ? getString(R.string.title_all_apps) : label);
         ((TextView) findViewById(R.id.tvHint)).setText(global
                 ? getString(R.string.title_values_global_hint)
                 : getString(R.string.title_values_app_hint, label));

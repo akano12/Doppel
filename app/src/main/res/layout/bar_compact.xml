@@ -15,6 +15,17 @@
     android:visibility="invisible"
     app:layout_collapseMode="pin">
 
+    <!-- Of a screen of its own, like Downloads, see CompactBar.setBack -->
+    <ImageButton
+        android:id="@+id/ibCompactBack"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginEnd="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/title_back"
+        android:src="@drawable/ic_arrow_back"
+        android:visibility="gone" />
+
     <FrameLayout
         android:id="@+id/flCompactLead"
         android:layout_width="wrap_content"

@@ -86,6 +86,7 @@ public class ActivityApp extends ActivityBase {
     private String reveal = null; // The id of a hook tapped in the log, shown when the restrictions are
 
     private MaterialToolbar toolbar;
+    private ToolbarSummary toolbarSummary;
     private NestedScrollView svContent;
     private View pbLoading;
     private CircularProgressIndicator piAll;
@@ -150,6 +151,7 @@ public class ActivityApp extends ActivityBase {
         });
 
         svContent = findViewById(R.id.svContent);
+        toolbarSummary = new ToolbarSummary(toolbar, svContent, findViewById(R.id.cvApp));
         pbLoading = findViewById(R.id.pbLoading);
         piAll = findViewById(R.id.piAll);
         tvAllCount = findViewById(R.id.tvAllCount);
@@ -558,6 +560,7 @@ public class ActivityApp extends ActivityBase {
         piAll.setProgressCompat(groups == 0 ? 0 : Math.round(100f * restricted / groups), true);
         tvAllCount.setText(String.format(Locale.getDefault(), "%d", restricted));
         String summary = getResources().getQuantityString(R.plurals.title_groups_restricted, groups, restricted, groups);
+        toolbarSummary.setSummary(summary);
         if (last > 0)
             summary = getString(R.string.title_pair, summary,
                     getString(R.string.title_last_call, Groups.getTitle(this, lastGroup), Ui.ago(this, last)));

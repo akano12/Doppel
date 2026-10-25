@@ -89,6 +89,7 @@ public class FragmentLog extends FragmentBase {
     private BarsView vBars;
     private CompactBar compact; // Not in the log of one app
     private BarsView vBarsCompact;
+    private ToolbarSummary toolbarSummary; // Of the log of one app
     private Adapter adapter;
 
     private Filter filter = Filter.ALL;
@@ -174,12 +175,17 @@ public class FragmentLog extends FragmentBase {
             vBarsCompact.setLayoutParams(new FrameLayout.LayoutParams(Ui.dp(context, 64), Ui.dp(context, 24)));
             compact.setTrail(vBarsCompact);
         } else {
-            // The log of one app has a toolbar, the header with the search field stays
+            // The log of one app has a toolbar instead of the compact bar: the search field and the filter scroll
+            // away entirely and come back when scrolling back, the toolbar sums them up meanwhile
             View ctlHeader = view.findViewById(R.id.ctlHeader);
+            ctlHeader.setMinimumHeight(0);
             AppBarLayout.LayoutParams lp = (AppBarLayout.LayoutParams) ctlHeader.getLayoutParams();
-            lp.setScrollFlags(0);
+            lp.setScrollFlags(AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL |
+                    AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS |
+                    AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP);
             ctlHeader.setLayoutParams(lp);
             view.findViewById(R.id.llCompact).setVisibility(View.GONE);
+            toolbarSummary = new ToolbarSummary(requireActivity().findViewById(R.id.toolbar), view.findViewById(R.id.appBar));
         }
 
         return view;
@@ -286,14 +292,16 @@ public class FragmentLog extends FragmentBase {
         tvStats.setTextColor(Ui.color(context, errors.isEmpty()
                 ? com.google.android.material.R.attr.colorOnSurfaceVariant : R.attr.colorWarning));
         vBars.setValues(hours);
+        String summary = getString(R.string.title_pair,
+                getString(R.string.title_pair,
+                        getResources().getQuantityString(R.plurals.title_compact_calls, countToday, countToday),
+                        getResources().getQuantityString(R.plurals.title_stat_errors_count, errors.size(), errors.size())),
+                getString(FILTER_TITLES[filter.ordinal()]));
         if (compact != null) {
             vBarsCompact.setValues(hours);
-            compact.setSubtitle(getString(R.string.title_pair,
-                    getString(R.string.title_pair,
-                            getResources().getQuantityString(R.plurals.title_compact_calls, countToday, countToday),
-                            getResources().getQuantityString(R.plurals.title_stat_errors_count, errors.size(), errors.size())),
-                    getString(FILTER_TITLES[filter.ordinal()])));
-        }
+            compact.setSubtitle(summary);
+        } else
+            toolbarSummary.setSummary(summary);
 
         // Items are entries under the headers of their days, with the number of entries
         String q = (query == null ? "" : query.trim());

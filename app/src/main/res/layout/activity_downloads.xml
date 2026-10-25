@@ -1,140 +1,175 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- The root keeps clear of the system bars (ActivityBase.setContentView), not the coordinator:
+     the app bar does not scroll when the list is shorter than the coordinator by more than the app bar -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
-    android:orientation="vertical">
+    android:background="?attr/colorSurface">
 
-    <!-- Back, the title with what the repository holds, the search which replaces them and its button, see TitleSearch -->
-    <LinearLayout
+    <!-- The header scrolls away with the list, the compact bar takes its place, see CompactBar -->
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:minHeight="?attr/actionBarSize"
-        android:orientation="horizontal"
-        android:paddingStart="4dp"
-        android:paddingEnd="8dp">
+        android:layout_height="match_parent">
 
-        <ImageButton
-            android:id="@+id/ibBack"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/title_back"
-            android:src="@drawable/ic_arrow_back" />
-
-        <LinearLayout
-            android:id="@+id/llTitle"
-            android:layout_width="0dp"
+        <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/appBar"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:background="?attr/colorSurface"
+            android:stateListAnimator="@null"
+            app:liftOnScroll="false">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title_downloads"
-                android:textAppearance="?attr/textAppearanceTitleLarge" />
-
-            <TextView
-                android:id="@+id/tvSummary"
+            <com.google.android.material.appbar.CollapsingToolbarLayout
+                android:id="@+id/ctlHeader"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textAppearance="@style/XLua.Text.Meta" />
-        </LinearLayout>
+                android:minHeight="@dimen/compact_bar_height"
+                app:contentScrim="@android:color/transparent"
+                app:layout_scrollFlags="scroll|exitUntilCollapsed|snap"
+                app:titleEnabled="false">
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilSearch"
-            style="@style/XLua.Search"
-            android:layout_width="0dp"
-            android:layout_marginStart="4dp"
-            android:layout_weight="1"
-            android:visibility="gone">
+                <LinearLayout
+                    android:id="@+id/llHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etSearch"
-                style="@style/XLua.Search.Edit"
-                android:hint="@string/title_search_downloads" />
-        </com.google.android.material.textfield.TextInputLayout>
+                    <!-- Back, the title with what the repository holds, the search which replaces them and its button, see TitleSearch -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:minHeight="?attr/actionBarSize"
+                        android:orientation="horizontal"
+                        android:paddingStart="4dp"
+                        android:paddingEnd="8dp">
 
-        <ImageButton
-            android:id="@+id/ibSearch"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/menu_search"
-            android:src="@drawable/ic_search" />
-    </LinearLayout>
+                        <ImageButton
+                            android:id="@+id/ibBack"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:contentDescription="@string/title_back"
+                            android:src="@drawable/ic_arrow_back" />
 
-    <!-- Which definitions, with their counts, see ActivityDownloads -->
-    <HorizontalScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="8dp"
-        android:scrollbars="none">
+                        <LinearLayout
+                            android:id="@+id/llTitle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
 
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/cgFilter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            app:checkedChip="@id/chipAll"
-            app:selectionRequired="true"
-            app:singleLine="true"
-            app:singleSelection="true">
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/title_downloads"
+                                android:textAppearance="?attr/textAppearanceTitleLarge" />
 
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipAll"
-                style="@style/XLua.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title_all" />
+                            <TextView
+                                android:id="@+id/tvSummary"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textAppearance="@style/XLua.Text.Meta" />
+                        </LinearLayout>
 
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipAvailable"
-                style="@style/XLua.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title_not_installed" />
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilSearch"
+                            style="@style/XLua.Search"
+                            android:layout_width="0dp"
+                            android:layout_marginStart="4dp"
+                            android:layout_weight="1"
+                            android:visibility="gone">
 
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipInstalled"
-                style="@style/XLua.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title_installed" />
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etSearch"
+                                style="@style/XLua.Search.Edit"
+                                android:hint="@string/title_search_downloads" />
+                        </com.google.android.material.textfield.TextInputLayout>
 
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipUpdates"
-                style="@style/XLua.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/title_updates" />
-        </com.google.android.material.chip.ChipGroup>
-    </HorizontalScrollView>
+                        <ImageButton
+                            android:id="@+id/ibSearch"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:contentDescription="@string/menu_search"
+                            android:src="@drawable/ic_search" />
+                    </LinearLayout>
 
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
+                    <!-- Which definitions, with their counts, see ActivityDownloads -->
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
+                        android:layout_marginTop="8dp"
+                        android:scrollbars="none">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvDownloads"
+                        <com.google.android.material.chip.ChipGroup
+                            android:id="@+id/cgFilter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            app:checkedChip="@id/chipAll"
+                            app:selectionRequired="true"
+                            app:singleLine="true"
+                            app:singleSelection="true">
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipAll"
+                                style="@style/XLua.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/title_all" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipAvailable"
+                                style="@style/XLua.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/title_not_installed" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipInstalled"
+                                style="@style/XLua.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/title_installed" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipUpdates"
+                                style="@style/XLua.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/title_updates" />
+                        </com.google.android.material.chip.ChipGroup>
+                    </HorizontalScrollView>
+                </LinearLayout>
+
+                <include layout="@layout/bar_compact" />
+            </com.google.android.material.appbar.CollapsingToolbarLayout>
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingStart="16dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="16dp" />
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <com.google.android.material.progressindicator.CircularProgressIndicator
-            android:id="@+id/pbLoading"
-            style="@style/XLua.Loading" />
-    </FrameLayout>
-</LinearLayout>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvDownloads"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingStart="16dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="16dp" />
+
+            <com.google.android.material.progressindicator.CircularProgressIndicator
+                android:id="@+id/pbLoading"
+                style="@style/XLua.Loading" />
+        </FrameLayout>
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+</FrameLayout>
