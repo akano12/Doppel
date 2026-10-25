@@ -29,10 +29,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.luaj.vm2.LuaValue;
 
@@ -72,20 +74,72 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 	public LuaValue coerce(Object javaValue) {
 		return this;
 	}
+
+	// The public and declared methods of a class. Reflection on a class of a ROM can fail, when it declares
+	// a method with a type the ROM does not have, like ApplicationPackageManager of some Samsung ROMs with
+	// android.content.pm.ArchivedPackageInfo of a later Android version; the methods are then those
+	// of the classes and interfaces it extends, which run as the methods of the class when called on its objects.
+	static List<Method> methodsOf(Class c) {
+		List<Method> result = new ArrayList<Method>();
+		try {
+			result.addAll(Arrays.asList(c.getMethods()));
+			for (Method m : c.getDeclaredMethods())
+				if (!result.contains(m))
+					result.add(m);
+			return result;
+		} catch (LinkageError ignored) {
+			result.clear();
+		}
+		List<Class> pending = new ArrayList<Class>();
+		Set<Class> seen = new HashSet<Class>();
+		pending.add(c);
+		seen.add(c);
+		while (!pending.isEmpty()) {
+			Class k = pending.remove(0);
+			try {
+				// The public methods of Object, like getMethods gives them
+				for (Method m : (k == Object.class ? k.getMethods() : k.getDeclaredMethods()))
+					if (!result.contains(m))
+						result.add(m);
+			} catch (LinkageError ignored) {
+				// Like the class itself, its methods are of the classes it extends
+			}
+			if (k.getSuperclass() != null && seen.add(k.getSuperclass()))
+				pending.add(k.getSuperclass());
+			for (Class i : k.getInterfaces())
+				if (seen.add(i))
+					pending.add(i);
+		}
+		return result;
+	}
+
+	// The public and declared fields of a class and, should reflection on the class fail, of the classes it extends,
+	// see methodsOf
+	static List<Field> fieldsOf(Class c) {
+		List<Field> result = new ArrayList<Field>();
+		for (Class k = c; k != null; k = k.getSuperclass())
+			try {
+				if (k == c)
+					result.addAll(Arrays.asList(k.getFields()));
+				for (Field f : k.getDeclaredFields())
+					if (!result.contains(f))
+						result.add(f);
+				if (k == c)
+					break;
+			} catch (LinkageError ignored) {
+				result.clear();
+			}
+		return result;
+	}
 		
 	Field getField(LuaValue key) {
 		if ( fields == null ) {
 			Map m = new HashMap();
 			List<String> n = new ArrayList();
-			for (Method p : ((Class) m_instance).getMethods())
-				n.add(p.getName());
-			for (Method p : ((Class) m_instance).getDeclaredMethods())
+			for (Method p : methodsOf((Class) m_instance))
 				n.add(p.getName());
 			List<Field> lf = new ArrayList();
-			for (Field p : ((Class) m_instance).getFields())
-				if (!n.contains(p.getName()))
-					lf.add(p);
-			for (Field p : ((Class) m_instance).getDeclaredFields())
+			for (Field p : fieldsOf((Class) m_instance))
 				if (!n.contains(p.getName()) && !lf.contains(p))
 					lf.add(p);
 			Field[] f = lf.toArray(new Field[0]);
@@ -108,11 +162,7 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 	LuaValue getMethod(LuaValue key) {
 		if ( methods == null ) {
 			Map namedlists = new HashMap();
-			List<Method> lm = new ArrayList();
-			lm.addAll(Arrays.asList(((Class) m_instance).getMethods()));
-			for (Method p : ((Class) m_instance).getDeclaredMethods())
-				if (!lm.contains(p))
-					lm.add(p);
+			List<Method> lm = methodsOf((Class) m_instance);
 			Method[] m = lm.toArray(new Method[0]);
 			for ( int i=0; i<m.length; i++ ) {
 				Method mi = m[i];
@@ -126,10 +176,14 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 			}
 			Map map = new HashMap();
 			List<Constructor> lc = new ArrayList();
-			lc.addAll(Arrays.asList(((Class) m_instance).getConstructors()));
-			for (Constructor p : ((Class) m_instance).getDeclaredConstructors())
-				if (!lc.contains(p))
-					lc.add(p);
+			try {
+				lc.addAll(Arrays.asList(((Class) m_instance).getConstructors()));
+				for (Constructor p : ((Class) m_instance).getDeclaredConstructors())
+					if (!lc.contains(p))
+						lc.add(p);
+			} catch (LinkageError ignored) {
+				// Constructors with a type the ROM does not have, see methodsOf; objects of the class can be used still
+			}
 			Constructor[] c = lc.toArray(new Constructor[0]);
 			List list = new ArrayList();
 			for ( int i=0; i<c.length; i++ ) 
