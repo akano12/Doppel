@@ -81,7 +81,47 @@
 
     <!-- Backup, errors and notifications -->
     <string name="msg_backup_done">Backup saved · settings: %1$d · custom definitions: %2$d · apps: %3$d</string>
-    <string name="msg_restore_done">Restored · settings: %1$d · custom definitions: %2$d · apps: %3$d</string>
+    <!-- The summary of a restore, one line each, the lines without anything to say are left out, see FragmentSettings -->
+    <string name="title_restore_done">Backup restored</string>
+    <string name="title_restore_version">Made with version build %1$d, this is build %2$d</string>
+    <plurals name="title_restore_settings">
+        <item quantity="one">%1$d setting</item>
+        <item quantity="other">%1$d settings</item>
+    </plurals>
+    <plurals name="title_restore_hooks">
+        <item quantity="one">%1$d custom definition</item>
+        <item quantity="other">%1$d custom definitions</item>
+    </plurals>
+    <plurals name="title_restore_hooks_failed">
+        <item quantity="one">%1$d custom definition this version cannot read, left out</item>
+        <item quantity="other">%1$d custom definitions this version cannot read, left out</item>
+    </plurals>
+    <plurals name="title_restore_apps">
+        <item quantity="one">%1$d app with %2$d restrictions added</item>
+        <item quantity="other">%1$d apps with %2$d restrictions added</item>
+    </plurals>
+    <plurals name="title_restore_missing">
+        <item quantity="one">%1$d app not installed, left out: %2$s</item>
+        <item quantity="other">%1$d apps not installed, left out: %2$s</item>
+    </plurals>
+    <plurals name="title_restore_renamed">
+        <item quantity="one">%1$d restriction of a renamed definition, taken over</item>
+        <item quantity="other">%1$d restrictions of renamed definitions, taken over</item>
+    </plurals>
+    <plurals name="title_restore_removed">
+        <item quantity="one">%1$d restriction of a definition which does not exist anymore, left out</item>
+        <item quantity="other">%1$d restrictions of definitions which do not exist anymore, left out</item>
+    </plurals>
+    <plurals name="title_restore_completed">
+        <item quantity="one">%1$d restriction of a definition added since the backup, for the groups it restricted</item>
+        <item quantity="other">%1$d restrictions of definitions added since the backup, for the groups it restricted</item>
+    </plurals>
+    <plurals name="title_restore_partial">
+        <item quantity="one">%1$d group partially restricted: the backup does not tell which definitions were added since, see the screens of the apps</item>
+        <item quantity="other">%1$d groups partially restricted: the backup does not tell which definitions were added since, see the screens of the apps</item>
+    </plurals>
+    <string name="title_restore_stopped">Stopped to apply the restrictions: %1$s</string>
+    <string name="title_restore_reboot">Restart the device to apply the restrictions of: %1$s</string>
     <string name="msg_restore_sure">Restore settings, custom definitions and restrictions from this backup? Existing values with the same names are replaced.</string>
     <string name="msg_error">Error: %1$s</string>
 

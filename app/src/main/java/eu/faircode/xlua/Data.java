@@ -221,9 +221,10 @@ final class Data {
         return hookids;
     }
 
-    // Restored hooks do not count as restricted recently
-    static void assignHooks(Context context, ArrayList<String> hookids,
-                            String packageName, int uid, boolean delete, boolean kill, boolean restore) {
+    // Restored hooks do not count as restricted recently; the number of assignments added or deleted,
+    // the app is stopped only when there are any
+    static int assignHooks(Context context, ArrayList<String> hookids,
+                           String packageName, int uid, boolean delete, boolean kill, boolean restore) {
         Bundle args = new Bundle();
         args.putBoolean("restore", restore);
         args.putStringArrayList("hooks", hookids);
@@ -231,7 +232,8 @@ final class Data {
         args.putInt("uid", uid);
         args.putBoolean("delete", delete);
         args.putBoolean("kill", kill);
-        call(context, "assignHooks", args);
+        Bundle result = call(context, "assignHooks", args);
+        return (result == null ? 0 : result.getInt("changed"));
     }
 
     // Assign hooks to the apps of the current user which restrict their group, without stopping them;

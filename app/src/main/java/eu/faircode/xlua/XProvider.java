@@ -624,7 +624,8 @@ class XProvider {
         }
 
         final Map<String, XHook> all = hooks;
-        db.write(d -> {
+        int changed = db.write(d -> {
+            int rows = 0;
             Set<String> existing = new HashSet<>();
             Set<String> stored = new HashSet<>();
             if (restore) {
@@ -657,11 +658,12 @@ class XProvider {
 
                 if (delete) {
                     Log.i(TAG, packageName + ":" + uid + "/" + hookid + " deleted");
-                    d.delete("assignment", WHERE_ASSIGNMENT,
+                    rows += d.delete("assignment", WHERE_ASSIGNMENT,
                             new String[]{packageName, Integer.toString(uid), hookid});
                 } else {
                     Log.i(TAG, packageName + ":" + uid + "/" + hookid + " added");
                     insertAssignment(d, packageName, uid, hookid, now);
+                    rows++;
                 }
             }
 
@@ -669,13 +671,16 @@ class XProvider {
             if (!delete)
                 for (String group : groups)
                     d.delete("`group`", WHERE_GROUP, new String[]{packageName, Integer.toString(uid), group});
-            return null;
+            return rows;
         });
 
-        if (kill)
+        // An app of which nothing changed, like at a second restore of a backup, keeps running
+        if (kill && changed > 0)
             forceStop(context, packageName, Util.getUserId(uid));
 
-        return new Bundle();
+        Bundle result = new Bundle();
+        result.putInt("changed", changed);
+        return result;
     }
 
     // Assigned: the time of a restriction by the user or of a new app, -1 for an automatic addition

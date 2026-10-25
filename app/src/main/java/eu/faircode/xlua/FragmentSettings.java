@@ -376,10 +376,52 @@ public class FragmentSettings extends FragmentBase {
     private void restore(Uri uri) {
         final Activity activity = requireActivity();
         run(TAG, () -> {
-            int[] counts = Backup.restore(activity, uri);
-            Ui.message(activity, activity.getString(R.string.msg_restore_done, counts[0], counts[1], counts[2]));
-            post(this::load);
+            Backup.Result result = Backup.restore(activity, uri);
+            post(() -> {
+                showRestored(activity, result);
+                load();
+            });
         });
+    }
+
+    // What a restore did, a line each; the lines without anything to say are left out
+    private static void showRestored(Context context, Backup.Result r) {
+        List<String> lines = new ArrayList<>();
+        if (r.version > 0 && r.version != BuildConfig.VERSION_CODE)
+            lines.add(context.getString(R.string.title_restore_version, r.version, BuildConfig.VERSION_CODE));
+        lines.add(context.getResources().getQuantityString(R.plurals.title_restore_settings, r.settings, r.settings));
+        lines.add(context.getResources().getQuantityString(R.plurals.title_restore_hooks, r.hooks, r.hooks));
+        if (r.hooksFailed > 0)
+            lines.add(context.getResources().getQuantityString(R.plurals.title_restore_hooks_failed, r.hooksFailed, r.hooksFailed));
+        lines.add(context.getResources().getQuantityString(R.plurals.title_restore_apps, r.apps, r.apps, r.added));
+        if (!r.missing.isEmpty())
+            lines.add(context.getResources().getQuantityString(R.plurals.title_restore_missing,
+                    r.missing.size(), r.missing.size(), names(r.missing)));
+        if (r.renamed > 0)
+            lines.add(context.getResources().getQuantityString(R.plurals.title_restore_renamed, r.renamed, r.renamed));
+        if (r.removed > 0)
+            lines.add(context.getResources().getQuantityString(R.plurals.title_restore_removed, r.removed, r.removed));
+        if (r.completed > 0)
+            lines.add(context.getResources().getQuantityString(R.plurals.title_restore_completed, r.completed, r.completed));
+        if (r.partial > 0)
+            lines.add(context.getResources().getQuantityString(R.plurals.title_restore_partial, r.partial, r.partial));
+        if (!r.stopped.isEmpty())
+            lines.add(context.getString(R.string.title_restore_stopped, names(r.stopped)));
+        if (!r.reboot.isEmpty())
+            lines.add(context.getString(R.string.title_restore_reboot, names(r.reboot)));
+
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.title_restore_done)
+                .setMessage(TextUtils.join("\n\n", lines))
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
+    // At most a few names, which can be many, like the apps of another device
+    private static String names(List<String> names) {
+        final int max = 5;
+        String shown = TextUtils.join(", ", names.subList(0, Math.min(max, names.size())));
+        return (names.size() > max ? shown + ", …" : shown);
     }
 
     // Restrictions and settings of the current user; custom definitions are kept
