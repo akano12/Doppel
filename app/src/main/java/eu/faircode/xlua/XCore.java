@@ -513,6 +513,7 @@ class XCore {
 
     private void installMethod(final Context context, final XHook hook, final Prototype script,
                                final Map<String, String> settings, final Member member) throws Throwable {
+        final Set<String> filter = getFilter(context, hook, script, settings);
         backend.hook(member, new XBackend.Callback() {
             // The Lua runtime of this hook per thread, without a lock on each call
             private final ThreadLocal<Globals> threadGlobals = new ThreadLocal<>();
@@ -530,6 +531,9 @@ class XCore {
 
             private void execute(XCall call, String function) {
                 if (inService())
+                    return;
+                if (filter != null &&
+                        (call.args == null || call.args.length == 0 || !filter.contains(call.args[0])))
                     return;
                 try {
                     // Initialize the Lua runtime once per thread
@@ -560,6 +564,22 @@ class XCore {
                 }
             }
         });
+    }
+
+    // The values of the first argument a script restricts, which its function filter returns for the hook,
+    // like the paths of files a hook of opening files restricts; the other calls do not run the script,
+    // so hooks of methods which are called very often cost (almost) nothing else; null without the function
+    static Set<String> getFilter(Context context, XHook hook, Prototype script, Map<String, String> settings) {
+        LuaValue func = getGlobals(context, hook, script, settings).get("filter");
+        if (func.isnil())
+            return null;
+        LuaValue values = func.call(CoerceJavaToLua.coerce(hook));
+        if (values.isnil())
+            return null;
+        Set<String> filter = new HashSet<>();
+        for (int i = 1; i <= values.length(); i++)
+            filter.add(values.get(i).checkjstring());
+        return filter;
     }
 
     private static String describe(XCall call) {

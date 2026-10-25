@@ -57,6 +57,10 @@ public class XCoreTest {
 
         public void inherited() {
         }
+
+        public String open(String path) {
+            return "real";
+        }
     }
 
     public static class First extends Target {
@@ -166,6 +170,28 @@ public class XCoreTest {
         // Only while in the service
         callbacks.get(0).before(call);
         assertEquals("fake", call.getResult());
+    }
+
+    // A script with a filter runs for calls with one of its values as the first argument only
+    @Test
+    public void filteredScript() throws Throwable {
+        Method open = Target.class.getMethod("open", String.class);
+        install("filteredScript",
+                "function filter(hook) return { '/proc/meminfo' } end\n" +
+                        "function before(hook, param) param:setResult('fake') return true end", open);
+
+        XCall other = new XCall(open, new Target(), new Object[]{"/data/file"});
+        callbacks.get(0).before(other);
+        assertFalse(other.isReturnEarly());
+
+        XCall filtered = new XCall(open, new Target(), new Object[]{"/proc/meminfo"});
+        callbacks.get(0).before(filtered);
+        assertEquals("fake", filtered.getResult());
+
+        // A null path is no value of the filter
+        XCall none = new XCall(open, new Target(), new Object[]{null});
+        callbacks.get(0).before(none);
+        assertFalse(none.isReturnEarly());
     }
 
     // Dynamic hooks of methods which objects inherit are installed once, in the class declaring the method

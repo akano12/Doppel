@@ -7100,6 +7100,23 @@
     "minSdk": 18,
     "luaScript": "@mediadrm_unique_id"
   },
+  // The script runs for /proc/sys/kernel/random/boot_id only
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.open/boot_id",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 23,
+    "luaScript": "@boot_id"
+  },
   // The device name is often set to the name of the owner
   {
     "collection": "Privacy",
@@ -8252,6 +8269,23 @@
     ],
     "returnType": "android.system.StructStatVfs",
     "minSdk": 21,
+    "luaScript": "@resources"
+  },
+  // Opening files of apps, by FileInputStream, RandomAccessFile and Os.open; the script runs for /proc/meminfo only
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "BlockGuardOs.open/meminfo",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 23,
     "luaScript": "@resources"
   },
   {

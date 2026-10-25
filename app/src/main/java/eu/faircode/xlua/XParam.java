@@ -26,14 +26,22 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Process;
+import android.system.Os;
+import android.system.OsConstants;
 import android.util.Log;
 
 import org.luaj.vm2.LuaValue;
 
+import java.io.ByteArrayOutputStream;
+import java.io.FileDescriptor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -298,6 +306,72 @@ public class XParam {
             throw new IllegalArgumentException("Expected field " + this.returnType + " got " + result.getClass());
         else
             this.field.set(null, result);
+    }
+
+    // The text of the file the hooked method opened, like a file of /proc, of which it returned the descriptor;
+    // the app still reads it from the start
+    @SuppressWarnings("unused")
+    public String getFileText() throws Throwable {
+        FileDescriptor fd = (FileDescriptor) this.param.getResult();
+        ByteArrayOutputStream text = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        for (int n = Os.pread(fd, buffer, 0, buffer.length, 0); n > 0;
+             n = Os.pread(fd, buffer, 0, buffer.length, text.size()))
+            text.write(buffer, 0, n);
+        return text.toString(StandardCharsets.UTF_8.name());
+    }
+
+    // The app reads the text instead of the file the hooked method opened, without a file being written:
+    // the method returns a file in memory, or a pipe before Android 11, of which the app cannot tell
+    // the contents of the file apart; the file which was opened is closed
+    @SuppressWarnings("unused")
+    public void setFileText(String text) throws Throwable {
+        FileDescriptor fd = (FileDescriptor) this.param.getResult();
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        FileDescriptor fake;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            fake = Os.memfd_create("file", OsConstants.MFD_CLOEXEC);
+            try {
+                for (int at = 0; at < bytes.length; )
+                    at += Os.write(fake, bytes, at, bytes.length - at);
+                Os.lseek(fake, 0, OsConstants.SEEK_SET);
+            } catch (Throwable ex) {
+                Os.close(fake);
+                throw ex;
+            }
+        } else {
+            // A pipe holds at least a page, without a reader; the texts of files of /proc are small
+            if (bytes.length > 4096)
+                throw new IllegalArgumentException("Text of " + bytes.length + " bytes too long");
+            FileDescriptor[] pipe = Os.pipe();
+            fake = pipe[0];
+            try {
+                for (int at = 0; at < bytes.length; )
+                    at += Os.write(pipe[1], bytes, at, bytes.length - at);
+            } catch (Throwable ex) {
+                Os.close(fake);
+                throw ex;
+            } finally {
+                Os.close(pipe[1]);
+            }
+        }
+        this.param.setResult(fake);
+        Os.close(fd);
+    }
+
+    // A random looking UUID, the same for the same seed, like a UUID of the kernel (version 4),
+    // of which the seed cannot be told
+    @SuppressWarnings("unused")
+    public String uuidOf(String seed) throws Throwable {
+        return uuid(seed);
+    }
+
+    static String uuid(String seed) throws Throwable {
+        ByteBuffer hash = ByteBuffer.wrap(MessageDigest.getInstance("SHA-256")
+                .digest(seed.getBytes(StandardCharsets.UTF_8)));
+        long msb = (hash.getLong() & ~0xf000L) | 0x4000L;
+        long lsb = (hash.getLong() & ~(0xc0L << 56)) | (0x80L << 56);
+        return new UUID(msb, lsb).toString();
     }
 
     @SuppressWarnings("unused")

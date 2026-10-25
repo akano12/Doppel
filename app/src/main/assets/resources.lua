@@ -61,8 +61,54 @@ function freesize(value)
     return math.floor(value / step) * step
 end
 
+-- Opening files, of which only /proc/meminfo has the sizes, see XCore.getFilter
+function filter(hook)
+    if hook:getMethodName() == 'open' then
+        return { '/proc/meminfo' }
+    end
+    return nil
+end
+
+-- The sizes of /proc/meminfo like the ones of ActivityManager.getMemoryInfo, which come from this file:
+-- the total memory rounded up, the free and available memory down, in the format of the kernel
+function meminfo(param)
+    local changed = false
+    local old, new = {}, {}
+    local lines = {}
+    for line in string.gmatch(param:getFileText(), '[^\n]*\n') do
+        local name, value = string.match(line, '^(%w+:)%s*(%d+) kB\n$')
+        if name == 'MemTotal:' or name == 'MemFree:' or name == 'MemAvailable:' then
+            local size = tonumber(value) * 1024
+            local fake = (name == 'MemTotal:' and memorysize(size) or freesize(size))
+            -- The name in 16 characters, the size in 8, like the kernel; LuaJ formats no widths
+            local kb = tostring(math.floor(fake / 1024))
+            local faked = name .. string.rep(' ', 16 - #name) .. string.rep(' ', 8 - #kb) .. kb .. ' kB\n'
+            changed = changed or faked ~= line
+            line = faked
+            -- Like the log of ActivityManager.getMemoryInfo: total and available memory
+            if name ~= 'MemFree:' then
+                table.insert(old, tostring(size))
+                table.insert(new, tostring(fake))
+            end
+        end
+        table.insert(lines, line)
+    end
+    if not changed then
+        return false
+    end
+    param:setFileText(table.concat(lines))
+    return true, table.concat(old, ' '), table.concat(new, ' ')
+end
+
 function after(hook, param)
     local method = hook:getMethodName()
+
+    if method == 'open' then
+        if param:getException() ~= nil or param:getResult() == nil then
+            return false
+        end
+        return meminfo(param)
+    end
 
     if method == 'getMemoryInfo' then
         local info = param:getArgument(0)
