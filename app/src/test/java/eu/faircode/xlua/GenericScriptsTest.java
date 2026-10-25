@@ -71,7 +71,7 @@ public class GenericScriptsTest {
     @Test
     public void blockedMethodsReturnTheValueOfTheirType() throws Exception {
         Globals globals = load("generic_block");
-        for (String[] type : new String[][]{{"boolean", "false"}, {"int", "0"}, {"void", "nil"}}) {
+        for (String[] type : new String[][]{{"boolean", "false"}, {"java.lang.Boolean", "false"}, {"int", "0"}, {"void", "nil"}}) {
             Varargs result = Scripts.run(globals, "local param = paramof('real')\n" +
                     "local restricted = before(hookof('" + type[0] + "'), param)\n" +
                     "return restricted, param.set, param.result");

@@ -17,11 +17,12 @@
 -- Copyright 2026 akano12
 
 -- The method is skipped, with the result of its return type (see the definition): false for a boolean method,
--- like a registration, 0 for a method returning a result code, of which 0 means success, nothing for a void method
+-- like a registration, 0 for a method returning a result code, of which 0 means success, nothing for a void method.
+-- A Boolean is false too, because callers which unbox it would fail on null, like Clarity.initialize.
 
 function before(hook, param)
     local returnType = hook:getReturnType()
-    if returnType == 'boolean' then
+    if returnType == 'boolean' or returnType == 'java.lang.Boolean' then
         param:setResult(false)
     elseif returnType == 'int' then
         param:setResult(0)

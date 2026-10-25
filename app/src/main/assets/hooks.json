@@ -1173,14 +1173,14 @@
       "android.content.Context",
       "android.os.IBinder",
       "android.os.IBinder",
-      "android.app.Activity",
+      "java.lang.String",
       "android.content.Intent",
       "int",
       "android.os.Bundle",
       "android.os.UserHandle"
     ],
     "returnType": "android.app.Instrumentation$ActivityResult",
-    "minSdk": 17,
+    "minSdk": 23,
     "optional": true,
     "excludePackages": "android",
     "luaScript": "@component_hidden"
@@ -5647,6 +5647,95 @@
     "optional": true,
     "luaScript": "@generic_block"
   },
+  // Microsoft Clarity records the sessions of the app: the screens, taps and scrolls; it keeps its names in minified apps
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Clarity.initialize/context",
+    "author": "akano12",
+    "className": "com.microsoft.clarity.Clarity",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "android.content.Context",
+      "com.microsoft.clarity.ClarityConfig"
+    ],
+    "returnType": "java.lang.Boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Clarity.initialize/activity",
+    "author": "akano12",
+    "className": "com.microsoft.clarity.Clarity",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "android.app.Activity",
+      "com.microsoft.clarity.ClarityConfig"
+    ],
+    "returnType": "java.lang.Boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  // The SDKs below ask themselves whether the user opted out before they send anything; the answer is yes,
+  // which they do not store, unlike opting out with their own methods. Minified apps can rename them.
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Amplitude.getOptOut",
+    "author": "akano12",
+    "className": "com.amplitude.core.Configuration",
+    "methodName": "getOptOut",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Branch.isTrackingDisabled",
+    "author": "akano12",
+    "className": "io.branch.referral.TrackingController",
+    "methodName": "isTrackingDisabled",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Branch.isTrackingDisabled/context",
+    "author": "akano12",
+    "className": "io.branch.referral.TrackingController",
+    "methodName": "isTrackingDisabled",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Singular.isAllTrackingStopped",
+    "author": "akano12",
+    "className": "com.singular.sdk.internal.SingularInstance",
+    "methodName": "isAllTrackingStopped",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
   // Use camera
   // https://developer.android.com/reference/android/hardware/Camera.html
   // https://developer.android.com/reference/android/hardware/camera2/CameraManager.html
@@ -6194,6 +6283,22 @@
     "minSdk": 21,
     "usage": false,
     "luaScript": "@uname"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PackageInfo.createFromParcel",
+    "author": "akano12",
+    "description": "The install and update times of other apps, which are the same for every app which asks",
+    "className": "android.content.pm.PackageInfo",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 1,
+    "usage": false,
+    "luaScript": "@packageinfo_createfromparcel"
   },
   {
     "collection": "Privacy",
@@ -7703,8 +7808,7 @@
       "android.net.nsd.NsdManager$DiscoveryListener"
     ],
     "returnType": "void",
-    "minSdk": 33,
-    "optional": true,
+    "minSdk": 35,
     "luaScript": "@nsdmanager_listener"
   },
   {
@@ -7747,23 +7851,6 @@
     "methodName": "registerServiceInfoCallback",
     "parameterTypes": [
       "android.net.nsd.NsdServiceInfo",
-      "java.util.concurrent.Executor",
-      "android.net.nsd.NsdManager$ServiceInfoCallback"
-    ],
-    "returnType": "void",
-    "minSdk": 33,
-    "optional": true,
-    "luaScript": "@nsdmanager_listener"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Network",
-    "name": "NsdManager.registerServiceInfoCallback/request",
-    "author": "akano12",
-    "className": "android.net.nsd.NsdManager",
-    "methodName": "registerServiceInfoCallback",
-    "parameterTypes": [
-      "android.net.nsd.DiscoveryRequest",
       "java.util.concurrent.Executor",
       "android.net.nsd.NsdManager$ServiceInfoCallback"
     ],

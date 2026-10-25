@@ -21,8 +21,8 @@
 -- hasSystemFeature answers false and getSystemAvailableFeatures lists only the OpenGL ES version, which has
 -- no name, except the features of setting features.keep (comma separated; a name ending in * matches the
 -- features starting with it, like android.hardware.camera*), for apps which need a feature to offer something,
--- like the camera. WebView does not start on a device without android.software.webview: the framework itself
--- (android.webkit) keeps that answer, an app asking gets false like for the other features.
+-- like the camera. The framework, which checks features itself in the process of the app, gets the real answer
+-- (see calledbyframework).
 -- The shared libraries of the system carry vendor names too, like com.google.android.dialer.support;
 -- the libraries of the Android platform and the ones of Google on every device stay. Libraries of apps
 -- (static and SDK libraries) stay too, apps use them, in the list of names as well as in the list
@@ -59,23 +59,45 @@ function callers()
     return luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
 end
 
--- Whether a class of a package is on the stack, like android.webkit. when WebView checks its feature
-function calledby(prefix)
-    local frames = callers()
-    for index = 1, frames['length'] do
-        if string.sub(frames[index]:getClassName(), 1, string.len(prefix)) == prefix then
+-- The framework checks features itself, also in the process of the app, like when it creates a system service:
+-- without android.hardware.wifi the Wi-Fi manager is null, which apps do not expect and fail on, and WebView
+-- does not start without android.software.webview. The framework gets the real answer, the code of the app,
+-- its libraries included, gets false. The caller is the class on the stack below the deepest method with the name
+-- of the hooked method: the hook engine can replace the frame of the hooked method by one of a class of its own,
+-- with a random name, like LSPosed does, and the package manager calls the hooked method itself too,
+-- like hasSystemFeature without a version, which calls the one with a version.
+local FRAMEWORK = { 'android.', 'com.android.internal.', 'com.android.server.', 'java.', 'javax.', 'dalvik.', 'libcore.' }
+
+function framework(class)
+    -- The support library is part of apps, like androidx
+    if string.sub(class, 1, 16) == 'android.support.' then
+        return false
+    end
+    for _, prefix in ipairs(FRAMEWORK) do
+        if string.sub(class, 1, string.len(prefix)) == prefix then
             return true
         end
     end
     return false
 end
 
+function calledbyframework(method)
+    local frames = callers()
+    local caller = nil
+    for index = 1, frames['length'] - 1 do
+        if frames[index]:getMethodName() == method then
+            caller = frames[index + 1]:getClassName()
+        end
+    end
+    return (caller ~= nil and framework(caller))
+end
+
 -- Whether a feature is hidden from the app: all but the kept ones; the OpenGL ES version has no name
-function hidden(name, param)
+function hidden(name, param, method)
     if name == nil or kept(name, param) then
         return false
     end
-    return not (name == 'android.software.webview' and calledby('android.webkit.'))
+    return not calledbyframework(method)
 end
 
 -- Whether a shared library of the system is not part of the Android platform
@@ -160,7 +182,7 @@ function after(hook, param)
 
     if method == 'hasSystemFeature' then
         local name = param:getArgument(0)
-        if result and hidden(name, param) then
+        if result and hidden(name, param, method) then
             param:setResult(false)
             return true, name, 'false'
         end
@@ -170,7 +192,7 @@ function after(hook, param)
     -- getSystemAvailableFeatures, the OpenGL ES version has no name
     local kept = luajava.newInstance('java.util.ArrayList')
     for index = 1, result['length'] do
-        if not hidden(result[index].name, param) then
+        if not hidden(result[index].name, param, method) then
             kept:add(result[index])
         end
     end

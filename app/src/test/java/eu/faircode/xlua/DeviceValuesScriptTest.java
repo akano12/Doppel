@@ -340,12 +340,17 @@ public class DeviceValuesScriptTest {
             "  param.getSetting = function(self, key) assert(key == 'features.keep', key) return keep end",
             "  return param",
             "end",
+            // Frames named like class.method
             "function stackof(...)",
             "  local frames = { length = select('#', ...) }",
-            "  for index, name in ipairs({ ... }) do frames[index] = { getClassName = function(self) return name end } end",
+            "  for index, name in ipairs({ ... }) do",
+            "    local class, method = string.match(name, '^(.*)%.([^.]*)$')",
+            "    frames[index] = { getClassName = function(self) return class end,",
+            "      getMethodName = function(self) return method end }",
+            "  end",
             "  return frames",
             "end",
-            "stack = stackof('com.example.app.Main')",
+            "stack = stackof('com.example.app.Main.onCreate')",
             "function callers() return stack end",
             "function names(result)",
             "  local list = {}",
@@ -353,7 +358,7 @@ public class DeviceValuesScriptTest {
             "  return table.concat(list, ',')",
             "end");
 
-    // All features are hidden but the kept ones; WebView gets its feature when the framework asks
+    // All features are hidden but the kept ones; the framework gets its features when it asks itself
     @Test
     public void featuresAreHiddenButTheKeptOnes() throws Exception {
         Globals globals = load("features");
@@ -372,12 +377,32 @@ public class DeviceValuesScriptTest {
         // A feature the device does not have
         assertFalse(run(globals, has + "false, 'android.hardware.wifi', nil))").arg1().toboolean());
 
-        // WebView checks its feature itself and does not start without it
+        // The framework checks features itself, like WebView, which does not start without its feature, and
+        // the Wi-Fi manager, which is null without its feature. The stacks are those of LSPosed, which replaces
+        // the frame of the hooked method by one of a class of its own with a random name.
+        String engine = "'eu.faircode.xlua.XCore$6.after', 'eu.faircode.xlua.ModernBackend.lambda$hook$0', " +
+                "'m.proceed', 'android.telephony.PheendeeDaesteampDrenash.hasSystemFeature', ";
         assertTrue(run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
-        run(globals, "stack = stackof('android.webkit.WebViewFactory', 'android.webkit.WebView', 'com.example.app.Main')");
+        run(globals, "stack = stackof(" + engine + "'android.webkit.WebViewFactory.getProvider', " +
+                "'android.webkit.WebView.<init>', 'com.example.app.Main.onCreate')");
         assertFalse(run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
-        assertTrue(run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
-        run(globals, "stack = stackof('com.example.app.Main')");
+        run(globals, "stack = stackof(" + engine + "'android.net.wifi.WifiFrameworkInitializer.lambda$registerServiceWrappers$0', " +
+                "'android.app.SystemServiceRegistry.getSystemService', 'com.example.app.Main.onCreate')");
+        assertFalse(run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+        // The package manager calls the hooked method itself, hasSystemFeature without a version the one with one
+        run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
+                "'com.android.internal.policy.PhoneWindow.<init>', 'android.app.Activity.attach')");
+        assertFalse(run(globals, has + "true, 'android.software.picture_in_picture', nil))").arg1().toboolean());
+        // The app and its libraries, also androidx and the support library, get false
+        for (String caller : new String[]{"com.example.app.Main.onCreate", "androidx.core.content.ContextCompat.check",
+                "android.support.v4.content.ContextCompat.check"}) {
+            run(globals, "stack = stackof(" + engine + "'" + caller + "', 'android.app.Activity.performCreate')");
+            assertTrue(caller, run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+            run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
+                    "'" + caller + "', 'android.app.Activity.performCreate')");
+            assertTrue(caller, run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+        }
+        run(globals, "stack = stackof('com.example.app.Main.onCreate')");
 
         // The list has the same features, and the OpenGL ES version, which has no name
         String list = "local param = featureparamof(featuresof(%s), nil, " + keep + ")\n" +
