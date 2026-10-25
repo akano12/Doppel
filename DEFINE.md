@@ -208,6 +208,23 @@ To use such classes, load them with *param:findClass*:
     local detected = luajava.new(cls, 4, 100)
 ```
 
+A script can define a *filter* function, which returns the values of the first argument of the hooked method the script is for,
+or *nil* for all calls. The other calls do not run the script, so a method which is called very often can be hooked,
+like opening files. Files and paths of java.nio are compared by their path:
+
+```Lua
+function filter(hook)
+    return { '/proc/meminfo' }
+end
+```
+
+The function is called once, when the hook is installed, with the *hook* of the definition.
+
+For a hooked method which opens a file and returns its file descriptor, like *libcore.io.BlockGuardOs.open*,
+*param:getFileText()* reads the file, and *param:setFileText(text)* lets the app read the text instead,
+without a file being written. *param:readFile(path)* reads a file like the app does, with its hooks,
+and *param:uuidOf(seed)* gives a random looking UUID, which is the same for the same seed.
+
 A script is executed once per thread to define its functions, so a script should only define functions.
 
 [LuaJ](http://www.luaj.org/luaj/3.0/README.html) globals are not thread safe.
