@@ -9022,6 +9022,36 @@
     "minSdk": 5,
     "luaScript": "@mac_address"
   },
+  // The Bluetooth address of a connected keyboard, mouse, game controller or stylus, of Android 14 and later
+  // (hidden methods); without an address, like without the Bluetooth permission, Android gives none
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "InputDevice.getBluetoothAddress",
+    "author": "akano12",
+    "className": "android.view.InputDevice",
+    "methodName": "getBluetoothAddress",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 34,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "InputManager.getInputDeviceBluetoothAddress",
+    "author": "akano12",
+    "className": "android.hardware.input.InputManager",
+    "methodName": "getInputDeviceBluetoothAddress",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 34,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
