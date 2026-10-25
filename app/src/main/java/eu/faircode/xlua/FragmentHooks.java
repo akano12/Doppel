@@ -62,6 +62,8 @@ public class FragmentHooks extends FragmentBase {
     private enum Filter {ALL, CUSTOM, DISABLED, UNAVAILABLE}
 
     private static final int[] FILTER_CHIPS = {R.id.chipAll, R.id.chipCustom, R.id.chipDisabled, R.id.chipUnavailable};
+    private static final int[] FILTER_TITLES = {
+            R.string.title_all, R.string.title_hook_custom, R.string.title_hook_disabled, R.string.title_hook_unavailable};
 
     // The group which shows its hooks, the others show only their row
     private static final String PREF_EXPANDED = "hooks_group";
@@ -71,6 +73,7 @@ public class FragmentHooks extends FragmentBase {
     private TextView tvSummary;
     private ChipGroup cgFilter;
     private ExtendedFloatingActionButton fabAdd;
+    private CompactBar compact;
     private Adapter adapter;
 
     private Filter filter = Filter.ALL;
@@ -125,18 +128,7 @@ public class FragmentHooks extends FragmentBase {
         });
         view.findViewById(R.id.ibDownloads).setOnClickListener(v ->
                 startActivity(new Intent(context, ActivityDownloads.class)));
-        view.findViewById(R.id.ibMore).setOnClickListener(v -> {
-            PopupMenu popup = new PopupMenu(context, v);
-            popup.inflate(R.menu.hooks);
-            popup.setOnMenuItemClickListener(item -> {
-                if (item.getItemId() == R.id.menu_import)
-                    importLauncher.launch(Ui.MIME_JSON);
-                else if (item.getItemId() == R.id.menu_export)
-                    exportLauncher.launch(Ui.datedFileName("hooks"));
-                return true;
-            });
-            popup.show();
-        });
+        view.findViewById(R.id.ibMore).setOnClickListener(this::showMenu);
 
         search = new TitleSearch(this, view.findViewById(R.id.llTitle), view.findViewById(R.id.tilSearch),
                 view.findViewById(R.id.etSearch), view.findViewById(R.id.ibSearch), text -> {
@@ -151,7 +143,25 @@ public class FragmentHooks extends FragmentBase {
             show();
         });
 
+        // While the header is scrolled away: the counts, the filter and the menu
+        compact = new CompactBar(view, R.string.nav_hooks, cgFilter,
+                view.findViewById(R.id.tilSearch), view.findViewById(R.id.ibSearch));
+        compact.setMore(this::showMenu);
+
         return view;
+    }
+
+    private void showMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(requireContext(), anchor);
+        popup.inflate(R.menu.hooks);
+        popup.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.menu_import)
+                importLauncher.launch(Ui.MIME_JSON);
+            else if (item.getItemId() == R.id.menu_export)
+                exportLauncher.launch(Ui.datedFileName("hooks"));
+            return true;
+        });
+        popup.show();
     }
 
     @Override
@@ -225,6 +235,9 @@ public class FragmentHooks extends FragmentBase {
         Ui.setChipCount(cgFilter, R.id.chipCustom, R.string.title_hook_custom, custom);
         Ui.setChipCount(cgFilter, R.id.chipDisabled, R.string.title_hook_disabled, disabled);
         Ui.setChipCount(cgFilter, R.id.chipUnavailable, R.string.title_hook_unavailable, unavailable);
+        compact.setSubtitle(getString(R.string.title_pair,
+                getResources().getQuantityString(R.plurals.title_compact_hooks, groups.size(), all.size(), groups.size()),
+                getString(FILTER_TITLES[filter.ordinal()])));
 
         String q = (query == null ? "" : query.trim());
         List<Object> items = new ArrayList<>();

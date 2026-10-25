@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The bar of a tab while its header is scrolled away: the title with a summary of the header, and its actions;
+     the slots hold a small form of the overview, like the ring of the Apps tab, see CompactBar -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/llCompact"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/compact_bar_height"
+    android:layout_gravity="top"
+    android:background="@drawable/bg_compact_bar"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="20dp"
+    android:paddingEnd="4dp"
+    android:visibility="invisible"
+    app:layout_collapseMode="pin">
+
+    <FrameLayout
+        android:id="@+id/flCompactLead"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"
+        android:importantForAccessibility="noHideDescendants"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvCompactTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="?attr/textAppearanceTitleLarge"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/tvCompactSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="@style/XLua.Text.Meta" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/flCompactTrail"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:importantForAccessibility="noHideDescendants"
+        android:visibility="gone" />
+
+    <ImageButton
+        android:id="@+id/ibCompactFilter"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/ic_filter" />
+
+    <ImageButton
+        android:id="@+id/ibCompactSearch"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/menu_search"
+        android:src="@drawable/ic_search" />
+
+    <ImageButton
+        android:id="@+id/ibCompactMore"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/title_more"
+        android:src="@drawable/ic_more"
+        android:visibility="gone" />
+</LinearLayout>

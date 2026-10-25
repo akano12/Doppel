@@ -56,7 +56,8 @@ public class BarsView extends View {
         int max = 0;
         for (int value : values)
             max = Math.max(max, value);
-        float gap = Ui.dp(getContext(), 3);
+        // Narrow views have narrower gaps, like the bars in the compact bar of the Activity tab
+        float gap = Math.min(Ui.dp(getContext(), 3), getWidth() / (count * 4f));
         float width = (getWidth() - gap * (count - 1)) / count;
         float height = getHeight();
         float line = Ui.dp(getContext(), 2);

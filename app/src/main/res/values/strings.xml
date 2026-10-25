@@ -158,6 +158,18 @@
     <string name="title_undo">Undo</string>
     <string name="menu_search">Search</string>
     <string name="title_close_search">Close search</string>
+    <!-- The compact bar of a tab, while its header is scrolled away, see CompactBar: the filter of the chips
+         as a button, like Filter: User, and a summary of the header -->
+    <string name="title_filter_by">Filter: %1$s</string>
+    <string name="title_compact_apps">%1$d of %2$d restricted</string>
+    <plurals name="title_compact_calls">
+        <item quantity="one">%1$d today</item>
+        <item quantity="other">%1$d today</item>
+    </plurals>
+    <plurals name="title_compact_hooks">
+        <item quantity="one">%1$d hooks · %2$d group</item>
+        <item quantity="other">%1$d hooks · %2$d groups</item>
+    </plurals>
     <string name="title_no_apps">No apps</string>
     <string name="title_no_matches">No matches</string>
     <!-- Two parts on one line, like the group restricted last and when, or the apps and the errors of the Activity tab -->

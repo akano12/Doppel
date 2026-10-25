@@ -10,5 +10,7 @@
     <dimen name="nav_item_radius">24dp</dimen>
     <dimen name="nav_item_padding">16dp</dimen>
     <dimen name="nav_icon_size">24dp</dimen>
+    <!-- The bar of a tab while its header is scrolled away, see bar_compact.xml and CompactBar -->
+    <dimen name="compact_bar_height">64dp</dimen>
     <dimen name="nav_label_spacing">8dp</dimen>
 </resources>

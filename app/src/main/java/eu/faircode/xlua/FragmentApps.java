@@ -81,6 +81,8 @@ public class FragmentApps extends FragmentBase {
     private TextView tvOverviewMeta;
     private ChipGroup cgFilter;
     private ImageButton ibSort;
+    private CompactBar compact;
+    private CircularProgressIndicator piCompact;
     private AdapterApp adapter;
 
     private SharedPreferences prefs;
@@ -155,6 +157,18 @@ public class FragmentApps extends FragmentBase {
         search = new TitleSearch(this, view.findViewById(R.id.tvTitle), view.findViewById(R.id.tilSearch),
                 view.findViewById(R.id.etSearch), view.findViewById(R.id.ibSearch), text -> adapter.setQuery(text));
         view.findViewById(R.id.ibMore).setOnClickListener(this::showMenu);
+
+        // While the header is scrolled away: the share of restricted apps as a small ring, the filter and the menu
+        compact = new CompactBar(view, R.string.nav_apps, cgFilter,
+                view.findViewById(R.id.tilSearch), view.findViewById(R.id.ibSearch));
+        piCompact = new CircularProgressIndicator(context);
+        piCompact.setIndicatorSize(Ui.dp(context, 32));
+        piCompact.setTrackThickness(Ui.dp(context, 4));
+        piCompact.setIndicatorColor(Ui.color(context, androidx.appcompat.R.attr.colorPrimary));
+        piCompact.setTrackColor(Ui.color(context, com.google.android.material.R.attr.colorSurfaceContainerHigh));
+        piCompact.setMax(100);
+        compact.setLead(piCompact);
+        compact.setMore(this::showMenu);
 
         AdapterApp.Filter filter = AdapterApp.Filter.USER;
         try {
@@ -318,6 +332,11 @@ public class FragmentApps extends FragmentBase {
         cvOverview.setContentDescription(getString(R.string.title_overview) + ", " +
                 tvOverview.getText() + ", " + tvOverviewMeta.getText());
         cvOverview.setVisibility(View.VISIBLE);
+
+        piCompact.setProgressCompat(percent, true);
+        compact.setSubtitle(getString(R.string.title_pair,
+                getString(R.string.title_compact_apps, summary.restricted, summary.total),
+                getString(FILTER_TITLES[adapter.getFilter().ordinal()])));
     }
 
     // A search without matches says so, rather than that there are no apps
