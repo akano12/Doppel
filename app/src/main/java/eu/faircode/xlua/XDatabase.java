@@ -140,7 +140,7 @@ class XDatabase {
             "ActivityManager.getRecentTasks", "ActivityManager.getRunningTasks",
             "ActivityThread.handleBindService/notification", "AppEventsLogger.activateApp/context",
             "AppEventsLogger.activateApp/context/id", "AppEventsLogger.deactivateApp/context",
-            "AppEventsLogger.deactivateApp/context/id", "BlockGuardOs.open",
+            "AppEventsLogger.deactivateApp/context/id", "BlockGuardOs.open", "Bundle.get/location",
             "CameraManager2.registerAvailabilityCallback", "CameraManager2.registerTorchCallback",
             "ContentProviderClient.query1/blockednumber", "ContentProviderClient.query1/calendars",
             "ContentProviderClient.query1/call_log", "ContentProviderClient.query1/contacts",
@@ -156,11 +156,14 @@ class XDatabase {
             "GoogleAnalytics.setDryRun", "Intent.createFromParcel", "Intent.createFromParcel/activity_recognition",
             "MediaRecorder.start", "MediaRecorder.stop", "NetworkInfo.createFromParcel",
             "NetworkInterface.networkInterfaces", "NsdManager.registerServiceInfoCallback/request",
-            "PlaceLikelihoodBuffer.get", "PlaceLikelihoodBuffer.getCount",
-            "ProcessBuilder.command/array", "ProcessBuilder.command/list", "Runtime.exec/array",
-            "Runtime.exec/array/env", "Runtime.exec/array/env/file", "Runtime.exec/cmd", "Runtime.exec/cmd/env",
-            "Runtime.exec/cmd/env/file", "SystemProperties.getBoolean", "SystemProperties.getInt",
-            "SystemProperties.getLong", "WebView.constructor.5"
+            "PlaceLikelihoodBuffer.get", "PlaceLikelihoodBuffer.getCount", "ProcessBuilder.command/array",
+            "ProcessBuilder.command/list", "Runtime.exec/array", "Runtime.exec/array/env",
+            "Runtime.exec/array/env/file", "Runtime.exec/cmd", "Runtime.exec/cmd/env", "Runtime.exec/cmd/env/file",
+            "SystemProperties.get.default/build", "SystemProperties.get.default/vendor",
+            "SystemProperties.get/build", "SystemProperties.get/vendor", "SystemProperties.getBoolean",
+            "SystemProperties.getInt", "SystemProperties.getLong", "WebView.constructor.11",
+            "WebView.constructor.15", "WebView.constructor.1a", "WebView.constructor.1b", "WebView.constructor.1c",
+            "WebView.constructor.21", "WebView.constructor.23", "WebView.constructor.5"
     };
 
     private final SQLiteDatabase db;

@@ -124,14 +124,6 @@ function typed(hook, param, key, result, method)
     return true, tostring(result), tostring(fake)
 end
 
--- The value of a property which is not set: the default of get(key, def), else empty
-function unset(hook, param)
-    if string.find(hook:getName(), '.default/', 1, true) then
-        return param:getArgument(1)
-    end
-    return ''
-end
-
 function after(hook, param)
     -- The hooked methods are called for all properties, so check the name first
     local key = param:getArgument(0)
@@ -163,10 +155,6 @@ function after(hook, param)
         end
         param:setResult(fake)
         return true, result, fake
-    elseif name == 'build' and string.sub(key, 1, string.len('ro.build.')) == 'ro.build.' then
-        local fake = unset(hook, param)
-        param:setResult(fake)
-        return true, result, fake
     elseif name == 'operator' and (key == 'gsm.operator.alpha' or key == 'gsm.sim.operator.alpha') then
         local fake = 'unknown'
         param:setResult(fake)
@@ -177,10 +165,6 @@ function after(hook, param)
         return true, result, fake
     elseif name == 'operator' and (key == 'gsm.operator.iso-country' or key == 'gsm.sim.operator.iso-country') then
         local fake = 'xx'
-        param:setResult(fake)
-        return true, result, fake
-    elseif name == 'vendor' and string.sub(key, 1, string.len('ro.vendor.')) == 'ro.vendor.' then
-        local fake = unset(hook, param)
         param:setResult(fake)
         return true, result, fake
     elseif name == 'device' then

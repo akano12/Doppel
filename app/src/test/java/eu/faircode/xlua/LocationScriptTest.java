@@ -95,26 +95,6 @@ public class LocationScriptTest {
         assertTrue(result.arg(2).isnil());
     }
 
-    @Test
-    public void bundleLocationGetsSetLocation() {
-        Varargs result = after("get", "location", true,
-                "{ ['location.type'] = 'set', ['location.latitude'] = '10.5', ['location.longitude'] = '-20' }");
-        assertTrue(result.arg(1).toboolean());
-        assertEquals(10.5, result.arg(2).todouble(), 0);
-    }
-
-    @Test
-    public void bundleKeepsOtherExtras() {
-        Varargs other = after("get", "other", true, "{}");
-        assertFalse(other.arg(1).toboolean());
-        assertEquals(52.37, other.arg(2).todouble(), 0);
-
-        // An extra named location which is not a location, like a string, would crash the app when replaced
-        Varargs text = after("get", "location", false, "{}");
-        assertFalse(text.arg(1).toboolean());
-        assertEquals(52.37, text.arg(2).todouble(), 0);
-    }
-
     // The coarse location is the center of a cell of a grid with the size of the accuracy,
     // so another process or start of the app, or another location in the cell, gives the same location
     @Test

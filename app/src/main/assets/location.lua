@@ -16,19 +16,14 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
--- The location of a parcel, like of a location update, and the extra location of a bundle,
--- like of a location update by intent, become the location set, a coarse location or 0, 0
+-- The location of a parcel, like of a location update, also of an extra of an intent,
+-- becomes the location set, a coarse location or 0, 0
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
         return false
     end
 
-    -- Bundle.get: other extras with the same name can be of any type
-    if hook:getMethodName() == 'get' and (param:getException() ~= nil or param:getArgument(0) ~= 'location' or
-            not param:isInstance(result, 'android.location.Location')) then
-        return false
-    end
     local old = result:toString()
 
     local latitude = 0

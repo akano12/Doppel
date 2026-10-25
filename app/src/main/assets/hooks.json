@@ -2644,30 +2644,8 @@
     "luaScript": "@contentresolver_open"
   },
   // Get location
-  // https://developer.android.com/reference/android/os/Bundle.html
   // https://developer.android.com/reference/android/location/Location.html
   // https://developer.android.com/reference/android/location/LocationManager.html
-  {
-    "collection": "Privacy",
-    "group": "Get.Location",
-    "name": "Bundle.get\/location",
-    "author": "M66B",
-    "className": "android.os.BaseBundle",
-    "methodName": "get",
-    "parameterTypes": [
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.Object",
-    "minSdk": 1,
-    "enabled": false,
-    "settings": [
-      "location.type",
-      "location.latitude",
-      "location.longitude",
-      "location.accuracy"
-    ],
-    "luaScript": "@location"
-  },
   {
     "collection": "Privacy",
     "group": "Get.Location",
@@ -6554,37 +6532,6 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "SystemProperties.get/build",
-    "author": "M66B",
-    "className": "android.os.SystemProperties",
-    "methodName": "get",
-    "parameterTypes": [
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.String",
-    "minSdk": 1,
-    "enabled": false,
-    "luaScript": "@systemproperties_get"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "SystemProperties.get.default/build",
-    "author": "M66B",
-    "className": "android.os.SystemProperties",
-    "methodName": "get",
-    "parameterTypes": [
-      "java.lang.String",
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.String",
-    "minSdk": 1,
-    "enabled": false,
-    "luaScript": "@systemproperties_get"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
     "name": "SystemProperties.get/operator",
     "author": "M66B",
     "className": "android.os.SystemProperties",
@@ -6601,37 +6548,6 @@
     "collection": "Privacy",
     "group": "Use.Tracking",
     "name": "SystemProperties.get.default/operator",
-    "author": "M66B",
-    "className": "android.os.SystemProperties",
-    "methodName": "get",
-    "parameterTypes": [
-      "java.lang.String",
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.String",
-    "minSdk": 1,
-    "enabled": false,
-    "luaScript": "@systemproperties_get"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "SystemProperties.get/vendor",
-    "author": "M66B",
-    "className": "android.os.SystemProperties",
-    "methodName": "get",
-    "parameterTypes": [
-      "java.lang.String"
-    ],
-    "returnType": "java.lang.String",
-    "minSdk": 1,
-    "enabled": false,
-    "luaScript": "@systemproperties_get"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "SystemProperties.get.default/vendor",
     "author": "M66B",
     "className": "android.os.SystemProperties",
     "methodName": "get",
@@ -6966,124 +6882,6 @@
     "returnType": "int",
     "minSdk": 28,
     "luaScript": "@test_network"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "WebView.constructor.1a",
-    "author": "M66B",
-    "className": "android.webkit.WebView",
-    "parameterTypes": [
-      "android.content.Context"
-    ],
-    "minSdk": 1,
-    "enabled": false,
-    "usage": false,
-    "luaScript": "@webview_constructor"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "WebView.constructor.1b",
-    "author": "M66B",
-    "className": "android.webkit.WebView",
-    "parameterTypes": [
-      "android.content.Context",
-      "android.util.AttributeSet"
-    ],
-    "minSdk": 1,
-    "enabled": false,
-    "usage": false,
-    "luaScript": "@webview_constructor"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "WebView.constructor.1c",
-    "author": "M66B",
-    "className": "android.webkit.WebView",
-    "parameterTypes": [
-      "android.content.Context",
-      "android.util.AttributeSet",
-      "int"
-    ],
-    "minSdk": 1,
-    "enabled": false,
-    "usage": false,
-    "luaScript": "@webview_constructor"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "WebView.constructor.21",
-    "author": "M66B",
-    "className": "android.webkit.WebView",
-    "parameterTypes": [
-      "android.content.Context",
-      "android.util.AttributeSet",
-      "int",
-      "int"
-    ],
-    "minSdk": 21,
-    "enabled": false,
-    "usage": false,
-    "luaScript": "@webview_constructor"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "WebView.constructor.11",
-    "author": "M66B",
-    "className": "android.webkit.WebView",
-    "parameterTypes": [
-      "android.content.Context",
-      "android.util.AttributeSet",
-      "int",
-      "boolean"
-    ],
-    "minSdk": 11,
-    "enabled": false,
-    "usage": false,
-    "luaScript": "@webview_constructor"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "WebView.constructor.15",
-    "author": "M66B",
-    "className": "android.webkit.WebView",
-    "parameterTypes": [
-      "android.content.Context",
-      "android.util.AttributeSet",
-      "int",
-      "java.util.Map",
-      "boolean"
-    ],
-    "minSdk": 15,
-    "enabled": false,
-    "usage": false,
-    "optional": true,
-    "luaScript": "@webview_constructor"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "WebView.constructor.23",
-    "author": "M66B",
-    "className": "android.webkit.WebView",
-    "parameterTypes": [
-      "android.content.Context",
-      "android.util.AttributeSet",
-      "int",
-      "int",
-      "java.util.Map",
-      "boolean"
-    ],
-    "minSdk": 23,
-    "enabled": false,
-    "usage": false,
-    "optional": true,
-    "luaScript": "@webview_constructor"
   },
   {
     "collection": "Privacy",
