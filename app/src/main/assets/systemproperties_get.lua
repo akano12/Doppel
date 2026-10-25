@@ -41,6 +41,16 @@ local DEVICE = {
     { '0', { 'ro.build.date.utc', 'ro.*.build.date.utc' } },
 }
 
+-- The properties of the serial, like Build.SERIAL, and of the operator, like TelephonyManager.getNetworkOperator
+-- (see test_network), with their fake values, the same as getprop prints (see shell_commands)
+local SERIAL = { 'ro.serialno', 'ro.boot.serialno', 'ril.serialnumber', 'ro.boot.ap_serial', 'sys.serialnumber',
+                 'ro.ril.oem.sno', 'ro.ril.oem.psno', 'gsm.serial' }
+local OPERATOR = {
+    ['gsm.operator.alpha'] = 'unknown', ['gsm.sim.operator.alpha'] = 'unknown',
+    ['gsm.operator.numeric'] = '00101', ['gsm.sim.operator.numeric'] = '00101',
+    ['gsm.operator.iso-country'] = 'xx', ['gsm.sim.operator.iso-country'] = 'xx',
+}
+
 -- The fake values by property name and the Lua patterns of the names with a *,
 -- made once because properties are read often
 local NAMES = {}
@@ -124,6 +134,24 @@ function typed(hook, param, key, result, method)
     return true, tostring(result), tostring(fake)
 end
 
+-- The properties of a variant, so its script runs for these only (see XCore.getFilter); the properties of the device
+-- have patterns, its script checks the names itself
+function filter(hook)
+    local name = string.match(hook:getName(), '/(.*)$')
+    if name == 'serial' then
+        return SERIAL
+    elseif name == 'operator' then
+        local keys = {}
+        for key, _ in pairs(OPERATOR) do
+            table.insert(keys, key)
+        end
+        return keys
+    elseif name == 'timezone' then
+        return { 'persist.sys.timezone' }
+    end
+    return nil
+end
+
 function after(hook, param)
     -- The hooked methods are called for all properties, so check the name first
     local key = param:getArgument(0)
@@ -146,25 +174,22 @@ function after(hook, param)
     -- Hook names are like Function/variant
     local name = string.match(hook:getName(), '/(.*)$')
 
-    if name == 'serial' and (key == 'ro.serialno' or key == 'ro.boot.serialno' or
-            key == 'ril.serialnumber' or key == 'ro.boot.ap_serial' or key == 'sys.serialnumber' or
-            key == 'ro.ril.oem.sno' or key == 'ro.ril.oem.psno' or key == 'gsm.serial') then
+    local serial = false
+    for _, property in ipairs(SERIAL) do
+        serial = serial or property == key
+    end
+    if name == 'serial' and serial then
         local fake = param:getSetting('value.serial')
         if fake == nil then
             fake = 'unknown'
         end
         param:setResult(fake)
         return true, result, fake
-    elseif name == 'operator' and (key == 'gsm.operator.alpha' or key == 'gsm.sim.operator.alpha') then
-        local fake = 'unknown'
-        param:setResult(fake)
-        return true, result, fake
-    elseif name == 'operator' and (key == 'gsm.operator.numeric' or key == 'gsm.sim.operator.numeric') then
-        local fake = '00101' -- test network
-        param:setResult(fake)
-        return true, result, fake
-    elseif name == 'operator' and (key == 'gsm.operator.iso-country' or key == 'gsm.sim.operator.iso-country') then
-        local fake = 'xx'
+    elseif name == 'operator' and OPERATOR[key] ~= nil then
+        local fake = OPERATOR[key]
+        if fake == result then
+            return false
+        end
         param:setResult(fake)
         return true, result, fake
     elseif name == 'device' then

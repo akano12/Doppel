@@ -79,6 +79,49 @@ public class DeviceValuesScriptTest {
         assertEquals("2025-04-01", result.arg(2).tojstring());
     }
 
+    // The operator of the test network, like TelephonyManager, and the same as getprop prints (see shell_commands);
+    // properties which are not set stay empty
+    @Test
+    public void propertiesOfTheOperatorAreFaked() throws Exception {
+        Globals globals = load("systemproperties_get");
+        String[][] cases = {{"gsm.operator.numeric", "26201", "00101"}, {"gsm.sim.operator.numeric", "26201", "00101"},
+                {"gsm.operator.alpha", "Telekom.de", "unknown"}, {"gsm.sim.operator.alpha", "Telekom.de", "unknown"},
+                {"gsm.operator.iso-country", "de", "xx"}, {"gsm.sim.operator.iso-country", "de", "xx"}};
+        for (String[] c : cases) {
+            Varargs result = run(globals, "return run(hookof('SystemProperties.get.default/operator', 'get'), " +
+                    "paramof('" + c[1] + "', { [0] = '" + c[0] + "', [1] = '' }))");
+            assertTrue(c[0], result.arg1().toboolean());
+            assertEquals(c[0], c[2], result.arg(2).tojstring());
+        }
+        assertFalse(run(globals, "return run(hookof('SystemProperties.get/operator', 'get'), " +
+                "paramof('', { [0] = 'gsm.operator.numeric' }))").arg1().toboolean());
+        assertFalse(run(globals, "return run(hookof('SystemProperties.get/operator', 'get'), " +
+                "paramof('26201', { [0] = 'gsm.operator.foo' }))").arg1().toboolean());
+    }
+
+    // The variants with names run for their properties only, the properties of the device have patterns
+    @Test
+    public void filtersOfVariants() throws Exception {
+        Globals globals = load("systemproperties_get");
+        Varargs result = run(globals, "local function keys(name)\n" +
+                "  local result = {}\n" +
+                "  for _, key in ipairs(filter(hookof(name, 'get'))) do result[key] = true end\n" +
+                "  return result\n" +
+                "end\n" +
+                "local operator = keys('SystemProperties.get/operator')\n" +
+                "return keys('SystemProperties.get.default/serial')['ril.serialnumber'],\n" +
+                "  operator['gsm.sim.operator.iso-country'], #filter(hookof('SystemProperties.get/operator', 'get')),\n" +
+                "  keys('SystemProperties.get/timezone')['persist.sys.timezone'],\n" +
+                "  filter(hookof('SystemProperties.get/device', 'get')) == nil,\n" +
+                "  filter(hookof('SystemProperties.getInt/device', 'getInt')) == nil");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(6, result.arg(3).toint());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+    }
+
     // getInt and getLong do not use get: the fake value as a number, else the default
     private Varargs typed(Globals globals, String method, String key, String result, String def) {
         return run(globals, "return run(hookof('SystemProperties." + method + "/device', '" + method + "'), " +

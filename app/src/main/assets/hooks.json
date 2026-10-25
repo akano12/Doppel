@@ -6525,7 +6525,6 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "enabled": false,
     "luaScript": "@systemproperties_get"
   },
   {
@@ -6541,7 +6540,6 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 1,
-    "enabled": false,
     "luaScript": "@systemproperties_get"
   },
   // Properties of the model and the build of the device, which apps read when the fields of android.os.Build are restricted
