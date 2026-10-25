@@ -6499,22 +6499,6 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "Configuration.createFromParcel",
-    "author": "M66B",
-    "className": "android.content.res.Configuration",
-    "methodName": "CREATOR:createFromParcel",
-    "parameterTypes": [
-      "android.os.Parcel"
-    ],
-    "returnType": "android.content.res.Configuration",
-    "minSdk": 1,
-    "usage": false,
-    "enabled": false,
-    "luaScript": "@configuration_createfromparcel"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
     "name": "Settings.Secure.getStringForUser/bluetooth_name",
     "author": "akano12",
     "className": "android.provider.Settings$Secure",
