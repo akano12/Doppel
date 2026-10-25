@@ -20,6 +20,7 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
+import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Paint;
 import android.icu.text.RelativeDateTimeFormatter;
@@ -357,11 +358,16 @@ public class FragmentLog extends FragmentBase {
                 if (position == RecyclerView.NO_POSITION)
                     return;
                 Entry entry = getItem(position);
-                // The log of one app is opened from the screen of the app
-                if (entry.exception == null && only == null)
-                    startActivity(ActivityApp.getIntent(view.getContext(), entry.app.packageName, entry.app.uid));
-                else if (entry.exception != null)
+                if (entry.exception != null)
                     Ui.showText(view.getContext(), entry.hook, entry.exception.trim());
+                else {
+                    // The screen of the app with the hook; the log of one app is opened from that screen,
+                    // which is shown again instead of another one on top of the log
+                    Intent intent = ActivityApp.getIntent(view.getContext(), entry.app.packageName, entry.app.uid, entry.hook);
+                    if (only != null)
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                    startActivity(intent);
+                }
             }
         }
 
@@ -385,8 +391,6 @@ public class FragmentLog extends FragmentBase {
             EntryHolder h = (EntryHolder) holder;
             Context context = h.itemView.getContext();
             boolean error = (entry.exception != null);
-            // Without an action the row is no button, like a restriction in the log of one app, see onClick
-            h.itemView.setClickable(error || only == null);
 
             // The rows of a day form one block, failed hooks are on the error color
             int background = Ui.color(context, error

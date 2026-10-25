@@ -101,9 +101,9 @@
         android:background="@drawable/bg_rounded"
         android:backgroundTint="?attr/colorSurface"
         android:orientation="vertical"
-        android:paddingStart="12dp"
+        android:paddingStart="4dp"
         android:paddingTop="4dp"
-        android:paddingEnd="8dp"
+        android:paddingEnd="4dp"
         android:paddingBottom="4dp"
         android:visibility="gone" />
 </LinearLayout>

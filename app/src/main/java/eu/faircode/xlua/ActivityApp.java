@@ -19,12 +19,18 @@
 
 package eu.faircode.xlua;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
+import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -40,6 +46,7 @@ import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.graphics.ColorUtils;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import androidx.core.widget.NestedScrollView;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.checkbox.MaterialCheckBox;
@@ -62,6 +69,7 @@ public class ActivityApp extends ActivityBase {
 
     private static final String EXTRA_PACKAGE = "package";
     private static final String EXTRA_UID = "uid";
+    private static final String EXTRA_HOOK = "hook";
 
     // Settings of an app which are no fake values, see ActivityValues
     private static final Set<String> OPTIONS = new HashSet<>(Arrays.asList("forcestop", "notify"));
@@ -75,9 +83,10 @@ public class ActivityApp extends ActivityBase {
     private final Set<String> expanded = new HashSet<>(); // Groups which show their hooks
     private boolean dirty = false; // Changed restrictions which do not apply yet
     private int changes = 0; // Changes made here, which a reload started before does not show yet
+    private String reveal = null; // The id of a hook tapped in the log, shown when the restrictions are
 
     private MaterialToolbar toolbar;
-    private View svContent;
+    private NestedScrollView svContent;
     private View pbLoading;
     private CircularProgressIndicator piAll;
     private TextView tvAllCount;
@@ -110,6 +119,11 @@ public class ActivityApp extends ActivityBase {
         return intent;
     }
 
+    // With the hook expanded and highlighted, like a restriction tapped in the log
+    static Intent getIntent(Context context, String packageName, int uid, String hook) {
+        return getIntent(context, packageName, uid).putExtra(EXTRA_HOOK, hook);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -117,6 +131,9 @@ public class ActivityApp extends ActivityBase {
 
         packageName = getIntent().getStringExtra(EXTRA_PACKAGE);
         uid = getIntent().getIntExtra(EXTRA_UID, -1);
+        // Not again when the screen is restored
+        if (savedInstanceState == null)
+            reveal = getIntent().getStringExtra(EXTRA_HOOK);
 
         toolbar = setupToolbar(packageName);
         toolbar.inflateMenu(R.menu.app);
@@ -343,6 +360,51 @@ public class ActivityApp extends ActivityBase {
         updateRestart();
         pbLoading.setVisibility(View.GONE);
         svContent.setVisibility(View.VISIBLE);
+
+        if (reveal != null) {
+            reveal(reveal);
+            reveal = null;
+        }
+    }
+
+    // A hook tapped in the log: its group is expanded, the hook scrolled to the middle and highlighted for a moment;
+    // a hook which is not available anymore, like of a disabled collection, shows the screen only
+    private void reveal(String id) {
+        for (Map.Entry<String, List<XHook>> group : available.entrySet())
+            for (XHook hook : group.getValue())
+                if (hook.getId().equals(id)) {
+                    expanded.add(group.getKey());
+                    bind(group.getKey());
+                    View vHook = views.get(group.getKey()).llHooks.findViewWithTag(id);
+                    // After the layout of the expanded hooks
+                    svContent.post(() -> {
+                        Rect rect = new Rect();
+                        vHook.getDrawingRect(rect);
+                        svContent.offsetDescendantRectToMyCoords(vHook, rect);
+                        svContent.smoothScrollTo(0, rect.top - (svContent.getHeight() - rect.height()) / 2);
+                        highlight(vHook);
+                    });
+                    return;
+                }
+    }
+
+    // Fades in, stays and fades out, then the hook has its own background again
+    private void highlight(View view) {
+        Drawable background = view.getBackground();
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(Ui.color(this, com.google.android.material.R.attr.colorSecondaryContainer));
+        shape.setCornerRadius(Ui.dp(this, 10));
+        shape.setAlpha(0);
+        view.setBackground(shape);
+        ObjectAnimator animator = ObjectAnimator.ofInt(shape, "alpha", 0, 255, 255, 255, 255, 0);
+        animator.setDuration(2500);
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                view.setBackground(background);
+            }
+        });
+        animator.start();
     }
 
     // Colors of a group: text, icon background and icon
@@ -441,6 +503,7 @@ public class ActivityApp extends ActivityBase {
                 status = getString(R.string.title_hook_not_used);
             }
 
+            vHook.setTag(hook.getId()); // See reveal
             ((TextView) vHook.findViewById(R.id.tvName)).setText(hook.getName());
             TextView tvStatus = vHook.findViewById(R.id.tvStatus);
             tvStatus.setText(status);
@@ -603,6 +666,15 @@ public class ActivityApp extends ActivityBase {
                 sb.append(assignment.hook.getId()).append("\n\n").append(assignment.exception.trim());
             }
         Ui.showText(this, Groups.getTitle(this, group), sb);
+    }
+
+    // A restriction tapped in the log of this app, which closed the log, see FragmentLog;
+    // the restrictions are loaded again when the screen resumes
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        reveal = intent.getStringExtra(EXTRA_HOOK);
     }
 
     @Override
