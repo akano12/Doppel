@@ -50,7 +50,8 @@ import static org.junit.Assert.assertTrue;
 // cmd and uname in place of /system/bin; Android runs mksh and toybox, which XLUA_TEST_BIN can point to
 // (a directory with sh, sed, grep, printf and cat), else the tools of this computer are used.
 public class ShellCommandsScriptTest {
-    private static final String[] ALL = {"tracking", "identifiers", "timezone", "packages", "features", "biometrics"};
+    private static final String[] ALL = {"tracking", "identifiers", "timezone", "packages", "features", "biometrics",
+            "resources"};
     private static final String SETTINGS = "{ ['value.serial'] = 'SERIAL1', ['value.timezone'] = 'Asia/Tokyo'," +
             " ['features.keep'] = 'android.hardware.nfc, android.hardware.camera*' }";
     // The value of the properties compared, a date for the security patch level
@@ -69,6 +70,7 @@ public class ShellCommandsScriptTest {
             "    getUid = function(self) return 10123 end,",
             "    getPackageName = function(self) return 'com.example' end,",
             "    getApplicationContext = function(self) return context end,",
+            "    readFile = function(self, path) return files[path] end,",
             "    getThis = function(self) return this end,",
             "    getArgument = function(self, index) return args[index + 1] end,",
             "    setArgument = function(self, index, value) args[index + 1] = value end,",
@@ -112,6 +114,9 @@ public class ShellCommandsScriptTest {
             "      return set",
             "    end }",
             "end",
+            // The files as the app reads them, with the hooks opening files, see XParam.readFile
+            "files = { ['/proc/meminfo'] = 'MemTotal:        3145728 kB\\nMemFree:          146484 kB\\n',",
+            "  ['/proc/sys/kernel/random/boot_id'] = '0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\\n' }",
             // The environment of the app, for System.getenv
             "environment = { A = '1' }",
             "luajava = {",
@@ -446,6 +451,34 @@ public class ShellCommandsScriptTest {
         assertEquals("Linux version 6.6.50 #1 SMP PREEMPT\n", run(start("cat", "/proc/version")).out);
         // Other files stay
         assertEquals("cat /proc/cpuinfo", String.join(" ", command(start("cat", "/proc/cpuinfo"))));
+    }
+
+    // cat prints the files like the app reads them, of the variants restricting them only
+    @Test
+    public void filesAreFaked() throws Exception {
+        tools();
+        assertEquals("MemTotal:        3145728 kB\nMemFree:          146484 kB\n",
+                run(start("cat", "/proc/meminfo")).out);
+        assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
+                run(start("cat", "/proc/sys/kernel/random/boot_id")).out);
+        assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
+                run(start("sh", "-c", "x=$(cat /proc/sys/kernel/random/boot_id); echo $x")).out);
+        // Read.Resources does not restrict boot_id, Use.Tracking not /proc/meminfo
+        assertEquals("cat /proc/sys/kernel/random/boot_id",
+                String.join(" ", command(start(new String[]{"cat", "/proc/sys/kernel/random/boot_id"}, "resources"))));
+        assertEquals("cat /proc/meminfo",
+                String.join(" ", command(start(new String[]{"cat", "/proc/meminfo"}, "tracking"))));
+        // More files, or another file in a script, are read by cat itself
+        assertEquals("cat /proc/meminfo /proc/version",
+                String.join(" ", command(start("cat", "/proc/meminfo", "/proc/version"))));
+        File other = File.createTempFile("file", ".txt");
+        try {
+            Files.write(other.toPath(), "other\n".getBytes(StandardCharsets.UTF_8));
+            assertEquals("other\n",
+                    run(start("sh", "-c", "cat /proc/meminfo >/dev/null; cat " + other.getAbsolutePath())).out);
+        } finally {
+            other.delete();
+        }
     }
 
     // Commands run with toybox, toolbox or env, as a script of sh with options and as the pm script

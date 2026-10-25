@@ -7117,6 +7117,80 @@
     "minSdk": 23,
     "luaScript": "@boot_id"
   },
+  // The times of the folders of the shared storage: Os.stat and Os.lstat, File.lastModified and java.nio.file.Files;
+  // the script runs for these folders only
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.stat",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 23,
+    "luaScript": "@storage_times"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.lstat",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 23,
+    "luaScript": "@storage_times"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.getLastModifiedTime",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 24,
+    "luaScript": "@storage_times"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.stat",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@storage_times"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.lstat",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@storage_times"
+  },
   // The device name is often set to the name of the owner
   {
     "collection": "Privacy",
@@ -8836,6 +8910,18 @@
   },
   {
     "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "ProcessBuilder.start/resources",
+    "author": "akano12",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
     "group": "Use.Tracking",
     "name": "Runtime.exec",
     "author": "akano12",
@@ -8933,6 +9019,23 @@
     "collection": "Privacy",
     "group": "Read.Biometrics",
     "name": "Runtime.exec/biometrics",
+    "author": "akano12",
+    "className": "java.lang.Runtime",
+    "methodName": "exec",
+    "parameterTypes": [
+      "[Ljava.lang.String;",
+      "[Ljava.lang.String;",
+      "java.io.File"
+    ],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "maxSdk": 23,
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Runtime.exec/resources",
     "author": "akano12",
     "className": "java.lang.Runtime",
     "methodName": "exec",

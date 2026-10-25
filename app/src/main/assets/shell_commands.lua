@@ -18,7 +18,8 @@
 -- Apps run commands to read what the other hooks fake, like FingerprintJS runs getprop:
 -- getprop reads the system properties behind the fields of android.os.Build, the serial, the operator
 -- and the time zone, uname and /proc/version the kernel build of Os.uname, pm the installed packages
--- and the features of the device, date the time zone. These commands print the same fake values: they run
+-- and the features of the device, date the time zone, cat the files of which apps read another text, like
+-- /proc/meminfo and boot_id. These commands print the same fake values: they run
 -- in a shell with functions of the same names in front, which run the real command and replace the values,
 -- so the output keeps its format; date gets the fake time zone in its environment (TZ).
 -- The functions cover commands run directly, also with their path, with toybox, toolbox or env in front,
@@ -70,6 +71,10 @@ local SERIAL = { 'ro.serialno', 'ro.boot.serialno', 'ril.serialnumber', 'ro.boot
 
 -- The variants faking properties, which getprop prints
 local PROPERTIES = { 'tracking', 'identifiers', 'timezone' }
+
+-- The files of the variants of which apps read another text, which cat prints (see catfunction),
+-- like the hooks opening files: the id of boot_id per app and the rounded sizes of /proc/meminfo
+local FILES = { tracking = { '/proc/sys/kernel/random/boot_id' }, resources = { '/proc/meminfo' } }
 
 -- The biometric sensors, like biometrics (FEATURES)
 local BIOMETRIC = { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
@@ -213,14 +218,54 @@ function kernelfunctions()
                 ' -e "s|^\\([^ ]* \\)$__xlua_node |\\1localhost |"' ..
                 ' -e "s|^$__xlua_node\\$|localhost|"',
         '}',
-        -- Apps cannot read /proc/version on recent versions, then the error stays
+        ''
+    }, '\n')
+end
+
+-- Whether cat of the file prints another text, with the functions of the variants
+function catfile(file, variants)
+    if file == '/proc/version' then
+        return variants['tracking'] ~= nil
+    end
+    for variant, files in pairs(FILES) do
+        if variants[variant] then
+            for _, name in ipairs(files) do
+                if file == name then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- cat of one file prints the text the app reads itself, with the hooks opening files, at the start of the command;
+-- /proc/version the kernel like uname (see kernelfunctions). Files the app cannot read keep their error.
+function catfunction(param, text, variants, kernel)
+    local cases = {}
+    if kernel then
+        -- Apps cannot read /proc/version on recent versions
+        cases[#cases + 1] = '  /proc/version) if /system/bin/cat /proc/version >/dev/null 2>&1; then __xlua_kernel;' ..
+                " /system/bin/printf 'Linux version %s #1 SMP PREEMPT\\n' \"$__xlua_short\"; return; fi ;;"
+    end
+    for variant, files in pairs(FILES) do
+        if variants[variant] then
+            for _, file in ipairs(files) do
+                local content = (string.find(text, file, 1, true) and param:readFile(file) or nil)
+                if content ~= nil then
+                    cases[#cases + 1] = '  ' .. file .. ") /system/bin/printf '%s' " .. quote(content) .. '; return ;;'
+                end
+            end
+        end
+    end
+    return table.concat({
         'cat() {',
-        ' if [ $# -eq 1 ] && [ "$1" = /proc/version ] && /system/bin/cat /proc/version >/dev/null 2>&1; then',
-        '  __xlua_kernel',
-        "  /system/bin/printf 'Linux version %s #1 SMP PREEMPT\\n' \"$__xlua_short\"",
-        ' else',
-        '  /system/bin/cat "$@"',
+        ' if [ $# -eq 1 ]; then',
+        '  case "$1" in',
+        table.concat(cases, '\n'),
+        '  esac',
         ' fi',
+        ' /system/bin/cat "$@"',
         '}',
         ''
     }, '\n')
@@ -503,9 +548,17 @@ function commands(text, variant)
         if string.find(text, 'uname', 1, true) or string.find(text, '/proc/version', 1, true) then
             names[#names + 1] = 'uname'
             names[#names + 1] = 'cat'
+        elseif string.find(text, FILES[variant][1], 1, true) then
+            names[#names + 1] = 'cat'
         end
         if #names > 0 then
             return names
+        end
+    elseif variant == 'resources' then
+        for _, file in ipairs(FILES[variant]) do
+            if string.find(text, file, 1, true) then
+                return { 'cat' }
+            end
         end
     elseif variant == 'identifiers' or variant == 'timezone' then
         if string.find(text, 'getprop', 1, true) then
@@ -548,6 +601,9 @@ function functions(param, text, variants, script)
     end
     if seen['uname'] then
         result = result .. kernelfunctions()
+    end
+    if seen['cat'] then
+        result = result .. catfunction(param, text, variants, seen['uname'])
     end
     if seen['pm'] then
         result = result .. packagefunctions(param, variants)
@@ -836,8 +892,9 @@ function before(hook, param)
     end
     if script == nil then
         local direct = false
+        local own = { [variant] = true }
         for _, name in ipairs(names) do
-            if program == name and (name ~= 'cat' or (#words == at + 1 and words[at + 1] == '/proc/version')) then
+            if program == name and (name ~= 'cat' or (#words == at + 1 and catfile(words[at + 1], own))) then
                 direct = true
             end
         end

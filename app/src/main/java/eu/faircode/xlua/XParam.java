@@ -34,6 +34,8 @@ import org.luaj.vm2.LuaValue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileDescriptor;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
@@ -357,6 +359,17 @@ public class XParam {
         }
         this.param.setResult(fake);
         Os.close(fd);
+    }
+
+    // The text of a file like the app reads it, with its hooks of opening files, like of /proc/meminfo;
+    // null when the app cannot read it
+    @SuppressWarnings("unused")
+    public String readFile(String path) {
+        try (InputStream is = new FileInputStream(path)) {
+            return Util.readText(is);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     // A random looking UUID, the same for the same seed, like a UUID of the kernel (version 4),

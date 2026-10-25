@@ -194,6 +194,15 @@ public class XCoreTest {
         assertFalse(none.isReturnEarly());
     }
 
+    // Files are compared by their path, other objects not at all
+    @Test
+    public void filterValues() {
+        assertEquals("/sdcard/DCIM", XCore.filterValue("/sdcard/DCIM"));
+        assertEquals("/sdcard/DCIM", XCore.filterValue(new java.io.File("/sdcard/DCIM/")));
+        assertNull(XCore.filterValue(new Target()));
+        assertNull(XCore.filterValue(null));
+    }
+
     // Dynamic hooks of methods which objects inherit are installed once, in the class declaring the method
     @Test
     public void dynamicInheritedMethod() throws Throwable {

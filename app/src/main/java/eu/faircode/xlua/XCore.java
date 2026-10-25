@@ -53,6 +53,7 @@ import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
@@ -532,8 +533,8 @@ class XCore {
             private void execute(XCall call, String function) {
                 if (inService())
                     return;
-                if (filter != null &&
-                        (call.args == null || call.args.length == 0 || !filter.contains(call.args[0])))
+                if (filter != null && (call.args == null || call.args.length == 0 ||
+                        !filter.contains(filterValue(call.args[0]))))
                     return;
                 try {
                     // Initialize the Lua runtime once per thread
@@ -568,7 +569,8 @@ class XCore {
 
     // The values of the first argument a script restricts, which its function filter returns for the hook,
     // like the paths of files a hook of opening files restricts; the other calls do not run the script,
-    // so hooks of methods which are called very often cost (almost) nothing else; null without the function
+    // so hooks of methods which are called very often cost (almost) nothing else; null without the function.
+    // Files and paths of java.nio are compared by their path, see filterValue.
     static Set<String> getFilter(Context context, XHook hook, Prototype script, Map<String, String> settings) {
         LuaValue func = getGlobals(context, hook, script, settings).get("filter");
         if (func.isnil())
@@ -580,6 +582,18 @@ class XCore {
         for (int i = 1; i <= values.length(); i++)
             filter.add(values.get(i).checkjstring());
         return filter;
+    }
+
+    // The value of an argument for a filter: texts, and the path of files and of paths of java.nio,
+    // without running code of the app; null for other values
+    static String filterValue(Object value) {
+        if (value instanceof String)
+            return (String) value;
+        if (value instanceof File)
+            return ((File) value).getPath();
+        if (value != null && "sun.nio.fs.UnixPath".equals(value.getClass().getName()))
+            return value.toString();
+        return null;
     }
 
     private static String describe(XCall call) {
