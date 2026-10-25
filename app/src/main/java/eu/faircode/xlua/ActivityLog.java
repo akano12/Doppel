@@ -23,7 +23,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 
-// The log of one app, opened from the screen of the app, like the Activity tab
+// The log of one app, opened from the screen of the app, like the Activity tab: the header of the log
+// has back and the app as its title, see FragmentLog
 public class ActivityLog extends ActivityBase {
     private static final String EXTRA_PACKAGE = "package";
     private static final String EXTRA_UID = "uid";
@@ -42,14 +43,17 @@ public class ActivityLog extends ActivityBase {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_log);
-        setupToolbar(getString(R.string.title_log)).setSubtitle(getIntent().getStringExtra(EXTRA_LABEL));
+        String label = getIntent().getStringExtra(EXTRA_LABEL);
+        // The title of the window, which screen readers and the recent apps name
+        setTitle(getString(R.string.title_pair, getString(R.string.title_log), label));
 
         // Else the fragment is restored by the framework
         if (savedInstanceState == null)
             getSupportFragmentManager().beginTransaction()
                     .add(R.id.content, FragmentLog.forApp(
                             getIntent().getStringExtra(EXTRA_PACKAGE),
-                            getIntent().getIntExtra(EXTRA_UID, -1)))
+                            getIntent().getIntExtra(EXTRA_UID, -1),
+                            label))
                     .commit();
     }
 }

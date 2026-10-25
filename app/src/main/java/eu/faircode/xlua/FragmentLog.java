@@ -38,12 +38,10 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.util.Consumer;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.chip.ChipGroup;
 
 import java.text.NumberFormat;
@@ -64,6 +62,7 @@ public class FragmentLog extends FragmentBase {
 
     private static final String ARG_PACKAGE = "package";
     private static final String ARG_UID = "uid";
+    private static final String ARG_LABEL = "label";
 
     private enum Filter {ALL, TODAY, ERRORS}
 
@@ -87,9 +86,8 @@ public class FragmentLog extends FragmentBase {
     private TextView tvCallsLabel;
     private TextView tvStats;
     private BarsView vBars;
-    private CompactBar compact; // Not in the log of one app
+    private CompactBar compact;
     private BarsView vBarsCompact;
-    private ToolbarSummary toolbarSummary; // Of the log of one app
     private Adapter adapter;
 
     private Filter filter = Filter.ALL;
@@ -100,10 +98,11 @@ public class FragmentLog extends FragmentBase {
     private List<Entry> errors = new ArrayList<>();
 
     // The log of one app, see ActivityLog
-    static FragmentLog forApp(String packageName, int uid) {
+    static FragmentLog forApp(String packageName, int uid, String label) {
         Bundle args = new Bundle();
         args.putString(ARG_PACKAGE, packageName);
         args.putInt(ARG_UID, uid);
+        args.putString(ARG_LABEL, label);
         FragmentLog fragment = new FragmentLog();
         fragment.setArguments(args);
         return fragment;
@@ -114,9 +113,11 @@ public class FragmentLog extends FragmentBase {
         View view = inflater.inflate(R.layout.fragment_log, container, false);
         Context context = requireContext();
         Bundle args = getArguments();
+        String label = null;
         if (args != null) {
             only = args.getString(ARG_PACKAGE);
             onlyUid = args.getInt(ARG_UID, -1);
+            label = args.getString(ARG_LABEL);
         }
 
         swipeRefresh = view.findViewById(R.id.swipeRefresh);
@@ -131,26 +132,23 @@ public class FragmentLog extends FragmentBase {
         ViewGroup llAxis = view.findViewById(R.id.llAxis);
         for (int i = 0; i < llAxis.getChildCount(); i++)
             ((TextView) llAxis.getChildAt(i)).setText(nf.format(i * 6));
-        View tvTitle = view.findViewById(R.id.tvTitle);
+        TextView tvTitle = view.findViewById(R.id.tvTitle);
         View tilSearch = view.findViewById(R.id.tilSearch);
         EditText etSearch = view.findViewById(R.id.etSearch);
         ImageButton ibSearch = view.findViewById(R.id.ibSearch);
-        Consumer<String> onQuery = text -> {
+        search = new TitleSearch(this, tvTitle, tilSearch, etSearch, ibSearch, text -> {
             query = text;
             show();
-        };
-        if (only == null)
-            search = new TitleSearch(this, tvTitle, tilSearch, etSearch, ibSearch, onQuery);
-        else {
-            // The log of one app has a toolbar: the search field stays, without the search of the title,
-            // and the overview is of all apps
-            tvTitle.setVisibility(View.GONE);
-            ibSearch.setVisibility(View.GONE);
-            tilSearch.setVisibility(View.VISIBLE);
+        });
+        // The log of one app is like the Activity tab, of the app: back, the app as the title and its overview
+        if (only != null) {
+            View ibBack = view.findViewById(R.id.ibBack);
+            ibBack.setVisibility(View.VISIBLE);
+            ibBack.setOnClickListener(v -> requireActivity().getOnBackPressedDispatcher().onBackPressed());
+            View llTitle = view.findViewById(R.id.llTitle);
+            llTitle.setPaddingRelative(Ui.dp(context, 4), llTitle.getPaddingTop(), llTitle.getPaddingEnd(), 0);
+            tvTitle.setText(label);
             etSearch.setHint(R.string.title_search_log_app);
-            Ui.onTextChanged(etSearch, onQuery);
-            view.findViewById(R.id.cvOverview).setVisibility(View.GONE);
-            view.findViewById(R.id.llTitle).setPadding(Ui.dp(context, 16), Ui.dp(context, 8), Ui.dp(context, 16), 0);
         }
 
         adapter = new Adapter();
@@ -168,25 +166,15 @@ public class FragmentLog extends FragmentBase {
         });
         tvStats.setOnClickListener(v -> cgFilter.check(R.id.chipErrors));
 
-        if (only == null) {
-            // While the header is scrolled away: the calls of today by hour as small bars, and the filter
-            compact = new CompactBar(view, R.string.nav_activity, cgFilter, tilSearch, ibSearch);
-            vBarsCompact = new BarsView(context, null);
-            vBarsCompact.setLayoutParams(new FrameLayout.LayoutParams(Ui.dp(context, 64), Ui.dp(context, 24)));
-            compact.setTrail(vBarsCompact);
-        } else {
-            // The log of one app has a toolbar instead of the compact bar: the search field and the filter scroll
-            // away entirely and come back when scrolling back, the toolbar sums them up meanwhile
-            View ctlHeader = view.findViewById(R.id.ctlHeader);
-            ctlHeader.setMinimumHeight(0);
-            AppBarLayout.LayoutParams lp = (AppBarLayout.LayoutParams) ctlHeader.getLayoutParams();
-            lp.setScrollFlags(AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL |
-                    AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS |
-                    AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP);
-            ctlHeader.setLayoutParams(lp);
-            view.findViewById(R.id.llCompact).setVisibility(View.GONE);
-            toolbarSummary = new ToolbarSummary(requireActivity().findViewById(R.id.toolbar), view.findViewById(R.id.appBar));
-        }
+        // While the header is scrolled away: the calls of today by hour as small bars, and the filter
+        compact = (only == null
+                ? new CompactBar(view, R.string.nav_activity, cgFilter, tilSearch, ibSearch)
+                : new CompactBar(view, label, cgFilter, tilSearch, ibSearch));
+        if (only != null)
+            compact.setBack(v -> requireActivity().getOnBackPressedDispatcher().onBackPressed());
+        vBarsCompact = new BarsView(context, null);
+        vBarsCompact.setLayoutParams(new FrameLayout.LayoutParams(Ui.dp(context, 64), Ui.dp(context, 24)));
+        compact.setTrail(vBarsCompact);
 
         return view;
     }
@@ -286,9 +274,10 @@ public class FragmentLog extends FragmentBase {
         NumberFormat nf = NumberFormat.getIntegerInstance();
         tvCalls.setText(nf.format(countToday));
         tvCallsLabel.setText(getResources().getQuantityString(R.plurals.title_calls_today, countToday));
-        tvStats.setText(getString(R.string.title_pair,
-                getResources().getQuantityString(R.plurals.title_stat_apps, packages.size(), packages.size()),
-                getResources().getQuantityString(R.plurals.title_stat_errors_count, errors.size(), errors.size())));
+        // The log of one app is of that app only
+        String errorCount = getResources().getQuantityString(R.plurals.title_stat_errors_count, errors.size(), errors.size());
+        tvStats.setText(only != null ? errorCount : getString(R.string.title_pair,
+                getResources().getQuantityString(R.plurals.title_stat_apps, packages.size(), packages.size()), errorCount));
         tvStats.setTextColor(Ui.color(context, errors.isEmpty()
                 ? com.google.android.material.R.attr.colorOnSurfaceVariant : R.attr.colorWarning));
         vBars.setValues(hours);
@@ -297,11 +286,8 @@ public class FragmentLog extends FragmentBase {
                         getResources().getQuantityString(R.plurals.title_compact_calls, countToday, countToday),
                         getResources().getQuantityString(R.plurals.title_stat_errors_count, errors.size(), errors.size())),
                 getString(FILTER_TITLES[filter.ordinal()]));
-        if (compact != null) {
-            vBarsCompact.setValues(hours);
-            compact.setSubtitle(summary);
-        } else
-            toolbarSummary.setSummary(summary);
+        vBarsCompact.setValues(hours);
+        compact.setSubtitle(summary);
 
         // Items are entries under the headers of their days, with the number of entries
         String q = (query == null ? "" : query.trim());

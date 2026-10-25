@@ -30,8 +30,8 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <!-- The title at the height of the title of the Apps tab; the log of one app has a toolbar instead,
-                     with the search field always shown, see FragmentLog -->
+                <!-- The title at the height of the title of the Apps tab; the log of one app has back and the app
+                     as the title, see FragmentLog -->
                 <LinearLayout
                     android:id="@+id/llTitle"
                     android:layout_width="match_parent"
@@ -42,6 +42,16 @@
                     android:paddingStart="20dp"
                     android:paddingTop="26dp"
                     android:paddingEnd="8dp">
+
+                    <ImageButton
+                        android:id="@+id/ibBack"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/title_back"
+                        android:src="@drawable/ic_arrow_back"
+                        android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/tvTitle"

@@ -49,6 +49,11 @@ final class CompactBar {
     // The header (llHeader) and the bar are in the app bar (appBar) of the screen; search is the field of the header,
     // which its button opens; without chips or search, like Settings, the bar has no buttons for them
     CompactBar(View root, @StringRes int title, @Nullable ChipGroup chips, @Nullable View search, @Nullable View searchButton) {
+        this(root, root.getContext().getString(title), chips, search, searchButton);
+    }
+
+    // A title which is no resource, like the app of its log
+    CompactBar(View root, CharSequence title, @Nullable ChipGroup chips, @Nullable View search, @Nullable View searchButton) {
         this.chips = chips;
         bar = root.findViewById(R.id.llCompact);
         subtitle = bar.findViewById(R.id.tvCompactSubtitle);
