@@ -69,11 +69,15 @@ Features
   Tap an app to restrict groups or single hooks, stop it automatically and set *Fake values for this app*.
 * **Activity** shows which app triggered which restriction and when, with the real and the fake value, and hook errors,
   searchable by app or restriction; *View log* on the screen of an app shows the log of that app only.
+  Tapping a restriction opens the screen of the app with its hook highlighted.
 * **Hooks** lets you view, edit, enable, disable, add, import and export hook definitions,
-  and install and remove definitions shared by others with *Downloads*.
+  and install and remove definitions shared by others with *Downloads*,
+  like a filter of shell commands and blockers of the Radar, Localytics and Ogury SDKs.
 * **Settings** has restricting of and notifications on new apps, the collections of definitions,
   the theme, accent color and app icon, the fake values used for all apps (like the IMEI, Android ID, location and time zone),
   backup and restore of settings, custom hook definitions and restrictions, and clearing all restrictions and settings.
+  A restore of a backup of an older version takes over the restrictions of renamed definitions, completes the
+  restricted groups with the definitions added since, stops the apps of which restrictions changed and ends with a summary.
 
 The (no longer available) pro companion app is not needed anymore.
 To add your own restriction definitions, see [this FAQ](FAQ.md#user-content-faq8) and [DEFINE.md](DEFINE.md).
@@ -124,9 +128,9 @@ All technical details are in [hooks.json](app/src/main/assets/hooks.json).
 * Read battery (level in steps of 10 percent, hide charge counter, current, energy, cycle count, voltage and temperature, battery saver appears off)
 * Read clipboard (fake paste)
 * Read debugging state (developer options and USB or wireless debugging appear off)
-* Read memory and storage (total memory and storage rounded up to the sizes devices are sold with, free space rounded down to two digits)
+* Read memory and storage (total memory and storage rounded up to the sizes devices are sold with, free space rounded down to two digits, also in /proc/meminfo and for the shell command cat)
 * Read device settings (settings people change, like the window and transition animation scale, screen timeout, proxy, alarm sound and automatic time zone, have the values of a new device; not the font scale, the animator duration scale and whether accessibility is on, because the framework gives apps their real values anyway)
-* Read identifiers (fake build serial number, Android ID, advertising ID, Privacy Sandbox ad ID, app set ID, GSF ID, limit ad tracking, random SD card ids on each start of the app, Wi-Fi, Bluetooth and network interface MAC addresses)
+* Read identifiers (fake build serial number, Android ID, advertising ID, Privacy Sandbox ad ID, app set ID, GSF ID, limit ad tracking, random SD card ids on each start of the app, Wi-Fi, Bluetooth and network interface MAC addresses, the Bluetooth addresses of connected input devices)
 * Read notifications (fake [status bar notifications](https://developer.android.com/reference/android/service/notification/StatusBarNotification.html))
 * Read network data (hide cell info, also the cell of the service state, Wi-Fi networks, paired and connected Bluetooth devices, fake Wi-Fi network name, also in the text of Wi-Fi and network info, block Bluetooth scans, network service discovery (NsdManager) and Wi-Fi Direct and Wi-Fi Aware discovery)
 * Read sync data (hide [sync data](https://developer.android.com/training/sync-adapters/creating-sync-adapter.html))
@@ -137,9 +141,9 @@ All technical details are in [hooks.json](app/src/main/assets/hooks.json).
 * Record audio (prevent recording and speech recognition)
 * Record video (prevent recording)
 * Send messages (prevent sending MMS, SMS, data)
-* Use analytics ([Adjust](https://www.adjust.com/), [AppsFlyer](https://www.appsflyer.com/), [Facebook app events](https://developers.facebook.com/docs/reference/androidsdk/current/facebook/com/facebook/appevents/appeventslogger.html/), [Firebase Analytics](https://firebase.google.com/docs/analytics/), [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics), [Mixpanel](https://mixpanel.com/), [Segment](https://segment.com/))
+* Use analytics ([Adjust](https://www.adjust.com/), [AppsFlyer](https://www.appsflyer.com/), [Facebook app events](https://developers.facebook.com/docs/reference/androidsdk/current/facebook/com/facebook/appevents/appeventslogger.html/), [Firebase Analytics](https://firebase.google.com/docs/analytics/), [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics), [Mixpanel](https://mixpanel.com/), [Segment](https://segment.com/), [Amplitude](https://amplitude.com/), [Branch](https://www.branch.io/), [Microsoft Clarity](https://clarity.microsoft.com/), [Singular](https://www.singular.net/))
 * Use camera (fake camera not available, hide cameras)
-* Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html) including the security patch level, the same values for the system properties and the shell commands getprop, uname and /proc/version, network/SIM country/operator, device and Bluetooth name)
+* Use tracking (fake user agent for [WebView](https://developer.android.com/reference/android/webkit/WebView.html) only, [Build properties](https://developer.android.com/reference/android/os/Build.html) including the security patch level, the same values for the system properties and the shell commands getprop, uname and /proc/version, network/SIM country/operator, also in the system properties, device and Bluetooth name, the install and update times of other apps, the times of the folders of the shared storage, which tell when the device was set up (both 2009-01-01, like the files of reproducible builds), the boot id of the kernel, which is the same for all apps until a restart, an id of its own for each app, also for the shell command cat)
 
 *Use analytics* and some hooks of other restrictions (the advertising ID of Google Play services and Huawei, the app set ID,
 activity recognition and geofences) hook libraries inside the target app, which works only if the app was not
@@ -151,6 +155,7 @@ The other restrictions hook Android itself and always work.
 * Some apps will start the camera app to take pictures. This cannot be restricted and there is no need for this, because only you can take pictures in this scenario, not the app.
 * Some apps will use [OpenSL ES for Android](https://developer.android.com/ndk/guides/audio/opensl-for-android.html) to record audio, an example is WhatsApp. Xposed cannot hook into native code, so this cannot be prevented.
 * The get applications restriction does not hide the app itself, apps sharing its user id and system apps (also updated ones) from lookups of single apps and from lists of components, like the activities for an intent, keyboards and accessibility services, because the Android code running in apps, like WebView, needs them. The lists of installed apps and packages and of running processes and services keep only the app itself and apps sharing its user id. The content providers, services, screens and broadcasts of hidden apps answer like the app is not installed, except for a content uri another app handed to the restricted app with a grant, like a shared photo, which it can still open.
+* /proc/meminfo, the boot id and the times of the folders of the shared storage are faked for apps reading them with Java, like with FileInputStream, File and java.nio, and with the shell command cat. Native code reads the real ones, like the shell commands stat and ls -l do for the times of the folders; the times of the files in the folders stay.
 * The network data restriction blocks discovery of devices in the local network through Android (network service discovery, Wi-Fi Direct and Wi-Fi Aware). Apps discovering devices with their own code over plain sockets, like with mDNS or SSDP, cannot be prevented from doing so.
 * The telephony data restriction will result in apps seeing a fake IMEI. However, this doesn't change the IMEI address of your device.
 
