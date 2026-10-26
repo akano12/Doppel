@@ -3637,6 +3637,21 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
+    "name": "MediaDrm.getPropertyByteArray",
+    "author": "LuigiVampa92",
+    "description": "DRM manager will return fake unique device and provisioning IDs",
+    "className": "android.media.MediaDrm",
+    "methodName": "getPropertyByteArray",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 18,
+    "luaScript": "@mediadrm_unique_id"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
     "name": "Settings.Secure.getStringForUser/android_id",
     "author": "akano12",
     "className": "android.provider.Settings$Secure",
@@ -4202,32 +4217,6 @@
   {
     "collection": "Privacy",
     "group": "Read.Telephony",
-    "name": "SubscriptionInfo.getMcc",
-    "author": "M66B",
-    "className": "android.telephony.SubscriptionInfo",
-    "methodName": "getMcc",
-    "parameterTypes": [
-    ],
-    "returnType": "int",
-    "minSdk": 22,
-    "luaScript": "@test_network"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Telephony",
-    "name": "SubscriptionInfo.getMnc",
-    "author": "M66B",
-    "className": "android.telephony.SubscriptionInfo",
-    "methodName": "getMnc",
-    "parameterTypes": [
-    ],
-    "returnType": "int",
-    "minSdk": 22,
-    "luaScript": "@test_network"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Telephony",
     "name": "SubscriptionInfo.getNumber",
     "author": "M66B",
     "className": "android.telephony.SubscriptionInfo",
@@ -4520,42 +4509,6 @@
       "value.phone_number"
     ],
     "luaScript": "@value_phone_number"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Telephony",
-    "name": "SubscriptionInfo.getMccString",
-    "author": "akano12",
-    "className": "android.telephony.SubscriptionInfo",
-    "methodName": "getMccString",
-    "parameterTypes": [],
-    "returnType": "java.lang.String",
-    "minSdk": 29,
-    "luaScript": "@test_network"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Telephony",
-    "name": "SubscriptionInfo.getMncString",
-    "author": "akano12",
-    "className": "android.telephony.SubscriptionInfo",
-    "methodName": "getMncString",
-    "parameterTypes": [],
-    "returnType": "java.lang.String",
-    "minSdk": 29,
-    "luaScript": "@test_network"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Telephony",
-    "name": "SubscriptionInfo.toString/plmn",
-    "author": "akano12",
-    "className": "android.telephony.SubscriptionInfo",
-    "methodName": "toString",
-    "parameterTypes": [],
-    "returnType": "java.lang.String",
-    "minSdk": 22,
-    "luaScript": "@operator_tostring"
   },
   // https://developer.android.com/reference/android/telephony/SubscriptionManager#getPhoneNumber(int)
   {
@@ -6639,6 +6592,18 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "SubscriptionInfo.toString/plmn",
+    "author": "akano12",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 22,
+    "luaScript": "@operator_tostring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "SubscriptionInfo.getCountryIso",
     "author": "M66B",
     "className": "android.telephony.SubscriptionInfo",
@@ -6647,6 +6612,56 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 22,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SubscriptionInfo.getMcc",
+    "author": "M66B",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getMcc",
+    "parameterTypes": [
+    ],
+    "returnType": "int",
+    "minSdk": 22,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SubscriptionInfo.getMccString",
+    "author": "akano12",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getMccString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SubscriptionInfo.getMnc",
+    "author": "M66B",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getMnc",
+    "parameterTypes": [
+    ],
+    "returnType": "int",
+    "minSdk": 22,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SubscriptionInfo.getMncString",
+    "author": "akano12",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getMncString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
     "luaScript": "@test_network"
   },
   {
@@ -6846,21 +6861,6 @@
     "returnType": "int",
     "minSdk": 28,
     "luaScript": "@test_network"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "MediaDrm.getPropertyByteArray",
-    "author": "LuigiVampa92",
-    "description": "DRM manager will return fake unique device and provisioning IDs",
-    "className": "android.media.MediaDrm",
-    "methodName": "getPropertyByteArray",
-    "parameterTypes": [
-      "java.lang.String"
-    ],
-    "returnType": "byte[]",
-    "minSdk": 18,
-    "luaScript": "@mediadrm_unique_id"
   },
   // The script runs for /proc/sys/kernel/random/boot_id only
   {

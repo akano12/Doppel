@@ -110,6 +110,7 @@ class XProvider {
         if (loaded)
             try {
                 assignNewBuiltins();
+                assignMovedBuiltins();
                 removeObsoleteAssignments();
             } catch (Throwable ex) {
                 Log.e(TAG, Log.getStackTraceString(ex));
@@ -435,6 +436,42 @@ class XProvider {
                 writeSetting(d, -1, "service", "builtins_enabled", TextUtils.join(",", enabled));
                 writeSetting(d, -1, "service", "builtins", null);
             }
+            return null;
+        });
+    }
+
+    // Built-in hooks moved to another group (see XDatabase.MOVED) are assigned once to the apps which restrict
+    // the group they moved to, else a fully restricted group would show as partially restricted after the update.
+    // Which groups an app restricts is told without the moved hooks: an app restricting a moved hook in its former
+    // group does not restrict the group it moved to.
+    private static void assignMovedBuiltins() throws Throwable {
+        final Map<String, XHook> all = hooks;
+        db.write(d -> {
+            String marker = readSetting(d, -1, "service", "builtins_moved");
+            Set<String> done = new HashSet<>();
+            if (marker != null)
+                done.addAll(Arrays.asList(marker.split(",")));
+
+            List<String> ids = new ArrayList<>();
+            Map<String, XHook> others = new HashMap<>(all);
+            for (String[] moved : XDatabase.MOVED) {
+                String id = Util.COLLECTION_DEFAULT + "." + moved[0];
+                ids.add(id);
+                others.remove(id);
+            }
+            if (done.containsAll(ids))
+                return null;
+
+            // A custom definition can replace the built-in definition, then its group counts
+            List<XHook> targets = new ArrayList<>();
+            for (String id : ids)
+                if (!done.contains(id) && all.containsKey(id))
+                    targets.add(all.get(id));
+            if (!targets.isEmpty()) {
+                int[] counts = assignToRestricting(d, others, targets, null, false);
+                Log.i(TAG, "Moved built-in hooks=" + targets.size() + " assigned=" + counts[0] + " apps=" + counts[1]);
+            }
+            writeSetting(d, -1, "service", "builtins_moved", TextUtils.join(",", ids));
             return null;
         });
     }

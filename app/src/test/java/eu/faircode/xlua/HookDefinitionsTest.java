@@ -468,6 +468,19 @@ public class HookDefinitionsTest {
             assertFalse("Removed hook exists " + removed, names.contains(removed));
     }
 
+    // Moved hooks are built-in definitions in the group they moved to, once each, see XProvider.assignMovedBuiltins
+    @Test
+    public void movedHooksAreInTheirGroup() throws Exception {
+        Map<String, String> groups = new HashMap<>();
+        for (JSONObject hook : hooks)
+            groups.put(hook.getString("name"), hook.getString("group"));
+        Set<String> moved = new HashSet<>();
+        for (String[] move : XDatabase.MOVED) {
+            assertTrue("Moved twice " + move[0], moved.add(move[0]));
+            assertEquals("Group of moved hook " + move[0], move[1], groups.get(move[0]));
+        }
+    }
+
     // The built-in definitions as the app reads them, see XHook.readHooks: in the default collection,
     // which the renames of XDatabase.upgrade assume, with the attributes the validation requires
     // (XHook.validate uses TextUtils, which is a stub in unit tests)

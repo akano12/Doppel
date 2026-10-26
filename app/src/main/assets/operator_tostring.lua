@@ -16,9 +16,8 @@
 -- Copyright 2026 akano12
 
 -- The text of the service state, of its network registrations and of subscriptions names the operator,
--- which the getters fake (see test_network): the same fake values replace the real ones in the text,
--- in the group of the getters: the codes of subscriptions in Read.Telephony (the plmn variant),
--- the other values in Use.Tracking.
+-- which the getters fake (see test_network): the same fake values replace the real ones in the text, in
+-- Use.Tracking like the getters; the network codes of subscriptions have a variant of their own (plmn).
 -- Values run up to the next label, because operator names can contain commas and spaces;
 -- empty values stay, like the getters keep them.
 -- Android 8.0 and before print the service state without labels, in which the names can't be found safely,
@@ -52,7 +51,7 @@ local SUBSCRIPTION = {
     -- Android 10, right after the MNC
     { 'mCountryIso=', 'xx', { ' isEmbedded ' } },
 }
--- The network codes, like getMcc and getMnc in Read.Telephony, and the home networks, which are made of them
+-- The network codes, like getMcc and getMnc, and the home networks, which are made of them
 -- and have no getter for apps: Android 11 to 13, and 14 and later
 local SUBSCRIPTION_PLMN = {
     { ' mcc=', '001', { ' mnc=' } },

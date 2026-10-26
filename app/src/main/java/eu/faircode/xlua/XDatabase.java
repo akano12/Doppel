@@ -98,6 +98,19 @@ class XDatabase {
             }
     };
 
+    // Built-in hook names moved to another group by this or former versions: name, group now. The apps which
+    // restrict the group a hook moved to get it once, like the hooks an update adds, the apps which restrict
+    // the hook keep it, see XProvider.assignMovedBuiltins
+    static final String[][] MOVED = new String[][]{
+            {"Build.getRadioVersion", "Use.Tracking"},
+            {"MediaDrm.getPropertyByteArray", "Read.Identifiers"},
+            {"SubscriptionInfo.getMcc", "Use.Tracking"},
+            {"SubscriptionInfo.getMccString", "Use.Tracking"},
+            {"SubscriptionInfo.getMnc", "Use.Tracking"},
+            {"SubscriptionInfo.getMncString", "Use.Tracking"},
+            {"SubscriptionInfo.toString/plmn", "Use.Tracking"},
+    };
+
     // Hook names renamed by former versions: old name, new name; the ids of assignments have the collection
     // in front (see XHook.getId), which the renames of former versions left out, so they never applied
     static final String[][] RENAMED = new String[][]{

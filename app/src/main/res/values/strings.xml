@@ -573,7 +573,7 @@
     <string name="group_desc_read_debugging">Whether developer options and USB or wireless debugging are on</string>
     <string name="group_desc_read_resources">Exact size of memory and storage and the free space, which help to recognize the device</string>
     <string name="group_desc_read_settings">Settings like the window animation scale, screen timeout, proxy and alarm sound, which help to recognize the device</string>
-    <string name="group_desc_read_identifiers">Device and advertising ids, serial number, ids of SD cards</string>
+    <string name="group_desc_read_identifiers">Device, DRM and advertising ids, serial number, ids of the chip and of SD cards</string>
     <string name="group_desc_read_network">Wi-Fi and cell networks, addresses of the device, nearby Bluetooth and Wi-Fi Direct devices, network service discovery</string>
     <string name="group_desc_read_notifications">Notifications of other apps</string>
     <string name="group_desc_read_sync">Accounts which are being synchronized</string>
@@ -586,7 +586,7 @@
     <string name="group_desc_send_messages">Sending SMS and MMS messages</string>
     <string name="group_desc_use_analytics">Analytics and advertising libraries in the app</string>
     <string name="group_desc_use_camera">Using the camera, for pictures and video</string>
-    <string name="group_desc_use_tracking">Device model, firmware and other data to recognize the device</string>
+    <string name="group_desc_use_tracking">Device model, firmware, mobile operator and other data to recognize the device</string>
 
     <string-array name="scopes" translatable="false">
         <item>android</item>
