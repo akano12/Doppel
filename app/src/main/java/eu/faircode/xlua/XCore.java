@@ -348,9 +348,9 @@ class XCore {
                 if (caller == XProvider.CALLER_NONE)
                     return;
 
-                String method = column.split("\\.")[1];
-                serve(call, "Query " + column,
-                        () -> XProvider.query(context, method, selection, caller == XProvider.CALLER_PERMITTED));
+                // A column without a method, like xlua., gets no result too
+                serve(call, "Query " + column, () -> XProvider.query(context, column.split("\\.")[1],
+                        selection, caller == XProvider.CALLER_PERMITTED));
             }
         });
     }
