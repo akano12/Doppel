@@ -80,8 +80,8 @@ local PROPERTIES = { 'tracking', 'identifiers', 'timezone' }
 local FILES = { tracking = { '/proc/sys/kernel/random/boot_id' }, resources = { '/proc/meminfo' } }
 
 -- The files of /sys which do not exist for the variants, like for the hooks opening files (see hardware_files),
--- as patterns of the shell for the path and the path its links lead to; cat of them fails like for a file
--- which does not exist
+-- as patterns of the shell for the path and the path its links lead to, which a test compares with the patterns
+-- of hardware_files; commands reading them fail like for a file which does not exist
 local HIDDEN = {
     identifiers = { '*/chip-id/unique_id', '*/chip-id/lot_id', '*/mmc[0-9]*:*/cid', '*/mmc[0-9]*:*/serial',
                     '*/sec/sdinfo/data' },

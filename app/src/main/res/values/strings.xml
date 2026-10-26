@@ -201,8 +201,10 @@
     <string name="title_close_search">Close search</string>
     <!-- The compact bar of a tab, while its header is scrolled away, see CompactBar: the filter of the chips
          as a button, like Filter: User, and a summary of the header -->
+    <string name="title_filter">Filter</string>
     <string name="title_filter_by">Filter: %1$s</string>
-    <string name="title_compact_apps">%1$d of %2$d restricted</string>
+    <!-- The same words for any count in English -->
+    <string name="title_compact_apps" tools:ignore="PluralsCandidate">%1$d of %2$d restricted</string>
     <plurals name="title_compact_calls">
         <item quantity="one">%1$d today</item>
         <item quantity="other">%1$d today</item>

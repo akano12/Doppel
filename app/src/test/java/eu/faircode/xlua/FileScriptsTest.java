@@ -373,6 +373,39 @@ public class FileScriptsTest {
         assertEquals(2, result.arg(11).toint());
     }
 
+    // The shell hides the same files as the hooks, with patterns of its own (see shell_commands HIDDEN)
+    @Test
+    public void hardwareShellAgrees() throws Exception {
+        Globals files = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Globals shell = Scripts.load("shell_commands", String.join("\n",
+                "luajava = { newInstance = function(name, path)",
+                "  return { getCanonicalPath = function(self) return path end } end }"));
+        String[] paths = {
+                "/sys/devices/system/chip-id", "/sys/devices/system/chip-id/unique_id",
+                "/sys/devices/system/chip-id/lot_id", "/sys/devices/system/chip-id/product_id",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/serial",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/date",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/manfid",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/oemid",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/name",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/type",
+                "/sys/devices/virtual/sec/sdinfo/data", "/sys/devices/virtual/sec/tsp",
+                "/sys/devices/virtual/sec/tsp/raw_check", "/sys/devices/virtual/sec/tsp/fod_pos",
+                "/sys/devices/virtual/sec/tsp/fod_info", "/sys/devices/virtual/sensors/light_sensor/light_cal",
+                "/sys/devices/virtual/sensors/proximity_sensor/prox_cal",
+                "/sys/devices/virtual/fingerprint/fingerprint", "/sys/devices/virtual/fingerprint/fingerprint/name",
+                "/sys/devices/system/cpu/possible", "/sys/kernel/gpu/gpu_model"};
+        String[][] groups = {{"Read.Identifiers", "identifiers"}, {"Use.Tracking", "tracking"},
+                {"Read.Biometrics", "biometrics"}};
+        for (String[] group : groups)
+            for (String path : paths) {
+                boolean hook = Scripts.run(files, "return hidden(hookof('" + group[0] + "'), '" + path + "')").arg1().toboolean();
+                boolean command = Scripts.run(shell, "return hiddenfile('" + path + "', { " + group[1] + " = true })").arg1().toboolean();
+                assertEquals(group[0] + " " + path, hook, command);
+            }
+    }
+
     // File.list of a folder with hidden files: without their names, with the link of a name resolved
     @Test
     public void hardwareList() throws Exception {
