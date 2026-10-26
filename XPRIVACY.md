@@ -164,7 +164,7 @@ and the addresses of the network interfaces since Android 11, but only from apps
     * ~~return a fake phone type: GSM (matching IMEI)~~ not privacy related
     * ~~return a fake network type: unknown~~ not privacy related
     * ~~return an empty ISIM domain~~ not available in user space
-    * **return an empty IMPI/IMPU**
+    * ~~return an empty IMPI/IMPU~~ not available to apps (privileged)
     * **return a fake MSISDN**
     * return fake mobile network info
         * Country: XX
@@ -229,10 +229,10 @@ If you want to confine apps to their own folder, you can install the hook defini
 <a name="system"></a>
 * System
     * **return an empty list of installed applications**
-    * **return an empty list of recent tasks**
+    * ~~return an empty list of recent tasks~~ apps get only their own tasks since Android 5
     * **return an empty list of running processes**
     * **return an empty list of running services**
-    * **return an empty list of running tasks**
+    * ~~return an empty list of running tasks~~ apps get only their own tasks since Android 5
     * **return an empty list of widgets**
     * ~~return an empty list of applications (provider)~~ not available on recent Android versions anymore
     * **prevent package add, replace, restart, and remove notifications**

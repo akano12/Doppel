@@ -16,7 +16,6 @@
 -keepnames class eu.faircode.xlua.** { *; }
 
 # LuaJ creates library functions by reflection (LibFunction.bind), the rest can be shrunk
--dontwarn org.luaj.vm2.**
 -keep class * extends org.luaj.vm2.lib.LibFunction { <init>(); }
 -keepnames class org.luaj.vm2.** { *; }
 
