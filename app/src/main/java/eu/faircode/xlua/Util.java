@@ -38,6 +38,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 class Util {
@@ -134,13 +135,17 @@ class Util {
 
     // Enabled hook collections of the comma separated setting, by default the privacy collection
     static List<String> parseCollection(String value) {
-        List<String> result = new ArrayList<>();
         if (value == null)
-            result.add(COLLECTION_DEFAULT);
-        else
-            for (String name : value.split(","))
-                if (!name.trim().isEmpty())
-                    result.add(name.trim());
+            return new ArrayList<>(Collections.singletonList(COLLECTION_DEFAULT));
+        return split(value);
+    }
+
+    // The items of a list separated by commas, without the spaces around them and without empty items
+    static List<String> split(String value) {
+        List<String> result = new ArrayList<>();
+        for (String item : value.split(","))
+            if (!item.trim().isEmpty())
+                result.add(item.trim());
         return result;
     }
 

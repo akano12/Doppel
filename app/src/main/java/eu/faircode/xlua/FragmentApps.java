@@ -281,7 +281,7 @@ public class FragmentApps extends FragmentBase {
     @Override
     protected void load() {
         final Context context = requireContext().getApplicationContext();
-        executor.submit(() -> {
+        submit(() -> {
             try {
                 List<XHook> hooks = Data.getHooks(context);
                 List<String> collection = Data.getCollection(context);

@@ -94,4 +94,11 @@ public abstract class FragmentBase extends Fragment {
     protected void run(String tag, Ui.Task task) {
         Ui.submit(executor, task, ex -> error(tag, ex));
     }
+
+    // Run on the background thread a task which handles its errors itself, like a load; not anymore when the tab
+    // is gone, since the executor refuses tasks then
+    protected void submit(Runnable task) {
+        if (!executor.isShutdown())
+            executor.submit(task);
+    }
 }

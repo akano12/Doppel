@@ -190,7 +190,7 @@ public class ActivityApp extends ActivityBase {
     private void load() {
         final Context context = getApplicationContext();
         final int started = changes;
-        executor.submit(() -> {
+        submit(() -> {
             try {
                 XApp app = Data.getApp(context, packageName, uid);
                 if (app == null) {

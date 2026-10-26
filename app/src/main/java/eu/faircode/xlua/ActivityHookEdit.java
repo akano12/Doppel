@@ -322,11 +322,7 @@ public class ActivityHookEdit extends ActivityBase {
     }
 
     private static JSONArray split(EditText et) {
-        JSONArray jarray = new JSONArray();
-        for (String item : et.getText().toString().split(","))
-            if (!item.trim().isEmpty())
-                jarray.put(item.trim());
-        return jarray;
+        return new JSONArray(Util.split(et.getText().toString()));
     }
 
     private static String text(EditText et) {
@@ -514,7 +510,7 @@ public class ActivityHookEdit extends ActivityBase {
         final String returnType = text(etReturn);
         final Context context = getApplicationContext();
         tvCheck.setText(R.string.title_checking);
-        executor.submit(() -> {
+        submit(() -> {
             String result = getCheckResult(context, className, member, params, returnType);
             runOnUiThread(() -> tvCheck.setText(result));
         });

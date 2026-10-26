@@ -220,7 +220,7 @@ public class XParam {
     // Whether the package manager tells the app about a package, which is installed for the user
     // and not hidden by the package visibility rules of Android, and it stays visible, see isVisible.
     // Not kept, the package can be installed or removed while the app runs.
-    @SuppressWarnings({"unused", "deprecation"})
+    @SuppressWarnings("unused")
     public boolean isInstalledVisible(String packageName) {
         if (packageName == null)
             return false;
@@ -230,7 +230,7 @@ public class XParam {
         // The lookup calls hooked methods, see isPackageVisible
         XCore.enterService();
         try {
-            return isVisible(this.context.getPackageManager().getApplicationInfo(packageName, 0));
+            return isVisible(Util.getApplicationInfo(this.context.getPackageManager(), packageName, 0));
         } catch (PackageManager.NameNotFoundException ignored) {
             return false;
         } finally {

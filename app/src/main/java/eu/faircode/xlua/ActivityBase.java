@@ -151,6 +151,13 @@ public class ActivityBase extends AppCompatActivity {
         Ui.submit(executor, task, ex -> Ui.error(this, tag, ex, retry));
     }
 
+    // Run on the background thread a task which handles its errors itself, like a load; not anymore when the screen
+    // is gone, since the executor refuses tasks then
+    protected void submit(Runnable task) {
+        if (!executor.isShutdown())
+            executor.submit(task);
+    }
+
     // Run on the main thread, from a background thread, unless the screen is closing or gone meanwhile,
     // because views cannot load images anymore then (Glide refuses a destroyed activity)
     protected void postUnlessGone(Runnable runnable) {

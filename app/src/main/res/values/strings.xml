@@ -524,7 +524,7 @@
     <string name="msg_clear_sure">Remove all restrictions and settings, including fake values? This cannot be undone.</string>
     <string name="msg_cleared">Restrictions and settings removed</string>
     <string name="title_values_global_sub">Identifiers, location, time zone and more</string>
-    <string name="msg_not_backup">This file is not a backup of Doppel or XPrivacyLua</string>
+    <string name="msg_not_backup">This file is not a backup of Doppel</string>
     <string name="msg_backup_format">This backup has format %1$s, which this version cannot restore</string>
 
     <string name="group_determine_activity">Determine activity</string>

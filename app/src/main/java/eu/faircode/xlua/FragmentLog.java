@@ -184,7 +184,7 @@ public class FragmentLog extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         final String only = this.only;
         final int onlyUid = this.onlyUid;
-        executor.submit(() -> {
+        submit(() -> {
             try {
                 Map<String, XApp> apps = new HashMap<>();
                 Map<String, String> groups = new HashMap<>(); // By hook id, of the hooks available

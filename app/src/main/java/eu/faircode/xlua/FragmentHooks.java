@@ -167,7 +167,7 @@ public class FragmentHooks extends FragmentBase {
     @Override
     protected void load() {
         final Context context = requireContext().getApplicationContext();
-        executor.submit(() -> {
+        submit(() -> {
             try {
                 List<XHook> hooks = Data.getAllHooks(context, false);
                 Set<String> ids = Data.getBuiltinIds(context);
