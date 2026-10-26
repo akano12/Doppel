@@ -28,18 +28,23 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.graphics.Rect;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import androidx.appcompat.content.res.AppCompatResources;
@@ -103,6 +108,7 @@ public class ActivityApp extends ActivityBase {
 
     private static class GroupView {
         View llRow;
+        View flInfo;
         View flIcon;
         ImageView ivIcon;
         TextView tvMeta;
@@ -326,6 +332,7 @@ public class ActivityApp extends ActivityBase {
                 View vGroup = inflater.inflate(R.layout.item_group, llRows, false);
                 GroupView gv = new GroupView();
                 gv.llRow = vGroup.findViewById(R.id.llRow);
+                gv.flInfo = vGroup.findViewById(R.id.flInfo);
                 gv.flIcon = vGroup.findViewById(R.id.flIcon);
                 gv.ivIcon = vGroup.findViewById(R.id.ivIcon);
                 gv.tvMeta = vGroup.findViewById(R.id.tvMeta);
@@ -341,6 +348,15 @@ public class ActivityApp extends ActivityBase {
                 String description = Groups.getDescription(this, group);
                 tvDescription.setText(description);
                 tvDescription.setVisibility(description == null ? View.GONE : View.VISIBLE);
+                // The icon shows the whole description, which the row shortens to a line
+                if (description == null) {
+                    gv.flInfo.setClickable(false);
+                    gv.flInfo.setFocusable(false);
+                    gv.flInfo.setBackground(null);
+                } else {
+                    gv.flInfo.setContentDescription(getString(R.string.title_group_info, title));
+                    gv.flInfo.setOnClickListener(view -> showInfo(gv.flIcon, title, description));
+                }
                 gv.swGroup.setContentDescription(title);
                 // The row shows the hooks, the switch restricts
                 gv.llRow.setOnClickListener(view -> {
@@ -658,6 +674,58 @@ public class ActivityApp extends ActivityBase {
             Data.forceStop(context, app);
             Ui.message(this, getString(R.string.msg_stopped, getLabel()));
         });
+    }
+
+    // The description of a group in a bubble pointing at its icon: below it, or above it when there is no room
+    // below; a tap anywhere and back close it
+    private void showInfo(View icon, String title, String description) {
+        View view = LayoutInflater.from(this).inflate(R.layout.popup_group_info, null);
+        ((TextView) view.findViewById(R.id.tvTitle)).setText(title);
+        ((TextView) view.findViewById(R.id.tvDescription)).setText(description);
+        View arrowUp = view.findViewById(R.id.ivArrowUp);
+        View arrowDown = view.findViewById(R.id.ivArrowDown);
+
+        // The part of the window apps can draw in, in the coordinates of the window
+        Rect frame = new Rect();
+        icon.getWindowVisibleDisplayFrame(frame);
+        int[] origin = new int[2];
+        icon.getRootView().getLocationOnScreen(origin);
+        frame.offset(-origin[0], -origin[1]);
+        int[] location = new int[2];
+        icon.getLocationInWindow(location);
+
+        // The bubble, without the room around it for its shadow
+        int margin = Ui.dp(this, 16);
+        int width = Math.min(frame.width() - 2 * margin, Ui.dp(this, 320));
+        int left = view.getPaddingLeft();
+        int top = view.getPaddingTop();
+        int bottom = view.getPaddingBottom();
+        int popupWidth = left + width + view.getPaddingRight();
+        arrowDown.setVisibility(View.GONE);
+        view.measure(View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int height = view.getMeasuredHeight();
+        boolean above = (location[1] + icon.getHeight() + height - top > frame.bottom - margin &&
+                location[1] - height + bottom >= frame.top + margin);
+        if (above) {
+            arrowUp.setVisibility(View.GONE);
+            arrowDown.setVisibility(View.VISIBLE);
+        }
+
+        // The bubble starts near the icon, within the margins; its arrow points at the middle of the icon
+        int center = location[0] + icon.getWidth() / 2;
+        int x = Math.max(frame.left + margin, Math.min(center - Ui.dp(this, 29), frame.right - margin - width));
+        View arrow = (above ? arrowDown : arrowUp);
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) arrow.getLayoutParams();
+        params.leftMargin = center - x - Ui.dp(this, 9);
+        arrow.setLayoutParams(params);
+        int y = (above ? location[1] - height + bottom : location[1] + icon.getHeight() - top);
+
+        PopupWindow popup = new PopupWindow(view, popupWidth, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        popup.setOutsideTouchable(true);
+        popup.setAnimationStyle(android.R.style.Animation_Dialog);
+        popup.showAtLocation(icon, Gravity.NO_GRAVITY, x - left, y);
     }
 
     private void showErrors(String group) {

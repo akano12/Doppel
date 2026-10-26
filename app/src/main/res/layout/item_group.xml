@@ -20,24 +20,36 @@
         android:paddingEnd="10dp"
         android:paddingBottom="11dp">
 
+        <!-- Tapping the icon shows the whole description in a bubble; a touch target of 48dp around the icon -->
         <FrameLayout
-            android:id="@+id/flIcon"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:background="@drawable/bg_circle">
+            android:id="@+id/flInfo"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="-5dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true">
 
-            <ImageView
-                android:id="@+id/ivIcon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+            <FrameLayout
+                android:id="@+id/flIcon"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
                 android:layout_gravity="center"
-                android:importantForAccessibility="no" />
+                android:background="@drawable/bg_circle">
+
+                <ImageView
+                    android:id="@+id/ivIcon"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no" />
+            </FrameLayout>
         </FrameLayout>
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="7dp"
             android:layout_weight="1"
             android:orientation="vertical">
 

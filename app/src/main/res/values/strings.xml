@@ -262,6 +262,7 @@
     <string name="title_group_error">Failed · see the details</string>
     <string name="title_show_error">Show the error</string>
     <string name="title_show_hooks">Show the hooks of %1$s</string>
+    <string name="title_group_info">What %1$s covers</string>
     <string name="title_hide_hooks">Hide the hooks of %1$s</string>
     <string name="title_hook_not_used">Not used yet</string>
     <string name="title_hook_state_failed">Failed</string>
