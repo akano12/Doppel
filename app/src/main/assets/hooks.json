@@ -836,24 +836,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
-    "name": "ContentResolver.openTypedAssetFile/hidden",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "openTypedAssetFile",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String",
-      "android.os.Bundle",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.content.res.AssetFileDescriptor",
-    "minSdk": 29,
-    "excludePackages": "android",
-    "luaScript": "@provider_hidden"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
     "name": "ContentResolver.getType/hidden",
     "author": "akano12",
     "className": "android.content.ContentResolver",
@@ -1185,6 +1167,7 @@
     "excludePackages": "android",
     "luaScript": "@component_hidden"
   },
+  // No return type: it is void on older versions and int on recent ones
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -3602,6 +3585,58 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
+    "name": "AdvertisingIdClient$Info.isLimitAdTrackingEnabled",
+    "author": "akano12",
+    "className": "com.google.android.gms.ads.identifier.AdvertisingIdClient$Info",
+    "methodName": "isLimitAdTrackingEnabled",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AdId.getAdId",
+    "author": "akano12",
+    "className": "android.adservices.adid.AdId",
+    "methodName": "getAdId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@advertisingidclient$info_getid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AdId.isLimitAdTrackingEnabled",
+    "author": "akano12",
+    "className": "android.adservices.adid.AdId",
+    "methodName": "isLimitAdTrackingEnabled",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AppSetIdInfo.getId",
+    "author": "akano12",
+    "className": "com.google.android.gms.appset.AppSetIdInfo",
+    "methodName": "getId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@advertisingidclient$info_getid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
     "name": "Settings.Secure.getStringForUser/android_id",
     "author": "akano12",
     "className": "android.provider.Settings$Secure",
@@ -5731,7 +5766,6 @@
     ],
     "returnType": "void",
     "minSdk": 9,
-    "notify": true,
     "luaScript": "@camera_open"
   },
   {
@@ -6431,7 +6465,7 @@
   },
   {
     "collection": "Privacy",
-    "group": "Read.Identifiers",
+    "group": "Use.Tracking",
     "name": "Build.getRadioVersion",
     "author": "M66B",
     "className": "android.os.Build",
@@ -6442,60 +6476,8 @@
     "minSdk": 14,
     "luaScript": "@generic_unknown_value"
   },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "AdvertisingIdClient$Info.isLimitAdTrackingEnabled",
-    "author": "akano12",
-    "className": "com.google.android.gms.ads.identifier.AdvertisingIdClient$Info",
-    "methodName": "isLimitAdTrackingEnabled",
-    "parameterTypes": [],
-    "returnType": "boolean",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@generic_true_value"
-  },
   // https://developer.android.com/design-for-safety/privacy-sandbox/reference/adservices/adid/AdId
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "AdId.getAdId",
-    "author": "akano12",
-    "className": "android.adservices.adid.AdId",
-    "methodName": "getAdId",
-    "parameterTypes": [],
-    "returnType": "java.lang.String",
-    "minSdk": 33,
-    "optional": true,
-    "luaScript": "@advertisingidclient$info_getid"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "AdId.isLimitAdTrackingEnabled",
-    "author": "akano12",
-    "className": "android.adservices.adid.AdId",
-    "methodName": "isLimitAdTrackingEnabled",
-    "parameterTypes": [],
-    "returnType": "boolean",
-    "minSdk": 33,
-    "optional": true,
-    "luaScript": "@generic_true_value"
-  },
   // https://developers.google.com/android/reference/com/google/android/gms/appset/AppSetIdInfo
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "AppSetIdInfo.getId",
-    "author": "akano12",
-    "className": "com.google.android.gms.appset.AppSetIdInfo",
-    "methodName": "getId",
-    "parameterTypes": [],
-    "returnType": "java.lang.String",
-    "minSdk": 1,
-    "optional": true,
-    "luaScript": "@advertisingidclient$info_getid"
-  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -7774,6 +7756,7 @@
     "settings": [
       "value.timezone"
     ],
+    "usage": false,
     "luaScript": "@timezone"
   },
   {
@@ -8482,8 +8465,7 @@
       "android.net.nsd.NsdManager$ServiceInfoCallback"
     ],
     "returnType": "void",
-    "minSdk": 33,
-    "optional": true,
+    "minSdk": 34,
     "luaScript": "@nsdmanager_listener"
   },
   {
@@ -8511,8 +8493,7 @@
       "android.net.nsd.NsdManager$ResolveListener"
     ],
     "returnType": "void",
-    "minSdk": 33,
-    "optional": true,
+    "minSdk": 34,
     "luaScript": "@nsdmanager_listener"
   },
   {
@@ -8526,8 +8507,7 @@
       "android.net.nsd.NsdManager$ServiceInfoCallback"
     ],
     "returnType": "void",
-    "minSdk": 33,
-    "optional": true,
+    "minSdk": 34,
     "luaScript": "@nsdmanager_listener"
   },
   {
