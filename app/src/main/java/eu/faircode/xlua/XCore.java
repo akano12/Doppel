@@ -561,8 +561,9 @@ class XCore {
     // like the paths of files a hook of opening files restricts; the other calls do not run the script,
     // so hooks of methods which are called very often cost (almost) nothing else; null without the function.
     // A value ending in * stands for all values starting with the text before it, like /sys/* for the files
-    // of /sys, for a script which tells the paths apart itself. Files and paths of java.nio are compared
-    // by their path, see filterValue.
+    // of /sys, and a value starting with * too for all values containing the text between, like *sys/* for
+    // the files of /sys also by other paths, like /proc/self/root/sys/..., for a script which tells the paths
+    // apart itself. Files and paths of java.nio are compared by their path, see filterValue.
     private static Filter getFilter(Context context, XHook hook, Prototype script, Map<String, String> settings) {
         LuaValue func = getGlobals(context, hook, script, settings).get("filter");
         if (func.isnil())
@@ -579,9 +580,12 @@ class XCore {
     private static class Filter {
         private final Set<String> values = new HashSet<>();
         private final List<String> prefixes = new ArrayList<>();
+        private final List<String> parts = new ArrayList<>();
 
         private void add(String value) {
-            if (value.endsWith("*"))
+            if (value.length() > 1 && value.startsWith("*") && value.endsWith("*"))
+                this.parts.add(value.substring(1, value.length() - 1));
+            else if (value.endsWith("*"))
                 this.prefixes.add(value.substring(0, value.length() - 1));
             else
                 this.values.add(value);
@@ -594,6 +598,9 @@ class XCore {
                 return true;
             for (String prefix : this.prefixes)
                 if (value.startsWith(prefix))
+                    return true;
+            for (String part : this.parts)
+                if (value.contains(part))
                     return true;
             return false;
         }

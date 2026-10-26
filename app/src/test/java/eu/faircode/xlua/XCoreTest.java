@@ -213,6 +213,27 @@ public class XCoreTest {
         }
     }
 
+    // A value starting and ending with * stands for all values containing the text between
+    @Test
+    public void containsFilter() throws Throwable {
+        Method open = Target.class.getMethod("open", String.class);
+        install("containsFilter",
+                "function filter(hook) return { '*sys/*' } end\n" +
+                        "function before(hook, param) param:setResult('fake') return true end", open);
+
+        for (String path : new String[]{"/sys/devices/system/chip-id/unique_id", "/proc/self/root/sys/block",
+                "sys/devices", "/data/../sys/class"}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            assertEquals(path, "fake", call.getResult());
+        }
+        for (String path : new String[]{"/system/build.prop", "/sys", "/proc/meminfo"}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            assertFalse(path, call.isReturnEarly());
+        }
+    }
+
     // Files are compared by their path, other objects not at all
     @Test
     public void filterValues() {

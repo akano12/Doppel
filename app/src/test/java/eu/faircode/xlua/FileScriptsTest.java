@@ -284,7 +284,7 @@ public class FileScriptsTest {
                         "  hidden(finger, '/sys/class/fingerprint/fingerprint'),\n" +
                         "  hidden(finger, '/sys/class/sec/tsp/fod_pos'), hidden(finger, '/sys/class/sec/tsp/raw_check'),\n" +
                         "  hidden(hookof('Read.Network'), '/sys/devices/system/chip-id/unique_id')");
-        assertEquals("/sys/*", result.arg(1).tojstring());
+        assertEquals("*sys/*", result.arg(1).tojstring());
         assertEquals(1, result.arg(2).toint());
         boolean[] expected = {true, true, true, true, false, false, false, false,
                 true, true, true, true, true, false, false, false,
@@ -331,6 +331,46 @@ public class FileScriptsTest {
         assertEquals(2, result.arg(12).toint());
         assertFalse(result.arg(13).toboolean());
         assertFalse(result.arg(14).toboolean());
+    }
+
+    // File.exists, canRead and lastModified see a file which does not exist too; the files are hidden by other
+    // paths to /sys as well, and a path is resolved once per group
+    @Test
+    public void hardwareAccess() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local resolved = 0\n" +
+                        "local original = resolve\n" +
+                        "resolve = function(path) resolved = resolved + 1 return original(path) end\n" +
+                        "local ids = 'Read.Identifiers'\n" +
+                        "local id = '/sys/devices/system/chip-id/unique_id'\n" +
+                        "local io = 'java.io.UnixFileSystem'\n" +
+                        "local access = paramof(id)\n" +
+                        "before(hookof(ids, io, 'checkAccess', 'boolean'), access)\n" +
+                        "local modified = paramof(id)\n" +
+                        "before(hookof(ids, io, 'getLastModifiedTime', 'long'), modified)\n" +
+                        "local other = paramof('/sys/devices/system/cpu/possible')\n" +
+                        "before(hookof(ids, io, 'checkAccess', 'boolean'), other)\n" +
+                        "before(hookof(ids, io, 'checkAccess', 'boolean'), paramof('/sys/devices/system/cpu/possible'))\n" +
+                        "local os = paramof(id)\n" +
+                        "before(hookof(ids, 'android.system.Os', 'access', 'boolean'), os)\n" +
+                        "return access.early, access.result, modified.early, modified.result, other.early, resolved,\n" +
+                        "  hidden(hookof(ids), '/proc/self/root/sys/devices/system/chip-id/unique_id'),\n" +
+                        "  hidden(hookof(ids), 'sys/devices/system/chip-id/unique_id'),\n" +
+                        "  hidden(hookof(ids), '/data/../sys/class/sec/sdinfo/data'), os.result.class, os.result.args[2]");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(0, result.arg(4).toint());
+        assertFalse(result.arg(5).toboolean());
+        // The hidden file matches without resolving, the other file is resolved once
+        assertEquals(1, result.arg(6).toint());
+        assertTrue(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
+        // Os.access of apps throws like for a file which does not exist
+        assertEquals("android.system.ErrnoException", result.arg(10).tojstring());
+        assertEquals(2, result.arg(11).toint());
     }
 
     // File.list of a folder with hidden files: without their names, with the link of a name resolved

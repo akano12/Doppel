@@ -7036,6 +7036,21 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
+    "name": "Os.access/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
     "name": "UnixFileSystem.getBooleanAttributes0/hardware_ids",
     "author": "akano12",
     "className": "java.io.UnixFileSystem",
@@ -7044,6 +7059,35 @@
       "java.lang.String"
     ],
     "returnType": "int",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixFileSystem.checkAccess/hardware_ids",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixFileSystem.getLastModifiedTime/hardware_ids",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
     "minSdk": 24,
     "luaScript": "@hardware_files"
   },
@@ -7243,6 +7287,21 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "Os.access/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "UnixFileSystem.getBooleanAttributes0/hardware_model",
     "author": "akano12",
     "className": "java.io.UnixFileSystem",
@@ -7251,6 +7310,35 @@
       "java.lang.String"
     ],
     "returnType": "int",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.checkAccess/hardware_model",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.getLastModifiedTime/hardware_model",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
     "minSdk": 24,
     "luaScript": "@hardware_files"
   },
@@ -7450,6 +7538,21 @@
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",
+    "name": "Os.access/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
     "name": "UnixFileSystem.getBooleanAttributes0/fingerprint_sensor",
     "author": "akano12",
     "className": "java.io.UnixFileSystem",
@@ -7458,6 +7561,35 @@
       "java.lang.String"
     ],
     "returnType": "int",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixFileSystem.checkAccess/fingerprint_sensor",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixFileSystem.getLastModifiedTime/fingerprint_sensor",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
     "minSdk": 24,
     "luaScript": "@hardware_files"
   },

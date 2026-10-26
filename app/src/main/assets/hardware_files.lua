@@ -41,9 +41,30 @@ local FILES = {
 -- The error of a file which does not exist, OsConstants.ENOENT, the same on every Linux
 local ENOENT = 2
 
--- The script runs for the files of /sys only, see XCore.getFilter
+-- The script runs for the files of /sys only, also by other paths, like /proc/self/root/sys/..., /data/../sys/...
+-- or sys/... relative to /, the folder apps run in; see XCore.getFilter. Not covered are links of apps themselves
+-- to the files, which have paths without sys/.
 function filter(hook)
-    return { '/sys/*' }
+    return { '*sys/*' }
+end
+
+-- Whether paths are hidden for a group, per thread, since a script runs once per thread (see DEFINE.md): files
+-- of /sys are read often, like the frequencies of the processors, and resolving their paths takes a system call.
+-- The paths of /sys stay the same while the app runs; the cache starts over when it is full.
+local HIDDEN = {}
+local cached = 0
+
+-- The group, class, method and return type of a hook, which do not change, without asking the hook each time
+local HOOKS = {}
+
+function about(hook)
+    local known = HOOKS[hook]
+    if known == nil then
+        known = { group = hook:getGroup(), class = hook:getClassName(), method = hook:getMethodName(),
+                  returnType = hook:getReturnType() }
+        HOOKS[hook] = known
+    end
+    return known
 end
 
 -- The path a path leads to, by the links of /sys, or the path as it is
@@ -59,17 +80,41 @@ end
 
 -- Whether a file is one of the group of the hook: its path or the path it leads to matches a pattern
 function hidden(hook, path)
-    local patterns = FILES[hook:getGroup()]
+    local group = about(hook).group
+    local patterns = FILES[group]
     if patterns == nil then
         return false
     end
-    local resolved = resolve(path)
+    local key = group .. '|' .. path
+    local known = HIDDEN[key]
+    if known ~= nil then
+        return known
+    end
+
+    local found = false
     for _, pattern in ipairs(patterns) do
-        if string.find(path, pattern) or string.find(resolved, pattern) then
-            return true
+        if string.find(path, pattern) then
+            found = true
+            break
         end
     end
-    return false
+    if not found then
+        local resolved = resolve(path)
+        for _, pattern in ipairs(patterns) do
+            if string.find(resolved, pattern) then
+                found = true
+                break
+            end
+        end
+    end
+
+    if cached >= 1000 then
+        HIDDEN = {}
+        cached = 0
+    end
+    HIDDEN[key] = found
+    cached = cached + 1
+    return found
 end
 
 -- The path of the first argument: a text, a java.io.File or a path of java.nio, which print their path
@@ -98,7 +143,7 @@ end
 
 function before(hook, param)
     local path = pathof(param)
-    local class = hook:getClassName()
+    local class = about(hook).class
     if class == 'sun.nio.fs.UnixFileSystemProvider' then
         return listing(hook, param, path)
     end
@@ -106,23 +151,31 @@ function before(hook, param)
         return false
     end
 
-    local method = hook:getMethodName()
-    if class == 'libcore.io.BlockGuardOs' then
-        -- Os.open, stat, lstat and access, which FileInputStream, File.length and File.canRead use
+    local method = about(hook).method
+    if class == 'libcore.io.BlockGuardOs' or class == 'android.system.Os' then
+        -- Os.open, stat, lstat and access, which FileInputStream and File.length use; Os.access of apps
+        -- is hooked itself, since the hook of BlockGuardOs.access does not run for it (Android 14)
         param:setResult(luajava.newInstance('android.system.ErrnoException', method, ENOENT))
     elseif class == 'java.io.UnixFileSystem' then
         if method == 'list0' then
             -- File.list of a hidden folder: like of a folder which does not exist
             param:setResult(nil)
+        elseif method == 'checkAccess' then
+            -- File.exists, canRead, canWrite and canExecute; they call Libcore.os.access, but the hook of
+            -- BlockGuardOs.access does not run for them (Android 14)
+            param:setResult(false)
+        elseif method == 'getLastModifiedTime' then
+            -- File.lastModified, 0 like of a file which does not exist
+            param:setResult(0)
         else
-            -- File.exists, isFile and isDirectory: no attributes, like of a file which does not exist
+            -- File.isFile and isDirectory: no attributes, like of a file which does not exist
             param:setResult(0)
         end
     else
         -- java.nio.file: Files.exists, the mode of Files.isRegularFile, the rest throws like the kernel
         if method == 'exists' then
             param:setResult(false)
-        elseif method == 'stat' and hook:getReturnType() == 'int' then
+        elseif method == 'stat' and about(hook).returnType == 'int' then
             param:setResult(0)
         else
             param:setResult(luajava.newInstance('sun.nio.fs.UnixException', ENOENT))
@@ -133,7 +186,7 @@ end
 
 -- File.list of a folder with hidden files: without their names
 function after(hook, param)
-    if hook:getMethodName() ~= 'list0' or param:getException() ~= nil then
+    if about(hook).method ~= 'list0' or param:getException() ~= nil then
         return false
     end
     local names = param:getResult()
