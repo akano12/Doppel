@@ -586,7 +586,7 @@
     <string name="group_desc_read_vpn">Whether a VPN is connected</string>
     <string name="group_desc_record_audio">Recording with the microphone</string>
     <string name="group_desc_record_video">Recording video with the media recorder of Android</string>
-    <string name="group_desc_run_commands">Only the commands of Fake values can run, like getprop; refused commands are shown in Activity. Restricted only on purpose: not by Restrict all and not for new apps</string>
+    <string name="group_desc_run_commands">Commands like su and id; only the commands allowed in Fake values can run, like getprop</string>
     <string name="group_desc_send_messages">Sending SMS and MMS messages</string>
     <string name="group_desc_use_analytics">Analytics and advertising libraries in the app</string>
     <string name="group_desc_use_camera">Using the camera, for pictures and video</string>

@@ -917,7 +917,7 @@ class XProvider {
         List<String> collection = getCollection(userid);
         final List<String> hookids = new ArrayList<>();
         for (XHook hook : hooks.values())
-            if (hook.isAvailable(packageName, collection) && !Groups.isOptIn(hook.getGroup()))
+            if (hook.isAvailable(packageName, collection))
                 hookids.add(hook.getId());
 
         final long now = System.currentTimeMillis();

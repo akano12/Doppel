@@ -555,16 +555,10 @@ public class ActivityApp extends ActivityBase {
 
     // The ring and the line of Restrict all, and the counts of the sections, like 3 of 3
     private void updateSummary() {
-        // Opt-in groups only count when they are restricted
         int restricted = 0;
-        int groups = 0;
         boolean complete = true;
         for (String group : available.keySet()) {
-            boolean any = !app.getAssignments(group).isEmpty();
-            if (Groups.isOptIn(group) && !any)
-                continue;
-            groups++;
-            if (any)
+            if (!app.getAssignments(group).isEmpty())
                 restricted++;
             if (!isComplete(group))
                 complete = false;
@@ -578,6 +572,7 @@ public class ActivityApp extends ActivityBase {
                 lastGroup = assignment.hook.getGroup();
             }
 
+        int groups = available.size();
         piAll.setProgressCompat(groups == 0 ? 0 : Math.round(100f * restricted / groups), true);
         tvAllCount.setText(String.format(Locale.getDefault(), "%d", restricted));
         String summary = getResources().getQuantityString(R.plurals.title_groups_restricted, groups, restricted, groups);
@@ -595,31 +590,23 @@ public class ActivityApp extends ActivityBase {
             @SuppressWarnings("unchecked")
             List<String> groupsOf = (List<String>) vSection.getTag();
             int count = 0;
-            int total = 0;
-            for (String group : groupsOf) {
-                boolean any = !app.getAssignments(group).isEmpty();
-                if (any)
+            for (String group : groupsOf)
+                if (!app.getAssignments(group).isEmpty())
                     count++;
-                if (any || !Groups.isOptIn(group))
-                    total++;
-            }
-            ((TextView) vSection.findViewById(R.id.tvCount)).setText(getString(R.string.title_of, count, total));
+            ((TextView) vSection.findViewById(R.id.tvCount)).setText(getString(R.string.title_of, count, groupsOf.size()));
         }
     }
 
-    // Restrict all hooks of all groups but the opt-in groups, or remove all restrictions when these are complete
+    // Restrict all hooks of all groups, or remove all restrictions when all hooks are restricted
     private void restrictAll() {
         if (app == null)
             return;
         boolean all = true;
         for (String group : available.keySet())
-            if (!Groups.isOptIn(group) && !isComplete(group))
+            if (!isComplete(group))
                 all = false;
         final boolean assign = !all;
-        final List<String> groups = new ArrayList<>();
-        for (String group : available.keySet())
-            if (!assign || !Groups.isOptIn(group))
-                groups.add(group);
+        final List<String> groups = new ArrayList<>(available.keySet());
         if (assign && "android".equals(app.packageName)) {
             updateSummary();
             Ui.areYouSure(this, getString(R.string.title_bootloop), R.string.title_restrict_all_groups, () -> assign(groups, true));
