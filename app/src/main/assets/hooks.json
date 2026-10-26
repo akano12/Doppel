@@ -9438,6 +9438,22 @@
   },
   {
     "collection": "Privacy",
+    "group": "Run.Commands",
+    "name": "ProcessBuilder.start/commands",
+    "author": "akano12",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "settings": [
+      "commands.allowed",
+      "commands.regex"
+    ],
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
     "group": "Use.Tracking",
     "name": "Runtime.exec",
     "author": "akano12",
@@ -9563,6 +9579,27 @@
     "returnType": "java.lang.Process",
     "minSdk": 23,
     "maxSdk": 23,
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Run.Commands",
+    "name": "Runtime.exec/commands",
+    "author": "akano12",
+    "className": "java.lang.Runtime",
+    "methodName": "exec",
+    "parameterTypes": [
+      "java.lang.String[]",
+      "java.lang.String[]",
+      "java.io.File"
+    ],
+    "returnType": "java.lang.Process",
+    "minSdk": 23,
+    "maxSdk": 23,
+    "settings": [
+      "commands.allowed",
+      "commands.regex"
+    ],
     "luaScript": "@shell_commands"
   },
   // The text of network objects contains the values their getters hide

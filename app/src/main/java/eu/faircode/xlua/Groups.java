@@ -26,9 +26,11 @@ import java.text.Collator;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 // Presentation of hook groups: localized titles, descriptions and icons and the section a group is shown in
 final class Groups {
@@ -45,6 +47,10 @@ final class Groups {
     private static final Map<String, Integer> TITLE = new HashMap<>();
     private static final Map<String, Integer> DESCRIPTION = new HashMap<>();
     private static final Map<String, Integer> ICON = new HashMap<>();
+
+    // Groups which change what apps can do, rather than what they read: restricted only on purpose, one app at a
+    // time, not by Restrict all, not for new apps and not counted as missing
+    private static final Set<String> OPT_IN = new HashSet<>(Collections.singletonList("Run.Commands"));
 
     static {
         group("Determine.Activity", R.string.group_determine_activity, R.string.group_desc_determine_activity,
@@ -74,6 +80,7 @@ final class Groups {
         group("Read.VPN", R.string.group_read_vpn, R.string.group_desc_read_vpn, R.drawable.ic_group_vpn);
         group("Record.Audio", R.string.group_record_audio, R.string.group_desc_record_audio, R.drawable.ic_group_audio);
         group("Record.Video", R.string.group_record_video, R.string.group_desc_record_video, R.drawable.ic_group_video);
+        group("Run.Commands", R.string.group_run_commands, R.string.group_desc_run_commands, R.drawable.ic_group_commands);
         group("Send.Messages", R.string.group_send_messages, R.string.group_desc_send_messages, R.drawable.ic_group_send);
         group("Use.Analytics", R.string.group_use_analytics, R.string.group_desc_use_analytics, R.drawable.ic_group_analytics);
         group("Use.Camera", R.string.group_use_camera, R.string.group_desc_use_camera, R.drawable.ic_group_camera);
@@ -86,7 +93,7 @@ final class Groups {
         put(R.string.section_personal, "Get.Contacts", "Get.Call.log", "Get.Messages", "Send.Messages",
                 "Get.Calendars", "Get.Applications", "Read.Clipboard", "Read.Notifications");
         put(R.string.section_media, "Use.Camera", "Record.Audio", "Record.Video");
-        put(R.string.section_tracking, "Use.Analytics", "Use.Tracking");
+        put(R.string.section_tracking, "Use.Analytics", "Use.Tracking", "Run.Commands");
     }
 
     private Groups() {
@@ -101,6 +108,10 @@ final class Groups {
     private static void put(int section, String... groups) {
         for (String group : groups)
             SECTION.put(group, section);
+    }
+
+    static boolean isOptIn(String group) {
+        return OPT_IN.contains(group);
     }
 
     static int getSection(String group) {

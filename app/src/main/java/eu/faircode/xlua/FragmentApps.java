@@ -347,12 +347,16 @@ public class FragmentApps extends FragmentBase {
         }
     }
 
-    // All available hooks, like Restrict all on the screen of the app, which stops the app when it is stopped automatically;
-    // the app had no restrictions (AdapterApp.Row.canRestrictAll), so removing the hooks again undoes it
+    // All available hooks but those of opt-in groups, like Restrict all on the screen of the app, which stops the app
+    // when it is stopped automatically; the app had no restrictions (AdapterApp.Row.canRestrictAll), so removing
+    // the hooks again undoes it
     private void restrictAll(AdapterApp.Row row) {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
-        final List<XHook> available = Data.getAvailable(hooks, row.app, collection, null);
+        final List<XHook> available = new ArrayList<>();
+        for (XHook hook : Data.getAvailable(hooks, row.app, collection, null))
+            if (!Groups.isOptIn(hook.getGroup()))
+                available.add(hook);
         final String label = row.app.getLabel();
         run(TAG, () -> {
             Data.assign(context, row.app, available, true);

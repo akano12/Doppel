@@ -271,6 +271,11 @@ public class HookDefinitionsTest {
                         globals.rawget(key).isfunction());
         assertTrue("No before or after function for " + name,
                 globals.get("before").isfunction() || globals.get("after").isfunction());
+        // The engine calls a function filter with the hook when it installs the hook, see XCore.getFilter
+        LuaValue filter = globals.get("filter");
+        if (filter.isfunction())
+            assertEquals(name + " defines filter, which the engine calls with the hook only",
+                    1, ((LuaClosure) filter).p.numparams);
     }
 
     // Excluded packages are regular expressions, see XHook.validate

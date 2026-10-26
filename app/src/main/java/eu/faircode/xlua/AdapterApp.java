@@ -94,7 +94,6 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             for (XHook hook : hooks)
                 if (hook.isAvailable(app.packageName, collection))
                     groups.add(hook.getGroup());
-            row.groups = groups.size();
 
             Set<String> restricted = new HashSet<>();
             for (XAssignment assignment : app.assignments) {
@@ -110,6 +109,11 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 row.assigned = Math.max(row.assigned, assignment.assigned);
             }
             row.restricted = restricted.size();
+            // Opt-in groups only count when they are restricted, else apps would never be complete
+            row.groups = 0;
+            for (String group : groups)
+                if (!Groups.isOptIn(group) || restricted.contains(group))
+                    row.groups++;
             return row;
         }
 

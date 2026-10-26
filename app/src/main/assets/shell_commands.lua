@@ -31,7 +31,9 @@
 -- which wait for output), script files, command and env in scripts, names and paths made while the script runs
 -- (like "$dir"/bin/getprop) and native code. Runtime.exec starts processes with ProcessBuilder.start from Android 7,
 -- on Android 6 its hooks change the arguments of Runtime.exec(String[], String[], File) instead.
--- Each variant fakes the values of its group. The hooks of all variants run for the same command:
+-- The variant commands (Run.Commands) fakes nothing: it refuses commands running a program which is not allowed,
+-- see refuse.
+-- Each other variant fakes the values of its group. The hooks of all variants run for the same command:
 -- each one adds its variant to the variants of the command so far and makes the command again from
 -- the original one, so the last one makes the command with the functions of all variants.
 
@@ -118,6 +120,22 @@ local SHELLS = { sh = true, mksh = true, bash = true }
 -- and eval, which runs its arguments as a command; not exec and command, which skip functions
 local RESERVED = { ['if'] = true, ['then'] = true, ['else'] = true, ['elif'] = true, ['while'] = true,
                    ['until'] = true, ['do'] = true, ['time'] = true, ['!'] = true, ['{'] = true, ['eval'] = true }
+
+-- Words of the shell which are no programs, like those of RESERVED and the words ending them
+local KEYWORDS = { ['if'] = true, ['then'] = true, ['else'] = true, ['elif'] = true, ['fi'] = true,
+                   ['while'] = true, ['until'] = true, ['do'] = true, ['done'] = true, ['for'] = true,
+                   ['case'] = true, ['esac'] = true, ['time'] = true, ['!'] = true, ['{'] = true, ['}'] = true,
+                   ['eval'] = true }
+
+-- Builtins of the shell which run no program and read no file, which scripts can always run
+local BUILTINS = { echo = true, printf = true, cd = true, test = true, ['['] = true, ['[['] = true,
+                   ['true'] = true, ['false'] = true, [':'] = true, export = true, set = true, unset = true,
+                   exit = true, ['return'] = true, shift = true, ['local'] = true, wait = true, ['break'] = true,
+                   continue = true }
+
+-- Programs and builtins running the program of their arguments, after their options
+local WRAPPERS = { toybox = true, toolbox = true, busybox = true, env = true, exec = true, command = true,
+                   nohup = true, nice = true, timeout = true, xargs = true }
 
 -- The fake time zone, like timezone
 function fakezone(param)
@@ -1029,11 +1047,154 @@ function settimezone(param, runtime, builder)
     return true
 end
 
+-- A word of a script without its quotes
+function unquote(word)
+    return (string.gsub(word, '["\'\\]', ''))
+end
+
+-- The program a command runs, after wrappers like exec, env and busybox with their options, variables and
+-- durations, and its index in the words; nil when it is not known before the command runs, like $cmd
+function programin(words, at)
+    while true do
+        local word = unquote(words[at])
+        if word == '' or string.find(word, '[$`]') then
+            return nil, at
+        end
+        local name = basename(word)
+        if not WRAPPERS[name] then
+            return name, at
+        end
+        local next = at + 1
+        while next <= #words and (string.find(words[next], '^[-+]') or
+                string.find(words[next], '^[%a_][%w_]*=') or string.find(words[next], '^[%d.]+[smhd]?$')) do
+            next = next + 1
+        end
+        if next > #words then
+            -- Like exec with redirections only, or env printing the environment
+            return name, at
+        end
+        at = next
+    end
+end
+
+-- The programs a script runs: the words in the place of a command (see commandplace) with the words of their
+-- command, but not builtins like echo; nil when one is not known before the script runs. Separators in quotes
+-- are taken as separators, which can refuse a script running only allowed programs, not run another program.
+function scriptprograms(text)
+    local tokens = {}
+    for at, word in string.gmatch(text, '()([^%s;&|()`<>]+)') do
+        tokens[#tokens + 1] = { at = at, word = word }
+    end
+    local programs = {}
+    for index, token in ipairs(tokens) do
+        local word = unquote(token.word)
+        if commandplace(text, token.at) and not KEYWORDS[word] and not string.find(word, '^[%a_][%w_]*=') then
+            -- The words of the command: the next tokens with only blanks in front, also continued lines
+            local words = { token.word }
+            local last = token
+            for next = index + 1, #tokens do
+                local gap = string.sub(text, last.at + #last.word, tokens[next].at - 1)
+                if not string.find(gap, '^[ \t]*$') and not string.find(gap, '^[ \t]*\\\n[ \t]*$') then
+                    break
+                end
+                words[#words + 1] = tokens[next].word
+                last = tokens[next]
+            end
+            local program = programin(words, 1)
+            if program == nil then
+                return nil
+            end
+            if not BUILTINS[program] then
+                programs[#programs + 1] = program
+            end
+        end
+    end
+    return programs
+end
+
+-- The programs a command of the app runs, nil when one is not known before it runs: the program, after
+-- wrappers, else the programs of the script of a shell (sh -c), or the script file a shell runs
+-- (sh /system/bin/pm); a shell reading the commands of its input is a program of its own
+function commandprograms(words)
+    local program, at = programin(words, 1)
+    if program == nil or not SHELLS[program] then
+        return (program and { program })
+    end
+    local operand, option = shelloperand(words, at)
+    if operand > #words then
+        return { program }
+    elseif option then
+        return scriptprograms(words[operand])
+    else
+        return { basename(words[operand]) }
+    end
+end
+
+-- Only commands running allowed programs can run, like the setting commands.allowed: getprop,uname, or the
+-- commands matching the regular expression of commands.regex as a whole; others fail like a program which
+-- cannot be run. The command of the app is checked, also when the hooks of other variants changed it already.
+function refuse(param, runtime)
+    local command
+    if runtime then
+        local args = param:getArgument(0)
+        if args == nil then
+            return false
+        end
+        command = param:getValue('shell.command', args) or args
+    else
+        local builder = param:getThis()
+        command = param:getValue('shell.command', builder) or builder:command()
+        if command == nil then
+            return false
+        end
+        command = command:toArray()
+    end
+    local words = wordsof(command)
+    if words == nil or #words == 0 then
+        return false
+    end
+    local line = table.concat(words, ' ')
+
+    local regex = param:getSetting('commands.regex')
+    if regex ~= nil and regex ~= '' then
+        -- An invalid expression matches nothing
+        local pattern = luajava.bindClass('java.util.regex.Pattern')
+        local valid, matches = pcall(function()
+            return pattern:matches(regex, line)
+        end)
+        if valid and matches then
+            return false
+        end
+    end
+
+    local allowed = {}
+    for name in string.gmatch(param:getSetting('commands.allowed') or '', '[^%s,]+') do
+        allowed[basename(name)] = true
+    end
+    local programs = commandprograms(words)
+    local refused = (programs == nil)
+    for _, program in ipairs(programs or {}) do
+        if not allowed[program] then
+            refused = true
+        end
+    end
+    if not refused then
+        return false
+    end
+
+    local exception = luajava.bindClass('java.io.IOException')
+    param:setResult(luajava.new(exception, 'Cannot run program "' .. words[1] .. '": error=13, Permission denied'))
+    return true, line
+end
+
 function before(hook, param)
     -- Hook names are like Function/variant
     local variant = string.match(hook:getName(), '/(.*)$')
     if variant == nil then
         variant = 'tracking'
+    end
+    if variant == 'commands' then
+        return refuse(param, hook:getMethodName() == 'exec')
     end
 
     -- The command of the app, also when the hook of another variant changed it already:
@@ -1168,8 +1329,8 @@ function before(hook, param)
 end
 
 function after(hook, param)
-    -- Runtime.exec got new arguments, which the app does not see
-    if hook:getMethodName() == 'exec' then
+    -- Runtime.exec got new arguments, which the app does not see; the filter changes nothing
+    if hook:getMethodName() == 'exec' or string.match(hook:getName(), '/commands$') then
         return false
     end
 

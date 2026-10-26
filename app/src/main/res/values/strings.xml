@@ -53,6 +53,8 @@
     <string name="title_value_longitude">Longitude</string>
     <string name="title_value_accuracy">Coarse accuracy (meters)</string>
     <string name="title_value_contacts">Contacts</string>
+    <string name="title_value_commands">Allowed commands, like getprop, uname</string>
+    <string name="title_value_commands_regex">Allowed command lines (Java regex)</string>
     <string name="title_default">Default: %1$s</string>
     <string name="title_global">All apps: %1$s</string>
     <string-array name="location_types">
@@ -552,6 +554,7 @@
     <string name="group_read_vpn">Read VPN state</string>
     <string name="group_record_audio">Record audio</string>
     <string name="group_record_video">Record video</string>
+    <string name="group_run_commands">Run commands</string>
     <string name="group_send_messages">Send messages</string>
     <string name="group_use_analytics">Use analytics</string>
     <string name="group_use_camera">Use camera</string>
@@ -583,6 +586,7 @@
     <string name="group_desc_read_vpn">Whether a VPN is connected</string>
     <string name="group_desc_record_audio">Recording with the microphone</string>
     <string name="group_desc_record_video">Recording video with the media recorder of Android</string>
+    <string name="group_desc_run_commands">Only the commands of Fake values can run, like getprop; refused commands are shown in Activity. Restricted only on purpose: not by Restrict all and not for new apps</string>
     <string name="group_desc_send_messages">Sending SMS and MMS messages</string>
     <string name="group_desc_use_analytics">Analytics and advertising libraries in the app</string>
     <string name="group_desc_use_camera">Using the camera, for pictures and video</string>

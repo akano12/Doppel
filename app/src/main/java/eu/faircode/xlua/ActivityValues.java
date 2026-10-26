@@ -104,6 +104,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             new Field("value.timezone", R.string.title_value_timezone, Type.TIMEZONE, Random.NONE, "UTC"),
             new Field("features.keep", R.string.title_value_features, Type.TEXT, Random.NONE, null),
             new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, Random.NONE, null),
+            new Field("commands.allowed", R.string.title_value_commands, Type.TEXT, Random.NONE, null),
+            new Field("commands.regex", R.string.title_value_commands_regex, Type.TEXT, Random.NONE, null),
     };
 
     // Built-in fields and the settings of custom definitions, see load
