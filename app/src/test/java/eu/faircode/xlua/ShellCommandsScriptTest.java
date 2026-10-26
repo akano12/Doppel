@@ -26,9 +26,11 @@ import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.OneArgFunction;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -120,7 +122,11 @@ public class ShellCommandsScriptTest {
             // The environment of the app, for System.getenv
             "environment = { A = '1' }",
             "luajava = {",
-            "  newInstance = function(name)",
+            "  newInstance = function(name, path)",
+            // Files resolve their path on the file system of the test, see canonical
+            "    if name == 'java.io.File' then",
+            "      return { getCanonicalPath = function(self) return canonical(path) end }",
+            "    end",
             "    assert(name == 'java.util.ArrayList', name)",
             "    return listof()",
             "  end,",
@@ -224,6 +230,16 @@ public class ShellCommandsScriptTest {
     @Before
     public void load() throws Exception {
         globals = Scripts.load("shell_commands", STUBS);
+        globals.set("canonical", new OneArgFunction() {
+            @Override
+            public LuaValue call(LuaValue path) {
+                try {
+                    return LuaValue.valueOf(new File(path.tojstring()).getCanonicalPath());
+                } catch (IOException ex) {
+                    return path;
+                }
+            }
+        });
         settings = globals.load("return " + SETTINGS, "settings").call();
     }
 
@@ -510,6 +526,22 @@ public class ShellCommandsScriptTest {
             assertEquals("1501004d4b4e3237a0f2c3d4e5f6b700\n", run(start(new String[]{"cat", cid}, "tracking")).out);
             // Read.Resources does not hide the files
             assertEquals("cat " + cid, String.join(" ", command(start(new String[]{"cat", cid}, "resources"))));
+
+            // Several files and options, also for commands run directly, and other commands reading files
+            assertEquals("SD\n", run(start("cat", cid, type)).out);
+            Result options = run(start("cat", "-v", cid));
+            assertEquals("", options.out);
+            assertEquals(1, options.status);
+            assertEquals("", run(start("head", "-c", "4", cid)).out);
+            String two = run(start("head", "-c", "2", cid, type)).out;
+            assertTrue(two, two.contains("SD") && !two.contains("1501"));
+            assertFalse(run(start("dd", "if=" + cid)).out.contains("1501"));
+            assertEquals("", run(start("sh", "-c", "head -c 4 " + cid)).out);
+            // The other files of /sys are read as they are: the commands stay
+            assertEquals("cat " + type, String.join(" ", command(start("cat", type))));
+            assertEquals("head -c 2 " + type, String.join(" ", command(start("head", "-c", "2", type))));
+            assertFalse(script(start("sh", "-c", "head -c 2 " + type)).contains("__xlua_files"));
+            assertEquals("SD\n", run(start("head", "-n", "1", type)).out);
         } finally {
             delete(root);
         }
@@ -694,7 +726,7 @@ public class ShellCommandsScriptTest {
             File sh = locate(dir, "sh");
             Assume.assumeTrue("No shell", sh != null);
             bin = Files.createTempDirectory("xlua-bin").toFile();
-            for (String tool : new String[]{"sh", "sed", "grep", "printf", "cat", "readlink"}) {
+            for (String tool : new String[]{"sh", "sed", "grep", "printf", "cat", "readlink", "head", "dd"}) {
                 File file = locate(dir, tool);
                 Assume.assumeTrue("No " + tool, file != null);
                 Files.createSymbolicLink(new File(bin, tool).toPath(), file.getAbsoluteFile().toPath());

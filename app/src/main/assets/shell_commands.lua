@@ -19,7 +19,9 @@
 -- getprop reads the system properties behind the fields of android.os.Build, the serial, the operator
 -- and the time zone, uname and /proc/version the kernel build of Os.uname, pm the installed packages
 -- and the features of the device, date the time zone, cat the files of which apps read another text, like
--- /proc/meminfo and boot_id, and the files of /sys which do not exist for the app (see hardware_files).
+-- /proc/meminfo and boot_id, and cat, head, dd and other commands reading files fail for the files of /sys which
+-- do not exist for the app (see hardware_files), named in the command or the script, also by a link; not
+-- covered are redirections of the shell, like read x < file.
 -- These commands print the same fake values: they run
 -- in a shell with functions of the same names in front, which run the real command and replace the values,
 -- so the output keeps its format; date gets the fake time zone in its environment (TZ).
@@ -89,6 +91,15 @@ local HIDDEN = {
                    '*/sec/tsp/fod_pos' },
 }
 local HIDING = { 'identifiers', 'tracking', 'biometrics' }
+
+-- The commands which read files and get the error of a missing file for these files; dd takes if=file
+local READERS = { 'cat', 'head', 'tail', 'dd', 'od', 'xxd', 'hexdump', 'strings', 'base64', 'md5sum', 'sha1sum',
+                  'sha224sum', 'sha256sum', 'sha384sum', 'sha512sum', 'cksum', 'wc', 'grep', 'cut', 'sed', 'awk',
+                  'cp', 'cmp', 'diff' }
+local READER = {}
+for _, name in ipairs(READERS) do
+    READER[name] = true
+end
 
 -- The biometric sensors, like biometrics (FEATURES)
 local BIOMETRIC = { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
@@ -236,28 +247,151 @@ function kernelfunctions()
     }, '\n')
 end
 
--- Whether the text names a file of /sys, which a variant may hide
-function hardware(text)
-    return string.find(text, '/sys/', 1, true) ~= nil
-end
-
--- The patterns of the files of /sys which do not exist for the variants
-function hiddenpatterns(text, variants)
+-- The patterns of the shell of the files of /sys which do not exist for the variants
+function hiddenpatterns(variants)
     local patterns = {}
-    if hardware(text) then
-        for _, variant in ipairs(HIDING) do
-            if variants[variant] then
-                for _, pattern in ipairs(HIDDEN[variant]) do
-                    patterns[#patterns + 1] = pattern
-                end
+    for _, variant in ipairs(HIDING) do
+        if variants[variant] then
+            for _, pattern in ipairs(HIDDEN[variant]) do
+                patterns[#patterns + 1] = pattern
             end
         end
     end
     return patterns
 end
 
--- Whether cat of the file prints another text, with the functions of the variants, or may be a file of /sys
--- which does not exist
+-- A Lua pattern of a pattern of the shell, of which the patterns of HIDDEN use * and [...]
+function luapattern(glob)
+    local result = '^'
+    local index = 1
+    while index <= #glob do
+        local char = string.sub(glob, index, index)
+        if char == '*' then
+            result = result .. '.*'
+        elseif char == '[' then
+            local last = string.find(glob, ']', index, true)
+            result = result .. string.sub(glob, index, last)
+            index = last
+        elseif string.find(char, '[%^%$%(%)%%%.%]%+%-%?]') then
+            result = result .. '%' .. char
+        else
+            result = result .. char
+        end
+        index = index + 1
+    end
+    return result .. '$'
+end
+
+-- The path a path leads to, by the links of /sys, or the path as it is (like hardware_files)
+function resolve(path)
+    local ok, resolved = pcall(function()
+        return luajava.newInstance('java.io.File', path):getCanonicalPath()
+    end)
+    if ok and resolved ~= nil then
+        return resolved
+    end
+    return path
+end
+
+-- Whether a file does not exist for the variants, by its path or the path it leads to; dd takes if=file
+function hiddenfile(file, variants)
+    file = string.gsub(file, '^if=', '')
+    if not string.find(file, 'sys/', 1, true) then
+        return false
+    end
+    local patterns = {}
+    for _, pattern in ipairs(hiddenpatterns(variants)) do
+        patterns[#patterns + 1] = luapattern(pattern)
+    end
+    for _, pattern in ipairs(patterns) do
+        if string.find(file, pattern) then
+            return true
+        end
+    end
+    local resolved = resolve(file)
+    for _, pattern in ipairs(patterns) do
+        if string.find(resolved, pattern) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Whether a script or command names a file which does not exist for the variants; not paths made while
+-- the script runs, like "$dir"/cid, and files of /sys which exist are read without functions
+function hiddenin(text, variants)
+    if not string.find(text, 'sys/', 1, true) then
+        return false
+    end
+    for word in string.gmatch(text, '[^%s;&|<>()\'"`]+') do
+        if hiddenfile(word, variants) then
+            return true
+        end
+    end
+    return false
+end
+
+-- The commands reading files in the text, when it names a file which does not exist for the variant
+function readers(text, variant, names)
+    if hiddenin(text, { [variant] = true }) then
+        for _, name in ipairs(READERS) do
+            if hasword(text, name) then
+                names[#names + 1] = name
+            end
+        end
+    end
+end
+
+-- The functions of the commands reading files: files which do not exist for the variants get the error
+-- of a missing file, the others are read; after leaving out a file a command does not read its input,
+-- like cat and head would without files
+function hidingfunctions(variants, names)
+    local result = {
+        '__xlua_hidden() {',
+        ' for __xlua_path in "$1" "$(/system/bin/readlink -f -- "$1" 2>/dev/null)"; do',
+        '  case "$__xlua_path" in',
+        '   ' .. table.concat(hiddenpatterns(variants), '|') .. ') return 0 ;;',
+        '  esac',
+        ' done',
+        ' return 1',
+        '}',
+        '__xlua_files() {',
+        ' __xlua_program=$1',
+        ' shift',
+        ' __xlua_rc=0',
+        ' __xlua_n=$#',
+        ' while [ $__xlua_n -gt 0 ]; do',
+        '  __xlua_arg=$1',
+        '  shift',
+        '  __xlua_n=$((__xlua_n - 1))',
+        '  __xlua_file=${__xlua_arg#if=}',
+        '  if __xlua_hidden "$__xlua_file"; then',
+        "   /system/bin/printf '%s: %s: No such file or directory\\n' \"$__xlua_program\" \"$__xlua_file\" >&2",
+        '   __xlua_rc=1',
+        '  else',
+        '   set -- "$@" "$__xlua_arg"',
+        '  fi',
+        ' done',
+        ' if [ $__xlua_rc -eq 0 ]; then',
+        '  "/system/bin/$__xlua_program" "$@"',
+        '  return',
+        ' fi',
+        ' if [ $# -gt 0 ]; then "/system/bin/$__xlua_program" "$@" </dev/null; fi',
+        ' return 1',
+        '}',
+    }
+    for _, name in ipairs(names) do
+        if name ~= 'cat' then
+            result[#result + 1] = name .. '() {'
+            result[#result + 1] = ' __xlua_files ' .. name .. ' "$@"'
+            result[#result + 1] = '}'
+        end
+    end
+    result[#result + 1] = ''
+    return table.concat(result, '\n')
+end
+
+-- Whether cat of the file prints another text, with the functions of the variants
 function catfile(file, variants)
     if file == '/proc/version' then
         return variants['tracking'] ~= nil
@@ -271,14 +405,13 @@ function catfile(file, variants)
             end
         end
     end
-    return #hiddenpatterns(file, variants) > 0
+    return false
 end
 
 -- cat of one file prints the text the app reads itself, with the hooks opening files, at the start of the command;
 -- /proc/version the kernel like uname (see kernelfunctions). Files the app cannot read keep their error.
--- Files of /sys which do not exist for the variants get the error of a missing file, the other files are read;
--- without files left cat does not read its input.
-function catfunction(param, text, variants, kernel)
+-- Files of /sys which do not exist for the variants get the error of a missing file (see hidingfunctions).
+function catfunction(param, text, variants, kernel, hiding)
     local cases = {}
     if kernel then
         -- Apps cannot read /proc/version on recent versions
@@ -303,40 +436,7 @@ function catfunction(param, text, variants, kernel)
         '  esac',
         ' fi',
     }
-    local patterns = hiddenpatterns(text, variants)
-    if #patterns > 0 then
-        table.insert(result, 1, table.concat({
-            '__xlua_hidden() {',
-            ' for __xlua_path in "$1" "$(/system/bin/readlink -f -- "$1" 2>/dev/null)"; do',
-            '  case "$__xlua_path" in',
-            '   ' .. table.concat(patterns, '|') .. ') return 0 ;;',
-            '  esac',
-            ' done',
-            ' return 1',
-            '}',
-        }, '\n'))
-        for _, line in ipairs({
-            ' __xlua_rc=0',
-            ' __xlua_n=$#',
-            ' while [ $__xlua_n -gt 0 ]; do',
-            '  __xlua_arg=$1',
-            '  shift',
-            '  __xlua_n=$((__xlua_n - 1))',
-            '  if __xlua_hidden "$__xlua_arg"; then',
-            "   /system/bin/printf 'cat: %s: No such file or directory\\n' \"$__xlua_arg\" >&2",
-            '   __xlua_rc=1',
-            '  else',
-            '   set -- "$@" "$__xlua_arg"',
-            '  fi',
-            ' done',
-            ' if [ $# -gt 0 ] || [ $__xlua_rc -eq 0 ]; then /system/bin/cat "$@" || __xlua_rc=$?; fi',
-            ' return $__xlua_rc',
-        }) do
-            result[#result + 1] = line
-        end
-    else
-        result[#result + 1] = ' /system/bin/cat "$@"'
-    end
+    result[#result + 1] = (hiding and ' __xlua_files cat "$@"' or ' /system/bin/cat "$@"')
     result[#result + 1] = '}'
     result[#result + 1] = ''
     return table.concat(result, '\n')
@@ -619,9 +719,10 @@ function commands(text, variant)
         if string.find(text, 'uname', 1, true) or string.find(text, '/proc/version', 1, true) then
             names[#names + 1] = 'uname'
             names[#names + 1] = 'cat'
-        elseif string.find(text, FILES[variant][1], 1, true) or hardware(text) then
+        elseif string.find(text, FILES[variant][1], 1, true) then
             names[#names + 1] = 'cat'
         end
+        readers(text, variant, names)
         if #names > 0 then
             return names
         end
@@ -636,8 +737,8 @@ function commands(text, variant)
         if string.find(text, 'getprop', 1, true) then
             names[#names + 1] = 'getprop'
         end
-        if variant == 'identifiers' and hardware(text) then
-            names[#names + 1] = 'cat'
+        if variant == 'identifiers' then
+            readers(text, variant, names)
         end
         if #names > 0 then
             return names
@@ -649,8 +750,8 @@ function commands(text, variant)
             names[#names + 1] = 'pm'
             names[#names + 1] = 'cmd'
         end
-        if variant == 'biometrics' and hardware(text) then
-            names[#names + 1] = 'cat'
+        if variant == 'biometrics' then
+            readers(text, variant, names)
         end
         if #names > 0 then
             return names
@@ -688,8 +789,18 @@ function functions(param, text, variants, script)
     if seen['uname'] then
         result = result .. kernelfunctions()
     end
+    local reading = {}
+    for _, name in ipairs(READERS) do
+        if seen[name] then
+            reading[#reading + 1] = name
+        end
+    end
+    local hiding = (#reading > 0 and hiddenin(text, variants))
+    if hiding then
+        result = result .. hidingfunctions(variants, reading)
+    end
     if seen['cat'] then
-        result = result .. catfunction(param, text, variants, seen['uname'])
+        result = result .. catfunction(param, text, variants, seen['uname'], hiding)
     end
     if seen['pm'] then
         result = result .. packagefunctions(param, variants)
@@ -980,8 +1091,19 @@ function before(hook, param)
         local direct = false
         local own = { [variant] = true }
         for _, name in ipairs(names) do
-            if program == name and (name ~= 'cat' or (#words == at + 1 and catfile(words[at + 1], own))) then
-                direct = true
+            if program == name then
+                if name == 'cat' and #words == at + 1 and catfile(words[at + 1], own) then
+                    direct = true
+                elseif READER[name] then
+                    -- Commands reading files which exist run as they are
+                    for index = at + 1, #words do
+                        if hiddenfile(words[index], own) then
+                            direct = true
+                        end
+                    end
+                else
+                    direct = true
+                end
             end
         end
         if not direct then
