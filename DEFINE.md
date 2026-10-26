@@ -219,6 +219,8 @@ end
 ```
 
 The function is called once, when the hook is installed, with the *hook* of the definition.
+A value ending in \* stands for all values starting with the text before it, like */sys/\** for the files of */sys*,
+for a script which tells the paths apart itself.
 
 For a hooked method which opens a file and returns its file descriptor, like *libcore.io.BlockGuardOs.open*,
 *param:getFileText()* reads the file, and *param:setFileText(text)* lets the app read the text instead,

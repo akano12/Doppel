@@ -6971,6 +6971,630 @@
     "minSdk": 26,
     "luaScript": "@storage_times"
   },
+  // Files of /sys which name the hardware, like the unique id of the chip and the id of the SD card of Samsung phones:
+  // for the app they do not exist, with java.io, Os and java.nio.file; the script runs for the files of /sys only,
+  // each variant hides the files of its group
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "BlockGuardOs.open/hardware_ids",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "BlockGuardOs.stat/hardware_ids",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "BlockGuardOs.lstat/hardware_ids",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "BlockGuardOs.access/hardware_ids",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixFileSystem.getBooleanAttributes0/hardware_ids",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixFileSystem.list0/hardware_ids",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "list0",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.open/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.stat/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.stat/mode/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.lstat/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.access/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.exists/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "exists",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "boolean",
+    "minSdk": 26,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.opendir/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "opendir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "long",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixFileSystemProvider.newDirectoryStream/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "newDirectoryStream",
+    "parameterTypes": [
+      "java.nio.file.Path",
+      "java.nio.file.DirectoryStream$Filter"
+    ],
+    "returnType": "java.nio.file.DirectoryStream",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.open/hardware_model",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.stat/hardware_model",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.lstat/hardware_model",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.access/hardware_model",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.getBooleanAttributes0/hardware_model",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.list0/hardware_model",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "list0",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.open/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.stat/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.stat/mode/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.lstat/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.access/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.exists/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "exists",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "boolean",
+    "minSdk": 26,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.opendir/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "opendir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "long",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystemProvider.newDirectoryStream/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "newDirectoryStream",
+    "parameterTypes": [
+      "java.nio.file.Path",
+      "java.nio.file.DirectoryStream$Filter"
+    ],
+    "returnType": "java.nio.file.DirectoryStream",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BlockGuardOs.open/fingerprint_sensor",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BlockGuardOs.stat/fingerprint_sensor",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BlockGuardOs.lstat/fingerprint_sensor",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BlockGuardOs.access/fingerprint_sensor",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixFileSystem.getBooleanAttributes0/fingerprint_sensor",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixFileSystem.list0/fingerprint_sensor",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "list0",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.open/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.stat/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.stat/mode/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.lstat/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.access/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.exists/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "exists",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "boolean",
+    "minSdk": 26,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.opendir/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "opendir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "long",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixFileSystemProvider.newDirectoryStream/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "newDirectoryStream",
+    "parameterTypes": [
+      "java.nio.file.Path",
+      "java.nio.file.DirectoryStream$Filter"
+    ],
+    "returnType": "java.nio.file.DirectoryStream",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
   // The device name is often set to the name of the owner
   {
     "collection": "Privacy",

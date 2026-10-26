@@ -31,7 +31,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 // The files apps read which scripts give another text: the sizes of /proc/meminfo and the id of boot_id,
-// and the times of the folders of the shared storage
+// and the times of the folders of the shared storage; the files of /sys which do not exist for apps
 public class FileScriptsTest {
     // A param of an opened file, which tells the text the app reads then
     private static final String STUBS = String.join("\n",
@@ -224,6 +224,175 @@ public class FileScriptsTest {
         assertTrue(result.arg(9).toboolean());
         assertEquals(1230768000L, result.arg(10).tolong());
         assertTrue(result.arg(11).isnil());
+    }
+
+    // The hooks and params of the hardware files script, with the links of /sys as resolve sees them;
+    // objects made are tables of their arguments
+    private static final String HARDWARE_STUBS = String.join("\n",
+            "luajava = {",
+            "  newInstance = function(name, ...) return { class = name, args = { ... } } end,",
+            "  bindClass = function(name)",
+            "    assert(name == 'java.lang.reflect.Array', name)",
+            "    return { newInstance = function(self, class, length) return { class = class, length = length } end }",
+            "  end,",
+            "  createProxy = function(interface, methods) return { interface = interface, accept = methods.accept } end }",
+            "LINKS = {",
+            "  ['/sys/block/mmcblk0/device/cid'] = '/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid',",
+            "  ['/sys/block/mmcblk0/device/type'] = '/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/type',",
+            "  ['/sys/class/sec/tsp'] = '/sys/devices/virtual/sec/tsp',",
+            "  ['/sys/class/sec/tsp/fod_pos'] = '/sys/devices/virtual/sec/tsp/fod_pos' }",
+            "function resolve(path) return LINKS[path] or path end",
+            "function hookof(group, class, method, returnType)",
+            "  return { getGroup = function(self) return group end,",
+            "    getClassName = function(self) return class or 'libcore.io.BlockGuardOs' end,",
+            "    getMethodName = function(self) return method or 'open' end,",
+            "    getReturnType = function(self) return returnType end }",
+            "end",
+            "function paramof(argument, result, second)",
+            "  return { result = result, early = false,",
+            "    getArgument = function(self, index) if index == 0 then return argument else return second end end,",
+            "    setArgument = function(self, index, value) self.argument = { index = index, value = value } end,",
+            "    getException = function(self) return nil end,",
+            "    getResult = function(self) return self.result end,",
+            "    setResult = function(self, value) self.result = value self.early = true end,",
+            "    findClass = function(self, name) return name end }",
+            "end",
+            "function namesof(...)",
+            "  local names = { ... }",
+            "  names['length'] = select('#', ...)",
+            "  return names",
+            "end");
+
+    // Each group hides its files, by their path or the path their link leads to, the other files stay
+    @Test
+    public void hardwareFiles() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local ids = hookof('Read.Identifiers')\n" +
+                        "local model = hookof('Use.Tracking')\n" +
+                        "local finger = hookof('Read.Biometrics')\n" +
+                        "return filter(ids)[1], #filter(ids),\n" +
+                        "  hidden(ids, '/sys/devices/system/chip-id/unique_id'), hidden(ids, '/sys/devices/system/chip-id/lot_id'),\n" +
+                        "  hidden(ids, '/sys/block/mmcblk0/device/cid'), hidden(ids, '/sys/class/sec/sdinfo/data'),\n" +
+                        "  hidden(ids, '/sys/devices/system/chip-id/product_id'), hidden(ids, '/sys/block/mmcblk0/device/type'),\n" +
+                        "  hidden(ids, '/sys/class/sec/tsp/fod_pos'), hidden(ids, '/sys/devices/system/cpu/present'),\n" +
+                        "  hidden(model, '/sys/devices/system/chip-id/product_id'), hidden(model, '/sys/devices/system/chip-id'),\n" +
+                        "  hidden(model, '/sys/class/sec/tsp'), hidden(model, '/sys/class/sec/tsp/raw_check'),\n" +
+                        "  hidden(model, '/sys/class/sensors/light_sensor/light_cal'), hidden(model, '/sys/block/mmcblk0/device/cid'),\n" +
+                        "  hidden(model, '/sys/class/fingerprint/fingerprint/name'), hidden(model, '/sys/devices/system'),\n" +
+                        "  hidden(finger, '/sys/class/fingerprint/fingerprint/name'), hidden(finger, '/sys/class/fingerprint/fingerprint'),\n" +
+                        "  hidden(finger, '/sys/class/sec/tsp/fod_pos'), hidden(finger, '/sys/class/sec/tsp/raw_check'),\n" +
+                        "  hidden(hookof('Read.Network'), '/sys/devices/system/chip-id/unique_id')");
+        assertEquals("/sys/*", result.arg(1).tojstring());
+        assertEquals(1, result.arg(2).toint());
+        boolean[] expected = {true, true, true, true, false, false, false, false,
+                true, true, true, true, true, false, false, false,
+                true, true, true, false, false};
+        for (int i = 0; i < expected.length; i++)
+            assertEquals(String.valueOf(i + 3), expected[i], result.arg(i + 3).toboolean());
+    }
+
+    // The hooks see a file which does not exist: an error of the kernel, no attributes or no names
+    @Test
+    public void hardwareMissing() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local ids = 'Read.Identifiers'\n" +
+                        "local id = '/sys/devices/system/chip-id/unique_id'\n" +
+                        "local open = paramof(id)\n" +
+                        "local restricted, old = before(hookof(ids), open)\n" +
+                        "local attributes = paramof(id)\n" +
+                        "before(hookof(ids, 'java.io.UnixFileSystem', 'getBooleanAttributes0', 'int'), attributes)\n" +
+                        "local list = paramof('/sys/class/sec/tsp', nil)\n" +
+                        "before(hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "local nio = 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        "local exists = paramof(id)\n" +
+                        "before(hookof(ids, nio, 'exists', 'boolean'), exists)\n" +
+                        "local mode = paramof(id)\n" +
+                        "before(hookof(ids, nio, 'stat', 'int'), mode)\n" +
+                        "local stat = paramof(id)\n" +
+                        "before(hookof(ids, nio, 'stat', 'void'), stat)\n" +
+                        "local other = paramof('/sys/devices/system/chip-id/product_id')\n" +
+                        "return restricted, old, open.result.class, open.result.args[1], open.result.args[2],\n" +
+                        "  attributes.result, list.early, list.result == nil, exists.result, mode.result,\n" +
+                        "  stat.result.class, stat.result.args[1], before(hookof(ids), other), other.early");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("/sys/devices/system/chip-id/unique_id", result.arg(2).tojstring());
+        assertEquals("android.system.ErrnoException", result.arg(3).tojstring());
+        assertEquals("open", result.arg(4).tojstring());
+        assertEquals(2, result.arg(5).toint());
+        assertEquals(0, result.arg(6).toint());
+        assertTrue(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
+        assertEquals(0, result.arg(10).toint());
+        assertEquals("sun.nio.fs.UnixException", result.arg(11).tojstring());
+        assertEquals(2, result.arg(12).toint());
+        assertFalse(result.arg(13).toboolean());
+        assertFalse(result.arg(14).toboolean());
+    }
+
+    // File.list of a folder with hidden files: without their names, with the link of a name resolved
+    @Test
+    public void hardwareList() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('Read.Identifiers', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]')\n" +
+                        "local chip = paramof('/sys/devices/system/chip-id', namesof('unique_id', 'product_id', 'lot_id'))\n" +
+                        "local restricted, old, new = after(hook, chip)\n" +
+                        "local device = paramof('/sys/block/mmcblk0/device', namesof('cid', 'type'))\n" +
+                        "after(hook, device)\n" +
+                        "local cpu = paramof('/sys/devices/system/cpu', namesof('cpu0', 'present'))\n" +
+                        "return restricted, old, new, chip.result.class, chip.result.length, chip.result[1], chip.result[2],\n" +
+                        "  device.result.length, device.result[1], after(hook, cpu), cpu.early,\n" +
+                        "  after(hookof('Read.Identifiers'), chip)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("3", result.arg(2).tojstring());
+        assertEquals("1", result.arg(3).tojstring());
+        assertEquals("java.lang.String", result.arg(4).tojstring());
+        assertEquals(1, result.arg(5).toint());
+        assertEquals("product_id", result.arg(6).tojstring());
+        assertTrue(result.arg(7).isnil());
+        assertEquals(1, result.arg(8).toint());
+        assertEquals("type", result.arg(9).tojstring());
+        assertFalse(result.arg(10).toboolean());
+        assertFalse(result.arg(11).toboolean());
+        // Other methods have nothing to do after the call
+        assertFalse(result.arg(12).toboolean());
+    }
+
+    // Files.newDirectoryStream: a filter in front of the one of the app leaves out the names of hidden files,
+    // for a hidden folder nothing is done (opendir fails)
+    @Test
+    public void hardwareListing() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('Read.Identifiers', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream',\n" +
+                        "  'java.nio.file.DirectoryStream')\n" +
+                        "local app = { accept = function(self, entry) return entry ~= '/sys/devices/system/chip-id/revision' end }\n" +
+                        "local chip = paramof('/sys/devices/system/chip-id', nil, app)\n" +
+                        "local restricted = before(hook, chip)\n" +
+                        "local filter = chip.argument.value\n" +
+                        "local none = paramof('/sys/devices/system/chip-id', nil, nil)\n" +
+                        "before(hook, none)\n" +
+                        "local tsp = paramof('/sys/class/sec/tsp', nil, app)\n" +
+                        "return restricted, chip.early, chip.argument.index, filter.interface,\n" +
+                        "  filter.accept('/sys/devices/system/chip-id/unique_id'), filter.accept('/sys/devices/system/chip-id/product_id'),\n" +
+                        "  filter.accept('/sys/devices/system/chip-id/revision'),\n" +
+                        "  none.argument.value.accept('/sys/devices/system/chip-id/revision'),\n" +
+                        "  before(hookof('Use.Tracking', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), tsp),\n" +
+                        "  tsp.argument == nil, tsp.early");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals(1, result.arg(3).toint());
+        assertEquals("java.nio.file.DirectoryStream$Filter", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
+        assertTrue(result.arg(10).toboolean());
+        assertFalse(result.arg(11).toboolean());
     }
 
     // Like an id of the kernel: version 4, the same for the same seed, different for another one

@@ -19,7 +19,8 @@
 -- getprop reads the system properties behind the fields of android.os.Build, the serial, the operator
 -- and the time zone, uname and /proc/version the kernel build of Os.uname, pm the installed packages
 -- and the features of the device, date the time zone, cat the files of which apps read another text, like
--- /proc/meminfo and boot_id. These commands print the same fake values: they run
+-- /proc/meminfo and boot_id, and the files of /sys which do not exist for the app (see hardware_files).
+-- These commands print the same fake values: they run
 -- in a shell with functions of the same names in front, which run the real command and replace the values,
 -- so the output keeps its format; date gets the fake time zone in its environment (TZ).
 -- The functions cover commands run directly, also with their path, with toybox, toolbox or env in front,
@@ -75,6 +76,19 @@ local PROPERTIES = { 'tracking', 'identifiers', 'timezone' }
 -- The files of the variants of which apps read another text, which cat prints (see catfunction),
 -- like the hooks opening files: the id of boot_id per app and the rounded sizes of /proc/meminfo
 local FILES = { tracking = { '/proc/sys/kernel/random/boot_id' }, resources = { '/proc/meminfo' } }
+
+-- The files of /sys which do not exist for the variants, like for the hooks opening files (see hardware_files),
+-- as patterns of the shell for the path and the path its links lead to; cat of them fails like for a file
+-- which does not exist
+local HIDDEN = {
+    identifiers = { '*/chip-id/unique_id', '*/chip-id/lot_id', '*/mmc[0-9]*:*/cid', '*/mmc[0-9]*:*/serial',
+                    '*/sec/sdinfo/data' },
+    tracking = { '*/chip-id', '*/chip-id/*', '*/mmc[0-9]*:*/date', '*/mmc[0-9]*:*/manfid', '*/mmc[0-9]*:*/oemid',
+                 '*/mmc[0-9]*:*/name', '*/sensors/light_sensor/light_cal', '*/sec/tsp', '*/sec/tsp/*' },
+    biometrics = { '*/fingerprint/fingerprint', '*/fingerprint/fingerprint/*', '*/sec/tsp/fod_info',
+                   '*/sec/tsp/fod_pos' },
+}
+local HIDING = { 'identifiers', 'tracking', 'biometrics' }
 
 -- The biometric sensors, like biometrics (FEATURES)
 local BIOMETRIC = { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
@@ -222,7 +236,28 @@ function kernelfunctions()
     }, '\n')
 end
 
--- Whether cat of the file prints another text, with the functions of the variants
+-- Whether the text names a file of /sys, which a variant may hide
+function hardware(text)
+    return string.find(text, '/sys/', 1, true) ~= nil
+end
+
+-- The patterns of the files of /sys which do not exist for the variants
+function hiddenpatterns(text, variants)
+    local patterns = {}
+    if hardware(text) then
+        for _, variant in ipairs(HIDING) do
+            if variants[variant] then
+                for _, pattern in ipairs(HIDDEN[variant]) do
+                    patterns[#patterns + 1] = pattern
+                end
+            end
+        end
+    end
+    return patterns
+end
+
+-- Whether cat of the file prints another text, with the functions of the variants, or may be a file of /sys
+-- which does not exist
 function catfile(file, variants)
     if file == '/proc/version' then
         return variants['tracking'] ~= nil
@@ -236,11 +271,13 @@ function catfile(file, variants)
             end
         end
     end
-    return false
+    return #hiddenpatterns(file, variants) > 0
 end
 
 -- cat of one file prints the text the app reads itself, with the hooks opening files, at the start of the command;
 -- /proc/version the kernel like uname (see kernelfunctions). Files the app cannot read keep their error.
+-- Files of /sys which do not exist for the variants get the error of a missing file, the other files are read;
+-- without files left cat does not read its input.
 function catfunction(param, text, variants, kernel)
     local cases = {}
     if kernel then
@@ -258,17 +295,51 @@ function catfunction(param, text, variants, kernel)
             end
         end
     end
-    return table.concat({
+    local result = {
         'cat() {',
         ' if [ $# -eq 1 ]; then',
         '  case "$1" in',
         table.concat(cases, '\n'),
         '  esac',
         ' fi',
-        ' /system/bin/cat "$@"',
-        '}',
-        ''
-    }, '\n')
+    }
+    local patterns = hiddenpatterns(text, variants)
+    if #patterns > 0 then
+        table.insert(result, 1, table.concat({
+            '__xlua_hidden() {',
+            ' for __xlua_path in "$1" "$(/system/bin/readlink -f -- "$1" 2>/dev/null)"; do',
+            '  case "$__xlua_path" in',
+            '   ' .. table.concat(patterns, '|') .. ') return 0 ;;',
+            '  esac',
+            ' done',
+            ' return 1',
+            '}',
+        }, '\n'))
+        for _, line in ipairs({
+            ' __xlua_rc=0',
+            ' __xlua_n=$#',
+            ' while [ $__xlua_n -gt 0 ]; do',
+            '  __xlua_arg=$1',
+            '  shift',
+            '  __xlua_n=$((__xlua_n - 1))',
+            '  if __xlua_hidden "$__xlua_arg"; then',
+            "   /system/bin/printf 'cat: %s: No such file or directory\\n' \"$__xlua_arg\" >&2",
+            '   __xlua_rc=1',
+            '  else',
+            '   set -- "$@" "$__xlua_arg"',
+            '  fi',
+            ' done',
+            ' if [ $# -gt 0 ] || [ $__xlua_rc -eq 0 ]; then /system/bin/cat "$@" || __xlua_rc=$?; fi',
+            ' return $__xlua_rc',
+        }) do
+            result[#result + 1] = line
+        end
+    else
+        result[#result + 1] = ' /system/bin/cat "$@"'
+    end
+    result[#result + 1] = '}'
+    result[#result + 1] = ''
+    return table.concat(result, '\n')
 end
 
 -- A basic regular expression matching the text exactly
@@ -548,7 +619,7 @@ function commands(text, variant)
         if string.find(text, 'uname', 1, true) or string.find(text, '/proc/version', 1, true) then
             names[#names + 1] = 'uname'
             names[#names + 1] = 'cat'
-        elseif string.find(text, FILES[variant][1], 1, true) then
+        elseif string.find(text, FILES[variant][1], 1, true) or hardware(text) then
             names[#names + 1] = 'cat'
         end
         if #names > 0 then
@@ -561,13 +632,28 @@ function commands(text, variant)
             end
         end
     elseif variant == 'identifiers' or variant == 'timezone' then
+        local names = {}
         if string.find(text, 'getprop', 1, true) then
-            return { 'getprop' }
+            names[#names + 1] = 'getprop'
+        end
+        if variant == 'identifiers' and hardware(text) then
+            names[#names + 1] = 'cat'
+        end
+        if #names > 0 then
+            return names
         end
     else
         -- packages, features, biometrics
+        local names = {}
         if hasword(text, 'pm') or hasword(text, 'cmd') then
-            return { 'pm', 'cmd' }
+            names[#names + 1] = 'pm'
+            names[#names + 1] = 'cmd'
+        end
+        if variant == 'biometrics' and hardware(text) then
+            names[#names + 1] = 'cat'
+        end
+        if #names > 0 then
+            return names
         end
     end
     return nil

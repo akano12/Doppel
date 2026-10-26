@@ -514,7 +514,7 @@ class XCore {
 
     private void installMethod(final Context context, final XHook hook, final Prototype script,
                                final Map<String, String> settings, final Member member) throws Throwable {
-        final Set<String> filter = getFilter(context, hook, script, settings);
+        final Filter filter = getFilter(context, hook, script, settings);
         backend.hook(member, new XBackend.Callback() {
             // The Lua runtime of this hook per thread, without a lock on each call
             private final ThreadLocal<Globals> threadGlobals = new ThreadLocal<>();
@@ -534,7 +534,7 @@ class XCore {
                 if (inService())
                     return;
                 if (filter != null && (call.args == null || call.args.length == 0 ||
-                        !filter.contains(filterValue(call.args[0]))))
+                        !filter.matches(filterValue(call.args[0]))))
                     return;
                 try {
                     // Initialize the Lua runtime once per thread
@@ -570,18 +570,43 @@ class XCore {
     // The values of the first argument a script restricts, which its function filter returns for the hook,
     // like the paths of files a hook of opening files restricts; the other calls do not run the script,
     // so hooks of methods which are called very often cost (almost) nothing else; null without the function.
-    // Files and paths of java.nio are compared by their path, see filterValue.
-    static Set<String> getFilter(Context context, XHook hook, Prototype script, Map<String, String> settings) {
+    // A value ending in * stands for all values starting with the text before it, like /sys/* for the files
+    // of /sys, for a script which tells the paths apart itself. Files and paths of java.nio are compared
+    // by their path, see filterValue.
+    static Filter getFilter(Context context, XHook hook, Prototype script, Map<String, String> settings) {
         LuaValue func = getGlobals(context, hook, script, settings).get("filter");
         if (func.isnil())
             return null;
         LuaValue values = func.call(CoerceJavaToLua.coerce(hook));
         if (values.isnil())
             return null;
-        Set<String> filter = new HashSet<>();
+        Filter filter = new Filter();
         for (int i = 1; i <= values.length(); i++)
             filter.add(values.get(i).checkjstring());
         return filter;
+    }
+
+    static class Filter {
+        private final Set<String> values = new HashSet<>();
+        private final List<String> prefixes = new ArrayList<>();
+
+        private void add(String value) {
+            if (value.endsWith("*"))
+                this.prefixes.add(value.substring(0, value.length() - 1));
+            else
+                this.values.add(value);
+        }
+
+        boolean matches(String value) {
+            if (value == null)
+                return false;
+            if (this.values.contains(value))
+                return true;
+            for (String prefix : this.prefixes)
+                if (value.startsWith(prefix))
+                    return true;
+            return false;
+        }
     }
 
     // The value of an argument for a filter: texts, and the path of files and of paths of java.nio,

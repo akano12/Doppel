@@ -194,11 +194,32 @@ public class XCoreTest {
         assertFalse(none.isReturnEarly());
     }
 
+    // A value ending in * stands for all values starting with the text before it
+    @Test
+    public void prefixFilter() throws Throwable {
+        Method open = Target.class.getMethod("open", String.class);
+        install("prefixFilter",
+                "function filter(hook) return { '/sys/*', '/proc/meminfo' } end\n" +
+                        "function before(hook, param) param:setResult('fake') return true end", open);
+
+        for (String path : new String[]{"/sys/devices/system/chip-id/unique_id", "/sys/", "/proc/meminfo"}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            assertEquals(path, "fake", call.getResult());
+        }
+        for (String path : new String[]{"/system/build.prop", "/sys", "/proc/meminfo2", "/data/sys/"}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            assertFalse(path, call.isReturnEarly());
+        }
+    }
+
     // Files are compared by their path, other objects not at all
     @Test
     public void filterValues() {
         assertEquals("/sdcard/DCIM", XCore.filterValue("/sdcard/DCIM"));
-        assertEquals("/sdcard/DCIM", XCore.filterValue(new java.io.File("/sdcard/DCIM/")));
+        // Like File.getPath, which has the separator of the platform the test runs on
+        assertEquals(new java.io.File("/sdcard/DCIM").getPath(), XCore.filterValue(new java.io.File("/sdcard/DCIM/")));
         assertNull(XCore.filterValue(new Target()));
         assertNull(XCore.filterValue(null));
     }

@@ -64,6 +64,12 @@ class JavaConstructor extends JavaMember {
 	private JavaConstructor(Constructor c) {
 		super( c.getParameterTypes(), c.getModifiers() );
 		this.constructor = c;
+		// Classes of the system which are not public can be made too, like sun.nio.fs.UnixException
+		try {
+			if (!c.isAccessible())
+				c.setAccessible(true);
+		} catch (SecurityException s) {
+		}
 	}
 	
 	public Varargs invoke(Varargs args) {

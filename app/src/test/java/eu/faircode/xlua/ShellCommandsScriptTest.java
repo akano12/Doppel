@@ -48,7 +48,7 @@ import static org.junit.Assert.assertTrue;
 // the parameter, like LocationScriptTest. Its tables are copies of those of systemproperties_get, features and
 // biometrics, which are compared here. The shell functions it makes run with sh and stand-ins for getprop, pm,
 // cmd and uname in place of /system/bin; Android runs mksh and toybox, which XLUA_TEST_BIN can point to
-// (a directory with sh, sed, grep, printf and cat), else the tools of this computer are used.
+// (a directory with sh, sed, grep, printf, cat and readlink), else the tools of this computer are used.
 public class ShellCommandsScriptTest {
     private static final String[] ALL = {"tracking", "identifiers", "timezone", "packages", "features", "biometrics",
             "resources"};
@@ -481,6 +481,49 @@ public class ShellCommandsScriptTest {
         }
     }
 
+    // cat of the files of /sys which do not exist for the variants fails like for a missing file, also through
+    // a link, the other files are read; the variants hide the files of their groups only
+    @Test
+    public void hardwareFilesAreMissing() throws Exception {
+        tools();
+        File root = Files.createTempDirectory("xlua-sys").toFile();
+        try {
+            File device = new File(root, "sys/devices/mmc0:0001");
+            assertTrue(device.mkdirs());
+            Files.write(new File(device, "cid").toPath(), "1501004d4b4e3237a0f2c3d4e5f6b700\n".getBytes(StandardCharsets.UTF_8));
+            Files.write(new File(device, "date").toPath(), "03/2024\n".getBytes(StandardCharsets.UTF_8));
+            Files.write(new File(device, "type").toPath(), "SD\n".getBytes(StandardCharsets.UTF_8));
+            File block = new File(root, "sys/block/mmcblk0");
+            assertTrue(block.mkdirs());
+            Files.createSymbolicLink(new File(block, "device").toPath(), device.toPath());
+            String cid = new File(block, "device/cid").getAbsolutePath();
+            String date = new File(block, "device/date").getAbsolutePath();
+            String type = new File(block, "device/type").getAbsolutePath();
+
+            Result result = run(start("cat", cid));
+            assertEquals("", result.out);
+            assertEquals(1, result.status);
+            assertEquals("SD\n", run(start("cat", type)).out);
+            // Several files: the hidden one fails, the others are read
+            assertEquals("SD\n1\n", run(start("sh", "-c", "cat " + cid + " " + type + " 2>/dev/null; echo $?")).out);
+            assertEquals("03/2024\n", run(start(new String[]{"cat", date}, "identifiers")).out);
+            assertEquals("", run(start(new String[]{"cat", date}, "tracking")).out);
+            assertEquals("1501004d4b4e3237a0f2c3d4e5f6b700\n", run(start(new String[]{"cat", cid}, "tracking")).out);
+            // Read.Resources does not hide the files
+            assertEquals("cat " + cid, String.join(" ", command(start(new String[]{"cat", cid}, "resources"))));
+        } finally {
+            delete(root);
+        }
+    }
+
+    private static void delete(File file) {
+        File[] files = (Files.isSymbolicLink(file.toPath()) ? null : file.listFiles());
+        if (files != null)
+            for (File child : files)
+                delete(child);
+        file.delete();
+    }
+
     // Commands run with toybox, toolbox or env, as a script of sh with options and as the pm script
     @Test
     public void otherFormsAreFaked() throws Exception {
@@ -652,7 +695,7 @@ public class ShellCommandsScriptTest {
             File sh = locate(dir, "sh");
             Assume.assumeTrue("No shell", sh != null);
             bin = Files.createTempDirectory("xlua-bin").toFile();
-            for (String tool : new String[]{"sh", "sed", "grep", "printf", "cat"}) {
+            for (String tool : new String[]{"sh", "sed", "grep", "printf", "cat", "readlink"}) {
                 File file = locate(dir, tool);
                 Assume.assumeTrue("No " + tool, file != null);
                 Files.createSymbolicLink(new File(bin, tool).toPath(), file.getAbsoluteFile().toPath());
