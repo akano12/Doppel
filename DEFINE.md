@@ -75,6 +75,7 @@ Definitions can be imported from and exported to JSON files there too.
 * The optional attribute *excludePackages* is a comma separated list of [regular expressions](https://developer.android.com/reference/java/util/regex/Pattern) of package names the hook should not be applied to, like `com\.google\..*`
 * Setting *enabled* to *false* will switch the hook off (default *true*)
 * Setting *optional* to *true* will suppress error messages about the class or method not being found (default *false*)
+* The attribute *builtin* tells a definition of the app from a custom or downloaded one; the app sets it, exported definitions have *false*
 * Setting *usage* to *false* means that executing the hook will not be reported (default *true*)
 * Setting *notify* to *true* will result in showing notifications when the hook is applied (default *false*)
 * Settings (custom values) can be set with *Fake values* in the settings (for all apps) or on the screen of an app (for that app),
@@ -226,6 +227,15 @@ For a hooked method which opens a file and returns its file descriptor, like *li
 *param:getFileText()* reads the file, and *param:setFileText(text)* lets the app read the text instead,
 without a file being written. *param:readFile(path)* reads a file like the app does, with its hooks,
 and *param:uuidOf(seed)* gives a random looking UUID, which is the same for the same seed.
+
+The other functions of *param*: *getPackageName()* and *getUid()* of the app, *isSystem()* (whether the app is a system app),
+*getApplicationContext()*, *getSetting(name)* for a setting of the definition, *getException()* (the exception the hooked method
+threw, in *after*), *findClass(name)* and *isInstance(object, className)* for classes of the app,
+*isPackageVisible(packageName)*, *isUidVisible(uid)*, *isVisible(applicationInfo)* and *isInstalledVisible(packageName)*
+(whether another app is visible to the app, see the group *Get applications*), and *unhooked(function)*, which runs a function
+without the hooks of the app on the thread, for lookups of the script itself.
+Besides *getMethodName()*, *getParameterTypes()* and *getReturnType()*, the *hook* has *getId()*, *getCollection()*, *getGroup()*,
+*getName()*, *getVersion()*, *getClassName()* and *getSettings()*.
 
 A script is executed once per thread to define its functions, so a script should only define functions.
 

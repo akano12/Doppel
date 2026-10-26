@@ -23,7 +23,6 @@ import android.view.View;
 
 import androidx.core.widget.NestedScrollView;
 
-import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.appbar.MaterialToolbar;
 
 // The toolbar of a screen with a summary of its top while that is scrolled away, like the compact bar of the tabs
@@ -39,13 +38,6 @@ final class ToolbarSummary {
         this(toolbar);
         scroll.setOnScrollChangeListener((NestedScrollView.OnScrollChangeListener) (view, x, y, oldX, oldY) ->
                 setScrolled(y > header.getBottom()));
-    }
-
-    // The top is scrolled away when the app bar is
-    ToolbarSummary(MaterialToolbar toolbar, AppBarLayout appBar) {
-        this(toolbar);
-        appBar.addOnOffsetChangedListener((layout, offset) ->
-                setScrolled(layout.getTotalScrollRange() > 0 && -offset >= layout.getTotalScrollRange()));
     }
 
     private ToolbarSummary(MaterialToolbar toolbar) {

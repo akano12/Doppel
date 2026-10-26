@@ -13,6 +13,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with Doppel.  If not, see <http://www.gnu.org/licenses/>.
 
+-- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
 -- The network and the SIM operator are those of the test network, MCC 001 and MNC 01,

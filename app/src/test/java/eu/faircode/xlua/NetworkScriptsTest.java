@@ -68,13 +68,9 @@ public class NetworkScriptsTest {
         return Scripts.load(script, STUBS);
     }
 
-    private static Varargs run(Globals globals, String lua) {
-        return Scripts.run(globals, lua);
-    }
-
     private static String tostring(Globals globals, String className, String text) {
         globals.set("text", LuaValue.valueOf(text));
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "local param = paramof(text)\n" +
                         "local restricted = after(hookof('toString', '" + className + "'), param)\n" +
                         "return param.result, restricted");
@@ -107,7 +103,7 @@ public class NetworkScriptsTest {
                 tostring(globals, "android.net.LinkProperties", old));
 
         // Nothing to hide
-        Varargs none = run(globals, "local param = paramof('{LinkAddresses: [ ] DnsAddresses: [ ] Domains: null" +
+        Varargs none = Scripts.run(globals, "local param = paramof('{LinkAddresses: [ ] DnsAddresses: [ ] Domains: null" +
                 " MTU: 0 Routes: [ ]}')\nreturn after(hookof('toString', 'android.net.LinkProperties'), param), param.set");
         assertFalse(none.arg(1).toboolean());
         assertFalse(none.arg(2).toboolean());
@@ -144,7 +140,7 @@ public class NetworkScriptsTest {
     @Test
     public void wifiGettersKeepHiddenValues() throws Exception {
         Globals globals = load("wifiinfo_ssid_bssid");
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "local unknown = paramof('<unknown ssid>')\n" +
                         "local hidden = paramof('02:00:00:00:00:00')\n" +
                         "local ssid = paramof('\"Home\"')\n" +
@@ -162,7 +158,7 @@ public class NetworkScriptsTest {
     @Test
     public void privateDnsServerNameIsHidden() throws Exception {
         Globals globals = load("network_address");
-        Varargs result = run(globals, "local param = paramof('abc.dns.nextdns.io')\n" +
+        Varargs result = Scripts.run(globals, "local param = paramof('abc.dns.nextdns.io')\n" +
                 "return after(hookof('getPrivateDnsServerName'), param), param.result, param.set");
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).isnil());
@@ -188,8 +184,8 @@ public class NetworkScriptsTest {
     @Test
     public void vpnFollowsUnderlyingNetwork() throws Exception {
         Globals globals = load("vpn");
-        run(globals, NETWORKS);
-        Varargs result = run(globals,
+        Scripts.run(globals, NETWORKS);
+        Varargs result = Scripts.run(globals,
                 "local type = paramof(17, {}, vpninfo, context)\n" +
                         "local name = paramof('VPN', {}, vpninfo, context)\n" +
                         "local iface = paramof('tun0', {}, nil, context)\n" +
@@ -204,7 +200,7 @@ public class NetworkScriptsTest {
         assertEquals("rmnet_data0", result.arg(6).tojstring());
 
         // Without the connectivity manager, like without permission
-        Varargs fallback = run(globals,
+        Varargs fallback = Scripts.run(globals,
                 "local type = paramof(17, {}, vpninfo, { getSystemService = function() error('denied') end })\n" +
                         "return after(hookof('getType'), type), type.result");
         assertTrue(fallback.arg(1).toboolean());
@@ -215,8 +211,8 @@ public class NetworkScriptsTest {
     @Test
     public void vpnNestedCallIsReal() throws Exception {
         Globals globals = load("vpn");
-        run(globals, NETWORKS);
-        Varargs result = run(globals,
+        Scripts.run(globals, NETWORKS);
+        Varargs result = Scripts.run(globals,
                 "local nested\n" +
                         "cm.getActiveNetworkInfo = function(self)\n" +
                         "  nested = after(hookof('getType'), paramof(17, {}, vpninfo, context))\n" +
@@ -232,13 +228,13 @@ public class NetworkScriptsTest {
     @Test
     public void vpnTextsAndObjects() throws Exception {
         Globals globals = load("vpn");
-        run(globals, NETWORKS);
+        Scripts.run(globals, NETWORKS);
         globals.set("caps", LuaValue.valueOf("[ Transports: WIFI|VPN Capabilities: INTERNET&TRUSTED&VALIDATED" +
                 " TransportInfo: <VpnTransportInfo{type=1, sessionId=null, bypassable=false" +
                 " longLivedTcpConnectionsExpensive=false}> UnderlyingNetworks: null]"));
         globals.set("lp", LuaValue.valueOf("{InterfaceName: tun0 LinkAddresses: [ 10.8.0.2/32 ]" +
                 " Routes: [ 0.0.0.0/0 -> 0.0.0.0 tun0 mtu 0 ]}"));
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "local nc = paramof(caps, {}, nil, context)\n" +
                         "after(hookof('toString', 'android.net.NetworkCapabilities'), nc)\n" +
                         "local text = paramof(lp, {}, nil, context)\n" +
@@ -259,7 +255,7 @@ public class NetworkScriptsTest {
     @Test
     public void vpnTransportInfoIsHidden() throws Exception {
         // VpnTransportInfo is not in the SDK of the unit tests: the check of XParam says it is one
-        Varargs vpn = run(load("vpn"),
+        Varargs vpn = Scripts.run(load("vpn"),
                 "local param = { result = {},\n" +
                         "  getResult = function(self) return self.result end,\n" +
                         "  setResult = function(self, value) self.result = value end,\n" +
@@ -316,7 +312,7 @@ public class NetworkScriptsTest {
                 return "com.example.app";
             }
         }, call, new HashMap<>())));
-        Varargs result = run(globals, "return after(hookof('getTransportInfo'), param)");
+        Varargs result = Scripts.run(globals, "return after(hookof('getTransportInfo'), param)");
         assertFalse(result.arg1().toboolean());
         return call;
     }
@@ -325,7 +321,7 @@ public class NetworkScriptsTest {
     @Test
     public void nsdStopsBlockedListenersOnly() throws Exception {
         Globals globals = load("nsdmanager_listener");
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "local listener = {}\n" +
                         "local other = {}\n" +
                         "local discover = paramof(nil, { [0] = '_googlecast._tcp', [1] = 1, [2] = listener })\n" +
@@ -365,8 +361,8 @@ public class NetworkScriptsTest {
     public void recorderWithCameraDoesNotStart() throws Exception {
         Globals globals = load("mediarecorder_setsource");
         globals.set("control", load("mediarecorder_startstop"));
-        run(globals, RECORDER);
-        Varargs result = run(globals,
+        Scripts.run(globals, RECORDER);
+        Varargs result = Scripts.run(globals,
                 "local camera, screen = {}, {}\n" +
                         "source(camera, 'setVideoSource', 'Use.Camera', 1)\n" +
                         "source(screen, 'setVideoSource', 'Use.Camera', 2)\n" +
@@ -386,8 +382,8 @@ public class NetworkScriptsTest {
     public void recorderIsBlockedByGroupOfSource() throws Exception {
         Globals globals = load("mediarecorder_setsource");
         globals.set("control", load("mediarecorder_startstop"));
-        run(globals, RECORDER);
-        Varargs result = run(globals,
+        Scripts.run(globals, RECORDER);
+        Varargs result = Scripts.run(globals,
                 "local voice, screen, video = {}, {}, {}\n" +
                         "source(voice, 'setAudioSource', 'Record.Audio', 1)\n" +
                         "source(screen, 'setVideoSource', 'Record.Video', 2)\n" +
@@ -414,8 +410,8 @@ public class NetworkScriptsTest {
     public void recorderResetForgetsSources() throws Exception {
         Globals globals = load("mediarecorder_setsource");
         globals.set("control", load("mediarecorder_startstop"));
-        run(globals, RECORDER);
-        Varargs result = run(globals,
+        Scripts.run(globals, RECORDER);
+        Varargs result = Scripts.run(globals,
                 "local recorder = {}\n" +
                         "source(recorder, 'setVideoSource', 'Use.Camera', 1)\n" +
                         "local blocked = call(recorder, 'start', { 'Use.Camera' })\n" +
@@ -432,7 +428,7 @@ public class NetworkScriptsTest {
     public void cellInfoRequestIsAnswered() throws Exception {
         // Java proxies and lists as Lua sees them, see ContentResolverScriptTest
         Globals globals = load("telephonymanager_requestcellinfoupdate");
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "luajava = { createProxy = function(name, object) assert(name == 'java.lang.Runnable') return object end,\n" +
                         "  newInstance = function(name) return { isEmpty = function() return true end } end }\n" +
                         "local answer\n" +
@@ -445,7 +441,7 @@ public class NetworkScriptsTest {
         assertTrue(result.arg(3).toboolean());
 
         // An app which fails on no cells, with a direct executor, does not let the real request through
-        Varargs failing = run(globals,
+        Varargs failing = Scripts.run(globals,
                 "local executor = { execute = function(self, runnable) runnable:run() end }\n" +
                         "local callback = { onCellInfo = function(self, cells) error('no cells') end }\n" +
                         "local param = paramof(nil, { [0] = executor, [1] = callback })\n" +
@@ -469,8 +465,8 @@ public class NetworkScriptsTest {
     @Test
     public void wifiDiscoveryIsAnswered() throws Exception {
         Globals globals = load("wifi_discovery");
-        run(globals, HANDLERS);
-        Varargs result = run(globals,
+        Scripts.run(globals, HANDLERS);
+        Varargs result = Scripts.run(globals,
                 "local failed = {}\n" +
                         "local listener = { onFailure = function(self, reason) failed[#failed + 1] = reason end }\n" +
                         "local callback = { onSessionConfigFailed = function(self) failed[#failed + 1] = 'aware' end }\n" +
@@ -502,7 +498,7 @@ public class NetworkScriptsTest {
     @Test
     public void cameraErrorsAreAndroids() throws Exception {
         Globals globals = load("camera_open");
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "luajava = { newInstance = function(name, message)\n" +
                         "  return { getMessage = function() return message end } end }\n" +
                         "local info = paramof()\n" +
@@ -517,7 +513,7 @@ public class NetworkScriptsTest {
     @Test
     public void transitionResultIsEmpty() throws Exception {
         Globals globals = load("activitytransitionresult_extractresult");
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "classes['com.google.android.gms.location.ActivityTransitionResult'] = true\n" +
                         "luajava = { newInstance = function(name) assert(name == 'java.util.ArrayList') return {} end,\n" +
                         "  new = function(class, events) return { class = class, events = events } end }\n" +
@@ -547,8 +543,8 @@ public class NetworkScriptsTest {
     @Test
     public void analyticsAreOffInMetaData() throws Exception {
         Globals globals = load("analytics_metadata");
-        run(globals, ANALYTICS);
-        Varargs result = run(globals,
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
                 "classes['com.google.firebase.crashlytics.CrashlyticsRegistrar'] = true\n" +
                         "local info = { metaData = bundleof() }\n" +
                         "info.metaData:putBoolean('com.google.android.geo.API_KEY', true)\n" +

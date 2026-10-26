@@ -53,27 +53,23 @@ public class DeviceValuesScriptTest {
         return Scripts.load(script, STUBS);
     }
 
-    private static Varargs run(Globals globals, String lua) {
-        return Scripts.run(globals, lua);
-    }
-
     @Test
     public void propertiesOfTheDeviceAreFaked() throws Exception {
         Globals globals = load("systemproperties_get");
         for (String key : new String[]{"ro.boot.hardware", "ro.board.platform", "ro.build.expect.bootloader",
                 "ro.build.expect.baseband", "ro.boot.hardware.platform", "ro.vendor.build.id"})
-            assertEquals(key, "unknown", run(globals, "return fakedevice('" + key + "', 'x')").arg1().tojstring());
+            assertEquals(key, "unknown", Scripts.run(globals, "return fakedevice('" + key + "', 'x')").arg1().tojstring());
         // Not all properties of the hardware, WallpaperManager reads ro.boot.hardware.color
-        assertTrue(run(globals, "return fakedevice('ro.boot.hardware.color', 'x')").arg1().isnil());
-        assertTrue(run(globals, "return fakedevice('ro.product.first_api_level', '34')").arg1().isnil());
+        assertTrue(Scripts.run(globals, "return fakedevice('ro.boot.hardware.color', 'x')").arg1().isnil());
+        assertTrue(Scripts.run(globals, "return fakedevice('ro.product.first_api_level', '34')").arg1().isnil());
 
         // The security patch level per quarter
-        assertEquals("2025-04-01", run(globals, "return fakedevice('ro.build.version.security_patch', '2025-05-05')").arg1().tojstring());
-        assertEquals("2024-10-01", run(globals, "return fakedevice('ro.vendor.build.security_patch', '2024-12-01')").arg1().tojstring());
-        assertEquals("2025-01-01", run(globals, "return fakedevice('ro.build.version.security_patch', '2025-01-05')").arg1().tojstring());
-        assertTrue(run(globals, "return fakedevice('ro.build.version.security_patch', 'x')").arg1().isnil());
+        assertEquals("2025-04-01", Scripts.run(globals, "return fakedevice('ro.build.version.security_patch', '2025-05-05')").arg1().tojstring());
+        assertEquals("2024-10-01", Scripts.run(globals, "return fakedevice('ro.vendor.build.security_patch', '2024-12-01')").arg1().tojstring());
+        assertEquals("2025-01-01", Scripts.run(globals, "return fakedevice('ro.build.version.security_patch', '2025-01-05')").arg1().tojstring());
+        assertTrue(Scripts.run(globals, "return fakedevice('ro.build.version.security_patch', 'x')").arg1().isnil());
 
-        Varargs result = run(globals, "return run(hookof('SystemProperties.get/device', 'get'), " +
+        Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get/device', 'get'), " +
                 "paramof('2025-05-05', { [0] = 'ro.build.version.security_patch' }))");
         assertTrue(result.arg1().toboolean());
         assertEquals("2025-04-01", result.arg(2).tojstring());
@@ -88,14 +84,14 @@ public class DeviceValuesScriptTest {
                 {"gsm.operator.alpha", "Telekom.de", "unknown"}, {"gsm.sim.operator.alpha", "Telekom.de", "unknown"},
                 {"gsm.operator.iso-country", "de", "xx"}, {"gsm.sim.operator.iso-country", "de", "xx"}};
         for (String[] c : cases) {
-            Varargs result = run(globals, "return run(hookof('SystemProperties.get.default/operator', 'get'), " +
+            Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get.default/operator', 'get'), " +
                     "paramof('" + c[1] + "', { [0] = '" + c[0] + "', [1] = '' }))");
             assertTrue(c[0], result.arg1().toboolean());
             assertEquals(c[0], c[2], result.arg(2).tojstring());
         }
-        assertFalse(run(globals, "return run(hookof('SystemProperties.get/operator', 'get'), " +
+        assertFalse(Scripts.run(globals, "return run(hookof('SystemProperties.get/operator', 'get'), " +
                 "paramof('', { [0] = 'gsm.operator.numeric' }))").arg1().toboolean());
-        assertFalse(run(globals, "return run(hookof('SystemProperties.get/operator', 'get'), " +
+        assertFalse(Scripts.run(globals, "return run(hookof('SystemProperties.get/operator', 'get'), " +
                 "paramof('26201', { [0] = 'gsm.operator.foo' }))").arg1().toboolean());
     }
 
@@ -103,7 +99,7 @@ public class DeviceValuesScriptTest {
     @Test
     public void filtersOfVariants() throws Exception {
         Globals globals = load("systemproperties_get");
-        Varargs result = run(globals, "local function keys(name)\n" +
+        Varargs result = Scripts.run(globals, "local function keys(name)\n" +
                 "  local result = {}\n" +
                 "  for _, key in ipairs(filter(hookof(name, 'get'))) do result[key] = true end\n" +
                 "  return result\n" +
@@ -124,7 +120,7 @@ public class DeviceValuesScriptTest {
 
     // getInt and getLong do not use get: the fake value as a number, else the default
     private Varargs typed(Globals globals, String method, String key, String result, String def) {
-        return run(globals, "return run(hookof('SystemProperties." + method + "/device', '" + method + "'), " +
+        return Scripts.run(globals, "return run(hookof('SystemProperties." + method + "/device', '" + method + "'), " +
                 "paramof(" + result + ", { [0] = '" + key + "', [1] = " + def + " }))");
     }
 
@@ -148,24 +144,25 @@ public class DeviceValuesScriptTest {
         assertFalse(typed(globals, "getInt", "ro.build.version.sdk", "36", "0").arg1().toboolean());
         assertFalse(typed(globals, "getInt", "persist.sys.foo", "1", "0").arg1().toboolean());
 
-        assertEquals(26, run(globals, "return number('0x1a', 'getInt')").arg1().toint());
-        assertTrue(run(globals, "return number('12 ', 'getInt')").arg1().isnil());
-        assertTrue(run(globals, "return number('3000000000', 'getInt')").arg1().isnil());
-        assertEquals(3000000000L, run(globals, "return number('3000000000', 'getLong')").arg1().tolong());
+        assertEquals(26, Scripts.run(globals, "return number('0x1a', 'getInt')").arg1().toint());
+        assertTrue(Scripts.run(globals, "return number('12 ', 'getInt')").arg1().isnil());
+        assertTrue(Scripts.run(globals, "return number('3000000000', 'getInt')").arg1().isnil());
+        assertEquals(3000000000L, Scripts.run(globals, "return number('3000000000', 'getLong')").arg1().tolong());
     }
 
     @Test
     public void securityPatchIsAQuarter() throws Exception {
         Globals globals = load("security_patch");
-        Varargs result = run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('2025-09-05', {}))");
+        Varargs result = Scripts.run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('2025-09-05', {}))");
         assertTrue(result.arg1().toboolean());
         assertEquals("2025-07-01", result.arg(2).tojstring());
-        assertFalse(run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('2025-07-01', {}))").arg1().toboolean());
-        assertFalse(run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('', {}))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('2025-07-01', {}))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('', {}))").arg1().toboolean());
     }
 
+    // The script reads the method of the hook only
     private Varargs operator(Globals globals, String method, String result) {
-        return run(globals, "return run(hookof('TelephonyManager." + method + "', '" + method + "'), paramof(" + result + ", {}))");
+        return Scripts.run(globals, "return run(hookof(nil, '" + method + "'), paramof(" + result + ", {}))");
     }
 
     @Test
@@ -196,7 +193,7 @@ public class DeviceValuesScriptTest {
 
     // A code of a subscription, which getMcc of it tells whether the subscription has codes
     private Varargs subscription(Globals globals, String method, int result, int mcc) {
-        return run(globals, "local param = paramof(" + result + ", {})\n" +
+        return Scripts.run(globals, "local param = paramof(" + result + ", {})\n" +
                 "param.getThis = function(self) return { getMcc = function(self) return " + mcc + " end } end\n" +
                 "param.unhooked = function(self, fn) return fn() end\n" +
                 "return run(hookof('SubscriptionInfo." + method + "', '" + method + "'), param)");
@@ -298,14 +295,14 @@ public class DeviceValuesScriptTest {
     }
 
     private Varargs defaultApp(Globals globals, String method, String result) {
-        return run(globals, "return run(hookof('" + method + "', '" + method + "'), appparamof(" + result + "))");
+        return Scripts.run(globals, "return run(hookof('" + method + "', '" + method + "'), appparamof(" + result + "))");
     }
 
     // Apps compare the default SMS and phone app without checking for null: a hidden one becomes the one of the system
     @Test
     public void defaultAppsAreTheOnesOfTheSystem() throws Exception {
         Globals globals = load("default_app_filter");
-        run(globals, APPS);
+        Scripts.run(globals, APPS);
         Varargs result = defaultApp(globals, "getDefaultDialerPackage", "'com.third.hidden'");
         assertTrue(result.arg1().toboolean());
         assertEquals("com.android.dialer", result.arg(2).tojstring());
@@ -319,15 +316,15 @@ public class DeviceValuesScriptTest {
         assertFalse(defaultApp(globals, "getDefaultSmsPackage", "nil").arg1().toboolean());
 
         // The configured SMS app is disabled
-        run(globals, "apps['com.google.android.apps.messaging'].enabled = false");
+        Scripts.run(globals, "apps['com.google.android.apps.messaging'].enabled = false");
         result = defaultApp(globals, "getDefaultSmsPackage", "'com.third.visible'");
         assertTrue(result.arg1().toboolean());
         assertTrue(result.arg(2).isnil());
 
         // Without the system dialer an app which can be the default, but not the app itself
-        run(globals, "dialer = nil");
+        Scripts.run(globals, "dialer = nil");
         assertEquals("com.android.dialer", defaultApp(globals, "getDefaultDialerPackage", "'com.third.hidden'").arg(2).tojstring());
-        run(globals, "dialers = arrayof(dialers[1])");
+        Scripts.run(globals, "dialers = arrayof(dialers[1])");
         result = defaultApp(globals, "getDefaultDialerPackage", "'com.third.hidden'");
         assertTrue(result.arg1().toboolean());
         assertTrue(result.arg(2).isnil());
@@ -337,17 +334,17 @@ public class DeviceValuesScriptTest {
     @Test
     public void sharedLibrariesAreFilteredAlike() throws Exception {
         Globals globals = load("features");
-        run(globals, APPS);
-        run(globals, "libraries = listof(libraryof('android.test.base', 0), libraryof('com.qualcomm.qti.audio', 0), " +
+        Scripts.run(globals, APPS);
+        Scripts.run(globals, "libraries = listof(libraryof('android.test.base', 0), libraryof('com.qualcomm.qti.audio', 0), " +
                 "libraryof('com.samsung.android.sdk', 1), libraryof('com.google.android.trichromelibrary', 2), " +
                 "libraryof('com.example.sdk', 3))");
-        Varargs result = run(globals, "local param = appparamof(libraries)\n" +
+        Varargs result = Scripts.run(globals, "local param = appparamof(libraries)\n" +
                 "local restricted = after(hookof('PackageManager.getSharedLibraries', 'getSharedLibraries'), param)\n" +
                 "return restricted, param.result:toString()");
         assertTrue(result.arg1().toboolean());
         assertEquals("[android.test.base, com.google.android.trichromelibrary, com.example.sdk]", result.arg(2).tojstring());
 
-        result = run(globals, "local param = appparamof(arrayof('android.test.base', 'com.qualcomm.qti.audio', " +
+        result = Scripts.run(globals, "local param = appparamof(arrayof('android.test.base', 'com.qualcomm.qti.audio', " +
                 "'com.samsung.android.sdk', 'com.google.android.trichromelibrary', 'com.example.sdk', 'com.google.android.maps'))\n" +
                 "local restricted = after(hookof('PackageManager.getSystemSharedLibraryNames', 'getSystemSharedLibraryNames'), param)\n" +
                 "return restricted, names(param.result)");
@@ -356,8 +353,8 @@ public class DeviceValuesScriptTest {
                 result.arg(2).tojstring());
 
         // Before Android 8 there is no getSharedLibraries
-        run(globals, "libraries = nil");
-        result = run(globals, "local param = appparamof(arrayof('android.test.base', 'com.qualcomm.qti.audio'))\n" +
+        Scripts.run(globals, "libraries = nil");
+        result = Scripts.run(globals, "local param = appparamof(arrayof('android.test.base', 'com.qualcomm.qti.audio'))\n" +
                 "local restricted = after(hookof('PackageManager.getSystemSharedLibraryNames', 'getSystemSharedLibraryNames'), param)\n" +
                 "return restricted, names(param.result)");
         assertTrue(result.arg1().toboolean());
@@ -405,58 +402,58 @@ public class DeviceValuesScriptTest {
     @Test
     public void featuresAreHiddenButTheKeptOnes() throws Exception {
         Globals globals = load("features");
-        run(globals, FEATURES);
+        Scripts.run(globals, FEATURES);
         String has = "return run(hookof('PackageManager.hasSystemFeature', 'hasSystemFeature'), featureparamof(";
         String keep = "'android.hardware.nfc, android.hardware.camera*'";
 
-        Varargs result = run(globals, has + "true, 'android.hardware.wifi', nil))");
+        Varargs result = Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))");
         assertTrue(result.arg1().toboolean());
         assertFalse(result.arg(2).toboolean());
-        assertTrue(run(globals, has + "true, 'com.google.android.feature.PIXEL_EXPERIENCE', " + keep + "))").arg1().toboolean());
+        assertTrue(Scripts.run(globals, has + "true, 'com.google.android.feature.PIXEL_EXPERIENCE', " + keep + "))").arg1().toboolean());
         // Kept by name or by a name ending in *
-        assertFalse(run(globals, has + "true, 'android.hardware.nfc', " + keep + "))").arg1().toboolean());
-        assertTrue(run(globals, has + "true, 'android.hardware.nfc.hce', " + keep + "))").arg1().toboolean());
-        assertFalse(run(globals, has + "true, 'android.hardware.camera.front', " + keep + "))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "true, 'android.hardware.nfc', " + keep + "))").arg1().toboolean());
+        assertTrue(Scripts.run(globals, has + "true, 'android.hardware.nfc.hce', " + keep + "))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "true, 'android.hardware.camera.front', " + keep + "))").arg1().toboolean());
         // A feature the device does not have
-        assertFalse(run(globals, has + "false, 'android.hardware.wifi', nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "false, 'android.hardware.wifi', nil))").arg1().toboolean());
 
         // The framework checks features itself, like WebView, which does not start without its feature, and
         // the Wi-Fi manager, which is null without its feature. The stacks are those of LSPosed, which replaces
         // the frame of the hooked method by one of a class of its own with a random name.
         String engine = "'eu.faircode.xlua.XCore$6.after', 'eu.faircode.xlua.ModernBackend.lambda$hook$0', " +
                 "'m.proceed', 'android.telephony.PheendeeDaesteampDrenash.hasSystemFeature', ";
-        assertTrue(run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
-        run(globals, "stack = stackof(" + engine + "'android.webkit.WebViewFactory.getProvider', " +
+        assertTrue(Scripts.run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
+        Scripts.run(globals, "stack = stackof(" + engine + "'android.webkit.WebViewFactory.getProvider', " +
                 "'android.webkit.WebView.<init>', 'com.example.app.Main.onCreate')");
-        assertFalse(run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
-        run(globals, "stack = stackof(" + engine + "'android.net.wifi.WifiFrameworkInitializer.lambda$registerServiceWrappers$0', " +
+        assertFalse(Scripts.run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
+        Scripts.run(globals, "stack = stackof(" + engine + "'android.net.wifi.WifiFrameworkInitializer.lambda$registerServiceWrappers$0', " +
                 "'android.app.SystemServiceRegistry.getSystemService', 'com.example.app.Main.onCreate')");
-        assertFalse(run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
         // The package manager calls the hooked method itself, hasSystemFeature without a version the one with one
-        run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
+        Scripts.run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
                 "'com.android.internal.policy.PhoneWindow.<init>', 'android.app.Activity.attach')");
-        assertFalse(run(globals, has + "true, 'android.software.picture_in_picture', nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "true, 'android.software.picture_in_picture', nil))").arg1().toboolean());
         // The app and its libraries, also androidx and the support library, get false
         for (String caller : new String[]{"com.example.app.Main.onCreate", "androidx.core.content.ContextCompat.check",
                 "android.support.v4.content.ContextCompat.check"}) {
-            run(globals, "stack = stackof(" + engine + "'" + caller + "', 'android.app.Activity.performCreate')");
-            assertTrue(caller, run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
-            run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
+            Scripts.run(globals, "stack = stackof(" + engine + "'" + caller + "', 'android.app.Activity.performCreate')");
+            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+            Scripts.run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
                     "'" + caller + "', 'android.app.Activity.performCreate')");
-            assertTrue(caller, run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
         }
-        run(globals, "stack = stackof('com.example.app.Main.onCreate')");
+        Scripts.run(globals, "stack = stackof('com.example.app.Main.onCreate')");
 
         // The list has the same features, and the OpenGL ES version, which has no name
         String list = "local param = featureparamof(featuresof(%s), nil, " + keep + ")\n" +
                 "local restricted = after(hookof('PackageManager.getSystemAvailableFeatures', 'getSystemAvailableFeatures'), param)\n" +
                 "return restricted, names(param.result)";
-        result = run(globals, String.format(list, "featureof('android.hardware.wifi'), featureof('android.hardware.nfc'), " +
+        result = Scripts.run(globals, String.format(list, "featureof('android.hardware.wifi'), featureof('android.hardware.nfc'), " +
                 "featureof('android.hardware.camera.flash'), featureof('android.software.webview'), " +
                 "featureof('com.samsung.feature.samsung_experience_mobile'), featureof(nil)"));
         assertTrue(result.arg1().toboolean());
         assertEquals("android.hardware.nfc,android.hardware.camera.flash,nil", result.arg(2).tojstring());
-        result = run(globals, String.format(list, "featureof('android.hardware.nfc'), featureof(nil)"));
+        result = Scripts.run(globals, String.format(list, "featureof('android.hardware.nfc'), featureof(nil)"));
         assertFalse(result.arg1().toboolean());
         assertEquals("android.hardware.nfc,nil", result.arg(2).tojstring());
     }
@@ -465,7 +462,7 @@ public class DeviceValuesScriptTest {
     public void batteryCapacityIsRounded() throws Exception {
         Globals globals = load("battery");
         for (String method : new String[]{"getIntProperty", "getLongProperty"}) {
-            Varargs result = run(globals, "return run(hookof('BatteryManager." + method + "', '" + method + "'), " +
+            Varargs result = Scripts.run(globals, "return run(hookof('BatteryManager." + method + "', '" + method + "'), " +
                     "paramof(57, { [0] = 4 }))");
             assertTrue(method, result.arg1().toboolean());
             assertEquals(method, 60, result.arg(2).toint());
@@ -476,20 +473,20 @@ public class DeviceValuesScriptTest {
     public void sizesAreRounded() throws Exception {
         Globals globals = load("resources");
         // 3919 MiB of memory is sold as 4 GiB, 118 GB of storage as 128 GB, free space has two digits
-        assertEquals(4294967296L, run(globals, "return memorysize(4109369344)").arg1().tolong());
-        assertEquals(128000000000L, run(globals, "return storagesize(118000000000)").arg1().tolong());
-        assertEquals(7900, run(globals, "return freesize(7917)").arg1().toint());
-        assertEquals(99, run(globals, "return freesize(99)").arg1().toint());
+        assertEquals(4294967296L, Scripts.run(globals, "return memorysize(4109369344)").arg1().tolong());
+        assertEquals(128000000000L, Scripts.run(globals, "return storagesize(118000000000)").arg1().tolong());
+        assertEquals(7900, Scripts.run(globals, "return freesize(7917)").arg1().toint());
+        assertEquals(99, Scripts.run(globals, "return freesize(99)").arg1().toint());
 
-        Varargs result = run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(118000000000, {}))");
+        Varargs result = Scripts.run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(118000000000, {}))");
         assertTrue(result.arg1().toboolean());
         assertEquals(128000000000L, result.arg(2).tolong());
         // Small file systems keep their size
-        assertFalse(run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(500000000, {}))")
+        assertFalse(Scripts.run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(500000000, {}))")
                 .arg1().toboolean());
 
         // The memory info of the app is changed in place
-        result = run(globals, "local info = { totalMem = 4109369344, availMem = 1234567890 }\n" +
+        result = Scripts.run(globals, "local info = { totalMem = 4109369344, availMem = 1234567890 }\n" +
                 "local restricted = after(hookof('ActivityManager.getMemoryInfo', 'getMemoryInfo'), paramof(nil, { [0] = info }))\n" +
                 "return restricted, info.totalMem, info.availMem");
         assertTrue(result.arg1().toboolean());
@@ -524,19 +521,19 @@ public class DeviceValuesScriptTest {
     public void externalInputDevicesAreHidden() throws Exception {
         Globals globals = Scripts.load("input_devices", STUBS + "\n" + INPUT);
         // The keyboard and a device which was removed meanwhile (9) are left out
-        Varargs result = run(globals, "local param = inputparamof(arrayof(1, 7, 9))\n" +
+        Varargs result = Scripts.run(globals, "local param = inputparamof(arrayof(1, 7, 9))\n" +
                 "local restricted = after(hookof('InputManager.getInputDeviceIds', 'getInputDeviceIds'), param)\n" +
                 "return restricted, param.result.length, param.result[1]");
         assertTrue(result.arg1().toboolean());
         assertEquals(1, result.arg(2).toint());
         assertEquals(1, result.arg(3).toint());
-        assertFalse(run(globals, "return run(hookof('InputDevice.getDeviceIds', 'getDeviceIds'), inputparamof(arrayof(1)))")
+        assertFalse(Scripts.run(globals, "return run(hookof('InputDevice.getDeviceIds', 'getDeviceIds'), inputparamof(arrayof(1)))")
                 .arg1().toboolean());
 
-        result = run(globals, "return run(hookof('InputDevice.getDevice', 'getDevice'), inputparamof(devices[7]))");
+        result = Scripts.run(globals, "return run(hookof('InputDevice.getDevice', 'getDevice'), inputparamof(devices[7]))");
         assertTrue(result.arg1().toboolean());
         assertTrue(result.arg(2).isnil());
-        assertFalse(run(globals, "return run(hookof('InputManager.getInputDevice', 'getInputDevice'), inputparamof(devices[1]))")
+        assertFalse(Scripts.run(globals, "return run(hookof('InputManager.getInputDevice', 'getInputDevice'), inputparamof(devices[1]))")
                 .arg1().toboolean());
     }
 
@@ -559,30 +556,31 @@ public class DeviceValuesScriptTest {
         Globals globals = Scripts.load("biometrics_credential", STUBS + "\n" + BIOMETRIC);
         // BIOMETRIC_WEAK and DEVICE_CREDENTIAL become DEVICE_CREDENTIAL; biometrics only, the screen lock only
         // and authenticators which are an error stay
-        Varargs result = run(globals, "local param = biometricparamof(nil, 33023)\n" +
+        Varargs result = Scripts.run(globals, "local param = biometricparamof(nil, 33023)\n" +
                 "local restricted = before(hookof('BiometricManager.getStrings', 'getStrings'), param)\n" +
                 "return restricted, param:getArgument(0)");
         assertTrue(result.arg1().toboolean());
         assertEquals(32768, result.arg(2).toint());
         for (String authenticators : new String[]{"255", "32768", "33024"})
-            assertFalse(authenticators, run(globals, "return before(hookof('BiometricManager.getStrings', 'getStrings'), " +
+            assertFalse(authenticators, Scripts.run(globals, "return before(hookof('BiometricManager.getStrings', 'getStrings'), " +
                     "biometricparamof(nil, " + authenticators + "))").arg1().toboolean());
 
         // There was no biometric authentication, the screen lock keeps its time
-        result = run(globals, "return run(hookof('BiometricManager.getLastAuthenticationTime', 'getLastAuthenticationTime'), " +
+        result = Scripts.run(globals, "return run(hookof('BiometricManager.getLastAuthenticationTime', 'getLastAuthenticationTime'), " +
                 "biometricparamof(1234, 15))");
         assertTrue(result.arg1().toboolean());
         assertEquals(-1, result.arg(2).toint());
-        assertFalse(run(globals, "return run(hookof('BiometricManager.getLastAuthenticationTime', 'getLastAuthenticationTime'), " +
+        assertFalse(Scripts.run(globals, "return run(hookof('BiometricManager.getLastAuthenticationTime', 'getLastAuthenticationTime'), " +
                 "biometricparamof(1234, 32768))").arg1().toboolean());
 
         // The texts of biometrics only are none, the texts of the screen lock stay
-        result = run(globals, "local strings = {}\n" +
+        result = Scripts.run(globals, "local strings = {}\n" +
                 "after(hookof('BiometricManager.getStrings', 'getStrings'), biometricparamof(strings, 15))\n" +
-                "return run(hookof('BiometricManager.Strings.getButtonLabel', 'getButtonLabel'), biometricparamof('Use fingerprint', 0, strings))");
+                "return run(hookof('BiometricManager.Strings.getButtonLabel', 'getButtonLabel'),\n" +
+                "  biometricparamof('Use fingerprint', 0, strings))");
         assertTrue(result.arg1().toboolean());
         assertTrue(result.arg(2).isnil());
-        assertFalse(run(globals, "local strings = {}\n" +
+        assertFalse(Scripts.run(globals, "local strings = {}\n" +
                 "after(hookof('BiometricManager.getStrings', 'getStrings'), biometricparamof(strings, 32768))\n" +
                 "return run(hookof('BiometricManager.Strings.getButtonLabel', 'getButtonLabel'), biometricparamof('Use PIN', 0, strings))")
                 .arg1().toboolean());

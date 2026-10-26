@@ -75,8 +75,8 @@ E-mail data is generally not accessible on recent Android versions anymore.
     * ~~return file not found for folder [/proc](http://linux.die.net/man/5/proc)~~ will result in crashes
     * **return a fake Google advertising ID**
     * ~~return a fake system property CID (Card Identification Register = SD-card serial number)~~ tracking related
-    * ~~return file not found for /sys/block/.../cid~~ will result in crashes
-    * ~~return file not found for /sys/class/.../cid~~ will result in crashes
+    * **return file not found for /sys/block/.../cid**
+    * **return file not found for /sys/class/.../cid**
     * ~~return a fake input device descriptor~~ tracking related
     * ~~return a fake USB ID/name/number~~ tracking related
     * ~~return a fake Cast device ID / IP address~~ tracking related
@@ -160,7 +160,7 @@ and the addresses of the network interfaces since Android 11, but only from apps
 * Phone
     * **return a fake own/in/outgoing/voicemail number**
     * **return a fake subscriber ID (IMSI for a GSM phone)**
-    * **return a fake phone device ID (IMEI): 000000000000000**
+    * **return a fake phone device ID (IMEI): the one of the fake values, else none**
     * ~~return a fake phone type: GSM (matching IMEI)~~ not privacy related
     * ~~return a fake network type: unknown~~ not privacy related
     * ~~return an empty ISIM domain~~ not available in user space
@@ -169,11 +169,11 @@ and the addresses of the network interfaces since Android 11, but only from apps
     * return fake mobile network info
         * Country: XX
         * Operator: 00101 (test network)
-        * Operator name: fake
+        * Operator name: unknown
     * return fake SIM info
         * Country: XX
         * Operator: 00101
-        * Operator name: faket
+        * Operator name: unknown
         * **Serial number (ICCID): fake**
     * ~~return empty [APN](http://en.wikipedia.org/wiki/Access_Point_Name) list~~ not privacy related
     * ~~return no currently used APN~~ not privacy related
@@ -241,4 +241,4 @@ If you want to confine apps to their own folder, you can install the hook defini
 * View
     * ~~prevent links from opening in the browser~~ not privacy related
     * return fake browser user agent string (WebView)
-        * *Mozilla/5.0 (Linux; U; Android; en-us) AppleWebKit/999+ (KHTML, like Gecko) Safari/999.9*
+        * *the real one without the device model and build*

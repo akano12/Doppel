@@ -26,6 +26,9 @@ import android.os.Build;
 import android.os.Process;
 import android.os.UserHandle;
 import android.util.Log;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -139,5 +142,29 @@ class Util {
                 if (!name.trim().isEmpty())
                     result.add(name.trim());
         return result;
+    }
+
+    // The int flags of the package manager are deprecated since Android 13, the typed flags are the same
+    @SuppressWarnings("deprecation")
+    static PackageInfo getPackageInfo(PackageManager pm, String packageName, long flags)
+            throws PackageManager.NameNotFoundException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            return pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags));
+        return pm.getPackageInfo(packageName, (int) flags);
+    }
+
+    @SuppressWarnings("deprecation")
+    static ApplicationInfo getApplicationInfo(PackageManager pm, String packageName, long flags)
+            throws PackageManager.NameNotFoundException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            return pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags));
+        return pm.getApplicationInfo(packageName, (int) flags);
+    }
+
+    @SuppressWarnings("deprecation")
+    static List<PackageInfo> getInstalledPackages(PackageManager pm, long flags) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            return pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(flags));
+        return pm.getInstalledPackages((int) flags);
     }
 }

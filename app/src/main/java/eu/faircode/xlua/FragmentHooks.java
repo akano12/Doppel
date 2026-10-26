@@ -30,6 +30,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.PopupMenu;
 import android.widget.TextView;
+import android.text.TextUtils;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -51,7 +52,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -177,8 +177,7 @@ public class FragmentHooks extends FragmentBase {
                 Map<String, String> titles = new HashMap<>();
                 for (XHook hook : hooks)
                     titles.put(hook.getGroup(), Groups.getTitle(context, hook.getGroup()));
-                Collator collator = Collator.getInstance(Locale.getDefault());
-                collator.setStrength(Collator.SECONDARY);
+                Collator collator = Groups.collator();
                 Collections.sort(hooks, (h1, h2) -> {
                     int c = collator.compare(titles.get(h1.getGroup()), titles.get(h2.getGroup()));
                     if (c == 0)
@@ -302,7 +301,7 @@ public class FragmentHooks extends FragmentBase {
             parts.add(getResources().getQuantityString(R.plurals.title_hook_disabled_count, disabled, disabled));
         if (unavailable > 0)
             parts.add(getResources().getQuantityString(R.plurals.title_hook_unavailable_count, unavailable, unavailable));
-        accordion.addGroup(context, items, group, Groups.getTitle(context, group), String.join(" · ", parts),
+        accordion.addGroup(context, items, group, Groups.getTitle(context, group), TextUtils.join(" · ", parts),
                 null, Groups.getIcon(group), hooks, all.get(0).getGroup(),
                 filter != Filter.ALL || (query != null && !query.trim().isEmpty()),
                 this::show);

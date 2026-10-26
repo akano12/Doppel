@@ -109,11 +109,11 @@ public class ContentResolverScriptTest {
     }
 
     private Varargs starred(String authority, String where) {
-        return globals.load(
+        return Scripts.run(globals,
                 "local param = paramof(urlof('" + authority + "', '/contacts'), " + where + ", 'args', " +
                         "{ ['contacts.starred'] = '1' })\n" +
                         "before(hookof('ContentResolver.query16/contacts'), param)\n" +
-                        "return param.arguments[2], param.arguments[3]", "test").invoke();
+                        "return param.arguments[2], param.arguments[3]");
     }
 
     @Test
@@ -137,14 +137,14 @@ public class ContentResolverScriptTest {
     // The query of a provider with the cursor it returned: whether restricted, whether the cursor stays
     // and whether it was closed
     private Varargs query(String hook, String authority, String path, String settings) {
-        return globals.load(
+        return Scripts.run(globals,
                 "local hook = hookof('" + hook + "')\n" +
                         "local param = paramof(urlof('" + authority + "', '" + path + "'), nil, nil, " + settings + ")\n" +
                         "local cursor = cursorof({ '_id', 'display_name' }, { { '1', 'Alice' } })\n" +
                         "before(hook, param)\n" +
                         "param.result = cursor\n" +
                         "local restricted = after(hook, param)\n" +
-                        "return restricted, param.result == cursor, cursor.closed, param.result:moveToNext()", "test").invoke();
+                        "return restricted, param.result == cursor, cursor.closed, param.result:moveToNext()");
     }
 
     // after keeps the result which before filtered for starred contacts
@@ -181,27 +181,27 @@ public class ContentResolverScriptTest {
     // Gservices without the GSF id, also for the keys starting with a prefix
     @Test
     public void gservicesWithoutGsfId() {
-        Varargs result = globals.load(
+        Varargs result = Scripts.run(globals,
                 "local hook = hookof('ContentResolver.query26/gsf_id')\n" +
                         "local param = paramof(urlof('com.google.android.gsf.gservices', '/prefix'))\n" +
                         "local cursor = cursorof({ 'key', 'value' },\n" +
                         "  { { 'android_id', '1234567890' }, { 'android_other', 'value' } })\n" +
                         "param.result = cursor\n" +
                         "local restricted = after(hook, param)\n" +
-                        "return restricted, cursor.closed, #param.result.rows, param.result.rows[1][1]", "test").invoke();
+                        "return restricted, cursor.closed, #param.result.rows, param.result.rows[1][1]");
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).toboolean());
         assertEquals(1, result.arg(3).toint());
         assertEquals("android_other", result.arg(4).tojstring());
 
         // Other keys stay as they are, with the cursor at the start
-        Varargs other = globals.load(
+        Varargs other = Scripts.run(globals,
                 "local hook = hookof('ContentResolver.query26/gsf_id')\n" +
                         "local param = paramof(urlof('com.google.android.gsf.gservices', '/'))\n" +
                         "local cursor = cursorof({ 'key', 'value' }, { { 'android_other', 'value' } })\n" +
                         "param.result = cursor\n" +
                         "local restricted = after(hook, param)\n" +
-                        "return restricted, param.result == cursor, cursor.position, cursor.closed", "test").invoke();
+                        "return restricted, param.result == cursor, cursor.position, cursor.closed");
         assertFalse(other.arg(1).toboolean());
         assertTrue(other.arg(2).toboolean());
         assertEquals(-1, other.arg(3).toint());

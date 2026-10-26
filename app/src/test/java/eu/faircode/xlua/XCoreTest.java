@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.io.File;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -71,8 +72,6 @@ public class XCoreTest {
 
     @Before
     public void setUp() {
-        members.clear();
-        callbacks.clear();
         core = new XCore(new XBackend() {
             @Override
             public String getName() {
@@ -219,7 +218,7 @@ public class XCoreTest {
     public void filterValues() {
         assertEquals("/sdcard/DCIM", XCore.filterValue("/sdcard/DCIM"));
         // Like File.getPath, which has the separator of the platform the test runs on
-        assertEquals(new java.io.File("/sdcard/DCIM").getPath(), XCore.filterValue(new java.io.File("/sdcard/DCIM/")));
+        assertEquals(new File("/sdcard/DCIM").getPath(), XCore.filterValue(new File("/sdcard/DCIM/")));
         assertNull(XCore.filterValue(new Target()));
         assertNull(XCore.filterValue(null));
     }

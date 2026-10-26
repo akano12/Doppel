@@ -123,7 +123,7 @@ class XProvider {
         final Map<String, XHook> all = hooks;
         db.write(d -> {
             for (String name : XDatabase.REMOVED) {
-                String id = Util.COLLECTION_DEFAULT + "." + name;
+                String id = XHook.builtinId(name);
                 if (all.containsKey(id))
                     continue;
                 int rows = d.delete("assignment", "hook = ? AND hook NOT IN (SELECT id FROM hook)", new String[]{id});
@@ -364,7 +364,7 @@ class XProvider {
 
         // Built-in definitions
         PackageManager pm = context.getPackageManager();
-        ApplicationInfo ai = pm.getApplicationInfo(BuildConfig.APPLICATION_ID, 0);
+        ApplicationInfo ai = Util.getApplicationInfo(pm, BuildConfig.APPLICATION_ID, 0);
         moduleUid = ai.uid;
         for (XHook builtin : XHook.readHooks(ai.publicSourceDir)) {
             builtin.resolveClassName(context);
@@ -528,7 +528,7 @@ class XProvider {
             // System server ("android") is shared by all users and uses the restrictions of the owner,
             // see XCore.hookAndroid, so other users cannot restrict it
             PackageManager pm = Util.createContextForUser(context, userid).getPackageManager();
-            for (PackageInfo pi : pm.getInstalledPackages(0))
+            for (PackageInfo pi : Util.getInstalledPackages(pm, 0))
                 if (pi.applicationInfo != null &&
                         !BuildConfig.APPLICATION_ID.equals(pi.packageName) &&
                         !(userid != 0 && "android".equals(pi.packageName)) &&
@@ -953,7 +953,7 @@ class XProvider {
         long ident = Binder.clearCallingIdentity();
         try {
             // public void forceStopPackageAsUser(String packageName, int userId)
-            ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+            ActivityManager am = context.getSystemService(ActivityManager.class);
             Method mForceStop = am.getClass().getMethod("forceStopPackageAsUser", String.class, int.class);
             mForceStop.invoke(am, packageName, userid);
         } finally {
@@ -1157,7 +1157,7 @@ class XProvider {
             int uid = moduleUid;
             int signatures = (uid < 0 ? PackageManager.SIGNATURE_UNKNOWN_PACKAGE : pm.checkSignatures(cuid, uid));
             if (signatures == PackageManager.SIGNATURE_UNKNOWN_PACKAGE) {
-                uid = pm.getApplicationInfo(BuildConfig.APPLICATION_ID, 0).uid;
+                uid = Util.getApplicationInfo(pm, BuildConfig.APPLICATION_ID, 0).uid;
                 moduleUid = uid;
                 signatures = pm.checkSignatures(cuid, uid);
             }

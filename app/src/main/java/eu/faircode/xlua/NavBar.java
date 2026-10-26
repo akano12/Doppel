@@ -112,10 +112,6 @@ public class NavBar extends LinearLayout {
         this.listener = listener;
     }
 
-    int getSelectedItemId() {
-        return selected;
-    }
-
     // Like tapping a tab; the listener is not called for the tab which is selected already
     void setSelectedItemId(int itemId) {
         select(itemId, true);

@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.io.IOException;
 
 // Community hook definitions of the repository (repo/), packaged with the app
 public class ActivityDownloads extends ActivityBase {
@@ -87,7 +88,7 @@ public class ActivityDownloads extends ActivityBase {
         String[] parameterTypes;
 
         String getId() {
-            return collection + "." + name;
+            return XHook.id(collection, name);
         }
     }
 
@@ -241,7 +242,7 @@ public class ActivityDownloads extends ActivityBase {
         });
     }
 
-    private static String readAsset(Context context, String name) throws Exception {
+    private static String readAsset(Context context, String name) throws IOException {
         try (InputStream is = context.getAssets().open(name)) {
             return Util.readText(is);
         }
@@ -331,7 +332,7 @@ public class ActivityDownloads extends ActivityBase {
         parts.add(getResources().getQuantityString(R.plurals.title_collection_count, collections.size(), collections.size()));
         if (installed > 0)
             parts.add(getResources().getQuantityString(R.plurals.title_installed_count, installed, installed));
-        tvSummary.setText(all.isEmpty() ? null : String.join(" · ", parts));
+        tvSummary.setText(all.isEmpty() ? null : TextUtils.join(" · ", parts));
         compact.setSubtitle(getString(R.string.title_pair, parts.get(0), getString(FILTER_TITLES[filter.ordinal()])));
 
         Ui.setChipCount(cgFilter, R.id.chipAll, R.string.title_all, all.size());
@@ -399,7 +400,7 @@ public class ActivityDownloads extends ActivityBase {
             parts.add(getResources().getQuantityString(R.plurals.title_update_count, updates, updates));
         if (off)
             parts.add(getString(R.string.title_collection_off));
-        accordion.addGroup(this, items, collection, collection, String.join(" · ", parts),
+        accordion.addGroup(this, items, collection, collection, TextUtils.join(" · ", parts),
                 off ? getString(R.string.title_off) : null, R.drawable.ic_group_custom,
                 entries, all.get(0).collection,
                 filter != Filter.ALL || (query != null && !query.trim().isEmpty()),

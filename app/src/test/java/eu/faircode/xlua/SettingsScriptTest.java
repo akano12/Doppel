@@ -89,7 +89,6 @@ public class SettingsScriptTest {
             "  return {",
             "    getApplicationContext = function(self) return context end,",
             "    getPackageName = function(self) return 'com.example.app' end,",
-            "    getUid = function(self) return uid or 10200 end,",
             "    isSystem = function(self) return (uid or 10200) % 100000 < 10000 end,",
             "    isVisible = function(self, ai) return ai.uid == 10200 or ai.system end,",
             // Like XParam: the lookup without hooks, the app itself visible

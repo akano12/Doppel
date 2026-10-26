@@ -611,9 +611,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -632,7 +632,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -684,7 +684,7 @@
     "methodName": "bulkInsert",
     "parameterTypes": [
       "android.net.Uri",
-      "[Landroid.content.ContentValues;"
+      "android.content.ContentValues[]"
     ],
     "returnType": "int",
     "minSdk": 1,
@@ -701,7 +701,7 @@
     "parameterTypes": [
       "android.net.Uri",
       "java.lang.String",
-      "[Ljava.lang.String;"
+      "java.lang.String[]"
     ],
     "returnType": "int",
     "minSdk": 1,
@@ -736,7 +736,7 @@
       "android.net.Uri",
       "android.content.ContentValues",
       "java.lang.String",
-      "[Ljava.lang.String;"
+      "java.lang.String[]"
     ],
     "returnType": "int",
     "minSdk": 1,
@@ -877,7 +877,7 @@
       "android.net.Uri",
       "java.lang.String"
     ],
-    "returnType": "[Ljava.lang.String;",
+    "returnType": "java.lang.String[]",
     "minSdk": 1,
     "excludePackages": "android",
     "luaScript": "@provider_hidden"
@@ -1197,7 +1197,7 @@
       "android.os.IBinder",
       "android.os.IBinder",
       "android.app.Activity",
-      "[Landroid.content.Intent;",
+      "android.content.Intent[]",
       "android.os.Bundle",
       "int"
     ],
@@ -1536,7 +1536,7 @@
     "methodName": "canPackageQuery",
     "parameterTypes": [
       "java.lang.String",
-      "[Ljava.lang.String;"
+      "java.lang.String[]"
     ],
     "returnType": "boolean[]",
     "minSdk": 34,
@@ -1649,7 +1649,7 @@
     "className": "android.view.textservice.TextServicesManager",
     "methodName": "getEnabledSpellCheckers",
     "parameterTypes": [],
-    "returnType": "[Landroid.view.textservice.SpellCheckerInfo;",
+    "returnType": "android.view.textservice.SpellCheckerInfo[]",
     "minSdk": 23,
     "optional": true,
     "excludePackages": "android",
@@ -1751,7 +1751,7 @@
     "className": "android.content.pm.PackageManager",
     "methodName": "getPackagesHoldingPermissions",
     "parameterTypes": [
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "int"
     ],
     "returnType": "java.util.List",
@@ -1767,7 +1767,7 @@
     "className": "android.content.pm.PackageManager",
     "methodName": "getPackagesHoldingPermissions",
     "parameterTypes": [
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.content.pm.PackageManager$PackageInfoFlags"
     ],
     "returnType": "java.util.List",
@@ -1846,7 +1846,7 @@
     "methodName": "queryIntentActivityOptions",
     "parameterTypes": [
       "android.content.ComponentName",
-      "[Landroid.content.Intent;",
+      "android.content.Intent[]",
       "android.content.Intent",
       "int"
     ],
@@ -2220,9 +2220,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2240,9 +2240,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2260,7 +2260,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2277,7 +2277,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2296,9 +2296,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2316,9 +2316,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2336,7 +2336,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2353,7 +2353,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2374,9 +2374,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2397,9 +2397,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2420,7 +2420,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2440,9 +2440,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2460,9 +2460,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2480,7 +2480,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2497,7 +2497,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2517,7 +2517,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2851,9 +2851,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2871,9 +2871,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2891,7 +2891,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2908,9 +2908,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2928,9 +2928,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -2948,7 +2948,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2979,7 +2979,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -2996,7 +2996,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -3271,9 +3271,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -3292,9 +3292,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -3313,7 +3313,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -3331,7 +3331,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -3349,9 +3349,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -3370,9 +3370,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -3391,7 +3391,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -3409,7 +3409,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -3428,9 +3428,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -3448,9 +3448,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -3468,7 +3468,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -3485,7 +3485,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -4654,7 +4654,7 @@
     "parameterTypes": [
       "int"
     ],
-    "returnType": "[Landroid.media.AudioDeviceInfo;",
+    "returnType": "android.media.AudioDeviceInfo[]",
     "minSdk": 23,
     "luaScript": "@generic_empty"
   },
@@ -5835,7 +5835,7 @@
     "className": "android.hardware.camera2.CameraManager",
     "methodName": "getCameraIdList",
     "parameterTypes": [],
-    "returnType": "[Ljava.lang.String;",
+    "returnType": "java.lang.String[]",
     "minSdk": 21,
     "luaScript": "@generic_empty"
   },
@@ -6670,7 +6670,7 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "TelephonyManager/getNetworkCountryIso",
+    "name": "TelephonyManager.getNetworkCountryIso",
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getNetworkCountryIso",
@@ -6683,7 +6683,7 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "TelephonyManager/getNetworkCountryIso.30",
+    "name": "TelephonyManager.getNetworkCountryIso.30",
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getNetworkCountryIso",
@@ -6697,7 +6697,7 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "TelephonyManager/getNetworkOperator",
+    "name": "TelephonyManager.getNetworkOperator",
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getNetworkOperator",
@@ -6710,7 +6710,7 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "TelephonyManager/getNetworkOperatorName",
+    "name": "TelephonyManager.getNetworkOperatorName",
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getNetworkOperatorName",
@@ -6722,7 +6722,7 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "TelephonyManager/getSimCountryIso",
+    "name": "TelephonyManager.getSimCountryIso",
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getSimCountryIso",
@@ -6735,7 +6735,7 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "TelephonyManager/getSimOperator",
+    "name": "TelephonyManager.getSimOperator",
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getSimOperator",
@@ -6748,7 +6748,7 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "TelephonyManager/getSimOperatorName",
+    "name": "TelephonyManager.getSimOperatorName",
     "author": "M66B",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getSimOperatorName",
@@ -7739,7 +7739,7 @@
     "className": "android.content.pm.PackageManager",
     "methodName": "getSystemAvailableFeatures",
     "parameterTypes": [],
-    "returnType": "[Landroid.content.pm.FeatureInfo;",
+    "returnType": "android.content.pm.FeatureInfo[]",
     "minSdk": 5,
     "settings": [
       "features.keep"
@@ -7817,7 +7817,7 @@
     "className": "android.content.pm.PackageManager",
     "methodName": "getSystemSharedLibraryNames",
     "parameterTypes": [],
-    "returnType": "[Ljava.lang.String;",
+    "returnType": "java.lang.String[]",
     "minSdk": 3,
     "luaScript": "@features"
   },
@@ -7933,7 +7933,7 @@
     "className": "android.net.ConnectivityManager",
     "methodName": "getAllNetworkInfo",
     "parameterTypes": [],
-    "returnType": "[Landroid.net.NetworkInfo;",
+    "returnType": "android.net.NetworkInfo[]",
     "minSdk": 1,
     "luaScript": "@vpn"
   },
@@ -9224,7 +9224,7 @@
     "className": "android.content.pm.PackageManager",
     "methodName": "getSystemAvailableFeatures",
     "parameterTypes": [],
-    "returnType": "[Landroid.content.pm.FeatureInfo;",
+    "returnType": "android.content.pm.FeatureInfo[]",
     "minSdk": 5,
     "luaScript": "@biometrics"
   },
@@ -9332,12 +9332,12 @@
     "className": "java.lang.Runtime",
     "methodName": "exec",
     "parameterTypes": [
-      "[Ljava.lang.String;",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
+      "java.lang.String[]",
       "java.io.File"
     ],
     "returnType": "java.lang.Process",
-    "minSdk": 1,
+    "minSdk": 23,
     "maxSdk": 23,
     "luaScript": "@shell_commands"
   },
@@ -9349,12 +9349,12 @@
     "className": "java.lang.Runtime",
     "methodName": "exec",
     "parameterTypes": [
-      "[Ljava.lang.String;",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
+      "java.lang.String[]",
       "java.io.File"
     ],
     "returnType": "java.lang.Process",
-    "minSdk": 1,
+    "minSdk": 23,
     "maxSdk": 23,
     "settings": [
       "value.serial"
@@ -9369,12 +9369,12 @@
     "className": "java.lang.Runtime",
     "methodName": "exec",
     "parameterTypes": [
-      "[Ljava.lang.String;",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
+      "java.lang.String[]",
       "java.io.File"
     ],
     "returnType": "java.lang.Process",
-    "minSdk": 1,
+    "minSdk": 23,
     "maxSdk": 23,
     "excludePackages": "android",
     "luaScript": "@shell_commands"
@@ -9387,12 +9387,12 @@
     "className": "java.lang.Runtime",
     "methodName": "exec",
     "parameterTypes": [
-      "[Ljava.lang.String;",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
+      "java.lang.String[]",
       "java.io.File"
     ],
     "returnType": "java.lang.Process",
-    "minSdk": 1,
+    "minSdk": 23,
     "maxSdk": 23,
     "settings": [
       "value.timezone"
@@ -9407,12 +9407,12 @@
     "className": "java.lang.Runtime",
     "methodName": "exec",
     "parameterTypes": [
-      "[Ljava.lang.String;",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
+      "java.lang.String[]",
       "java.io.File"
     ],
     "returnType": "java.lang.Process",
-    "minSdk": 1,
+    "minSdk": 23,
     "maxSdk": 23,
     "settings": [
       "features.keep"
@@ -9427,12 +9427,12 @@
     "className": "java.lang.Runtime",
     "methodName": "exec",
     "parameterTypes": [
-      "[Ljava.lang.String;",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
+      "java.lang.String[]",
       "java.io.File"
     ],
     "returnType": "java.lang.Process",
-    "minSdk": 1,
+    "minSdk": 23,
     "maxSdk": 23,
     "luaScript": "@shell_commands"
   },
@@ -9444,12 +9444,12 @@
     "className": "java.lang.Runtime",
     "methodName": "exec",
     "parameterTypes": [
-      "[Ljava.lang.String;",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
+      "java.lang.String[]",
       "java.io.File"
     ],
     "returnType": "java.lang.Process",
-    "minSdk": 1,
+    "minSdk": 23,
     "maxSdk": 23,
     "luaScript": "@shell_commands"
   },
@@ -9743,7 +9743,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -9763,7 +9763,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -9783,9 +9783,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -9806,9 +9806,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -9898,7 +9898,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -9915,7 +9915,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -9932,9 +9932,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -9952,9 +9952,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -10045,7 +10045,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -10063,7 +10063,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -10081,9 +10081,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -10102,9 +10102,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -10192,7 +10192,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -10209,7 +10209,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -10226,9 +10226,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -10246,9 +10246,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -10335,7 +10335,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -10352,7 +10352,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -10369,9 +10369,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -10389,9 +10389,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -10478,7 +10478,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -10495,7 +10495,7 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "android.os.Bundle",
       "android.os.CancellationSignal"
     ],
@@ -10512,9 +10512,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],
@@ -10532,9 +10532,9 @@
     "methodName": "query",
     "parameterTypes": [
       "android.net.Uri",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
-      "[Ljava.lang.String;",
+      "java.lang.String[]",
       "java.lang.String",
       "android.os.CancellationSignal"
     ],

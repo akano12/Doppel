@@ -227,8 +227,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     AdapterApp(Listener listener) {
         this.listener = listener;
-        this.collator = Collator.getInstance(Locale.getDefault());
-        this.collator.setStrength(Collator.SECONDARY); // Case insensitive, process accents etc
+        this.collator = Groups.collator();
         setHasStableIds(true);
     }
 

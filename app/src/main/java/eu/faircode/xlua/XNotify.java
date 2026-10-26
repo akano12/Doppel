@@ -142,7 +142,7 @@ final class XNotify {
 
     private static CharSequence getLabel(Context context, String packageName) throws PackageManager.NameNotFoundException {
         PackageManager pm = context.getPackageManager();
-        return pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0));
+        return pm.getApplicationLabel(Util.getApplicationInfo(pm, packageName, 0));
     }
 
     @SuppressWarnings("deprecation") // Builder without channel and priority before Android 8

@@ -15,7 +15,6 @@
 
 -- Copyright 2026 akano12
 
-
 -- The folders of the shared storage are made when the device is set up, and their times stay, to the nanosecond,
 -- until it is reset, so all apps read the same time, which links them to each other, like the times of folders
 -- changed later, like of Download. Their times become those of the files of reproducible builds

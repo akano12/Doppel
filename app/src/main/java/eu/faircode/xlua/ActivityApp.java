@@ -227,7 +227,7 @@ public class ActivityApp extends ActivityBase {
 
     private static boolean isInstalled(Context context, String packageName, int uid) {
         try {
-            ApplicationInfo ai = context.getPackageManager().getApplicationInfo(packageName, 0);
+            ApplicationInfo ai = Util.getApplicationInfo(context.getPackageManager(), packageName, 0);
             return (uid < 0 || ai.uid == uid);
         } catch (PackageManager.NameNotFoundException ignored) {
             return false;
@@ -254,10 +254,10 @@ public class ActivityApp extends ActivityBase {
         Ui.addBadge(llBadges, getString(app.system ? R.string.title_filter_system : R.string.title_filter_user), Ui.Badge.NEUTRAL);
         Ui.addBadge(llBadges, getString(R.string.title_uid, app.uid), Ui.Badge.NEUTRAL);
         try {
-            PackageInfo pi = getPackageManager().getPackageInfo(app.packageName, 0);
+            PackageInfo pi = Util.getPackageInfo(getPackageManager(), app.packageName, 0);
             if (pi.versionName != null)
                 Ui.addBadge(llBadges, pi.versionName, Ui.Badge.NEUTRAL);
-        } catch (Throwable ignored) {
+        } catch (PackageManager.NameNotFoundException ignored) {
         }
         findViewById(R.id.llAndroid).setVisibility("android".equals(app.packageName) ? View.VISIBLE : View.GONE);
 

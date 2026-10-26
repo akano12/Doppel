@@ -94,7 +94,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             new Field("value.imei", R.string.title_value_imei, Type.TEXT, Random.IMEI, null),
             new Field("value.meid", R.string.title_value_meid, Type.TEXT, Random.MEID, null),
             new Field("value.phone_number", R.string.title_value_phone_number, Type.TEXT, Random.NONE, null),
-            new Field("value.email", R.string.title_value_email, Type.TEXT, Random.NONE, "private@lua.xprivacy.eu"),
+            new Field("value.email", R.string.title_value_email, Type.TEXT, Random.NONE, "private@example.com"),
             R.string.title_values_location,
             new Field("location.type", R.string.title_values_location, Type.LOCATION, Random.NONE, null),
             new Field("location.latitude", R.string.title_value_latitude, Type.NUMBER, Random.NONE, "0"),

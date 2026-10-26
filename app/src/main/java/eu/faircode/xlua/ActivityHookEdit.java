@@ -44,6 +44,7 @@ import com.google.android.material.textfield.TextInputLayout;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONException;
 
 import java.lang.reflect.Member;
 import java.util.ArrayList;
@@ -350,7 +351,7 @@ public class ActivityHookEdit extends ActivityBase {
     }
 
     // The definition as entered, null with an error shown at a field
-    private JSONObject getDefinition() throws Exception {
+    private JSONObject getDefinition() throws JSONException {
         Integer version = number(R.id.tilVersion, 0);
         Integer minSdk = number(R.id.tilMinSdk, 1);
         Integer maxSdk = number(R.id.tilMaxSdk, 999);

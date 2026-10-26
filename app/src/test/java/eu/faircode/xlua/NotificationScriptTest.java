@@ -65,13 +65,12 @@ public class NotificationScriptTest {
     // Listeners show the small icon, which posted notifications have, and use the channel
     @Test
     public void fakeHasSmallIconAndChannel() {
-        Varargs result = globals.load(
+        Varargs result = Scripts.run(globals,
                 "sdk = 34\n" +
                         "local param = paramof(notificationof('messages', 'icon'))\n" +
                         "local restricted = after(nil, param)\n" +
                         "local fake = param.result\n" +
-                        "return restricted, fake.smallIcon, fake.channel, fake.when, fake.icon, fake.largeIcon, fake.tickerText",
-                "test").invoke();
+                        "return restricted, fake.smallIcon, fake.channel, fake.when, fake.icon, fake.largeIcon, fake.tickerText");
         assertTrue(result.arg(1).toboolean());
         assertEquals("icon", result.arg(2).tojstring());
         assertEquals("messages", result.arg(3).tojstring());
@@ -84,11 +83,11 @@ public class NotificationScriptTest {
     // Before Android 8 there are no channels
     @Test
     public void noChannelBeforeOreo() {
-        Varargs result = globals.load(
+        Varargs result = Scripts.run(globals,
                 "sdk = 25\n" +
                         "local param = paramof(notificationof(nil, 'icon'))\n" +
                         "after(nil, param)\n" +
-                        "return param.result.channel, param.result.smallIcon", "test").invoke();
+                        "return param.result.channel, param.result.smallIcon");
         assertTrue(result.arg(1).isnil());
         assertEquals("icon", result.arg(2).tojstring());
     }

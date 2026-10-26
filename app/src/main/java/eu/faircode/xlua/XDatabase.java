@@ -30,6 +30,7 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.io.IOException;
 
 // Database of the service in system server: hook assignments, settings and custom hook definitions
 class XDatabase {
@@ -113,6 +114,13 @@ class XDatabase {
             {"TelephonyManager/getSubscriberId", "TelephonyManager.getSubscriberId"},
             {"TelephonyManager/getVoiceMailAlphaTag", "TelephonyManager.getVoiceMailAlphaTag"},
             {"TelephonyManager/getVoiceMailNumber", "TelephonyManager.getVoiceMailNumber"},
+            {"TelephonyManager/getNetworkCountryIso", "TelephonyManager.getNetworkCountryIso"},
+            {"TelephonyManager/getNetworkCountryIso.30", "TelephonyManager.getNetworkCountryIso.30"},
+            {"TelephonyManager/getNetworkOperator", "TelephonyManager.getNetworkOperator"},
+            {"TelephonyManager/getNetworkOperatorName", "TelephonyManager.getNetworkOperatorName"},
+            {"TelephonyManager/getSimCountryIso", "TelephonyManager.getSimCountryIso"},
+            {"TelephonyManager/getSimOperator", "TelephonyManager.getSimOperator"},
+            {"TelephonyManager/getSimOperatorName", "TelephonyManager.getSimOperatorName"},
             {"SystemProperties.get", "SystemProperties.get/serial"},
             {"SystemProperties.get/default", "SystemProperties.get.default/serial"},
             // Settings.*.getString calls getStringForUser, which is hooked; Settings.System gives android_id from Secure
@@ -177,7 +185,8 @@ class XDatabase {
     static XDatabase open() throws Throwable {
         File dir = new File(Environment.getDataDirectory(), "system" + File.separator + "xlua");
         File file = new File(dir, "xlua.db");
-        dir.mkdirs();
+        if (!dir.isDirectory() && !dir.mkdirs())
+            throw new IOException("Cannot create " + dir);
 
         SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(file, null);
         // Write-ahead logging gives a connection pool, so reads (on every app start) do not wait for each other
@@ -219,9 +228,9 @@ class XDatabase {
         write(db -> {
             // An assignment with the new id can exist already, then the one with the old id is removed
             for (String[] renamed : RENAMED) {
-                String[] from = new String[]{Util.COLLECTION_DEFAULT + "." + renamed[0]};
+                String[] from = new String[]{XHook.builtinId(renamed[0])};
                 ContentValues cv = new ContentValues();
-                cv.put("hook", Util.COLLECTION_DEFAULT + "." + renamed[1]);
+                cv.put("hook", XHook.builtinId(renamed[1]));
                 long rows = db.updateWithOnConflict("assignment", cv, "hook = ?", from, SQLiteDatabase.CONFLICT_IGNORE);
                 long removed = db.delete("assignment", "hook = ?", from);
                 if (rows > 0 || removed > 0)

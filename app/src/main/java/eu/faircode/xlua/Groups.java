@@ -124,10 +124,16 @@ final class Groups {
         return getTitle(context.getResources(), group);
     }
 
-    // In the order of the titles shown, ignoring case and accents
-    static void sortByTitle(Context context, List<String> groups) {
+    // The order of titles shown, ignoring case and accents
+    static Collator collator() {
         Collator collator = Collator.getInstance(Locale.getDefault());
         collator.setStrength(Collator.SECONDARY);
+        return collator;
+    }
+
+    // In the order of the titles shown
+    static void sortByTitle(Context context, List<String> groups) {
+        Collator collator = collator();
         Collections.sort(groups, (g1, g2) -> collator.compare(getTitle(context, g1), getTitle(context, g2)));
     }
 

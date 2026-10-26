@@ -190,7 +190,7 @@ class Backup {
             String packageName = jrestriction.getString("package");
             int uid;
             try {
-                uid = pm.getApplicationInfo(packageName, 0).uid;
+                uid = Util.getApplicationInfo(pm, packageName, 0).uid;
             } catch (PackageManager.NameNotFoundException ignored) {
                 result.missing.add(packageName);
                 continue;

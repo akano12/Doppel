@@ -40,7 +40,7 @@ function after(hook, param)
         local old = result.name
         local fake = param:getSetting('value.email')
         if fake == nil then
-            fake = 'private@lua.xprivacy.eu'
+            fake = 'private@example.com'
         end
         result.name = fake
         return true, old, fake

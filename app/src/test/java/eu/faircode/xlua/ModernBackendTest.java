@@ -57,10 +57,7 @@ public class ModernBackendTest {
     @Before
     public void setUp() throws Exception {
         method = getClass().getMethod("target", String.class, int.class);
-        hooker = null;
-        originalArgs = null;
         originalResult = "original";
-        originalThrowable = null;
 
         XposedInterface.HookBuilder builder = (XposedInterface.HookBuilder) Proxy.newProxyInstance(
                 getClass().getClassLoader(), new Class<?>[]{XposedInterface.HookBuilder.class},

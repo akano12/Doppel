@@ -26,11 +26,10 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-// The location script (assets/location.lua) with Lua stand-ins for the hook, the parameter and the location,
-// because the Android classes are stubs in unit tests
+// The location script (assets/location.lua) with Lua stand-ins for the parameter and the location,
+// because the Android classes are stubs in unit tests; the script reads the result and the settings only
 public class LocationScriptTest {
     private static final String STUBS = String.join("\n",
             "function location(latitude, longitude)",
@@ -44,20 +43,10 @@ public class LocationScriptTest {
             "    setExtras = function(self, extras) self.extras = extras end,",
             "    toString = function(self) return self.latitude .. ',' .. self.longitude end }",
             "end",
-            "function hookof(method)",
-            "  return { getMethodName = function(self) return method end }",
-            "end",
-            "function paramof(result, key, isLocation, settings)",
-            "  local values = {}",
+            "function paramof(result, settings)",
             "  return {",
             "    getResult = function(self) return result end,",
-            "    getException = function(self) return nil end,",
-            "    getArgument = function(self, index) return key end,",
-            "    isInstance = function(self, object, name) return isLocation end,",
-            "    getSetting = function(self, name) return settings[name] end,",
-            "    getApplicationContext = function(self) return values end,",
-            "    getValue = function(self, name, scope) return scope[name] end,",
-            "    putValue = function(self, name, value, scope) scope[name] = value end }",
+            "    getSetting = function(self, name) return settings[name] end }",
             "end");
 
     private Globals globals;
@@ -67,17 +56,17 @@ public class LocationScriptTest {
         globals = Scripts.load("location", STUBS);
     }
 
-    private Varargs after(String method, String key, boolean isLocation, String settings) {
-        return globals.load(
-                "local result = location(52.37, 4.89)\n" +
-                        "local restricted = after(hookof('" + method + "'), paramof(result, '" + key + "', " +
-                        isLocation + ", " + settings + "))\n" +
-                        "return restricted, result.latitude, result.longitude", "test").invoke();
+    // Whether the script restricted a location and the location it left
+    private Varargs after(double latitude, double longitude, String settings) {
+        return Scripts.run(globals,
+                "local result = location(" + latitude + ", " + longitude + ")\n" +
+                        "local restricted = after(nil, paramof(result, " + settings + "))\n" +
+                        "return restricted, result.latitude, result.longitude");
     }
 
     @Test
     public void parcelGetsSetLocation() {
-        Varargs result = after("CREATOR:createFromParcel", "", true,
+        Varargs result = after(52.37, 4.89,
                 "{ ['location.type'] = 'set', ['location.latitude'] = '10.5', ['location.longitude'] = '-20' }");
         assertTrue(result.arg(1).toboolean());
         assertEquals(10.5, result.arg(2).todouble(), 0);
@@ -87,10 +76,10 @@ public class LocationScriptTest {
     // The altitude and the extras, like the number of satellites, are of the real location
     @Test
     public void realDetailsAreRemoved() {
-        Varargs result = globals.load(
+        Varargs result = Scripts.run(globals,
                 "local result = location(52.37, 4.89)\n" +
-                        "after(hookof('CREATOR:createFromParcel'), paramof(result, '', true, {}))\n" +
-                        "return result.altitude, result.extras", "test").invoke();
+                        "after(nil, paramof(result, {}))\n" +
+                        "return result.altitude, result.extras");
         assertTrue(result.arg(1).isnil());
         assertTrue(result.arg(2).isnil());
     }
@@ -100,19 +89,19 @@ public class LocationScriptTest {
     @Test
     public void coarseLocationIsStable() throws Exception {
         String settings = "{ ['location.type'] = 'coarse', ['location.accuracy'] = '10000' }";
-        Varargs first = coarse(52.37, 4.89, settings);
+        Varargs first = after(52.37, 4.89, settings);
         assertTrue(first.arg(1).toboolean());
 
         load(); // Like another process
-        Varargs again = coarse(52.37, 4.89, settings);
+        Varargs again = after(52.37, 4.89, settings);
         assertEquals(first.arg(2).todouble(), again.arg(2).todouble(), 0);
         assertEquals(first.arg(3).todouble(), again.arg(3).todouble(), 0);
 
-        Varargs nearby = coarse(first.arg(2).todouble() + 0.01, first.arg(3).todouble() - 0.01, settings);
+        Varargs nearby = after(first.arg(2).todouble() + 0.01, first.arg(3).todouble() - 0.01, settings);
         assertEquals(first.arg(2).todouble(), nearby.arg(2).todouble(), 0);
         assertEquals(first.arg(3).todouble(), nearby.arg(3).todouble(), 0);
 
-        Varargs far = coarse(48.85, 2.35, settings);
+        Varargs far = after(48.85, 2.35, settings);
         assertTrue(Math.abs(far.arg(2).todouble() - 48.85) < 0.1);
     }
 
@@ -121,7 +110,7 @@ public class LocationScriptTest {
         double step = 10000 / 111000.0;
         for (double latitude = -89.9; latitude < 90; latitude += 7.3)
             for (double longitude = -179.9; longitude < 180; longitude += 11.7) {
-                Varargs result = coarse(latitude, longitude,
+                Varargs result = after(latitude, longitude,
                         "{ ['location.type'] = 'coarse', ['location.accuracy'] = '10000' }");
                 double clatitude = result.arg(2).todouble();
                 double clongitude = result.arg(3).todouble();
@@ -133,14 +122,6 @@ public class LocationScriptTest {
                 assertTrue(longitude + " " + clongitude,
                         Math.min(distance, 360 - distance) <= lonstep / 2 + 1e-9);
             }
-    }
-
-    private Varargs coarse(double latitude, double longitude, String settings) {
-        return globals.load(
-                "local result = location(" + latitude + ", " + longitude + ")\n" +
-                        "local restricted = after(hookof('CREATOR:createFromParcel'), paramof(result, '', true, " +
-                        settings + "))\n" +
-                        "return restricted, result.latitude, result.longitude", "test").invoke();
     }
 
     @Test

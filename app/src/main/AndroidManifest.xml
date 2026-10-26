@@ -31,7 +31,7 @@
             android:value="@string/app_description" />
         <meta-data
             android:name="xposedminversion"
-            android:value="82" />
+            android:value="${xposedminversion}" />
         <meta-data
             android:name="xposedscope"
             android:resource="@array/scopes" />

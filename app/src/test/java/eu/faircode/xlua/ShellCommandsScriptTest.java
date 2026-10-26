@@ -121,9 +121,8 @@ public class ShellCommandsScriptTest {
             "environment = { A = '1' }",
             "luajava = {",
             "  newInstance = function(name)",
-            "    if name == 'java.util.ArrayList' then return listof() end",
-            "    assert(name == 'java.util.HashMap', name)",
-            "    return mapof({})",
+            "    assert(name == 'java.util.ArrayList', name)",
+            "    return listof()",
             "  end,",
             "  bindClass = function(name)",
             "    if name == 'java.lang.System' then",
@@ -229,7 +228,7 @@ public class ShellCommandsScriptTest {
     }
 
     // The fake value of SystemProperties.get for a property of value REAL, the real value when it is not faked;
-    // the variants of the hooks which are enabled and have a shell variant (build and vendor are disabled)
+    // the variants of the hooks which have a shell variant
     private String systemProperty(Globals properties, String key) {
         for (String variant : new String[]{"device", "serial", "operator", "timezone"}) {
             Varargs result = properties.get("propertyof").invoke(LuaValue.varargsOf(new LuaValue[]{

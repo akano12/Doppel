@@ -67,6 +67,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Callable;
 
 // Hook engine, independent of the hooking framework
 class XCore {
@@ -186,7 +187,7 @@ class XCore {
                     Context context = findContext(call.thisObject);
 
                     // Store current module version
-                    PackageInfo pi = context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, 0);
+                    PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), BuildConfig.APPLICATION_ID, 0);
                     version = (int) PackageInfoCompat.getLongVersionCode(pi);
                     Log.i(TAG, "Module version " + version);
 
@@ -313,23 +314,8 @@ class XCore {
                 if (caller == XProvider.CALLER_NONE)
                     return;
 
-                try {
-                    call.setResult(XProvider.call(context, arg, extras, caller == XProvider.CALLER_PERMITTED));
-                } catch (IllegalArgumentException ex) {
-                    Log.i(TAG, "Error: " + ex.getMessage());
-                    call.setThrowable(ex);
-                } catch (SecurityException ex) {
-                    // A refused app gets no result, like before
-                    Log.w(TAG, "Call " + arg + ": " + ex.getMessage());
-                    call.setResult(null);
-                } catch (RemoteException ex) {
-                    // An error of the service, which XProvider logged with its cause already
-                    Log.w(TAG, "Call " + arg + ": " + ex.getMessage());
-                    call.setResult(null);
-                } catch (Throwable ex) {
-                    log(ex);
-                    call.setResult(null);
-                }
+                serve(call, "Call " + arg,
+                        () -> XProvider.call(context, arg, extras, caller == XProvider.CALLER_PERMITTED));
             }
         });
 
@@ -362,23 +348,9 @@ class XCore {
                 if (caller == XProvider.CALLER_NONE)
                     return;
 
-                try {
-                    String method = column.split("\\.")[1];
-                    call.setResult(XProvider.query(context, method, selection, caller == XProvider.CALLER_PERMITTED));
-                } catch (IllegalArgumentException ex) {
-                    Log.i(TAG, "Error: " + ex.getMessage());
-                    call.setThrowable(ex);
-                } catch (SecurityException ex) {
-                    Log.w(TAG, "Query " + column + ": " + ex.getMessage());
-                    call.setResult(null);
-                } catch (RemoteException ex) {
-                    // An error of the service, which XProvider logged with its cause already
-                    Log.w(TAG, "Query " + column + ": " + ex.getMessage());
-                    call.setResult(null);
-                } catch (Throwable ex) {
-                    log(ex);
-                    call.setResult(null);
-                }
+                String method = column.split("\\.")[1];
+                serve(call, "Query " + column,
+                        () -> XProvider.query(context, method, selection, caller == XProvider.CALLER_PERMITTED));
             }
         });
     }
@@ -438,7 +410,7 @@ class XCore {
         // Hooks with the same script share the compiled script
         Map<String, Prototype> scripts = new HashMap<>();
 
-        PackageInfo pi = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+        PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), context.getPackageName(), 0);
         long versionCode = PackageInfoCompat.getLongVersionCode(pi);
         for (final XHook hook : hooks)
             try {
@@ -567,13 +539,31 @@ class XCore {
         });
     }
 
+    // The answer of the service to a call or query of an app: an illegal argument is thrown to the app;
+    // a refused app gets no result, like before, and so does an error of the service, which XProvider logged
+    // with its cause already
+    private static void serve(XCall call, String what, Callable<Object> answer) {
+        try {
+            call.setResult(answer.call());
+        } catch (IllegalArgumentException ex) {
+            Log.i(TAG, "Error: " + ex.getMessage());
+            call.setThrowable(ex);
+        } catch (SecurityException | RemoteException ex) {
+            Log.w(TAG, what + ": " + ex.getMessage());
+            call.setResult(null);
+        } catch (Throwable ex) {
+            log(ex);
+            call.setResult(null);
+        }
+    }
+
     // The values of the first argument a script restricts, which its function filter returns for the hook,
     // like the paths of files a hook of opening files restricts; the other calls do not run the script,
     // so hooks of methods which are called very often cost (almost) nothing else; null without the function.
     // A value ending in * stands for all values starting with the text before it, like /sys/* for the files
     // of /sys, for a script which tells the paths apart itself. Files and paths of java.nio are compared
     // by their path, see filterValue.
-    static Filter getFilter(Context context, XHook hook, Prototype script, Map<String, String> settings) {
+    private static Filter getFilter(Context context, XHook hook, Prototype script, Map<String, String> settings) {
         LuaValue func = getGlobals(context, hook, script, settings).get("filter");
         if (func.isnil())
             return null;
@@ -586,7 +576,7 @@ class XCore {
         return filter;
     }
 
-    static class Filter {
+    private static class Filter {
         private final Set<String> values = new HashSet<>();
         private final List<String> prefixes = new ArrayList<>();
 

@@ -14,7 +14,6 @@
         app:liftOnScroll="false">
 
         <com.google.android.material.appbar.CollapsingToolbarLayout
-            android:id="@+id/ctlHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="@dimen/compact_bar_height"

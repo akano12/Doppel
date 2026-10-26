@@ -280,7 +280,8 @@ public class FileScriptsTest {
                         "  hidden(model, '/sys/class/sec/tsp'), hidden(model, '/sys/class/sec/tsp/raw_check'),\n" +
                         "  hidden(model, '/sys/class/sensors/light_sensor/light_cal'), hidden(model, '/sys/block/mmcblk0/device/cid'),\n" +
                         "  hidden(model, '/sys/class/fingerprint/fingerprint/name'), hidden(model, '/sys/devices/system'),\n" +
-                        "  hidden(finger, '/sys/class/fingerprint/fingerprint/name'), hidden(finger, '/sys/class/fingerprint/fingerprint'),\n" +
+                        "  hidden(finger, '/sys/class/fingerprint/fingerprint/name'),\n" +
+                        "  hidden(finger, '/sys/class/fingerprint/fingerprint'),\n" +
                         "  hidden(finger, '/sys/class/sec/tsp/fod_pos'), hidden(finger, '/sys/class/sec/tsp/raw_check'),\n" +
                         "  hidden(hookof('Read.Network'), '/sys/devices/system/chip-id/unique_id')");
         assertEquals("/sys/*", result.arg(1).tojstring());
@@ -377,7 +378,8 @@ public class FileScriptsTest {
                         "before(hook, none)\n" +
                         "local tsp = paramof('/sys/class/sec/tsp', nil, app)\n" +
                         "return restricted, chip.early, chip.argument.index, filter.interface,\n" +
-                        "  filter.accept('/sys/devices/system/chip-id/unique_id'), filter.accept('/sys/devices/system/chip-id/product_id'),\n" +
+                        "  filter.accept('/sys/devices/system/chip-id/unique_id'),\n" +
+                        "  filter.accept('/sys/devices/system/chip-id/product_id'),\n" +
                         "  filter.accept('/sys/devices/system/chip-id/revision'),\n" +
                         "  none.argument.value.accept('/sys/devices/system/chip-id/revision'),\n" +
                         "  before(hookof('Use.Tracking', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), tsp),\n" +

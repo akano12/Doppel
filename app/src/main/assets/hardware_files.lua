@@ -15,7 +15,6 @@
 
 -- Copyright 2026 akano12
 
-
 -- Files of /sys name the hardware of the device, and Samsung phones let apps read files which name the device:
 -- the id of the chip (/sys/devices/system/chip-id/unique_id, which stays until the device is scrapped), the id
 -- of the SD card or the storage (/sys/block/mmcblk0/device/cid and serial, /sys/class/sec/sdinfo/data), the

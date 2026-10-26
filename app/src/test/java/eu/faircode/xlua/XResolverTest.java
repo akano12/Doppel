@@ -166,12 +166,11 @@ public class XResolverTest {
         resolve(Base.class, "get", new Class<?>[]{int.class}, String.class);
         try {
             resolve(Base.class, "put", new Class<?>[]{CharSequence.class}, String.class);
-            fail("Wrong return type accepted");
-        } catch (NoSuchMethodException ex) {
-            fail("Method not found");
         } catch (Throwable ex) {
             assertTrue(ex.getMessage(), ex.getMessage().startsWith("Invalid return type"));
+            return;
         }
+        fail("Wrong return type accepted");
     }
 
     @Test

@@ -106,12 +106,12 @@ public class ContentResolverOpenScriptTest {
     // the setting and the rows which the queries find are Lua expressions
     private Varargs open(String hook, String className, String uri, String mode, String starred, String found) {
         String method = hook.substring(hook.indexOf('.') + 1, hook.indexOf('/'));
-        return globals.load(
+        return Scripts.run(globals,
                 "local param = paramof('" + uri + "', " + mode + ", " + starred + ", " + found + ")\n" +
                         "local restricted = before(hookof('" + hook + "', '" + method + "', '" + className + "'), param)\n" +
                         "local queries = table.concat(param.queries, ',')\n" +
                         "if param.result == nil then return restricted, nil, nil, queries end\n" +
-                        "return restricted, param.result.name, param.result.message, queries", "test").invoke();
+                        "return restricted, param.result.name, param.result.message, queries");
     }
 
     private Varargs open(String hook, String className, String uri, String mode) {

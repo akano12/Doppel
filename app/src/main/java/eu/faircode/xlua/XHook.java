@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.Arrays;
 
 public class XHook implements Parcelable {
     private static final String TAG = "XLua.XHook";
@@ -75,7 +76,17 @@ public class XHook implements Parcelable {
     }
 
     public String getId() {
-        return this.collection + "." + this.name;
+        return id(this.collection, this.name);
+    }
+
+    // The id of a definition: its collection and its name
+    static String id(String collection, String name) {
+        return collection + "." + name;
+    }
+
+    // The id of a built-in definition
+    static String builtinId(String name) {
+        return id(Util.COLLECTION_DEFAULT, name);
     }
 
     public boolean isBuiltin() {
@@ -263,10 +274,7 @@ public class XHook implements Parcelable {
         if (this.methodName != null)
             jroot.put("methodName", this.methodName);
 
-        JSONArray jparam = new JSONArray();
-        for (int i = 0; i < this.parameterTypes.length; i++)
-            jparam.put(this.parameterTypes[i]);
-        jroot.put("parameterTypes", jparam);
+        jroot.put("parameterTypes", new JSONArray(Arrays.asList(this.parameterTypes)));
 
         if (this.returnType != null)
             jroot.put("returnType", this.returnType);
@@ -287,12 +295,8 @@ public class XHook implements Parcelable {
 
         jroot.put("luaScript", this.luaScript);
 
-        if (this.settings != null) {
-            JSONArray jsettings = new JSONArray();
-            for (int i = 0; i < this.settings.length; i++)
-                jsettings.put(this.settings[i]);
-            jroot.put("settings", jsettings);
-        }
+        if (this.settings != null)
+            jroot.put("settings", new JSONArray(Arrays.asList(this.settings)));
 
         return jroot;
     }
@@ -304,30 +308,30 @@ public class XHook implements Parcelable {
     static XHook fromJSONObject(JSONObject jroot) throws JSONException {
         XHook hook = new XHook();
 
-        hook.builtin = (jroot.has("builtin") ? jroot.getBoolean("builtin") : false);
+        hook.builtin = jroot.optBoolean("builtin", false);
         hook.collection = jroot.getString("collection");
         hook.group = jroot.getString("group");
         hook.name = jroot.getString("name");
         hook.author = jroot.getString("author");
-        hook.version = (jroot.has("version") ? jroot.getInt("version") : 0);
-        hook.description = (jroot.has("description") ? jroot.getString("description") : null);
+        hook.version = jroot.optInt("version", 0);
+        hook.description = jroot.optString("description", null);
 
         hook.className = jroot.getString("className");
-        hook.resolvedClassName = (jroot.has("resolvedClassName") ? jroot.getString("resolvedClassName") : null);
-        hook.methodName = (jroot.has("methodName") ? jroot.getString("methodName") : null);
+        hook.resolvedClassName = jroot.optString("resolvedClassName", null);
+        hook.methodName = jroot.optString("methodName", null);
 
         JSONArray jparam = jroot.getJSONArray("parameterTypes");
         hook.parameterTypes = new String[jparam.length()];
         for (int i = 0; i < jparam.length(); i++)
             hook.parameterTypes[i] = jparam.getString(i);
 
-        hook.returnType = (jroot.has("returnType") ? jroot.getString("returnType") : null);
+        hook.returnType = jroot.optString("returnType", null);
 
         hook.minSdk = jroot.getInt("minSdk");
-        hook.maxSdk = (jroot.has("maxSdk") ? jroot.getInt("maxSdk") : 999);
+        hook.maxSdk = jroot.optInt("maxSdk", 999);
 
-        hook.minApk = (jroot.has("minApk") ? jroot.getInt("minApk") : 0);
-        hook.maxApk = (jroot.has("maxApk") ? jroot.getInt("maxApk") : Integer.MAX_VALUE);
+        hook.minApk = jroot.optInt("minApk", 0);
+        hook.maxApk = jroot.optInt("maxApk", Integer.MAX_VALUE);
 
         // Patterns separated by commas, spaces around them do not count
         if (jroot.has("excludePackages")) {
@@ -339,10 +343,10 @@ public class XHook implements Parcelable {
         } else
             hook.excludePackages = null;
 
-        hook.enabled = (jroot.has("enabled") ? jroot.getBoolean("enabled") : true);
-        hook.optional = (jroot.has("optional") ? jroot.getBoolean("optional") : false);
-        hook.usage = (jroot.has("usage") ? jroot.getBoolean("usage") : true);
-        hook.notify = (jroot.has("notify") ? jroot.getBoolean("notify") : false);
+        hook.enabled = jroot.optBoolean("enabled", true);
+        hook.optional = jroot.optBoolean("optional", false);
+        hook.usage = jroot.optBoolean("usage", true);
+        hook.notify = jroot.optBoolean("notify", false);
 
         hook.luaScript = jroot.getString("luaScript");
 

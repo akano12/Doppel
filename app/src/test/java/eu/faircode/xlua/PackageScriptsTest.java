@@ -99,14 +99,10 @@ public class PackageScriptsTest {
         return Scripts.load(name, STUBS);
     }
 
-    private static Varargs run(Globals globals, String lua) {
-        return Scripts.run(globals, lua);
-    }
-
     // A hidden package is looked up under a name which is not installed, so Android itself answers
     @Test
     public void hiddenPackageIsLookedUpAsMissing() throws Exception {
-        Varargs result = run(load("package_probe"),
+        Varargs result = Scripts.run(load("package_probe"),
                 "local param = paramof({ [0] = 'com.example.bank', [1] = 0 }, {})\n" +
                         "local restricted, old = before(hookof('PackageManager.getPackageInfo', 'getPackageInfo'), param)\n" +
                         "return restricted, old, param.args[0], param.args[1]");
@@ -121,7 +117,7 @@ public class PackageScriptsTest {
     public void visiblePackageStays() throws Exception {
         Globals globals = load("package_probe");
         globals.set("genuine", CoerceJavaToLua.coerce(new ProbeException("com.android.vending")));
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "local hook = hookof('PackageManager.getPackageInfo', 'getPackageInfo')\n" +
                         "local param = paramof({ [0] = 'com.android.vending', [1] = 0 }, { ['com.android.vending'] = true })\n" +
                         "local restricted = before(hook, param)\n" +
@@ -138,7 +134,7 @@ public class PackageScriptsTest {
     @Test
     public void exceptionHasNameOfApp() throws Exception {
         Globals globals = load("package_probe");
-        String substitute = run(globals,
+        String substitute = Scripts.run(globals,
                 "hook = hookof('Context.createPackageContext', 'createPackageContext')\n" +
                         "param = paramof({ [0] = 'com.example.bank', [1] = 0 }, {})\n" +
                         "before(hook, param)\n" +
@@ -147,7 +143,7 @@ public class PackageScriptsTest {
         ProbeException genuine = new ProbeException("Application package " + substitute + " not found");
         genuine.initCause(new RuntimeException("Remote stack trace"));
         globals.set("genuine", CoerceJavaToLua.coerce(genuine));
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "param.exception = genuine\n" +
                         "return after(hook, param), param.result");
 
@@ -163,14 +159,14 @@ public class PackageScriptsTest {
     @Test
     public void packageArguments() throws Exception {
         Globals globals = load("package_probe");
-        Varargs permission = run(globals,
+        Varargs permission = Scripts.run(globals,
                 "local param = paramof({ [0] = 'android.permission.INTERNET', [1] = 'com.example.bank' }, {})\n" +
                         "before(hookof('PackageManager.checkPermission', 'checkPermission'), param)\n" +
                         "return param.args[0], param.args[1]");
         assertEquals("android.permission.INTERNET", permission.arg(1).tojstring());
         assertTrue(permission.arg(2).tojstring().startsWith("com.example.bank.x"));
 
-        Varargs signatures = run(globals,
+        Varargs signatures = Scripts.run(globals,
                 "local param = paramof({ [0] = 'com.example.app', [1] = 'com.example.bank' }, { ['com.example.app'] = true })\n" +
                         "before(hookof('PackageManager.checkSignatures', 'checkSignatures'), param)\n" +
                         "return param.args[0], param.args[1]");
@@ -181,7 +177,7 @@ public class PackageScriptsTest {
     // An array of targets is copied, the array of the app stays as it is
     @Test
     public void arrayOfAppStays() throws Exception {
-        Varargs result = run(load("package_probe"),
+        Varargs result = Scripts.run(load("package_probe"),
                 "local targets = arrayof('com.android.vending', 'com.example.bank')\n" +
                         "local param = paramof({ [0] = 'com.example.app', [1] = targets },\n" +
                         "  { ['com.example.app'] = true, ['com.android.vending'] = true })\n" +
@@ -198,7 +194,7 @@ public class PackageScriptsTest {
     @Test
     public void nestedHooksLeaveSubstitute() throws Exception {
         Globals globals = load("package_probe");
-        String substitute = run(globals,
+        String substitute = Scripts.run(globals,
                 "values = {}\n" +
                         "hook = hookof('PackageManager.getPackageInfo', 'getPackageInfo')\n" +
                         "outer = paramof({ [0] = 'com.example.bank', [1] = 0 }, {}, values)\n" +
@@ -206,7 +202,7 @@ public class PackageScriptsTest {
                         "return outer.args[0]").arg1().tojstring();
 
         globals.set("genuine", CoerceJavaToLua.coerce(new ProbeException(substitute)));
-        Varargs result = run(globals,
+        Varargs result = Scripts.run(globals,
                 "local inner = paramof({ [0] = outer.args[0], [1] = 0 }, {}, values)\n" +
                         "local nested = before(hook, inner)\n" +
                         "inner.exception = genuine\n" +
@@ -225,9 +221,9 @@ public class PackageScriptsTest {
     public void suffixIsRandom() throws Exception {
         Globals globals = load("package_probe");
         String suffix = "local param = paramof({}, {}, values)\nreturn suffixof(param)";
-        String one = run(globals, "local values = {}\n" + suffix).arg1().tojstring();
-        String two = run(globals, "local values = {}\n" + suffix).arg1().tojstring();
-        String same = run(globals, "local values = { ['package_probe.suffix'] = '" + one + "' }\n" + suffix)
+        String one = Scripts.run(globals, "local values = {}\n" + suffix).arg1().tojstring();
+        String two = Scripts.run(globals, "local values = {}\n" + suffix).arg1().tojstring();
+        String same = Scripts.run(globals, "local values = { ['package_probe.suffix'] = '" + one + "' }\n" + suffix)
                 .arg1().tojstring();
         assertTrue(one, one.matches("\\.x[0-9]{9}"));
         assertNotEquals(one, two);
@@ -238,7 +234,7 @@ public class PackageScriptsTest {
     @Test
     public void sharedUserOfVisibleApp() throws Exception {
         Globals globals = load("package_resolve");
-        Varargs visible = run(globals,
+        Varargs visible = Scripts.run(globals,
                 "local param = paramof({ [0] = 10050 }, { [10050] = true })\n" +
                         "param.result = 'com.google.uid.shared:10050'\n" +
                         "local restricted = after(hookof('PackageManager.getNameForUid', 'getNameForUid'), param)\n" +
@@ -246,7 +242,7 @@ public class PackageScriptsTest {
         assertFalse(visible.arg(1).toboolean());
         assertEquals("com.google.uid.shared:10050", visible.arg(2).tojstring());
 
-        Varargs hidden = run(globals,
+        Varargs hidden = Scripts.run(globals,
                 "local param = paramof({ [0] = 10060 }, {})\n" +
                         "param.result = 'com.example.shared:10060'\n" +
                         "local restricted = after(hookof('PackageManager.getNameForUid', 'getNameForUid'), param)\n" +
@@ -258,7 +254,7 @@ public class PackageScriptsTest {
     // Like for a user id which is not in use
     @Test
     public void signaturesOfHiddenUid() throws Exception {
-        Varargs result = run(load("package_resolve"),
+        Varargs result = Scripts.run(load("package_resolve"),
                 "local param = paramof({ [0] = 10001, [1] = 10060 }, { [10001] = true })\n" +
                         "param.result = -3\n" +
                         "local restricted = after(hookof('PackageManager.checkSignatures/uid', 'checkSignatures'), param)\n" +
@@ -274,7 +270,7 @@ public class PackageScriptsTest {
         String items = "local own = { uid = 10001 }\n" +
                 "local system = { uid = 10010, system = true }\n" +
                 "local other = { uid = 10060 }\n";
-        Varargs activities = run(globals, items +
+        Varargs activities = Scripts.run(globals, items +
                 "local list = listof({ { activityInfo = { applicationInfo = own } },\n" +
                 "  { activityInfo = { applicationInfo = system } }, { activityInfo = { applicationInfo = other } } })\n" +
                 "local param = paramof({}, {})\n" +
@@ -285,7 +281,7 @@ public class PackageScriptsTest {
         assertEquals(2, activities.arg(2).toint());
         assertTrue(activities.arg(3).toboolean());
 
-        Varargs providers = run(globals, items +
+        Varargs providers = Scripts.run(globals, items +
                 "local list = listof({ { applicationInfo = system }, { applicationInfo = other } })\n" +
                 "local param = paramof({}, {})\n" +
                 "param.result = list\n" +
@@ -293,7 +289,7 @@ public class PackageScriptsTest {
                 "return list:size()");
         assertEquals(1, providers.arg(1).toint());
 
-        Varargs packages = run(globals, items +
+        Varargs packages = Scripts.run(globals, items +
                 "local list = listof({ { applicationInfo = own }, { applicationInfo = system } })\n" +
                 "local param = paramof({}, {})\n" +
                 "param.result = list\n" +
@@ -302,7 +298,7 @@ public class PackageScriptsTest {
         assertEquals(1, packages.arg(1).toint());
 
         // Properties have a package, like the lookups of single packages
-        Varargs properties = run(globals,
+        Varargs properties = Scripts.run(globals,
                 "local function property(name) return { getPackageName = function(self) return name end } end\n" +
                         "local list = listof({ property('com.android.vending'), property('com.example.bank') })\n" +
                         "local param = paramof({}, { ['com.android.vending'] = true })\n" +
@@ -313,7 +309,7 @@ public class PackageScriptsTest {
         assertEquals("com.android.vending", properties.arg(2).tojstring());
 
         // Processes of the system manage all apps
-        Varargs managed = run(globals, items +
+        Varargs managed = Scripts.run(globals, items +
                 "local list = listof({ { applicationInfo = own }, { applicationInfo = other } })\n" +
                 "local param = paramof({}, {})\n" +
                 "param.result = list\n" +
@@ -331,7 +327,7 @@ public class PackageScriptsTest {
                 "  getPackageNames = function(self) return self.names end,\n" +
                 "  getSequenceNumber = function(self) return 5 end }\n" +
                 "local hook = hookof('PackageManager.getChangedPackages')\n";
-        Varargs some = run(globals, changed +
+        Varargs some = Scripts.run(globals, changed +
                 "local param = paramof({ [0] = 0 }, { ['com.android.vending'] = true })\n" +
                 "param.result = result\n" +
                 "return after(hook, param), param.result.sequence, param.result.names:size(), param.result.names:get(0)");
@@ -340,14 +336,14 @@ public class PackageScriptsTest {
         assertEquals(1, some.arg(3).toint());
         assertEquals("com.android.vending", some.arg(4).tojstring());
 
-        Varargs none = run(globals, changed +
+        Varargs none = Scripts.run(globals, changed +
                 "local param = paramof({ [0] = 0 }, {})\n" +
                 "param.result = result\n" +
                 "return after(hook, param), param.result");
         assertTrue(none.arg(1).toboolean());
         assertTrue(none.arg(2).isnil());
 
-        Varargs all = run(globals, changed +
+        Varargs all = Scripts.run(globals, changed +
                 "local param = paramof({ [0] = 0 }, { ['com.android.vending'] = true, ['com.example.bank'] = true })\n" +
                 "param.result = result\n" +
                 "return after(hook, param), param.result == result");

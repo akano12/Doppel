@@ -64,10 +64,7 @@ public class XParam {
     private static final Map<Integer, Boolean> visibleUids = new ConcurrentHashMap<>();
 
     // Field param
-    public XParam(
-            Context context,
-            Field field,
-            Map<String, String> settings) {
+    public XParam(Context context, Field field, Map<String, String> settings) {
         this.context = context;
         this.field = field;
         this.param = null;
@@ -76,10 +73,7 @@ public class XParam {
     }
 
     // Method param
-    public XParam(
-            Context context,
-            XCall param,
-            Map<String, String> settings) {
+    public XParam(Context context, XCall param, Map<String, String> settings) {
         this.context = context;
         this.field = null;
         this.param = param;
@@ -258,19 +252,17 @@ public class XParam {
 
     // Also packages which only some flags of hooked calls find: hidden, archived, uninstalled with data kept
     // and, before Android 16, of another user (profile); and system packages which are not installed for the user
-    // getPackageInfo(String, int) of Android 12 and before; the flag of Android 7 is the same as the one of Android 6
-    @SuppressWarnings({"deprecation", "InlinedApi"})
+    // The flag of Android 7 is the same as the one of Android 6
+    @SuppressWarnings("InlinedApi")
     private static PackageInfo getPackageInfo(PackageManager pm, String packageName)
             throws PackageManager.NameNotFoundException {
         // MATCH_UNINSTALLED_PACKAGES has the value of GET_UNINSTALLED_PACKAGES of Android 6
         long flags = PackageManager.MATCH_UNINSTALLED_PACKAGES;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
             flags |= PackageManager.MATCH_APEX;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM)
             flags |= PackageManager.MATCH_ARCHIVED_PACKAGES;
-            return pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags));
-        }
-        return pm.getPackageInfo(packageName, (int) flags);
+        return Util.getPackageInfo(pm, packageName, flags);
     }
 
     @SuppressWarnings("unused")

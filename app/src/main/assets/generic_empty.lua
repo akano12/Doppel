@@ -35,7 +35,9 @@ function after(hook, param)
         if result.length == 0 then
             return false
         end
-        local component = string.match(hook:getReturnType(), '^%[L(.*);$')
+        -- The type of the array, like java.lang.String[], or [Ljava.lang.String; of the JVM
+        local returnType = hook:getReturnType()
+        local component = string.match(returnType, '^(.*)%[%]$') or string.match(returnType, '^%[L(.*);$')
         local arrayClass = luajava.bindClass('java.lang.reflect.Array')
         fake = arrayClass:newInstance(luajava.bindClass(component), 0)
     end
