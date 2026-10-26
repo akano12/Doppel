@@ -108,6 +108,10 @@ android {
         // Scripts create Java collections and arrays, of which LuaJ looks at all members, like it can on Android
         unitTests.all {
             jvmArgs '--add-opens', 'java.base/java.util=ALL-UNNAMED', '--add-opens', 'java.base/java.lang.reflect=ALL-UNNAMED'
+            // The tests read the scripts and definitions from the source folders, which are no inputs of the
+            // compiled tests: a change of a script or of Downloads alone would else leave the tests up to date
+            inputs.dir('src/main/assets')
+            inputs.dir(rootProject.file('repo'))
         }
     }
 
