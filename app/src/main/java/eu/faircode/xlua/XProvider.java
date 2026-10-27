@@ -142,16 +142,33 @@ class XProvider {
         return groups;
     }
 
-    // Permitted: the permission of the caller was checked already, see answers
-    static Bundle call(Context context, String method, Bundle extras, boolean permitted)
-            throws RemoteException, IllegalArgumentException {
+    private interface Answer<T> {
+        T run() throws Throwable;
+    }
+
+    // The answer to a call or a query, with the database loaded and disk access allowed; illegal arguments
+    // and refused callers are thrown as they are, other errors are logged, see failed
+    private static <T> T answer(Context context, Answer<T> answer) throws RemoteException {
         loadData(context);
 
         StrictMode.ThreadPolicy originalPolicy = StrictMode.getThreadPolicy();
         try {
             StrictMode.allowThreadDiskReads();
             StrictMode.allowThreadDiskWrites();
+            return answer.run();
+        } catch (IllegalArgumentException | SecurityException | RemoteException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw failed(ex);
+        } finally {
+            StrictMode.setThreadPolicy(originalPolicy);
+        }
+    }
 
+    // Permitted: the permission of the caller was checked already, see answers
+    static Bundle call(Context context, String method, Bundle extras, boolean permitted)
+            throws RemoteException, IllegalArgumentException {
+        return answer(context, () -> {
             // Apps report their own usage, see report
             if (!permitted && !"report".equals(method))
                 enforcePermission(context);
@@ -181,25 +198,12 @@ class XProvider {
                 default:
                     return null;
             }
-        } catch (IllegalArgumentException | SecurityException | RemoteException ex) {
-            throw ex;
-        } catch (Throwable ex) {
-            throw failed(ex);
-        } finally {
-            StrictMode.setThreadPolicy(originalPolicy);
-        }
+        });
     }
 
     // Methods ending in 2 return parcels; permitted: the permission of the caller was checked already, see answers
     static Cursor query(Context context, String method, String[] selection, boolean permitted) throws RemoteException {
-        loadData(context);
-
-        Cursor result;
-        StrictMode.ThreadPolicy originalPolicy = StrictMode.getThreadPolicy();
-        try {
-            StrictMode.allowThreadDiskReads();
-            StrictMode.allowThreadDiskWrites();
-
+        Cursor result = answer(context, () -> {
             // Apps read their own restrictions and settings
             switch (method) {
                 case "getAssignedHooks2":
@@ -212,39 +216,25 @@ class XProvider {
 
             switch (method) {
                 case "getHooks2":
-                    result = getHooks(selection);
-                    break;
+                    return getHooks(selection);
                 case "getBuiltinIds":
-                    result = getBuiltinIds();
-                    break;
+                    return getBuiltinIds();
                 case "getApps2":
-                    result = getApps(context, selection);
-                    break;
+                    return getApps(context, selection);
                 case "getAssignedHooks2":
-                    result = getAssignedHooks(context, selection, permitted);
-                    break;
+                    return getAssignedHooks(context, selection, permitted);
                 case "getAssignments":
-                    result = getAssignments();
-                    break;
+                    return getAssignments();
                 case "getSettings":
-                    result = getSettings(context, selection, permitted);
-                    break;
+                    return getSettings(context, selection, permitted);
                 case "getAllSettings":
-                    result = getAllSettings();
-                    break;
+                    return getAllSettings();
                 case "getLog":
-                    result = getLog(selection);
-                    break;
+                    return getLog(selection);
                 default:
-                    result = null;
+                    return null;
             }
-        } catch (IllegalArgumentException | SecurityException | RemoteException ex) {
-            throw ex;
-        } catch (Throwable ex) {
-            throw failed(ex);
-        } finally {
-            StrictMode.setThreadPolicy(originalPolicy);
-        }
+        });
 
         if (result != null)
             result.moveToPosition(-1);
