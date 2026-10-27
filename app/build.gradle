@@ -51,8 +51,8 @@ android {
         applicationId = 'sk.akano12.doppel'
         minSdk = 23
         targetSdk = 35
-        versionCode = 200
-        versionName = '2.0'
+        versionCode = 201
+        versionName = '2.1'
         // The legacy Xposed API version of the manifest, see libs.versions.toml
         manifestPlaceholders = [xposedminversion: libs.versions.xposed.get()]
     }

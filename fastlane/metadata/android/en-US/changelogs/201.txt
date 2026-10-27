@@ -1,0 +1,9 @@
+* Identifiers new each boot, a different one for each app
+* Run commands: a built-in filter of the commands apps run
+* Permanent hardware ids in /sys hidden: chip, SD card, UFS
+* Swipe an app for Restrict all, Remove all and its groups, with Undo
+* Fake values: Fixed or Each boot, no more Clear button
+* Faked memory size, boot id and storage setup date
+* Apps like Facebook no longer crash on start
+* Only Doppel and Android can talk to the service
+* Many hook, Downloads and interface fixes
