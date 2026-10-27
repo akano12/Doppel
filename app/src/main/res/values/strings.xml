@@ -87,6 +87,10 @@
     <!-- The summary of a restore, one line each, the lines without anything to say are left out, see FragmentSettings -->
     <string name="title_restore_done">Backup restored</string>
     <string name="title_restore_version">Made with version build %1$d, this is build %2$d</string>
+    <plurals name="title_changes">
+        <item quantity="one">%d change</item>
+        <item quantity="other">%d changes</item>
+    </plurals>
     <plurals name="title_restore_settings">
         <item quantity="one">%1$d setting</item>
         <item quantity="other">%1$d settings</item>
@@ -474,6 +478,17 @@
     <string name="title_values_global_hint">Used by restricted apps without their own values. Changes apply when an app starts.</string>
     <string name="title_values_app_hint">Values for %1$s replace the values for all apps. Empty fields use the values for all apps.</string>
     <string name="title_randomize_field">Randomize %1$s</string>
+    <string name="title_mode_inherit">All apps</string>
+    <string name="title_mode_fixed">Fixed</string>
+    <string name="title_mode_boot">Each boot</string>
+    <string name="title_mode_all">Same for all apps</string>
+    <string name="title_box_boot">New after each restart, a different one for each app</string>
+    <string name="title_box_boot_all">New after each restart, the same for every app</string>
+    <string name="title_box_inherit_fixed">Fixed for all apps</string>
+    <string name="title_box_inherit_boot">Each boot for all apps, one for each app; until the next restart this app gets:</string>
+    <string name="title_box_inherit_boot_all">Each boot, the same for all apps; until the next restart this app gets:</string>
+    <string name="title_box_saved">Until the next restart this app gets:</string>
+    <string name="title_clear_field">Clear %1$s</string>
     <string name="title_reset">Clear</string>
     <string name="msg_no_changes">No changes</string>
     <string name="title_hint_restricted">%1$s · restricted for this app</string>

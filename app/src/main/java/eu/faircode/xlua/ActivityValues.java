@@ -34,6 +34,9 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.core.view.ViewCompat;
 
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
@@ -68,44 +71,54 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
     private enum Type {TEXT, NUMBER, TIMEZONE, LOCATION, CONTACTS}
 
-    private enum Random {NONE, SERIAL, ANDROID_ID, IMEI, MEID}
-
     private static class Field {
         final String key;
         final int title; // 0 for settings of custom definitions, which show the key
         final Type type;
-        final Random random;
         final String builtin; // Value used by the script when there is no setting
 
-        Field(String key, int title, Type type, Random random, String builtin) {
+        Field(String key, int title, Type type, String builtin) {
             this.key = key;
             this.title = title;
             this.type = type;
-            this.random = random;
             this.builtin = builtin;
         }
     }
 
+    // How an identifier gets its value, see FakeIds: the choice and what applies when the field is not shown
+    private static class Mode {
+        Field field;
+        MaterialButtonToggleGroup group;
+        View row; // The field of the fixed value
+        View box;
+        TextView tvBox;
+        TextView tvBoxValue;
+        MaterialCheckBox cbAll;
+    }
+
+    // An app without a mode of its own uses the one of all apps
+    private static final String INHERIT = "inherit";
+
     // Settings used by the scripts in assets, with their built-in defaults
     private static final Object[] SECTIONS = new Object[]{
             R.string.title_values_identifiers,
-            new Field("value.serial", R.string.title_value_serial, Type.TEXT, Random.SERIAL, "unknown"),
-            new Field("value.android_id", R.string.title_value_android_id, Type.TEXT, Random.ANDROID_ID, "0000000000000000"),
-            new Field("value.imei", R.string.title_value_imei, Type.TEXT, Random.IMEI, null),
-            new Field("value.meid", R.string.title_value_meid, Type.TEXT, Random.MEID, null),
-            new Field("value.phone_number", R.string.title_value_phone_number, Type.TEXT, Random.NONE, null),
-            new Field("value.email", R.string.title_value_email, Type.TEXT, Random.NONE, "private@example.com"),
+            new Field("value.serial", R.string.title_value_serial, Type.TEXT, "unknown"),
+            new Field("value.android_id", R.string.title_value_android_id, Type.TEXT, "0000000000000000"),
+            new Field("value.imei", R.string.title_value_imei, Type.TEXT, null),
+            new Field("value.meid", R.string.title_value_meid, Type.TEXT, null),
+            new Field("value.phone_number", R.string.title_value_phone_number, Type.TEXT, null),
+            new Field("value.email", R.string.title_value_email, Type.TEXT, "private@example.com"),
             R.string.title_values_location,
-            new Field("location.type", R.string.title_values_location, Type.LOCATION, Random.NONE, null),
-            new Field("location.latitude", R.string.title_value_latitude, Type.NUMBER, Random.NONE, "0"),
-            new Field("location.longitude", R.string.title_value_longitude, Type.NUMBER, Random.NONE, "0"),
-            new Field("location.accuracy", R.string.title_value_accuracy, Type.NUMBER, Random.NONE, "10000"),
+            new Field("location.type", R.string.title_values_location, Type.LOCATION, null),
+            new Field("location.latitude", R.string.title_value_latitude, Type.NUMBER, "0"),
+            new Field("location.longitude", R.string.title_value_longitude, Type.NUMBER, "0"),
+            new Field("location.accuracy", R.string.title_value_accuracy, Type.NUMBER, "10000"),
             R.string.section_other,
-            new Field("value.timezone", R.string.title_value_timezone, Type.TIMEZONE, Random.NONE, "UTC"),
-            new Field("features.keep", R.string.title_value_features, Type.TEXT, Random.NONE, null),
-            new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, Random.NONE, null),
-            new Field("commands.allowed", R.string.title_value_commands, Type.TEXT, Random.NONE, null),
-            new Field("commands.regex", R.string.title_value_commands_regex, Type.TEXT, Random.NONE, null),
+            new Field("value.timezone", R.string.title_value_timezone, Type.TIMEZONE, "UTC"),
+            new Field("features.keep", R.string.title_value_features, Type.TEXT, null),
+            new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, null),
+            new Field("commands.allowed", R.string.title_value_commands, Type.TEXT, null),
+            new Field("commands.regex", R.string.title_value_commands_regex, Type.TEXT, null),
     };
 
     // Built-in fields and the settings of custom definitions, see load
@@ -123,6 +136,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private final Map<String, String> values = new HashMap<>();
     private final Map<String, String> globals = new HashMap<>();
     private final Map<String, TextInputLayout> inputs = new HashMap<>();
+    private final Map<String, Mode> modes = new HashMap<>();
+    private final Map<String, String> bootValues = new HashMap<>(); // Of the app, see FakeIds
     private Map<String, String> restored = null; // Entered for the scope, until its form is built
     private final SecureRandom random = new SecureRandom();
 
@@ -197,7 +212,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         }
 
         findViewById(R.id.btnSave).setOnClickListener(view -> save());
-        findViewById(R.id.btnReset).setOnClickListener(view -> reset());
+        findViewById(R.id.btnDiscard).setOnClickListener(view -> {
+            buildForm();
+            updateBar();
+        });
         confirmLeaving(this::hasChanges);
 
         load();
@@ -219,7 +237,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
     @Override
     public View getMessageAnchor() {
-        return findViewById(R.id.bar);
+        View bar = findViewById(R.id.bar);
+        return (bar.getVisibility() == View.VISIBLE ? bar : null);
     }
 
     // The form cannot be saved until it is built (see save), so a failed load is retried
@@ -273,6 +292,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     for (XAssignment assignment : app.assignments)
                         restricted.add(assignment.hook.getGroup());
             }
+            // What the app gets until the next restart, of the identifiers new each boot
+            final Map<String, String> boot = (app == null ? new HashMap<>() : Data.getBootValues(context, category, app.uid));
 
             runOnUiThread(() -> {
                 // The scope was switched meanwhile, its form is built by the load which followed
@@ -286,6 +307,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 this.hooks = hooks;
                 this.collection = collection;
                 this.app = app;
+                this.bootValues.clear();
+                this.bootValues.putAll(boot);
                 this.readers.clear();
                 this.readers.putAll(readers);
                 this.restricted.clear();
@@ -297,7 +320,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 if (!custom.isEmpty()) {
                     form.add(R.string.title_values_custom);
                     for (String name : custom)
-                        form.add(new Field(name, 0, Type.TEXT, Random.NONE, null));
+                        form.add(new Field(name, 0, Type.TEXT, null));
                 }
                 buildForm();
 
@@ -307,6 +330,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                         setEntered(entry.getKey(), entry.getValue());
                     restored = null;
                 }
+                updateBar();
             });
         }, this::load);
     }
@@ -321,6 +345,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         LinearLayout container = findViewById(R.id.llValues);
         container.removeAllViews();
         inputs.clear();
+        modes.clear();
         hints.clear();
         LayoutInflater inflater = LayoutInflater.from(this);
         LinearLayout rows = null;
@@ -351,6 +376,26 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             else
                 til.setHint(field.title);
             EditText input = til.findViewById(R.id.etValue);
+            boolean id = FakeIds.isId(field.key);
+            Mode mode = (id ? new Mode() : null);
+            if (id) {
+                // The title is above the choice, the field of the value follows
+                View view = inflater.inflate(R.layout.item_value_mode, rows, false);
+                mode.field = field;
+                mode.group = view.findViewById(R.id.tgMode);
+                mode.box = view.findViewById(R.id.llBox);
+                mode.tvBox = view.findViewById(R.id.tvBox);
+                mode.tvBoxValue = view.findViewById(R.id.tvBoxValue);
+                mode.cbAll = view.findViewById(R.id.cbAll);
+                TextView tvTitle = view.findViewById(R.id.tvTitle);
+                tvTitle.setText(field.title);
+                til.setHint(null);
+                input.setId(View.generateViewId());
+                tvTitle.setLabelFor(input.getId());
+                view.findViewById(R.id.btnInherit).setVisibility(global ? View.GONE : View.VISIBLE);
+                rows.addView(view);
+                modes.put(field.key, mode);
+            }
 
             if (isDropdown(field)) {
                 String[] titles = getDropdownTitles(field);
@@ -369,16 +414,33 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 input.setText(value);
                 til.setHelperText(getFallbackHint(field));
 
-                if (field.random != Random.NONE) {
-                    til.setEndIconMode(TextInputLayout.END_ICON_CUSTOM);
-                    til.setEndIconDrawable(R.drawable.ic_shuffle);
-                    til.setEndIconContentDescription(getString(R.string.title_randomize_field, getString(field.title)));
-                    til.setEndIconOnClickListener(view -> input.setText(randomValue(field.random)));
+                // A value can be cleared by itself, an empty field removes the value when saved
+                if (field.type != Type.TIMEZONE) {
+                    til.setEndIconMode(TextInputLayout.END_ICON_CLEAR_TEXT);
+                    til.setEndIconContentDescription(getString(R.string.title_clear_field,
+                            field.title == 0 ? field.key : getString(field.title)));
                 }
             }
 
-            rows.addView(til);
+            if (id) {
+                // The randomize button next to the field
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                row.addView(til, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+                MaterialButton shuffle = new MaterialButton(this, null,
+                        com.google.android.material.R.attr.materialIconButtonStyle);
+                shuffle.setIconResource(R.drawable.ic_shuffle);
+                shuffle.setContentDescription(getString(R.string.title_randomize_field, getString(field.title)));
+                shuffle.setOnClickListener(view -> input.setText(FakeIds.generate(field.key, random)));
+                row.addView(shuffle);
+                rows.addView(row);
+                mode.row = row;
+                initMode(mode);
+            } else
+                rows.addView(til);
             inputs.put(field.key, til);
+            Ui.onTextChanged(input, text -> updateBar());
 
             // The groups which read the value, under it
             List<String> groups = readers.get(field.key);
@@ -491,8 +553,14 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         }
     }
 
-    // Like entered by the user, an empty field for null
+    // Like entered by the user, an empty field for null; a mode like chosen
     private void setEntered(String key, String value) {
+        if (key.endsWith(FakeIds.MODE)) {
+            Mode mode = modes.get(key.substring(0, key.length() - FakeIds.MODE.length()));
+            if (mode != null)
+                selectMode(mode, value);
+            return;
+        }
         Field field = null;
         for (Object item : form)
             if (item instanceof Field && ((Field) item).key.equals(key))
@@ -508,20 +576,95 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             input.setText(value);
     }
 
-    // Empty fields remove the values, after saving
-    private void reset() {
-        for (Object item : form)
-            if (item instanceof Field) {
-                Field field = (Field) item;
-                TextInputLayout til = inputs.get(field.key);
-                EditText input = (til == null ? null : til.getEditText());
-                if (input == null)
-                    continue;
-                if (isDropdown(field))
-                    ((MaterialAutoCompleteTextView) input).setText(getDropdownTitles(field)[0], false);
-                else
-                    input.setText(null);
+    // The mode saved for the scope, of all apps with their default, else of the app, INHERIT for none
+    private String getSavedMode(String key) {
+        if (GLOBAL.equals(category))
+            return FakeIds.getMode(key, values, null);
+        String own = FakeIds.getOwnMode(key, values);
+        return (own == null ? INHERIT : own);
+    }
+
+    private void initMode(Mode mode) {
+        selectMode(mode, getSavedMode(mode.field.key));
+        mode.group.addOnButtonCheckedListener((group, id, checked) -> {
+            if (checked) {
+                updateMode(mode);
+                updateBar();
             }
+        });
+        mode.cbAll.setOnCheckedChangeListener((button, checked) -> {
+            updateMode(mode);
+            updateBar();
+        });
+    }
+
+    private void selectMode(Mode mode, String value) {
+        if (value == null || INHERIT.equals(value))
+            value = (GLOBAL.equals(category) ? FakeIds.getMode(mode.field.key, null, null) : INHERIT);
+        mode.cbAll.setChecked(FakeIds.BOOT_ALL.equals(value));
+        mode.group.check(INHERIT.equals(value) ? R.id.btnInherit
+                : FakeIds.FIXED.equals(value) ? R.id.btnFixed : R.id.btnBoot);
+        updateMode(mode);
+    }
+
+    // The mode chosen: INHERIT, FakeIds.FIXED, BOOT or BOOT_ALL
+    private static String getMode(Mode mode) {
+        int checked = mode.group.getCheckedButtonId();
+        if (checked == R.id.btnInherit)
+            return INHERIT;
+        if (checked == R.id.btnFixed)
+            return FakeIds.FIXED;
+        return (mode.cbAll.isChecked() ? FakeIds.BOOT_ALL : FakeIds.BOOT);
+    }
+
+    // The field for a fixed value, else what applies, with the value the app gets until the next restart when it is
+    // known: the one the service makes for what was saved
+    private void updateMode(Mode mode) {
+        String key = mode.field.key;
+        String chosen = getMode(mode);
+        boolean fixed = FakeIds.FIXED.equals(chosen);
+        boolean boot = FakeIds.BOOT.equals(chosen) || FakeIds.BOOT_ALL.equals(chosen);
+        mode.row.setVisibility(fixed ? View.VISIBLE : View.GONE);
+        mode.box.setVisibility(fixed ? View.GONE : View.VISIBLE);
+        mode.cbAll.setVisibility(boot ? View.VISIBLE : View.GONE);
+
+        String text;
+        String value = null;
+        boolean saved = chosen.equals(getSavedMode(key));
+        if (INHERIT.equals(chosen)) {
+            String global = FakeIds.getMode(key, globals, null);
+            if (FakeIds.FIXED.equals(global)) {
+                text = getString(R.string.title_box_inherit_fixed);
+                value = (globals.get(key) == null ? mode.field.builtin : globals.get(key));
+            } else {
+                text = getString(FakeIds.BOOT_ALL.equals(global)
+                        ? R.string.title_box_inherit_boot_all : R.string.title_box_inherit_boot);
+                value = (saved ? bootValues.get(key) : null);
+                if (value == null)
+                    text = getString(FakeIds.BOOT_ALL.equals(global) ? R.string.title_box_boot_all : R.string.title_box_boot);
+            }
+        } else {
+            text = getString(FakeIds.BOOT_ALL.equals(chosen) ? R.string.title_box_boot_all : R.string.title_box_boot);
+            value = (saved ? bootValues.get(key) : null);
+            if (value != null)
+                text = text + "\n" + getString(R.string.title_box_saved);
+        }
+        mode.tvBox.setText(text);
+        mode.tvBoxValue.setText(value);
+        mode.tvBoxValue.setVisibility(value == null ? View.GONE : View.VISIBLE);
+    }
+
+    // The bar of the changes, while there are some, with how many values changed
+    private void updateBar() {
+        if (restored != null)
+            return;
+        Set<String> changed = new HashSet<>();
+        for (String key : getChanges().keySet())
+            changed.add(key.endsWith(FakeIds.MODE) ? key.substring(0, key.length() - FakeIds.MODE.length()) : key);
+        View bar = findViewById(R.id.bar);
+        bar.setVisibility(changed.isEmpty() ? View.GONE : View.VISIBLE);
+        ((TextView) findViewById(R.id.tvChanges)).setText(
+                getResources().getQuantityString(R.plurals.title_changes, changed.size(), changed.size()));
     }
 
     private String getValue(Field field, EditText input) {
@@ -549,9 +692,18 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             TextInputLayout til = inputs.get(field.key);
             if (til == null)
                 continue;
-            String value = getValue(field, til.getEditText());
-            if (!Objects.equals(value, values.get(field.key)))
-                changed.put(field.key, value);
+            Mode mode = modes.get(field.key);
+            String chosen = (mode == null ? null : getMode(mode));
+            if (!INHERIT.equals(chosen)) {
+                String value = getValue(field, til.getEditText());
+                if (!Objects.equals(value, values.get(field.key)))
+                    changed.put(field.key, value);
+            }
+            if (mode != null && !chosen.equals(getSavedMode(field.key))) {
+                changed.put(field.key + FakeIds.MODE, INHERIT.equals(chosen) ? null : chosen);
+                if (INHERIT.equals(chosen) && values.get(field.key) != null)
+                    changed.put(field.key, null);
+            }
         }
         return changed;
     }
@@ -596,7 +748,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 boolean kill = (stop && i == keys.size() - 1);
                 Data.putSetting(context, category, keys.get(i), changed.get(keys.get(i)), kill);
             }
-            runOnUiThread(() -> values.putAll(changed));
+            runOnUiThread(() -> {
+                values.putAll(changed);
+                load();
+            });
             Ui.message(this, getString(stop ? R.string.msg_saved : R.string.msg_saved_restart));
         });
     }
@@ -635,43 +790,5 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         } catch (NumberFormatException ignored) {
             return false;
         }
-    }
-
-    private String randomValue(Random type) {
-        switch (type) {
-            case SERIAL:
-                return randomString("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 12);
-            case ANDROID_ID:
-                return randomString("0123456789abcdef", 16);
-            case IMEI:
-                // 14 digits and a Luhn check digit
-                String digits = randomString("0123456789", 14);
-                return digits + luhn(digits);
-            case MEID:
-                return randomString("0123456789ABCDEF", 14);
-            default:
-                return null;
-        }
-    }
-
-    private String randomString(String alphabet, int length) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < length; i++)
-            sb.append(alphabet.charAt(random.nextInt(alphabet.length())));
-        return sb.toString();
-    }
-
-    static int luhn(String digits) {
-        int sum = 0;
-        for (int i = 0; i < digits.length(); i++) {
-            int d = digits.charAt(digits.length() - 1 - i) - '0';
-            if (i % 2 == 0) {
-                d *= 2;
-                if (d > 9)
-                    d -= 9;
-            }
-            sum += d;
-        }
-        return (10 - sum % 10) % 10;
     }
 }
