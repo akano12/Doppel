@@ -24,7 +24,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.Spanned;
-import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.widget.EditText;
 
@@ -34,7 +33,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 // Colors Lua keywords, strings, numbers, method calls and comments while editing
-class LuaHighlighter implements TextWatcher {
+class LuaHighlighter {
     private static final Pattern KEYWORD = Pattern.compile(
             "\\b(and|break|do|else|elseif|end|false|for|function|goto|if|in|local|nil|not|or|repeat|return|then|true|until|while)\\b");
     private static final Pattern NUMBER = Pattern.compile("\\b\\d+(\\.\\d+)?\\b");
@@ -61,21 +60,11 @@ class LuaHighlighter implements TextWatcher {
         colorNumber = ContextCompat.getColor(context, R.color.c_code_number);
         colorFunction = ContextCompat.getColor(context, R.color.c_code_function);
         colorComment = ContextCompat.getColor(context, R.color.c_code_comment);
-    }
-
-    @Override
-    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-    }
-
-    @Override
-    public void onTextChanged(CharSequence s, int start, int before, int count) {
-    }
-
-    // Highlighting while typing would be slow for long scripts
-    @Override
-    public void afterTextChanged(Editable s) {
-        handler.removeCallbacks(highlight);
-        handler.postDelayed(highlight, 250);
+        // Highlighting while typing would be slow for long scripts
+        Ui.onTextChanged(editText, text -> {
+            handler.removeCallbacks(highlight);
+            handler.postDelayed(highlight, 250);
+        });
     }
 
     void highlight() {

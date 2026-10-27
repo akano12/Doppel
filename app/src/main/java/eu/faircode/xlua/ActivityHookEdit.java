@@ -162,7 +162,6 @@ public class ActivityHookEdit extends ActivityBase {
 
         etScript.setHorizontallyScrolling(true);
         highlighter = new LuaHighlighter(etScript);
-        etScript.addTextChangedListener(highlighter);
         Ui.onTextChanged(etScript, text -> updateScriptInfo());
 
         // The captions of the cards are the texts between the cards, headings for screen readers
