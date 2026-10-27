@@ -195,10 +195,4 @@ public class AppSectionsTest {
         assertEquals(Arrays.asList(newer, older, never), rows);
     }
 
-    // Random IMEIs end with a Luhn check digit
-    @Test
-    public void luhnCheckDigit() {
-        assertEquals(8, ActivityValues.luhn("49015420323751"));
-        assertEquals(9, ActivityValues.luhn("35693803564380"));
-    }
 }

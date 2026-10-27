@@ -422,9 +422,10 @@ class XCore {
         if (hooks.isEmpty())
             return;
 
-        // App settings replace global settings
+        // App settings replace global settings, the identifiers new each boot both (see FakeIds)
         final Map<String, String> settings = new HashMap<>(Data.getSettings(context, "global"));
         settings.putAll(Data.getSettings(context, packageName));
+        settings.putAll(Data.getBootValues(context, packageName, uid));
 
         // Hooks with the same script share the compiled script
         Map<String, Prototype> scripts = new HashMap<>();

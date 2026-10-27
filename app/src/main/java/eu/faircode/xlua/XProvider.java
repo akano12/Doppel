@@ -40,6 +40,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import java.lang.reflect.Method;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,6 +74,7 @@ class XProvider {
     private static XDatabase db = null;
     private static volatile Map<String, XHook> hooks = null;
     private static volatile Map<String, XHook> builtins = null;
+    private static byte[] bootSecret = null; // See getBootSecret
 
     // Callers the service answers, see answers
     static final int CALLER_NONE = 0;
@@ -208,6 +210,7 @@ class XProvider {
             switch (method) {
                 case "getAssignedHooks2":
                 case "getSettings":
+                case "getBootValues":
                     break;
                 default:
                     if (!permitted)
@@ -227,6 +230,8 @@ class XProvider {
                     return getAssignments();
                 case "getSettings":
                     return getSettings(context, selection, permitted);
+                case "getBootValues":
+                    return getBootValues(context, selection, permitted);
                 case "getAllSettings":
                     return getAllSettings();
                 case "getLog":
@@ -1082,6 +1087,51 @@ class XProvider {
             }
             return result;
         });
+    }
+
+    // The fake identifiers of an app which are new each boot, see FakeIds; apps read their own only.
+    // The secret they are derived from is the service's own, new each boot, which no app can read.
+    private static Cursor getBootValues(Context context, String[] selection, boolean permitted) throws Throwable {
+        if (selection == null || selection.length != 2)
+            throw new IllegalArgumentException("selection invalid");
+
+        final String packageName = selection[0];
+        int uid = Integer.parseInt(selection[1]);
+        if (!permitted) {
+            enforceCallerOrPermission(context, uid);
+            if (!isPackageOf(context, packageName, uid))
+                enforcePermission(context);
+        }
+        final int userid = Util.getUserId(uid);
+
+        Map<String, String> global = readSettings(userid, "global");
+        Map<String, String> app = readSettings(userid, packageName);
+        MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
+        for (Map.Entry<String, String> entry : FakeIds.getBootValues(getBootSecret(), userid, packageName, global, app).entrySet())
+            result.addRow(new String[]{entry.getKey(), entry.getValue()});
+        return result;
+    }
+
+    private static Map<String, String> readSettings(int userid, String category) throws Throwable {
+        return db.read(d -> {
+            Map<String, String> result = new HashMap<>();
+            try (Cursor cursor = d.query("setting", new String[]{"name", "value"},
+                    "user = ? AND category = ?", new String[]{Integer.toString(userid), category},
+                    null, null, null)) {
+                while (cursor.moveToNext())
+                    result.put(cursor.getString(0), cursor.getString(1));
+            }
+            return result;
+        });
+    }
+
+    // Made once per start of system server, so once per boot
+    private static synchronized byte[] getBootSecret() {
+        if (bootSecret == null) {
+            bootSecret = new byte[32];
+            new SecureRandom().nextBytes(bootSecret);
+        }
+        return bootSecret;
     }
 
     // All settings of the user of the caller, for backup

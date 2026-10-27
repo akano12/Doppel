@@ -336,6 +336,16 @@ final class Data {
         return result;
     }
 
+    // The fake identifiers of an app which are new each boot, by name, see FakeIds
+    static Map<String, String> getBootValues(Context context, String packageName, int uid) {
+        Map<String, String> result = new HashMap<>();
+        try (Cursor cursor = query(context, "getBootValues", new String[]{packageName, Integer.toString(uid)})) {
+            while (cursor != null && cursor.moveToNext())
+                result.put(cursor.getString(0), cursor.getString(1));
+        }
+        return result;
+    }
+
     // {category, name, value} of all settings of the current user
     static List<String[]> getAllSettings(Context context) {
         List<String[]> result = new ArrayList<>();
