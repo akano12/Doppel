@@ -1319,8 +1319,8 @@ function before(hook, param)
         param:putValue('shell.variants', table.concat(all, ','), args)
         param:setArgument(0, args)
     else
-        -- The builder gets its own command back after the start, apps can start it again; the command filter
-        -- of Downloads (Fif ProcessBuilder.start) matches this original command too
+        -- The builder gets its own command back after the start, apps can start it again; a command filter
+        -- installed earlier from Downloads (Fif ProcessBuilder.start) matches this original command too
         param:putValue('shell.command', command, scope)
         param:putValue('shell.variants', table.concat(all, ','), scope)
         scope:command(fake)
