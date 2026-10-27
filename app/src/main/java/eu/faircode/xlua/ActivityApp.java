@@ -58,6 +58,7 @@ import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -325,6 +326,17 @@ public class ActivityApp extends ActivityBase {
             tvSection.setText(section);
             ViewCompat.setAccessibilityHeading(tvSection, true);
             vSection.setTag(groups);
+            // All groups of the section, or none when all are complete, like the sheet of the groups of the Apps tab
+            Button btnSection = vSection.findViewById(R.id.btnSection);
+            btnSection.setVisibility(View.VISIBLE);
+            btnSection.setOnClickListener(view -> {
+                boolean all = isComplete(groups);
+                if (!all && app.isSystemServer())
+                    Ui.areYouSure(this, getString(R.string.title_bootloop), R.string.title_section_all,
+                            () -> assign(groups, true));
+                else
+                    assign(groups, !all);
+            });
             LinearLayout llRows = vSection.findViewById(R.id.llRows);
             for (final String group : groups) {
                 View vGroup = inflater.inflate(R.layout.item_group, llRows, false);
@@ -545,7 +557,11 @@ public class ActivityApp extends ActivityBase {
 
     // All available hooks of all groups are assigned
     private boolean isComplete() {
-        for (String group : available.keySet())
+        return isComplete(available.keySet());
+    }
+
+    private boolean isComplete(Collection<String> groups) {
+        for (String group : groups)
             if (!isComplete(group))
                 return false;
         return true;
@@ -589,6 +605,11 @@ public class ActivityApp extends ActivityBase {
                 if (!app.getAssignments(group).isEmpty())
                     count++;
             ((TextView) vSection.findViewById(R.id.tvCount)).setText(getString(R.string.title_of, count, groupsOf.size()));
+            boolean all = isComplete(groupsOf);
+            Button btnSection = vSection.findViewById(R.id.btnSection);
+            btnSection.setText(all ? R.string.title_section_none : R.string.title_section_all);
+            btnSection.setContentDescription(getString(all ? R.string.title_section_none_of : R.string.title_section_all_of,
+                    ((TextView) vSection.findViewById(R.id.tvSection)).getText()));
         }
     }
 
