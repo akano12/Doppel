@@ -173,7 +173,6 @@
         <item name="android:fontFamily">@font/plex_mono</item>
     </style>
 
-    <!-- Count at the end of a row, like 29/29; the colors are set from code -->
     <!-- An action behind a row of the Apps tab, shown by swiping it, see AdapterApp.Swipe: a small icon above a short
          label, together in the middle; the colors are of each action -->
     <style name="XLua.RowAction" parent="">
@@ -207,6 +206,7 @@
         <item name="fontFamily">@font/plex_sans_title</item>
     </style>
 
+    <!-- Count at the end of a row, like 29/29; the colors are set from code -->
     <style name="XLua.Pill" parent="">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">26dp</item>

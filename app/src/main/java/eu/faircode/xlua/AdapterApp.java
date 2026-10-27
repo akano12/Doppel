@@ -100,11 +100,11 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             row.app = app;
 
             Set<String> groups = new HashSet<>();
-            int available = 0;
+            Set<String> available = new HashSet<>();
             for (XHook hook : hooks)
                 if (hook.isAvailable(app.packageName, collection)) {
                     groups.add(hook.getGroup());
-                    available++;
+                    available.add(hook.getId());
                 }
             row.groups = groups.size();
 
@@ -122,7 +122,11 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 row.assigned = Math.max(row.assigned, assignment.assigned);
             }
             row.restricted = restricted.size();
-            row.partial = (app.assignments.size() < available);
+            int assigned = 0;
+            for (XAssignment assignment : app.assignments)
+                if (available.contains(assignment.hook.getId()))
+                    assigned++;
+            row.partial = (assigned < available.size());
             return row;
         }
 
@@ -145,6 +149,15 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             return (restricted == 0 ? used : Math.max(used, assigned));
         }
 
+        // Restrict all changes something while a hook is not assigned, Remove all while one is
+        boolean canRestrict() {
+            return (restricted < groups || partial);
+        }
+
+        boolean canRemove() {
+            return (restricted > 0);
+        }
+
         // Restricting all groups is offered for apps without restrictions, not for system server
         boolean canRestrictAll() {
             return (!error && restricted == 0 && groups > 0 && !app.isSystemServer());
@@ -157,6 +170,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         boolean hasSameContent(Row other) {
             return (groups == other.groups &&
                     restricted == other.restricted &&
+                    partial == other.partial &&
                     used == other.used &&
                     assigned == other.assigned &&
                     error == other.error &&
@@ -331,6 +345,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     private void apply() {
+        // The actions shown close when the list changes, like for another filter or search, or after a reload
+        open = RecyclerView.NO_ID;
         // Search prefixes: ! restricted, ? not restricted, # system, @ user, or a uid
         String q = (query == null ? "" : query.trim());
         boolean restricted = false;
@@ -548,7 +564,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             setOpen(false);
             if (action == 2)
                 listener.onGroups(row);
-            else if (action == 1 ? row.restricted < row.groups || row.partial : row.restricted > 0)
+            else if (action == 1 ? row.canRestrict() : row.canRemove())
                 listener.onSetAll(row, action == 1);
             return true;
         }
@@ -564,10 +580,15 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             slide(show);
         }
 
+        // The offset of the row which shows the actions, which are at its end: to the left, or the right for RTL
+        float shown() {
+            return (llRow.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL ? 1 : -1) * llActions.getWidth();
+        }
+
         void slide(boolean show) {
             if (show)
                 llActions.setVisibility(View.VISIBLE);
-            llRow.animate().translationX(show ? -llActions.getWidth() : 0).setDuration(180)
+            llRow.animate().translationX(show ? shown() : 0).setDuration(180)
                     .withEndAction(() -> {
                         if (!show)
                             llActions.setVisibility(View.INVISIBLE);
@@ -627,8 +648,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         @SuppressLint("ClickableViewAccessibility")
         @Override
         public boolean onTouch(View view, android.view.MotionEvent event) {
-            float width = holder.llActions.getWidth();
-            android.util.Log.i("XLua.Swipe", "DEBUG " + event.getActionMasked() + " x=" + event.getRawX() + " w=" + width + " swiping=" + swiping + " tx=" + view.getTranslationX());
+            // The offset with the actions shown, negative to the left, positive to the right for RTL
+            float shown = holder.shown();
             switch (event.getActionMasked()) {
                 case android.view.MotionEvent.ACTION_DOWN:
                     startX = event.getRawX();
@@ -647,7 +668,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                         holder.llActions.setVisibility(View.VISIBLE);
                     }
                     if (swiping) {
-                        view.setTranslationX(Math.max(-width, Math.min(0, base + dx)));
+                        float x = base + dx;
+                        view.setTranslationX(shown < 0 ? Math.max(shown, Math.min(0, x)) : Math.min(shown, Math.max(0, x)));
                         return true;
                     }
                     return false;
@@ -657,7 +679,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     if (!swiping)
                         return false;
                     swiping = false;
-                    holder.setOpen(view.getTranslationX() < -width / 3);
+                    holder.setOpen(Math.abs(view.getTranslationX()) > Math.abs(shown) / 3);
                     return true;
 
                 default:
@@ -777,14 +799,17 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.llRow.animate().cancel();
         h.llRow.setTranslationX(0);
         h.llActions.setVisibility(open ? View.VISIBLE : View.INVISIBLE);
+        // After the layout, when the width of the actions is known, if the holder still shows this row
         if (open)
-            h.llActions.post(() -> h.llRow.setTranslationX(-h.llActions.getWidth()));
+            h.llActions.post(() -> {
+                if (h.getKey() == this.open)
+                    h.llRow.setTranslationX(h.shown());
+            });
         // An action which would change nothing is dimmed, its colors are fixed
-        boolean restrict = (row.restricted < row.groups || row.partial);
-        h.btnRestrictAll.setEnabled(restrict);
-        h.btnRestrictAll.setAlpha(restrict ? 1f : 0.38f);
-        h.btnRemoveAll.setEnabled(row.restricted > 0);
-        h.btnRemoveAll.setAlpha(row.restricted > 0 ? 1f : 0.38f);
+        h.btnRestrictAll.setEnabled(row.canRestrict());
+        h.btnRestrictAll.setAlpha(row.canRestrict() ? 1f : 0.38f);
+        h.btnRemoveAll.setEnabled(row.canRemove());
+        h.btnRemoveAll.setAlpha(row.canRemove() ? 1f : 0.38f);
 
         Ui.loadIcon(h.ivIcon, app.packageName, app.icon);
         h.tvLabel.setText(app.getLabel());

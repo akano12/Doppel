@@ -102,10 +102,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     // Settings used by the scripts in assets, with their built-in defaults
     private static final Object[] SECTIONS = new Object[]{
             R.string.title_values_identifiers,
-            new Field("value.serial", R.string.title_value_serial, Type.TEXT, "unknown"),
-            new Field("value.android_id", R.string.title_value_android_id, Type.TEXT, "0000000000000000"),
-            new Field("value.imei", R.string.title_value_imei, Type.TEXT, null),
-            new Field("value.meid", R.string.title_value_meid, Type.TEXT, null),
+            new Field(FakeIds.SERIAL, R.string.title_value_serial, Type.TEXT, "unknown"),
+            new Field(FakeIds.ANDROID_ID, R.string.title_value_android_id, Type.TEXT, "0000000000000000"),
+            new Field(FakeIds.IMEI, R.string.title_value_imei, Type.TEXT, null),
+            new Field(FakeIds.MEID, R.string.title_value_meid, Type.TEXT, null),
             new Field("value.phone_number", R.string.title_value_phone_number, Type.TEXT, null),
             new Field("value.email", R.string.title_value_email, Type.TEXT, "private@example.com"),
             R.string.title_values_location,
@@ -641,7 +641,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                         ? R.string.title_box_inherit_boot_all : R.string.title_box_inherit_boot);
                 value = (saved ? bootValues.get(key) : null);
                 if (value == null)
-                    text = getString(FakeIds.BOOT_ALL.equals(global) ? R.string.title_box_boot_all : R.string.title_box_boot);
+                    text = getString(FakeIds.BOOT_ALL.equals(global)
+                            ? R.string.title_box_inherit_boot_all_short : R.string.title_box_inherit_boot_short);
             }
         } else {
             text = getString(FakeIds.BOOT_ALL.equals(chosen) ? R.string.title_box_boot_all : R.string.title_box_boot);
@@ -696,8 +697,12 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             String chosen = (mode == null ? null : getMode(mode));
             if (!INHERIT.equals(chosen)) {
                 String value = getValue(field, til.getEditText());
-                if (!Objects.equals(value, values.get(field.key)))
+                if (!Objects.equals(value, values.get(field.key))) {
                     changed.put(field.key, value);
+                    // A value fixed only because it was set stays fixed, with its default, when it is cleared
+                    if (mode != null && value == null && FakeIds.FIXED.equals(chosen) && values.get(field.key + FakeIds.MODE) == null)
+                        changed.put(field.key + FakeIds.MODE, FakeIds.FIXED);
+                }
             }
             if (mode != null && !chosen.equals(getSavedMode(field.key))) {
                 changed.put(field.key + FakeIds.MODE, INHERIT.equals(chosen) ? null : chosen);
@@ -749,7 +754,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 Data.putSetting(context, category, keys.get(i), changed.get(keys.get(i)), kill);
             }
             runOnUiThread(() -> {
-                values.putAll(changed);
+                findViewById(R.id.bar).setVisibility(View.GONE);
                 load();
             });
             Ui.message(this, getString(stop ? R.string.msg_saved : R.string.msg_saved_restart));

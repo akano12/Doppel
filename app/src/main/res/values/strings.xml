@@ -501,6 +501,8 @@
     <string name="title_box_inherit_fixed">Fixed for all apps</string>
     <string name="title_box_inherit_boot">Each boot for all apps, one for each app; until the next restart this app gets:</string>
     <string name="title_box_inherit_boot_all">Each boot, the same for all apps; until the next restart this app gets:</string>
+    <string name="title_box_inherit_boot_short">Each boot for all apps, one for each app</string>
+    <string name="title_box_inherit_boot_all_short">Each boot, the same for all apps</string>
     <string name="title_box_saved">Until the next restart this app gets:</string>
     <string name="title_clear_field">Clear %1$s</string>
     <string name="title_reset">Clear</string>

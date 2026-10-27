@@ -71,8 +71,20 @@ final class GroupsSheet {
     private View view;
     private ColorStateList track; // Of a switch which is on
 
-    static void show(Activity activity, XApp app, List<XHook> hooks, List<String> collection, Host host) {
-        new GroupsSheet(activity, app, hooks, collection, host).show();
+    private BottomSheetDialog dialog;
+
+    static GroupsSheet show(Activity activity, XApp app, List<XHook> hooks, List<String> collection, Host host) {
+        GroupsSheet sheet = new GroupsSheet(activity, app, hooks, collection, host);
+        sheet.show();
+        return sheet;
+    }
+
+    // Without telling the host, like when its view is gone; what changed is saved already
+    void close() {
+        if (dialog != null) {
+            dialog.setOnDismissListener(null);
+            dialog.dismiss();
+        }
     }
 
     private GroupsSheet(Activity activity, XApp app, List<XHook> hooks, List<String> collection, Host host) {
@@ -93,7 +105,7 @@ final class GroupsSheet {
     @SuppressLint("InflateParams")
     private void show() {
         Context context = activity;
-        BottomSheetDialog dialog = new BottomSheetDialog(context);
+        dialog = new BottomSheetDialog(context);
         LayoutInflater inflater = LayoutInflater.from(context);
         // The sheet is the parent, which the dialog makes
         view = inflater.inflate(R.layout.sheet_groups, null, false);
@@ -164,7 +176,15 @@ final class GroupsSheet {
             final List<XHook> hooks = new ArrayList<>();
             for (String group : names)
                 hooks.addAll(groups.get(group));
-            btnSection.setOnClickListener(v -> assign(hooks, !isComplete(hooks)));
+            btnSection.setOnClickListener(v -> {
+                boolean all = isComplete(hooks);
+                // Like Restrict all, restricting all of a section of system server asks first
+                if (!all && app.isSystemServer())
+                    Ui.areYouSure(activity, activity.getString(R.string.title_bootloop),
+                            R.string.title_restrict_all_groups, () -> assign(hooks, true));
+                else
+                    assign(hooks, !all);
+            });
             sections.add(() -> {
                 int restricted = 0;
                 for (String group : names)
@@ -189,8 +209,11 @@ final class GroupsSheet {
         String description = Groups.getDescription(activity, group);
         tvDescription.setText(description);
         tvDescription.setVisibility(description == null ? View.GONE : View.VISIBLE);
-        vGroup.findViewById(R.id.flInfo).setClickable(false);
-        vGroup.findViewById(R.id.flInfo).setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        View flInfo = vGroup.findViewById(R.id.flInfo);
+        flInfo.setClickable(false);
+        flInfo.setFocusable(false);
+        flInfo.setBackground(null);
+        flInfo.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         vGroup.findViewById(R.id.ivExpand).setVisibility(View.GONE);
         vGroup.findViewById(R.id.ibError).setVisibility(View.GONE);
         List<XHook> hooks = groups.get(group);
@@ -259,16 +282,17 @@ final class GroupsSheet {
         return false;
     }
 
-    // Shown at once, saved in the background
+    // Shown at once, saved in the background, only the hooks which change, since assigning a hook again starts its
+    // use over
     private void assign(List<XHook> hooks, boolean assign) {
+        final List<XHook> changed = new ArrayList<>();
         for (XHook hook : hooks)
-            if (assign)
-                assigned.add(hook.getId());
-            else
-                assigned.remove(hook.getId());
+            if (assign ? assigned.add(hook.getId()) : assigned.remove(hook.getId()))
+                changed.add(hook);
         update();
+        if (changed.isEmpty())
+            return;
         final Context context = activity.getApplicationContext();
-        final List<XHook> list = new ArrayList<>(hooks);
-        host.background(() -> Data.assign(context, app, list, assign));
+        host.background(() -> Data.assign(context, app, changed, assign));
     }
 }

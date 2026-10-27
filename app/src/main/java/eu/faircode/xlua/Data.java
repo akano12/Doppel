@@ -328,18 +328,18 @@ final class Data {
 
     // Settings of a category (global or a package name) of the current user
     static Map<String, String> getSettings(Context context, String category) {
-        Map<String, String> result = new HashMap<>();
-        try (Cursor cursor = query(context, "getSettings", new String[]{category, Integer.toString(Process.myUid())})) {
-            while (cursor != null && cursor.moveToNext())
-                result.put(cursor.getString(0), cursor.getString(1));
-        }
-        return result;
+        return queryMap(context, "getSettings", new String[]{category, Integer.toString(Process.myUid())});
     }
 
     // The fake identifiers of an app which are new each boot, by name, see FakeIds
     static Map<String, String> getBootValues(Context context, String packageName, int uid) {
+        return queryMap(context, "getBootValues", new String[]{packageName, Integer.toString(uid)});
+    }
+
+    // Rows of a name and a value, by name
+    private static Map<String, String> queryMap(Context context, String method, String[] selection) {
         Map<String, String> result = new HashMap<>();
-        try (Cursor cursor = query(context, "getBootValues", new String[]{packageName, Integer.toString(uid)})) {
+        try (Cursor cursor = query(context, method, selection)) {
             while (cursor != null && cursor.moveToNext())
                 result.put(cursor.getString(0), cursor.getString(1));
         }

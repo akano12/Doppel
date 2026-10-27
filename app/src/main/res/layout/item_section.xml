@@ -31,7 +31,7 @@
             android:textAppearance="@style/XLua.Text.Section"
             tools:text="3 of 3" />
 
-        <!-- Restricts or removes all of the section, in the sheet of the groups of an app, see GroupsSheet -->
+        <!-- Restricts or removes all of the section, on the screen of an app and in the sheet of its groups -->
         <Button
             android:id="@+id/btnSection"
             style="@style/Widget.Material3.Button.OutlinedButton"

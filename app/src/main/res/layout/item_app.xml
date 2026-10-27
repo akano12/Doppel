@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- An app in a section of the Apps tab; the backgrounds, which join the rows of a section, are set by AdapterApp.
-     Swiping the row to the start shows the actions behind it, so does tapping its badge, see AdapterApp.Swipe -->
+     Swiping the row to the start shows the actions behind it, so does tapping its badge where it has one, see
+     AdapterApp.Swipe -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"

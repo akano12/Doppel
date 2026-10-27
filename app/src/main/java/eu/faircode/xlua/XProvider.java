@@ -1075,21 +1075,14 @@ class XProvider {
             if (!"global".equals(category) && !isPackageOf(context, category, uid))
                 enforcePermission(context);
         }
-        final int userid = Util.getUserId(uid);
-
-        return db.read(d -> {
-            MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
-            try (Cursor cursor = d.query("setting", new String[]{"name", "value"},
-                    "user = ? AND category = ?", new String[]{Integer.toString(userid), category},
-                    null, null, null)) {
-                while (cursor.moveToNext())
-                    result.addRow(new String[]{cursor.getString(0), cursor.getString(1)});
-            }
-            return result;
-        });
+        MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
+        for (Map.Entry<String, String> entry : readSettings(Util.getUserId(uid), category).entrySet())
+            result.addRow(new String[]{entry.getKey(), entry.getValue()});
+        return result;
     }
 
-    // The fake identifiers of an app which are new each boot, see FakeIds; apps read their own only.
+    // The fake identifiers of an app which are new each boot, see FakeIds; apps read their own only, like their settings,
+    // so apps sharing a user id read each other's, and the values for all apps are the same for every app.
     // The secret they are derived from is the service's own, new each boot, which no app can read.
     private static Cursor getBootValues(Context context, String[] selection, boolean permitted) throws Throwable {
         if (selection == null || selection.length != 2)

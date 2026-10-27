@@ -85,6 +85,7 @@ public class FragmentApps extends FragmentBase {
     private CompactBar compact;
     private CircularProgressIndicator piCompact;
     private AdapterApp adapter;
+    private GroupsSheet sheet; // Open, see onGroups
 
     private SharedPreferences prefs;
     private AdapterApp.Sort sort = AdapterApp.Sort.NAME;
@@ -124,7 +125,7 @@ public class FragmentApps extends FragmentBase {
 
             @Override
             public void onRestrictAll(AdapterApp.Row row) {
-                restrictAll(row);
+                setAll(row.app, true);
             }
 
             @Override
@@ -139,7 +140,7 @@ public class FragmentApps extends FragmentBase {
 
             @Override
             public void onGroups(AdapterApp.Row row) {
-                GroupsSheet.show(requireActivity(), row.app, hooks, collection, new GroupsSheet.Host() {
+                sheet = GroupsSheet.show(requireActivity(), row.app, hooks, collection, new GroupsSheet.Host() {
                     @Override
                     public void background(Ui.Task task) {
                         run(TAG, task);
@@ -155,10 +156,9 @@ public class FragmentApps extends FragmentBase {
                                 restricted.add(hook.getGroup());
                         }
                         // After the assignments of the sheet, which run in order on the same thread
-                        run(TAG, () -> post(() -> load()));
-                        message(getResources().getQuantityString(R.plurals.msg_groups_restricted, groups.size(),
-                                        app.getLabel(), restricted.size(), groups.size()),
-                                app, before, available);
+                        run(TAG, () -> post(FragmentApps.this::load));
+                        message(requireActivity(), getResources().getQuantityString(R.plurals.msg_groups_restricted,
+                                groups.size(), app.getLabel(), restricted.size(), groups.size()), app, after, before, available);
                     }
                 });
             }
@@ -384,55 +384,64 @@ public class FragmentApps extends FragmentBase {
         }
     }
 
-    // All available hooks, like Restrict all on the screen of the app, which stops the app when it is stopped automatically;
-    // the app had no restrictions (AdapterApp.Row.canRestrictAll), so removing the hooks again undoes it
-    private void restrictAll(AdapterApp.Row row) {
-        final Activity activity = requireActivity();
-        final Context context = activity.getApplicationContext();
-        final List<XHook> available = Data.getAvailable(hooks, row.app, collection, null);
-        final String label = row.app.getLabel();
-        run(TAG, () -> {
-            Data.assign(context, row.app, available, true);
-            Ui.message(activity, activity.getString(R.string.msg_restricted_all, label),
-                    activity.getString(R.string.title_undo), () -> run(TAG, () -> {
-                        Data.assign(context, row.app, available, false);
-                        post(this::load);
-                    }));
-            post(this::load);
-        });
+    // A sheet of the groups which is open goes with the view, like on a recreation for a theme
+    @Override
+    public void onDestroyView() {
+        if (sheet != null) {
+            sheet.close();
+            sheet = null;
+        }
+        super.onDestroyView();
     }
 
-    // All available hooks of an app, or none; Undo puts back the hooks assigned before
+    // All available hooks of an app, or none, like Restrict all on the screen of the app; Undo puts back the hooks
+    // assigned before
     private void setAll(XApp app, boolean restrict) {
+        final Activity activity = requireActivity();
+        final Context context = activity.getApplicationContext();
         final List<XHook> available = Data.getAvailable(hooks, app, collection, null);
         final Set<String> before = new HashSet<>();
         for (XAssignment assignment : app.assignments)
             before.add(assignment.hook.getId());
-        final Context context = requireContext().getApplicationContext();
-        final String label = app.getLabel();
+        final Set<String> after = new HashSet<>();
+        if (restrict)
+            for (XHook hook : available)
+                after.add(hook.getId());
+        final String text = getString(restrict ? R.string.msg_restricted_all : R.string.msg_removed_all, app.getLabel());
         run(TAG, () -> {
-            Data.assign(context, app, available, restrict);
-            message(getString(restrict ? R.string.msg_restricted_all : R.string.msg_removed_all, label),
-                    app, before, available);
+            change(context, app, available, before, after);
+            message(activity, text, app, after, before, available);
             post(this::load);
         });
     }
 
-    // A message with Undo, which assigns the hooks assigned before and removes the others
-    private void message(String text, XApp app, Set<String> before, List<XHook> available) {
-        final Activity activity = requireActivity();
+    // A message with Undo, which changes the hooks back to the ones assigned before
+    private void message(Activity activity, String text, XApp app, Set<String> after, Set<String> before, List<XHook> available) {
         final Context context = activity.getApplicationContext();
-        Ui.message(activity, text, getString(R.string.title_undo), () -> run(TAG, () -> {
-            List<XHook> assign = new ArrayList<>();
-            List<XHook> remove = new ArrayList<>();
-            for (XHook hook : available)
-                (before.contains(hook.getId()) ? assign : remove).add(hook);
-            if (!remove.isEmpty())
-                Data.assign(context, app, remove, false);
-            if (!assign.isEmpty())
-                Data.assign(context, app, assign, true);
+        Ui.message(activity, text, activity.getString(R.string.title_undo), () -> run(TAG, () -> {
+            change(context, app, available, after, before);
             post(this::load);
         }));
+    }
+
+    // Assigns and removes only the hooks which change, since assigning a hook again starts its use over, and stops
+    // the app once, when it is stopped automatically
+    static void change(Context context, XApp app, List<XHook> available, Set<String> from, Set<String> to) {
+        ArrayList<String> add = new ArrayList<>();
+        ArrayList<String> remove = new ArrayList<>();
+        for (XHook hook : available) {
+            boolean was = from.contains(hook.getId());
+            boolean is = to.contains(hook.getId());
+            if (is && !was)
+                add.add(hook.getId());
+            else if (was && !is)
+                remove.add(hook.getId());
+        }
+        boolean kill = (app.forceStop && !app.persistent);
+        if (!remove.isEmpty())
+            Data.assignHooks(context, remove, app.packageName, app.uid, true, kill && add.isEmpty(), false);
+        if (!add.isEmpty())
+            Data.assignHooks(context, add, app.packageName, app.uid, false, kill, false);
     }
 
     // Toggle a group for all shown apps: remove it from the apps which have it, else add it to all of them

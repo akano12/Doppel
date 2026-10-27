@@ -332,7 +332,7 @@ public class ActivityApp extends ActivityBase {
             btnSection.setOnClickListener(view -> {
                 boolean all = isComplete(groups);
                 if (!all && app.isSystemServer())
-                    Ui.areYouSure(this, getString(R.string.title_bootloop), R.string.title_section_all,
+                    Ui.areYouSure(this, getString(R.string.title_bootloop), R.string.title_restrict_all_groups,
                             () -> assign(groups, true));
                 else
                     assign(groups, !all);
