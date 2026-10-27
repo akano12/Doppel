@@ -17,7 +17,9 @@
 
 -- Files of /sys name the hardware of the device, and Samsung phones let apps read files which name the device:
 -- the id of the chip (/sys/devices/system/chip-id/unique_id, which stays until the device is scrapped), the id
--- of the SD card or the storage (/sys/block/mmcblk0/device/cid and serial, /sys/class/sec/sdinfo/data), the
+-- of the SD card or the storage (/sys/block/mmcblk0/device/cid and serial, /sys/class/sec/sdinfo/data), the serial
+-- number of UFS storage (/sys/class/scsi_host/host0/unique_number on Samsung, the serial_number of its string
+-- descriptors on other devices) with its manufacturer and model, the
 -- calibration of the light sensor, the files of the touchscreen (/sys/class/sec/tsp) and of the fingerprint
 -- sensor (/sys/class/fingerprint/fingerprint). For restricted apps the files do not exist: they cannot be opened,
 -- read, listed or found, with java.io, android.system.Os and java.nio.file. The paths are resolved first,
@@ -29,11 +31,14 @@
 -- The files of each group, as patterns of the path; a pattern ending in / covers the files of a folder
 local FILES = {
     ['Read.Identifiers'] = {
-        '/chip%-id/unique_id$', '/chip%-id/lot_id$',
-        '/mmc%d+:%x+/cid$', '/mmc%d+:%x+/serial$', '/sec/sdinfo/data$' },
+        '/chip%-id/unique_id$', '/chip%-id/lot_id$', '/chip%-id/lot_id2$',
+        '/mmc%d+:%x+/cid$', '/mmc%d+:%x+/serial$', '/sec/sdinfo/data$',
+        '/scsi_host/host%d+/unique_number$', '/string_descriptors/serial_number$' },
     ['Use.Tracking'] = {
         '/chip%-id$', '/chip%-id/',
         '/mmc%d+:%x+/date$', '/mmc%d+:%x+/manfid$', '/mmc%d+:%x+/oemid$', '/mmc%d+:%x+/name$',
+        '/scsi_host/host%d+/man_id$', '/string_descriptors/manufacturer_name$',
+        '/string_descriptors/product_name$', '/string_descriptors/oem_id$',
         '/sensors/light_sensor/light_cal$', '/sec/tsp$', '/sec/tsp/' },
     ['Read.Biometrics'] = {
         '/fingerprint/fingerprint$', '/fingerprint/fingerprint/', '/sec/tsp/fod_info$', '/sec/tsp/fod_pos$' },

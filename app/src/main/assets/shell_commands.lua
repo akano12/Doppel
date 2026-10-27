@@ -85,10 +85,13 @@ local FILES = { tracking = { '/proc/sys/kernel/random/boot_id' }, resources = { 
 -- as patterns of the shell for the path and the path its links lead to, which a test compares with the patterns
 -- of hardware_files; commands reading them fail like for a file which does not exist
 local HIDDEN = {
-    identifiers = { '*/chip-id/unique_id', '*/chip-id/lot_id', '*/mmc[0-9]*:*/cid', '*/mmc[0-9]*:*/serial',
-                    '*/sec/sdinfo/data' },
+    identifiers = { '*/chip-id/unique_id', '*/chip-id/lot_id', '*/chip-id/lot_id2', '*/mmc[0-9]*:*/cid',
+                    '*/mmc[0-9]*:*/serial', '*/sec/sdinfo/data', '*/scsi_host/host[0-9]*/unique_number',
+                    '*/string_descriptors/serial_number' },
     tracking = { '*/chip-id', '*/chip-id/*', '*/mmc[0-9]*:*/date', '*/mmc[0-9]*:*/manfid', '*/mmc[0-9]*:*/oemid',
-                 '*/mmc[0-9]*:*/name', '*/sensors/light_sensor/light_cal', '*/sec/tsp', '*/sec/tsp/*' },
+                 '*/mmc[0-9]*:*/name', '*/scsi_host/host[0-9]*/man_id', '*/string_descriptors/manufacturer_name',
+                 '*/string_descriptors/product_name', '*/string_descriptors/oem_id',
+                 '*/sensors/light_sensor/light_cal', '*/sec/tsp', '*/sec/tsp/*' },
     biometrics = { '*/fingerprint/fingerprint', '*/fingerprint/fingerprint/*', '*/sec/tsp/fod_info',
                    '*/sec/tsp/fod_pos' },
 }

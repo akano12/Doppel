@@ -237,31 +237,42 @@ public class FakeValuesAgreeTest {
         Globals shell = load("shell_commands");
         String[][] variants = {{"Read.Identifiers", "identifiers"}, {"Use.Tracking", "tracking"},
                 {"Read.Biometrics", "biometrics"}};
-        String[] paths = {
+        String[] hidden = {
                 "/sys/devices/system/chip-id/unique_id", "/sys/devices/system/chip-id/lot_id",
-                "/sys/devices/system/chip-id", "/sys/devices/system/chip-id/other",
+                "/sys/devices/system/chip-id/lot_id2", "/sys/devices/system/chip-id",
+                "/sys/devices/system/chip-id/other",
                 "/sys/bus/mmc/devices/mmc0:0001/cid", "/sys/bus/mmc/devices/mmc0:0001/serial",
                 "/sys/bus/mmc/devices/mmc0:0001/date", "/sys/bus/mmc/devices/mmc0:0001/manfid",
                 "/sys/bus/mmc/devices/mmc0:0001/oemid", "/sys/bus/mmc/devices/mmc0:0001/name",
-                "/sys/class/sec/sdinfo/data", "/sys/class/sensors/light_sensor/light_cal",
+                "/sys/class/sec/sdinfo/data",
+                "/sys/class/scsi_host/host0/unique_number",
+                "/sys/devices/platform/13100000.ufs/host0/scsi_host/host0/unique_number",
+                "/sys/class/scsi_host/host0/man_id",
+                "/sys/devices/platform/13100000.ufs/string_descriptors/serial_number",
+                "/sys/devices/platform/13100000.ufs/string_descriptors/product_name",
+                "/sys/devices/platform/13100000.ufs/string_descriptors/manufacturer_name",
+                "/sys/devices/platform/13100000.ufs/string_descriptors/oem_id",
+                "/sys/class/sensors/light_sensor/light_cal",
                 "/sys/class/sec/tsp", "/sys/class/sec/tsp/cmd", "/sys/class/sec/tsp/fod_info",
                 "/sys/class/sec/tsp/fod_pos", "/sys/class/fingerprint/fingerprint",
                 "/sys/class/fingerprint/fingerprint/name",
-                "/proc/self/root/sys/devices/system/chip-id/unique_id",
-                // Files which stay
+                "/proc/self/root/sys/devices/system/chip-id/unique_id"};
+        String[] stay = {
                 "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/class/sec/tspx",
                 "/sys/bus/mmc/devices/mmc0:0001/cidx", "/sys/class/fingerprint/fingerprintx",
-                "/sys/devices/system/chip-idx/unique_id"};
-        int hiddenCount = 0;
-        for (String[] variant : variants)
+                "/sys/devices/system/chip-idx/unique_id", "/sys/class/scsi_host/host0/unique_id",
+                "/sys/devices/platform/13100000.ufs/string_descriptors/product_revision"};
+        // Each file of a sample which does not exist is hidden for a group at least, the others for none
+        for (String[] paths : new String[][]{hidden, stay})
             for (String path : paths) {
-                String expected = run(files, "tostring(hidden(grouphook('" + variant[0] + "'), '" + path + "'))");
-                assertEquals(variant[1] + " " + path, expected,
-                        run(shell, "tostring(hiddenfile('" + path + "', { " + variant[1] + " = true }))"));
-                if ("true".equals(expected))
-                    hiddenCount++;
+                boolean any = false;
+                for (String[] variant : variants) {
+                    String expected = run(files, "tostring(hidden(grouphook('" + variant[0] + "'), '" + path + "'))");
+                    assertEquals(variant[1] + " " + path, expected,
+                            run(shell, "tostring(hiddenfile('" + path + "', { " + variant[1] + " = true }))"));
+                    any |= "true".equals(expected);
+                }
+                assertEquals(path, paths == hidden, any);
             }
-        // Each sample of a file which does not exist is hidden for at least one group
-        assertTrue(String.valueOf(hiddenCount), hiddenCount >= 19);
     }
 }
