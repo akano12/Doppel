@@ -207,8 +207,8 @@ and the addresses of the network interfaces since Android 11, but only from apps
 
 <a name="shell"></a>
 * Shell
-    * ~~return I/O exception for Linux shell~~ will result in crashes
-    * ~~return I/O exception for Superuser shell~~ will result in crashes
+    * **return I/O exception for Linux shell** with *Run commands*, except the commands allowed in Fake values, like getprop
+    * **return I/O exception for Superuser shell** with *Run commands*, unless su is allowed
     * ~~return unsatisfied link error for load/loadLibrary~~ will result in crashes
 
 <a name="storage"></a>
