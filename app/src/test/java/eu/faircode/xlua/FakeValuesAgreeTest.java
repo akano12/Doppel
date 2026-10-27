@@ -27,7 +27,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 // Scripts which fake the same value each have it, since scripts cannot share code: the fake time zone,
-// the operator of the test network and the Wi-Fi network, in the getters, the system properties and the texts
+// the operator of the test network and the Wi-Fi network, in the getters, the system properties and the texts;
+// the serial number, the security patch level, the MAC address, the user agent of WebView, the authority
+// of a content URI and the files of /sys which do not exist
 public class FakeValuesAgreeTest {
     // A hook with a name and a method, a param with a result, arguments and settings; fakeof runs after()
     // and returns the result then
@@ -151,5 +153,116 @@ public class FakeValuesAgreeTest {
                 " MAC: 11:22:33:44:55:66, IP: /10.0.2.16, Security type: 0')");
         assertTrue(text, text.startsWith("SSID: " + ssid + ", BSSID: " + bssid + ", MAC: " + mac + "," +
                 " IP: /0.0.0.0,"));
+
+        // The Bluetooth address of the settings is a MAC address too, like BluetoothAdapter.getAddress
+        assertEquals(mac, run(load("settingssecure_getstring"), "fakeof('Settings.Secure.getStringForUser/mac'," +
+                " 'getStringForUser', '11:22:33:44:55:66', { nil, 'bluetooth_address' }, nil," +
+                " 'android.provider.Settings$Secure')"));
+    }
+
+    // unknown without a serial number set, else the one set, for Build.getSerial, the properties and getprop
+    @Test
+    public void serial() throws Exception {
+        Globals getter = load("value_serial");
+        Globals properties = load("systemproperties_get");
+        Globals shell = load("shell_commands");
+        for (String setting : new String[]{"nil", "'ABC123'"}) {
+            String settings = "{ ['value.serial'] = " + setting + " }";
+            String expected = run(getter, "fakeof(nil, 'getSerial', 'R58M1234', {}, " + settings + ")");
+            assertEquals(setting, setting.equals("nil") ? "unknown" : "ABC123", expected);
+            assertEquals(setting, expected, run(properties, "fakeof('SystemProperties.get/serial', 'get'," +
+                    " 'R58M1234', { 'ro.serialno' }, " + settings + ")"));
+            assertEquals(setting, expected, run(shell, "rules(paramof(nil, {}, " + settings + "), 'identifiers')[1][1]"));
+        }
+    }
+
+    // The first day of the quarter, for Build.VERSION.SECURITY_PATCH and its property; other texts stay
+    @Test
+    public void securityPatch() throws Exception {
+        Globals field = load("security_patch");
+        Globals properties = load("systemproperties_get");
+        for (String date : new String[]{"2025-01-01", "2025-03-31", "2025-05-05", "2025-07-01", "2025-12-31",
+                "2025-5-5", "unknown"}) {
+            String expected = run(field, "fakeof(nil, nil, '" + date + "')");
+            assertEquals(date, expected, run(properties, "fakeof('SystemProperties.get/device', 'get', '" + date +
+                    "', { 'ro.build.version.security_patch' })"));
+        }
+        assertEquals("2025-04-01", run(field, "fakeof(nil, nil, '2025-05-05')"));
+    }
+
+    // The model and build in the user agent of WebView become K, like Chrome does, for the default user agent
+    // and for the ones the app sets
+    @Test
+    public void userAgent() throws Exception {
+        Globals getter = load("webview_useragent");
+        Globals constructor = load("webview_constructor");
+        for (String ua : new String[]{
+                "Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv) AppleWebKit/537.36",
+                "Mozilla/5.0 (Linux; Android 10; SM-G973F Build/QP1A.190711.020) AppleWebKit/537.36",
+                "Mozilla/5.0 (Linux; Android 15; K; wv) AppleWebKit/537.36"}) {
+            String expected = run(getter, "fakeof(nil, 'getDefaultUserAgent', '" + ua + "')");
+            assertEquals(ua, expected, run(constructor, "reduce('" + ua + "')"));
+        }
+    }
+
+    // The authority of a content URI without the user in front, like 10@com.android.contacts,
+    // for opening and querying providers and for the hidden providers
+    @Test
+    public void authority() throws Exception {
+        String uri = "function uriof(authority)\n" +
+                "  return { getScheme = function(self) return 'content' end,\n" +
+                "    getAuthority = function(self) return authority end }\n" +
+                "end";
+        Globals open = Scripts.load("contentresolver_open", STUBS + "\n" + uri);
+        Globals query = Scripts.load("contentresolver_query", STUBS + "\n" + uri);
+        Globals hidden = Scripts.load("provider_hidden", STUBS + "\n" + uri);
+        for (String authority : new String[]{"'com.android.contacts'", "'10@com.android.contacts'", "nil"}) {
+            String expected = run(open, "tostring(authorityof(uriof(" + authority + ")))");
+            assertEquals(authority, expected, run(query, "tostring(authorityof(uriof(" + authority + ")))"));
+            assertEquals(authority, expected, run(hidden, "tostring(authorityof(uriof(" + authority + ")))"));
+        }
+        assertEquals("com.android.contacts", run(open, "authorityof(uriof('10@com.android.contacts'))"));
+    }
+
+    // The files of /sys which do not exist for each group: the hooks of opening files (hardware_files,
+    // Lua patterns) and cat run by the app (shell_commands, patterns of the shell) hide the same ones
+    @Test
+    public void hardwareFiles() throws Exception {
+        Globals files = Scripts.load("hardware_files", STUBS + "\n" +
+                "function grouphook(group)\n" +
+                "  return { getGroup = function(self) return group end,\n" +
+                "    getClassName = function(self) return 'libcore.io.BlockGuardOs' end,\n" +
+                "    getMethodName = function(self) return 'open' end,\n" +
+                "    getReturnType = function(self) return nil end }\n" +
+                "end");
+        Globals shell = load("shell_commands");
+        String[][] variants = {{"Read.Identifiers", "identifiers"}, {"Use.Tracking", "tracking"},
+                {"Read.Biometrics", "biometrics"}};
+        String[] paths = {
+                "/sys/devices/system/chip-id/unique_id", "/sys/devices/system/chip-id/lot_id",
+                "/sys/devices/system/chip-id", "/sys/devices/system/chip-id/other",
+                "/sys/bus/mmc/devices/mmc0:0001/cid", "/sys/bus/mmc/devices/mmc0:0001/serial",
+                "/sys/bus/mmc/devices/mmc0:0001/date", "/sys/bus/mmc/devices/mmc0:0001/manfid",
+                "/sys/bus/mmc/devices/mmc0:0001/oemid", "/sys/bus/mmc/devices/mmc0:0001/name",
+                "/sys/class/sec/sdinfo/data", "/sys/class/sensors/light_sensor/light_cal",
+                "/sys/class/sec/tsp", "/sys/class/sec/tsp/cmd", "/sys/class/sec/tsp/fod_info",
+                "/sys/class/sec/tsp/fod_pos", "/sys/class/fingerprint/fingerprint",
+                "/sys/class/fingerprint/fingerprint/name",
+                "/proc/self/root/sys/devices/system/chip-id/unique_id",
+                // Files which stay
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/class/sec/tspx",
+                "/sys/bus/mmc/devices/mmc0:0001/cidx", "/sys/class/fingerprint/fingerprintx",
+                "/sys/devices/system/chip-idx/unique_id"};
+        int hiddenCount = 0;
+        for (String[] variant : variants)
+            for (String path : paths) {
+                String expected = run(files, "tostring(hidden(grouphook('" + variant[0] + "'), '" + path + "'))");
+                assertEquals(variant[1] + " " + path, expected,
+                        run(shell, "tostring(hiddenfile('" + path + "', { " + variant[1] + " = true }))"));
+                if ("true".equals(expected))
+                    hiddenCount++;
+            }
+        // Each sample of a file which does not exist is hidden for at least one group
+        assertTrue(String.valueOf(hiddenCount), hiddenCount >= 19);
     }
 }
