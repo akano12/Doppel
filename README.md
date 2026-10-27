@@ -33,15 +33,17 @@ Screenshots
 -----------
 
 <table>
-  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="180" alt="Apps"><br><sub>Apps</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="180" alt="An app"><br><sub>An app</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="180" alt="Activity"><br><sub>Activity</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="180" alt="Hooks"><br><sub>Hooks</sub></td></tr>
-  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="180" alt="Hook editor"><br><sub>Hook editor</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="180" alt="Downloads"><br><sub>Downloads</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="180" alt="Settings"><br><sub>Settings</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="180" alt="Dark theme"><br><sub>Dark theme</sub></td></tr>
+  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="180" alt="Apps, with the actions of an app swiped open"><br><sub>Apps</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="180" alt="The screen of an app"><br><sub>An app</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="180" alt="Fake values"><br><sub>Fake values</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="180" alt="Activity"><br><sub>Activity</sub></td></tr>
+  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="180" alt="Hooks"><br><sub>Hooks</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="180" alt="Downloads"><br><sub>Downloads</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="180" alt="Settings"><br><sub>Settings</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="180" alt="The groups of an app in the dark theme"><br><sub>Dark theme</sub></td></tr>
 </table>
 
 Features
 --------
 
-* **Apps**: restrict any user or system app by group or by single hook, with one tap for new apps
-* **Fake values** for all apps or per app, like the IMEI, Android ID, location and time zone
+* **Apps**: restrict any user or system app by group or by single hook; swipe an app for Restrict all,
+  Remove all and its groups, with Undo
+* **Fake values** for all apps or per app, like the IMEI, Android ID, location and time zone;
+  the identifiers can be new each boot, a different one for each app, so apps cannot follow you across apps or restarts
 * **Activity**: what each app tried, with the real and the fake value, and hook errors
 * **Hooks**: view, edit, import and export hook definitions, [add your own](docs/DEFINE.md)
   and install definitions shared by others with *Downloads*, like a domain blocklist
