@@ -20,6 +20,7 @@
 package eu.faircode.xlua;
 
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
@@ -59,6 +60,14 @@ final class Scripts {
     static String read(String script) throws IOException {
         return new String(Files.readAllBytes(new File("src/main/assets/" + script + ".lua").toPath()),
                 StandardCharsets.UTF_8);
+    }
+
+    // Strings as a Lua list
+    static LuaValue strings(String[] values) {
+        LuaValue[] lua = new LuaValue[values.length];
+        for (int i = 0; i < values.length; i++)
+            lua[i] = LuaValue.valueOf(values[i]);
+        return LuaValue.listOf(lua);
     }
 
     // Runs Lua code in the globals and returns what it returns

@@ -140,8 +140,8 @@ local BUILTINS = { echo = true, printf = true, cd = true, test = true, ['['] = t
 local WRAPPERS = { toybox = true, toolbox = true, busybox = true, env = true, exec = true, command = true,
                    nohup = true, nice = true, timeout = true, xargs = true }
 
--- The fake time zone, like timezone
-function fakezone(param)
+-- The id of the fake time zone, like fakeid of timezone
+function fakeid(param)
     local zone = param:getSetting('value.timezone')
     if zone == nil or zone == '' then
         zone = 'UTC'
@@ -153,7 +153,7 @@ end
 -- android.os.Build and the hooks of SystemProperties.get
 function rules(param, variant)
     if variant == 'timezone' then
-        return { { fakezone(param), { 'persist.sys.timezone' } } }
+        return { { fakeid(param), { 'persist.sys.timezone' } } }
     elseif variant == 'identifiers' then
         local serial = param:getSetting('value.serial')
         if serial == nil then
@@ -623,13 +623,13 @@ function featurefunctions(param, variants, lists, cases)
     end
 
     lists[#lists + 1] = '   features) __xlua_package "$@" | __xlua_features ;;'
-    cases[#cases + 1] = "  has-feature) if [ -n \"${2-}\" ] && __xlua_hidden \"$2\"; then echo false; return 1; fi;" ..
+    cases[#cases + 1] = "  has-feature) if [ -n \"${2-}\" ] && __xlua_hiddenfeature \"$2\"; then echo false; return 1; fi;" ..
             ' __xlua_package "$@" ;;'
     local result = {
         '__xlua_features() {',
         ' /system/bin/sed ' .. table.concat(seds, ' '),
         '}',
-        '__xlua_hidden() {',
+        '__xlua_hiddenfeature() {',
         ' case "$1" in',
         table.concat(checks, '\n'),
         ' esac',
@@ -1032,7 +1032,7 @@ end
 -- date prints the time in the time zone of its environment, which is the real one,
 -- unless the app sets one; whether the fake time zone was set
 function settimezone(param, runtime, builder)
-    local zone = fakezone(param)
+    local zone = fakeid(param)
     if runtime then
         local envp = runtimeenvironment(param:getArgument(1), zone)
         if envp == nil then
@@ -1158,12 +1158,12 @@ function refuse(param, runtime)
     end
     local line = table.concat(words, ' ')
 
-    local regex = param:getSetting('commands.regex')
-    if regex ~= nil and regex ~= '' then
+    local expression = param:getSetting('commands.regex')
+    if expression ~= nil and expression ~= '' then
         -- An invalid expression matches nothing
         local pattern = luajava.bindClass('java.util.regex.Pattern')
         local valid, matches = pcall(function()
-            return pattern:matches(regex, line)
+            return pattern:matches(expression, line)
         end)
         if valid and matches then
             return false
@@ -1322,8 +1322,8 @@ function before(hook, param)
         param:putValue('shell.variants', table.concat(all, ','), args)
         param:setArgument(0, args)
     else
-        -- The builder gets its own command back after the start, apps can start it again; a command filter
-        -- installed earlier from Downloads (Fif ProcessBuilder.start) matches this original command too
+        -- The builder gets its own command back after the start, apps can start it again; the variant commands
+        -- checks this original command too (see refuse)
         param:putValue('shell.command', command, scope)
         param:putValue('shell.variants', table.concat(all, ','), scope)
         scope:command(fake)

@@ -44,6 +44,7 @@ import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.InputStream;
@@ -187,7 +188,7 @@ public class ActivityDownloads extends ActivityBase {
                 entry.updated = jentry.optLong("updated") * 1000L;
                 entry.downloads = jentry.optInt("downloads");
 
-                JSONObject jhook = new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
+                JSONObject jhook = readDefinition(context, entry);
                 entry.collection = jhook.getString("collection");
                 entry.group = jhook.getString("group");
                 entry.name = jhook.getString("name");
@@ -240,6 +241,11 @@ public class ActivityDownloads extends ActivityBase {
             this.installed = installed;
             show();
         });
+    }
+
+    // A shared definition, by its entry of the list
+    private static JSONObject readDefinition(Context context, Entry entry) throws IOException, JSONException {
+        return new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
     }
 
     private static String readAsset(Context context, String name) throws IOException {
@@ -411,7 +417,7 @@ public class ActivityDownloads extends ActivityBase {
         final Context context = getApplicationContext();
         final boolean enabled = collection.contains(entry.collection);
         run(TAG, () -> {
-            JSONObject jhook = new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json"));
+            JSONObject jhook = readDefinition(context, entry);
             XHook hook = Data.putCustom(context, jhook);
             int apps = (restrict
                     ? Data.assignRestricting(context, new ArrayList<>(Collections.singletonList(hook.getId())))
@@ -445,7 +451,7 @@ public class ActivityDownloads extends ActivityBase {
             final Context context = getApplicationContext();
             run(TAG, () -> {
                 for (Entry entry : entries)
-                    Data.putCustom(context, new JSONObject(readAsset(context, REPO + "hook_" + entry.id + ".json")));
+                    Data.putCustom(context, readDefinition(context, entry));
                 showInstalled(context);
                 Ui.message(this, getResources().getQuantityString(R.plurals.msg_updated, count, count));
             });

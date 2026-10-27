@@ -129,7 +129,7 @@ function pathof(param)
 end
 
 -- Files.newDirectoryStream, list and walk: the names of hidden files are left out by a filter in front of
--- the one of the app; a hidden folder is not opened at all (see opendir). Listing a folder of /sys is not
+-- the one of the app; a hidden folder is not opened at all (see the hooks of UnixNativeDispatcher.opendir). Listing a folder of /sys is not
 -- reported, since nothing is hidden in most of them.
 function listing(hook, param, folder)
     if hidden(hook, folder) then

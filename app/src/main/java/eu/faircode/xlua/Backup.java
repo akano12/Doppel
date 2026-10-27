@@ -260,7 +260,7 @@ class Backup {
     // The id of a definition now, after the renames since a backup was made, which can follow each other,
     // see XDatabase.RENAMED
     static String renamed(String id) {
-        String prefix = Util.COLLECTION_DEFAULT + ".";
+        String prefix = XHook.builtinId("");
         if (!id.startsWith(prefix))
             return id;
         String name = id.substring(prefix.length());

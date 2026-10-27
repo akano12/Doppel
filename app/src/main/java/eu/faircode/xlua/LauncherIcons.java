@@ -60,14 +60,14 @@ final class LauncherIcons {
 
     // The chosen icon, also when it is not switched to yet
     static int getSelected(Context context) {
-        int chosen = getPreferences(context).getInt(PREF_CHOSEN, -1);
+        int chosen = ApplicationEx.getPreferences(context).getInt(PREF_CHOSEN, -1);
         return (chosen < 0 ? getEnabled(context) : chosen);
     }
 
     // True when the icon is switched to later, false for the icon of the launcher, which cancels a choice made before
     static boolean choose(Context context, int index) {
         boolean pending = (index != getEnabled(context));
-        SharedPreferences.Editor editor = getPreferences(context).edit();
+        SharedPreferences.Editor editor = ApplicationEx.getPreferences(context).edit();
         if (pending)
             editor.putInt(PREF_CHOSEN, index);
         else
@@ -97,10 +97,10 @@ final class LauncherIcons {
             @Override
             public void onActivityStopped(@NonNull Activity activity) {
                 if (--started == 0 && !activity.isChangingConfigurations() && !awaitingResult) {
-                    int chosen = getPreferences(app).getInt(PREF_CHOSEN, -1);
+                    int chosen = ApplicationEx.getPreferences(app).getInt(PREF_CHOSEN, -1);
                     if (chosen >= 0) {
                         enable(app, chosen);
-                        getPreferences(app).edit().remove(PREF_CHOSEN).apply();
+                        ApplicationEx.getPreferences(app).edit().remove(PREF_CHOSEN).apply();
                     }
                 }
             }
@@ -125,10 +125,6 @@ final class LauncherIcons {
             public void onActivityDestroyed(@NonNull Activity activity) {
             }
         });
-    }
-
-    private static SharedPreferences getPreferences(Context context) {
-        return ApplicationEx.getPreferences(context);
     }
 
     // The new entry is enabled before the others are disabled, so the launcher always has one;

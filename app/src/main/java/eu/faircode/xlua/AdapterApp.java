@@ -132,9 +132,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             return (restricted == 0 ? used : Math.max(used, assigned));
         }
 
-        // Restricting all groups is offered for apps without restrictions, not for Android itself (boot loop risk)
+        // Restricting all groups is offered for apps without restrictions, not for system server
         boolean canRestrictAll() {
-            return (!error && restricted == 0 && groups > 0 && !"android".equals(app.packageName));
+            return (!error && restricted == 0 && groups > 0 && !app.isSystemServer());
         }
 
         boolean isSame(Row other) {
@@ -507,7 +507,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 listener.onApp(row.app);
         }
 
-        // Start the app, like before
+        // Start the app
         @Override
         public boolean onLongClick(View view) {
             Row row = getRow();
@@ -677,23 +677,19 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     // none in grey; screen readers get the words
     private static void bindCoverage(TextView tv, Row row) {
         Context context = tv.getContext();
-        int background;
-        int text;
+        Ui.Badge badge;
         if (row.restricted == 0) {
-            background = com.google.android.material.R.attr.colorSurfaceContainerHigh;
-            text = com.google.android.material.R.attr.colorOnSurfaceVariant;
+            badge = Ui.Badge.NEUTRAL;
             tv.setText(R.string.title_off);
             tv.setContentDescription(context.getString(R.string.title_not_restricted));
         } else {
-            boolean all = (row.restricted >= row.groups);
-            background = (all ? com.google.android.material.R.attr.colorSecondaryContainer : R.attr.colorWarningContainer);
-            text = (all ? com.google.android.material.R.attr.colorOnSecondaryContainer : R.attr.colorOnWarningContainer);
+            badge = (row.restricted >= row.groups ? Ui.Badge.ACCENT : Ui.Badge.WARNING);
             tv.setText(String.format(Locale.getDefault(), "%d/%d", row.restricted, row.groups));
             tv.setContentDescription(context.getResources().getQuantityString(
                     R.plurals.title_groups_restricted, row.groups, row.restricted, row.groups));
         }
-        tv.setBackgroundTintList(Ui.tint(context, background));
-        tv.setTextColor(Ui.color(context, text));
+        tv.setBackgroundTintList(Ui.tint(context, badge.background));
+        tv.setTextColor(Ui.color(context, badge.text));
         tv.setVisibility(View.VISIBLE);
     }
 }

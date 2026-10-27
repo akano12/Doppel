@@ -225,7 +225,7 @@ public class ActivityHookEdit extends ActivityBase {
         outState.putInt(STATE_TAB, tabs.getSelectedTabPosition());
     }
 
-    // After the fields are restored, so the script info is of the script entered
+    // The tab shown before the recreation
     @Override
     protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
         super.onRestoreInstanceState(savedInstanceState);

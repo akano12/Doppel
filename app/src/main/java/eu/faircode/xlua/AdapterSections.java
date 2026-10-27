@@ -238,12 +238,9 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
         h.tvPill.setVisibility(group.pill == null ? View.GONE : View.VISIBLE);
         h.tvPill.setText(group.pill);
         h.ivIcon.setImageResource(group.icon);
-        h.flIcon.setBackgroundTintList(Ui.tint(context, group.expanded
-                ? com.google.android.material.R.attr.colorSecondaryContainer
-                : com.google.android.material.R.attr.colorSurfaceContainerHigh));
-        h.ivIcon.setImageTintList(Ui.tint(context, group.expanded
-                ? com.google.android.material.R.attr.colorOnSecondaryContainer
-                : com.google.android.material.R.attr.colorOnSurfaceVariant));
+        Ui.Badge badge = (group.expanded ? Ui.Badge.ACCENT : Ui.Badge.NEUTRAL);
+        h.flIcon.setBackgroundTintList(Ui.tint(context, badge.background));
+        h.ivIcon.setImageTintList(Ui.tint(context, badge.text));
         h.ivExpand.setRotation(group.expanded ? 180 : 0);
         h.ivExpand.setImageTintList(Ui.tint(context, group.expanded
                 ? androidx.appcompat.R.attr.colorPrimary : com.google.android.material.R.attr.colorOutline));

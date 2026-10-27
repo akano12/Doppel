@@ -41,6 +41,11 @@ class XApp implements Parcelable {
     XApp() {
     }
 
+    // System server, restricting all of which can make the device boot loop
+    boolean isSystemServer() {
+        return "android".equals(this.packageName);
+    }
+
     // The name shown, the package name when the app has no label
     String getLabel() {
         return (TextUtils.isEmpty(this.label) ? this.packageName : this.label);

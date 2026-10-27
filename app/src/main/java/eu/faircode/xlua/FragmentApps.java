@@ -387,10 +387,10 @@ public class FragmentApps extends FragmentBase {
                     // The question tells which way, the restrictions of the shown apps are known
                     final List<XApp> restricting = getRestricting(apps, group);
                     if (restricting.isEmpty()) {
-                        // Like restricting all groups, adding leaves out system server, which can bootloop
+                        // Like restricting all groups, adding leaves out system server
                         final List<XApp> adding = new ArrayList<>();
                         for (XApp app : apps)
-                            if (!"android".equals(app.packageName))
+                            if (!app.isSystemServer())
                                 adding.add(app);
                         if (!adding.isEmpty())
                             Ui.areYouSure(context,

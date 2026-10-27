@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A group of the Hooks tab: icon, title and what it holds; tapping shows or hides its hooks, see AdapterSections.Group -->
+<!-- A group of hooks, on the Hooks tab and in Downloads: icon, title and what it holds; tapping shows or hides
+     its hooks, see AdapterSections.Group -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"

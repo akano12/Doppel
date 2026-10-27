@@ -70,7 +70,7 @@ import java.util.Set;
 
 // Restrictions of one app, by group
 public class ActivityApp extends ActivityBase {
-    private static final String TAG = "XLua.AppDetail";
+    private static final String TAG = "XLua.App";
 
     private static final String EXTRA_PACKAGE = "package";
     private static final String EXTRA_UID = "uid";
@@ -265,7 +265,7 @@ public class ActivityApp extends ActivityBase {
                 Ui.addBadge(llBadges, pi.versionName, Ui.Badge.NEUTRAL);
         } catch (PackageManager.NameNotFoundException ignored) {
         }
-        findViewById(R.id.llAndroid).setVisibility("android".equals(app.packageName) ? View.VISIBLE : View.GONE);
+        findViewById(R.id.llAndroid).setVisibility(app.isSystemServer() ? View.VISIBLE : View.GONE);
 
         cbForceStop.setOnCheckedChangeListener(null);
         cbForceStop.setChecked(app.forceStop && !app.persistent);
@@ -553,16 +553,21 @@ public class ActivityApp extends ActivityBase {
         return (app.getAssignments(group).size() >= available.get(group).size());
     }
 
+    // All available hooks of all groups are assigned
+    private boolean isComplete() {
+        for (String group : available.keySet())
+            if (!isComplete(group))
+                return false;
+        return true;
+    }
+
     // The ring and the line of Restrict all, and the counts of the sections, like 3 of 3
     private void updateSummary() {
         int restricted = 0;
-        boolean complete = true;
-        for (String group : available.keySet()) {
+        for (String group : available.keySet())
             if (!app.getAssignments(group).isEmpty())
                 restricted++;
-            if (!isComplete(group))
-                complete = false;
-        }
+        boolean complete = isComplete();
         // The last call restricted, of any group
         long last = -1;
         String lastGroup = null;
@@ -601,13 +606,9 @@ public class ActivityApp extends ActivityBase {
     private void restrictAll() {
         if (app == null)
             return;
-        boolean all = true;
-        for (String group : available.keySet())
-            if (!isComplete(group))
-                all = false;
-        final boolean assign = !all;
+        final boolean assign = !isComplete();
         final List<String> groups = new ArrayList<>(available.keySet());
-        if (assign && "android".equals(app.packageName)) {
+        if (assign && app.isSystemServer()) {
             updateSummary();
             Ui.areYouSure(this, getString(R.string.title_bootloop), R.string.title_restrict_all_groups, () -> assign(groups, true));
         } else

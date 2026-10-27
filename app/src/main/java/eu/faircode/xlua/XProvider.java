@@ -401,7 +401,7 @@ class XProvider {
             if (marker == null)
                 known.addAll(enabled);
             else
-                known.addAll(Arrays.asList(marker.split(",")));
+                known.addAll(Util.split(marker));
 
             List<String> added = new ArrayList<>();
             for (String id : enabled)
@@ -436,12 +436,12 @@ class XProvider {
             String marker = readSetting(d, -1, "service", "builtins_moved");
             Set<String> done = new HashSet<>();
             if (marker != null)
-                done.addAll(Arrays.asList(marker.split(",")));
+                done.addAll(Util.split(marker));
 
             List<String> ids = new ArrayList<>();
             Map<String, XHook> others = new HashMap<>(all);
             for (String[] moved : XDatabase.MOVED) {
-                String id = Util.COLLECTION_DEFAULT + "." + moved[0];
+                String id = XHook.builtinId(moved[0]);
                 ids.add(id);
                 others.remove(id);
             }
@@ -1125,6 +1125,10 @@ class XProvider {
         loadData(context);
         int cuid = Binder.getCallingUid();
         try {
+            // System server and the app first: system server has the assignments of Android too
+            if (hasPermission(context))
+                return CALLER_PERMITTED;
+
             String[] packages = getPackagesForUid(context, cuid);
             if (packages != null && packages.length > 0) {
                 final List<String> args = new ArrayList<>();
@@ -1142,7 +1146,7 @@ class XProvider {
                     return CALLER_ASSIGNED;
             }
 
-            return (hasPermission(context) ? CALLER_PERMITTED : CALLER_NONE);
+            return CALLER_NONE;
         } catch (Throwable ex) {
             throw failed(ex);
         }

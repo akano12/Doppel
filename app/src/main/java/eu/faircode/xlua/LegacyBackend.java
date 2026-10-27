@@ -27,7 +27,6 @@ import de.robv.android.xposed.XposedBridge;
 // Legacy XposedBridge API (Xposed, EdXposed, LSPosed before the modern API)
 class LegacyBackend implements XBackend {
     private static final String TAG = "XLua.Legacy";
-    private static final String EXTRA_CALL = "xlua.call";
 
     @Override
     public String getName() {
@@ -41,7 +40,6 @@ class LegacyBackend implements XBackend {
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 // Share the argument array, so argument changes apply to the call
                 XCall call = new XCall(param.method, param.thisObject, param.args);
-                param.setObjectExtra(EXTRA_CALL, call);
                 callback.before(call);
                 if (call.isReturnEarly())
                     apply(call, param);
@@ -49,9 +47,8 @@ class LegacyBackend implements XBackend {
 
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                XCall call = (XCall) param.getObjectExtra(EXTRA_CALL);
-                if (call == null)
-                    call = new XCall(param.method, param.thisObject, param.args);
+                // The extras of the param are shared by the hooks of the method, so each call is made again
+                XCall call = new XCall(param.method, param.thisObject, param.args);
                 call.setOutcome(param.getResult(), param.getThrowable());
                 callback.after(call);
                 apply(call, param);

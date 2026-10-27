@@ -284,7 +284,7 @@ public class FragmentLog extends FragmentBase {
         String summary = getString(R.string.title_pair,
                 getString(R.string.title_pair,
                         getResources().getQuantityString(R.plurals.title_compact_calls, countToday, countToday),
-                        getResources().getQuantityString(R.plurals.title_stat_errors_count, errors.size(), errors.size())),
+                        errorCount),
                 getString(FILTER_TITLES[filter.ordinal()]));
         vBarsCompact.setValues(hours);
         compact.setSubtitle(summary);

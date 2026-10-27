@@ -25,24 +25,18 @@ import androidx.core.widget.NestedScrollView;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
-// The toolbar of a screen with a summary of its top while that is scrolled away, like the compact bar of the tabs
-// (CompactBar): after the subtitle of the toolbar, like the app of the log of one app, or as the subtitle
+// The toolbar of a screen with a summary of its top as its subtitle while that is scrolled away, like the compact bar
+// of the tabs (CompactBar)
 final class ToolbarSummary {
     private final MaterialToolbar toolbar;
-    private final CharSequence subtitle;
     private CharSequence summary = null;
     private boolean scrolled = false;
 
     // The top is scrolled away once the scroll passes the end of the header
     ToolbarSummary(MaterialToolbar toolbar, NestedScrollView scroll, View header) {
-        this(toolbar);
+        this.toolbar = toolbar;
         scroll.setOnScrollChangeListener((NestedScrollView.OnScrollChangeListener) (view, x, y, oldX, oldY) ->
                 setScrolled(y > header.getBottom()));
-    }
-
-    private ToolbarSummary(MaterialToolbar toolbar) {
-        this.toolbar = toolbar;
-        this.subtitle = toolbar.getSubtitle();
     }
 
     // After each change of the top, like of a filter
@@ -59,11 +53,6 @@ final class ToolbarSummary {
     }
 
     private void apply() {
-        if (!scrolled || summary == null)
-            toolbar.setSubtitle(subtitle);
-        else if (subtitle == null)
-            toolbar.setSubtitle(summary);
-        else
-            toolbar.setSubtitle(toolbar.getContext().getString(R.string.title_pair, subtitle, summary));
+        toolbar.setSubtitle(scrolled ? summary : null);
     }
 }

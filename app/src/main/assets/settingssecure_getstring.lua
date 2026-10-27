@@ -237,8 +237,7 @@ function fakesetting(param, name, key, result)
             (name == 'device_name' and key == 'device_name') or
             (name == 'boot_count' and key == 'boot_count') or
             (name == 'oaid' and key == 'pps_oaid') then
-        local fake
-        return true, fake
+        return true
     elseif (name == 'accessibility' and COMPONENTS[key] == 'accessibility') or
             (name == 'input_method' and COMPONENTS[key] ~= nil and COMPONENTS[key] ~= 'accessibility') then
         -- Keyboards and accessibility services, and the other apps named by settings, like notification listeners.

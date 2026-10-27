@@ -69,7 +69,7 @@ public class FakeValuesAgreeTest {
             String settings = "{ ['value.timezone'] = " + setting + " }";
             String expected = (setting.equals("'Asia/Tokyo'") ? "Asia/Tokyo" : "UTC");
             assertEquals(setting, expected, run(timezone, "fakeid(paramof(nil, {}, " + settings + "))"));
-            assertEquals(setting, expected, run(shell, "fakezone(paramof(nil, {}, " + settings + "))"));
+            assertEquals(setting, expected, run(shell, "fakeid(paramof(nil, {}, " + settings + "))"));
             assertEquals(setting, expected, run(properties, "fakeof('SystemProperties.get/timezone', 'get', " +
                     "'Europe/Berlin', { 'persist.sys.timezone' }, " + settings + ")"));
         }

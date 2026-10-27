@@ -187,11 +187,11 @@ public class CommandFilterScriptTest {
     @Test
     public void runtimeExecIsFiltered() {
         Varargs result = globals.get("execof").invoke(LuaValue.varargsOf(new LuaValue[]{
-                strings(new String[]{"id"}), settings()}));
+                Scripts.strings(new String[]{"id"}), settings()}));
         assertTrue(result.arg(1).toboolean());
         assertEquals("Cannot run program \"id\": error=13, Permission denied", result.arg(2).tojstring());
         result = globals.get("execof").invoke(LuaValue.varargsOf(new LuaValue[]{
-                strings(new String[]{"getprop", "x"}), settings()}));
+                Scripts.strings(new String[]{"getprop", "x"}), settings()}));
         assertFalse(result.arg(1).toboolean());
     }
 
@@ -203,7 +203,7 @@ public class CommandFilterScriptTest {
 
     private Varargs start(String[] words, String[] original) {
         return globals.get("startof").invoke(LuaValue.varargsOf(new LuaValue[]{
-                strings(words), settings(), original == null ? LuaValue.NIL : strings(original)}));
+                Scripts.strings(words), settings(), original == null ? LuaValue.NIL : Scripts.strings(original)}));
     }
 
     private LuaValue settings() {
@@ -213,12 +213,5 @@ public class CommandFilterScriptTest {
         if (regex != null)
             settings.set("commands.regex", regex);
         return settings;
-    }
-
-    private static LuaValue strings(String[] values) {
-        LuaValue[] lua = new LuaValue[values.length];
-        for (int i = 0; i < values.length; i++)
-            lua[i] = LuaValue.valueOf(values[i]);
-        return LuaValue.listOf(lua);
     }
 }

@@ -521,6 +521,9 @@ public class ShellCommandsScriptTest {
             assertEquals("SD\n", run(start("cat", type)).out);
             // Several files: the hidden one fails, the others are read
             assertEquals("SD\n1\n", run(start("sh", "-c", "cat " + cid + " " + type + " 2>/dev/null; echo $?")).out);
+            // With pm in the same script, which has functions of its own for the features
+            assertEquals("SD\n", run(start("sh", "-c", "pm list features >/dev/null; cat " + cid + " " + type +
+                    " 2>/dev/null")).out);
             assertEquals("03/2024\n", run(start(new String[]{"cat", date}, "identifiers")).out);
             assertEquals("", run(start(new String[]{"cat", date}, "tracking")).out);
             assertEquals("1501004d4b4e3237a0f2c3d4e5f6b700\n", run(start(new String[]{"cat", cid}, "tracking")).out);
@@ -626,9 +629,9 @@ public class ShellCommandsScriptTest {
 
         // date gets the fake time zone, with the environment of the app or the one given, unless it has one
         assertEquals(Arrays.asList("A=1", "TZ=Asia/Tokyo"), words(exec(new String[]{"date"}, null, "timezone").arg(2)));
-        LuaValue envp = globals.get("arrayof").call(strings(new String[]{"B=2"}));
+        LuaValue envp = globals.get("arrayof").call(Scripts.strings(new String[]{"B=2"}));
         assertEquals(Arrays.asList("B=2", "TZ=Asia/Tokyo"), words(exec(new String[]{"date"}, envp, "timezone").arg(2)));
-        LuaValue zoned = globals.get("arrayof").call(strings(new String[]{"TZ=UTC"}));
+        LuaValue zoned = globals.get("arrayof").call(Scripts.strings(new String[]{"TZ=UTC"}));
         assertEquals(zoned, exec(new String[]{"date"}, zoned, "timezone").arg(2));
         globals.load("environment = { TZ = 'UTC' }").call();
         assertTrue(exec(new String[]{"date"}, null, "timezone").arg(2).isnil());
@@ -654,19 +657,12 @@ public class ShellCommandsScriptTest {
 
     private Varargs start(String[] words, String... variants) {
         return globals.get("startof").invoke(LuaValue.varargsOf(new LuaValue[]{
-                strings(words), strings(variants), settings}));
+                Scripts.strings(words), Scripts.strings(variants), settings}));
     }
 
     private Varargs exec(String[] words, LuaValue envp, String... variants) {
         return globals.get("execof").invoke(LuaValue.varargsOf(new LuaValue[]{
-                strings(words), strings(variants), settings, envp == null ? LuaValue.NIL : envp}));
-    }
-
-    private static LuaValue strings(String[] values) {
-        LuaValue[] lua = new LuaValue[values.length];
-        for (int i = 0; i < values.length; i++)
-            lua[i] = LuaValue.valueOf(values[i]);
-        return LuaValue.listOf(lua);
+                Scripts.strings(words), Scripts.strings(variants), settings, envp == null ? LuaValue.NIL : envp}));
     }
 
     private static List<String> command(Varargs started) {
