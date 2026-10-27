@@ -9,7 +9,7 @@
     <color name="c_secondary">#43617B</color>
     <color name="c_on_secondary">#FFFFFF</color>
     <color name="c_secondary_container">#C1E0FF</color>
-    <color name="c_on_secondary_container">#45647E</color>
+    <color name="c_on_secondary_container">#001D33</color>
     <color name="c_tertiary">#805600</color>
     <color name="c_on_tertiary">#FFFFFF</color>
     <color name="c_tertiary_container">#DC9A20</color>
