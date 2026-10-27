@@ -74,9 +74,6 @@ class XProvider {
     private static volatile Map<String, XHook> hooks = null;
     private static volatile Map<String, XHook> builtins = null;
 
-    // The uid of the app, see enforcePermission
-    private static volatile int moduleUid = -1;
-
     // Callers the service answers, see answers
     static final int CALLER_NONE = 0;
     static final int CALLER_ASSIGNED = 1; // An app with assignments, which can call for itself only
@@ -366,7 +363,6 @@ class XProvider {
         // Built-in definitions
         PackageManager pm = context.getPackageManager();
         ApplicationInfo ai = Util.getApplicationInfo(pm, BuildConfig.APPLICATION_ID, 0);
-        moduleUid = ai.uid;
         for (XHook builtin : XHook.readHooks(ai.publicSourceDir)) {
             builtin.resolveClassName(context);
             builtins.put(builtin.getId(), builtin);
@@ -611,10 +607,12 @@ class XProvider {
                 }
             }
 
-            // Assigned hooks
+            // Assigned hooks, of the one package only, which the index finds without reading all rows of the user
+            String[] range = getUidRange(userid);
             try (Cursor cursor = d.query("assignment",
                     new String[]{"package", "uid", "hook", "installed", "used", "restricted", "exception", "assigned"},
-                    WHERE_USER, getUidRange(userid), null, null, null)) {
+                    only == null ? WHERE_USER : WHERE_USER + " AND package = ?",
+                    only == null ? range : new String[]{range[0], range[1], only}, null, null, null)) {
                 while (cursor.moveToNext()) {
                     String pkg = cursor.getString(0);
                     XApp app = apps.get(pkg);
@@ -1130,6 +1128,8 @@ class XProvider {
 
     // The service answers system server, the app and apps with assignments, which are hooked. Other apps get
     // the answers of a device without Doppel, so they cannot detect it nor read the values of settings.
+    // Apps with assignments can detect it: their own code can ask for their hooks and the global settings,
+    // like the hooks in their process do, which the service cannot tell apart.
     // Assignments of a removed package do not count, its uid can be of another app now.
     static int answers(Context context) throws RemoteException {
         loadData(context);
@@ -1174,40 +1174,13 @@ class XProvider {
             enforcePermission(context);
     }
 
-    // System server and the app
+    // System server and the app, for any user: a package name belongs to one app on the device.
+    // Apps signed with the same key are not let in, the companion app of XPrivacyLua which they were for is gone.
     private static void enforcePermission(Context context) throws SecurityException {
-        int callingUid = Binder.getCallingUid(); // Before the identity is cleared, which makes it the uid of system server
-        int cuid = Util.getAppId(callingUid);
-
-        // Access package manager as system user
-        long ident = Binder.clearCallingIdentity();
-        try {
-            if (cuid == Process.SYSTEM_UID)
-                return;
-
-            // The module itself, for any user: a package name belongs to one app on the device
-            if (isPackageOf(context, BuildConfig.APPLICATION_ID, callingUid))
-                return;
-
-            // Other apps with the same signature; the uid of the module changes when it is installed again
-            PackageManager pm = context.getPackageManager();
-            int uid = moduleUid;
-            int signatures = (uid < 0 ? PackageManager.SIGNATURE_UNKNOWN_PACKAGE : pm.checkSignatures(cuid, uid));
-            if (signatures == PackageManager.SIGNATURE_UNKNOWN_PACKAGE) {
-                uid = Util.getApplicationInfo(pm, BuildConfig.APPLICATION_ID, 0).uid;
-                moduleUid = uid;
-                signatures = pm.checkSignatures(cuid, uid);
-            }
-            if (signatures == PackageManager.SIGNATURE_MATCH)
-                return;
-
-            throw new SecurityException("Signature error cuid=" + cuid);
-        } catch (SecurityException ex) {
-            throw ex;
-        } catch (Throwable ex) {
-            throw new SecurityException("Signature check failed cuid=" + cuid, ex);
-        } finally {
-            Binder.restoreCallingIdentity(ident);
-        }
+        int callingUid = Binder.getCallingUid();
+        if (Util.getAppId(callingUid) == Process.SYSTEM_UID ||
+                isPackageOf(context, BuildConfig.APPLICATION_ID, callingUid))
+            return;
+        throw new SecurityException("Permission error cuid=" + callingUid);
     }
 }

@@ -95,6 +95,10 @@ class XDatabase {
             db -> {
                 // Whether an app has assignments, see XProvider.answers
                 db.execSQL("CREATE INDEX idx_assignment_uid ON assignment(uid)");
+            },
+            db -> {
+                // The assignments of a hook, which the renames and removals on each start look up, see upgrade
+                db.execSQL("CREATE INDEX idx_assignment_hook ON assignment(hook)");
             }
     };
 
