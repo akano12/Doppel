@@ -16,6 +16,8 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
+-- Written in 2021 by LuigiVampa92, the author of the definition, for XPrivacyLua
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil or result.length == 0 then

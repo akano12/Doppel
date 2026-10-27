@@ -217,6 +217,14 @@ Also, apps with permission to *receive* SMSes (in contrary to read SMSes) cannot
 Normally, there is just one app that can receive SMSes, that should not be restricted, else no SMSes can be received anymore.
 If you really don't want an app to receive SMSes, you can revoke the SMS receive permission.
 
+<a name="faq21"></a>
+**(21) Can apps detect Doppel?**
+
+Apps you did not restrict cannot ask Doppel anything: they get the same answers as on a device without Doppel.
+Apps you restricted can detect it. The hooks run in the process of the app, so the app can ask the Doppel service
+for its own hooks and read the fake values for all apps, like the hooks do, or look for Xposed itself.
+They cannot change your settings or restrictions, nor read the restrictions of other apps.
+
 <br>
 
 If you have another question, you can open an [issue](https://github.com/akano12/Doppel/issues).
