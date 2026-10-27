@@ -367,24 +367,42 @@ class XCore {
         // Instrumentation.newApplication is called by LoadedApk.makeApplication(Inner) on all versions
         // https://android.googlesource.com/platform/frameworks/base/+/169aeafb2d97b810ae123ad036d0c58336961c55%5E%21/#F1
         Class<?> clsInstrumentation = Class.forName("android.app.Instrumentation", false, classLoader);
+        // The hooks are installed before the application is made, with the context it gets: making it runs
+        // attachBaseContext of the app, where apps can start threads, like Facebook does, and hooking methods
+        // which other threads run meanwhile can make them fail, like with arguments which are null
         backend.hookAll(clsInstrumentation, "newApplication", new XBackend.Callback() {
             private boolean made = false;
 
             @Override
-            void after(XCall call) {
-                try {
-                    if (!made && call.getResult() instanceof Application) {
-                        made = true;
-                        Context context = (Application) call.getResult();
-
-                        // Isolated processes (including app zygote) cannot access the provider
-                        if (Util.isIsolated(uid)) {
-                            Log.i(TAG, "Skipping isolated " + packageName + ":" + uid);
-                            return;
+            void before(XCall call) {
+                if (call.args != null)
+                    for (Object arg : call.args)
+                        if (arg instanceof Context) {
+                            install((Context) arg);
+                            break;
                         }
+            }
 
-                        hookPackage(packageName, uid, context);
+            // Without a context argument, with the application made
+            @Override
+            void after(XCall call) {
+                if (call.getResult() instanceof Application)
+                    install((Application) call.getResult());
+            }
+
+            private void install(Context context) {
+                try {
+                    if (made)
+                        return;
+                    made = true;
+
+                    // Isolated processes (including app zygote) cannot access the provider
+                    if (Util.isIsolated(uid)) {
+                        Log.i(TAG, "Skipping isolated " + packageName + ":" + uid);
+                        return;
                     }
+
+                    hookPackage(packageName, uid, context);
                 } catch (Throwable ex) {
                     log(ex);
                 }
