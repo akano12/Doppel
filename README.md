@@ -73,6 +73,7 @@ Features
 * **Hooks** lets you view, edit, enable, disable, add, import and export hook definitions,
   and install and remove definitions shared by others with *Downloads*,
   like a blocklist of domains and blockers of the Radar, Localytics and Ogury SDKs.
+  Downloads offers only definitions about privacy which Doppel does not have built in; installed ones stay installed.
 * **Settings** has restricting of and notifications on new apps, the collections of definitions,
   the theme, accent color and app icon, the fake values used for all apps (like the IMEI, Android ID, location and time zone),
   backup and restore of settings, custom hook definitions and restrictions, and clearing all restrictions and settings.
@@ -105,7 +106,8 @@ LSPosed: the scope needs to include *System Framework*, which hosts the Doppel s
 and each app you want to restrict, see [here](https://github.com/LSPosed/LSPosed/wiki/How-to-use-it#install--activate-modules).
 With the legacy API, *Settings Storage* (com.android.providers.settings) needs to be in the scope too.
 
-A build signed with another key than the official release cannot update it: uninstall the official release first.
+Only Doppel itself and Android can change the restrictions and settings, or read the ones of other apps;
+apps signed with the same key as Doppel cannot either. A build signed with another key than the official release cannot update it: uninstall the official release first.
 XPrivacyLua by M66B, which Doppel replaces, needs to be uninstalled before installing Doppel:
 both use the same service and data, so they cannot be active side by side.
 
@@ -160,6 +162,7 @@ The other restrictions hook Android itself and always work.
 * The files of /sys which do not exist for restricted apps cannot be opened, read, listed or found with Java and with shell commands like cat. Native code can still read them.
 * The network data restriction blocks discovery of devices in the local network through Android (network service discovery, Wi-Fi Direct and Wi-Fi Aware). Apps discovering devices with their own code over plain sockets, like with mDNS or SSDP, cannot be prevented from doing so.
 * The telephony data restriction will result in apps seeing a fake IMEI. However, this doesn't change the IMEI address of your device.
+* Apps which are not restricted cannot detect Doppel, restricted apps can, but they cannot change anything, see [this FAQ](FAQ.md#user-content-faq21).
 
 Help
 ----
@@ -192,7 +195,7 @@ with JDK 17 or later and the Android SDK (platform 37):
 ```
 ./gradlew assembleDebug        # debug build
 ./gradlew assembleRelease      # release build, signed when keystore.properties exists
-./gradlew testDebugUnitTest    # validates the built-in hook definitions and Lua scripts
+./gradlew testDebugUnitTest    # validates the built-in hook definitions and Lua scripts, and that scripts faking the same value agree
 scripts/check-service.sh       # on a rooted device or emulator with Doppel: the service answers only whom it should
 ```
 
