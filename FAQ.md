@@ -49,7 +49,7 @@ Disable and enable the module in the manager app and hard reboot again to fix th
 * *Select contacts groups to allow/block*: the Android contacts provider doesn't support contact groups at all hierarchy levels and working around this has appeared to be not possible reliably.
 
 If you want to confine apps to their own folder, you can install the hook definition *BlockGuardOs.open*
-with *Downloads* on the *Hooks* tab.
+with *Downloads* on the *Hooks* tab. To block domains, Downloads has *InetAddress.getByName* and *InetAddress.getAllByName*.
 
 Apps having access to the IP address generally have access to the internet and therefore can get your IP address in a simple way,
 see for example [here](https://www.privateinternetaccess.com/pages/whats-my-ip/). Therefore an IP address restriction doesn't make sense.
@@ -79,7 +79,7 @@ See also [question 7](#user-content-faq7).
 This error could mean that the downloaded file is corrupt, which could for example be caused by a connection problem or by a virus scanner.
 
 It could also mean that you are trying to install Doppel on an unsupported Android version.
-See [here](README.md#compatibility) for which Android versions are supported.
+See [here](README.md#installation) for which Android versions are supported.
 
 <a name="faq6"></a>
 **(6) Why does a switch show a dash?**
@@ -98,21 +98,21 @@ tapping it again removes the restrictions of the group.
 <a name="faq7"></a>
 **(7) How does Doppel compare to XPrivacy?**
 
-* XPrivacy supports Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop and Doppel supports Android version 6.0 Marshmallow and later, see [here](README.md#compatibility) about compatibility
+* XPrivacy supports Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop and Doppel supports Android version 6.0 Marshmallow and later, see [here](README.md#installation) about compatibility
 * The user interface of Doppel is simpler than of XPrivacy, see also [question 4](#user-content-faq4)
 * The restrictions of Doppel are designed to prevent apps from crashing, while a number of XPrivacy restrictions can cause apps to crash, see also [question 4](#user-content-faq4)
 * Doppel has no on demand restricting for stability and maintenance reasons, see also [question 4](#user-content-faq4)
 * Doppel can unlike XPrivacy restrict analytics services like [Firebase Analytics](https://firebase.google.com/docs/analytics/) and [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics)
-* Doppel [is user extensible](DEFINE.md) while XPrivacy is not
+* Doppel [is user extensible](docs/DEFINE.md) while XPrivacy is not
 * Doppel is easier to maintain than XPrivacy, so Doppel is easier to update for new Android versions
 
 In general Doppel and XPrivacy are comparable in protecting your privacy.
-For a detailed comparison with XPrivacy see [here](XPRIVACY.md).
+For a detailed comparison with XPrivacy see [here](docs/XPRIVACY.md).
 
 <a name="faq8"></a>
 **(8) How can I define custom restrictions?**
 
-See [here](DEFINE.md) for the documentation on defining hooks.
+See [here](docs/DEFINE.md) for the documentation on defining hooks.
 
 <a name="faq9"></a>
 **(9) Why can an app still access my accounts?**
@@ -224,6 +224,20 @@ Apps you did not restrict cannot ask Doppel anything: they get the same answers 
 Apps you restricted can detect it. The hooks run in the process of the app, so the app can ask the Doppel service
 for its own hooks and read the fake values for all apps, like the hooks do, or look for Xposed itself.
 They cannot change your settings or restrictions, nor read the restrictions of other apps.
+
+LSPosed loads into every app in the scope of Doppel, also when the app is not restricted,
+and apps can look for LSPosed itself, so add only the apps you restrict to the scope.
+
+<a name="faq22"></a>
+**(22) Why can an app not run commands anymore?**
+
+The group *Run commands* lets the commands an app runs, like *su*, *id* or *logcat*, fail,
+except the programs you allow in *Fake values* with *Allowed commands*, like `getprop, uname`,
+and the command lines matching *Allowed command lines* (a regular expression).
+*Restrict all* restricts this group too, so if an app stops working after restricting all groups,
+allow the commands it needs, or switch *Run commands* off for that app.
+The commands an app tried are shown on the *Activity* tab.
+Allowed commands still get the fake values of the other groups, like getprop.
 
 <br>
 

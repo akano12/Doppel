@@ -66,7 +66,7 @@ public class HookDefinitionsTest {
     private static final Set<String> HIDDEN = new HashSet<>(Arrays.asList(
             "android.os.SystemProperties", "android.app.ContextImpl", "android.app.Instrumentation"));
 
-    // The defaults XHook.fromJSONObject uses for missing attributes, see DEFINE.md
+    // The defaults XHook.fromJSONObject uses for missing attributes, see docs/DEFINE.md
     private static final Map<String, Object> DEFAULTS = new HashMap<>();
 
     static {

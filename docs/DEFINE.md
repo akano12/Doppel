@@ -112,27 +112,30 @@ The result can be set *before* the hooked method is executed,
 which will result in the actual method not executing (thus replacing the method),
 or can be set *after* the hooked method has been executed.
 
-The most important functions of *hook* are:
+The functions of *hook* ([all](../app/src/main/java/eu/faircode/xlua/XHook.java)):
 
-* *hook:getName()*: the name of the definition
-* *hook:getGroup()*: the group of the definition, like *Read.Telephony*
-* *hook:getClassName()*: the name of the hooked class
-* *hook:getMethodName()*: the name of the hooked method, on which a script shared by several definitions can branch
-* *hook:getParameterTypes()*: the parameter types of the definition as an array of class names
-* *hook:getReturnType()*: the return type of the definition as a class name, like to fake a value of the right type
-* For other functions, see [here](app/src/main/java/eu/faircode/xlua/XHook.java) for the available public methods
+* *getName()*, *getGroup()*, *getCollection()*, *getId()* (*collection.name*), *getVersion()* and *getSettings()* of the definition
+* *getClassName()*: the name of the hooked class
+* *getMethodName()*: the name of the hooked method, on which a script shared by several definitions can branch
+* *getParameterTypes()*: the parameter types of the definition as an array of class names
+* *getReturnType()*: the return type as a class name, like to fake a value of the right type
 
-The most important functions of *param* are:
+The functions of *param* ([all](../app/src/main/java/eu/faircode/xlua/XParam.java)):
 
-* *param:getApplicationContext()*: see remarks below
-* *param:getThis()*: the current object instance or *nil* if the method is static
-* *param:getArgument(index)*: get the argument at the specified index (zero based)
-* *param:setArgument(index, value)*
-* *param:getResult()*: only available after the hooked method has been executed
-* *param:setResult(value)*
-* *param:findClass(name)*: load a class of the hooked app, see remarks below
-* *param:isInstance(object, name)*: check if an object is an instance of the named class or interface
-* For other functions, see [here](app/src/main/java/eu/faircode/xlua/XParam.java) for the available public methods
+* *getThis()*: the current object instance or *nil* if the method is static
+* *getArgument(index)* and *setArgument(index, value)*: the arguments, zero based
+* *getResult()* and *setResult(value)*: the result, available after the hooked method has been executed;
+  setting it *before* skips the method, a throwable is thrown instead
+* *getException()*: the exception the hooked method threw, in *after*
+* *getSetting(name)*: a setting (fake value) of the definition, see above
+* *getApplicationContext()*: the context of the app, see remarks below
+* *getPackageName()*, *getUid()* and *isSystem()*: the app and whether it is a system app
+* *findClass(name)* and *isInstance(object, className)*: classes of the app, see remarks below
+* *isPackageVisible(packageName)*, *isUidVisible(uid)*, *isVisible(applicationInfo)* and *isInstalledVisible(packageName)*:
+  whether another app is visible to the app, see the group *Get applications*
+* *getValue(name, scope)* and *putValue(name, value, scope)*: values kept with an object, see remarks below
+* *unhooked(function)*: runs a function without the hooks of the app on the thread, for lookups of the script itself
+* *getFileText()*, *setFileText(text)*, *readFile(path)* and *uuidOf(seed)*: see remarks below
 
 The before/after function **must** return *true* when something was done and **must** return *false* otherwise.
 Doppel will show the last date/time of the last time *true* was returned.
@@ -163,11 +166,15 @@ Remarks
 -------
 
 A common problem when developing an Xposed module is getting [a context](https://developer.android.com/reference/android/content/Context.html).
-With Doppel you'll never have to worry about this because you can simply get a context like this:
+With Doppel you can simply get the context of the app like this:
 
 ```Lua
     local context = param:getApplicationContext()
 ```
+
+The hooks are installed before the app's own code runs, so this is the base context of the app, not its *Application*:
+everything like *getPackageManager*, *getSystemService* and *getContentResolver* works,
+but *getApplicationContext()* of the context itself can be *nil* while the app starts.
 
 You can write to the Android logcat using the *log* function:
 
@@ -195,7 +202,7 @@ The function is called before and after each execution of them with *when* (*bef
 a *param* like the one of the *before*/*after* functions, and the arguments given to *hook* after the function, if any.
 What it returns is not used; an error in it is written to the logcat, and a method which does not exist is only logged too.
 Inside a *before*/*after* function whose first parameter is named *hook* the global *hook* is hidden by that parameter,
-so name the parameter differently there, like [webview_constructor](app/src/main/assets/webview_constructor.lua) does.
+so name the parameter differently there, like [webview_constructor](../app/src/main/assets/webview_constructor.lua) does.
 
 An error in the definition, like class or method not found, or a compile time or run time error of/in the Lua script will result in a status bar notification.
 Tapping the error notification opens the screen of the app, where the failed group has an error icon which shows the details of the error.
@@ -219,7 +226,8 @@ function filter(hook)
 end
 ```
 
-The function is called once, when the hook is installed, with the *hook* of the definition.
+The function is called once, when the hook is installed, with the *hook* of the definition only,
+so *filter* is a reserved name: a script must not use it for a function of its own.
 A value ending in \* stands for all values starting with the text before it, like */sys/\** for the files of */sys*,
 for a script which tells the paths apart itself.
 
@@ -227,15 +235,6 @@ For a hooked method which opens a file and returns its file descriptor, like *li
 *param:getFileText()* reads the file, and *param:setFileText(text)* lets the app read the text instead,
 without a file being written. *param:readFile(path)* reads a file like the app does, with its hooks,
 and *param:uuidOf(seed)* gives a random looking UUID, which is the same for the same seed.
-
-The other functions of *param*: *getPackageName()* and *getUid()* of the app, *isSystem()* (whether the app is a system app),
-*getApplicationContext()*, *getSetting(name)* for a setting of the definition, *getException()* (the exception the hooked method
-threw, in *after*), *findClass(name)* and *isInstance(object, className)* for classes of the app,
-*isPackageVisible(packageName)*, *isUidVisible(uid)*, *isVisible(applicationInfo)* and *isInstalledVisible(packageName)*
-(whether another app is visible to the app, see the group *Get applications*), and *unhooked(function)*, which runs a function
-without the hooks of the app on the thread, for lookups of the script itself.
-Besides *getMethodName()*, *getParameterTypes()* and *getReturnType()*, the *hook* has *getId()*, *getCollection()*, *getGroup()*,
-*getName()*, *getVersion()*, *getClassName()* and *getSettings()*.
 
 A script is executed once per thread to define its functions, so a script should only define functions.
 
@@ -252,11 +251,17 @@ On the *Hooks* tab you can edit built-in definitions, which will result in makin
 You could for example enable usage notifications or change returned fake values.
 Deleting copied definitions will restore the built-in definitions.
 
+You can find example definitions in the [repository](../repo), which *Downloads* offers,
+and the definitions built into Doppel [here](../app/src/main/assets).
+
+<a name="sharing"></a>
+Sharing
+-------
+
 With *Downloads* on the *Hooks* tab you can install hook definitions shared by others, which are part of the app (folder *repo*).
+Downloads offers definitions about privacy which Doppel does not have built in.
 To share a definition, export it in the hook editor and offer it as a pull request,
 as *repo/hook_N.json* with an entry with the id N, the time of the update (seconds since 1970) and 0 downloads in *repo/list.json*.
-
-You can find example definitions in the [repository](repo), which *Downloads* offers,
-and the definitions built into Doppel [here](app/src/main/assets).
+A changed definition needs a higher *version* and a new time of the update, so Downloads offers the update.
 
 If you have questions, you can ask them in an [issue](https://github.com/akano12/Doppel/issues).

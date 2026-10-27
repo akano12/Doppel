@@ -43,6 +43,7 @@
 <li>Read VPN state</li>
 <li>Record audio</li>
 <li>Record video</li>
+<li>Run commands</li>
 <li>Send messages</li>
 <li>Use analytics</li>
 <li>Use camera</li>

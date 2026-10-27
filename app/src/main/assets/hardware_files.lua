@@ -54,7 +54,7 @@ function filter(hook)
     return { '*sys/*' }
 end
 
--- Whether paths are hidden for a group, per thread, since a script runs once per thread (see DEFINE.md): files
+-- Whether paths are hidden for a group, per thread, since a script runs once per thread (see docs/DEFINE.md): files
 -- of /sys are read often, like the frequencies of the processors, and resolving their paths takes a system call.
 -- The paths of /sys stay the same while the app runs; the cache starts over when it is full.
 local HIDDEN = {}

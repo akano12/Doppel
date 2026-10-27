@@ -6,7 +6,7 @@ The list below is [taken from](https://github.com/M66B/XPrivacy#restrictions) th
 * **Bold** means that Doppel supports the restriction
 * ~~Strike through~~ means that Doppel won't support the restriction
 
-Before asking questions, please read [this FAQ](FAQ.md#user-content-faq4).
+Before asking questions, please read [this FAQ](../FAQ.md#user-content-faq4).
 
 <a name="accounts"></a>
 * Accounts
@@ -93,6 +93,7 @@ E-mail data is generally not accessible on recent Android versions anymore.
     * ~~return fake supplicant disconnected state~~ not privacy related
 
 If you want to fake offline state, you can install the hook definition *NetworkInfo.createFromParcel* with *Downloads* on the *Hooks* tab.
+To block domains, Downloads has *InetAddress.getByName* and *InetAddress.getAllByName* with a blocklist in *Fake values*.
 
 <a name="IPC"></a>
 * IPC
@@ -129,7 +130,7 @@ If you want to fake offline state, you can install the hook definition *NetworkI
 
 <a name="network"></a>
 * Network
-    * ~~return fake IP's~~ see [this FAQ](FAQ.md#user-content-faq4)
+    * ~~return fake IP's~~ see [this FAQ](../FAQ.md#user-content-faq4)
     * **return fake MAC's (network, Wi-Fi, bluetooth)** see remark below
     * **return fake BSSID/SSID**
     * **return an empty list of Wi-Fi scan results**
