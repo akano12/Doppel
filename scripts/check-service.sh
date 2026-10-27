@@ -37,7 +37,11 @@ check "shell cannot read the settings of apps" \
 check "shell cannot put a setting" "$(shell content call --uri $URI --method xlua --arg putSetting \
     --extra user:i:0 --extra category:s:$CATEGORY --extra name:s:check --extra value:s:written)" "Result: null"
 settings=$(shell "su 1000 -c 'content query --uri $URI --projection xlua.getAllSettings'")
-if printf '%s' "$settings" | grep -q "category=$CATEGORY"; then
+# Only a read which worked tells: its rows, or none on a device without settings
+if ! printf '%s' "$settings" | grep -q "^Row: \|^No result found"; then
+    echo "FAIL the settings could not be read: $(printf '%s' "$settings" | head -2)"
+    failed=1
+elif printf '%s' "$settings" | grep -q "category=$CATEGORY"; then
     echo "FAIL the setting of the shell was written"
     failed=1
 else
