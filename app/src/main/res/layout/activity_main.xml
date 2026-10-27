@@ -2,8 +2,7 @@
 <!-- The tabs, with their bar floating over their bottom: lists scroll on behind it, see ActivityMain.keepClearOfBar -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:layout_height="match_parent">
 
     <FrameLayout
         android:id="@+id/content"
