@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Accent colors generated from seed colors with the Material color utilities (fidelity scheme), see ApplicationEx.PALETTES; the default Ocean is in colors.xml;
-     backgrounds, text and outlines are those of the light or dark theme, like Magisk does -->
+     backgrounds, text and outlines are those of the light or dark theme, like Magisk does. The text on the secondary container
+     has the lighter tone of the tonal scheme, which reads better than the muted one of the fidelity scheme -->
 <resources>
     <!-- Pure black background, which turns pixels of OLED screens off, with any color theme -->
     <style name="ThemeOverlay.XLua.Black" parent="">
@@ -22,7 +23,7 @@
         <item name="colorSecondary">#F1B8C2</item>
         <item name="colorOnSecondary">#4A252E</item>
         <item name="colorSecondaryContainer">#643B44</item>
-        <item name="colorOnSecondaryContainer">#DEA7B1</item>
+        <item name="colorOnSecondaryContainer">#FFD9E2</item>
         <item name="colorTertiary">#88D893</item>
         <item name="colorOnTertiary">#003914</item>
         <item name="colorTertiaryContainer">#348246</item>
@@ -37,7 +38,7 @@
         <item name="colorSecondary">#B1CBD3</item>
         <item name="colorOnSecondary">#1C343A</item>
         <item name="colorSecondaryContainer">#324A51</item>
-        <item name="colorOnSecondaryContainer">#A0B9C2</item>
+        <item name="colorOnSecondaryContainer">#CDE7F0</item>
         <item name="colorTertiary">#FBB97E</item>
         <item name="colorOnTertiary">#4B2700</item>
         <item name="colorTertiaryContainer">#DA9C64</item>
@@ -52,7 +53,7 @@
         <item name="colorSecondary">#A5CFC7</item>
         <item name="colorOnSecondary">#0B3731</item>
         <item name="colorSecondaryContainer">#28504A</item>
-        <item name="colorOnSecondaryContainer">#97C1B9</item>
+        <item name="colorOnSecondaryContainer">#C1ECE3</item>
         <item name="colorTertiary">#FFB59D</item>
         <item name="colorOnTertiary">#5B1A03</item>
         <item name="colorTertiaryContainer">#D57757</item>
