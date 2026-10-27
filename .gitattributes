@@ -3,3 +3,4 @@ gradlew text eol=lf
 *.bat text eol=crlf
 app/src/main/assets/xposed_init text eol=lf
 app/src/main/resources/META-INF/xposed/* text eol=lf
+scripts/*.sh text eol=lf
