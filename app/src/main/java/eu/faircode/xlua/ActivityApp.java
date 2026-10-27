@@ -47,8 +47,6 @@ import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
-import androidx.appcompat.content.res.AppCompatResources;
-import androidx.core.graphics.ColorUtils;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.core.widget.NestedScrollView;
@@ -474,7 +472,7 @@ public class ActivityApp extends ActivityBase {
         gv.ibError.setVisibility(error ? View.VISIBLE : View.GONE);
         bindHooks(group, gv, hooks);
 
-        setPartial(gv.swGroup, gv.track, restricted && assignments.size() < hooks.size());
+        Ui.setPartial(gv.swGroup, gv.track, restricted && assignments.size() < hooks.size());
         gv.swGroup.setOnCheckedChangeListener(null);
         gv.swGroup.setChecked(restricted);
         // A switch with a dash applies all hooks of the group, like Restrict all; only a complete group is switched off
@@ -539,14 +537,6 @@ public class ActivityApp extends ActivityBase {
         }
     }
 
-    // A partially restricted group, or all groups partially restricted,
-    // has a dash in the switch and a lighter track; track is the one of the switch when fully restricted
-    private void setPartial(MaterialSwitch sw, ColorStateList track, boolean partial) {
-        sw.setThumbIconDrawable(partial ? AppCompatResources.getDrawable(this, R.drawable.ic_partial) : null);
-        sw.setTrackTintList(partial
-                ? ColorStateList.valueOf(ColorUtils.setAlphaComponent(Ui.color(this, androidx.appcompat.R.attr.colorPrimary), 0x80))
-                : track);
-    }
 
     // All available hooks of the group are assigned
     private boolean isComplete(String group) {
@@ -587,7 +577,7 @@ public class ActivityApp extends ActivityBase {
                     getString(R.string.title_last_call, Groups.getTitle(this, lastGroup), Ui.ago(this, last)));
         tvSummary.setText(summary);
         swAll.setChecked(restricted > 0);
-        setPartial(swAll, trackAll, restricted > 0 && !complete);
+        Ui.setPartial(swAll, trackAll, restricted > 0 && !complete);
 
         LinearLayout llSections = findViewById(R.id.llSections);
         for (int i = 0; i < llSections.getChildCount(); i++) {

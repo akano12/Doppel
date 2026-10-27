@@ -20,6 +20,7 @@
 
 package eu.faircode.xlua;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
@@ -66,12 +67,19 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private static final int TYPE_HEADER = 0;
     private static final int TYPE_APP = 1;
 
+    private long open = RecyclerView.NO_ID; // The row with its actions shown, see Swipe
+
     interface Listener {
         void onApp(XApp app);
 
         void onLaunch(XApp app);
 
         void onRestrictAll(Row row);
+
+        // From the actions behind a row, see Swipe
+        void onSetAll(Row row, boolean restrict);
+
+        void onGroups(Row row);
 
         void onToggle(Section section);
     }
@@ -85,15 +93,19 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         String usedGroup;
         long assigned = -1; // Last time a hook was assigned by the user or for a new app
         boolean error;
+        boolean partial; // Hooks which are not assigned, also when all groups are restricted
 
         static Row summarize(XApp app, List<XHook> hooks, List<String> collection) {
             Row row = new Row();
             row.app = app;
 
             Set<String> groups = new HashSet<>();
+            int available = 0;
             for (XHook hook : hooks)
-                if (hook.isAvailable(app.packageName, collection))
+                if (hook.isAvailable(app.packageName, collection)) {
                     groups.add(hook.getGroup());
+                    available++;
+                }
             row.groups = groups.size();
 
             Set<String> restricted = new HashSet<>();
@@ -110,6 +122,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 row.assigned = Math.max(row.assigned, assignment.assigned);
             }
             row.restricted = restricted.size();
+            row.partial = (app.assignments.size() < available);
             return row;
         }
 
@@ -462,28 +475,49 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     private class AppHolder extends RecyclerView.ViewHolder implements View.OnClickListener, View.OnLongClickListener {
+        final View llRow;
+        final View llActions;
+        final View btnRestrictAll;
+        final View btnRemoveAll;
         final View vDivider;
         final ImageView ivIcon;
         final TextView tvLabel;
         final LinearLayout llBadges;
         final TextView tvSummary;
+        final View flCoverage;
         final TextView tvCoverage;
         final Button btnAction;
 
         AppHolder(View itemView) {
             super(itemView);
+            llRow = itemView.findViewById(R.id.llRow);
+            llActions = itemView.findViewById(R.id.llActions);
+            btnRestrictAll = itemView.findViewById(R.id.btnRestrictAll);
+            btnRemoveAll = itemView.findViewById(R.id.btnRemoveAll);
             vDivider = itemView.findViewById(R.id.vDivider);
             ivIcon = itemView.findViewById(R.id.ivIcon);
             tvLabel = itemView.findViewById(R.id.tvLabel);
             llBadges = itemView.findViewById(R.id.llBadges);
             tvSummary = itemView.findViewById(R.id.tvSummary);
+            flCoverage = itemView.findViewById(R.id.flCoverage);
             tvCoverage = itemView.findViewById(R.id.tvCoverage);
             btnAction = itemView.findViewById(R.id.btnAction);
-            itemView.setOnClickListener(this);
-            itemView.setOnLongClickListener(this);
-            // Screen readers tell what a long press does
-            ViewCompat.replaceAccessibilityAction(itemView, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK,
-                    itemView.getContext().getString(R.string.menu_launch), null);
+            // The actions are clipped to the rounded corners of the first and the last row of a section
+            itemView.setClipToOutline(true);
+            llRow.setOnClickListener(this);
+            llRow.setOnLongClickListener(this);
+            llRow.setOnTouchListener(new Swipe(this));
+            Context context = itemView.getContext();
+            // Screen readers tell what a long press does, and offer the actions behind the row
+            ViewCompat.replaceAccessibilityAction(llRow, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK,
+                    context.getString(R.string.menu_launch), null);
+            ViewCompat.addAccessibilityAction(llRow, context.getString(R.string.title_restrict_all_groups), (v, args) -> act(1));
+            ViewCompat.addAccessibilityAction(llRow, context.getString(R.string.title_remove_all), (v, args) -> act(0));
+            ViewCompat.addAccessibilityAction(llRow, context.getString(R.string.title_groups), (v, args) -> act(2));
+            btnRestrictAll.setOnClickListener(view -> act(1));
+            btnRemoveAll.setOnClickListener(view -> act(0));
+            itemView.findViewById(R.id.btnGroups).setOnClickListener(view -> act(2));
+            flCoverage.setOnClickListener(view -> setOpen(getKey() != open));
             btnAction.setOnClickListener(view -> {
                 Row row = getRow();
                 if (row == null)
@@ -495,13 +529,59 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             });
         }
 
+        // The id of the row, also without stable ids
+        private long getKey() {
+            int position = getBindingAdapterPosition();
+            return (position == RecyclerView.NO_POSITION ? RecyclerView.NO_ID : AdapterApp.this.getItemId(position));
+        }
+
         private Row getRow() {
             int position = getBindingAdapterPosition();
             return (position == RecyclerView.NO_POSITION ? null : ((Item) items.get(position)).row);
         }
 
+        // Restrict all (1), remove all (0) or the groups (2); the actions close
+        private boolean act(int action) {
+            Row row = getRow();
+            if (row == null)
+                return false;
+            setOpen(false);
+            if (action == 2)
+                listener.onGroups(row);
+            else if (action == 1 ? row.restricted < row.groups || row.partial : row.restricted > 0)
+                listener.onSetAll(row, action == 1);
+            return true;
+        }
+
+        // One row at a time shows its actions
+        void setOpen(boolean show) {
+            long previous = open;
+            open = (show ? getKey() : RecyclerView.NO_ID);
+            if (previous != RecyclerView.NO_ID && previous != open)
+                for (int i = 0; i < items.size(); i++)
+                    if (AdapterApp.this.getItemId(i) == previous)
+                        notifyItemChanged(i);
+            slide(show);
+        }
+
+        void slide(boolean show) {
+            if (show)
+                llActions.setVisibility(View.VISIBLE);
+            llRow.animate().translationX(show ? -llActions.getWidth() : 0).setDuration(180)
+                    .withEndAction(() -> {
+                        if (!show)
+                            llActions.setVisibility(View.INVISIBLE);
+                    })
+                    .start();
+        }
+
         @Override
         public void onClick(View view) {
+            // A tap closes the actions shown, else opens the app
+            if (open != RecyclerView.NO_ID) {
+                closeOpen();
+                return;
+            }
             Row row = getRow();
             if (row != null)
                 listener.onApp(row.app);
@@ -518,9 +598,80 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
 
+    // Closes the actions of the row which shows them, like when the list changes
+    void closeOpen() {
+        long previous = open;
+        open = RecyclerView.NO_ID;
+        if (previous != RecyclerView.NO_ID)
+            for (int i = 0; i < items.size(); i++)
+                if (getItemId(i) == previous)
+                    notifyItemChanged(i);
+    }
+
+    // Swiping a row to the start shows its actions behind it, swiping it back hides them; a short swipe springs back.
+    // Taps and long presses stay those of the row; the list does not scroll while a row is swiped.
+    private static class Swipe implements View.OnTouchListener {
+        private final AppHolder holder;
+        private final int slop;
+        private float startX;
+        private float startY;
+        private float base;
+        private boolean swiping;
+
+        Swipe(AppHolder holder) {
+            this.holder = holder;
+            this.slop = android.view.ViewConfiguration.get(holder.itemView.getContext()).getScaledTouchSlop();
+        }
+
+        // Taps and long presses are left to the row (false), which handles them like clicks for accessibility too
+        @SuppressLint("ClickableViewAccessibility")
+        @Override
+        public boolean onTouch(View view, android.view.MotionEvent event) {
+            float width = holder.llActions.getWidth();
+            android.util.Log.i("XLua.Swipe", "DEBUG " + event.getActionMasked() + " x=" + event.getRawX() + " w=" + width + " swiping=" + swiping + " tx=" + view.getTranslationX());
+            switch (event.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    startX = event.getRawX();
+                    startY = event.getRawY();
+                    base = view.getTranslationX();
+                    swiping = false;
+                    return false;
+
+                case android.view.MotionEvent.ACTION_MOVE:
+                    float dx = event.getRawX() - startX;
+                    if (!swiping && Math.abs(dx) > slop && Math.abs(dx) > Math.abs(event.getRawY() - startY)) {
+                        swiping = true;
+                        view.getParent().requestDisallowInterceptTouchEvent(true);
+                        view.cancelLongPress();
+                        view.setPressed(false);
+                        holder.llActions.setVisibility(View.VISIBLE);
+                    }
+                    if (swiping) {
+                        view.setTranslationX(Math.max(-width, Math.min(0, base + dx)));
+                        return true;
+                    }
+                    return false;
+
+                case android.view.MotionEvent.ACTION_UP:
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    if (!swiping)
+                        return false;
+                    swiping = false;
+                    holder.setOpen(view.getTranslationX() < -width / 3);
+                    return true;
+
+                default:
+                    return swiping;
+            }
+        }
+    }
+
     @Override
     public long getItemId(int position) {
-        Object item = items.get(position);
+        return getIdOf(items.get(position));
+    }
+
+    private static long getIdOf(Object item) {
         if (item instanceof Header)
             return -1 - ((Header) item).section.ordinal();
         // An app can be in a section and with all apps
@@ -620,7 +771,20 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 background = com.google.android.material.R.attr.colorSurfaceContainerLowest;
         }
         int color = Ui.color(context, background);
-        Ui.joinRow(h.itemView, h.vDivider, color, item.first, item.last);
+        Ui.joinRow(h.llRow, h.vDivider, color, item.first, item.last);
+        Ui.join(h.itemView, color, 20, item.first, item.last);
+        boolean open = (getIdOf(item) == this.open);
+        h.llRow.animate().cancel();
+        h.llRow.setTranslationX(0);
+        h.llActions.setVisibility(open ? View.VISIBLE : View.INVISIBLE);
+        if (open)
+            h.llActions.post(() -> h.llRow.setTranslationX(-h.llActions.getWidth()));
+        // An action which would change nothing is dimmed, its colors are fixed
+        boolean restrict = (row.restricted < row.groups || row.partial);
+        h.btnRestrictAll.setEnabled(restrict);
+        h.btnRestrictAll.setAlpha(restrict ? 1f : 0.38f);
+        h.btnRemoveAll.setEnabled(row.restricted > 0);
+        h.btnRemoveAll.setAlpha(row.restricted > 0 ? 1f : 0.38f);
 
         Ui.loadIcon(h.ivIcon, app.packageName, app.icon);
         h.tvLabel.setText(app.getLabel());
@@ -634,7 +798,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (app.system)
             Ui.addBadge(h.llBadges, context.getString(R.string.title_filter_system), Ui.Badge.NEUTRAL);
 
-        h.tvCoverage.setVisibility(View.GONE);
+        h.flCoverage.setVisibility(View.GONE);
         h.btnAction.setVisibility(View.GONE);
         String summary;
         switch (item.section) {
@@ -656,7 +820,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 summary = context.getString(R.string.title_pair,
                         used ? Groups.getTitle(context, row.usedGroup) : context.getString(R.string.title_restrictions_added),
                         Ui.ago(context, row.getRecent()));
-                bindCoverage(h.tvCoverage, row);
+                bindCoverage(h.flCoverage, h.tvCoverage, row);
                 break;
 
             default:
@@ -667,7 +831,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                             Groups.getTitle(context, row.usedGroup), Ui.ago(context, row.used));
                 else
                     summary = context.getString(R.string.title_no_calls);
-                bindCoverage(h.tvCoverage, row);
+                bindCoverage(h.flCoverage, h.tvCoverage, row);
         }
         h.tvSummary.setText(summary);
         h.tvSummary.setTextColor(Ui.color(context, meta));
@@ -675,7 +839,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     // How much of the app is restricted: all groups on the secondary color, some on the warning color,
     // none in grey; screen readers get the words
-    private static void bindCoverage(TextView tv, Row row) {
+    private static void bindCoverage(View fl, TextView tv, Row row) {
         Context context = tv.getContext();
         Ui.Badge badge;
         if (row.restricted == 0) {
@@ -691,5 +855,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         tv.setBackgroundTintList(Ui.tint(context, badge.background));
         tv.setTextColor(Ui.color(context, badge.text));
         tv.setVisibility(View.VISIBLE);
+        // Tapping the badge shows the actions behind the row
+        fl.setVisibility(View.VISIBLE);
+        fl.setContentDescription(tv.getContentDescription() + ", " + context.getString(R.string.title_show_actions));
     }
 }

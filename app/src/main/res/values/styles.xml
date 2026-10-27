@@ -174,6 +174,39 @@
     </style>
 
     <!-- Count at the end of a row, like 29/29; the colors are set from code -->
+    <!-- An action behind a row of the Apps tab, shown by swiping it, see AdapterApp.Swipe: a small icon above a short
+         label, together in the middle; the colors are of each action -->
+    <style name="XLua.RowAction" parent="">
+        <item name="android:layout_width">80dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:background">@drawable/bg_action</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:foreground">?attr/selectableItemBackground</item>
+        <item name="android:gravity">center</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingStart">4dp</item>
+        <item name="android:paddingEnd">4dp</item>
+    </style>
+
+    <style name="XLua.RowAction.Icon" parent="">
+        <item name="android:layout_width">20dp</item>
+        <item name="android:layout_height">20dp</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+
+    <style name="XLua.RowAction.Text" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">3dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">@font/plex_sans_title</item>
+        <item name="fontFamily">@font/plex_sans_title</item>
+    </style>
+
     <style name="XLua.Pill" parent="">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">26dp</item>

@@ -50,6 +50,7 @@ import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -124,6 +125,42 @@ public class FragmentApps extends FragmentBase {
             @Override
             public void onRestrictAll(AdapterApp.Row row) {
                 restrictAll(row);
+            }
+
+            @Override
+            public void onSetAll(AdapterApp.Row row, boolean restrict) {
+                // Like Restrict all on the screen of the app, restricting all of system server asks first
+                if (restrict && row.app.isSystemServer())
+                    Ui.areYouSure(requireContext(), getString(R.string.title_bootloop),
+                            R.string.title_restrict_all_groups, () -> setAll(row.app, true));
+                else
+                    setAll(row.app, restrict);
+            }
+
+            @Override
+            public void onGroups(AdapterApp.Row row) {
+                GroupsSheet.show(requireActivity(), row.app, hooks, collection, new GroupsSheet.Host() {
+                    @Override
+                    public void background(Ui.Task task) {
+                        run(TAG, task);
+                    }
+
+                    @Override
+                    public void changed(XApp app, Set<String> before, Set<String> after, List<XHook> available) {
+                        Set<String> groups = new HashSet<>();
+                        Set<String> restricted = new HashSet<>();
+                        for (XHook hook : available) {
+                            groups.add(hook.getGroup());
+                            if (after.contains(hook.getId()))
+                                restricted.add(hook.getGroup());
+                        }
+                        // After the assignments of the sheet, which run in order on the same thread
+                        run(TAG, () -> post(() -> load()));
+                        message(getResources().getQuantityString(R.plurals.msg_groups_restricted, groups.size(),
+                                        app.getLabel(), restricted.size(), groups.size()),
+                                app, before, available);
+                    }
+                });
             }
 
             @Override
@@ -363,6 +400,39 @@ public class FragmentApps extends FragmentBase {
                     }));
             post(this::load);
         });
+    }
+
+    // All available hooks of an app, or none; Undo puts back the hooks assigned before
+    private void setAll(XApp app, boolean restrict) {
+        final List<XHook> available = Data.getAvailable(hooks, app, collection, null);
+        final Set<String> before = new HashSet<>();
+        for (XAssignment assignment : app.assignments)
+            before.add(assignment.hook.getId());
+        final Context context = requireContext().getApplicationContext();
+        final String label = app.getLabel();
+        run(TAG, () -> {
+            Data.assign(context, app, available, restrict);
+            message(getString(restrict ? R.string.msg_restricted_all : R.string.msg_removed_all, label),
+                    app, before, available);
+            post(this::load);
+        });
+    }
+
+    // A message with Undo, which assigns the hooks assigned before and removes the others
+    private void message(String text, XApp app, Set<String> before, List<XHook> available) {
+        final Activity activity = requireActivity();
+        final Context context = activity.getApplicationContext();
+        Ui.message(activity, text, getString(R.string.title_undo), () -> run(TAG, () -> {
+            List<XHook> assign = new ArrayList<>();
+            List<XHook> remove = new ArrayList<>();
+            for (XHook hook : available)
+                (before.contains(hook.getId()) ? assign : remove).add(hook);
+            if (!remove.isEmpty())
+                Data.assign(context, app, remove, false);
+            if (!assign.isEmpty())
+                Data.assign(context, app, assign, true);
+            post(this::load);
+        }));
     }
 
     // Toggle a group for all shown apps: remove it from the apps which have it, else add it to all of them

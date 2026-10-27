@@ -30,6 +30,19 @@
             android:layout_marginStart="8dp"
             android:textAppearance="@style/XLua.Text.Section"
             tools:text="3 of 3" />
+
+        <!-- Restricts or removes all of the section, in the sheet of the groups of an app, see GroupsSheet -->
+        <Button
+            android:id="@+id/btnSection"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:minWidth="0dp"
+            android:minHeight="36dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <com.google.android.material.card.MaterialCardView

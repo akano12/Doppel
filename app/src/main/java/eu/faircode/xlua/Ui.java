@@ -55,6 +55,7 @@ import com.bumptech.glide.request.RequestOptions;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.text.SimpleDateFormat;
@@ -139,6 +140,16 @@ final class Ui {
         shape.setColor(color);
         shape.setCornerRadii(new float[]{top, top, top, top, bottom, bottom, bottom, bottom});
         view.setBackground(shape);
+    }
+
+    // A partially restricted group, or all groups partially restricted,
+    // has a dash in the switch and a lighter track; track is the one of the switch when fully restricted
+    static void setPartial(MaterialSwitch sw, ColorStateList track, boolean partial) {
+        Context context = sw.getContext();
+        sw.setThumbIconDrawable(partial ? AppCompatResources.getDrawable(context, R.drawable.ic_partial) : null);
+        sw.setTrackTintList(partial
+                ? ColorStateList.valueOf(ColorUtils.setAlphaComponent(color(context, androidx.appcompat.R.attr.colorPrimary), 0x80))
+                : track);
     }
 
     // A row of a block with the hairline above it, which the first row has not
@@ -243,8 +254,11 @@ final class Ui {
             Snackbar snackbar = Snackbar.make(activity.findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG);
             if (activity instanceof Anchored)
                 snackbar.setAnchorView(((Anchored) activity).getMessageAnchor());
-            if (action != null)
+            // Time to read the message and to reach its action, like Undo
+            if (action != null) {
                 snackbar.setAction(action, view -> onAction.run());
+                snackbar.setDuration(6000);
+            }
             snackbar.show();
         });
     }
