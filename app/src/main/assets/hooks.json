@@ -1200,6 +1200,7 @@
     ],
     "returnType": "int",
     "minSdk": 26,
+    "optional": true,
     "excludePackages": "android",
     "luaScript": "@package_probe"
   },
@@ -4212,7 +4213,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 22,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@generic_empty_text"
   },
   {
     "collection": "Privacy",
@@ -4228,20 +4229,7 @@
     "settings": [
       "value.phone_number"
     ],
-    "luaScript": "@value_phone_number"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Telephony",
-    "name": "SubscriptionInfo.getSubscriptionId",
-    "author": "M66B",
-    "className": "android.telephony.SubscriptionInfo",
-    "methodName": "getSubscriptionId",
-    "parameterTypes": [
-    ],
-    "returnType": "int",
-    "minSdk": 22,
-    "luaScript": "@generic_zero_value"
+    "luaScript": "@value_phone_number_nonnull"
   },
   {
     "collection": "Privacy",
@@ -9648,7 +9636,7 @@
     "methodName": "toString",
     "parameterTypes": [],
     "returnType": "java.lang.String",
-    "minSdk": 29,
+    "minSdk": 30,
     "luaScript": "@network_tostring"
   },
   {

@@ -16,11 +16,12 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
+-- Also null of a Boolean, which can mean the default, like of the manifest, which can be enabled
 function before(hook, param)
     local enabled = param:getArgument(0)
-    if enabled then
-        param:setArgument(0, false)
-        return true
+    if enabled == false then
+        return false
     end
-    return false
+    param:setArgument(0, false)
+    return true
 end

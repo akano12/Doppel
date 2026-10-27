@@ -185,7 +185,7 @@ class XDatabase {
             "PlaceLikelihoodBuffer.get", "PlaceLikelihoodBuffer.getCount", "ProcessBuilder.command/array",
             "ProcessBuilder.command/list", "Runtime.exec/array", "Runtime.exec/array/env",
             "Runtime.exec/array/env/file", "Runtime.exec/cmd", "Runtime.exec/cmd/env", "Runtime.exec/cmd/env/file",
-            "SystemProperties.get.default/build", "SystemProperties.get.default/vendor",
+            "SubscriptionInfo.getSubscriptionId", "SystemProperties.get.default/build", "SystemProperties.get.default/vendor",
             "SystemProperties.get/build", "SystemProperties.get/vendor", "SystemProperties.getBoolean",
             "SystemProperties.getInt", "SystemProperties.getLong", "WebView.constructor.11",
             "WebView.constructor.15", "WebView.constructor.1a", "WebView.constructor.1b", "WebView.constructor.1c",
