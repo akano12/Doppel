@@ -204,7 +204,7 @@ class Backup {
             // The counts of renamed and newer definitions are of the restrictions the app did not have yet
             Set<String> existing = new HashSet<>();
             for (XAssignment assignment : app.assignments)
-                existing.add(assignment.hook.getId());
+                existing.add(assignment.id);
 
             // Renamed definitions get the restrictions of their former name, removed ones are left out
             Set<String> ids = new LinkedHashSet<>();

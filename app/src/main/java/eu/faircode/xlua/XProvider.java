@@ -167,12 +167,18 @@ class XProvider {
         }
     }
 
+    // What apps with assignments may call and query, for themselves only, which each method checks: their usage,
+    // their hooks, their settings and their values new each boot. Anything else would let a hooked app read or change
+    // the data of other apps, see XProviderTest.
+    static final Set<String> APP_CALLS = Collections.singleton("report");
+    static final Set<String> APP_QUERIES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("getAssignedHooks2", "getSettings", "getBootValues")));
+
     // Permitted: the permission of the caller was checked already, see answers
     static Bundle call(Context context, String method, Bundle extras, boolean permitted)
             throws RemoteException, IllegalArgumentException {
         return answer(context, () -> {
-            // Apps report their own usage, see report
-            if (!permitted && !"report".equals(method))
+            if (!permitted && !APP_CALLS.contains(method))
                 enforcePermission(context);
 
             switch (method) {
@@ -206,16 +212,8 @@ class XProvider {
     // Methods ending in 2 return parcels; permitted: the permission of the caller was checked already, see answers
     static Cursor query(Context context, String method, String[] selection, boolean permitted) throws RemoteException {
         Cursor result = answer(context, () -> {
-            // Apps read their own restrictions and settings
-            switch (method) {
-                case "getAssignedHooks2":
-                case "getSettings":
-                case "getBootValues":
-                    break;
-                default:
-                    if (!permitted)
-                        enforcePermission(context);
-            }
+            if (!permitted && !APP_QUERIES.contains(method))
+                enforcePermission(context);
 
             switch (method) {
                 case "getHooks2":
@@ -739,7 +737,10 @@ class XProvider {
 
         final List<String> collection = getCollection(Util.getUserId(uid));
         final Map<String, XHook> all = hooks;
-        final MatrixCursor result = new MatrixCursor(new String[]{"blob"});
+        // Many hooks share a script, like the dozens of hooks of settings, so each script is sent once only,
+        // with the first hook which has it; each row tells the number of its script, see Data.getAssignedHooks
+        final MatrixCursor result = new MatrixCursor(new String[]{"blob", "lua", "script"});
+        final Map<String, Integer> scripts = new HashMap<>();
         db.read(d -> {
             try (Cursor cursor = d.query("assignment", new String[]{"hook"},
                     WHERE_APP, new String[]{packageName, Integer.toString(uid)},
@@ -750,8 +751,15 @@ class XProvider {
                     if (hook == null) {
                         if (BuildConfig.DEBUG)
                             Log.w(TAG, "Hook " + hookid + " not found");
-                    } else if (hook.isAvailable(packageName, collection))
-                        result.newRow().add(hook.marshall(true));
+                    } else if (hook.isAvailable(packageName, collection)) {
+                        Integer script = scripts.get(hook.getLuaScript());
+                        boolean first = (script == null);
+                        if (first) {
+                            script = scripts.size();
+                            scripts.put(hook.getLuaScript(), script);
+                        }
+                        result.addRow(new Object[]{hook.marshall(false), first ? hook.getLuaScript() : null, script});
+                    }
                 }
             }
             return null;

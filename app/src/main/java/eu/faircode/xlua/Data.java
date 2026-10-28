@@ -115,10 +115,23 @@ final class Data {
         return query(context, "getHooks2", new String[]{"true", Boolean.toString(lua)}, XHook.CREATOR);
     }
 
-    // Hooks assigned to an app, with their scripts
+    // Hooks assigned to an app, with their scripts, which come once each, with the first hook which has it;
+    // a service of the former version, until the restart after an update, sends them with each hook
     static List<XHook> getAssignedHooks(Context context, String packageName, int uid) {
-        return query(context, "getAssignedHooks2",
-                new String[]{packageName, Integer.toString(uid)}, XHook.CREATOR);
+        List<XHook> result = new ArrayList<>();
+        List<String> scripts = new ArrayList<>();
+        try (Cursor cursor = query(context, "getAssignedHooks2", new String[]{packageName, Integer.toString(uid)})) {
+            while (cursor != null && cursor.moveToNext()) {
+                XHook hook = unmarshall(cursor.getBlob(0), XHook.CREATOR);
+                if (cursor.getColumnCount() > 2) {
+                    if (!cursor.isNull(1))
+                        scripts.add(cursor.getString(1));
+                    hook.setLuaScript(scripts.get(cursor.getInt(2)));
+                }
+                result.add(hook);
+            }
+        }
+        return result;
     }
 
     // Ids of the definitions which are part of the app, of the module version which runs,

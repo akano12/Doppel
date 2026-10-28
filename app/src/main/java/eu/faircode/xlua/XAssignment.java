@@ -23,8 +23,11 @@ package eu.faircode.xlua;
 import android.os.Parcel;
 import android.os.Parcelable;
 
+// The hook of an assignment by its id and group only, which is all the screens need: a list of all apps has
+// thousands of assignments, which would else each carry a whole definition
 class XAssignment implements Parcelable {
-    XHook hook;
+    final String id;
+    final String group;
     long installed = -1;
     long assigned = -1; // Unknown for hooks assigned by former versions and by updates
     long used = -1;
@@ -32,7 +35,8 @@ class XAssignment implements Parcelable {
     String exception;
 
     XAssignment(XHook hook) {
-        this.hook = hook;
+        this.id = hook.getId();
+        this.group = hook.getGroup();
     }
 
     @Override
@@ -40,12 +44,12 @@ class XAssignment implements Parcelable {
         if (!(obj instanceof XAssignment))
             return false;
         XAssignment other = (XAssignment) obj;
-        return this.hook.getId().equals(other.hook.getId());
+        return this.id.equals(other.id);
     }
 
     @Override
     public int hashCode() {
-        return this.hook.getId().hashCode();
+        return this.id.hashCode();
     }
 
     @Override
@@ -55,7 +59,8 @@ class XAssignment implements Parcelable {
 
     @Override
     public void writeToParcel(Parcel dest, int flags) {
-        dest.writeTypedObject(this.hook, flags);
+        dest.writeString(this.id);
+        dest.writeString(this.group);
         dest.writeLong(this.installed);
         dest.writeLong(this.assigned);
         dest.writeLong(this.used);
@@ -64,7 +69,8 @@ class XAssignment implements Parcelable {
     }
 
     protected XAssignment(Parcel in) {
-        this.hook = in.readTypedObject(XHook.CREATOR);
+        this.id = in.readString();
+        this.group = in.readString();
         this.installed = in.readLong();
         this.assigned = in.readLong();
         this.used = in.readLong();

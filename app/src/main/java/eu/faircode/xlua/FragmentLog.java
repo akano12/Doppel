@@ -201,12 +201,12 @@ public class FragmentLog extends FragmentBase {
                 for (XApp app : list) {
                     apps.put(app.packageName + ":" + app.uid, app);
                     for (XAssignment assignment : app.assignments) {
-                        groups.put(assignment.hook.getId(), assignment.hook.getGroup());
+                        groups.put(assignment.id, assignment.group);
                         if (assignment.exception != null) {
                             Entry entry = new Entry();
                             entry.app = app;
-                            entry.hook = assignment.hook.getId();
-                            entry.group = assignment.hook.getGroup();
+                            entry.hook = assignment.id;
+                            entry.group = assignment.group;
                             // The time of the last error, see XProvider.report; a restriction can be later
                             entry.time = assignment.installed;
                             entry.exception = assignment.exception;

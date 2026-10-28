@@ -402,7 +402,7 @@ public class FragmentApps extends FragmentBase {
         final List<XHook> available = Data.getAvailable(hooks, app, collection, null);
         final Set<String> before = new HashSet<>();
         for (XAssignment assignment : app.assignments)
-            before.add(assignment.hook.getId());
+            before.add(assignment.id);
         final Set<String> after = new HashSet<>();
         if (restrict)
             for (XHook hook : available)

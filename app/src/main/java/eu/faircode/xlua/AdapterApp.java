@@ -110,7 +110,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
             Set<String> restricted = new HashSet<>();
             for (XAssignment assignment : app.assignments) {
-                String group = assignment.hook.getGroup();
+                String group = assignment.group;
                 if (groups.contains(group))
                     restricted.add(group);
                 if (assignment.exception != null)
@@ -124,7 +124,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             row.restricted = restricted.size();
             int assigned = 0;
             for (XAssignment assignment : app.assignments)
-                if (available.contains(assignment.hook.getId()))
+                if (available.contains(assignment.id))
                     assigned++;
             row.partial = (assigned < available.size());
             return row;

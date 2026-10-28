@@ -580,7 +580,7 @@ public class ActivityApp extends ActivityBase {
         for (XAssignment assignment : app.assignments)
             if (assignment.restricted && assignment.used > last) {
                 last = assignment.used;
-                lastGroup = assignment.hook.getGroup();
+                lastGroup = assignment.group;
             }
 
         int groups = available.size();
@@ -746,7 +746,7 @@ public class ActivityApp extends ActivityBase {
             if (assignment.exception != null) {
                 if (sb.length() > 0)
                     sb.append("\n\n");
-                sb.append(assignment.hook.getId()).append("\n\n").append(assignment.exception.trim());
+                sb.append(assignment.id).append("\n\n").append(assignment.exception.trim());
             }
         Ui.showText(this, Groups.getTitle(this, group), sb);
     }

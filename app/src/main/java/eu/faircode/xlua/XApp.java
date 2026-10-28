@@ -54,7 +54,7 @@ class XApp implements Parcelable {
     List<XAssignment> getAssignments(String group) {
         List<XAssignment> filtered = new ArrayList<>();
         for (XAssignment assignment : assignments)
-            if (group.equals(assignment.hook.getGroup()))
+            if (group.equals(assignment.group))
                 filtered.add(assignment);
 
         return filtered;

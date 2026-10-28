@@ -98,7 +98,7 @@ final class GroupsSheet {
             groups.get(hook.getGroup()).add(hook);
         }
         for (XAssignment assignment : app.assignments)
-            assigned.add(assignment.hook.getId());
+            assigned.add(assignment.id);
         this.before = new HashSet<>(assigned);
     }
 

@@ -280,7 +280,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 for (XApp other : Data.getApps(context)) {
                     Set<String> groups = new HashSet<>();
                     for (XAssignment assignment : other.assignments)
-                        groups.add(assignment.hook.getGroup());
+                        groups.add(assignment.group);
                     for (String group : groups) {
                         Integer count = restricting.get(group);
                         restricting.put(group, count == null ? 1 : count + 1);
@@ -290,7 +290,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 app = Data.getApp(context, category, -1);
                 if (app != null)
                     for (XAssignment assignment : app.assignments)
-                        restricted.add(assignment.hook.getGroup());
+                        restricted.add(assignment.group);
             }
             // What the app gets until the next restart, of the identifiers new each boot
             final Map<String, String> boot = (app == null ? new HashMap<>() : Data.getBootValues(context, category, app.uid));

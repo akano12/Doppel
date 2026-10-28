@@ -189,6 +189,11 @@ public class XHook implements Parcelable {
         return this.luaScript;
     }
 
+    // A script sent once for the hooks which share it, see Data.getAssignedHooks
+    void setLuaScript(String script) {
+        this.luaScript = script;
+    }
+
     // Names of the settings (fake values) the script reads, empty when none
     public String[] getSettings() {
         return (this.settings == null ? new String[0] : this.settings);
