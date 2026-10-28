@@ -149,7 +149,7 @@
                             android:layout_marginTop="10dp"
                             android:contentDescription="@string/title_calls_by_hour" />
 
-                        <!-- The hours, set by FragmentLog -->
+                        <!-- The hours or the days, set by FragmentLog -->
                         <LinearLayout
                             android:id="@+id/llAxis"
                             android:layout_width="match_parent"

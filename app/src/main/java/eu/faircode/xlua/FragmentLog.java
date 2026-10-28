@@ -86,6 +86,7 @@ public class FragmentLog extends FragmentBase {
     private TextView tvCallsLabel;
     private TextView tvStats;
     private BarsView vBars;
+    private ViewGroup llAxis;
     private CompactBar compact;
     private BarsView vBarsCompact;
     private Adapter adapter;
@@ -132,11 +133,7 @@ public class FragmentLog extends FragmentBase {
         tvCallsLabel = view.findViewById(R.id.tvCallsLabel);
         tvStats = view.findViewById(R.id.tvStats);
         vBars = view.findViewById(R.id.vBars);
-        // The hours under the bars in the digits of the language, like the counts
-        NumberFormat nf = NumberFormat.getIntegerInstance();
-        ViewGroup llAxis = view.findViewById(R.id.llAxis);
-        for (int i = 0; i < llAxis.getChildCount(); i++)
-            ((TextView) llAxis.getChildAt(i)).setText(nf.format(i * 6));
+        llAxis = view.findViewById(R.id.llAxis);
         TextView tvTitle = view.findViewById(R.id.tvTitle);
         View tilSearch = view.findViewById(R.id.tilSearch);
         EditText etSearch = view.findViewById(R.id.etSearch);
@@ -257,41 +254,85 @@ public class FragmentLog extends FragmentBase {
         });
     }
 
+    // The entries by hour of the day
+    private static int[] byHour(List<Entry> entries) {
+        int[] hours = new int[24];
+        Calendar calendar = Calendar.getInstance();
+        for (Entry entry : entries) {
+            calendar.setTimeInMillis(entry.time);
+            hours[calendar.get(Calendar.HOUR_OF_DAY)]++;
+        }
+        return hours;
+    }
+
+    // The entries by day of the last week, today last; older ones are left out
+    private static int[] byDay(List<Entry> entries, long today) {
+        int[] days = new int[7];
+        for (Entry entry : entries)
+            for (int i = days.length - 1; i >= 0; i--)
+                if (entry.time >= addDays(today, i + 1 - days.length)) {
+                    days[i]++;
+                    break;
+                }
+        return days;
+    }
+
+    // The start of a day some days later or earlier, also across a change of the clock
+    private static long addDays(long day, int days) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(day);
+        calendar.add(Calendar.DAY_OF_MONTH, days);
+        return calendar.getTimeInMillis();
+    }
+
     private void show() {
         Context context = requireContext();
         long today = Ui.startOfDay(System.currentTimeMillis());
         long yesterday = Ui.startOfDay(today - 1);
 
-        // The overview: the calls of today by hour, the apps of the log and the errors
-        int countToday = 0;
-        int[] hours = new int[24];
-        Calendar calendar = Calendar.getInstance();
+        // The overview of what the filter shows: the restrictions of today by hour, or all restrictions or the errors
+        // by day of the last week; with the apps of these and all errors
+        List<Entry> counted = new ArrayList<>();
+        for (Entry entry : (filter == Filter.ERRORS ? errors : entries))
+            if (filter != Filter.TODAY || entry.time >= today)
+                counted.add(entry);
         Set<String> packages = new HashSet<>();
-        for (Entry entry : entries) {
-            if (entry.time >= today) {
-                countToday++;
-                calendar.setTimeInMillis(entry.time);
-                hours[calendar.get(Calendar.HOUR_OF_DAY)]++;
-            }
+        for (Entry entry : counted)
             packages.add(entry.app.packageName);
-        }
+        boolean byHour = (filter == Filter.TODAY);
+        int[] bars = (byHour ? byHour(counted) : byDay(counted, today));
+        int count = counted.size();
         // Digits of the language, like Arabic digits
         NumberFormat nf = NumberFormat.getIntegerInstance();
-        tvCalls.setText(nf.format(countToday));
-        tvCallsLabel.setText(getResources().getQuantityString(R.plurals.title_calls_today, countToday));
+        tvCalls.setText(nf.format(count));
+        tvCallsLabel.setText(getResources().getQuantityString(filter == Filter.ERRORS ? R.plurals.title_failed_hooks
+                : byHour ? R.plurals.title_calls_today : R.plurals.title_calls_all, count));
         // The log of one app is of that app only
         String errorCount = getResources().getQuantityString(R.plurals.title_stat_errors_count, errors.size(), errors.size());
         tvStats.setText(only != null ? errorCount : getString(R.string.title_pair,
                 getResources().getQuantityString(R.plurals.title_stat_apps, packages.size(), packages.size()), errorCount));
         tvStats.setTextColor(Ui.color(context, errors.isEmpty()
                 ? com.google.android.material.R.attr.colorOnSurfaceVariant : R.attr.colorWarning));
-        vBars.setValues(hours);
+        vBars.setValues(bars);
+        vBars.setContentDescription(getString(filter == Filter.ERRORS ? R.string.title_errors_by_day
+                : byHour ? R.string.title_calls_by_hour : R.string.title_calls_by_day));
+        // Under the bars: the hours in the digits of the language, or the first and the last day
+        for (int i = 0; i < llAxis.getChildCount(); i++) {
+            String label = null;
+            if (byHour)
+                label = nf.format(i * 6);
+            else if (i == 0 || i == llAxis.getChildCount() - 1)
+                label = (i == 0 ? DateUtils.formatDateTime(context, addDays(today, 1 - bars.length),
+                        DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_ABBREV_WEEKDAY) : getString(R.string.title_today));
+            ((TextView) llAxis.getChildAt(i)).setText(label);
+        }
         String summary = getString(R.string.title_pair,
-                getString(R.string.title_pair,
-                        getResources().getQuantityString(R.plurals.title_compact_calls, countToday, countToday),
+                filter == Filter.ERRORS ? errorCount : getString(R.string.title_pair,
+                        getResources().getQuantityString(byHour ? R.plurals.title_compact_calls : R.plurals.title_compact_all,
+                                count, count),
                         errorCount),
                 getString(FILTER_TITLES[filter.ordinal()]));
-        vBarsCompact.setValues(hours);
+        vBarsCompact.setValues(bars);
         compact.setSubtitle(summary);
 
         // Items are entries under the headers of their days, with the number of entries

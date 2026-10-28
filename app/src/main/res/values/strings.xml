@@ -219,6 +219,10 @@
         <item quantity="one">%1$d today</item>
         <item quantity="other">%1$d today</item>
     </plurals>
+    <plurals name="title_compact_all">
+        <item quantity="one">%1$d in all</item>
+        <item quantity="other">%1$d in all</item>
+    </plurals>
     <plurals name="title_compact_hooks">
         <item quantity="one">%1$d hooks · %2$d group</item>
         <item quantity="other">%1$d hooks · %2$d groups</item>
@@ -318,6 +322,14 @@
         <item quantity="one">restricted call today</item>
         <item quantity="other">restricted calls today</item>
     </plurals>
+    <plurals name="title_calls_all">
+        <item quantity="one">restricted call</item>
+        <item quantity="other">restricted calls</item>
+    </plurals>
+    <plurals name="title_failed_hooks">
+        <item quantity="one">failed hook</item>
+        <item quantity="other">failed hooks</item>
+    </plurals>
     <plurals name="title_stat_apps">
         <item quantity="one">%1$d app</item>
         <item quantity="other">%1$d apps</item>
@@ -327,6 +339,8 @@
         <item quantity="other">%1$d errors</item>
     </plurals>
     <string name="title_calls_by_hour">Restricted calls of today by hour</string>
+    <string name="title_calls_by_day">Restricted calls of the last 7 days by day</string>
+    <string name="title_errors_by_day">Failed hooks of the last 7 days by day</string>
     <string name="title_log_empty">No restrictions applied yet</string>
     <string name="title_log_no_errors">No hooks failed</string>
 
