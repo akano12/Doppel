@@ -78,9 +78,10 @@ local SERIAL = { 'ro.serialno', 'ro.boot.serialno', 'ril.serialnumber', 'ro.boot
 local PROPERTIES = { 'tracking', 'identifiers', 'timezone' }
 
 -- The files of the variants of which apps read another text, which cat prints (see catfunction),
--- like the hooks opening files: the id of boot_id per app and the boot time in /proc/uptime (see boot_offset_proc),
--- and the rounded sizes of /proc/meminfo
-local FILES = { tracking = { '/proc/sys/kernel/random/boot_id', '/proc/uptime' }, resources = { '/proc/meminfo' } }
+-- like the hooks opening files: the id of boot_id per app, the boot time in /proc/uptime and /proc/stat
+-- (see boot_offset_proc), and the rounded sizes of /proc/meminfo
+local FILES = { tracking = { '/proc/sys/kernel/random/boot_id', '/proc/uptime', '/proc/stat' },
+                resources = { '/proc/meminfo' } }
 
 -- The files of /sys which do not exist for the variants, like for the hooks opening files (see hardware_files),
 -- as patterns of the shell for the path and the path its links lead to, which a test compares with the patterns

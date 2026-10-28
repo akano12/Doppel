@@ -120,7 +120,8 @@ public class ShellCommandsScriptTest {
             // The files as the app reads them, with the hooks opening files, see XParam.readFile
             "files = { ['/proc/meminfo'] = 'MemTotal:        3145728 kB\\nMemFree:          146484 kB\\n',",
             "  ['/proc/sys/kernel/random/boot_id'] = '0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\\n',",
-            "  ['/proc/uptime'] = '123456.78 98765.43\\n' }",
+            "  ['/proc/uptime'] = '123456.78 98765.43\\n',",
+            "  ['/proc/stat'] = 'cpu  1 2 3\\nbtime 1699998200\\nprocesses 100\\n' }",
             // The environment of the app, for System.getenv
             "environment = { A = '1' }",
             "luajava = {",
@@ -480,14 +481,17 @@ public class ShellCommandsScriptTest {
                 run(start("cat", "/proc/sys/kernel/random/boot_id")).out);
         assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
                 run(start("sh", "-c", "x=$(cat /proc/sys/kernel/random/boot_id); echo $x")).out);
-        // The boot time of /proc/uptime, faked by Use.Tracking like boot_id (see boot_offset_proc)
+        // The boot time of /proc/uptime and /proc/stat, faked by Use.Tracking like boot_id (see boot_offset_proc)
         assertEquals("123456.78 98765.43\n", run(start("cat", "/proc/uptime")).out);
         assertEquals("123456.78 98765.43\n", run(start("cat", "/proc/self/root/proc/uptime")).out);
-        // Read.Resources does not restrict boot_id or /proc/uptime, Use.Tracking not /proc/meminfo
+        assertEquals("cpu  1 2 3\nbtime 1699998200\nprocesses 100\n", run(start("cat", "/proc/stat")).out);
+        // Read.Resources does not restrict boot_id, /proc/uptime or /proc/stat, Use.Tracking not /proc/meminfo
         assertEquals("cat /proc/sys/kernel/random/boot_id",
                 String.join(" ", command(start(new String[]{"cat", "/proc/sys/kernel/random/boot_id"}, "resources"))));
         assertEquals("cat /proc/uptime",
                 String.join(" ", command(start(new String[]{"cat", "/proc/uptime"}, "resources"))));
+        assertEquals("cat /proc/stat",
+                String.join(" ", command(start(new String[]{"cat", "/proc/stat"}, "resources"))));
         assertEquals("cat /proc/meminfo",
                 String.join(" ", command(start(new String[]{"cat", "/proc/meminfo"}, "tracking"))));
         // Also by other paths, and with other files, which are read by cat itself; with options cat reads the files
