@@ -2,6 +2,7 @@
 <!-- A restriction or a failed hook in the log: the app, the time, the group and what changed;
      the rows of a day form one block, see FragmentLog -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -133,6 +134,51 @@
                     android:textAppearance="@style/XLua.Text.Mono"
                     android:textSize="11sp"
                     tools:text="TelephonyManager.getSimOperator" />
+
+                <!-- Shows the row in full when a text does not fit, see FragmentLog -->
+                <ImageButton
+                    android:id="@+id/ibExpand"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="-10dp"
+                    android:layout_marginEnd="-10dp"
+                    android:layout_marginBottom="-10dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_expand"
+                    android:visibility="gone"
+                    app:tint="?attr/colorOutline"
+                    tools:visibility="visible" />
+            </LinearLayout>
+
+            <!-- The values in full, wrapped -->
+            <LinearLayout
+                android:id="@+id/llFull"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <TextView
+                    android:id="@+id/tvOldFull"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/XLua.Text.Mono"
+                    tools:text="Mozilla/5.0 (Linux; Android 15; sdk_gphone64_x86_64 Build/AE3A.240806.043)" />
+
+                <TextView
+                    android:id="@+id/tvNewFull"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_pill"
+                    android:backgroundTint="?attr/colorSecondaryContainer"
+                    android:paddingStart="7dp"
+                    android:paddingEnd="7dp"
+                    android:textAppearance="@style/XLua.Text.Mono"
+                    android:textColor="?attr/colorOnSecondaryContainer"
+                    tools:text="Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP4A.250105.002)" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

@@ -523,6 +523,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             llRow.setOnClickListener(this);
             llRow.setOnLongClickListener(this);
             llRow.setOnTouchListener(new Swipe(this));
+            for (View action : new View[]{btnRestrictAll, btnRemoveAll, itemView.findViewById(R.id.btnGroups)})
+                action.setOnTouchListener(new Swipe(this));
             Context context = itemView.getContext();
             // Screen readers tell what a long press does, and offer the actions behind the row
             ViewCompat.replaceAccessibilityAction(llRow, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK,
@@ -629,8 +631,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     notifyItemChanged(i);
     }
 
-    // Swiping a row to the start shows its actions behind it, swiping it back hides them; a short swipe springs back.
-    // Taps and long presses stay those of the row; the list does not scroll while a row is swiped.
+    // Swiping a row to the start shows its actions behind it, swiping it back hides them, also on the actions, which
+    // can leave little of the row to swipe on a narrow screen; a third of the way opens or closes, less springs back.
+    // Taps and long presses stay those of the row and the actions; the list does not scroll while a row is swiped.
     private static class Swipe implements View.OnTouchListener {
         private final AppHolder holder;
         private final int slop;
@@ -644,7 +647,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             this.slop = android.view.ViewConfiguration.get(holder.itemView.getContext()).getScaledTouchSlop();
         }
 
-        // Taps and long presses are left to the row (false), which handles them like clicks for accessibility too
+        // Taps and long presses are left to the view (false), which handles them like clicks for accessibility too
         @SuppressLint("ClickableViewAccessibility")
         @Override
         public boolean onTouch(View view, android.view.MotionEvent event) {
@@ -654,7 +657,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 case android.view.MotionEvent.ACTION_DOWN:
                     startX = event.getRawX();
                     startY = event.getRawY();
-                    base = view.getTranslationX();
+                    base = holder.llRow.getTranslationX();
                     swiping = false;
                     return false;
 
@@ -669,7 +672,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     }
                     if (swiping) {
                         float x = base + dx;
-                        view.setTranslationX(shown < 0 ? Math.max(shown, Math.min(0, x)) : Math.min(shown, Math.max(0, x)));
+                        holder.llRow.setTranslationX(shown < 0 ? Math.max(shown, Math.min(0, x)) : Math.min(shown, Math.max(0, x)));
                         return true;
                     }
                     return false;
@@ -679,7 +682,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     if (!swiping)
                         return false;
                     swiping = false;
-                    holder.setOpen(Math.abs(view.getTranslationX()) > Math.abs(shown) / 3);
+                    float moved = Math.abs(holder.llRow.getTranslationX() - base);
+                    holder.setOpen(base == 0 ? moved > Math.abs(shown) / 3 : moved < Math.abs(shown) / 3);
                     return true;
 
                 default:

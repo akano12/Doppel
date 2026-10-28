@@ -96,6 +96,11 @@ public class FragmentLog extends FragmentBase {
     private int onlyUid = -1; // Any user when unknown
     private List<Entry> entries = new ArrayList<>();
     private List<Entry> errors = new ArrayList<>();
+    private final Set<String> expanded = new HashSet<>(); // Entries shown in full, see key
+
+    private static String key(Entry entry) {
+        return entry.app.uid + "/" + entry.hook;
+    }
 
     // The log of one app, see ActivityLog
     static FragmentLog forApp(String packageName, int uid, String label) {
@@ -358,6 +363,11 @@ public class FragmentLog extends FragmentBase {
             final TextView tvArrow;
             final TextView tvNew;
             final TextView tvHook;
+            final ImageButton ibExpand;
+            final View llFull;
+            final TextView tvOldFull;
+            final TextView tvNewFull;
+            boolean expandable; // Errors show in full when tapped
 
             EntryHolder(View itemView) {
                 super(itemView);
@@ -370,8 +380,38 @@ public class FragmentLog extends FragmentBase {
                 tvArrow = itemView.findViewById(R.id.tvArrow);
                 tvNew = itemView.findViewById(R.id.tvNew);
                 tvHook = itemView.findViewById(R.id.tvHook);
+                ibExpand = itemView.findViewById(R.id.ibExpand);
+                llFull = itemView.findViewById(R.id.llFull);
+                tvOldFull = itemView.findViewById(R.id.tvOldFull);
+                tvNewFull = itemView.findViewById(R.id.tvNewFull);
                 tvOld.setPaintFlags(tvOld.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+                tvOldFull.setPaintFlags(tvOldFull.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
                 itemView.setOnClickListener(this);
+                // A text is cut off by its own width or by the others on its line, which only the layout tells;
+                // the arrow takes room from the line, so a text which was cut stays cut
+                View.OnLayoutChangeListener check = (v, l, t, r, b, ol, ot, or, ob) -> {
+                    if (expandable && ibExpand.getVisibility() != View.VISIBLE &&
+                            (cut(tvApp) || cut(tvOld) || cut(tvNew) || cut(tvHook)))
+                        ibExpand.post(() -> ibExpand.setVisibility(View.VISIBLE));
+                };
+                for (TextView tv : new TextView[]{tvApp, tvOld, tvNew, tvHook})
+                    tv.addOnLayoutChangeListener(check);
+                ibExpand.setOnClickListener(view -> {
+                    int position = getBindingAdapterPosition();
+                    if (position == RecyclerView.NO_POSITION)
+                        return;
+                    String key = key(getItem(position));
+                    if (!expanded.remove(key))
+                        expanded.add(key);
+                    notifyItemChanged(position);
+                });
+            }
+
+            // A hidden text can have the layout of the entry shown before
+            private boolean cut(TextView tv) {
+                android.text.Layout layout = tv.getLayout();
+                return (tv.getVisibility() == View.VISIBLE &&
+                        layout != null && layout.getLineCount() > 0 && layout.getEllipsisCount(0) > 0);
             }
 
             @Override
@@ -450,12 +490,26 @@ public class FragmentLog extends FragmentBase {
                 h.tvWhat.setTextColor(Ui.color(context, com.google.android.material.R.attr.colorOnSurface));
             }
 
+            // The texts on one line each, cut when they do not fit, or in full when the row is expanded: the app and
+            // the hook wrapped, the values under them; the arrow shows once the lines are laid out, see EntryHolder
             boolean values = (!error && (entry.oldValue != null || entry.newValue != null));
+            String oldValue = (entry.oldValue == null ? "null" : entry.oldValue);
+            String newValue = (entry.newValue == null ? "null" : entry.newValue);
+            boolean full = (!error && expanded.contains(key(entry)));
+            h.expandable = !error;
+            h.tvApp.setMaxLines(full ? Integer.MAX_VALUE : 1);
+            h.tvHook.setSingleLine(!full);
             for (View v : new View[]{h.tvOld, h.tvArrow, h.tvNew})
-                v.setVisibility(values ? View.VISIBLE : View.GONE);
+                v.setVisibility(values && !full ? View.VISIBLE : View.GONE);
+            h.llFull.setVisibility(values && full ? View.VISIBLE : View.GONE);
+            h.ibExpand.setVisibility(full ? View.VISIBLE : View.GONE);
+            h.ibExpand.setRotation(full ? 180 : 0);
+            h.ibExpand.setContentDescription(context.getString(full ? R.string.title_hide_values : R.string.title_show_values));
             if (values) {
-                h.tvOld.setText(entry.oldValue == null ? "null" : entry.oldValue);
-                h.tvNew.setText(entry.newValue == null ? "null" : entry.newValue);
+                h.tvOld.setText(oldValue);
+                h.tvNew.setText(newValue);
+                h.tvOldFull.setText(oldValue);
+                h.tvNewFull.setText(newValue);
             }
         }
     }

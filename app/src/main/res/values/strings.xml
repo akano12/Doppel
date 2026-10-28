@@ -306,6 +306,8 @@
     <!-- Activity -->
     <!-- From the real value to the fake value, mirrored for right-to-left languages (values-ldrtl) -->
     <string name="title_value_arrow" translatable="false">→</string>
+    <string name="title_show_values">Show in full</string>
+    <string name="title_hide_values">Show less</string>
     <string name="title_stat_errors">Errors</string>
     <string name="title_today">Today</string>
     <string name="title_yesterday">Yesterday</string>
