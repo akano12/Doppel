@@ -38,6 +38,10 @@ final class FakeIds {
     static final String MEID = "value.meid";
     static final String[] KEYS = {SERIAL, ANDROID_ID, IMEI, MEID};
 
+    // Always on, not a Fake value: a per-app offset in ms added to the time since boot, so apps cannot link
+    // by the boot time (now - elapsedRealtime), which is otherwise the same for all apps. New each boot.
+    static final String BOOT_OFFSET = "value.boot_offset";
+
     // The setting of the mode of a value is its name with this suffix
     static final String MODE = ".mode";
     static final String FIXED = "fixed";
@@ -86,6 +90,7 @@ final class FakeIds {
             else if (BOOT_ALL.equals(mode))
                 result.put(key, derive(secret, userid, null, key));
         }
+        result.put(BOOT_OFFSET, derive(secret, userid, packageName, BOOT_OFFSET));
         return result;
     }
 
@@ -115,6 +120,9 @@ final class FakeIds {
                 return digits + luhn(digits);
             case MEID:
                 return randomString(random, "0123456789ABCDEF", 14);
+            case BOOT_OFFSET:
+                // 10 to 120 minutes in ms; wide enough that many devices share each boot time
+                return Long.toString(600000L + random.nextInt(6600001));
             default:
                 return null;
         }

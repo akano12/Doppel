@@ -257,6 +257,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             for (Object item : SECTIONS)
                 if (item instanceof Field)
                     known.add(((Field) item).key);
+            known.add(FakeIds.BOOT_OFFSET); // Read by the boot offset hooks, but derived per app, not a field
             TreeSet<String> custom = new TreeSet<>();
             final Map<String, List<String>> readers = new HashMap<>();
             for (XHook hook : hooks)

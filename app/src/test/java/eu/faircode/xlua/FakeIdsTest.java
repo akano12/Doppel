@@ -116,5 +116,11 @@ public class FakeIdsTest {
         assertNotEquals(one.get(FakeIds.ANDROID_ID), other.get(FakeIds.ANDROID_ID));
         assertEquals(one.get(FakeIds.MEID), other.get(FakeIds.MEID));
         assertEquals(FakeIds.derive(SECRET, 0, "com.example", FakeIds.ANDROID_ID), one.get(FakeIds.ANDROID_ID));
+
+        // The boot offset is always there, of the app, 10 to 120 minutes in ms
+        assertTrue(one.containsKey(FakeIds.BOOT_OFFSET));
+        long offset = Long.parseLong(one.get(FakeIds.BOOT_OFFSET));
+        assertTrue("offset " + offset, offset >= 600000 && offset <= 7200000);
+        assertEquals(FakeIds.derive(SECRET, 0, "com.example", FakeIds.BOOT_OFFSET), one.get(FakeIds.BOOT_OFFSET));
     }
 }

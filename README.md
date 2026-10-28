@@ -105,7 +105,8 @@ The faked values are the same for the shell commands apps run, like getprop, pm 
   Amplitude, Branch, Microsoft Clarity, Singular
 * **Use camera**: no camera
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
-  boot id and the folder times that tell when the device was set up; the hardware files in /sys do not exist
+  boot id, the boot time (each app sees its own, so the time since boot no longer links apps across restarts) and the
+  folder times that tell when the device was set up; the hardware files in /sys do not exist
 
 The details are in [hooks.json](app/src/main/assets/hooks.json); [here](docs/XPRIVACY.md) is a comparison with XPrivacy.
 
@@ -120,6 +121,12 @@ The details are in [hooks.json](app/src/main/assets/hooks.json); [here](docs/XPR
 * Discovery of local devices with the app's own sockets, like mDNS or SSDP, cannot be prevented.
 * The paths of other apps, like `/data/app/~~…==/com.example-…==/base.apk`, stay: Android reads their icons and labels
   from these files inside the app. They differ per install, so restrict *Get applications* to hide other apps entirely.
+* The fake boot time shifts only the time-since-boot clock (elapsedRealtime), by its own amount per app. The wall clock
+  and the uptime clock are left alone, because faking them breaks input events and secure connections; so an app can
+  still link itself within one awake session (until the device sleeps) from the wall clock minus the uptime. A location
+  fix's time and elapsed-time alarms are corrected to the shift, so a fix reads as fresh and alarms still fire on time,
+  but timestamps the system reports on that clock in other ways are not: sensor events and camera frames can read as
+  the shift old, and a media app's progress bar on the lock screen can be off by the shift.
 * Restricted apps can detect Doppel, but cannot change anything, see [the FAQ](FAQ.md#user-content-faq21).
 * Apps with root access can get around any restriction.
 
