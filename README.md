@@ -82,7 +82,7 @@ The faked values are the same for the shell commands apps run, like getprop, pm 
 * **Get contacts**: hide contacts, optionally except (non) starred ones, and blocked numbers
 * **Get location**: fake location, no NMEA messages or raw GNSS measurements
 * **Read account name**: fake name
-* **Read battery**: level in steps of 10 percent, no charge details, battery saver off
+* **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
 * **Read biometric sensors**: no fingerprint sensor, face or iris unlock
 * **Read clipboard**: fake paste
 * **Read debugging state**: developer options and USB or wireless debugging off

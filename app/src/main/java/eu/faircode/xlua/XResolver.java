@@ -117,7 +117,7 @@ final class XResolver {
 
     // A method of the class or a super class, or a constructor of the class itself when the name is null
     // (constructors are not inherited), with parameters which the given types can be assigned to
-    static Member resolveMember(Class<?> cls, String name, Class<?>[] params) throws NoSuchMethodException {
+    private static Member resolveMember(Class<?> cls, String name, Class<?>[] params) throws NoSuchMethodException {
         for (Class<?> c = cls; c != null && !c.equals(Object.class) && (name != null || c == cls); c = c.getSuperclass()) {
             try {
                 return (name == null ? c.getDeclaredConstructor(params) : c.getDeclaredMethod(name, params));

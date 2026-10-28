@@ -178,7 +178,8 @@ public class HiddenAppsScriptTest {
                 "param.setArgument = function(self, index, value) self.args[index] = value end\n" +
                 "local restricted = before(hookof('sendOrderedBroadcast'), param)\n" +
                 "local sent = param.args[0]\n" +
-                "return restricted, param.set, sent:getPackage(), sent:getComponent() == nil, intent:getPackage(), intent:getComponent() ~= nil");
+                "return restricted, param.set, sent:getPackage(), sent:getComponent() == nil, " +
+                "intent:getPackage(), intent:getComponent() ~= nil");
         assertTrue(ordered.arg(1).toboolean());
         assertFalse(ordered.arg(2).toboolean());
         assertEquals("com.other.hidden:hidden", ordered.arg(3).tojstring());

@@ -22,13 +22,18 @@ package eu.faircode.xlua;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 // Scripts which fake the same value each have it, since scripts cannot share code: the fake time zone,
 // the operator of the test network and the Wi-Fi network, in the getters, the system properties and the texts;
 // the serial number, the security patch level, the MAC address, the user agent of WebView, the authority
-// of a content URI and the files of /sys which do not exist
+// of a content URI, the files of /sys which do not exist and the lists the shell copies
 public class FakeValuesAgreeTest {
     // A hook with a name and a method, a param with a result, arguments and settings; fakeof runs after()
     // and returns the result then
@@ -274,5 +279,24 @@ public class FakeValuesAgreeTest {
                 }
                 assertEquals(path, paths == hidden, any);
             }
+    }
+
+    // The texts in the table of a local of a script, like local NAME = { 'a', ['b'] = true }
+    private static Set<String> listOf(String script, String name) throws Exception {
+        Matcher table = Pattern.compile("local " + name + " = \\{([^}]*)\\}").matcher(Scripts.read(script));
+        assertTrue(script + " " + name, table.find());
+        Set<String> values = new TreeSet<>();
+        Matcher value = Pattern.compile("'([^']*)'").matcher(table.group(1));
+        while (value.find())
+            values.add(value.group(1));
+        return values;
+    }
+
+    // The biometric features and the libraries of the platform, for pm of the shell and the getters
+    @Test
+    public void shellLists() throws Exception {
+        assertEquals(listOf("biometrics", "FEATURES"), listOf("shell_commands", "BIOMETRIC"));
+        assertEquals(listOf("features", "PLATFORM"), listOf("shell_commands", "LIBRARIES"));
+        assertEquals(listOf("features", "GOOGLE"), listOf("shell_commands", "GOOGLE"));
     }
 }

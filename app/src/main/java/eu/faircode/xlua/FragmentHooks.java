@@ -409,7 +409,7 @@ public class FragmentHooks extends FragmentBase {
         void onBindItem(@NonNull RecyclerView.ViewHolder holder, XHook hook, boolean first, boolean last) {
             HookHolder h = (HookHolder) holder;
             Context context = h.itemView.getContext();
-            boolean runs = (hook.isEnabled() && hook.isForThisSdk() && collection.contains(hook.getCollection()));
+            boolean runs = hook.isAvailable(null, collection);
 
             joinInset(h, h.llPanel, h.vDivider, first, last);
 

@@ -27,7 +27,8 @@ import android.view.View;
 
 import androidx.annotation.NonNull;
 
-// Bars of counts, like the restricted calls of today per hour or of the last week per day: a hairline for none, the highest in the accent color
+// Bars of counts, like the restricted calls of today per hour or of the last week per day:
+// a hairline for none, the highest in the accent color
 public class BarsView extends View {
     private int[] values = new int[0];
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);

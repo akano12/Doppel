@@ -22,6 +22,7 @@ package eu.faircode.xlua;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -690,6 +691,7 @@ public class ActivityApp extends ActivityBase {
 
     // The description of a group in a bubble pointing at its icon: below it, or above it when there is no room
     // below; a tap anywhere and back close it
+    @SuppressLint("InflateParams") // a popup has no parent
     private void showInfo(View icon, String title, String description) {
         View view = LayoutInflater.from(this).inflate(R.layout.popup_group_info, null);
         ((TextView) view.findViewById(R.id.tvTitle)).setText(title);

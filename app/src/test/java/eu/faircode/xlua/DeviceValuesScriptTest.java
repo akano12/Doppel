@@ -65,9 +65,12 @@ public class DeviceValuesScriptTest {
         assertTrue(Scripts.run(globals, "return fakedevice('ro.product.first_api_level', '34')").arg1().isnil());
 
         // The security patch level per quarter
-        assertEquals("2025-04-01", Scripts.run(globals, "return fakedevice('ro.build.version.security_patch', '2025-05-05')").arg1().tojstring());
-        assertEquals("2024-10-01", Scripts.run(globals, "return fakedevice('ro.vendor.build.security_patch', '2024-12-01')").arg1().tojstring());
-        assertEquals("2025-01-01", Scripts.run(globals, "return fakedevice('ro.build.version.security_patch', '2025-01-05')").arg1().tojstring());
+        assertEquals("2025-04-01", Scripts.run(globals,
+                "return fakedevice('ro.build.version.security_patch', '2025-05-05')").arg1().tojstring());
+        assertEquals("2024-10-01", Scripts.run(globals,
+                "return fakedevice('ro.vendor.build.security_patch', '2024-12-01')").arg1().tojstring());
+        assertEquals("2025-01-01", Scripts.run(globals,
+                "return fakedevice('ro.build.version.security_patch', '2025-01-05')").arg1().tojstring());
         assertTrue(Scripts.run(globals, "return fakedevice('ro.build.version.security_patch', 'x')").arg1().isnil());
 
         Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get/device', 'get'), " +
@@ -157,7 +160,8 @@ public class DeviceValuesScriptTest {
         Varargs result = Scripts.run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('2025-09-05', {}))");
         assertTrue(result.arg1().toboolean());
         assertEquals("2025-07-01", result.arg(2).tojstring());
-        assertFalse(Scripts.run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('2025-07-01', {}))").arg1().toboolean());
+        assertFalse(Scripts.run(globals,
+                "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('2025-07-01', {}))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('', {}))").arg1().toboolean());
     }
 
@@ -427,7 +431,8 @@ public class DeviceValuesScriptTest {
         Scripts.run(globals, "stack = stackof(" + engine + "'android.webkit.WebViewFactory.getProvider', " +
                 "'android.webkit.WebView.<init>', 'com.example.app.Main.onCreate')");
         assertFalse(Scripts.run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
-        Scripts.run(globals, "stack = stackof(" + engine + "'android.net.wifi.WifiFrameworkInitializer.lambda$registerServiceWrappers$0', " +
+        Scripts.run(globals, "stack = stackof(" + engine +
+                "'android.net.wifi.WifiFrameworkInitializer.lambda$registerServiceWrappers$0', " +
                 "'android.app.SystemServiceRegistry.getSystemService', 'com.example.app.Main.onCreate')");
         assertFalse(Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
         // The package manager calls the hooked method itself, hasSystemFeature without a version the one with one

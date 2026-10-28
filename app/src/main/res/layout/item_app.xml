@@ -23,6 +23,7 @@
 
             <ImageView
                 style="@style/XLua.RowAction.Icon"
+                tools:ignore="ContentDescription"
                 android:src="@drawable/ic_restrict_all"
                 app:tint="?attr/colorOnPrimary" />
 
@@ -39,6 +40,7 @@
 
             <ImageView
                 style="@style/XLua.RowAction.Icon"
+                tools:ignore="ContentDescription"
                 android:src="@drawable/ic_remove_all"
                 app:tint="?attr/colorOnSecondaryContainer" />
 
@@ -55,6 +57,7 @@
 
             <ImageView
                 style="@style/XLua.RowAction.Icon"
+                tools:ignore="ContentDescription"
                 android:src="@drawable/ic_groups"
                 app:tint="?attr/colorOnSurface" />
 

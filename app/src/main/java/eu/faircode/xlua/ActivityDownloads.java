@@ -268,7 +268,7 @@ public class ActivityDownloads extends ActivityBase {
         List<XHook> overlaps = new ArrayList<>();
         for (XHook hook : installed.values())
             if (!hook.getId().equals(entry.getId()) &&
-                    hook.isEnabled() && collection.contains(hook.getCollection()) &&
+                    hook.isAvailable(null, collection) &&
                     hook.getClassName().equals(entry.className) &&
                     Objects.equals(hook.getMethodName(), entry.methodName) &&
                     Arrays.equals(hook.getParameterTypes(), entry.parameterTypes))

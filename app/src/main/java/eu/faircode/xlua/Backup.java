@@ -244,14 +244,10 @@ class Backup {
             // the user did not want; the groups which are partially restricted now are worth a look
             XApp restored = (jbuiltins == null ? Data.getApp(context, packageName, uid) : null);
             if (restored != null)
-                for (String group : groups) {
-                    int available = 0;
-                    for (XHook hook : hooks.values())
-                        if (group.equals(hook.getGroup()) && hook.isAvailable(packageName, collection))
-                            available++;
-                    if (restored.getAssignments(group).size() < available)
+                for (String group : groups)
+                    if (restored.getAssignments(group).size() <
+                            Data.getAvailable(new ArrayList<>(hooks.values()), restored, collection, group).size())
                         result.partial++;
-                }
         }
 
         return result;

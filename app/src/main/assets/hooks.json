@@ -6952,7 +6952,8 @@
     "minSdk": 28,
     "luaScript": "@test_network"
   },
-  // The script runs for /proc/sys/kernel/random/boot_id only
+  // The script runs for the paths containing boot_id and fakes /proc/sys/kernel/random/boot_id only,
+  // also by another path (see XParam.opens)
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -7061,7 +7062,7 @@
     "luaScript": "@storage_times"
   },
   // Files of /sys which name the hardware, like the unique id of the chip and the id of the SD card of Samsung phones:
-  // for the app they do not exist, with java.io, Os and java.nio.file; the script runs for the files of /sys only,
+  // for the app they do not exist, with java.io, Os and java.nio.file; the script runs for the paths containing sys/ only,
   // each variant hides the files of its group
   {
     "collection": "Privacy",
@@ -8968,7 +8969,8 @@
     "minSdk": 21,
     "luaScript": "@resources"
   },
-  // Opening files of apps, by FileInputStream, RandomAccessFile and Os.open; the script runs for /proc/meminfo only
+  // Opening files of apps, by FileInputStream, RandomAccessFile and Os.open; the script runs for the paths containing meminfo
+  // and fakes /proc/meminfo only, also by another path (see XParam.opens)
   {
     "collection": "Privacy",
     "group": "Read.Resources",

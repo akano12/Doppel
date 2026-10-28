@@ -229,7 +229,8 @@ end
 The function is called once, when the hook is installed, with the *hook* of the definition only,
 so *filter* is a reserved name: a script must not use it for a function of its own.
 A value ending in \* stands for all values starting with the text before it, like */sys/\** for the files of */sys*,
-for a script which tells the paths apart itself.
+for a script which tells the paths apart itself;
+likewise a value like *\*meminfo\** starting and ending in \* stands for all values containing the text between.
 
 For a hooked method which opens a file and returns its file descriptor, like *libcore.io.BlockGuardOs.open*,
 or the number of one, like *sun.nio.fs.UnixNativeDispatcher.open* for java.nio,

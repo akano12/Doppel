@@ -1002,7 +1002,7 @@ class XProvider {
     // Settings
 
     private static List<String> getCollection(int userid) throws Throwable {
-        return Util.parseCollection(getSettingValue(userid, "global", "collection"));
+        return db.read(d -> readCollection(d, userid));
     }
 
     private static String getSettingValue(final int userid, final String category, final String name) throws Throwable {
