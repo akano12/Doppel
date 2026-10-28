@@ -61,10 +61,11 @@ function freesize(value)
     return math.floor(value / step) * step
 end
 
--- Opening files, of which only /proc/meminfo has the sizes, see XCore.getFilter
+-- Opening files, of which only /proc/meminfo has the sizes, see XCore.getFilter; also by other paths,
+-- like /proc/self/root/proc/meminfo, and by java.nio (UnixNativeDispatcher.open), see XParam.opens
 function filter(hook)
     if hook:getMethodName() == 'open' then
-        return { '/proc/meminfo' }
+        return { '*meminfo*' }
     end
     return nil
 end
@@ -104,7 +105,7 @@ function after(hook, param)
     local method = hook:getMethodName()
 
     if method == 'open' then
-        if param:getException() ~= nil or param:getResult() == nil then
+        if param:getException() ~= nil or param:getResult() == nil or not param:opens('/proc/meminfo') then
             return false
         end
         return meminfo(param)

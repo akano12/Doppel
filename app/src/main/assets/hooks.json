@@ -1102,6 +1102,108 @@
     "excludePackages": "android",
     "luaScript": "@component_hidden"
   },
+  // Ordered broadcasts, of which a result receiver gets the answer of Android without receivers (see component_hidden)
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendOrderedBroadcast/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendOrderedBroadcast",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendOrderedBroadcast.receiver/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendOrderedBroadcast",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String",
+      "android.content.BroadcastReceiver",
+      "android.os.Handler",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendOrderedBroadcast.options/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendOrderedBroadcast",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendOrderedBroadcast.appop/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendOrderedBroadcast",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String",
+      "java.lang.String",
+      "android.content.BroadcastReceiver",
+      "android.os.Handler",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendOrderedBroadcast.options.receiver/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendOrderedBroadcast",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.content.BroadcastReceiver",
+      "android.os.Handler",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -6867,6 +6969,23 @@
     "minSdk": 23,
     "luaScript": "@boot_id"
   },
+  // Opening files by java.nio, like Files.readAllLines, which returns the number of the descriptor
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.open/boot_id",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
+    "luaScript": "@boot_id"
+  },
   // The times of the folders of the shared storage: Os.stat and Os.lstat, File.lastModified and java.nio.file.Files;
   // the script runs for these folders only
   {
@@ -8864,6 +8983,23 @@
     ],
     "returnType": "java.io.FileDescriptor",
     "minSdk": 23,
+    "luaScript": "@resources"
+  },
+  // Opening files by java.nio, like Files.readAllLines, which returns the number of the descriptor
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "UnixNativeDispatcher.open/meminfo",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 26,
     "luaScript": "@resources"
   },
   {

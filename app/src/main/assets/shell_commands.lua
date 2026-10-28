@@ -412,8 +412,10 @@ function hidingfunctions(variants, names)
     return table.concat(result, '\n')
 end
 
--- Whether cat of the file prints another text, with the functions of the variants
+-- Whether cat of the file prints another text, with the functions of the variants; also by another path, like
+-- //proc/meminfo or /proc/self/root/proc/meminfo
 function catfile(file, variants)
+    file = resolve(file)
     if file == '/proc/version' then
         return variants['tracking'] ~= nil
     end
@@ -429,37 +431,46 @@ function catfile(file, variants)
     return false
 end
 
--- cat of one file prints the text the app reads itself, with the hooks opening files, at the start of the command;
--- /proc/version the kernel like uname (see kernelfunctions). Files the app cannot read keep their error.
--- Files of /sys which do not exist for the variants get the error of a missing file (see hidingfunctions).
+-- cat of files prints the text the app reads itself, with the hooks opening files, at the start of the command,
+-- for each file by the path it leads to, like //proc/meminfo or /proc/self/root/proc/meminfo; /proc/version the
+-- kernel like uname (see kernelfunctions). Files the app cannot read keep their error. Files of /sys which do not
+-- exist for the variants get the error of a missing file (see hidingfunctions). With options cat reads the files.
 function catfunction(param, text, variants, kernel, hiding)
     local cases = {}
     if kernel then
         -- Apps cannot read /proc/version on recent versions
-        cases[#cases + 1] = '  /proc/version) if /system/bin/cat /proc/version >/dev/null 2>&1; then __xlua_kernel;' ..
-                " /system/bin/printf 'Linux version %s #1 SMP PREEMPT\\n' \"$__xlua_short\"; return; fi ;;"
+        cases[#cases + 1] = '   /proc/version) if /system/bin/cat /proc/version >/dev/null 2>&1; then __xlua_kernel;' ..
+                " /system/bin/printf 'Linux version %s #1 SMP PREEMPT\\n' \"$__xlua_short\"; continue; fi ;;"
     end
     for variant, files in pairs(FILES) do
         if variants[variant] then
             for _, file in ipairs(files) do
-                local content = (string.find(text, file, 1, true) and param:readFile(file) or nil)
+                local content = (string.find(text, string.sub(file, 2), 1, true) and param:readFile(file) or nil)
                 if content ~= nil then
-                    cases[#cases + 1] = '  ' .. file .. ") /system/bin/printf '%s' " .. quote(content) .. '; return ;;'
+                    cases[#cases + 1] = '   ' .. file .. ") /system/bin/printf '%s' " .. quote(content) .. '; continue ;;'
                 end
             end
         end
     end
+    local read = (hiding and '__xlua_files cat' or '/system/bin/cat')
     local result = {
         'cat() {',
-        ' if [ $# -eq 1 ]; then',
-        '  case "$1" in',
+        ' case "$*" in',
+        '  -*|*" -"*) ' .. read .. ' "$@"; return ;;',
+        ' esac',
+        ' [ $# -gt 0 ] || { ' .. read .. '; return; }',
+        -- Not __xlua_rc, which __xlua_files sets for each file
+        ' __xlua_catrc=0',
+        ' for __xlua_cat in "$@"; do',
+        '  case "$(/system/bin/readlink -f -- "$__xlua_cat" 2>/dev/null)" in',
         table.concat(cases, '\n'),
         '  esac',
-        ' fi',
+        '  ' .. read .. ' "$__xlua_cat" || __xlua_catrc=1',
+        ' done',
+        ' return $__xlua_catrc',
+        '}',
+        ''
     }
-    result[#result + 1] = (hiding and ' __xlua_files cat "$@"' or ' /system/bin/cat "$@"')
-    result[#result + 1] = '}'
-    result[#result + 1] = ''
     return table.concat(result, '\n')
 end
 
@@ -1256,8 +1267,13 @@ function before(hook, param)
         local own = { [variant] = true }
         for _, name in ipairs(names) do
             if program == name then
-                if name == 'cat' and #words == at + 1 and catfile(words[at + 1], own) then
-                    direct = true
+                if name == 'cat' then
+                    -- Commands reading files which exist run as they are
+                    for index = at + 1, #words do
+                        if catfile(words[index], own) or hiddenfile(words[index], own) then
+                            direct = true
+                        end
+                    end
                 elseif READER[name] then
                     -- Commands reading files which exist run as they are
                     for index = at + 1, #words do

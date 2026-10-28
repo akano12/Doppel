@@ -118,6 +118,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json); [here](docs/XPR
 * *Get applications* keeps the app itself, apps sharing its user id and system apps visible to lookups of single apps,
   because the Android code running in apps, like WebView, needs them.
 * Discovery of local devices with the app's own sockets, like mDNS or SSDP, cannot be prevented.
+* The paths of other apps, like `/data/app/~~…==/com.example-…==/base.apk`, stay: Android reads their icons and labels
+  from these files inside the app. They differ per install, so restrict *Get applications* to hide other apps entirely.
 * Restricted apps can detect Doppel, but cannot change anything, see [the FAQ](FAQ.md#user-content-faq21).
 * Apps with root access can get around any restriction.
 
@@ -148,6 +150,7 @@ With [Android Studio](http://developer.android.com/sdk/), or from the command li
 ./gradlew assembleDebug        # debug build
 ./gradlew assembleRelease      # release build, signed when keystore.properties exists
 ./gradlew testDebugUnitTest    # checks the hook definitions and scripts
+scripts/test-on-device.sh      # on a device or emulator: the tests of shell commands, which Windows skips
 scripts/check-service.sh       # on a rooted device or emulator with Doppel: whom the service answers
 ```
 

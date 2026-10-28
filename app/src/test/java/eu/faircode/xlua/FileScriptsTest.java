@@ -38,8 +38,10 @@ public class FileScriptsTest {
             "function hookof(method)",
             "  return { getMethodName = function(self) return method end }",
             "end",
-            "function paramof(text)",
+            // The file opened is the one of the script, unless another is given
+            "function paramof(text, other)",
             "  return { text = text, set = false,",
+            "    opens = function(self, file) return other == nil end,",
             "    getException = function(self) return nil end,",
             "    getResult = function(self) return 'fd' end,",
             "    getPackageName = function(self) return 'test.app' end,",
@@ -75,16 +77,20 @@ public class FileScriptsTest {
         assertEquals("3221225472 560000000", result.arg(4).tojstring());
     }
 
-    // Only /proc/meminfo, the other hooks of the script have no filter
+    // Only /proc/meminfo, also by other paths (see XParam.opens), the other hooks of the script have no filter;
+    // another file with meminfo in its path keeps its text
     @Test
     public void meminfoFilter() throws Exception {
         Globals globals = Scripts.load("resources", STUBS);
         Varargs result = Scripts.run(globals,
                 "local paths = filter(hookof('open'))\n" +
-                        "return #paths, paths[1], filter(hookof('statvfs')) == nil");
+                        "local other = paramof([[" + MEMINFO + "]], '/data/meminfo')\n" +
+                        "return #paths, paths[1], filter(hookof('statvfs')) == nil, after(hookof('open'), other), other.set");
         assertEquals(1, result.arg(1).toint());
-        assertEquals("/proc/meminfo", result.arg(2).tojstring());
+        assertEquals("*meminfo*", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
     }
 
     // Sizes which are rounded already stay as they are
@@ -110,7 +116,7 @@ public class FileScriptsTest {
         assertEquals("uuid:7a73f969-e3f2-4b5d-9228-2eac60cccd8b\ntest.app\n", result.arg(2).tojstring());
         assertFalse(result.arg(3).toboolean());
         assertFalse(result.arg(4).toboolean());
-        assertEquals("/proc/sys/kernel/random/boot_id", result.arg(5).tojstring());
+        assertEquals("*boot_id*", result.arg(5).tojstring());
     }
 
     // The Android classes the times script uses, as Lua sees them: objects made are tables of their arguments

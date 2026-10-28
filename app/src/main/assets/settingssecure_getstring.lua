@@ -80,8 +80,13 @@ local FRAMEWORK = { android = true, ['com.android.server.accessibility'] = true 
 -- Whether packages of keyboards or accessibility services are visible, see XParam.isVisible.
 -- These come from the services, because the package manager does not tell about apps
 -- which are hidden by the package visibility rules, like a system keyboard. See service_filter too.
+-- Kept for a few seconds, apps read the settings often, like for each text field, and the lists rarely change
 function systemservices(param, source)
     local context = param:getApplicationContext()
+    local cached = param:getValue('services.' .. source, context)
+    if cached ~= nil and os.time() - cached.at < 10 then
+        return cached.packages
+    end
     -- The lists of the services are hooked themselves (see service_filter),
     -- which would filter them and report them as calls of the app
     local infos = param:unhooked(function()
@@ -106,6 +111,7 @@ function systemservices(param, source)
     for _, ai in ipairs(infos) do
         packages[ai.packageName] = (packages[ai.packageName] or param:isVisible(ai))
     end
+    param:putValue('services.' .. source, { at = os.time(), packages = packages }, context)
     return packages
 end
 

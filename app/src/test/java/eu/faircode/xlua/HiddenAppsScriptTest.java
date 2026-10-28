@@ -68,8 +68,12 @@ public class HiddenAppsScriptTest {
             "    toShortString = function(self) return '{' .. pkg .. '/' .. cls .. '}' end }",
             "end",
             "function intentof(component, pkg)",
-            "  return { getComponent = function(self) return component end, getPackage = function(self) return pkg end,",
-            "    toString = function(self) return 'Intent { pkg=' .. tostring(pkg) .. ' }' end }",
+            "  return { component = component, pkg = pkg,",
+            "    getComponent = function(self) return self.component end, getPackage = function(self) return self.pkg end,",
+            "    setComponent = function(self, value) self.component = value end,",
+            "    setPackage = function(self, value) self.pkg = value end,",
+            "    clone = function(self) return intentof(self.component, self.pkg) end,",
+            "    toString = function(self) return 'Intent { pkg=' .. tostring(self.pkg) .. ' }' end }",
             "end");
 
     private static Varargs provider(Globals globals, String method, String target) {
@@ -95,8 +99,13 @@ public class HiddenAppsScriptTest {
         assertEquals("com.other.hidden", result.arg(4).tojstring());
         for (String method : new String[]{"getType", "getStreamTypes", "canonicalize", "acquireContentProviderClient"})
             assertTrue(method, provider(globals, method, hidden).arg(3).isnil());
-        for (String method : new String[]{"insert", "bulkInsert", "delete", "update"})
-            assertEquals(method, "java.lang.IllegalArgumentException", className(provider(globals, method, hidden), 3));
+        // Also the message, which tells a missing provider apart: update says URI, the others URL
+        for (String method : new String[]{"insert", "bulkInsert", "delete", "update"}) {
+            Varargs answer = provider(globals, method, hidden);
+            assertEquals(method, "java.lang.IllegalArgumentException", className(answer, 3));
+            assertTrue(method, ((Throwable) answer.arg(3).touserdata()).getMessage()
+                    .startsWith(method.equals("update") ? "Unknown URI " : "Unknown URL "));
+        }
         assertEquals("java.lang.IllegalArgumentException", className(provider(globals, "call", hidden), 3));
         assertEquals("java.lang.IllegalArgumentException", className(provider(globals, "call", "'com.other.hidden.provider'"), 3));
         for (String method : new String[]{"openAssetFileDescriptor", "openTypedAssetFileDescriptor", "openTypedAssetFile"})
@@ -161,6 +170,21 @@ public class HiddenAppsScriptTest {
                 assertTrue(method, result.arg(3).isnil());
             }
         }
+
+        // An ordered broadcast goes to a package which cannot exist, so a result receiver gets the answer of Android
+        // without receivers; the intent of the app stays as it is
+        Varargs ordered = Scripts.run(globals, "local intent = " + hidden + "\n" +
+                "local param = paramof({ [0] = intent })\n" +
+                "param.setArgument = function(self, index, value) self.args[index] = value end\n" +
+                "local restricted = before(hookof('sendOrderedBroadcast'), param)\n" +
+                "local sent = param.args[0]\n" +
+                "return restricted, param.set, sent:getPackage(), sent:getComponent() == nil, intent:getPackage(), intent:getComponent() ~= nil");
+        assertTrue(ordered.arg(1).toboolean());
+        assertFalse(ordered.arg(2).toboolean());
+        assertEquals("com.other.hidden:hidden", ordered.arg(3).tojstring());
+        assertTrue(ordered.arg(4).toboolean());
+        assertTrue(ordered.arg(5).isnil());
+        assertTrue(ordered.arg(6).toboolean());
 
         // Screens through Instrumentation, with the intent as fifth argument, also one of several
         Varargs result = component(globals, "execStartActivity", "{ [4] = " + hidden + " }");

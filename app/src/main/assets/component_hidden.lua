@@ -18,8 +18,9 @@
 -- Apps talk to each other through services, screens and broadcasts they name, like an app binding the service
 -- of another app for the account signed in. The components of the apps which Get.Applications hides (see
 -- package_probe and provider_hidden) cannot be reached, like for an app which is not installed: binding a service
--- fails, starting one finds none, starting a screen throws ActivityNotFoundException and a broadcast to the package
--- is not sent. Intents which name no package or component are resolved by Android, so they stay.
+-- fails, starting one finds none, starting a screen throws ActivityNotFoundException, a broadcast to the package
+-- is not sent and an ordered one reaches no receiver. Intents which name no package or component are resolved by
+-- Android, so they stay.
 
 -- The package an intent names, by its component or its package, nil when it names none
 function packageof(intent)
@@ -85,6 +86,13 @@ function before(hook, param)
         param:setResult(nil)
     elseif method == 'execStartActivity' then
         param:setResult(notfound(intent))
+    elseif method == 'sendOrderedBroadcast' then
+        -- Sent to a package which cannot exist, a name with a colon, so a result receiver gets the answer of Android
+        -- without receivers, like for an app which is not installed; the intent of the app stays as it is
+        local copy = intent:clone()
+        copy:setComponent(nil)
+        copy:setPackage(packageName .. ':hidden')
+        param:setArgument(0, copy)
     else
         -- sendBroadcast: nothing is sent, like without receivers
         param:setResult(nil)

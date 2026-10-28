@@ -16,10 +16,12 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
--- Prevent callbacks with cell info or cell location
-function before(hook, param)
+-- Callbacks with cell info or cell location are registered, so their other events arrive, like the call state,
+-- like listen leaves the other events (see telephonymanager_listen); their methods of the cell info and the cell
+-- location do not run, so the app gets neither. The parameter is not named hook, the function to hook a method is.
+function before(h, param)
     local index = 1
-    if string.sub(hook:getName(), -3) == '.33' then
+    if string.sub(h:getName(), -3) == '.33' then
         index = 2
     end
 
@@ -28,11 +30,21 @@ function before(hook, param)
         return false
     end
 
-    if param:isInstance(callback, 'android.telephony.TelephonyCallback$CellInfoListener') or
-            param:isInstance(callback, 'android.telephony.TelephonyCallback$CellLocationListener') then
-        param:setResult(nil)
-        return true
+    local restricted = false
+    if param:isInstance(callback, 'android.telephony.TelephonyCallback$CellInfoListener') then
+        hook(callback, 'onCellInfoChanged', skip)
+        restricted = true
     end
+    if param:isInstance(callback, 'android.telephony.TelephonyCallback$CellLocationListener') then
+        hook(callback, 'onCellLocationChanged', skip)
+        restricted = true
+    end
+    return restricted
+end
 
-    return false
+-- A method of the callback which does not run
+function skip(when, param)
+    if when == 'before' then
+        param:setResult(nil)
+    end
 end

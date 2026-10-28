@@ -60,6 +60,19 @@ public class XParamTest {
         return CoerceLuaToJava.coerce(LuaValue.valueOf(value), Object.class);
     }
 
+    // Other paths of a file, like apps open them to get around a filter of the plain path (see XParam.opens);
+    // the links resolved by the file system are left to the device
+    @Test
+    public void pathsOfAFile() {
+        String file = "/proc/meminfo";
+        for (String path : new String[]{"/proc/meminfo", "//proc/meminfo", "/proc//meminfo", "/proc/./meminfo",
+                "proc/meminfo", "/proc/self/root/proc/meminfo", "/proc/1234/root/proc/meminfo",
+                "/proc/thread-self/root//proc/meminfo"})
+            assertTrue(path, XParam.isPath(path, file));
+        for (String path : new String[]{"/proc/meminfo2", "/data/proc/meminfo", "/proc/self/meminfo", "/proc/vmstat"})
+            assertFalse(path, XParam.isPath(path, file));
+    }
+
     @Test
     public void wholeNumbers() {
         assertEquals(5000000000L, XParam.coerceValue(long.class, lua(5000000000d)));

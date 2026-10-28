@@ -44,6 +44,7 @@ import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 // The shell commands script (assets/shell_commands.lua) with Lua stand-ins for the hooks, the builder and
@@ -483,17 +484,24 @@ public class ShellCommandsScriptTest {
                 String.join(" ", command(start(new String[]{"cat", "/proc/sys/kernel/random/boot_id"}, "resources"))));
         assertEquals("cat /proc/meminfo",
                 String.join(" ", command(start(new String[]{"cat", "/proc/meminfo"}, "tracking"))));
-        // More files, or another file in a script, are read by cat itself
-        assertEquals("cat /proc/meminfo /proc/version",
-                String.join(" ", command(start("cat", "/proc/meminfo", "/proc/version"))));
+        // Also by other paths, and with other files, which are read by cat itself; with options cat reads the files
+        String fake = "MemTotal:        3145728 kB\nMemFree:          146484 kB\n";
+        assertEquals(fake, run(start("cat", "/proc/self/root/proc/meminfo")).out);
+        assertEquals(fake, run(start("sh", "-c", "cat //proc/meminfo")).out);
+        assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
+                run(start("cat", "/proc/self/root/proc/sys/kernel/random/boot_id")).out);
         File other = File.createTempFile("file", ".txt");
         try {
             Files.write(other.toPath(), "other\n".getBytes(StandardCharsets.UTF_8));
+            assertEquals(fake + "other\n", run(start("cat", "/proc/meminfo", other.getAbsolutePath())).out);
             assertEquals("other\n",
                     run(start("sh", "-c", "cat /proc/meminfo >/dev/null; cat " + other.getAbsolutePath())).out);
+            assertEquals("cat /proc/meminfo " + other.getAbsolutePath(), String.join(" ",
+                    command(start(new String[]{"cat", "/proc/meminfo", other.getAbsolutePath()}, "tracking"))));
         } finally {
             other.delete();
         }
+        assertNotEquals(fake, run(start("sh", "-c", "cat -v /proc/meminfo | head -2")).out);
     }
 
     // cat of the files of /sys which do not exist for the variants fails like for a missing file, also through

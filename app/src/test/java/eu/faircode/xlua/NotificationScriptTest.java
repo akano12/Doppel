@@ -32,13 +32,17 @@ import static org.junit.Assert.assertTrue;
 public class NotificationScriptTest {
     private static final String STUBS = String.join("\n",
             "function notificationof(channel, icon)",
-            "  return { when = 1700000000000, icon = 17, largeIcon = 'photo', tickerText = 'Hello',",
+            "  return { when = 1700000000000, icon = 17, largeIcon = 'photo', tickerText = 'Hello', flags = 2, category = 'msg',",
             "    getChannelId = function(self) return channel end,",
             "    getSmallIcon = function(self) return icon end }",
             "end",
+            "built = 0",
+            "values = {}",
             "function paramof(result)",
             "  return { getResult = function(self) return result end,",
             "    setResult = function(self, value) self.result = value end,",
+            "    getValue = function(self, name, scope) return values[scope] end,",
+            "    putValue = function(self, name, value, scope) values[scope] = value end,",
             "    getApplicationContext = function(self) return 'context' end }",
             "end",
             "luajava = {",
@@ -51,7 +55,7 @@ public class NotificationScriptTest {
             "    local builder = { fake = { context = context, channel = channel } }",
             "    function builder:setSmallIcon(icon) self.fake.smallIcon = icon return self end",
             "    function builder:setWhen(when) self.fake.when = when return self end",
-            "    function builder:build() return self.fake end",
+            "    function builder:build() built = built + 1 return self.fake end",
             "    return builder",
             "  end }");
 
@@ -78,6 +82,24 @@ public class NotificationScriptTest {
         assertEquals(17, result.arg(5).toint());
         assertTrue(result.arg(6).isnil());
         assertTrue(result.arg(7).isnil());
+    }
+
+    // The flags and the category stay, listeners act on them; a notification is made once for each notification
+    @Test
+    public void fakeIsMadeOnceWithFlags() {
+        Varargs result = Scripts.run(globals,
+                "sdk = 34\n" +
+                        "local real = notificationof('messages', 'icon')\n" +
+                        "local first = paramof(real)\n" +
+                        "after(nil, first)\n" +
+                        "local again = paramof(real)\n" +
+                        "local restricted = after(nil, again)\n" +
+                        "return restricted, again.result == first.result, built, first.result.flags, first.result.category");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(1, result.arg(3).toint());
+        assertEquals(2, result.arg(4).toint());
+        assertEquals("msg", result.arg(5).tojstring());
     }
 
     // Before Android 8 there are no channels

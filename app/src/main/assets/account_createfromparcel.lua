@@ -16,27 +16,32 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
+-- The types of accounts of the app itself, which keep their names; read once, since a list of accounts is read
+-- an account at a time, and the authenticators of the app do not change while it runs
+function owntypes(param)
+    local context = param:getApplicationContext()
+    local own = param:getValue('account.types', context)
+    if own == nil then
+        own = {}
+        local auths = luajava.bindClass('android.accounts.AccountManager'):get(context):getAuthenticatorTypes()
+        local packageName = param:getPackageName()
+        for index = 1, auths['length'] do
+            if auths[index].packageName == packageName then
+                own[auths[index].type] = true
+            end
+        end
+        param:putValue('account.types', own, context)
+    end
+    return own
+end
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
         return false
     end
 
-    local clsAm = luajava.bindClass('android.accounts.AccountManager')
-    local am = clsAm:get(param:getApplicationContext())
-    local auths = am:getAuthenticatorTypes()
-
-    local restricted = true
-    local packageName = param:getPackageName()
-    for index = 1, auths['length'] do
-        local auth = auths[index]
-        if result.type == auth.type and auth.packageName == packageName then
-            restricted = false
-            break
-        end
-    end
-
-    if restricted then
+    if not owntypes(param)[result.type] then
         local old = result.name
         local fake = param:getSetting('value.email')
         if fake == nil then

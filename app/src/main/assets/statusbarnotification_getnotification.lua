@@ -18,12 +18,19 @@
 
 -- An empty notification without content, extras and actions, built with the public API, so it has only the
 -- time, the small icon and the channel of the notification, which posted notifications have and listeners use;
--- not the large icon, which is often a photo of the sender, nor the ids of the conversation or of its shortcut
+-- not the large icon, which is often a photo of the sender, nor the ids of the conversation or of its shortcut.
+-- The flags and the category stay, which listeners act on, like for ongoing notifications and group summaries,
+-- and tell nothing of the content. Each notification is made once, listeners get it several times.
 
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
         return false
+    end
+    local made = param:getValue('fake', result)
+    if made ~= nil then
+        param:setResult(made)
+        return true
     end
 
     local context = param:getApplicationContext()
@@ -44,6 +51,9 @@ function after(hook, param)
 
     local fake = builder:build()
     fake.icon = result.icon
+    fake.flags = result.flags
+    fake.category = result.category
+    param:putValue('fake', fake, result)
     param:setResult(fake)
     return true
 end

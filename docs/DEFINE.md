@@ -135,7 +135,7 @@ The functions of *param* ([all](../app/src/main/java/eu/faircode/xlua/XParam.jav
   whether another app is visible to the app, see the group *Get applications*
 * *getValue(name, scope)* and *putValue(name, value, scope)*: values kept with an object, see remarks below
 * *unhooked(function)*: runs a function without the hooks of the app on the thread, for lookups of the script itself
-* *getFileText()*, *setFileText(text)*, *readFile(path)* and *uuidOf(seed)*: see remarks below
+* *opens(path)*, *getFileText()*, *setFileText(text)*, *readFile(path)* and *uuidOf(seed)*: see remarks below
 
 The before/after function **must** return *true* when something was done and **must** return *false* otherwise.
 Doppel will show the last date/time of the last time *true* was returned.
@@ -232,8 +232,12 @@ A value ending in \* stands for all values starting with the text before it, lik
 for a script which tells the paths apart itself.
 
 For a hooked method which opens a file and returns its file descriptor, like *libcore.io.BlockGuardOs.open*,
+or the number of one, like *sun.nio.fs.UnixNativeDispatcher.open* for java.nio,
 *param:getFileText()* reads the file, and *param:setFileText(text)* lets the app read the text instead,
-without a file being written. *param:readFile(path)* reads a file like the app does, with its hooks,
+without a file being written. *param:opens(path)* tells whether the file opened, the first argument, is the file of
+the path, also by another path, like *//proc/meminfo*, *proc/meminfo* or */proc/self/root/proc/meminfo*: apps
+can open a file by such a path to get around a filter of its path, so a filter like *\*meminfo\** with *opens* catches
+them. *param:readFile(path)* reads a file like the app does, with its hooks,
 and *param:uuidOf(seed)* gives a random looking UUID, which is the same for the same seed.
 
 A script is executed once per thread to define its functions, so a script should only define functions.

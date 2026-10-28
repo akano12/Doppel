@@ -26,6 +26,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 // The location script (assets/location.lua) with Lua stand-ins for the parameter and the location,
@@ -54,6 +55,38 @@ public class LocationScriptTest {
     @Before
     public void load() throws Exception {
         globals = Scripts.load("location", STUBS);
+    }
+
+    // Callbacks with cell info are registered for their other events, like the call state, and their method of the cell
+    // info does not run (telephonymanager_registertelephonycallback); callbacks without cell events stay
+    @Test
+    public void telephonyCallbacksKeepTheirOtherEvents() throws Exception {
+        Globals callbacks = Scripts.load("telephonymanager_registertelephonycallback", String.join("\n",
+                "hooked = {}",
+                "function hook(object, method, fun) hooked[#hooked + 1] = method end",
+                "function hookof(name) return { getName = function(self) return name end } end",
+                "function paramof(interfaces, index)",
+                "  local callback = {}",
+                "  return { result = 'none',",
+                "    getArgument = function(self, i) if i == index then return callback end return nil end,",
+                "    isInstance = function(self, object, name) return interfaces[name] == true end,",
+                "    setResult = function(self, value) self.result = value end }",
+                "end"));
+        Varargs result = Scripts.run(callbacks,
+                "local param = paramof({ ['android.telephony.TelephonyCallback$CellInfoListener'] = true,\n" +
+                        "  ['android.telephony.TelephonyCallback$CallStateListener'] = true }, 2)\n" +
+                        "local restricted = before(hookof('TelephonyManager.registerTelephonyCallback.33'), param)\n" +
+                        "local cell = paramof({}, 0)\n" +
+                        "skip('before', cell)\n" +
+                        "local calls = paramof({ ['android.telephony.TelephonyCallback$CallStateListener'] = true }, 1)\n" +
+                        "return restricted, param.result, table.concat(hooked, ','), cell.result,\n" +
+                        "  before(hookof('TelephonyManager.registerTelephonyCallback'), calls), calls.result");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("none", result.arg(2).tojstring());
+        assertEquals("onCellInfoChanged", result.arg(3).tojstring());
+        assertTrue(result.arg(4).isnil());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals("none", result.arg(6).tojstring());
     }
 
     // Whether the script restricted a location and the location it left

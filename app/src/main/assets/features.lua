@@ -81,12 +81,18 @@ function framework(class)
     return false
 end
 
+-- Reflection is passed over, like Method.invoke, else an app calling the method by reflection would count as
+-- the framework.
 function calledbyframework(method)
     local frames = callers()
     local caller = nil
     for index = 1, frames['length'] - 1 do
         if frames[index]:getMethodName() == method then
-            caller = frames[index + 1]:getClassName()
+            local next = index + 1
+            while next < frames['length'] and string.sub(frames[next]:getClassName(), 1, 18) == 'java.lang.reflect.' do
+                next = next + 1
+            end
+            caller = frames[next]:getClassName()
         end
     end
     return (caller ~= nil and framework(caller))

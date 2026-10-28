@@ -17,13 +17,15 @@
 
 -- The id the kernel gives the time since the device started is the same for all apps, so apps can link
 -- their users by it until the device restarts. Each app reads its own id instead, which changes
--- when the device restarts, like the id of the kernel
+-- when the device restarts, like the id of the kernel. Also by other paths, like /proc/self/root/proc/...,
+-- and by java.nio (UnixNativeDispatcher.open), see XParam.opens.
 function filter(hook)
-    return { '/proc/sys/kernel/random/boot_id' }
+    return { '*boot_id*' }
 end
 
 function after(hook, param)
-    if param:getException() ~= nil or param:getResult() == nil then
+    if param:getException() ~= nil or param:getResult() == nil or
+            not param:opens('/proc/sys/kernel/random/boot_id') then
         return false
     end
     local id = param:getFileText()

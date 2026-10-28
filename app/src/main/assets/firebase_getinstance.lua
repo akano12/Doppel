@@ -16,12 +16,14 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
--- FirebaseAnalytics and FirebaseCrashlytics
+-- FirebaseAnalytics and FirebaseCrashlytics, once per instance, like appsflyer_getinstance: apps get the instance
+-- for each event they log
 function after(hook, param)
     local result = param:getResult()
-    if result == nil then
+    if result == nil or param:getValue('stopped', result) then
         return false
     end
+    param:putValue('stopped', true, result)
 
     local name = 'setAnalyticsCollectionEnabled'
     if hook:getClassName() == 'com.google.firebase.crashlytics.FirebaseCrashlytics' then

@@ -22,6 +22,10 @@
 -- reproducible builds (2009-01-01 00:00 UTC). The times of the app itself stay: the app can use them,
 -- like to show what is new after an update, and they do not tell other apps anything.
 -- Apps of the system keep their times too, which are the same on all devices with the same firmware.
+-- The paths of the apps stay, like applicationInfo.sourceDir, which have random parts since Android 11
+-- (/data/app/~~...==/com.example-...==/base.apk) that are the same for every app which asks too: the framework
+-- reads the icons and labels of other apps from these files in the process of the app, which another path breaks.
+-- Get.Applications hides the apps which are not of the system, which hides their paths too.
 local FAKE = 1230768000000
 local FLAG_SYSTEM = 1
 

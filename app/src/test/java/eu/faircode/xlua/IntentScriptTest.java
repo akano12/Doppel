@@ -235,6 +235,18 @@ public class IntentScriptTest {
         assertTrue(battery.arg(2).toboolean());
     }
 
+    // The battery level in steps of 10 percent of its scale, but at least 15 percent, like BatteryManager (see battery)
+    @Test
+    public void batteryLevelIsRounded() {
+        for (int[] level : new int[][]{{57, 100, 60}, {12, 100, 15}, {3, 100, 15}, {0, 100, 15}, {114, 200, 120}, {9, 200, 30}}) {
+            Varargs result = run(String.format(
+                    "local intent = intentof('android.intent.action.BATTERY_CHANGED', { level = %d, scale = %d })\n" +
+                            "after(hookof('Intent.createFromParcel/battery'), paramof(intent))\n" +
+                            "return intent.extras.level", level[0], level[1]));
+            assertEquals(level[0] + "/" + level[1], level[2], result.arg1().toint());
+        }
+    }
+
     // The notification of an MMS message has the sender and the subject
     @Test
     public void wapPushIsEmpty() {

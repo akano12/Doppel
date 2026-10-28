@@ -25,6 +25,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.system.Os;
 import android.system.OsConstants;
@@ -33,8 +34,10 @@ import android.util.Log;
 import org.luaj.vm2.LuaValue;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -302,11 +305,41 @@ public class XParam {
             this.field.set(null, result);
     }
 
-    // The text of the file the hooked method opened, like a file of /proc, of which it returned the descriptor;
-    // the app still reads it from the start
+    // Whether the file the hooked method opens, its first argument, is a file, also by another path: relative to the
+    // root, which apps run in, with // or /./, by the links of /proc to the root, like /proc/self/root/proc/meminfo,
+    // and by other links, like the file system resolves them
+    @SuppressWarnings("unused")
+    public boolean opens(String file) {
+        Object path = getArgument(0);
+        return (path != null && isPath(path.toString(), file));
+    }
+
+    static boolean isPath(String path, String file) {
+        String plain = ("/" + path).replaceAll("/(\\./)+", "/").replaceAll("//+", "/")
+                .replaceFirst("^/proc/[\\w-]+/root/", "/");
+        if (plain.equals(file))
+            return true;
+        try {
+            return new File(path).getCanonicalPath().equals(file);
+        } catch (IOException ignored) {
+            return false;
+        }
+    }
+
+    // The text of the file the hooked method opened, like a file of /proc, of which it returned the descriptor
+    // or its number, like java.nio opens files; the app still reads it from the start
     @SuppressWarnings("unused")
     public String getFileText() throws Throwable {
-        FileDescriptor fd = (FileDescriptor) this.param.getResult();
+        Object result = this.param.getResult();
+        if (result instanceof Integer)
+            // A descriptor of its own, which the reading does not move, like the one of the app
+            try (ParcelFileDescriptor pfd = ParcelFileDescriptor.fromFd((Integer) result)) {
+                return readText(pfd.getFileDescriptor());
+            }
+        return readText((FileDescriptor) result);
+    }
+
+    private static String readText(FileDescriptor fd) throws Throwable {
         ByteArrayOutputStream text = new ByteArrayOutputStream();
         byte[] buffer = new byte[4096];
         for (int n = Os.pread(fd, buffer, 0, buffer.length, 0); n > 0;
@@ -317,10 +350,10 @@ public class XParam {
 
     // The app reads the text instead of the file the hooked method opened, without a file being written:
     // the method returns a file in memory, or a pipe before Android 11, of which the app cannot tell
-    // the contents of the file apart; the file which was opened is closed
+    // the contents of the file apart; the file which was opened is closed. java.nio gets the number of a descriptor.
     @SuppressWarnings("unused")
     public void setFileText(String text) throws Throwable {
-        FileDescriptor fd = (FileDescriptor) this.param.getResult();
+        Object opened = this.param.getResult();
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         FileDescriptor fake;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -349,8 +382,14 @@ public class XParam {
                 Os.close(pipe[1]);
             }
         }
-        this.param.setResult(fake);
-        Os.close(fd);
+        if (opened instanceof Integer) {
+            this.param.setResult(ParcelFileDescriptor.dup(fake).detachFd());
+            Os.close(fake);
+            ParcelFileDescriptor.adoptFd((Integer) opened).close();
+        } else {
+            this.param.setResult(fake);
+            Os.close((FileDescriptor) opened);
+        }
     }
 
     // The text of a file like the app reads it, with its hooks of opening files, like of /proc/meminfo;

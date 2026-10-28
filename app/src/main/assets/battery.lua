@@ -17,7 +17,8 @@
 
 -- Exact battery measurements change slowly and together identify a device across apps;
 -- the manufacturing date, the first use and the health identify the battery itself.
--- The capacity is given in steps of 10 percent, other properties as not supported,
+-- The capacity is given in steps of 10 percent, but at least 15, where devices warn of a low battery,
+-- so a nearly empty battery does not show as 0 percent; other properties as not supported,
 -- like BatteryManager does on devices without them. The status stays, apps act on charging.
 -- Battery saver is a setting people switch, it appears off.
 
@@ -52,7 +53,7 @@ function after(hook, param)
         if result < 0 then
             return false
         end
-        fake = math.floor(result / 10 + 0.5) * 10
+        fake = math.max(15, math.floor(result / 10 + 0.5) * 10)
     elseif method == 'getIntProperty' then
         fake = luajava.bindClass('java.lang.Integer').MIN_VALUE
     else

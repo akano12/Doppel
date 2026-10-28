@@ -88,6 +88,9 @@ public class SettingsScriptTest {
             "function paramof(arguments, settings, uid)",
             "  return {",
             "    getApplicationContext = function(self) return context end,",
+            // Each call reads the lists, which the tests change
+            "    getValue = function(self, name, scope) return nil end,",
+            "    putValue = function(self, name, value, scope) end,",
             "    getPackageName = function(self) return 'com.example.app' end,",
             "    isSystem = function(self) return (uid or 10200) % 100000 < 10000 end,",
             "    isVisible = function(self, ai) return ai.uid == 10200 or ai.system end,",

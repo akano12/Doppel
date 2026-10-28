@@ -25,6 +25,7 @@ import org.luaj.vm2.Varargs;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 // Scripts which fake values of the device (system properties, the operator, the battery, the security patch,
@@ -441,6 +442,10 @@ public class DeviceValuesScriptTest {
             Scripts.run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
                     "'" + caller + "', 'android.app.Activity.performCreate')");
             assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+            // Also by reflection, which is not the framework calling
+            Scripts.run(globals, "stack = stackof(" + engine + "'java.lang.reflect.Method.invoke', '" + caller + "', " +
+                    "'android.app.Activity.performCreate')");
+            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
         }
         Scripts.run(globals, "stack = stackof('com.example.app.Main.onCreate')");
 
@@ -467,6 +472,44 @@ public class DeviceValuesScriptTest {
             assertTrue(method, result.arg1().toboolean());
             assertEquals(method, 60, result.arg(2).toint());
         }
+        // At least 15 percent, where devices warn, also for an empty battery
+        for (int level : new int[]{0, 3, 12})
+            assertEquals(String.valueOf(level), 15, Scripts.run(globals, "return run(hookof('BatteryManager.getIntProperty', " +
+                    "'getIntProperty'), paramof(" + level + ", { [0] = 4 }))").arg(2).toint());
+    }
+
+    // The UUID of an SD card is made of its fake id, like Android makes it of the real one, and both stay the same
+    // while the app runs (storage_uuid)
+    @Test
+    public void storageIdsAgree() throws Exception {
+        Globals globals = Scripts.load("storage_uuid", String.join("\n",
+                "values = {}",
+                "context = {}",
+                "volume = { isPrimary = function(self) return false end, getUuid = function(self) return '1A2B-3C4D' end }",
+                "function hookof(method) return { getMethodName = function(self) return method end } end",
+                "function paramof(result)",
+                "  return { result = result,",
+                "    getResult = function(self) return result end,",
+                "    getThis = function(self) return volume end,",
+                "    getApplicationContext = function(self) return context end,",
+                "    unhooked = function(self, fn) return fn() end,",
+                "    getValue = function(self, name, scope) return values[name] end,",
+                "    putValue = function(self, name, value, scope) values[name] = value end,",
+                "    setResult = function(self, value) self.result = value end }",
+                "end"));
+        Varargs result = Scripts.run(globals,
+                "local id = paramof('1A2B-3C4D')\n" +
+                        "after(hookof('getUuid'), id)\n" +
+                        "local uuid = paramof('fafafafa-fafa-5afa-8afa-fafa1a2b3c4d')\n" +
+                        "after(hookof('getStorageUuid'), uuid)\n" +
+                        "local again = paramof('1A2B-3C4D')\n" +
+                        "after(hookof('getUuid'), again)\n" +
+                        "return id.result, uuid.result:toString(), again.result");
+        String fake = result.arg(1).tojstring();
+        assertTrue(fake, fake.matches("[0-9A-F]{4}-[0-9A-F]{4}"));
+        assertNotEquals("1A2B-3C4D", fake);
+        assertEquals("fafafafa-fafa-5afa-8afa-fafa" + fake.replace("-", "").toLowerCase(), result.arg(2).tojstring());
+        assertEquals(fake, result.arg(3).tojstring());
     }
 
     @Test

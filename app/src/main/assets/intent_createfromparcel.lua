@@ -19,6 +19,16 @@
 -- The functions of the USB connection (UsbManager), which are extras of USB_STATE, like adb for USB debugging
 local USB_FUNCTIONS = { 'mtp', 'ptp', 'rndis', 'midi', 'accessory', 'audio_source', 'ncm', 'uvc' }
 
+-- The actions of the variant package, the other intents go by without a lookup
+local PACKAGE_ACTIONS = {}
+for _, action in ipairs({ 'PACKAGE_ADDED', 'PACKAGE_CHANGED', 'PACKAGE_DATA_CLEARED', 'PACKAGE_FIRST_LAUNCH',
+                          'PACKAGE_FULLY_REMOVED', 'PACKAGE_INSTALL', 'PACKAGE_NEEDS_VERIFICATION', 'PACKAGE_REMOVED',
+                          'PACKAGE_REPLACED', 'PACKAGE_RESTARTED', 'PACKAGE_UNSTOPPED', 'PACKAGE_VERIFIED',
+                          'EXTERNAL_APPLICATIONS_AVAILABLE', 'EXTERNAL_APPLICATIONS_UNAVAILABLE', 'PACKAGES_SUSPENDED',
+                          'PACKAGES_UNSUSPENDED', 'UID_REMOVED' }) do
+    PACKAGE_ACTIONS['android.intent.action.' .. action] = true
+end
+
 function after(hook, param)
     local intent = param:getResult()
     if intent == nil then
@@ -34,7 +44,7 @@ function after(hook, param)
     local name = string.match(hook:getName(), '/(.*)$')
 
     -- Processes of the system manage the packages of all apps
-    if name == 'package' and param:isSystem() then
+    if name == 'package' and (not PACKAGE_ACTIONS[action] or param:isSystem()) then
         return false
     end
 
@@ -113,8 +123,8 @@ function after(hook, param)
         intent:replaceExtras(extras)
         return true
     elseif name == 'battery' and action == 'android.intent.action.BATTERY_CHANGED' then
-        -- The level in steps of 10 percent and typical values instead of exact measurements,
-        -- which change slowly and together identify a device across apps
+        -- The level in steps of 10 percent, but at least 15 percent like battery, and typical values instead of
+        -- exact measurements, which change slowly and together identify a device across apps
         -- Bundle.putInt, because Lua would select Intent.putExtra(String, byte) for small numbers
         local extras = intent:getExtras()
         if extras == nil then
@@ -124,7 +134,7 @@ function after(hook, param)
         local scale = extras:getInt('scale', 100)
         local level = old
         if old >= 0 and scale > 0 then
-            level = math.floor(math.floor(old * 10 / scale + 0.5) * scale / 10)
+            level = math.max(math.floor(15 * scale / 100), math.floor(math.floor(old * 10 / scale + 0.5) * scale / 10))
             extras:putInt('level', level)
         end
         if extras:containsKey('voltage') then

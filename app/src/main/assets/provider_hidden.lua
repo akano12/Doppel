@@ -89,10 +89,11 @@ function before(hook, param)
         return false
     end
 
-    -- The answers of ContentResolver without a provider
+    -- The answers of ContentResolver without a provider, of which update says URI and the others URL
     local method = hook:getMethodName()
     if method == 'insert' or method == 'bulkInsert' or method == 'delete' or method == 'update' then
-        param:setResult(luajava.newInstance('java.lang.IllegalArgumentException', 'Unknown URL ' .. target:toString()))
+        local what = (method == 'update' and 'Unknown URI ' or 'Unknown URL ')
+        param:setResult(luajava.newInstance('java.lang.IllegalArgumentException', what .. target:toString()))
     elseif method == 'call' then
         local what = (type(target) == 'string' and 'authority ' or 'URI ') .. tostring(target)
         param:setResult(luajava.newInstance('java.lang.IllegalArgumentException', 'Unknown ' .. what))
