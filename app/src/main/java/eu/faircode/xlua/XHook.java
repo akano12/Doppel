@@ -34,7 +34,9 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -236,19 +238,26 @@ public class XHook implements Parcelable {
             }
 
             ArrayList<XHook> hooks = new ArrayList<>();
+            // Scripts in separate files, read once for the hooks which share them, like the dozens of hooks of settings,
+            // since system server keeps them as long as it runs
+            Map<String, String> scripts = new HashMap<>();
             JSONArray jarray = new JSONArray(json);
             for (int i = 0; i < jarray.length(); i++) {
                 XHook hook = XHook.fromJSONObject(jarray.getJSONObject(i));
                 hook.builtin = true;
 
-                // Scripts in separate files
                 if (hook.luaScript.startsWith("@")) {
-                    ZipEntry luaEntry = zipFile.getEntry("assets/" + hook.luaScript.substring(1) + ".lua");
-                    if (luaEntry == null)
-                        throw new IllegalArgumentException(hook.luaScript + " not found for " + hook.getId());
-                    try (InputStream lis = zipFile.getInputStream(luaEntry)) {
-                        hook.luaScript = Util.readText(lis);
+                    String script = scripts.get(hook.luaScript);
+                    if (script == null) {
+                        ZipEntry luaEntry = zipFile.getEntry("assets/" + hook.luaScript.substring(1) + ".lua");
+                        if (luaEntry == null)
+                            throw new IllegalArgumentException(hook.luaScript + " not found for " + hook.getId());
+                        try (InputStream lis = zipFile.getInputStream(luaEntry)) {
+                            script = Util.readText(lis);
+                        }
+                        scripts.put(hook.luaScript, script);
                     }
+                    hook.luaScript = script;
                 }
 
                 hooks.add(hook);

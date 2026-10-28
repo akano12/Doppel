@@ -268,9 +268,12 @@ public class FragmentLog extends FragmentBase {
     // The entries by day of the last week, today last; older ones are left out
     private static int[] byDay(List<Entry> entries, long today) {
         int[] days = new int[7];
+        long[] starts = new long[days.length];
+        for (int i = 0; i < days.length; i++)
+            starts[i] = addDays(today, i + 1 - days.length);
         for (Entry entry : entries)
             for (int i = days.length - 1; i >= 0; i--)
-                if (entry.time >= addDays(today, i + 1 - days.length)) {
+                if (entry.time >= starts[i]) {
                     days[i]++;
                     break;
                 }
@@ -290,11 +293,12 @@ public class FragmentLog extends FragmentBase {
         long today = Ui.startOfDay(System.currentTimeMillis());
         long yesterday = Ui.startOfDay(today - 1);
 
-        // The overview of what the filter shows: the restrictions of today by hour, or all restrictions or the errors
-        // by day of the last week; with the apps of these and all errors
+        // The overview of what the filter and the search show: the restrictions of today by hour, or all restrictions
+        // or the errors by day of the last week; with the apps of these and all errors
+        String q = (query == null ? "" : query.trim());
         List<Entry> counted = new ArrayList<>();
         for (Entry entry : (filter == Filter.ERRORS ? errors : entries))
-            if (filter != Filter.TODAY || entry.time >= today)
+            if ((filter != Filter.TODAY || entry.time >= today) && matches(context, entry, q))
                 counted.add(entry);
         Set<String> packages = new HashSet<>();
         for (Entry entry : counted)
@@ -336,7 +340,6 @@ public class FragmentLog extends FragmentBase {
         compact.setSubtitle(summary);
 
         // Items are entries under the headers of their days, with the number of entries
-        String q = (query == null ? "" : query.trim());
         List<Entry> failed = new ArrayList<>();
         for (Entry entry : errors)
             if (matches(context, entry, q))

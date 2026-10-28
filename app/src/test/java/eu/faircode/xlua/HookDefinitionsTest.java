@@ -54,6 +54,7 @@ import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -537,6 +538,8 @@ public class HookDefinitionsTest {
 
             List<XHook> builtin = XHook.readHooks(apk.getPath());
             assertEquals(hooks.size(), builtin.size());
+            // A script file is read once, system server keeps one copy of it for all the hooks which share it
+            Map<String, String> copies = new HashMap<>();
             for (int i = 0; i < builtin.size(); i++) {
                 JSONObject jhook = hooks.get(i);
                 XHook hook = builtin.get(i);
@@ -545,6 +548,13 @@ public class HookDefinitionsTest {
                 assertTrue(hook.getId() + " not built-in", hook.isBuiltin());
                 assertEquals(hook.getId() + " script", script.startsWith("@")
                         ? read(new File(ASSETS, script.substring(1) + ".lua")) : script, hook.getLuaScript());
+                if (script.startsWith("@")) {
+                    String copy = copies.get(script);
+                    if (copy == null)
+                        copies.put(script, hook.getLuaScript());
+                    else
+                        assertSame(hook.getId() + " has its own copy of " + script, copy, hook.getLuaScript());
+                }
             }
         } finally {
             apk.delete();
