@@ -293,8 +293,8 @@ public class FragmentLog extends FragmentBase {
         long today = Ui.startOfDay(System.currentTimeMillis());
         long yesterday = Ui.startOfDay(today - 1);
 
-        // The overview of what the filter and the search show: the restrictions of today by hour, or all restrictions
-        // or the errors by day of the last week; with the apps of these and all errors
+        // The overview of what the filter and the search show, which the list below shows too: the restrictions of today
+        // by hour, or all restrictions or the errors by day of the last week; with the apps of these and all errors
         String q = (query == null ? "" : query.trim());
         List<Entry> counted = new ArrayList<>();
         for (Entry entry : (filter == Filter.ERRORS ? errors : entries))
@@ -352,11 +352,7 @@ public class FragmentLog extends FragmentBase {
         }
         if (filter != Filter.ERRORS) {
             Map<String, List<Entry>> days = new LinkedHashMap<>();
-            for (Entry entry : entries) {
-                if (filter == Filter.TODAY && entry.time < today)
-                    continue;
-                if (!matches(context, entry, q))
-                    continue;
+            for (Entry entry : counted) {
                 String day;
                 if (entry.time >= today)
                     day = getString(R.string.title_today);
