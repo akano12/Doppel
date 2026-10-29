@@ -130,6 +130,12 @@ dependencies {
     implementation libs.material
     implementation libs.glide
 
+    // The manager uses the libxposed service API to add an app to its own LSPosed scope, see Scope.
+    // The api it pulls in is provided by the framework, so keep only the service classes.
+    implementation(libs.libxposed.service) {
+        exclude group: 'io.github.libxposed', module: 'api'
+    }
+
     // Provided at runtime by the Xposed framework
     // Modern API: https://github.com/libxposed/api (LSPosed and compatible frameworks)
     compileOnly libs.libxposed.api

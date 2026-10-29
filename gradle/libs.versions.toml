@@ -22,6 +22,7 @@ glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }
 json = { module = "org.json:json", version.ref = "json" }
 junit = { module = "junit:junit", version.ref = "junit" }
 libxposed-api = { module = "io.github.libxposed:api", version.ref = "libxposed" }
+libxposed-service = { module = "io.github.libxposed:service", version.ref = "libxposed" }
 material = { module = "com.google.android.material:material", version.ref = "material" }
 xposed-api = { module = "de.robv.android.xposed:api", version.ref = "xposed" }
 

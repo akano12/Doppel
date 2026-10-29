@@ -63,6 +63,7 @@ public class ApplicationEx extends Application {
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "Create version=" + BuildConfig.VERSION_NAME);
+        Scope.init();
         applyTheme(getPreferences(this).getString(PREF_THEME, null));
         LauncherIcons.register(this);
     }
