@@ -58,10 +58,10 @@ What an app sees
 | Other apps         | all of them        | hidden                |
 | Time since boot    | same in every app  | different per app     |
 | Battery            | 84%, charging      | 80%                   |
+| Clipboard          | what you copied    | a fake paste          |
 | `getprop`, `cat`   | the real values    | the same fakes        |
 
-In the demo, AIDA64 joins Doppel's LSPosed scope from its own screen: approve the request, and *Restrict all* applies
-every group. Each call it makes then gets the fake values.
+In the demo, AIDA64 joins Doppel's LSPosed scope from its own screen: approve the request, and *Restrict all* applies every group. Each call it makes then gets the fake values.
 
 <br clear="left">
 
@@ -70,14 +70,14 @@ Features
 
 <table>
 <tr>
-<td width="33%" valign="top"><img src="docs/images/icons/restrict.svg" width="28" alt=""><br><b>Restrict any app</b><br>User or system apps, by group or by single hook. Swipe an app for Restrict all, Remove all and its groups, with Undo.</td>
-<td width="33%" valign="top"><img src="docs/images/icons/fake.svg" width="28" alt=""><br><b>Fake values</b><br>For all apps or per app, like the IMEI, Android ID, location and time zone. Identifiers can be new each boot and different per app, so apps cannot follow you across apps or restarts.</td>
-<td width="33%" valign="top"><img src="docs/images/icons/activity.svg" width="28" alt=""><br><b>Activity</b><br>What each app tried, with the real and the fake value, and hook errors.</td>
+<td width="33%" valign="top"><img src="docs/images/icons/restrict.svg" width="32" alt=""><br><b>Restrict any app</b><br>User and system apps, by group or by single hook, and new apps as soon as they are installed.</td>
+<td width="33%" valign="top"><img src="docs/images/icons/fake.svg" width="32" alt=""><br><b>Fake values</b><br>IMEI, Android ID, location, time zone and more; new each boot and different per app if you like.</td>
+<td width="33%" valign="top"><img src="docs/images/icons/activity.svg" width="32" alt=""><br><b>Activity</b><br>Every restricted call of each app, with the real and the fake value.</td>
 </tr>
 <tr>
-<td valign="top"><img src="docs/images/icons/hooks.svg" width="28" alt=""><br><b>Your own hooks</b><br>View, edit, import and export hook definitions, and <a href="docs/DEFINE.md">add your own</a>.</td>
-<td valign="top"><img src="docs/images/icons/downloads.svg" width="28" alt=""><br><b>Downloads</b><br>Install definitions shared by others, like a domain blocklist.</td>
-<td valign="top"><img src="docs/images/icons/settings.svg" width="28" alt=""><br><b>Settings</b><br>Backup and restore, restricting new apps, collections, theme, accent color, pure black and app icon. Multi-user, free and open source.</td>
+<td valign="top"><img src="docs/images/icons/hooks.svg" width="32" alt=""><br><b>Your own hooks</b><br>Edit, import and export hook definitions, or <a href="docs/DEFINE.md">write your own</a> in Lua.</td>
+<td valign="top"><img src="docs/images/icons/downloads.svg" width="32" alt=""><br><b>Downloads</b><br>Extra definitions that come with Doppel, like more analytics SDKs and a domain firewall. Install the ones you want.</td>
+<td valign="top"><img src="docs/images/icons/settings.svg" width="32" alt=""><br><b>Settings</b><br>Backup and restore, themes, accent colors and app icons. Multi-user, free and open source.</td>
 </tr>
 </table>
 
@@ -217,6 +217,8 @@ Screenshots
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="140" alt="Downloads">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="140" alt="Settings">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="140" alt="The groups of an app in the dark theme">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/9.png" width="140" alt="The log of an app, with the real and the fake value of each restricted call">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/10.png" width="140" alt="The script of a hook in the hook editor">
 </p>
 
 Help
