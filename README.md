@@ -45,24 +45,25 @@ Your real data never reaches the app. Each restricted call shows up under *Activ
 What an app sees
 ----------------
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/demo-dark.gif">
-    <img src="docs/images/demo-light.gif" width="260" alt="Adding AIDA64 to the LSPosed scope from its screen in Doppel, approving the request, restricting all groups and opening its fake values">
-  </picture>
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/demo-dark.gif">
+  <img src="docs/images/demo-light.gif" width="190" align="left" alt="Adding AIDA64 to the LSPosed scope from its screen in Doppel, approving the request, restricting all groups and opening its fake values">
+</picture>
 
-| The app asks for                | Without Doppel                  | With Doppel                                     |
-|---------------------------------|---------------------------------|-------------------------------------------------|
-| IMEI, serial, Android ID        | your device's, for good         | fake; can be new each boot, different per app   |
-| Location                        | where you are                   | a fake place you set                            |
-| Contacts, calendar, call log    | all of them                     | none, or only (non) starred contacts            |
-| Other installed apps            | all of them                     | hidden                                          |
-| Time since boot                 | the same for every app          | shifted by its own amount per app               |
-| Battery                         | 84%, charging details           | 80%, in steps of 10                             |
-| `getprop`, `pm`, `cat`          | the real values                 | the same fakes                                  |
+| The app asks for   | Without Doppel     | With Doppel           |
+|--------------------|--------------------|-----------------------|
+| IMEI, Android ID   | the real ones      | fakes, new each boot  |
+| Location           | where you are      | a place you choose    |
+| Contacts, call log | all of them        | hidden                |
+| Other apps         | all of them        | hidden                |
+| Time since boot    | same in every app  | different per app     |
+| Battery            | 84%, charging      | 80%                   |
+| `getprop`, `cat`   | the real values    | the same fakes        |
 
-<sub>Example values.</sub>
+In the demo, AIDA64 joins Doppel's LSPosed scope from its own screen: approve the request, and *Restrict all* applies
+every group. Each call it makes then gets the fake values.
+
+<br clear="left">
 
 Features
 --------
