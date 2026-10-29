@@ -64,6 +64,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 // Small view helpers shared by the screens
 final class Ui {
@@ -79,15 +80,21 @@ final class Ui {
 
     // Run a task on the background thread of a screen, unless the screen is gone; errors go to onError
     static void submit(ExecutorService executor, Task task, Consumer<Throwable> onError) {
-        if (executor.isShutdown())
-            return;
-        executor.submit(() -> {
+        submit(executor, () -> {
             try {
                 task.run();
             } catch (Throwable ex) {
                 onError.accept(ex);
             }
         });
+    }
+
+    // Not anymore when the screen is gone, which shuts the executor down, also between a check and the submit
+    static void submit(ExecutorService executor, Runnable task) {
+        try {
+            executor.submit(task);
+        } catch (RejectedExecutionException ignored) {
+        }
     }
 
     // Colors of badges: information, what differs from built-in, what needs attention

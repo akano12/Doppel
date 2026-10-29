@@ -153,8 +153,7 @@ public class ActivityBase extends AppCompatActivity {
     // Run on the background thread a task which handles its errors itself, like a load; not anymore when the screen
     // is gone, since the executor refuses tasks then
     protected void submit(Runnable task) {
-        if (!executor.isShutdown())
-            executor.submit(task);
+        Ui.submit(executor, task);
     }
 
     // Run on the main thread, from a background thread, unless the screen is closing or gone meanwhile,

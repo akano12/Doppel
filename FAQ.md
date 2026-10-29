@@ -43,8 +43,7 @@ Disable and enable the module in the manager app and hard reboot again to fix th
 * *An app settings button*: see [here](https://forum.xda-developers.com/showpost.php?p=75745469&postcount=2071) why this won't be added.
 * *Select contacts groups to allow/block*: the Android contacts provider doesn't support contact groups at all hierarchy levels and working around this has appeared to be not possible reliably.
 
-If you want to confine apps to their own folder, you can install the hook definition *BlockGuardOs.open*
-with *Downloads* on the *Hooks* tab. To block domains, Downloads has *InetAddress.getByName* and *InetAddress.getAllByName*.
+To block domains, *Downloads* on the *Hooks* tab has *InetAddress.getByName* and *InetAddress.getAllByName*.
 
 Apps having access to the IP address generally have access to the internet and therefore can get your IP address in a simple way,
 see for example [here](https://www.privateinternetaccess.com/pages/whats-my-ip/). Therefore an IP address restriction doesn't make sense.

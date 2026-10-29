@@ -64,8 +64,10 @@ public class ReceiverPackage extends BroadcastReceiver {
             if (ACTION_USER_REMOVED.equals(intent.getAction())) {
                 int userid = intent.getIntExtra(EXTRA_USER_HANDLE, -1);
                 Log.i(TAG, "Received " + intent + " user=" + userid);
-                if (userid > 0)
+                if (userid > 0) {
                     Data.clearData(context, userid, false);
+                    XNotify.forgetUser(userid);
+                }
                 return;
             }
 

@@ -37,6 +37,7 @@ import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 // Notifications of the service in system server, shown to the user of an app.
 // The context is a context of the user, with the resources of system server.
@@ -58,6 +59,10 @@ final class XNotify {
 
     // Resources of the module version which runs, see loadResources
     private static volatile Resources resources = null;
+
+    // The users for whom the channels exist, and the hidden method which posts, looked up once
+    private static final Set<Integer> channels = ConcurrentHashMap.newKeySet();
+    private static volatile Method notifyMethod = null;
 
     private XNotify() {
     }
@@ -102,6 +107,11 @@ final class XNotify {
         builder.setContentText(getLabel(context, packageName));
         builder.setContentIntent(getAppIntent(context, uid, packageName));
         notifyAsUser(context, TAG_NEW_APP, uid, builder.build(), userid);
+    }
+
+    // A removed user: a new user with the same id needs the channels again
+    static void forgetUser(int userid) {
+        channels.remove(userid);
     }
 
     // An app was removed: its usage, error and new app notifications, which are notifications of system server
@@ -173,20 +183,27 @@ final class XNotify {
     private static void notifyAsUser(Context context, String tag, int id, Notification notification, int userid) throws Throwable {
         NotificationManager nm = context.getSystemService(NotificationManager.class);
 
-        Resources resources = getResources(context);
-        NotificationChannel alerts = new NotificationChannel(CHANNEL_ALERTS,
-                resources.getString(R.string.channel_alerts), NotificationManager.IMPORTANCE_HIGH);
-        alerts.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
-        nm.createNotificationChannel(alerts);
+        if (!channels.contains(userid)) {
+            Resources resources = getResources(context);
+            NotificationChannel alerts = new NotificationChannel(CHANNEL_ALERTS,
+                    resources.getString(R.string.channel_alerts), NotificationManager.IMPORTANCE_HIGH);
+            alerts.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
+            nm.createNotificationChannel(alerts);
 
-        NotificationChannel usage = new NotificationChannel(CHANNEL_USAGE,
-                resources.getString(R.string.channel_usage), NotificationManager.IMPORTANCE_DEFAULT);
-        usage.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
-        nm.createNotificationChannel(usage);
+            NotificationChannel usage = new NotificationChannel(CHANNEL_USAGE,
+                    resources.getString(R.string.channel_usage), NotificationManager.IMPORTANCE_DEFAULT);
+            usage.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
+            nm.createNotificationChannel(usage);
+            channels.add(userid);
+        }
 
         // public void notifyAsUser(String tag, int id, Notification notification, UserHandle user)
-        Method mNotifyAsUser = nm.getClass().getDeclaredMethod(
-                "notifyAsUser", String.class, int.class, Notification.class, UserHandle.class);
+        Method mNotifyAsUser = notifyMethod;
+        if (mNotifyAsUser == null) {
+            mNotifyAsUser = nm.getClass().getDeclaredMethod(
+                    "notifyAsUser", String.class, int.class, Notification.class, UserHandle.class);
+            notifyMethod = mNotifyAsUser;
+        }
         mNotifyAsUser.invoke(nm, tag, id, notification, Util.getUserHandle(userid));
         Log.i(TAG, "Notified " + tag + ":" + id + " as " + userid);
     }
