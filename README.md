@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/featureGraphic.png" alt="Doppel: fake data for apps, real privacy for you, next to a phone showing the Apps tab">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.svg">
+    <img src="docs/images/hero-light.svg" width="100%" alt="Doppel: apps ask, your double answers. An app asks for the IMEI and gets a fake one instead of the real one">
+  </picture>
 </p>
 
 <p align="center">
@@ -11,44 +14,78 @@
 </p>
 
 <p align="center">
-  <a href="#screenshots">Screenshots</a> ·
+  <a href="#installation">Install</a> ·
   <a href="#features">Features</a> ·
-  <a href="#installation">Installation</a> ·
   <a href="#restrictions">Restrictions</a> ·
+  <a href="#screenshots">Screenshots</a> ·
   <a href="FAQ.md">FAQ</a> ·
   <a href="#building">Building</a>
 </p>
 
-Doppel is a simple privacy manager for Android 8.1 and later.
-Revoking permissions often makes apps crash; Doppel feeds them fake data instead of real data, so they keep working.
+**Revoking a permission often makes an app crash. Doppel lets the app keep it and feeds it fake data instead**,
+so the app keeps working and learns nothing true about you.
 
+A doppelgänger is a person's ghostly twin: it looks like you, answers like you, and isn't you.
+When an app asks for your location, contacts or device ID, your double answers in your place.
+
+> [!NOTE]
 > Doppel continues [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel Bokhorst (M66B), which is not maintained anymore,
 > with a new interface, updates for current Android versions and new restrictions, under the same license, the [GPL version 3](#license).
 
-A doppelgänger is a person's ghostly twin: it looks like you, answers like you, and isn't you.
-When an app asks for your location, contacts or device ID, your double answers in your place:
-the answers look real, but the app learns nothing true about you.
+How it works
+------------
 
-Screenshots
------------
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/how-it-works-dark.svg">
+  <img src="docs/images/how-it-works-light.svg" width="100%" alt="An app asks Android for your IMEI, Doppel catches the call inside the app, and the app gets a fake IMEI and carries on">
+</picture>
+
+Your real data never reaches the app. Each restricted call shows up under *Activity*, with the real and the fake value.
+
+What an app sees
+----------------
 
 <table>
-  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="180" alt="Apps, with the actions of an app swiped open"><br><sub>Apps</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="180" alt="The screen of an app"><br><sub>An app</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="180" alt="Fake values"><br><sub>Fake values</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="180" alt="Activity"><br><sub>Activity</sub></td></tr>
-  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="180" alt="Hooks"><br><sub>Hooks</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="180" alt="Downloads"><br><sub>Downloads</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="180" alt="Settings"><br><sub>Settings</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="180" alt="The groups of an app in the dark theme"><br><sub>Dark theme</sub></td></tr>
+<tr>
+<td width="240" align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/demo-dark.gif">
+  <img src="docs/images/demo-light.gif" width="220" alt="Adding AIDA64 to the LSPosed scope from its screen in Doppel, approving the request, restricting all groups and opening its fake values">
+</picture>
+</td>
+<td>
+
+| The app asks for                | Without Doppel                  | With Doppel                                     |
+|---------------------------------|---------------------------------|-------------------------------------------------|
+| IMEI, serial, Android ID        | your device's, for good         | fake; can be new each boot, different per app   |
+| Location                        | where you are                   | a fake place you set                            |
+| Contacts, calendar, call log    | all of them                     | none, or only (non) starred contacts            |
+| Other installed apps            | all of them                     | hidden                                          |
+| Time since boot                 | the same for every app          | shifted by its own amount per app               |
+| Battery                         | 84%, charging details           | 80%, in steps of 10                             |
+| `getprop`, `pm`, `cat`          | the real values                 | the same fakes                                  |
+
+<sub>Example values.</sub>
+
+</td>
+</tr>
 </table>
 
 Features
 --------
 
-* **Apps**: restrict any user or system app by group or by single hook; swipe an app for Restrict all,
-  Remove all and its groups, with Undo
-* **Fake values** for all apps or per app, like the IMEI, Android ID, location and time zone;
-  the identifiers can be new each boot, a different one for each app, so apps cannot follow you across apps or restarts
-* **Activity**: what each app tried, with the real and the fake value, and hook errors
-* **Hooks**: view, edit, import and export hook definitions, [add your own](docs/DEFINE.md)
-  and install definitions shared by others with *Downloads*, like a domain blocklist
-* **Settings**: backup and restore, restricting new apps, collections, theme, accent color, pure black background and app icon
-* Multi-user support, free and open source
+<table>
+<tr>
+<td width="33%" valign="top"><img src="docs/images/icons/restrict.svg" width="28" alt=""><br><b>Restrict any app</b><br>User or system apps, by group or by single hook. Swipe an app for Restrict all, Remove all and its groups, with Undo.</td>
+<td width="33%" valign="top"><img src="docs/images/icons/fake.svg" width="28" alt=""><br><b>Fake values</b><br>For all apps or per app, like the IMEI, Android ID, location and time zone. Identifiers can be new each boot and different per app, so apps cannot follow you across apps or restarts.</td>
+<td width="33%" valign="top"><img src="docs/images/icons/activity.svg" width="28" alt=""><br><b>Activity</b><br>What each app tried, with the real and the fake value, and hook errors.</td>
+</tr>
+<tr>
+<td valign="top"><img src="docs/images/icons/hooks.svg" width="28" alt=""><br><b>Your own hooks</b><br>View, edit, import and export hook definitions, and <a href="docs/DEFINE.md">add your own</a>.</td>
+<td valign="top"><img src="docs/images/icons/downloads.svg" width="28" alt=""><br><b>Downloads</b><br>Install definitions shared by others, like a domain blocklist.</td>
+<td valign="top"><img src="docs/images/icons/settings.svg" width="28" alt=""><br><b>Settings</b><br>Backup and restore, restricting new apps, collections, theme, accent color, pure black and app icon. Multi-user, free and open source.</td>
+</tr>
+</table>
 
 Installation
 ------------
@@ -61,54 +98,96 @@ It uses the [modern Xposed API](https://github.com/libxposed/api) when the frame
 3. Install Doppel from the [releases](https://github.com/akano12/Doppel/releases) and activate it
 4. Reboot
 
-In LSPosed, the scope needs *System Framework*, which hosts the Doppel service, and each app you want to restrict;
-with the legacy API (like EdXposed) also *Settings Storage*.
-Add only apps you restrict: LSPosed is loaded into every app in the scope.
+> [!IMPORTANT]
+> In LSPosed, the scope needs *System Framework*, which hosts the Doppel service, and each app you want to restrict;
+> with the legacy API (like EdXposed) also *Settings Storage*.
+> Add only apps you restrict: LSPosed is loaded into every app in the scope.
+> *In LSPosed scope* on the screen of an app adds it for you.
 
-Uninstall XPrivacyLua first: both use the same service and data.
-A build signed with another key than the official release cannot update it; uninstall the official release first.
+> [!WARNING]
+> Uninstall XPrivacyLua first: both use the same service and data.
+> A build signed with another key than the official release cannot update it; uninstall the official release first.
 
 Restrictions
 ------------
 
 A restriction hides data (an empty list) or fakes it (an empty or fake value).
 The faked values are the same for the shell commands apps run, like getprop, pm and cat.
+The details are in [hooks.json](app/src/main/assets/hooks.json).
+
+<details>
+<summary><b>Who you are</b> · 5 groups</summary>
+
+* **Read account name**: fake name
+* **Read biometric sensors**: no fingerprint sensor, face or iris unlock
+* **Read identifiers**: fake serial, Android ID, advertising and app set ID, MAC addresses;
+  the permanent ids of the chip, SD card and storage in /sys do not exist
+* **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more
+* **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
+  boot id, the boot time (each app sees its own, so the time since boot no longer links apps across restarts) and the
+  folder times that tell when the device was set up; the hardware files in /sys do not exist
+
+</details>
+
+<details>
+<summary><b>Where you are</b> · 4 groups</summary>
 
 * **Determine activity**: fake unknown activity, no activity transitions
-* **Get applications**: hide other apps, their components, widgets and usage statistics; hidden apps cannot be reached
-* **Get calendars**, **Get call log**, **Get messages** (SMS, MMS, SIM, voicemail), **Get sensors**: hide them
-* **Get contacts**: hide contacts, optionally except (non) starred ones, and blocked numbers
 * **Get location**: fake location, no NMEA messages or raw GNSS measurements
-* **Read account name**: fake name
-* **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
-* **Read biometric sensors**: no fingerprint sensor, face or iris unlock
+* **Get sensors**: hide them
+* **Read time zone**: fake time zone, *value.timezone*, default UTC
+
+</details>
+
+<details>
+<summary><b>Your data</b> · 7 groups</summary>
+
+* **Get calendars**, **Get call log**: hide them
+* **Get contacts**: hide contacts, optionally except (non) starred ones, and blocked numbers
+* **Get messages**: hide SMS, MMS, SIM messages and voicemail
 * **Read clipboard**: fake paste
+* **Read notifications**: hide the notifications of other apps
+* **Read sync data**: hide sync data
+
+</details>
+
+<details>
+<summary><b>Your device and apps</b> · 8 groups</summary>
+
+* **Get applications**: hide other apps, their components, widgets and usage statistics; hidden apps cannot be reached
+* **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
 * **Read debugging state**: developer options and USB or wireless debugging off
 * **Read device features**: only the features in *features.keep*, no external keyboards and game controllers
 * **Read device settings**: the values of a new device, like the animation scale and the screen timeout
-* **Read identifiers**: fake serial, Android ID, advertising and app set ID, MAC addresses;
-  the permanent ids of the chip, SD card and storage in /sys do not exist
 * **Read memory and storage**: sizes rounded like devices are sold, free space rounded down
 * **Read network data**: hide cells, Wi-Fi networks, Bluetooth devices and local network discovery, fake Wi-Fi name
-* **Read notifications**: hide the notifications of other apps
-* **Read sync data**: hide sync data
-* **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more
-* **Read time zone**: fake time zone, *value.timezone*, default UTC
 * **Read VPN state**: no VPN
+
+</details>
+
+<details>
+<summary><b>Recording</b> · 3 groups</summary>
+
 * **Record audio**, **Record video**: prevent recording, also speech recognition
+* **Use camera**: no camera
+
+</details>
+
+<details>
+<summary><b>Actions and analytics</b> · 3 groups</summary>
+
 * **Run commands**: commands fail, except the programs in *commands.allowed* (like `getprop,uname`)
   and the command lines matching *commands.regex*
 * **Send messages**: prevent sending SMS, MMS and data messages
 * **Use analytics**: Adjust, AppsFlyer, Facebook app events, Firebase Analytics and Crashlytics, Mixpanel, Segment,
   Amplitude, Branch, Microsoft Clarity, Singular
-* **Use camera**: no camera
-* **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
-  boot id, the boot time (each app sees its own, so the time since boot no longer links apps across restarts) and the
-  folder times that tell when the device was set up; the hardware files in /sys do not exist
 
-The details are in [hooks.json](app/src/main/assets/hooks.json).
+</details>
 
 ### Limits
+
+<details>
+<summary>What Doppel cannot do</summary>
 
 * Xposed cannot hook native code: audio recorded with OpenSL ES, like WhatsApp does, and files read natively,
   like by shell commands such as stat and ls, are not restricted.
@@ -129,6 +208,22 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   own offset the same way its hooks do and undo the shift, like it can tell Doppel is there.
 * Restricted apps can detect Doppel, but cannot change anything, see [the FAQ](FAQ.md#user-content-faq21).
 * Apps with root access can get around any restriction.
+
+</details>
+
+Screenshots
+-----------
+
+<p>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="140" alt="Apps, with the actions of an app swiped open">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="140" alt="The screen of an app">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="140" alt="Fake values">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="140" alt="Activity">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="140" alt="Hooks">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="140" alt="Downloads">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="140" alt="Settings">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="140" alt="The groups of an app in the dark theme">
+</p>
 
 Help
 ----
@@ -151,6 +246,9 @@ By contributing you agree to the license below.
 Building
 --------
 
+<details>
+<summary>Build from source</summary>
+
 With [Android Studio](http://developer.android.com/sdk/), or from the command line with JDK 17 or later and the Android SDK (platform 37):
 
 ```
@@ -164,19 +262,24 @@ scripts/check-service.sh       # on a rooted device or emulator with Doppel: who
 *keystore.properties* (storeFile, storePassword, keyAlias, keyPassword) goes next to this file.
 Sign with the v1 and v2 schemes only, like the build does: LSPosed cannot read an APK with a v3 signature.
 
+</details>
+
 Attribution
 -----------
 
 Doppel is based on [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel Bokhorst (M66B).
 
-Doppel uses:
+<details>
+<summary>Doppel uses</summary>
 
 * [LuaJ](https://sourceforge.net/projects/luaj/). Copyright 2007-2013 LuaJ. All rights reserved. See [license](http://luaj.sourceforge.net/license.txt).
 * [Glide](https://bumptech.github.io/glide/). Copyright 2014 Google, Inc. All rights reserved. See [license](https://raw.githubusercontent.com/bumptech/glide/master/LICENSE).
 * [AndroidX](https://developer.android.com/jetpack/androidx). Copyright (C) 2011 The Android Open Source Project. See [license](https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt).
 * [libxposed service](https://github.com/libxposed/service). See [license](https://github.com/libxposed/service/blob/master/LICENSE) (Apache License 2.0).
-* [IBM Plex](https://github.com/IBM/plex) fonts. Copyright © 2017 IBM Corp. with Reserved Font Name "Plex". See [license](LICENSE-FONTS.txt) (SIL Open Font License 1.1).
-* [Material Symbols](https://github.com/google/material-design-icons) icons. Copyright Google LLC. See [license](https://www.apache.org/licenses/LICENSE-2.0) (Apache License 2.0).
+* [IBM Plex](https://github.com/IBM/plex) fonts, also in the images of this page. Copyright © 2017 IBM Corp. with Reserved Font Name "Plex". See [license](LICENSE-FONTS.txt) (SIL Open Font License 1.1).
+* [Material Symbols](https://github.com/google/material-design-icons) icons, also in the images of this page. Copyright Google LLC. See [license](https://www.apache.org/licenses/LICENSE-2.0) (Apache License 2.0).
+
+</details>
 
 License
 -------
