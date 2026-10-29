@@ -49,17 +49,18 @@ What an app sees
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/demo-dark.gif">
   <img src="docs/images/demo-light.gif" width="190" align="left" alt="Adding AIDA64 to the LSPosed scope from its screen in Doppel, approving the request, restricting all groups and opening its fake values">
 </picture>
+<img src="docs/images/spacer.svg" width="300" height="12" align="right" alt="">
 
-| The app asks for   | Without Doppel     | With Doppel           |
-|--------------------|--------------------|-----------------------|
-| IMEI, Android ID   | the real ones      | fakes, new each boot  |
-| Location           | where you are      | a place you choose    |
-| Contacts, call log | all of them        | hidden                |
-| Other apps         | all of them        | hidden                |
-| Time since boot    | same in every app  | different per app     |
-| Battery            | 84%, charging      | 80%                   |
-| Clipboard          | what you copied    | a fake paste          |
-| `getprop`, `cat`   | the real values    | the same fakes        |
+| The app asks for             | Without Doppel     | With Doppel              |
+|------------------------------|--------------------|--------------------------|
+| IMEI, serial, Android ID     | the real ones      | fakes, new each boot     |
+| Location                     | where you are      | a place you choose       |
+| Contacts, calendar, call log | all of them        | hidden                   |
+| Other apps                   | all of them        | hidden                   |
+| Time since boot              | same in every app  | different per app        |
+| Battery                      | 84%, charging      | 80%, no charging details |
+| Clipboard                    | what you copied    | a fake paste             |
+| `getprop`, `pm`, `cat`       | the real values    | the same fakes           |
 
 In the demo, AIDA64 joins Doppel's LSPosed scope from its own screen: approve the request, and *Restrict all* applies every group. Each call it makes then gets the fake values.
 
@@ -233,8 +234,7 @@ Doppel with [Island](http://forum.xda-developers.com/android/-t3366295) and simi
 Contributing
 ------------
 
-Pull requests are welcome for the documentation and for translations
-(*app/src/main/res/values-xx/strings.xml*, translated from *values/strings.xml*).
+Pull requests are welcome for the documentation.
 For code, please open an [issue](https://github.com/akano12/Doppel/issues) first.
 Definitions to share go into Downloads, see [here](docs/DEFINE.md#sharing).
 By contributing you agree to the license below.
