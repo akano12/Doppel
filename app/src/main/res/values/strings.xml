@@ -110,8 +110,8 @@
         <item quantity="other">%1$d custom definitions this version cannot read, left out</item>
     </plurals>
     <plurals name="title_restore_apps">
-        <item quantity="one">%1$d app with %2$d restrictions added</item>
-        <item quantity="other">%1$d apps with %2$d restrictions added</item>
+        <item quantity="one">%1$d app, restrictions added: %2$d</item>
+        <item quantity="other">%1$d apps, restrictions added: %2$d</item>
     </plurals>
     <plurals name="title_restore_missing">
         <item quantity="one">%1$d app not installed, left out: %2$s</item>
@@ -421,7 +421,7 @@
     <string name="title_check_hint">Check the target on this device</string>
     <string name="title_checking">Checking…</string>
     <string name="title_check_found">Found %1$s</string>
-    <string name="title_check_no_member">%1$s not found in the class or its super classes</string>
+    <string name="title_check_no_member">%1$s not found in the class or its superclasses</string>
     <string name="title_check_no_class">Class %1$s not found here. It can still exist in the app the hook is for.</string>
     <string name="title_check_return_type">Found %1$s, but not with the return type %2$s</string>
     <string name="title_check_field_params">Fields have no parameter types</string>
@@ -497,7 +497,7 @@
     </plurals>
     <string name="title_restrict_too">Restrict apps</string>
     <plurals name="msg_restricted_apps">
-        <item quantity="one">Restricted for %1$d app which restricts the same group, when it starts again</item>
+        <item quantity="one">Restricted for %1$d app which restricts the same groups, when it starts again</item>
         <item quantity="other">Restricted for %1$d apps which restrict the same groups, when they start again</item>
     </plurals>
     <string name="msg_restricted_no_apps">No apps restrict the same groups</string>
@@ -546,7 +546,7 @@
     <string name="section_appearance">Appearance</string>
     <string name="section_data">Data</string>
     <string name="section_about">About</string>
-    <string name="title_restrict_new_hint">Restrict all groups when an app is installed. The app also needs to be in Doppel\'s LSPosed scope, see its screen</string>
+    <string name="title_restrict_new_hint">Restrict all groups when an app is installed. The app also needs to be in Doppel\'s LSPosed scope, see its screen.</string>
     <string name="title_notify_new_hint">Show a notification when an app is installed</string>
     <string name="title_collections">Collections</string>
     <string name="title_theme">Theme</string>

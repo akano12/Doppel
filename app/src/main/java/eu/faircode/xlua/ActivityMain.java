@@ -112,7 +112,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
     private void showUnavailable() {
         setContentView(R.layout.activity_unavailable);
         findViewById(R.id.btnRetry).setOnClickListener(view -> recreate());
-        findViewById(R.id.btnDocs).setOnClickListener(view -> Ui.browse(this, Ui.URL_README));
+        findViewById(R.id.btnDocs).setOnClickListener(view -> Ui.browse(this, Ui.URL_FAQ + "#user-content-faq3"));
     }
 
     private void showMain(boolean first) {

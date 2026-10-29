@@ -106,7 +106,7 @@ public class ReceiverPackage extends BroadcastReceiver {
 
     private static boolean installedForAnyUser(Context context) {
         try {
-            context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, MATCH_ANY_USER);
+            Util.getPackageInfo(context.getPackageManager(), BuildConfig.APPLICATION_ID, MATCH_ANY_USER);
             return true;
         } catch (PackageManager.NameNotFoundException ignored) {
             return false;

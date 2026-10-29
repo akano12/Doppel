@@ -7,7 +7,7 @@ Frequently Asked Questions
 <a name="faq1"></a>
 **(1) How can I clear all data?**
 
-Primary users can clear all data of all users by uninstalling Doppel *while it is running*.
+Primary users can clear all data of all users by uninstalling Doppel *while it is running*, once no other user has Doppel installed.
 Secondary users can clear their own data by uninstalling Doppel *while it is running*.
 
 All data is stored in the system folder */data/system/xlua* and can therefore not be backed up by regular backup apps.
@@ -58,7 +58,7 @@ If you still want to fake offline state, you can install the hook definition *Ne
 with *Downloads* on the *Hooks* tab.
 
 MAC addresses are restricted with *Read identifiers*: the addresses of Wi-Fi, Bluetooth and the network interfaces.
-Android [hides](https://developer.android.com/training/articles/user-data-ids.html#version_specific_details_identifiers_in_m) the Wi-Fi and Bluetooth addresses from apps since Android 6
+Android [hides](https://developer.android.com/identity/user-data-ids) the Wi-Fi and Bluetooth addresses from apps since Android 6
 and the addresses of the network interfaces since Android 11, but only from apps targeting Android 11 or later.
 
 You can enable status bar notifications on applying restrictions with *Notify on restriction* on the screen of an app.
@@ -129,8 +129,7 @@ You can also search for the uid of an app, like 10123.
 <a name="faq12"></a>
 **(12) Are there paid features?**
 
-No, all features are free. The features of the former pro companion app, like fake values, backup and restore,
-notifications on restriction and editing hook definitions, are part of Doppel itself.
+No, all features are free.
 
 <a name="faq13"></a>
 **(13) Will Doppel slow down my apps?**
@@ -143,11 +142,6 @@ but you will generally not notice delays when using apps.
 
 Yes, if Doppel was running before the update, it will keep running after the update,
 even though the user interface and new features will not be available until after a reboot.
-
-<a name="faq15"></a>
-**(15) Can I get a refund?**
-
-There is nothing to buy, Doppel is free.
 
 <a name="faq16"></a>
 **(16) Can apps with root access be restricted?**

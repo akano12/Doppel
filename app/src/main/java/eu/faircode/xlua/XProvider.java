@@ -554,11 +554,20 @@ class XProvider {
             // System server ("android") is shared by all users and uses the restrictions of the owner,
             // see XCore.hookAndroid, so other users cannot restrict it
             PackageManager pm = Util.createContextForUser(context, userid).getPackageManager();
-            for (PackageInfo pi : Util.getInstalledPackages(pm, 0))
+            // One app (like its screen) is looked up, not found among all installed packages
+            List<PackageInfo> packages;
+            if (only == null)
+                packages = Util.getInstalledPackages(pm, 0);
+            else
+                try {
+                    packages = Collections.singletonList(Util.getPackageInfo(pm, only, 0));
+                } catch (PackageManager.NameNotFoundException ignored) {
+                    packages = Collections.emptyList();
+                }
+            for (PackageInfo pi : packages)
                 if (pi.applicationInfo != null &&
                         !BuildConfig.APPLICATION_ID.equals(pi.packageName) &&
-                        !(userid != 0 && "android".equals(pi.packageName)) &&
-                        (only == null || only.equals(pi.packageName)))
+                        !(userid != 0 && "android".equals(pi.packageName)))
                     try {
                         ApplicationInfo ai = pi.applicationInfo;
                         boolean persistent = ((ai.flags & ApplicationInfo.FLAG_PERSISTENT) != 0 ||

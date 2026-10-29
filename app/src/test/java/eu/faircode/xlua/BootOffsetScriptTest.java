@@ -41,7 +41,8 @@ public class BootOffsetScriptTest {
             "    setResult = function(self, v) self.result = v self.set = true end,",
             "    getException = function(self) return nil end,",
             "    getSetting = function(self, name) if name == 'value.boot_offset' then return t.offset end return nil end,",
-            "    getArgument = function(self, i) return self.args[i + 1] end,",
+            // Like XParam, an argument the method does not have is an error
+            "    getArgument = function(self, i) if i >= #self.args then error('Argument #' .. i) end return self.args[i + 1] end,",
             "    setArgument = function(self, i, v) self.args[i + 1] = v self.set = true end,",
             "    getFileText = function(self) return self.text end,",
             "    setFileText = function(self, v) self.text = v self.set = true end,",
@@ -110,6 +111,13 @@ public class BootOffsetScriptTest {
         assertEquals("1801000000000", setter.arg(2).tojstring());
         assertEquals("1000000000", setter.arg(3).tojstring());
         assertEquals("1000000000", setter.arg(4).tojstring());
+
+        // The getters run the before of the setter's script too, which leaves them alone
+        Varargs getters = run("boot_offset_loc",
+                "local p = paramof({ result = 1000, offset = '1800000' })\n" +
+                        "return before(hookof('getElapsedRealtimeMillis'), p), before(hookof('getElapsedRealtimeNanos'), p)");
+        assertFalse(getters.arg(1).toboolean());
+        assertFalse(getters.arg(2).toboolean());
 
         // No offset: nothing changes
         Varargs none = run("boot_offset_loc",

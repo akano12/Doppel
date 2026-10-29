@@ -49,8 +49,7 @@
             android:exported="true"
             android:theme="@style/Theme.XLua.Starting"
             android:configChanges="orientation|screenSize"
-            android:launchMode="singleTask"
-            android:resizeableActivity="true" />
+            android:launchMode="singleTask" />
 
         <!-- The entries of the launcher, one per app icon, of which one is enabled, see LauncherIcons -->
         <activity-alias

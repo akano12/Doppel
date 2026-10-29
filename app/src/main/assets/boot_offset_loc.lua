@@ -23,6 +23,10 @@
 -- An app that builds its own fix stamps it with the shifted clock (setElapsedRealtimeNanos(elapsedRealtimeNanos())),
 -- so the offset is taken back off here, the first argument, and the field keeps the real time for the getter to shift.
 function before(hook, param)
+    -- The getters have no argument
+    if hook:getMethodName() ~= 'setElapsedRealtimeNanos' then
+        return false
+    end
     local offset = tonumber(param:getSetting('value.boot_offset'))
     if offset == nil then
         return false

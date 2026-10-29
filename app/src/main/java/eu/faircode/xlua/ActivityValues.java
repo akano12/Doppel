@@ -557,7 +557,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     // Like entered by the user, an empty field for null; a mode like chosen
     private void setEntered(String key, String value) {
         if (key.endsWith(FakeIds.MODE)) {
-            Mode mode = modes.get(key.substring(0, key.length() - FakeIds.MODE.length()));
+            Mode mode = modes.get(FakeIds.baseKey(key));
             if (mode != null)
                 selectMode(mode, value);
             return;
@@ -662,7 +662,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             return;
         Set<String> changed = new HashSet<>();
         for (String key : getChanges().keySet())
-            changed.add(key.endsWith(FakeIds.MODE) ? key.substring(0, key.length() - FakeIds.MODE.length()) : key);
+            changed.add(FakeIds.baseKey(key));
         View bar = findViewById(R.id.bar);
         bar.setVisibility(changed.isEmpty() ? View.GONE : View.VISIBLE);
         ((TextView) findViewById(R.id.tvChanges)).setText(

@@ -2560,7 +2560,6 @@
     ],
     "returnType": "boolean",
     "minSdk": 5,
-    "optional": true,
     "luaScript": "@generic_block"
   },
   {
@@ -3466,7 +3465,6 @@
     "returnType": "java.util.List",
     "minSdk": 3,
     "maxSdk": 28,
-    "optional": true,
     "luaScript": "@generic_empty"
   },
   {

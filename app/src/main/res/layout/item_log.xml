@@ -138,11 +138,11 @@
                 <!-- Shows the row in full when a text does not fit, see FragmentLog -->
                 <ImageButton
                     android:id="@+id/ibExpand"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_marginTop="-10dp"
-                    android:layout_marginEnd="-10dp"
-                    android:layout_marginBottom="-10dp"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="-14dp"
+                    android:layout_marginEnd="-14dp"
+                    android:layout_marginBottom="-14dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@drawable/ic_expand"
                     android:visibility="gone"

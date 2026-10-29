@@ -70,7 +70,7 @@ Definitions can be imported from and exported to JSON files there too.
 * For convenience Doppel applies hooks by *group*
 * The *version* is a number which *Downloads* uses to offer updates of an installed definition
 * The *description* is optional and is shown in the hook editor and in *Downloads*
-* The attributes *minSdk* and *maxSdk* determine for which [Android versions](https://source.android.com/setup/build-numbers) (API level) the hook should be used (*maxSdk* is optional, default 999: all later versions)
+* The attributes *minSdk* and *maxSdk* determine for which [Android versions](https://source.android.com/docs/setup/reference/build-numbers) (API level) the hook should be used (*maxSdk* is optional, default 999: all later versions)
 * The optional attributes *minApk* and *maxApk* limit the hook to a range of version codes of the app
 * The optional attribute *excludePackages* is a comma separated list of [regular expressions](https://developer.android.com/reference/java/util/regex/Pattern) of package names the hook should not be applied to, like `com\.google\..*`
 * Setting *enabled* to *false* will switch the hook off (default *true*)
@@ -146,6 +146,9 @@ Special cases
 -------------
 
 You can hook into a constructor by omitting the method name.
+
+A hook of a system service class, *ContentResolver* or *PackageManager* hooks the class of the actual service object,
+which can be a subclass; *hook:getClassName()* still returns the class of the definition.
 
 You can modify field values in an *after* function by prefixing the method name with a # character, for example:
 
@@ -241,9 +244,10 @@ can open a file by such a path to get around a filter of its path, so a filter l
 them. *param:readFile(path)* reads a file like the app does, with its hooks,
 and *param:uuidOf(seed)* gives a random looking UUID, which is the same for the same seed.
 
-A script is executed once per thread to define its functions, so a script should only define functions.
+A script is executed once per thread to define its functions, so a script must not assign globals other than functions;
+use *local* for other values, else the hook is not installed ("Globals not allowed").
 
-[LuaJ](http://www.luaj.org/luaj/3.0/README.html) globals are not thread safe.
+[LuaJ](https://luaj.sourceforge.net/) globals are not thread safe.
 If you need global caching, you can use something like this:
 
 ```Lua

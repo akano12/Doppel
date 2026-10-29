@@ -222,8 +222,7 @@ public class ActivityApp extends ActivityBase {
                 Set<String> own = new HashSet<>();
                 for (String name : settings.keySet())
                     if (!OPTIONS.contains(name))
-                        own.add(name.endsWith(FakeIds.MODE)
-                                ? name.substring(0, name.length() - FakeIds.MODE.length()) : name);
+                        own.add(FakeIds.baseKey(name));
                 final int values = own.size();
                 postUnlessGone(() -> {
                     // Changed while loading, which was sent after the data was read, on the same background thread;

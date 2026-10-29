@@ -130,7 +130,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Determine activity**: fake unknown activity, no activity transitions
 * **Get location**: fake location, no NMEA messages or raw GNSS measurements
 * **Get sensors**: hide them
-* **Read time zone**: fake time zone, *value.timezone*, default UTC
+* **Read time zone**: fake time zone, *Time zone* in *Fake values*, default UTC
 
 </details>
 
@@ -152,7 +152,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Get applications**: hide other apps, their components, widgets and usage statistics; hidden apps cannot be reached
 * **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
 * **Read debugging state**: developer options and USB or wireless debugging off
-* **Read device features**: only the features in *features.keep*, no external keyboards and game controllers
+* **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers
 * **Read device settings**: the values of a new device, like the animation scale and the screen timeout
 * **Read memory and storage**: sizes rounded like devices are sold, free space rounded down
 * **Read network data**: hide cells, Wi-Fi networks, Bluetooth devices and local network discovery, fake Wi-Fi name
@@ -171,8 +171,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <details>
 <summary><b>Actions and analytics</b> · 3 groups</summary>
 
-* **Run commands**: commands fail, except the programs in *commands.allowed* (like `getprop,uname`)
-  and the command lines matching *commands.regex*
+* **Run commands**: commands fail, except the programs in *Allowed commands* (like `getprop, uname`)
+  and the command lines matching *Allowed command lines*, both in *Fake values*
 * **Send messages**: prevent sending SMS, MMS and data messages
 * **Use analytics**: Adjust, AppsFlyer, Facebook app events, Firebase Analytics and Crashlytics, Mixpanel, Segment,
   Amplitude, Branch, Microsoft Clarity, Singular

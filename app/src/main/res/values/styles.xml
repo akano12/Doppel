@@ -365,7 +365,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelSmall</item>
-        <item name="android:textColor">?attr/colorOutline</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 
     <!-- Filter chips above lists -->

@@ -44,6 +44,11 @@ final class FakeIds {
 
     // The setting of the mode of a value is its name with this suffix
     static final String MODE = ".mode";
+
+    // The setting a mode setting is of, the setting itself for the others
+    static String baseKey(String key) {
+        return (key.endsWith(MODE) ? key.substring(0, key.length() - MODE.length()) : key);
+    }
     static final String FIXED = "fixed";
     static final String BOOT = "boot"; // A value of its own for each app
     static final String BOOT_ALL = "boot_all"; // The same value for all apps
