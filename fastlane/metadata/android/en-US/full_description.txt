@@ -1,4 +1,4 @@
-<p>Really simple to use privacy manager for Android 8.1 and later, the successor of XPrivacy. Doppel is the maintained continuation of XPrivacyLua by M66B, which is not supported anymore.</p>
+<p>Really simple to use privacy manager for Android 8.1 and later. Doppel is the maintained continuation of XPrivacyLua by M66B, which is not supported anymore.</p>
 
 <p>Revoking Android permissions from apps often lets apps crash or malfunction. Doppel solves this by feeding apps fake data instead of real data.</p>
 

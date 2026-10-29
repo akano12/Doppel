@@ -106,7 +106,7 @@ The faked values are the same for the shell commands apps run, like getprop, pm 
   boot id, the boot time (each app sees its own, so the time since boot no longer links apps across restarts) and the
   folder times that tell when the device was set up; the hardware files in /sys do not exist
 
-The details are in [hooks.json](app/src/main/assets/hooks.json); [here](docs/XPRIVACY.md) is a comparison with XPrivacy.
+The details are in [hooks.json](app/src/main/assets/hooks.json).
 
 ### Limits
 
@@ -167,7 +167,7 @@ Sign with the v1 and v2 schemes only, like the build does: LSPosed cannot read a
 Attribution
 -----------
 
-Doppel is based on [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel Bokhorst (M66B), the successor of XPrivacy.
+Doppel is based on [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel Bokhorst (M66B).
 
 Doppel uses:
 

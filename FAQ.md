@@ -16,11 +16,6 @@ Restrictions with hook definitions which the device does not have, like custom d
 *Settings* > *Clear restrictions and settings* removes all restrictions and settings, including the fake values, of the current user
 and keeps the custom hook definitions.
 
-<a name="faq2"></a>
-**(2) Can I run XPrivacy and Doppel side by side?**
-
-Since Doppel is [in many aspects better](#user-content-faq7) than XPrivacy, running XPrivacy and Doppel side by side isn't supported.
-
 <a name="faq3"></a>
 **(3) How can I fix 'Module not running or updated'?**
 
@@ -71,8 +66,6 @@ This can be used as a replacement for on demand restricting by removing a restri
 
 You can ask for new restrictions with an [issue](https://github.com/akano12/Doppel/issues), but you'll need to explain how it would improve your privacy as well.
 
-See also [question 7](#user-content-faq7).
-
 <a name="faq5"></a>
 **(5) How can I fix 'There is a Problem Parsing the Package'?**
 
@@ -94,20 +87,6 @@ Hooks which you switched off stay off after an update.
 A dash means that hooks were switched off, for example because an app did not work with them.
 Tapping a switch with a dash applies all hooks of its group, like the *Restrict all* switch does for all groups;
 tapping it again removes the restrictions of the group.
-
-<a name="faq7"></a>
-**(7) How does Doppel compare to XPrivacy?**
-
-* XPrivacy supports Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop and Doppel supports Android version 8.1 Oreo and later, see [here](README.md#installation) about compatibility
-* The user interface of Doppel is simpler than of XPrivacy, see also [question 4](#user-content-faq4)
-* The restrictions of Doppel are designed to prevent apps from crashing, while a number of XPrivacy restrictions can cause apps to crash, see also [question 4](#user-content-faq4)
-* Doppel has no on demand restricting for stability and maintenance reasons, see also [question 4](#user-content-faq4)
-* Doppel can unlike XPrivacy restrict analytics services like [Firebase Analytics](https://firebase.google.com/docs/analytics/) and [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics)
-* Doppel [is user extensible](docs/DEFINE.md) while XPrivacy is not
-* Doppel is easier to maintain than XPrivacy, so Doppel is easier to update for new Android versions
-
-In general Doppel and XPrivacy are comparable in protecting your privacy.
-For a detailed comparison with XPrivacy see [here](docs/XPRIVACY.md).
 
 <a name="faq8"></a>
 **(8) How can I define custom restrictions?**
@@ -176,11 +155,6 @@ There is nothing to buy, Doppel is free.
 Apps with root permissions can do whatever they like, so they can circumvent any restriction.
 So, be careful which apps you grant root permissions.
 There is no support on restricting apps with root access.
-
-<a name="faq17"></a>
-**(17) Can I import my XPrivacy settings?**
-
-XPrivacy and Doppel work differently, so this is not possible.
 
 <a name="faq18"></a>
 **(18) How do I selectively block/allow contacts?**
