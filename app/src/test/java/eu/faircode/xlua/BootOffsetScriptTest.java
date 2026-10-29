@@ -20,7 +20,6 @@
 package eu.faircode.xlua;
 
 import org.junit.Test;
-import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
 
 import static org.junit.Assert.assertEquals;
