@@ -14,10 +14,10 @@
 </p>
 
 <p align="center">
-  <a href="#installation">Install</a> ·
   <a href="#features">Features</a> ·
-  <a href="#restrictions">Restrictions</a> ·
   <a href="#screenshots">Screenshots</a> ·
+  <a href="#installation">Install</a> ·
+  <a href="#restrictions">Restrictions</a> ·
   <a href="FAQ.md">FAQ</a> ·
   <a href="#building">Building</a>
 </p>
@@ -80,6 +80,14 @@ Features
 <td valign="top"><img src="docs/images/icons/downloads.svg" width="32" alt=""><br><b>Downloads</b><br>Extra definitions that come with Doppel, like more analytics SDKs and a domain firewall. Install the ones you want.</td>
 <td valign="top"><img src="docs/images/icons/settings.svg" width="32" alt=""><br><b>Settings</b><br>Backup and restore, themes, accent colors and app icons. Multi-user, free and open source.</td>
 </tr>
+</table>
+
+Screenshots
+-----------
+
+<table>
+  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="140" alt="Apps, with the actions of an app swiped open"><br><sub>App list</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="140" alt="The screen of an app"><br><sub>Per-app restrictions</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="140" alt="Fake values"><br><sub>Fake values</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="140" alt="Activity"><br><sub>Restriction activity</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="140" alt="Hooks"><br><sub>Hooks</sub></td></tr>
+  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="140" alt="Downloads"><br><sub>Downloads</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="140" alt="Settings"><br><sub>Settings</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="140" alt="The groups of an app"><br><sub>Groups</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/9.png" width="140" alt="The log of an app, with the real and the fake value of each restricted call"><br><sub>App log</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/10.png" width="140" alt="The script of a hook in the hook editor"><br><sub>Hook editor</sub></td></tr>
 </table>
 
 Installation
@@ -205,14 +213,6 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * Apps with root access can get around any restriction.
 
 </details>
-
-Screenshots
------------
-
-<table>
-  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="140" alt="Apps, with the actions of an app swiped open"><br><sub>App list</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="140" alt="The screen of an app"><br><sub>Per-app restrictions</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="140" alt="Fake values"><br><sub>Fake values</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="140" alt="Activity"><br><sub>Restriction activity</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="140" alt="Hooks"><br><sub>Hooks</sub></td></tr>
-  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="140" alt="Downloads"><br><sub>Downloads</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="140" alt="Settings"><br><sub>Settings</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="140" alt="The groups of an app"><br><sub>Groups</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/9.png" width="140" alt="The log of an app, with the real and the fake value of each restricted call"><br><sub>App log</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/10.png" width="140" alt="The script of a hook in the hook editor"><br><sub>Hook editor</sub></td></tr>
-</table>
 
 Help
 ----
