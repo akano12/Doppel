@@ -29,8 +29,7 @@
 -- the pm script run with sh, and scripts of sh -c naming the commands, also with toybox or toolbox.
 -- Not covered are shells reading commands from their input (filtering their input could break apps
 -- which wait for output), script files, command and env in scripts, names and paths made while the script runs
--- (like "$dir"/bin/getprop) and native code. Runtime.exec starts processes with ProcessBuilder.start from Android 7,
--- on Android 6 its hooks change the arguments of Runtime.exec(String[], String[], File) instead.
+-- (like "$dir"/bin/getprop) and native code. Runtime.exec starts processes with ProcessBuilder.start.
 -- The variant commands (Run.Commands) fakes nothing: it refuses commands running a program which is not allowed,
 -- see refuse.
 -- Each other variant fakes the values of its group. The hooks of all variants run for the same command:
@@ -1021,52 +1020,15 @@ function unpath(script, name)
     return text
 end
 
--- The environment of Runtime.exec with the fake time zone, nil when it has a time zone already
-function runtimeenvironment(envp, zone)
-    local list = luajava.newInstance('java.util.ArrayList')
-    if envp == nil then
-        -- The environment of the app
-        local env = luajava.bindClass('java.lang.System'):getenv()
-        if env:containsKey('TZ') then
-            return nil
-        end
-        local entries = env:entrySet():toArray()
-        for index = 1, entries['length'] do
-            list:add(entries[index]:getKey() .. '=' .. entries[index]:getValue())
-        end
-    else
-        for index = 1, envp['length'] do
-            local entry = envp[index]
-            if entry ~= nil and string.sub(entry, 1, 3) == 'TZ=' then
-                return nil
-            end
-            list:add(entry)
-        end
-    end
-    list:add('TZ=' .. zone)
-    local stringClass = luajava.bindClass('java.lang.String')
-    local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-    return list:toArray(arrayClass:newInstance(stringClass, 0))
-end
-
 -- date prints the time in the time zone of its environment, which is the real one,
 -- unless the app sets one; whether the fake time zone was set
-function settimezone(param, runtime, builder)
-    local zone = fakeid(param)
-    if runtime then
-        local envp = runtimeenvironment(param:getArgument(1), zone)
-        if envp == nil then
-            return false
-        end
-        param:setArgument(1, envp)
-    else
-        local environment = builder:environment()
-        if environment:get('TZ') ~= nil then
-            return false
-        end
-        environment:put('TZ', zone)
-        param:putValue('shell.timezone', zone, builder)
+function settimezone(param, builder)
+    local environment = builder:environment()
+    if environment:get('TZ') ~= nil then
+        return false
     end
+    environment:put('TZ', fakeid(param))
+    param:putValue('shell.timezone', fakeid(param), builder)
     return true
 end
 
@@ -1156,23 +1118,13 @@ end
 -- Only commands running allowed programs can run, like the setting commands.allowed: getprop,uname, or the
 -- commands matching the regular expression of commands.regex as a whole; others fail like a program which
 -- cannot be run. The command of the app is checked, also when the hooks of other variants changed it already.
-function refuse(param, runtime)
-    local command
-    if runtime then
-        local args = param:getArgument(0)
-        if args == nil then
-            return false
-        end
-        command = param:getValue('shell.command', args) or args
-    else
-        local builder = param:getThis()
-        command = param:getValue('shell.command', builder) or builder:command()
-        if command == nil then
-            return false
-        end
-        command = command:toArray()
+function refuse(param)
+    local builder = param:getThis()
+    local command = param:getValue('shell.command', builder) or builder:command()
+    if command == nil then
+        return false
     end
-    local words = wordsof(command)
+    local words = wordsof(command:toArray())
     if words == nil or #words == 0 then
         return false
     end
@@ -1217,42 +1169,25 @@ function before(hook, param)
         variant = 'tracking'
     end
     if variant == 'commands' then
-        return refuse(param, hook:getMethodName() == 'exec')
+        return refuse(param)
     end
 
-    -- The command of the app, also when the hook of another variant changed it already:
-    -- ProcessBuilder.start has it in the builder, Runtime.exec of Android 6 as its first argument
-    local runtime = (hook:getMethodName() == 'exec')
-    local scope
-    local command
-    local words
-    if runtime then
-        scope = param:getArgument(0)
-        if scope == nil then
-            return false
-        end
-        command = param:getValue('shell.command', scope)
-        if command == nil then
-            command = scope
-        end
-        words = wordsof(command)
-    else
-        scope = param:getThis()
-        command = param:getValue('shell.command', scope)
-        if command == nil then
-            command = scope:command()
-        end
-        if command == nil then
-            return false
-        end
-        words = wordsof(command:toArray())
+    -- The command of the app in the builder, also when the hook of another variant changed it already
+    local builder = param:getThis()
+    local command = param:getValue('shell.command', builder)
+    if command == nil then
+        command = builder:command()
     end
+    if command == nil then
+        return false
+    end
+    local words = wordsof(command:toArray())
     if words == nil or #words == 0 then
         return false
     end
     local line = table.concat(words, ' ')
 
-    local zone = (variant == 'timezone' and hasword(line, 'date') and settimezone(param, runtime, scope))
+    local zone = (variant == 'timezone' and hasword(line, 'date') and settimezone(param, builder))
     local names = commands(line, variant)
     if names == nil then
         return zone, line
@@ -1302,7 +1237,7 @@ function before(hook, param)
 
     -- The variants of the hooks which ran before for this command
     local variants = {}
-    local list = param:getValue('shell.variants', scope)
+    local list = param:getValue('shell.variants', builder)
     if list ~= nil then
         for name in string.gmatch(list, '[^,]+') do
             variants[name] = true
@@ -1338,27 +1273,17 @@ function before(hook, param)
     for name, _ in pairs(variants) do
         all[#all + 1] = name
     end
-    if runtime then
-        -- The other variants find the original command with the new arguments
-        local stringClass = luajava.bindClass('java.lang.String')
-        local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-        local args = fake:toArray(arrayClass:newInstance(stringClass, 0))
-        param:putValue('shell.command', command, args)
-        param:putValue('shell.variants', table.concat(all, ','), args)
-        param:setArgument(0, args)
-    else
-        -- The builder gets its own command back after the start, apps can start it again; the variant commands
-        -- checks this original command too (see refuse)
-        param:putValue('shell.command', command, scope)
-        param:putValue('shell.variants', table.concat(all, ','), scope)
-        scope:command(fake)
-    end
+    -- The builder gets its own command back after the start, apps can start it again; the variant commands
+    -- checks this original command too (see refuse)
+    param:putValue('shell.command', command, builder)
+    param:putValue('shell.variants', table.concat(all, ','), builder)
+    builder:command(fake)
     return true, line
 end
 
 function after(hook, param)
-    -- Runtime.exec got new arguments, which the app does not see; the filter changes nothing
-    if hook:getMethodName() == 'exec' or string.match(hook:getName(), '/commands$') then
+    -- The filter changes nothing
+    if string.match(hook:getName(), '/commands$') then
         return false
     end
 

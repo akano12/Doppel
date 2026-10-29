@@ -22,7 +22,6 @@ package eu.faircode.xlua;
 
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -172,7 +171,7 @@ public class ActivityBase extends AppCompatActivity {
     // A screen which is not in the foreground has no surface to copy, like after a restore which ended in the background.
     void recreateSmoothly() {
         View decor = getWindow().getDecorView();
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || decor.getWidth() == 0 || decor.getHeight() == 0 ||
+        if (decor.getWidth() == 0 || decor.getHeight() == 0 ||
                 !getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.RESUMED)) {
             recreate();
             return;

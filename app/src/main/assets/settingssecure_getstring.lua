@@ -315,19 +315,14 @@ end
 -- The setting a query selects, for rows without the name column, and the selection; the name is nil
 -- when none. Like SettingsProvider: name=? or (name=?) with one argument, or name='android_id' or
 -- (name="android_id"), where the name is between the first and the last quote
-function selected(hook, param)
-    local selection, args
-    if string.find(hook:getName(), 'query26', 1, true) then
-        local bundle = param:getArgument(2)
-        if bundle == nil then
-            return nil, nil
-        end
-        selection = bundle:getString('android:query-arg-sql-selection')
-        args = bundle:getStringArray('android:query-arg-sql-selection-args')
-    else
-        selection = param:getArgument(2)
-        args = param:getArgument(3)
+function selected(param)
+    -- The query of API 26, which the other queries call, has the selection in its Bundle of query arguments
+    local bundle = param:getArgument(2)
+    if bundle == nil then
+        return nil, nil
     end
+    local selection = bundle:getString('android:query-arg-sql-selection')
+    local args = bundle:getStringArray('android:query-arg-sql-selection-args')
     if selection == nil then
         return nil, nil
     end
@@ -451,7 +446,7 @@ function provider(hook, param, group)
         pathKey = segments:get(1)
     elseif nameIndex < 0 then
         local selection
-        pathKey, selection = selected(hook, param)
+        pathKey, selection = selected(param)
         -- All settings without their names: which value is which cannot be told, so there are none
         if selection == nil then
             if result:getCount() == 0 then

@@ -256,10 +256,12 @@ public class SettingsScriptTest {
         assertEquals("0000000000000000", applications("android_id", "android_id", "1234abcd1234abcd"));
     }
 
-    // The setting of a query of content://settings/secure without the name column, and the selection
+    // The setting of a query of content://settings/secure without the name column, and the selection,
+    // which the query of API 26 has in its Bundle of query arguments
     private Varargs selected(String selection, String args) {
-        return run("return selected(hookof('ContentResolver.query16/identifiers'), paramof({ [2] = " + selection +
-                ", [3] = " + args + " }, {}))");
+        return run("local queryArgs = { getString = function(self, key) return " + selection + " end,\n" +
+                "  getStringArray = function(self, key) return " + args + " end }\n" +
+                "return selected(paramof({ [2] = queryArgs }, {}))");
     }
 
     @Test

@@ -24,7 +24,6 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Paint;
 import android.icu.text.RelativeDateTimeFormatter;
-import android.os.Build;
 import android.os.Bundle;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
@@ -483,9 +482,7 @@ public class FragmentLog extends FragmentBase {
             String day = DateUtils.getRelativeTimeSpanString(time, System.currentTimeMillis(),
                     DateUtils.DAY_IN_MILLIS, DateUtils.FORMAT_ABBREV_ALL).toString();
             String clock = DateUtils.formatDateTime(context, time, DateUtils.FORMAT_SHOW_TIME);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
-                return RelativeDateTimeFormatter.getInstance(Locale.getDefault()).combineDateAndTime(day, clock);
-            return day + ", " + clock;
+            return RelativeDateTimeFormatter.getInstance(Locale.getDefault()).combineDateAndTime(day, clock);
         }
 
         @Override

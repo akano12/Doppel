@@ -74,23 +74,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
-    "name": "ActivityManager.getRunningServices",
-    "author": "M66B",
-    "className": "android.app.ActivityManager",
-    "methodName": "getRunningServices",
-    "parameterTypes": [
-      "int"
-    ],
-    "returnType": "java.util.List",
-    "minSdk": 1,
-    "maxSdk": 25,
-    // Android O returns filtered data
-    "excludePackages": "android",
-    "luaScript": "@generic_filter_by_uid"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
     "name": "AppWidgetManager.getInstalledProviders",
     "author": "M66B",
     "className": "android.appwidget.AppWidgetManager",
@@ -602,27 +585,6 @@
     "luaScript": "@package_probe"
   },
   // Providers, services, screens and broadcasts of hidden apps cannot be reached, like for apps which are not installed
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
-    "name": "ContentResolver.query16/hidden",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "excludePackages": "android",
-    "luaScript": "@provider_hidden"
-  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -2300,46 +2262,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Calendars",
-    "name": "ContentResolver.query16/calendars",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Calendars",
-    "name": "ContentProviderClient.query16/calendars",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Calendars",
     "name": "ContentResolver.query26/calendars",
     "author": "M66B",
     "className": "android.content.ContentResolver",
@@ -2373,46 +2295,6 @@
   },
   // Get call log
   // https://developer.android.com/reference/android/provider/CallLog.html API 1
-  {
-    "collection": "Privacy",
-    "group": "Get.Call.log",
-    "name": "ContentResolver.query16/call_log",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Call.log",
-    "name": "ContentProviderClient.query16/call_log",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
   {
     "collection": "Privacy",
     "group": "Get.Call.log",
@@ -2454,52 +2336,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Contacts",
-    "name": "ContentResolver.query16/contacts",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "settings": [
-      "contacts.starred"
-    ],
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Contacts",
-    "name": "ContentProviderClient.query16/contacts",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "settings": [
-      "contacts.starred"
-    ],
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Contacts",
     "name": "ContentResolver.query26/contacts",
     "author": "M66B",
     "className": "android.content.ContentResolver",
@@ -2515,46 +2351,6 @@
     "settings": [
       "contacts.starred"
     ],
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Contacts",
-    "name": "ContentResolver.query16/blockednumber",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Contacts",
-    "name": "ContentProviderClient.query16/blockednumber",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -2931,46 +2727,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Messages",
-    "name": "ContentResolver.query16/mmssms",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Messages",
-    "name": "ContentProviderClient.query16/mmssms",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Messages",
     "name": "ContentResolver.query26/mmssms",
     "author": "M66B",
     "className": "android.content.ContentResolver",
@@ -2983,46 +2739,6 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 26,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Messages",
-    "name": "ContentResolver.query16/voicemail",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Messages",
-    "name": "ContentProviderClient.query16/voicemail",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
     "luaScript": "@contentresolver_query"
   },
   {
@@ -3351,48 +3067,6 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
-    "name": "ContentResolver.query16/gsf_id",
-    "author": "M66B",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "excludePackages": "com\\.android\\..*,com\\.google\\.android\\..*",
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "ContentProviderClient.query16/gsf_id",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "excludePackages": "com\\.android\\..*,com\\.google\\.android\\..*",
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
     "name": "ContentResolver.query26/gsf_id",
     "author": "M66B",
     "className": "android.content.ContentResolver",
@@ -3424,48 +3098,6 @@
     "returnType": "android.database.Cursor",
     "minSdk": 26,
     "excludePackages": "com\\.android\\..*,com\\.google\\.android\\..*",
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "ContentResolver.query16/fb_attribution",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "excludePackages": "com\\.facebook\\..*",
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "ContentProviderClient.query16/fb_attribution",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "excludePackages": "com\\.facebook\\..*",
     "luaScript": "@contentresolver_query"
   },
   {
@@ -3505,46 +3137,6 @@
     "luaScript": "@contentresolver_query"
   },
   // Advertising ids of device makers
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "ContentResolver.query16/oaid",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "ContentProviderClient.query16/oaid",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@contentresolver_query"
-  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -6380,36 +5972,6 @@
     "parameterTypes": [],
     "returnType": "java.util.Properties",
     "minSdk": 1,
-    "optional": true,
-    "usage": false,
-    "luaScript": "@system_properties"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "System.unchangeableSystemProperties",
-    "author": "akano12",
-    "className": "java.lang.System",
-    "methodName": "#unchangeableSystemProperties",
-    "parameterTypes": [],
-    "returnType": "java.util.Properties",
-    "minSdk": 1,
-    "maxSdk": 23,
-    "optional": true,
-    "usage": false,
-    "luaScript": "@system_properties"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "System.systemProperties",
-    "author": "akano12",
-    "className": "java.lang.System",
-    "methodName": "#systemProperties",
-    "parameterTypes": [],
-    "returnType": "java.util.Properties",
-    "minSdk": 1,
-    "maxSdk": 23,
     "optional": true,
     "usage": false,
     "luaScript": "@system_properties"
@@ -9980,156 +9542,6 @@
     ],
     "luaScript": "@shell_commands"
   },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Runtime.exec",
-    "author": "akano12",
-    "className": "java.lang.Runtime",
-    "methodName": "exec",
-    "parameterTypes": [
-      "java.lang.String[]",
-      "java.lang.String[]",
-      "java.io.File"
-    ],
-    "returnType": "java.lang.Process",
-    "minSdk": 23,
-    "maxSdk": 23,
-    "luaScript": "@shell_commands"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "Runtime.exec/identifiers",
-    "author": "akano12",
-    "className": "java.lang.Runtime",
-    "methodName": "exec",
-    "parameterTypes": [
-      "java.lang.String[]",
-      "java.lang.String[]",
-      "java.io.File"
-    ],
-    "returnType": "java.lang.Process",
-    "minSdk": 23,
-    "maxSdk": 23,
-    "settings": [
-      "value.serial"
-    ],
-    "luaScript": "@shell_commands"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
-    "name": "Runtime.exec/packages",
-    "author": "akano12",
-    "className": "java.lang.Runtime",
-    "methodName": "exec",
-    "parameterTypes": [
-      "java.lang.String[]",
-      "java.lang.String[]",
-      "java.io.File"
-    ],
-    "returnType": "java.lang.Process",
-    "minSdk": 23,
-    "maxSdk": 23,
-    "excludePackages": "android",
-    "luaScript": "@shell_commands"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Timezone",
-    "name": "Runtime.exec/timezone",
-    "author": "akano12",
-    "className": "java.lang.Runtime",
-    "methodName": "exec",
-    "parameterTypes": [
-      "java.lang.String[]",
-      "java.lang.String[]",
-      "java.io.File"
-    ],
-    "returnType": "java.lang.Process",
-    "minSdk": 23,
-    "maxSdk": 23,
-    "settings": [
-      "value.timezone"
-    ],
-    "luaScript": "@shell_commands"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Features",
-    "name": "Runtime.exec/features",
-    "author": "akano12",
-    "className": "java.lang.Runtime",
-    "methodName": "exec",
-    "parameterTypes": [
-      "java.lang.String[]",
-      "java.lang.String[]",
-      "java.io.File"
-    ],
-    "returnType": "java.lang.Process",
-    "minSdk": 23,
-    "maxSdk": 23,
-    "settings": [
-      "features.keep"
-    ],
-    "luaScript": "@shell_commands"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Biometrics",
-    "name": "Runtime.exec/biometrics",
-    "author": "akano12",
-    "className": "java.lang.Runtime",
-    "methodName": "exec",
-    "parameterTypes": [
-      "java.lang.String[]",
-      "java.lang.String[]",
-      "java.io.File"
-    ],
-    "returnType": "java.lang.Process",
-    "minSdk": 23,
-    "maxSdk": 23,
-    "luaScript": "@shell_commands"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Resources",
-    "name": "Runtime.exec/resources",
-    "author": "akano12",
-    "className": "java.lang.Runtime",
-    "methodName": "exec",
-    "parameterTypes": [
-      "java.lang.String[]",
-      "java.lang.String[]",
-      "java.io.File"
-    ],
-    "returnType": "java.lang.Process",
-    "minSdk": 23,
-    "maxSdk": 23,
-    "luaScript": "@shell_commands"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Run.Commands",
-    "name": "Runtime.exec/commands",
-    "author": "akano12",
-    "className": "java.lang.Runtime",
-    "methodName": "exec",
-    "parameterTypes": [
-      "java.lang.String[]",
-      "java.lang.String[]",
-      "java.io.File"
-    ],
-    "returnType": "java.lang.Process",
-    "minSdk": 23,
-    "maxSdk": 23,
-    "settings": [
-      "commands.allowed",
-      "commands.regex"
-    ],
-    "luaScript": "@shell_commands"
-  },
   // The text of network objects contains the values their getters hide
   {
     "collection": "Privacy",
@@ -10453,52 +9865,6 @@
   },
   {
     "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "ContentResolver.query16/identifiers",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "settings": [
-      "value.android_id"
-    ],
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "ContentProviderClient.query16/identifiers",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "settings": [
-      "value.android_id"
-    ],
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
     "group": "Use.Tracking",
     "name": "ContentResolver.call/tracking",
     "author": "akano12",
@@ -10598,46 +9964,6 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 26,
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "ContentResolver.query16/tracking",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "ContentProviderClient.query16/tracking",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -10751,48 +10077,6 @@
   },
   {
     "collection": "Privacy",
-    "group": "Get.Applications",
-    "name": "ContentResolver.query16/applications",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "excludePackages": "android",
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
-    "name": "ContentProviderClient.query16/applications",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "excludePackages": "android",
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
     "group": "Read.Debugging",
     "name": "ContentResolver.call/debugging",
     "author": "akano12",
@@ -10892,46 +10176,6 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 26,
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Debugging",
-    "name": "ContentResolver.query16/debugging",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Debugging",
-    "name": "ContentProviderClient.query16/debugging",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
     "luaScript": "@settingssecure_getstring"
   },
   {
@@ -11039,46 +10283,6 @@
   },
   {
     "collection": "Privacy",
-    "group": "Read.Settings",
-    "name": "ContentResolver.query16/settings",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Settings",
-    "name": "ContentProviderClient.query16/settings",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
     "group": "Read.Battery",
     "name": "ContentResolver.call/battery",
     "author": "akano12",
@@ -11178,46 +10382,6 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 26,
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Battery",
-    "name": "ContentResolver.query16/battery",
-    "author": "akano12",
-    "className": "android.content.ContentResolver",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
-    "luaScript": "@settingssecure_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Battery",
-    "name": "ContentProviderClient.query16/battery",
-    "author": "akano12",
-    "className": "android.content.ContentProviderClient",
-    "methodName": "query",
-    "parameterTypes": [
-      "android.net.Uri",
-      "java.lang.String[]",
-      "java.lang.String",
-      "java.lang.String[]",
-      "java.lang.String",
-      "android.os.CancellationSignal"
-    ],
-    "returnType": "android.database.Cursor",
-    "minSdk": 16,
-    "maxSdk": 25,
     "luaScript": "@settingssecure_getstring"
   },
   // Package lookups for other users, hidden methods which skip the public ones

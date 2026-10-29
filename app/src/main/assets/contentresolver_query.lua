@@ -83,24 +83,19 @@ function before(hook, param)
     end
 
     -- Hook names are like Function/variant
-    local func, name = string.match(hook:getName(), '^([^/]*)/?(.*)$')
+    local name = string.match(hook:getName(), '^[^/]*/?(.*)$')
     local starred = starredof(name, uri, param)
     if starred == nil then
         return false
     end
 
-    local bundled = (string.sub(func, -2) == '26')
-    local where
-    if bundled then
-        local bundle = param:getArgument(2)
-        if bundle == nil then
-            bundle = luajava.newInstance('android.os.Bundle')
-            param:setArgument(2, bundle)
-        end
-        where = bundle:getString('android:query-arg-sql-selection')
-    else
-        where = param:getArgument(2)
+    -- The query of API 26, which the other queries call, has the selection in its Bundle of query arguments
+    local bundle = param:getArgument(2)
+    if bundle == nil then
+        bundle = luajava.newInstance('android.os.Bundle')
+        param:setArgument(2, bundle)
     end
+    local where = bundle:getString('android:query-arg-sql-selection')
 
     -- A selection which could undo the filter selects nothing, its arguments are left out with it
     local unsafe = false
@@ -113,16 +108,9 @@ function before(hook, param)
         unsafe = true
     end
 
-    if bundled then
-        param:getArgument(2):putString('android:query-arg-sql-selection', where)
-        if unsafe then
-            param:getArgument(2):remove('android:query-arg-sql-selection-args')
-        end
-    else
-        param:setArgument(2, where)
-        if unsafe then
-            param:setArgument(3, nil)
-        end
+    bundle:putString('android:query-arg-sql-selection', where)
+    if unsafe then
+        bundle:remove('android:query-arg-sql-selection-args')
     end
 
     return false

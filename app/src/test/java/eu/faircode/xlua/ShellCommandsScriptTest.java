@@ -107,23 +107,13 @@ public class ShellCommandsScriptTest {
             "  return { entries = entries,",
             "    get = function(self, key) return self.entries[key] end,",
             "    put = function(self, key, value) self.entries[key] = value end,",
-            "    remove = function(self, key) self.entries[key] = nil end,",
-            "    containsKey = function(self, key) return self.entries[key] ~= nil end,",
-            "    entrySet = function(self)",
-            "      local set = listof()",
-            "      for key, value in pairs(self.entries) do",
-            "        set:add({ getKey = function() return key end, getValue = function() return value end })",
-            "      end",
-            "      return set",
-            "    end }",
+            "    remove = function(self, key) self.entries[key] = nil end }",
             "end",
             // The files as the app reads them, with the hooks opening files, see XParam.readFile
             "files = { ['/proc/meminfo'] = 'MemTotal:        3145728 kB\\nMemFree:          146484 kB\\n',",
             "  ['/proc/sys/kernel/random/boot_id'] = '0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\\n',",
             "  ['/proc/uptime'] = '123456.78 98765.43\\n',",
             "  ['/proc/stat'] = 'cpu  1 2 3\\nbtime 1699998200\\nprocesses 100\\n' }",
-            // The environment of the app, for System.getenv
-            "environment = { A = '1' }",
             "luajava = {",
             "  newInstance = function(name, path)",
             // Files resolve their path on the file system of the test, see canonical
@@ -132,15 +122,6 @@ public class ShellCommandsScriptTest {
             "    end",
             "    assert(name == 'java.util.ArrayList', name)",
             "    return listof()",
-            "  end,",
-            "  bindClass = function(name)",
-            "    if name == 'java.lang.System' then",
-            "      return { getenv = function(self) return mapof(environment) end }",
-            "    elseif name == 'java.lang.reflect.Array' then",
-            "      return { newInstance = function(self, class, length) return arrayof({}, length) end }",
-            "    end",
-            "    assert(name == 'java.lang.String', name)",
-            "    return {}",
             "  end }",
             // The hooks of the variants for a command like ProcessBuilder.start: the command started,
             // its time zone, the command and time zone of the builder afterwards and whether a hook restricted
@@ -161,18 +142,6 @@ public class ShellCommandsScriptTest {
             "    after(hook, paramof(settings, values, builder, {}))",
             "  end",
             "  return started, zone, builder.list, builder.env:get('TZ'), restricted",
-            "end",
-            // Like startof for Runtime.exec(String[], String[], File) of Android 6: the command and environment started
-            "function execof(words, variants, settings, envp)",
-            "  local values = {}",
-            "  local args = { arrayof(words), envp }",
-            "  for _, variant in ipairs(variants) do",
-            "    before(hookof(nameof('Runtime.exec', variant), 'exec'), paramof(settings, values, nil, args))",
-            "  end",
-            "  for _, variant in ipairs(variants) do",
-            "    after(hookof(nameof('Runtime.exec', variant), 'exec'), paramof(settings, values, nil, args))",
-            "  end",
-            "  return args[1], args[2]",
             "end",
             // The fake value of the rules of getprop for a property, 'quarter' for the security patch level
             "function fakeof(key, settings, real)",
@@ -635,26 +604,6 @@ public class ShellCommandsScriptTest {
         assertTrue(start(new String[]{"date"}, "tracking").arg(2).isnil());
     }
 
-    // Runtime.exec of Android 6 does not call ProcessBuilder.start, its arguments are changed instead
-    @Test
-    public void runtimeExecIsFaked() throws Exception {
-        tools().properties("[ro.product.model]: [Pixel 9]\n[ro.serialno]: [ABC123]\n");
-        Varargs result = exec(new String[]{"getprop"}, null, ALL);
-        assertTrue(result.arg(2).isnil());
-        assertEquals("[ro.product.model]: [unknown]\n[ro.serialno]: [SERIAL1]\n", run(words(result.arg(1))).out);
-        assertEquals("package:com.example\npackage:com.example.shared\n",
-                run(words(exec(new String[]{"pm", "list", "packages"}, null, ALL).arg(1))).out);
-
-        // date gets the fake time zone, with the environment of the app or the one given, unless it has one
-        assertEquals(Arrays.asList("A=1", "TZ=Asia/Tokyo"), words(exec(new String[]{"date"}, null, "timezone").arg(2)));
-        LuaValue envp = globals.get("arrayof").call(Scripts.strings(new String[]{"B=2"}));
-        assertEquals(Arrays.asList("B=2", "TZ=Asia/Tokyo"), words(exec(new String[]{"date"}, envp, "timezone").arg(2)));
-        LuaValue zoned = globals.get("arrayof").call(Scripts.strings(new String[]{"TZ=UTC"}));
-        assertEquals(zoned, exec(new String[]{"date"}, zoned, "timezone").arg(2));
-        globals.load("environment = { TZ = 'UTC' }").call();
-        assertTrue(exec(new String[]{"date"}, null, "timezone").arg(2).isnil());
-    }
-
     // The builder gets the command of the app back, apps can start it again
     @Test
     public void builderGetsItsCommandBack() throws Exception {
@@ -676,11 +625,6 @@ public class ShellCommandsScriptTest {
     private Varargs start(String[] words, String... variants) {
         return globals.get("startof").invoke(LuaValue.varargsOf(new LuaValue[]{
                 Scripts.strings(words), Scripts.strings(variants), settings}));
-    }
-
-    private Varargs exec(String[] words, LuaValue envp, String... variants) {
-        return globals.get("execof").invoke(LuaValue.varargsOf(new LuaValue[]{
-                Scripts.strings(words), Scripts.strings(variants), settings, envp == null ? LuaValue.NIL : envp}));
     }
 
     private static List<String> command(Varargs started) {

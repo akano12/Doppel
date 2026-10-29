@@ -66,23 +66,9 @@ public class CommandFilterScriptTest {
             "      return (name == 'shell.command' and scope == builder and original) and listof(original) or nil",
             "    end,",
             "    setResult = function(self, value) thrown = value end }",
-            "  local hook = { getName = function(self) return 'ProcessBuilder.start/commands' end,",
-            "    getMethodName = function(self) return 'start' end }",
+            "  local hook = { getName = function(self) return 'ProcessBuilder.start/commands' end }",
             "  local restricted, line = before(hook, param)",
             "  return restricted, thrown and thrown.message, line",
-            "end",
-            // Runtime.exec(String[], String[], File) of Android 6
-            "function execof(words, settings)",
-            "  local thrown",
-            "  local args = { arrayof(words) }",
-            "  local param = {",
-            "    getSetting = function(self, name) return settings[name] end,",
-            "    getArgument = function(self, index) return args[index + 1] end,",
-            "    getValue = function(self, name, scope) return nil end,",
-            "    setResult = function(self, value) thrown = value end }",
-            "  local hook = { getName = function(self) return 'Runtime.exec/commands' end,",
-            "    getMethodName = function(self) return 'exec' end }",
-            "  return before(hook, param), thrown and thrown.message",
             "end");
 
     private Globals globals;
@@ -182,17 +168,6 @@ public class CommandFilterScriptTest {
         String[] fake = {"/system/bin/sh", "-c", "__xlua_property() { id; }\ngetprop \"$@\"", "getprop"};
         assertFalse(start(fake, new String[]{"getprop"}).arg(1).toboolean());
         assertTrue(start(new String[]{"getprop"}, new String[]{"id"}).arg(1).toboolean());
-    }
-
-    @Test
-    public void runtimeExecIsFiltered() {
-        Varargs result = globals.get("execof").invoke(LuaValue.varargsOf(new LuaValue[]{
-                Scripts.strings(new String[]{"id"}), settings()}));
-        assertTrue(result.arg(1).toboolean());
-        assertEquals("Cannot run program \"id\": error=13, Permission denied", result.arg(2).tojstring());
-        result = globals.get("execof").invoke(LuaValue.varargsOf(new LuaValue[]{
-                Scripts.strings(new String[]{"getprop", "x"}), settings()}));
-        assertFalse(result.arg(1).toboolean());
     }
 
     // Lua to Java

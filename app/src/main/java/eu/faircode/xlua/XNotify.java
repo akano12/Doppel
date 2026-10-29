@@ -145,15 +145,8 @@ final class XNotify {
         return pm.getApplicationLabel(Util.getApplicationInfo(pm, packageName, 0));
     }
 
-    @SuppressWarnings("deprecation") // Builder without channel and priority before Android 8
     private static Notification.Builder getBuilder(Context context, boolean high) {
-        Notification.Builder builder;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            builder = new Notification.Builder(context, high ? CHANNEL_ALERTS : CHANNEL_USAGE);
-        else {
-            builder = new Notification.Builder(context);
-            builder.setPriority(high ? Notification.PRIORITY_HIGH : Notification.PRIORITY_DEFAULT);
-        }
+        Notification.Builder builder = new Notification.Builder(context, high ? CHANNEL_ALERTS : CHANNEL_USAGE);
         builder.setCategory(Notification.CATEGORY_STATUS);
         builder.setVisibility(Notification.VISIBILITY_SECRET);
         builder.setAutoCancel(true);
@@ -178,18 +171,16 @@ final class XNotify {
     private static void notifyAsUser(Context context, String tag, int id, Notification notification, int userid) throws Throwable {
         NotificationManager nm = context.getSystemService(NotificationManager.class);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Resources resources = getResources(context);
-            NotificationChannel alerts = new NotificationChannel(CHANNEL_ALERTS,
-                    resources.getString(R.string.channel_alerts), NotificationManager.IMPORTANCE_HIGH);
-            alerts.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
-            nm.createNotificationChannel(alerts);
+        Resources resources = getResources(context);
+        NotificationChannel alerts = new NotificationChannel(CHANNEL_ALERTS,
+                resources.getString(R.string.channel_alerts), NotificationManager.IMPORTANCE_HIGH);
+        alerts.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
+        nm.createNotificationChannel(alerts);
 
-            NotificationChannel usage = new NotificationChannel(CHANNEL_USAGE,
-                    resources.getString(R.string.channel_usage), NotificationManager.IMPORTANCE_DEFAULT);
-            usage.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
-            nm.createNotificationChannel(usage);
-        }
+        NotificationChannel usage = new NotificationChannel(CHANNEL_USAGE,
+                resources.getString(R.string.channel_usage), NotificationManager.IMPORTANCE_DEFAULT);
+        usage.setSound(null, Notification.AUDIO_ATTRIBUTES_DEFAULT);
+        nm.createNotificationChannel(usage);
 
         // public void notifyAsUser(String tag, int id, Notification notification, UserHandle user)
         Method mNotifyAsUser = nm.getClass().getDeclaredMethod(

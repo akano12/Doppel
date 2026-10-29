@@ -41,9 +41,17 @@ public class ContentResolverScriptTest {
             "function hookof(name)",
             "  return { getName = function(self) return name end }",
             "end",
-            // The arguments of ContentResolver.query(uri, projection, selection, args, order, cancel)
+            // The query arguments in a Bundle, as ContentResolver.query(uri, projection, queryArgs, cancel) has them
+            "function bundleof(where, args)",
+            "  local values = { ['android:query-arg-sql-selection'] = where,",
+            "    ['android:query-arg-sql-selection-args'] = args }",
+            "  return { values = values,",
+            "    getString = function(self, key) return values[key] end,",
+            "    putString = function(self, key, value) values[key] = value end,",
+            "    remove = function(self, key) values[key] = nil end }",
+            "end",
             "function paramof(uri, where, args, settings)",
-            "  local arguments = { [0] = uri, [2] = where, [3] = args }",
+            "  local arguments = { [0] = uri, [2] = bundleof(where, args) }",
             "  return { arguments = arguments,",
             "    getArgument = function(self, index) return arguments[index] end,",
             "    setArgument = function(self, index, value) arguments[index] = value end,",
@@ -112,8 +120,9 @@ public class ContentResolverScriptTest {
         return Scripts.run(globals,
                 "local param = paramof(urlof('" + authority + "', '/contacts'), " + where + ", 'args', " +
                         "{ ['contacts.starred'] = '1' })\n" +
-                        "before(hookof('ContentResolver.query16/contacts'), param)\n" +
-                        "return param.arguments[2], param.arguments[3]");
+                        "before(hookof('ContentResolver.query26/contacts'), param)\n" +
+                        "return param.arguments[2]:getString('android:query-arg-sql-selection'),\n" +
+                        "  param.arguments[2].values['android:query-arg-sql-selection-args']");
     }
 
     @Test
@@ -150,7 +159,7 @@ public class ContentResolverScriptTest {
     // after keeps the result which before filtered for starred contacts
     @Test
     public void starredResultStays() {
-        Varargs result = query("ContentResolver.query16/contacts", "com.android.contacts", "/contacts",
+        Varargs result = query("ContentResolver.query26/contacts", "com.android.contacts", "/contacts",
                 "{ ['contacts.starred'] = '1' }");
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).toboolean());
@@ -161,8 +170,8 @@ public class ContentResolverScriptTest {
     @Test
     public void resultIsReplaced() {
         for (String[] query : new String[][]{
-                {"ContentResolver.query16/contacts", "com.android.contacts", "/contacts"},
-                {"ContentResolver.query16/contacts", "0@com.android.contacts", "/data/phones"},
+                {"ContentResolver.query26/contacts", "com.android.contacts", "/contacts"},
+                {"ContentResolver.query26/contacts", "0@com.android.contacts", "/data/phones"},
                 {"ContentProviderClient.query26/contacts", "com.android.simphonebook", "/subid/1/adn"},
                 {"ContentResolver.query26/mmssms", "mms", "/part"}}) {
             Varargs result = query(query[0], query[1], query[2], "{}");
@@ -173,7 +182,7 @@ public class ContentResolverScriptTest {
         }
 
         // The provider status tells whether there are contacts at all
-        Varargs status = query("ContentResolver.query16/contacts", "com.android.contacts", "/provider_status", "{}");
+        Varargs status = query("ContentResolver.query26/contacts", "com.android.contacts", "/provider_status", "{}");
         assertFalse(status.arg(1).toboolean());
         assertTrue(status.arg(2).toboolean());
     }

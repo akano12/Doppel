@@ -34,7 +34,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -84,16 +83,7 @@ class Util {
     }
 
     static UserHandle getUserHandle(int userid) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
-            return UserHandle.getUserHandleForUid(getUserUid(userid, 0));
-        try {
-            // public UserHandle(int h)
-            Constructor<UserHandle> ctor = UserHandle.class.getConstructor(int.class);
-            return ctor.newInstance(userid);
-        } catch (Throwable ex) {
-            Log.e(TAG, Log.getStackTraceString(ex));
-            return Process.myUserHandle();
-        }
+        return UserHandle.getUserHandleForUid(getUserUid(userid, 0));
     }
 
     static Context createContextForUser(Context context, int userid) throws Throwable {
