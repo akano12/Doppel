@@ -19,7 +19,6 @@
 
 package eu.faircode.xlua;
 
-import android.os.Build;
 import android.util.Log;
 
 import java.util.Collections;
@@ -45,8 +44,6 @@ class Scope {
 
     // Registered once at app start (ApplicationEx); a framework without the service never calls back
     static void init() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
-            return;
         try {
             XposedServiceHelper.registerListener(new XposedServiceHelper.OnServiceListener() {
                 @Override

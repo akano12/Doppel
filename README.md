@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/akano12/Doppel/releases"><img src="https://img.shields.io/github/v/release/akano12/Doppel?label=release" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/Android-6.0%2B-3DDC84" alt="Android 6.0 and later">
+  <img src="https://img.shields.io/badge/Android-8.1%2B-3DDC84" alt="Android 8.1 and later">
   <img src="https://img.shields.io/badge/Xposed-LSPosed%20%7C%20Xposed-6E6E73" alt="Xposed module for LSPosed or Xposed">
   <a href="#license"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="License GPL version 3"></a>
   <a href="https://xdaforums.com/t/module-6-0-lsposed-doppel-fake-data-for-apps-maintained-continuation-of-xprivacylua.4806280/"><img src="https://img.shields.io/badge/XDA-Thread-EA7100?logo=xdadevelopers&logoColor=white" alt="XDA Forums thread"></a>
@@ -19,7 +19,7 @@
   <a href="#building">Building</a>
 </p>
 
-Doppel is a simple privacy manager for Android 6 and later.
+Doppel is a simple privacy manager for Android 8.1 and later.
 Revoking permissions often makes apps crash; Doppel feeds them fake data instead of real data, so they keep working.
 
 > Doppel continues [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel Bokhorst (M66B), which is not maintained anymore,
@@ -53,13 +53,11 @@ Features
 Installation
 ------------
 
-Doppel needs Android 6.0 or later and a rooted device with an Xposed framework.
+Doppel needs Android 8.1 or later and a rooted device with an Xposed framework.
 It uses the [modern Xposed API](https://github.com/libxposed/api) when the framework has it, else the legacy API.
 
 1. Install [Magisk](https://www.xda-developers.com/how-to-install-magisk/)
-2. Install and activate an Xposed framework:
-   [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork on Android 8.1 and later,
-   [Xposed](http://forum.xda-developers.com/xposed) on Android 6 and 7
+2. Install and activate an Xposed framework: [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork
 3. Install Doppel from the [releases](https://github.com/akano12/Doppel/releases) and activate it
 4. Reboot
 

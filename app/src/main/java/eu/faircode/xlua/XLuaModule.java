@@ -19,11 +19,9 @@
 
 package eu.faircode.xlua;
 
-import android.os.Build;
 import android.os.Process;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
@@ -32,7 +30,6 @@ import io.github.libxposed.api.XposedModule;
 // https://github.com/libxposed/api
 // The modern API requires Android 8.0 or later. The framework instantiates the module and attaches itself
 // before onModuleLoaded.
-@RequiresApi(Build.VERSION_CODES.O)
 public class XLuaModule extends XposedModule {
     private boolean systemServer = false;
     private XCore core = null;

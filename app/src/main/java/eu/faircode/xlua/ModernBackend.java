@@ -19,10 +19,7 @@
 
 package eu.faircode.xlua;
 
-import android.os.Build;
 import android.util.Log;
-
-import androidx.annotation.RequiresApi;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Member;
@@ -31,7 +28,6 @@ import io.github.libxposed.api.XposedInterface;
 
 // Modern libxposed API (LSPosed and compatible frameworks)
 // https://github.com/libxposed/api
-@RequiresApi(Build.VERSION_CODES.O)
 class ModernBackend implements XBackend {
     private static final String TAG = "XLua.Modern";
 
