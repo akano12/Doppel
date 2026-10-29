@@ -171,6 +171,31 @@
                         android:orientation="vertical"
                         android:showDividers="middle">
 
+                        <!-- Add the app to Doppel's LSPosed scope without opening the framework; shown only when a
+                             framework with the libxposed service is connected, see Scope and ActivityApp -->
+                        <LinearLayout
+                            android:id="@+id/llScope"
+                            style="@style/XLua.Row"
+                            android:visibility="gone">
+
+                            <LinearLayout style="@style/XLua.Row.Text">
+
+                                <TextView
+                                    style="@style/XLua.Row.Title"
+                                    android:text="@string/title_scope" />
+
+                                <TextView
+                                    style="@style/XLua.Row.Subtitle"
+                                    android:text="@string/title_scope_hint" />
+                            </LinearLayout>
+
+                            <com.google.android.material.checkbox.MaterialCheckBox
+                                android:id="@+id/cbScope"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:contentDescription="@string/title_scope" />
+                        </LinearLayout>
+
                         <LinearLayout
                             android:id="@+id/llForceStop"
                             style="@style/XLua.Row">

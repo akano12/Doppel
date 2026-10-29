@@ -105,6 +105,8 @@ public class ActivityApp extends ActivityBase {
     private View llRestart;
     private TextView tvRestart;
     private Button btnForceStop;
+    private View llScope;
+    private MaterialCheckBox cbScope;
 
     private static class GroupView {
         View llRow;
@@ -170,7 +172,13 @@ public class ActivityApp extends ActivityBase {
         llRestart = findViewById(R.id.llRestart);
         tvRestart = findViewById(R.id.tvRestart);
         btnForceStop = findViewById(R.id.btnForceStop);
+        llScope = findViewById(R.id.llScope);
+        cbScope = findViewById(R.id.cbScope);
 
+        llScope.setOnClickListener(view -> {
+            if (cbScope.isEnabled())
+                cbScope.toggle();
+        });
         findViewById(R.id.llAll).setOnClickListener(view -> restrictAll());
         swAll.setOnClickListener(view -> restrictAll());
         findViewById(R.id.llForceStop).setOnClickListener(view -> {
@@ -287,6 +295,8 @@ public class ActivityApp extends ActivityBase {
             changes++;
             run(TAG, () -> Data.putSettingBoolean(context, app.packageName, "notify", checked));
         });
+
+        refreshScope();
 
         // Group the hooks
         available.clear();
@@ -669,6 +679,51 @@ public class ActivityApp extends ActivityBase {
     }
 
     // Changes apply when the app starts, stopped apps start with the new restrictions
+    // The LSPosed scope toggle: shown only when a framework with the libxposed service is connected, and never for
+    // the system server or Doppel itself, whose scope must stay. The scope is read off the main thread (a binder call).
+    private void refreshScope() {
+        if (app == null)
+            return;
+        final String pkg = app.packageName;
+        if (!Scope.available() || app.isSystemServer() || BuildConfig.APPLICATION_ID.equals(pkg)) {
+            llScope.setVisibility(View.GONE);
+            return;
+        }
+        submit(() -> {
+            final boolean inScope = Scope.inScope(pkg);
+            postUnlessGone(() -> {
+                llScope.setVisibility(View.VISIBLE);
+                setScope(pkg, inScope);
+            });
+        });
+    }
+
+    // Show the scope state without firing the listener, then listen: turning it on asks the framework (which asks the
+    // user) and reconciles to the real state in the callback; turning it off removes the app. A scope change applies
+    // when the app's process next starts, like a restriction, so it marks the app dirty for the restart hint.
+    private void setScope(String pkg, boolean inScope) {
+        cbScope.setOnCheckedChangeListener(null);
+        cbScope.setChecked(inScope);
+        cbScope.setEnabled(true);
+        cbScope.setOnCheckedChangeListener((button, checked) -> {
+            if (checked) {
+                Ui.message(this, getString(R.string.msg_scope_requested));
+                Scope.add(pkg, (nowInScope, error) -> postUnlessGone(() -> {
+                    setScope(pkg, nowInScope);
+                    if (nowInScope) {
+                        dirty = true;
+                        updateRestart();
+                    } else if (error != null)
+                        Ui.message(this, getString(R.string.msg_scope_failed, error));
+                }));
+            } else {
+                run(TAG, () -> Scope.remove(pkg));
+                dirty = true;
+                updateRestart();
+            }
+        });
+    }
+
     private void updateRestart() {
         boolean show = (dirty && (app.persistent || !app.forceStop));
         llRestart.setVisibility(show ? View.VISIBLE : View.GONE);

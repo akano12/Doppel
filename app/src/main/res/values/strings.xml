@@ -269,6 +269,10 @@
         <item quantity="other">%1$d of %2$d groups restricted</item>
     </plurals>
     <string name="title_bootloop">Restricting can cause a bootloop</string>
+    <string name="title_scope">In LSPosed scope</string>
+    <string name="title_scope_hint">Load Doppel into the app so its restrictions apply</string>
+    <string name="msg_scope_requested">Approve the request from the framework to add the app</string>
+    <string name="msg_scope_failed">Could not change the scope: %1$s</string>
     <string name="title_force_stop">Stop automatically</string>
     <string name="title_force_stop_hint">Stop the app to apply changes right away</string>
     <string name="title_notify_usage">Notify on restriction</string>
