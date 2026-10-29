@@ -23,6 +23,8 @@ package eu.faircode.xlua;
 import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.util.Log;
 
 import androidx.appcompat.app.AppCompatDelegate;
@@ -107,6 +109,18 @@ public class ApplicationEx extends Application {
             return;
         prefs.edit().putString(PREF_THEME, theme).apply();
         applyTheme(theme);
+    }
+
+    // Whether a theme shows a screen dark when it is light now or the other way around, so the screens are recreated
+    static boolean changesNight(Context context, String theme) {
+        boolean now = isNight(context.getResources().getConfiguration());
+        boolean then = (THEME_DARK.equals(theme) ||
+                (!THEME_LIGHT.equals(theme) && isNight(Resources.getSystem().getConfiguration())));
+        return (now != then);
+    }
+
+    private static boolean isNight(Configuration configuration) {
+        return ((configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES);
     }
 
     // Remember the palette setting of the service; true when it changed, then screens need to be recreated

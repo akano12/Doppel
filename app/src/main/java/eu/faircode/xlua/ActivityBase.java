@@ -170,10 +170,15 @@ public class ActivityBase extends AppCompatActivity {
     // without the fade the new screen shows for a moment without the data, which is loaded in the background.
     // A screen which is not in the foreground has no surface to copy, like after a restore which ended in the background.
     void recreateSmoothly() {
+        recreateSmoothly(this::recreate);
+    }
+
+    // Like a change of light and dark (AppCompatDelegate.setDefaultNightMode), which recreates the screens itself
+    void recreateSmoothly(Runnable recreate) {
         View decor = getWindow().getDecorView();
         if (decor.getWidth() == 0 || decor.getHeight() == 0 ||
                 !getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.RESUMED)) {
-            recreate();
+            recreate.run();
             return;
         }
         Bitmap bitmap = Bitmap.createBitmap(decor.getWidth(), decor.getHeight(), Bitmap.Config.ARGB_8888);
@@ -184,13 +189,13 @@ public class ActivityBase extends AppCompatActivity {
                     return;
                 if (result == PixelCopy.SUCCESS)
                     snapshot = bitmap;
-                recreate();
+                recreate.run();
             }, new Handler(Looper.getMainLooper()));
         } catch (IllegalArgumentException ex) {
             // The surface can also be gone just before or after resuming
             Log.w(TAG, "No snapshot: " + ex);
             bitmap.recycle();
-            recreate();
+            recreate.run();
         }
     }
 

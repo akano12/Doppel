@@ -97,6 +97,8 @@ public class FragmentLog extends FragmentBase {
     private List<Entry> entries = new ArrayList<>();
     private List<Entry> errors = new ArrayList<>();
     private final Set<String> expanded = new HashSet<>(); // Entries shown in full, see key
+    // Entries with a text cut off, so a reload shows their arrow at once instead of after the layout, which jumps
+    private final Set<String> clipped = new HashSet<>();
 
     private static String key(Entry entry) {
         return entry.app.packageName + "/" + entry.app.uid + "/" + entry.hook;
@@ -407,6 +409,7 @@ public class FragmentLog extends FragmentBase {
             final TextView tvOldFull;
             final TextView tvNewFull;
             boolean expandable; // Errors show in full when tapped
+            String key; // Of the entry shown, see key
 
             EntryHolder(View itemView) {
                 super(itemView);
@@ -430,8 +433,10 @@ public class FragmentLog extends FragmentBase {
                 // the arrow takes room from the line, so a text which was cut stays cut
                 View.OnLayoutChangeListener check = (v, l, t, r, b, ol, ot, or, ob) -> {
                     if (expandable && ibExpand.getVisibility() != View.VISIBLE &&
-                            (cut(tvApp) || cut(tvOld) || cut(tvNew) || cut(tvHook)))
+                            (cut(tvApp) || cut(tvOld) || cut(tvNew) || cut(tvHook))) {
+                        clipped.add(key);
                         ibExpand.post(() -> ibExpand.setVisibility(View.VISIBLE));
+                    }
                 };
                 for (TextView tv : new TextView[]{tvApp, tvOld, tvNew, tvHook})
                     tv.addOnLayoutChangeListener(check);
@@ -534,12 +539,13 @@ public class FragmentLog extends FragmentBase {
             String newValue = (entry.newValue == null ? "null" : entry.newValue);
             boolean full = (!error && expanded.contains(key(entry)));
             h.expandable = !error;
+            h.key = key(entry);
             h.tvApp.setMaxLines(full ? Integer.MAX_VALUE : 1);
             h.tvHook.setSingleLine(!full);
             for (View v : new View[]{h.tvOld, h.tvArrow, h.tvNew})
                 v.setVisibility(values && !full ? View.VISIBLE : View.GONE);
             h.llFull.setVisibility(values && full ? View.VISIBLE : View.GONE);
-            h.ibExpand.setVisibility(full ? View.VISIBLE : View.GONE);
+            h.ibExpand.setVisibility(full || (!error && clipped.contains(h.key)) ? View.VISIBLE : View.GONE);
             h.ibExpand.setRotation(full ? 180 : 0);
             h.ibExpand.setContentDescription(context.getString(full ? R.string.title_hide_values : R.string.title_show_values));
             if (values) {

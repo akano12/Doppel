@@ -222,7 +222,13 @@ public class FragmentSettings extends FragmentBase {
                         : ApplicationEx.THEME_SYSTEM);
                 Ui.chips(cgTheme, THEME_CHIPS, THEMES, theme, selected -> run(TAG, () -> {
                     Data.putSetting(context, "global", "theme", selected);
-                    post(() -> ApplicationEx.setTheme(context, selected));
+                    // From light to dark or back the screen fades, else nothing is recreated to replace a snapshot
+                    post(() -> {
+                        if (getActivity() instanceof ActivityBase && ApplicationEx.changesNight(getActivity(), selected))
+                            ((ActivityBase) getActivity()).recreateSmoothly(() -> ApplicationEx.setTheme(context, selected));
+                        else
+                            ApplicationEx.setTheme(context, selected);
+                    });
                 }));
                 // Only the dark theme has a black background, also when the system theme is dark;
                 // choosing a theme or a change of the system theme recreates the screen
