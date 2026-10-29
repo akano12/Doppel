@@ -3954,9 +3954,7 @@
       "int"
     ],
     "returnType": "java.lang.String",
-    "minSdk": 1,
-    // officially SDK 23
-    "optional": true,
+    "minSdk": 23,
     "settings": [
       "value.imei",
       "value.meid"
@@ -5585,7 +5583,6 @@
   },
   // Use tracking
   // https://developer.android.com/reference/android/os/Build.html
-  // https://developer.android.com/reference/android/content/res/Configuration.html
   // https://developer.android.com/reference/android/telephony/SubscriptionInfo.html
   // https://developer.android.com/reference/android/telephony/TelephonyManager.html
   // https://developer.android.com/reference/android/webkit/WebView.html
@@ -6597,7 +6594,6 @@
     "returnType": "long",
     "minSdk": 24,
     "usage": false,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6614,7 +6610,6 @@
     "returnType": "long",
     "minSdk": 33,
     "usage": false,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6633,7 +6628,6 @@
     "returnType": "long",
     "minSdk": 23,
     "usage": false,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6650,7 +6644,6 @@
     "returnType": "long",
     "minSdk": 33,
     "usage": false,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6669,7 +6662,6 @@
     "returnType": "void",
     "minSdk": 23,
     "usage": false,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6691,7 +6683,6 @@
     ],
     "returnType": "void",
     "minSdk": 23,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6711,7 +6702,6 @@
     ],
     "returnType": "void",
     "minSdk": 23,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6731,7 +6721,6 @@
     ],
     "returnType": "void",
     "minSdk": 23,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6751,7 +6740,6 @@
     ],
     "returnType": "void",
     "minSdk": 23,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6772,7 +6760,6 @@
     ],
     "returnType": "void",
     "minSdk": 23,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6793,7 +6780,6 @@
     ],
     "returnType": "void",
     "minSdk": 23,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6814,7 +6800,6 @@
     ],
     "returnType": "void",
     "minSdk": 23,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6837,7 +6822,6 @@
     ],
     "returnType": "void",
     "minSdk": 24,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6859,7 +6843,6 @@
     ],
     "returnType": "void",
     "minSdk": 24,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -6882,7 +6865,6 @@
     ],
     "returnType": "void",
     "minSdk": 24,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -8775,7 +8757,6 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 24,
-    "optional": true,
     "luaScript": "@storage_uuid"
   },
   {
@@ -8788,7 +8769,6 @@
     "parameterTypes": [],
     "returnType": "java.util.UUID",
     "minSdk": 31,
-    "optional": true,
     "luaScript": "@storage_uuid"
   },
   // Battery

@@ -287,18 +287,11 @@ public class DeviceValuesScriptTest {
     // settingssecure_getstring tells the default of the system for the settings with the same function
     @Test
     public void systemDefaultIsTheSameAsOfSettings() throws Exception {
-        assertEquals(function("default_app_filter", "systemdefault"), function("settingssecure_getstring", "systemdefault"));
+        assertEquals(Scripts.function("default_app_filter", "systemdefault"),
+                Scripts.function("settingssecure_getstring", "systemdefault"));
     }
 
     // The text of a function of a script, up to its end; a checkout can have CRLF line ends
-    private static String function(String script, String name) throws Exception {
-        String source = Scripts.read(script).replace("\r\n", "\n");
-        int start = source.indexOf("\nfunction " + name + "(");
-        int end = source.indexOf("\nend\n", start);
-        assertTrue(script + " " + name, start >= 0 && end > start);
-        return source.substring(start, end);
-    }
-
     private Varargs defaultApp(Globals globals, String method, String result) {
         return Scripts.run(globals, "return run(hookof('" + method + "', '" + method + "'), appparamof(" + result + "))");
     }
@@ -357,7 +350,7 @@ public class DeviceValuesScriptTest {
         assertEquals("[android.test.base, com.google.android.trichromelibrary, com.example.sdk, com.google.android.maps]",
                 result.arg(2).tojstring());
 
-        // Before Android 8 there is no getSharedLibraries
+        // Without the libraries of apps, like when the lookup fails
         Scripts.run(globals, "libraries = nil");
         result = Scripts.run(globals, "local param = appparamof(arrayof('android.test.base', 'com.qualcomm.qti.audio'))\n" +
                 "local restricted = after(hookof('PackageManager.getSystemSharedLibraryNames', 'getSystemSharedLibraryNames'), param)\n" +

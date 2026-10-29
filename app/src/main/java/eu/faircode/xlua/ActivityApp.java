@@ -191,8 +191,6 @@ public class ActivityApp extends ActivityBase {
             if (app != null)
                 startActivity(ActivityValues.getIntent(this, app.packageName, getLabel()));
         });
-
-        load();
     }
 
     private void load() {
@@ -218,12 +216,14 @@ public class ActivityApp extends ActivityBase {
                 List<XHook> hooks = Data.getAvailable(Data.getHooks(context), app, Data.getCollection(context), null);
                 Map<String, String> settings = Data.getSettings(context, app.packageName);
                 boolean notify = Boolean.parseBoolean(settings.get("notify"));
-                // The fake values of the app itself, the rest come from the values for all apps
-                int own = 0;
+                // The fake values of the app itself, the rest come from the values for all apps;
+                // a value and its mode count once
+                Set<String> own = new HashSet<>();
                 for (String name : settings.keySet())
                     if (!OPTIONS.contains(name))
-                        own++;
-                final int values = own;
+                        own.add(name.endsWith(FakeIds.MODE)
+                                ? name.substring(0, name.length() - FakeIds.MODE.length()) : name);
+                final int values = own.size();
                 postUnlessGone(() -> {
                     // Changed while loading, which was sent after the data was read, on the same background thread;
                     // loading again shows the change, else the switches would go back
@@ -276,7 +276,7 @@ public class ActivityApp extends ActivityBase {
         findViewById(R.id.llAndroid).setVisibility(app.isSystemServer() ? View.VISIBLE : View.GONE);
 
         cbForceStop.setOnCheckedChangeListener(null);
-        cbForceStop.setChecked(app.forceStop && !app.persistent);
+        cbForceStop.setChecked(app.stopsAutomatically());
         cbForceStop.setEnabled(!app.persistent);
         ((TextView) findViewById(R.id.tvForceStop)).setText(app.persistent
                 ? R.string.title_force_stop_persistent : R.string.title_force_stop_hint);
@@ -341,12 +341,10 @@ public class ActivityApp extends ActivityBase {
             Button btnSection = vSection.findViewById(R.id.btnSection);
             btnSection.setVisibility(View.VISIBLE);
             btnSection.setOnClickListener(view -> {
-                boolean all = isComplete(groups);
-                if (!all && app.isSystemServer())
-                    Ui.areYouSure(this, getString(R.string.title_bootloop), R.string.title_restrict_all_groups,
-                            () -> assign(groups, true));
+                if (isComplete(groups))
+                    assign(groups, false);
                 else
-                    assign(groups, !all);
+                    Ui.restrictAll(this, app, () -> assign(groups, true));
             });
             LinearLayout llRows = vSection.findViewById(R.id.llRows);
             for (final String group : groups) {
@@ -560,7 +558,6 @@ public class ActivityApp extends ActivityBase {
         }
     }
 
-
     // All available hooks of the group are assigned
     private boolean isComplete(String group) {
         return (app.getAssignments(group).size() >= available.get(group).size());
@@ -630,11 +627,11 @@ public class ActivityApp extends ActivityBase {
             return;
         final boolean assign = !isComplete();
         final List<String> groups = new ArrayList<>(available.keySet());
-        if (assign && app.isSystemServer()) {
+        if (assign) {
             updateSummary();
-            Ui.areYouSure(this, getString(R.string.title_bootloop), R.string.title_restrict_all_groups, () -> assign(groups, true));
+            Ui.restrictAll(this, app, () -> assign(groups, true));
         } else
-            assign(groups, assign);
+            assign(groups, false);
     }
 
     private void assign(String group, boolean assign) {
@@ -728,7 +725,7 @@ public class ActivityApp extends ActivityBase {
         run(TAG, () -> {
             if (change != null)
                 change.run();
-            if (app.forceStop && !app.persistent)
+            if (app.stopsAutomatically())
                 Data.forceStop(context, app);
         });
     }
@@ -831,8 +828,7 @@ public class ActivityApp extends ActivityBase {
     protected void onResume() {
         super.onResume();
         // The service updates usage and errors while the app runs; changes made here are sent before,
-        // on the same background thread
-        if (app != null)
-            load();
+        // on the same background thread. Also the first load, and again after it failed
+        load();
     }
 }

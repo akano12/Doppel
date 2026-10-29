@@ -23,6 +23,7 @@ package eu.faircode.xlua;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.util.Log;
 
 import java.util.concurrent.ExecutorService;
@@ -88,8 +89,8 @@ public class ReceiverPackage extends BroadcastReceiver {
                 }
             } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
                 if (BuildConfig.APPLICATION_ID.equals(packageName))
-                    // Removed by the owner: the data of all users
-                    Data.clearData(context, userid, userid == 0);
+                    // Removed by the owner: the data of all users, unless other users still have the app
+                    Data.clearData(context, userid, userid == 0 && !installedForAnyUser(context));
                 else {
                     Data.clearApp(context, packageName, uid, true);
                     XNotify.cancelApp(ctx, userid, uid);
@@ -97,6 +98,18 @@ public class ReceiverPackage extends BroadcastReceiver {
             }
         } catch (Throwable ex) {
             XCore.log(ex);
+        }
+    }
+
+    // Hidden PackageManager.MATCH_ANY_USER: installed for any user, which system server may ask
+    private static final int MATCH_ANY_USER = 0x00400000;
+
+    private static boolean installedForAnyUser(Context context) {
+        try {
+            context.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, MATCH_ANY_USER);
+            return true;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return false;
         }
     }
 }

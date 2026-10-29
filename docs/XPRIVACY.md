@@ -232,7 +232,7 @@ If you want to confine apps to their own folder, you can install the hook defini
     * **return an empty list of installed applications**
     * ~~return an empty list of recent tasks~~ apps get only their own tasks since Android 5
     * **return an empty list of running processes**
-    * **return an empty list of running services**
+    * ~~return an empty list of running services~~ apps get only their own services since Android 8
     * ~~return an empty list of running tasks~~ apps get only their own tasks since Android 5
     * **return an empty list of widgets**
     * ~~return an empty list of applications (provider)~~ not available on recent Android versions anymore

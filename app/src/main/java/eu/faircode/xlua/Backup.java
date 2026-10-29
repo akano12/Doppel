@@ -230,7 +230,7 @@ class Backup {
 
             // Only apps whose restrictions changed are stopped; persistent apps apply them after a restart
             int added = Data.assignHooks(context, new ArrayList<>(ids), packageName, uid,
-                    false, app.forceStop && !app.persistent, true);
+                    false, app.stopsAutomatically(), true);
             result.apps++;
             result.added += added;
             if (added > 0) {

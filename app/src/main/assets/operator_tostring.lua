@@ -20,8 +20,6 @@
 -- Use.Tracking like the getters; the network codes of subscriptions have a variant of their own (plmn).
 -- Values run up to the next label, because operator names can contain commas and spaces;
 -- empty values stay, like the getters keep them.
--- Android 8.0 and before print the service state without labels, in which the names can't be found safely,
--- so its definition starts with Android 8.1.
 
 -- Label, fake value and the labels which can follow, of the versions which have the label
 local SERVICE_STATE = {
@@ -69,7 +67,7 @@ local SUBSCRIPTION_PLMN_10 = {
 -- Android 9 and before print the codes as numbers, like getMcc and getMnc return them
 local SUBSCRIPTION_PLMN_NUMBERS = {
     { ' mcc ', '1', { ' mnc ' } },
-    { ' mnc ', '1', { ' SimProvisioningStatus ', ' isEmbedded ', '}' } },
+    { ' mnc ', '1', { ' isEmbedded ' } },
 }
 
 -- Replaces the value after a label up to the nearest of the following labels

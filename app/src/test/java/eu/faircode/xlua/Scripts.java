@@ -62,6 +62,16 @@ final class Scripts {
                 StandardCharsets.UTF_8);
     }
 
+    // The text of a top level function of a script, to compare copies in scripts which are loaded apart
+    static String function(String script, String name) throws IOException {
+        String source = read(script).replace("\r\n", "\n");
+        int start = source.indexOf("\nfunction " + name + "(");
+        int end = source.indexOf("\nend\n", start);
+        if (start < 0 || end < start)
+            throw new AssertionError(script + " " + name);
+        return source.substring(start, end);
+    }
+
     // Strings as a Lua list
     static LuaValue strings(String[] values) {
         LuaValue[] lua = new LuaValue[values.length];

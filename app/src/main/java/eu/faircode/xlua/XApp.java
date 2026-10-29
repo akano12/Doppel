@@ -46,6 +46,11 @@ class XApp implements Parcelable {
         return "android".equals(this.packageName);
     }
 
+    // Stopped when its restrictions or values change; persistent apps restart with the device only
+    boolean stopsAutomatically() {
+        return (this.forceStop && !this.persistent);
+    }
+
     // The name shown, the package name when the app has no label
     String getLabel() {
         return (TextUtils.isEmpty(this.label) ? this.packageName : this.label);

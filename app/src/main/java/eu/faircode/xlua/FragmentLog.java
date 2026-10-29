@@ -99,7 +99,7 @@ public class FragmentLog extends FragmentBase {
     private final Set<String> expanded = new HashSet<>(); // Entries shown in full, see key
 
     private static String key(Entry entry) {
-        return entry.app.uid + "/" + entry.hook;
+        return entry.app.packageName + "/" + entry.app.uid + "/" + entry.hook;
     }
 
     // The log of one app, see ActivityLog

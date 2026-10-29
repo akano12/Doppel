@@ -125,8 +125,7 @@ function vendorlibrary(info)
     return ((kind == TYPE_BUILTIN or kind == TYPE_DYNAMIC) and vendor(info:getName()))
 end
 
--- The names of the libraries of apps, which getSystemSharedLibraryNames lists too, but without the type;
--- none before Android 8, which has neither these libraries nor getSharedLibraries
+-- The names of the libraries of apps, which getSystemSharedLibraryNames lists too, but without the type
 function applibraries(param)
     local names = {}
     -- The lookup is hooked itself (see after), which would restrict it and report it as a call of the app

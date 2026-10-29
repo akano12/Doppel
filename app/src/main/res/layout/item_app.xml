@@ -19,7 +19,8 @@
         <LinearLayout
             android:id="@+id/btnRestrictAll"
             style="@style/XLua.RowAction"
-            android:backgroundTint="?attr/colorPrimary">
+            android:backgroundTint="?attr/colorPrimary"
+            tools:ignore="UseCompoundDrawables">
 
             <ImageView
                 style="@style/XLua.RowAction.Icon"
@@ -36,7 +37,8 @@
         <LinearLayout
             android:id="@+id/btnRemoveAll"
             style="@style/XLua.RowAction"
-            android:backgroundTint="?attr/colorSecondaryContainer">
+            android:backgroundTint="?attr/colorSecondaryContainer"
+            tools:ignore="UseCompoundDrawables">
 
             <ImageView
                 style="@style/XLua.RowAction.Icon"
@@ -53,7 +55,8 @@
         <LinearLayout
             android:id="@+id/btnGroups"
             style="@style/XLua.RowAction"
-            android:backgroundTint="?attr/colorSurfaceContainerHighest">
+            android:backgroundTint="?attr/colorSurfaceContainerHighest"
+            tools:ignore="UseCompoundDrawables">
 
             <ImageView
                 style="@style/XLua.RowAction.Icon"

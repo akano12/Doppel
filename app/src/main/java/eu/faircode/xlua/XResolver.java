@@ -22,7 +22,7 @@ package eu.faircode.xlua;
 import android.util.Log;
 
 import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
@@ -128,7 +128,7 @@ final class XResolver {
                 if (name != null && !name.equals(member.getName()))
                     continue;
 
-                Class<?>[] mparams = parameterTypes(member);
+                Class<?>[] mparams = ((Executable) member).getParameterTypes();
                 if (mparams.length != params.length)
                     continue;
 
@@ -152,13 +152,6 @@ final class XResolver {
                         Log.i(TAG, "- " + member);
             }
         throw new NoSuchMethodException(name == null ? cls.getName() + ".<init>" : name);
-    }
-
-    // The parameter types of a method or constructor; Executable, which has them for both, needs Android 8
-    static Class<?>[] parameterTypes(Member member) {
-        return (member instanceof Method
-                ? ((Method) member).getParameterTypes()
-                : ((Constructor<?>) member).getParameterTypes());
     }
 
     // The methods with a name which objects of the class run: declared by the class or inherited from a super class.

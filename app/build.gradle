@@ -117,7 +117,7 @@ android {
 
     lint {
         // The service and the hook engine use reflection on hidden framework APIs by design, see XCore and XParam
-        disable 'PrivateApi', 'DiscouragedPrivateApi', 'SoonBlockedPrivateApi', 'BlockedPrivateApi'
+        disable 'PrivateApi'
     }
 }
 

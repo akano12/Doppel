@@ -27,7 +27,6 @@ import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.widget.EditText;
 
-import androidx.core.content.ContextCompat;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -55,11 +54,11 @@ class LuaHighlighter {
     LuaHighlighter(EditText editText) {
         this.editText = editText;
         Context context = editText.getContext();
-        colorKeyword = ContextCompat.getColor(context, R.color.c_code_keyword);
-        colorString = ContextCompat.getColor(context, R.color.c_code_string);
-        colorNumber = ContextCompat.getColor(context, R.color.c_code_number);
-        colorFunction = ContextCompat.getColor(context, R.color.c_code_function);
-        colorComment = ContextCompat.getColor(context, R.color.c_code_comment);
+        colorKeyword = context.getColor(R.color.c_code_keyword);
+        colorString = context.getColor(R.color.c_code_string);
+        colorNumber = context.getColor(R.color.c_code_number);
+        colorFunction = context.getColor(R.color.c_code_function);
+        colorComment = context.getColor(R.color.c_code_comment);
         // Highlighting while typing would be slow for long scripts
         Ui.onTextChanged(editText, text -> {
             handler.removeCallbacks(highlight);

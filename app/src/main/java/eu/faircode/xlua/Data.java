@@ -224,7 +224,7 @@ final class Data {
 
     // Assign or remove hooks, which stops the app when it is stopped automatically, unless it is persistent
     static void assign(Context context, XApp app, List<XHook> hooks, boolean assign) {
-        assignHooks(context, getIds(hooks), app.packageName, app.uid, !assign, app.forceStop && !app.persistent, false);
+        assignHooks(context, getIds(hooks), app.packageName, app.uid, !assign, app.stopsAutomatically(), false);
     }
 
     private static ArrayList<String> getIds(List<XHook> hooks) {

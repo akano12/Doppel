@@ -98,7 +98,7 @@ tapping it again removes the restrictions of the group.
 <a name="faq7"></a>
 **(7) How does Doppel compare to XPrivacy?**
 
-* XPrivacy supports Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop and Doppel supports Android version 6.0 Marshmallow and later, see [here](README.md#installation) about compatibility
+* XPrivacy supports Android 4.0.3 Ice Cream Sandwich to Android 5.1.1 Lollipop and Doppel supports Android version 8.1 Oreo and later, see [here](README.md#installation) about compatibility
 * The user interface of Doppel is simpler than of XPrivacy, see also [question 4](#user-content-faq4)
 * The restrictions of Doppel are designed to prevent apps from crashing, while a number of XPrivacy restrictions can cause apps to crash, see also [question 4](#user-content-faq4)
 * Doppel has no on demand restricting for stability and maintenance reasons, see also [question 4](#user-content-faq4)

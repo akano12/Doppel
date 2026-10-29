@@ -101,16 +101,4 @@ public class NotificationScriptTest {
         assertEquals(2, result.arg(4).toint());
         assertEquals("msg", result.arg(5).tojstring());
     }
-
-    // Before Android 8 there are no channels
-    @Test
-    public void noChannelBeforeOreo() {
-        Varargs result = Scripts.run(globals,
-                "sdk = 25\n" +
-                        "local param = paramof(notificationof(nil, 'icon'))\n" +
-                        "after(nil, param)\n" +
-                        "return param.result.channel, param.result.smallIcon");
-        assertTrue(result.arg(1).isnil());
-        assertEquals("icon", result.arg(2).tojstring());
-    }
 }

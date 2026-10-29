@@ -97,7 +97,6 @@ function substitute(param, value, suffix, substitutes)
         end
         return names
     elseif param:isInstance(value, 'android.content.pm.VersionedPackage') then
-        -- The last check, because the class is of Android 8 and later
         local name = hide(param, value:getPackageName(), suffix, substitutes)
         if name ~= nil then
             -- The version is part of the message of the exception

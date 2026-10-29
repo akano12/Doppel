@@ -39,6 +39,7 @@ import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
@@ -115,7 +116,7 @@ public class XParam {
         checkArgument(index);
 
         // A copy, so only made when needed
-        Class<?>[] paramTypes = XResolver.parameterTypes(this.param.method);
+        Class<?>[] paramTypes = ((Executable) this.param.method).getParameterTypes();
         this.param.args[index] = checkValue(paramTypes[index], value, "argument #" + index);
     }
 
@@ -255,11 +256,8 @@ public class XParam {
 
     // Also packages which only some flags of hooked calls find: hidden, archived, uninstalled with data kept
     // and, before Android 16, of another user (profile); and system packages which are not installed for the user
-    // The flag of Android 7 is the same as the one of Android 6
-    @SuppressWarnings("InlinedApi")
     private static PackageInfo getPackageInfo(PackageManager pm, String packageName)
             throws PackageManager.NameNotFoundException {
-        // MATCH_UNINSTALLED_PACKAGES has the value of GET_UNINSTALLED_PACKAGES of Android 6
         long flags = PackageManager.MATCH_UNINSTALLED_PACKAGES;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
             flags |= PackageManager.MATCH_APEX;

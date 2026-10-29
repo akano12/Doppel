@@ -168,7 +168,7 @@ public class FileScriptsTest {
         assertTrue(result.arg(7).isnil());
     }
 
-    // Os.stat with the times of reproducible builds, in nanoseconds from Android 8.1, the rest as it is
+    // Os.stat with the times of reproducible builds, in nanoseconds, the rest as it is
     @Test
     public void storageStat() throws Exception {
         Globals globals = Scripts.load("storage_times", TIMES_STUBS);
@@ -177,12 +177,9 @@ public class FileScriptsTest {
                         "local restricted, old, new = after(hookof('stat'), param)\n" +
                         "local args = param.result.args\n" +
                         "local time = args[9]\n" +
-                        "sdk = 26\n" +
-                        "local older = paramof(statof(1791913509))\n" +
-                        "after(hookof('lstat'), older)\n" +
                         "local faked = paramof(statof(1230768000))\n" +
                         "return restricted, old, new, param.result.class, #args, args[2], args[8], time.class,\n" +
-                        "  time.args[1], time.args[2], args[10] == time and args[11] == time, older.result.args[9],\n" +
+                        "  time.args[1], time.args[2], args[10] == time and args[11] == time,\n" +
                         "  after(hookof('stat'), faked)");
         assertTrue(result.arg(1).toboolean());
         assertEquals("1791913509", result.arg(2).tojstring());
@@ -195,9 +192,8 @@ public class FileScriptsTest {
         assertEquals(1230768000L, result.arg(9).tolong());
         assertEquals(0, result.arg(10).toint());
         assertTrue(result.arg(11).toboolean());
-        assertEquals(1230768000L, result.arg(12).tolong());
         // Times which are faked already stay
-        assertFalse(result.arg(13).toboolean());
+        assertFalse(result.arg(12).toboolean());
     }
 
     // File.lastModified in milliseconds, 0 for a missing folder; java.nio with the time the folder was made,

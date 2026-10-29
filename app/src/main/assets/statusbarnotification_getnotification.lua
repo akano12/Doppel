@@ -34,10 +34,7 @@ function after(hook, param)
     end
 
     local context = param:getApplicationContext()
-    local channel = nil
-    if luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 26 then
-        channel = result:getChannelId()
-    end
+    local channel = result:getChannelId()
     local builder
     if channel == nil then
         builder = luajava.newInstance('android.app.Notification$Builder', context)

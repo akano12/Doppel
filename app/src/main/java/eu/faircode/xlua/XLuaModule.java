@@ -28,8 +28,7 @@ import io.github.libxposed.api.XposedModule;
 
 // Entry point for the modern libxposed API (META-INF/xposed/java_init.list)
 // https://github.com/libxposed/api
-// The modern API requires Android 8.0 or later. The framework instantiates the module and attaches itself
-// before onModuleLoaded.
+// The framework instantiates the module and attaches itself before onModuleLoaded.
 public class XLuaModule extends XposedModule {
     private boolean systemServer = false;
     private XCore core = null;

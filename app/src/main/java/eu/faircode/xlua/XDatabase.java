@@ -157,7 +157,7 @@ class XDatabase {
             {"ContentResolver.query1/gsf_id", "ContentResolver.query26/gsf_id"},
             {"ContentResolver.query1/fb_attribution", "ContentResolver.query26/fb_attribution"},
             {"ContentResolver.query1/oaid", "ContentResolver.query26/oaid"},
-            // Android 8.1 and later: the query of API 16 calls the query of API 26, which is hooked
+            // The query of API 16 calls the query of API 26, which is hooked
             {"ContentResolver.query16/hidden", "ContentResolver.query26/hidden"},
             {"ContentResolver.query16/calendars", "ContentResolver.query26/calendars"},
             {"ContentResolver.query16/call_log", "ContentResolver.query26/call_log"},
@@ -189,7 +189,7 @@ class XDatabase {
             {"ContentProviderClient.query16/debugging", "ContentProviderClient.query26/debugging"},
             {"ContentProviderClient.query16/settings", "ContentProviderClient.query26/settings"},
             {"ContentProviderClient.query16/battery", "ContentProviderClient.query26/battery"},
-            // Android 8.1 and later: Runtime.exec starts processes with ProcessBuilder.start, which is hooked
+            // Runtime.exec starts processes with ProcessBuilder.start, which is hooked
             {"Runtime.exec", "ProcessBuilder.start"},
             {"Runtime.exec/identifiers", "ProcessBuilder.start/identifiers"},
             {"Runtime.exec/packages", "ProcessBuilder.start/packages"},

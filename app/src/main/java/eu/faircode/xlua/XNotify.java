@@ -35,6 +35,7 @@ import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 // Notifications of the service in system server, shown to the user of an app.
@@ -158,13 +159,14 @@ final class XNotify {
         return builder;
     }
 
-    // Opens the restrictions of the app
-    private static PendingIntent getAppIntent(Context context, int requestCode, String packageName) {
-        Intent main = context.getPackageManager().getLaunchIntentForPackage(BuildConfig.APPLICATION_ID);
-        if (main == null)
-            return null;
-        main.putExtra(ActivityMain.EXTRA_PACKAGE, packageName);
-        return PendingIntent.getActivity(context, requestCode, main,
+    // Opens the restrictions of the app; the activity itself, since the launcher entry changes with the icon.
+    // One pending intent per app, since the extra does not tell them apart and apps can share a uid
+    private static PendingIntent getAppIntent(Context context, int uid, String packageName) {
+        Intent main = new Intent(Intent.ACTION_MAIN)
+                .setClassName(BuildConfig.APPLICATION_ID, ActivityMain.class.getName())
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(ActivityMain.EXTRA_PACKAGE, packageName);
+        return PendingIntent.getActivity(context, Objects.hash(packageName, uid), main,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 

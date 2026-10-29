@@ -131,11 +131,10 @@ public class FragmentApps extends FragmentBase {
             @Override
             public void onSetAll(AdapterApp.Row row, boolean restrict) {
                 // Like Restrict all on the screen of the app, restricting all of system server asks first
-                if (restrict && row.app.isSystemServer())
-                    Ui.areYouSure(requireContext(), getString(R.string.title_bootloop),
-                            R.string.title_restrict_all_groups, () -> setAll(row.app, true));
+                if (restrict)
+                    Ui.restrictAll(requireContext(), row.app, () -> setAll(row.app, true));
                 else
-                    setAll(row.app, restrict);
+                    setAll(row.app, false);
             }
 
             @Override
@@ -437,7 +436,7 @@ public class FragmentApps extends FragmentBase {
             else if (was && !is)
                 remove.add(hook.getId());
         }
-        boolean kill = (app.forceStop && !app.persistent);
+        boolean kill = app.stopsAutomatically();
         if (!remove.isEmpty())
             Data.assignHooks(context, remove, app.packageName, app.uid, true, kill && add.isEmpty(), false);
         if (!add.isEmpty())

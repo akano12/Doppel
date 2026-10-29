@@ -35,7 +35,6 @@ import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 import androidx.core.os.BundleCompat;
-import androidx.core.widget.TextViewCompat;
 
 // The bar of the tabs, floating as a pill: the selected tab has its icon next to its label and the width it needs,
 // the other tabs are icons, named for screen readers, which share the rest of the width
@@ -98,7 +97,7 @@ public class NavBar extends LinearLayout {
         LayoutParams lp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         lp.setMarginStart(getResources().getDimensionPixelSize(R.dimen.nav_label_spacing));
         label.setLayoutParams(lp);
-        TextViewCompat.setTextAppearance(label, R.style.XLua_TextAppearance_LabelLarge);
+        label.setTextAppearance(R.style.XLua_TextAppearance_LabelLarge);
         label.setTextColor(context.getColorStateList(R.color.nav_item));
         label.setText(menuItem.getTitle());
         label.setMaxLines(1);

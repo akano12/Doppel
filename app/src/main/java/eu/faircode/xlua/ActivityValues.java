@@ -747,7 +747,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         run(TAG, () -> {
             // Like for restrictions, the app is stopped when it is stopped automatically
             XApp app = (global ? null : Data.getApp(context, category, -1));
-            boolean stop = (app != null && app.forceStop && !app.persistent);
+            boolean stop = (app != null && app.stopsAutomatically());
             List<String> keys = new ArrayList<>(changed.keySet());
             for (int i = 0; i < keys.size(); i++) {
                 // Stop the app once, so it starts with the new values
@@ -758,7 +758,9 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 findViewById(R.id.bar).setVisibility(View.GONE);
                 load();
             });
-            Ui.message(this, getString(stop ? R.string.msg_saved : R.string.msg_saved_restart));
+            // Persistent apps restart with the device only
+            Ui.message(this, getString(stop ? R.string.msg_saved
+                    : app != null && app.persistent ? R.string.msg_saved_reboot : R.string.msg_saved_restart));
         });
     }
 

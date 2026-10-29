@@ -29,6 +29,7 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.text.Editable;
+import android.text.Html;
 import android.text.TextWatcher;
 import android.text.format.DateUtils;
 import android.text.method.LinkMovementMethod;
@@ -45,7 +46,6 @@ import android.widget.TextView;
 import androidx.annotation.StringRes;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.graphics.ColorUtils;
-import androidx.core.text.HtmlCompat;
 import androidx.core.util.Consumer;
 
 import com.bumptech.glide.Glide;
@@ -314,7 +314,7 @@ final class Ui {
         // The years of the copyright of Doppel: from 2026, a range once the year is later
         int year = Calendar.getInstance().get(Calendar.YEAR);
         String years = (year > 2026 ? "2026-" + year : "2026");
-        tvText.setText(HtmlCompat.fromHtml(context.getString(R.string.title_license, years), HtmlCompat.FROM_HTML_MODE_LEGACY));
+        tvText.setText(Html.fromHtml(context.getString(R.string.title_license, years), Html.FROM_HTML_MODE_LEGACY));
         return new MaterialAlertDialogBuilder(context)
                 .setTitle(R.string.app_name)
                 .setView(view);
@@ -365,5 +365,13 @@ final class Ui {
                 .setPositiveButton(positive, (dialog, which) -> onSure.run())
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    // Restricting all of system server can make the device boot loop, so it asks first
+    static void restrictAll(Context context, XApp app, Runnable restrict) {
+        if (app.isSystemServer())
+            areYouSure(context, context.getString(R.string.title_bootloop), R.string.title_restrict_all_groups, restrict);
+        else
+            restrict.run();
     }
 }

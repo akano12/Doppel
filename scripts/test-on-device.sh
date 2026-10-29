@@ -32,7 +32,7 @@ TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
 D8=$TOOLS/d8
 [ -f "$D8" ] || D8=$TOOLS/d8.bat
 ANDROID_JAR=$(ls -d "$ANDROID_HOME"/platforms/android-* | sort -V | tail -1)/android.jar
-"$D8" --min-api 26 --lib "$(win "$ANDROID_JAR")" --output "$(win "$WORK")" "$(win "$WORK/main.jar")" \
+"$D8" --min-api 27 --lib "$(win "$ANDROID_JAR")" --output "$(win "$WORK")" "$(win "$WORK/main.jar")" \
     "$(win "$WORK/test.jar")" "$(win "$JUNIT")" "$(win "$HAMCREST")" 2>&1 | grep -v -i -e '^warning' -e 'missing class' -e '^ ' || true
 
 # The tests read the scripts and Downloads from the source folders, relative to the folder of the app;

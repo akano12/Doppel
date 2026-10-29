@@ -228,6 +228,12 @@ public class FakeValuesAgreeTest {
         assertEquals("com.android.contacts", run(open, "authorityof(uriof('10@com.android.contacts'))"));
     }
 
+    // The hooks of opening files and cat run by the app follow links to /sys the same way
+    @Test
+    public void resolveIsTheSame() throws Exception {
+        assertEquals(Scripts.function("hardware_files", "resolve"), Scripts.function("shell_commands", "resolve"));
+    }
+
     // The files of /sys which do not exist for each group: the hooks of opening files (hardware_files,
     // Lua patterns) and cat run by the app (shell_commands, patterns of the shell) hide the same ones
     @Test

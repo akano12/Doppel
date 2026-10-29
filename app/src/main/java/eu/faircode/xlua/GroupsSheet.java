@@ -125,11 +125,8 @@ final class GroupsSheet {
         view.findViewById(R.id.cvAll).setOnClickListener(v -> {
             if (isComplete(available))
                 assign(available, false);
-            else if (app.isSystemServer())
-                Ui.areYouSure(activity, activity.getString(R.string.title_bootloop),
-                        R.string.title_restrict_all_groups, () -> assign(available, true));
             else
-                assign(available, true);
+                Ui.restrictAll(activity, app, () -> assign(available, true));
         });
         view.findViewById(R.id.btnMore).setOnClickListener(v -> {
             dialog.dismiss();
@@ -177,13 +174,11 @@ final class GroupsSheet {
             for (String group : names)
                 hooks.addAll(groups.get(group));
             btnSection.setOnClickListener(v -> {
-                boolean all = isComplete(hooks);
                 // Like Restrict all, restricting all of a section of system server asks first
-                if (!all && app.isSystemServer())
-                    Ui.areYouSure(activity, activity.getString(R.string.title_bootloop),
-                            R.string.title_restrict_all_groups, () -> assign(hooks, true));
+                if (isComplete(hooks))
+                    assign(hooks, false);
                 else
-                    assign(hooks, !all);
+                    Ui.restrictAll(activity, app, () -> assign(hooks, true));
             });
             sections.add(() -> {
                 int restricted = 0;

@@ -102,16 +102,6 @@ public class OperatorTextScriptTest {
                 "mOperatorAlphaShortRaw=unknown, mIsIwlanPreferred=false}", result.arg(2).tojstring());
     }
 
-    // Android 8.0 and before print the values without labels, which stay
-    @Test
-    public void serviceStateWithoutLabels() {
-        String text = "0 0 voice home data home Carrier, Inc. CAR 310260 Carrier, Inc. CAR 310260  LTE LTE " +
-                "CSS not supported -1 -1 RoamInd=-1 DefRoamInd=-1 EmergOnly=false IsDataRoamingFromRegistration=false";
-        Varargs result = after(SERVICE_STATE, text);
-        assertFalse(result.arg1().toboolean());
-        assertEquals(text, result.arg(2).tojstring());
-    }
-
     // Without service the names are empty, a fake value would tell they are faked
     @Test
     public void emptyValuesStay() {
@@ -207,17 +197,5 @@ public class OperatorTextScriptTest {
                 both("{id=1, iccId=[****] simSlotIndex=0 displayName=My Carrier carrierName=My Carrier nameSource=0 " +
                         "iconTint=0 dataRoaming=0 iconBitmap=null mcc 310 mnc 260 isEmbedded false accessRules null " +
                         "cardId=[****]}"));
-        // Android 7.0
-        assertEquals("{id=1, iccId=[****] simSlotIndex=0 displayName=unknown carrierName=unknown nameSource=0 " +
-                        "iconTint=0 dataRoaming=0 iconBitmap=null mcc 1 mnc 1 SimProvisioningStatus 0}",
-                both("{id=1, iccId=[****] simSlotIndex=0 displayName=My Carrier carrierName=My Carrier nameSource=0 " +
-                        "iconTint=0 dataRoaming=0 iconBitmap=null mcc 310 mnc 260 SimProvisioningStatus 0}"));
-        // Android 6, 7.1 and 8.0
-        Varargs result = after(SUBSCRIPTION, PLMN,
-                "{id=1, iccId=[****] simSlotIndex=0 displayName=My Carrier carrierName=My Carrier nameSource=0 " +
-                        "iconTint=0 dataRoaming=0 iconBitmap=null mcc 310 mnc 260}");
-        assertTrue(result.arg1().toboolean());
-        assertEquals("{id=1, iccId=[****] simSlotIndex=0 displayName=My Carrier carrierName=My Carrier nameSource=0 " +
-                "iconTint=0 dataRoaming=0 iconBitmap=null mcc 1 mnc 1}", result.arg(2).tojstring());
     }
 }

@@ -4,7 +4,7 @@
     <string name="app_name" translatable="false">Doppel</string>
     <string name="app_description">Privacy manager feeding apps fake data instead of real data</string>
 
-    <string name="title_license" translatable="false" tools:ignore="PluralsCandidate">
+    <string name="title_license" translatable="false">
         This app is meant to be used to protect your privacy.
         <![CDATA[<br><br>]]>Doppel is based on XPrivacyLua by Marcel Bokhorst (M66B).
         <![CDATA[<br><br>]]>Copyright 2017-2022 Marcel Bokhorst, copyright %1$s akano12. All rights reserved.
@@ -13,6 +13,7 @@
         <![CDATA[<br><br><b>LuaJ</b><br>]]>Copyright 2007-2013 LuaJ. All rights reserved. See the <![CDATA[<a href="http://luaj.sourceforge.net/license.txt">license</a>]]>.
         <![CDATA[<br><br><b>Glide</b><br>]]>Copyright 2014 Google, Inc. All rights reserved. See the <![CDATA[<a href="https://raw.githubusercontent.com/bumptech/glide/master/LICENSE">license</a>]]>.
         <![CDATA[<br><br><b>AndroidX</b><br>]]>Copyright 2011 The Android Open Source Project. See the <![CDATA[<a href="https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt">license</a>]]>.
+        <![CDATA[<br><br><b>libxposed service</b><br>]]>See the <![CDATA[<a href="https://github.com/libxposed/service/blob/master/LICENSE">license</a>]]> (Apache License 2.0).
         <![CDATA[<br><br><b>IBM Plex</b><br>]]>Copyright 2017 IBM Corp. with Reserved Font Name \"Plex\". See the <![CDATA[<a href="https://github.com/IBM/plex/blob/master/LICENSE.txt">license</a>]]> (SIL Open Font License 1.1).
         <![CDATA[<br><br><b>Material Symbols</b><br>]]>Copyright Google LLC. See the <![CDATA[<a href="https://www.apache.org/licenses/LICENSE-2.0">license</a>]]> (Apache License 2.0).
     </string>
@@ -71,6 +72,7 @@
     <!-- Messages -->
     <string name="msg_saved">Saved</string>
     <string name="msg_saved_restart">Saved, restart apps to apply</string>
+    <string name="msg_saved_reboot">Saved, restart the device to apply</string>
     <string name="msg_invalid">Invalid value: %1$s</string>
 
     <!-- Hook definitions -->

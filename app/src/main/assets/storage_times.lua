@@ -89,21 +89,14 @@ function after(hook, param)
         return true, tostring(result), tostring(FAKE * 1000)
     end
 
-    -- Os.stat and Os.lstat, with times in nanoseconds from Android 8.1
+    -- Os.stat and Os.lstat, with times in nanoseconds
     if result.st_atime == FAKE and result.st_mtime == FAKE and result.st_ctime == FAKE then
         return false
     end
-    local fake
-    if luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 27 then
-        local time = luajava.newInstance('android.system.StructTimespec', FAKE, 0)
-        fake = luajava.newInstance('android.system.StructStat',
-                result.st_dev, result.st_ino, result.st_mode, result.st_nlink, result.st_uid, result.st_gid,
-                result.st_rdev, result.st_size, time, time, time, result.st_blksize, result.st_blocks)
-    else
-        fake = luajava.newInstance('android.system.StructStat',
-                result.st_dev, result.st_ino, result.st_mode, result.st_nlink, result.st_uid, result.st_gid,
-                result.st_rdev, result.st_size, FAKE, FAKE, FAKE, result.st_blksize, result.st_blocks)
-    end
+    local time = luajava.newInstance('android.system.StructTimespec', FAKE, 0)
+    local fake = luajava.newInstance('android.system.StructStat',
+            result.st_dev, result.st_ino, result.st_mode, result.st_nlink, result.st_uid, result.st_gid,
+            result.st_rdev, result.st_size, time, time, time, result.st_blksize, result.st_blocks)
     param:setResult(fake)
     return true, tostring(result.st_mtime), tostring(FAKE)
 end
