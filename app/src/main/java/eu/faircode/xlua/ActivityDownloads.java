@@ -48,7 +48,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.InputStream;
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -83,7 +82,6 @@ public class ActivityDownloads extends ActivityBase {
         int version;
         String description;
         long updated;
-        int downloads;
         String className;
         String methodName;
         String[] parameterTypes;
@@ -178,7 +176,7 @@ public class ActivityDownloads extends ActivityBase {
     private void load() {
         final Context context = getApplicationContext();
         run(TAG, () -> {
-            // The list has the time of the update and the downloads, the definition files, as installed, the rest
+            // The list has the time of the update, the definition files, as installed, the rest
             List<Entry> entries = new ArrayList<>();
             JSONArray jlist = new JSONObject(readAsset(context, REPO + "list.json")).getJSONArray("list");
             for (int i = 0; i < jlist.length(); i++) {
@@ -186,7 +184,6 @@ public class ActivityDownloads extends ActivityBase {
                 Entry entry = new Entry();
                 entry.id = jentry.getInt("id");
                 entry.updated = jentry.optLong("updated") * 1000L;
-                entry.downloads = jentry.optInt("downloads");
 
                 JSONObject jhook = readDefinition(context, entry);
                 entry.collection = jhook.getString("collection");
@@ -606,9 +603,7 @@ public class ActivityDownloads extends ActivityBase {
                     0, meta.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             meta.append(" · ").append(getString(R.string.title_download_meta, entry.author, entry.version,
                     DateUtils.formatDateTime(context, entry.updated, DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_YEAR |
-                            DateUtils.FORMAT_NO_MONTH_DAY | DateUtils.FORMAT_ABBREV_MONTH),
-                    getResources().getQuantityString(R.plurals.title_downloads_count, entry.downloads,
-                            NumberFormat.getIntegerInstance().format(entry.downloads))));
+                            DateUtils.FORMAT_NO_MONTH_DAY | DateUtils.FORMAT_ABBREV_MONTH)));
             h.tvMeta.setText(meta);
 
             boolean hasDescription = !TextUtils.isEmpty(entry.description);

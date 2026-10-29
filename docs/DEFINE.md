@@ -266,7 +266,7 @@ Sharing
 With *Downloads* on the *Hooks* tab you can install hook definitions shared by others, which are part of the app (folder *repo*).
 Downloads offers definitions about privacy which Doppel does not have built in.
 To share a definition, export it in the hook editor and offer it as a pull request,
-as *repo/hook_N.json* with an entry with the id N, the time of the update (seconds since 1970) and 0 downloads in *repo/list.json*.
+as *repo/hook_N.json* with an entry with the id N, and the time of the update (seconds since 1970) in *repo/list.json*.
 A changed definition needs a higher *version* and a new time of the update, so Downloads offers the update.
 
 If you have questions, you can ask them in an [issue](https://github.com/akano12/Doppel/issues).

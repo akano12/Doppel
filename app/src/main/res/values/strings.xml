@@ -443,7 +443,7 @@
     <string name="msg_remove_restores">Remove \'%1$s\'? The built-in definition it replaced is used again.</string>
     <string name="msg_removed">Removed %1$s</string>
     <string name="title_replaces_builtin">replaces built-in</string>
-    <string name="title_download_meta">%1$s · v%2$d · %3$s · %4$s</string>
+    <string name="title_download_meta">%1$s · v%2$d · %3$s</string>
     <plurals name="title_definition_count">
         <item quantity="one">%1$d definition</item>
         <item quantity="other">%1$d definitions</item>
@@ -480,11 +480,6 @@
     <plurals name="msg_hooks_exported">
         <item quantity="one">Exported %1$d definition</item>
         <item quantity="other">Exported %1$d definitions</item>
-    </plurals>
-    <!-- The number is formatted with its grouping separators -->
-    <plurals name="title_downloads_count">
-        <item quantity="one">%1$s download</item>
-        <item quantity="other">%1$s downloads</item>
     </plurals>
     <string name="title_enable">Enable</string>
     <string name="msg_installed">Installed %1$s</string>

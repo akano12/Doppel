@@ -307,14 +307,14 @@ public class HookDefinitionsTest {
     }
 
     // The definitions offered by Downloads (repo/), which are installed as they are, see Data.putCustom.
-    // The list has the id, the time of the last update (seconds) and the number of downloads of each definition,
+    // The list has the id and the time of the last update (seconds) of each definition,
     // the attributes Downloads shows otherwise, like the name and version, are those of the definition,
     // see ActivityDownloads.load
     @Test
     public void repositoryIsValid() throws Exception {
         File repo = new File("../repo");
         JSONArray list = new JSONObject(readLikeAndroid(new File(repo, "list.json"))).getJSONArray("list");
-        Set<String> attributes = new HashSet<>(Arrays.asList("id", "updated", "downloads"));
+        Set<String> attributes = new HashSet<>(Arrays.asList("id", "updated"));
         Set<String> listed = new HashSet<>();
         Set<String> ids = new HashSet<>();
         for (int i = 0; i < list.length(); i++) {
@@ -323,7 +323,6 @@ public class HookDefinitionsTest {
             assertEquals(file.getName() + " list attributes", attributes, keys(entry));
             assertTrue(file.getName() + " listed twice", listed.add(file.getName()));
             assertTrue(file.getName() + " updated", entry.getLong("updated") > 0);
-            assertTrue(file.getName() + " downloads", entry.getInt("downloads") >= 0);
             assertTrue("Missing " + file, file.exists());
 
             JSONObject hook = new JSONObject(readLikeAndroid(file));
