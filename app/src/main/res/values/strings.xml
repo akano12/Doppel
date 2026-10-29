@@ -549,7 +549,7 @@
     <string name="section_appearance">Appearance</string>
     <string name="section_data">Data</string>
     <string name="section_about">About</string>
-    <string name="title_restrict_new_hint">Restrict all groups when an app is installed</string>
+    <string name="title_restrict_new_hint">Restrict all groups when an app is installed. The app also needs to be in Doppel\'s LSPosed scope, see its screen</string>
     <string name="title_notify_new_hint">Show a notification when an app is installed</string>
     <string name="title_collections">Collections</string>
     <string name="title_theme">Theme</string>

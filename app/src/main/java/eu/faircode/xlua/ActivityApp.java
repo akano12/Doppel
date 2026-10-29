@@ -678,7 +678,6 @@ public class ActivityApp extends ActivityBase {
         run(TAG, () -> Data.assign(context, app, hooks, assign));
     }
 
-    // Changes apply when the app starts, stopped apps start with the new restrictions
     // The LSPosed scope toggle: shown only when a framework with the libxposed service is connected, and never for
     // the system server or Doppel itself, whose scope must stay. The scope is read off the main thread (a binder call).
     private void refreshScope() {
@@ -699,8 +698,7 @@ public class ActivityApp extends ActivityBase {
     }
 
     // Show the scope state without firing the listener, then listen: turning it on asks the framework (which asks the
-    // user) and reconciles to the real state in the callback; turning it off removes the app. A scope change applies
-    // when the app's process next starts, like a restriction, so it marks the app dirty for the restart hint.
+    // user) and reconciles to the real state in the callback; turning it off removes the app
     private void setScope(String pkg, boolean inScope) {
         cbScope.setOnCheckedChangeListener(null);
         cbScope.setChecked(inScope);
@@ -708,22 +706,34 @@ public class ActivityApp extends ActivityBase {
         cbScope.setOnCheckedChangeListener((button, checked) -> {
             if (checked) {
                 Ui.message(this, getString(R.string.msg_scope_requested));
-                Scope.add(pkg, (nowInScope, error) -> postUnlessGone(() -> {
+                run(TAG, () -> Scope.add(pkg, (nowInScope, error) -> postUnlessGone(() -> {
                     setScope(pkg, nowInScope);
-                    if (nowInScope) {
-                        dirty = true;
-                        updateRestart();
-                    } else if (error != null)
+                    if (nowInScope)
+                        scopeChanged(null);
+                    else if (error != null)
                         Ui.message(this, getString(R.string.msg_scope_failed, error));
-                }));
-            } else {
-                run(TAG, () -> Scope.remove(pkg));
-                dirty = true;
-                updateRestart();
-            }
+                })));
+            } else
+                scopeChanged(() -> Scope.remove(pkg));
         });
     }
 
+    // A scope change applies when the app's process next starts, like a restriction: the app is stopped after the
+    // change when it is stopped automatically, else the restart hint shows
+    private void scopeChanged(Ui.Task change) {
+        dirty = true;
+        updateRestart();
+        final Context context = getApplicationContext();
+        final XApp app = this.app;
+        run(TAG, () -> {
+            if (change != null)
+                change.run();
+            if (app.forceStop && !app.persistent)
+                Data.forceStop(context, app);
+        });
+    }
+
+    // Changes apply when the app starts, stopped apps start with the new restrictions
     private void updateRestart() {
         boolean show = (dirty && (app.persistent || !app.forceStop));
         llRestart.setVisibility(show ? View.VISIBLE : View.GONE);
