@@ -69,18 +69,10 @@ In the demo, AIDA64 joins Doppel's LSPosed scope from its own screen: approve th
 Features
 --------
 
-<table>
-<tr>
-<td width="33%" valign="top"><img src="docs/images/icons/restrict.svg" width="32" alt=""><br><b>Restrict any app</b><br>User and system apps, by group or by single hook, and new apps as soon as they are installed.</td>
-<td width="33%" valign="top"><img src="docs/images/icons/fake.svg" width="32" alt=""><br><b>Fake values</b><br>IMEI, Android ID, location, time zone and more; new each boot and different per app if you like.</td>
-<td width="33%" valign="top"><img src="docs/images/icons/activity.svg" width="32" alt=""><br><b>Activity</b><br>Every restricted call of each app, with the real and the fake value.</td>
-</tr>
-<tr>
-<td valign="top"><img src="docs/images/icons/hooks.svg" width="32" alt=""><br><b>Your own hooks</b><br>Edit, import and export hook definitions, or <a href="docs/DEFINE.md">write your own</a> in Lua.</td>
-<td valign="top"><img src="docs/images/icons/downloads.svg" width="32" alt=""><br><b>Downloads</b><br>Extra definitions that come with Doppel, like more analytics SDKs and a domain firewall. Install the ones you want.</td>
-<td valign="top"><img src="docs/images/icons/settings.svg" width="32" alt=""><br><b>Settings</b><br>Backup and restore, themes, accent colors and app icons. Multi-user, free and open source.</td>
-</tr>
-</table>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/features-dark.svg">
+  <img src="docs/images/features-light.svg" width="100%" alt="Restrict any app: user and system apps, by group or by single hook, and new apps as soon as they are installed. Fake values: IMEI, Android ID, location, time zone and more, new each boot and different per app. Activity: every restricted call of each app, with the real and the fake value. Your own hooks: edit, import and export hook definitions, or write your own in Lua. Downloads: extra definitions that come with Doppel, like more analytics SDKs and a domain firewall. Settings: backup and restore, themes, accent colors and app icons; multi-user, free and open source.">
+</picture>
 
 Screenshots
 -----------
