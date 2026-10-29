@@ -126,7 +126,9 @@ The details are in [hooks.json](app/src/main/assets/hooks.json); [here](docs/XPR
   still link itself within one awake session (until the device sleeps) from the wall clock minus the uptime. A location
   fix's time and elapsed-time alarms are corrected to the shift, so a fix reads as fresh and alarms still fire on time,
   but timestamps the system reports on that clock in other ways are not: sensor events and camera frames can read as
-  the shift old, and a media app's progress bar on the lock screen can be off by the shift.
+  the shift old, and a media app's progress bar on the lock screen can be off by the shift. This stops apps that read
+  the boot time without knowing Doppel, which is how trackers link apps; an app written to defeat Doppel can read its
+  own offset the same way its hooks do and undo the shift, like it can tell Doppel is there.
 * Restricted apps can detect Doppel, but cannot change anything, see [the FAQ](FAQ.md#user-content-faq21).
 * Apps with root access can get around any restriction.
 
