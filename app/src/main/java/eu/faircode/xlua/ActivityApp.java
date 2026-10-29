@@ -88,6 +88,7 @@ public class ActivityApp extends ActivityBase {
     private final Set<String> expanded = new HashSet<>(); // Groups which show their hooks
     private boolean dirty = false; // Changed restrictions which do not apply yet
     private int changes = 0; // Changes made here, which a reload started before does not show yet
+    private int scopeRequests = 0; // Scope requests made here, a newer one supersedes the ones before
     private String reveal = null; // The id of a hook tapped in the log, shown when the restrictions are
 
     private MaterialToolbar toolbar;
@@ -703,7 +704,11 @@ public class ActivityApp extends ActivityBase {
         cbScope.setOnCheckedChangeListener((button, checked) -> {
             if (checked) {
                 Ui.message(this, getString(R.string.msg_scope_requested));
+                final int request = ++scopeRequests;
                 run(TAG, () -> Scope.add(pkg, (nowInScope, error) -> postUnlessGone(() -> {
+                    // The framework fails a request still open when a newer one comes, which reports for itself
+                    if (!nowInScope && request != scopeRequests)
+                        return;
                     setScope(pkg, nowInScope);
                     if (nowInScope)
                         scopeChanged(null);
