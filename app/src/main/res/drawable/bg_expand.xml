@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Round badge behind the expand arrow of a log row, in the color of the value chips; the touch area stays 48dp -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?attr/colorControlHighlight">
+    <item>
+        <inset android:inset="13dp">
+            <shape android:shape="oval">
+                <solid android:color="?attr/colorSecondaryContainer" />
+            </shape>
+        </inset>
+    </item>
+</ripple>
