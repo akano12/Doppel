@@ -45,15 +45,12 @@ Your real data never reaches the app. Each restricted call shows up under *Activ
 What an app sees
 ----------------
 
-<table>
-<tr>
-<td width="240" align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/demo-dark.gif">
-  <img src="docs/images/demo-light.gif" width="220" alt="Adding AIDA64 to the LSPosed scope from its screen in Doppel, approving the request, restricting all groups and opening its fake values">
-</picture>
-</td>
-<td>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/demo-dark.gif">
+    <img src="docs/images/demo-light.gif" width="260" alt="Adding AIDA64 to the LSPosed scope from its screen in Doppel, approving the request, restricting all groups and opening its fake values">
+  </picture>
+</p>
 
 | The app asks for                | Without Doppel                  | With Doppel                                     |
 |---------------------------------|---------------------------------|-------------------------------------------------|
@@ -66,10 +63,6 @@ What an app sees
 | `getprop`, `pm`, `cat`          | the real values                 | the same fakes                                  |
 
 <sub>Example values.</sub>
-
-</td>
-</tr>
-</table>
 
 Features
 --------
