@@ -173,6 +173,7 @@ public class ActivityDownloads extends ActivityBase {
         run(TAG, () -> showInstalled(context));
     }
 
+    // An error offers a retry, since the screen shows nothing without the list
     private void load() {
         final Context context = getApplicationContext();
         run(TAG, () -> {
@@ -220,7 +221,7 @@ public class ActivityDownloads extends ActivityBase {
                 pbLoading.setVisibility(View.GONE);
                 show();
             });
-        });
+        }, this::load);
     }
 
     // All definitions by id, built-in and custom

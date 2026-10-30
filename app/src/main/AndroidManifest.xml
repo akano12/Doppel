@@ -36,13 +36,19 @@
             android:name="xposedscope"
             android:resource="@array/scopes" />
 
-        <!-- The libxposed service delivers its binder through this provider (declared by the library). Doppel's UI
-             runs after unlock, so it need not start before, which would run ApplicationEx before credential storage -->
+        <!-- The libxposed service delivers its binder through a provider with this authority. The one of the library
+             takes it from any app, so ScopeProvider replaces it. Doppel's UI runs after unlock, so it need not start
+             before, which would run ApplicationEx before credential storage -->
         <provider
             android:name="io.github.libxposed.service.XposedProvider"
+            android:authorities="${applicationId}.XposedService"
+            tools:node="remove" />
+        <provider
+            android:name=".ScopeProvider"
+            android:authorities="${applicationId}.XposedService"
             android:directBootAware="false"
-            tools:ignore="ExportedContentProvider"
-            tools:replace="android:directBootAware" />
+            android:exported="true"
+            tools:ignore="ExportedContentProvider" />
 
         <activity
             android:name=".ActivityMain"

@@ -246,6 +246,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private List<Row> all = new ArrayList<>();
     private List<Row> shown = new ArrayList<>();
     private List<Object> items = new ArrayList<>();
+    private long bound = 0; // When the rows were last compared, see set
     private Filter filter = Filter.USER;
     private Sort sort = Sort.NAME;
     private String query = null;
@@ -395,6 +396,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
         // Sections: failures by name, new apps and recent apps by time, all apps as sorted
         long now = System.currentTimeMillis();
+        // The times of the rows, like 'just now', change by the minute, also when their data does not
+        final boolean stale = (now - bound >= DateUtils.MINUTE_IN_MILLIS);
+        bound = now;
         Map<Section, List<Row>> sections = new EnumMap<>(Section.class);
         for (Section section : Section.values())
             sections.put(section, new ArrayList<>());
@@ -457,7 +461,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 }
                 Item i1 = (Item) o;
                 Item i2 = (Item) n;
-                return (i1.section == i2.section && i1.first == i2.first && i1.last == i2.last &&
+                return (!stale && i1.section == i2.section && i1.first == i2.first && i1.last == i2.last &&
                         i1.row.hasSameContent(i2.row));
             }
         });

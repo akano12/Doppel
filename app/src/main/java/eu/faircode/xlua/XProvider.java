@@ -404,7 +404,9 @@ class XProvider {
             if (marker == null)
                 known.addAll(enabled);
             else
-                known.addAll(Util.split(marker));
+                // Under the names of now, like a restore does, so a renamed definition is not new
+                for (String id : Util.split(marker))
+                    known.add(Backup.renamed(id));
 
             List<String> added = new ArrayList<>();
             for (String id : enabled)
@@ -856,18 +858,19 @@ class XProvider {
             return new Bundle();
         }
 
-        long ident = Binder.clearCallingIdentity();
-        try {
-            Context ctx = Util.createContextForUser(context, userid);
-
-            // The first use of a group, or each use for hooks which notify
-            if (restrictedUse && (hook.doNotify() || (notify && used < 0)))
-                XNotify.notifyUsage(ctx, userid, uid, packageName, hook.getGroup(), hookid);
-
-            if (firstError[0])
-                XNotify.notifyException(ctx, userid, uid, packageName, hookid);
-        } finally {
-            Binder.restoreCallingIdentity(ident);
+        // The first use of a group, or each use for hooks which notify; most reports notify nothing
+        boolean notifyUse = (restrictedUse && (hook.doNotify() || (notify && used < 0)));
+        if (notifyUse || firstError[0]) {
+            long ident = Binder.clearCallingIdentity();
+            try {
+                Context ctx = Util.createContextForUser(context, userid);
+                if (notifyUse)
+                    XNotify.notifyUsage(ctx, userid, uid, packageName, hook.getGroup(), hookid);
+                if (firstError[0])
+                    XNotify.notifyException(ctx, userid, uid, packageName, hookid);
+            } finally {
+                Binder.restoreCallingIdentity(ident);
+            }
         }
 
         return new Bundle();

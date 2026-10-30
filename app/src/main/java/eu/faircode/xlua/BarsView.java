@@ -63,8 +63,10 @@ public class BarsView extends View {
         float height = getHeight();
         float line = Ui.dp(getContext(), 2);
         float radius = Ui.dp(getContext(), 1);
+        // The first value at the start, like the labels of the axis, which is the right for RTL
+        boolean rtl = (getLayoutDirection() == LAYOUT_DIRECTION_RTL);
         for (int i = 0; i < count; i++) {
-            float x = i * (width + gap);
+            float x = (rtl ? getWidth() - width - i * (width + gap) : i * (width + gap));
             float bar = (values[i] == 0 ? line : Math.max(line, height * values[i] / max));
             paint.setColor(values[i] == 0 ? none : values[i] == max ? most : some);
             canvas.drawRoundRect(x, height - bar, x + width, height, radius, radius, paint);

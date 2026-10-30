@@ -683,12 +683,16 @@ public class ShellCommandsScriptTest {
             String dir = System.getenv("XLUA_TEST_BIN");
             File sh = locate(dir, "sh");
             Assume.assumeTrue("No shell", sh != null);
-            bin = Files.createTempDirectory("xlua-bin").toFile();
-            for (String tool : new String[]{"sh", "sed", "grep", "printf", "cat", "readlink", "head", "dd"}) {
-                File file = locate(dir, tool);
-                Assume.assumeTrue("No " + tool, file != null);
-                Files.createSymbolicLink(new File(bin, tool).toPath(), file.getAbsoluteFile().toPath());
+            // All tools first, so a missing one skips each test, instead of leaving a directory without it
+            String[] names = {"sh", "sed", "grep", "printf", "cat", "readlink", "head", "dd"};
+            File[] files = new File[names.length];
+            for (int i = 0; i < names.length; i++) {
+                files[i] = locate(dir, names[i]);
+                Assume.assumeTrue("No " + names[i], files[i] != null);
             }
+            bin = Files.createTempDirectory("xlua-bin").toFile();
+            for (int i = 0; i < names.length; i++)
+                Files.createSymbolicLink(new File(bin, names[i]).toPath(), files[i].getAbsoluteFile().toPath());
 
             String header = "#!" + sh.getAbsolutePath() + "\nd=" + bin.getAbsolutePath() + "\n";
             stand("getprop", header +

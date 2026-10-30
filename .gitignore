@@ -9,3 +9,5 @@
 /captures
 /app/release
 keystore.properties
+*.jks
+*.keystore

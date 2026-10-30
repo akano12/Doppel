@@ -60,6 +60,10 @@ public class FragmentSettings extends FragmentBase {
     private static final int[] THEME_CHIPS = {R.id.chipThemeSystem, R.id.chipThemeLight, R.id.chipThemeDark};
     private static final String[] THEMES = {ApplicationEx.THEME_SYSTEM, ApplicationEx.THEME_LIGHT, ApplicationEx.THEME_DARK};
 
+    // What the last restore did, shown by load once the restored colors do not recreate the screen anymore,
+    // which would close the dialog
+    private static Backup.Result restored = null;
+
     private ImageView ivStatus;
     private TextView tvStatus;
     private TextView tvVersion;
@@ -176,6 +180,10 @@ public class FragmentSettings extends FragmentBase {
                 if (ApplicationEx.sync(context, colors)) {
                     ((ActivityBase) requireActivity()).recreateSmoothly();
                     return;
+                }
+                if (restored != null && !ApplicationEx.changesNight(requireActivity(), colors.theme)) {
+                    showRestored(requireActivity(), restored);
+                    restored = null;
                 }
                 showPalettes(ApplicationEx.getPalette(context));
                 swBlack.setOnCheckedChangeListener(null);
@@ -382,11 +390,8 @@ public class FragmentSettings extends FragmentBase {
     private void restore(Uri uri) {
         final Activity activity = requireActivity();
         run(TAG, () -> {
-            Backup.Result result = Backup.restore(activity, uri);
-            post(() -> {
-                showRestored(activity, result);
-                load();
-            });
+            restored = Backup.restore(activity, uri);
+            post(this::load);
         });
     }
 

@@ -129,6 +129,8 @@ final class GroupsSheet {
                 Ui.restrictAll(activity, app, () -> assign(available, true));
         });
         view.findViewById(R.id.btnMore).setOnClickListener(v -> {
+            // No Undo behind the app screen, which shows the changes; the list reloads when it is back
+            dialog.setOnDismissListener(null);
             dialog.dismiss();
             activity.startActivity(ActivityApp.getIntent(activity, app.packageName, app.uid));
         });

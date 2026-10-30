@@ -129,7 +129,8 @@ The functions of *param* ([all](../app/src/main/java/eu/faircode/xlua/XParam.jav
 * *getException()*: the exception the hooked method threw, in *after*
 * *getSetting(name)*: a setting (fake value) of the definition, see above
 * *getApplicationContext()*: the context of the app, see remarks below
-* *getPackageName()*, *getUid()* and *isSystem()*: the app and whether it is a system app
+* *getPackageName()*, *getUid()* and *isSystem()*: the app and whether it runs with a system uid (below 10000),
+  like system server and Settings; preinstalled apps like Google Play services do not
 * *findClass(name)* and *isInstance(object, className)*: classes of the app, see remarks below
 * *isPackageVisible(packageName)*, *isUidVisible(uid)*, *isVisible(applicationInfo)* and *isInstalledVisible(packageName)*:
   whether another app is visible to the app, see the group *Get applications*
