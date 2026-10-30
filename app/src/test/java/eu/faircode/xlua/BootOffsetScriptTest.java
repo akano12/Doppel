@@ -173,6 +173,12 @@ public class BootOffsetScriptTest {
                         "return after(hookof('open'), p), p.text");
         assertTrue(uptime.arg(1).toboolean());
         assertEquals("125256.78 98765.43\n", uptime.arg(2).tojstring());
+        // Two decimals like the kernel, also when they end in 0
+        Varargs round = run("boot_offset_proc",
+                "local p = paramof({ result = 'fd', offset = '1800000', opensfile = '/proc/uptime',\n" +
+                        "  text = '100.50 98765.40\\n' })\n" +
+                        "return after(hookof('open'), p), p.text");
+        assertEquals("1900.50 98765.40\n", round.arg(2).tojstring());
 
         Varargs other = run("boot_offset_proc",
                 "local p = paramof({ result = 'fd', offset = '1800000', opensfile = '/proc/stat',\n" +

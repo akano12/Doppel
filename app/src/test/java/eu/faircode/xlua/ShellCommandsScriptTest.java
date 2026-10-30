@@ -545,6 +545,11 @@ public class ShellCommandsScriptTest {
             assertTrue(two, two.contains("SD") && !two.contains("1501"));
             assertFalse(run(start("dd", "if=" + cid)).out.contains("1501"));
             assertEquals("", run(start("sh", "-c", "head -c 4 " + cid)).out);
+            assertEquals("SD\n", run(start("sort", cid, type)).out);
+            // By a path relative to the directory a script changes to, and by a pattern
+            String dir = new File(block, "device").getAbsolutePath();
+            assertEquals("SD\n", run(start("sh", "-c", "cd " + dir + " && cat cid type 2>/dev/null")).out);
+            assertEquals("SD\n", run(start("sh", "-c", "cat " + dir + "/ci? " + type + " 2>/dev/null")).out);
             // The other files of /sys are read as they are: the commands stay
             assertEquals("cat " + type, String.join(" ", command(start("cat", type))));
             assertEquals("head -c 2 " + type, String.join(" ", command(start("head", "-c", "2", type))));
@@ -711,7 +716,7 @@ public class ShellCommandsScriptTest {
             File sh = locate(dir, "sh");
             need(dir, "No shell", sh != null);
             // All tools first, so a missing one skips each test, instead of leaving a directory without it
-            String[] names = {"sh", "sed", "grep", "printf", "cat", "readlink", "head", "dd"};
+            String[] names = {"sh", "sed", "grep", "printf", "cat", "readlink", "head", "dd", "sort"};
             File[] files = new File[names.length];
             for (int i = 0; i < names.length; i++) {
                 files[i] = locate(dir, names[i]);

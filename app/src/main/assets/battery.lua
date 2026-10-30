@@ -55,7 +55,13 @@ function after(hook, param)
         end
         fake = math.max(15, math.floor(result / 10 + 0.5) * 10)
     elseif method == 'getIntProperty' then
-        fake = luajava.bindClass('java.lang.Integer').MIN_VALUE
+        -- Before Android 9 and for apps made for it, BatteryManager casts Long.MIN_VALUE to int, which is 0
+        if luajava.bindClass('android.os.Build$VERSION').SDK_INT < 28 or
+                param:getApplicationContext():getApplicationInfo().targetSdkVersion < 28 then
+            fake = 0
+        else
+            fake = luajava.bindClass('java.lang.Integer').MIN_VALUE
+        end
     else
         fake = luajava.bindClass('java.lang.Long').MIN_VALUE
     end

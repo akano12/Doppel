@@ -506,11 +506,17 @@ class XCore {
 
     private void installMethod(final Context context, final XHook hook, final Prototype script,
                                final Map<String, String> settings, final Member member) throws Throwable {
-        final Filter filter = getFilter(context, hook, script, settings);
+        // The runtime made for the filter is the one of this thread, so the script runs once here
+        final Globals installed = getGlobals(context, hook, script, settings);
+        final Filter filter = getFilter(installed, hook);
         backend.hook(member, new XBackend.Callback() {
             // The Lua runtime of this hook per thread, without a lock on each call
             private final ThreadLocal<Globals> threadGlobals = new ThreadLocal<>();
             private final LuaValue luaHook = CoerceJavaToLua.coerce(hook);
+
+            {
+                threadGlobals.set(installed);
+            }
 
             @Override
             void before(XCall call) {
@@ -547,12 +553,16 @@ class XCore {
                     reportUse(context, hook, function, result);
                 } catch (Throwable ex) {
                     threadGlobals.remove();
-                    // Describing the call runs code of the app (toString), which must not fail the call of the app
+                    // Describing the call runs code of the app (toString), which must not fail the call of the app,
+                    // nor run the scripts of hooked methods as if the app called them
+                    enterService();
                     try {
                         reportError(context, hook, function, ex,
                                 "\nMethod:\n" + function + " " + member + "\n" + describe(call));
                     } catch (Throwable exex) {
                         Log.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(exex));
+                    } finally {
+                        leaveService();
                     }
                 }
             }
@@ -584,8 +594,8 @@ class XCore {
     // of /sys, and a value starting with * too for all values containing the text between, like *sys/* for
     // the files of /sys also by other paths, like /proc/self/root/sys/..., for a script which tells the paths
     // apart itself. Files and paths of java.nio are compared by their path, see filterValue.
-    private static Filter getFilter(Context context, XHook hook, Prototype script, Map<String, String> settings) {
-        LuaValue func = getGlobals(context, hook, script, settings).get("filter");
+    private static Filter getFilter(Globals globals, XHook hook) {
+        LuaValue func = globals.get("filter");
         if (func.isnil())
             return null;
         LuaValue values = func.call(CoerceJavaToLua.coerce(hook));

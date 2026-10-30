@@ -379,7 +379,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         List<Row> result = new ArrayList<>();
         for (Row row : all) {
             XApp app = row.app;
-            boolean isRestricted = !app.assignments.isEmpty();
+            boolean isRestricted = (row.restricted > 0); // Like the row shows it
             if (!matches(row, filter))
                 continue;
             if ((restricted && !isRestricted) || (unrestricted && isRestricted))

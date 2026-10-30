@@ -8,6 +8,6 @@
         style="@style/XLua.Field.Edit"
         android:completionThreshold="1"
         android:fontFamily="monospace"
-        android:inputType="text"
+        android:inputType="text|textNoSuggestions"
         android:maxLines="1" />
 </com.google.android.material.textfield.TextInputLayout>

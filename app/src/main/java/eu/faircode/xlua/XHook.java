@@ -300,7 +300,7 @@ public class XHook implements Parcelable {
         jroot.put("maxApk", this.maxApk);
 
         if (this.excludePackages != null)
-            jroot.put("excludePackages", TextUtils.join(",", this.excludePackages));
+            jroot.put("excludePackages", String.join(",", this.excludePackages));
 
         jroot.put("enabled", this.enabled);
         jroot.put("optional", this.optional);

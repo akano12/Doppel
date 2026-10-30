@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The header scrolls away with the list, the compact bar takes its place, see CompactBar;
-     not in the log of one app, which has a toolbar, see FragmentLog -->
+     also in the log of one app, where the bar has a back button, see FragmentLog -->
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"

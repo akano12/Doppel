@@ -75,7 +75,7 @@ Definitions can be imported from and exported to JSON files there too.
 * The optional attribute *excludePackages* is a comma separated list of [regular expressions](https://developer.android.com/reference/java/util/regex/Pattern) of package names the hook should not be applied to, like `com\.google\..*`
 * Setting *enabled* to *false* will switch the hook off (default *true*)
 * Setting *optional* to *true* will suppress error messages about the class or method not being found (default *false*)
-* The attribute *builtin* tells a definition of the app from a custom or downloaded one; the app sets it, exported definitions have *false*
+* The attribute *builtin* tells a definition of the app from a custom or downloaded one; the app sets it, exported definitions leave it out
 * Setting *usage* to *false* means that executing the hook will not be reported (default *true*)
 * Setting *notify* to *true* will result in showing notifications when the hook is applied (default *false*)
 * Settings (custom values) can be set with *Fake values* in the settings (for all apps) or on the screen of an app (for that app),

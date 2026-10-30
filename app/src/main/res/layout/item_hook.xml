@@ -49,8 +49,7 @@
                     android:ellipsize="end"
                     android:fontFamily="@font/plex_mono"
                     android:maxLines="2"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textStyle="bold" />
+                    android:textAppearance="?attr/textAppearanceBodyMedium" />
 
                 <TextView
                     android:id="@+id/tvClass"

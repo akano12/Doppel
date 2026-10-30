@@ -54,8 +54,9 @@ function after(hook, param)
         if text == nil then
             return false
         end
-        local new, n = string.gsub(text, '^(%d+%.?%d*)', function(up)
-            return string.format('%.2f', tonumber(up) + seconds)
+        -- The whole seconds only, the fraction stays as the kernel printed it (LuaJ ignores the precision of %f)
+        local new, n = string.gsub(text, '^(%d+)', function(up)
+            return string.format('%d', tonumber(up) + seconds)
         end, 1)
         if n == 0 then
             return false

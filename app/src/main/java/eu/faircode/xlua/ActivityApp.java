@@ -48,6 +48,7 @@ import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.core.widget.NestedScrollView;
@@ -75,6 +76,8 @@ public class ActivityApp extends ActivityBase {
     private static final String EXTRA_PACKAGE = "package";
     private static final String EXTRA_UID = "uid";
     private static final String EXTRA_HOOK = "hook";
+    private static final String STATE_DIRTY = "dirty";
+    private static final String STATE_EXPANDED = "expanded";
 
     // Settings of an app which are no fake values, see ActivityValues
     private static final Set<String> OPTIONS = new HashSet<>(Arrays.asList("forcestop", "notify"));
@@ -144,6 +147,13 @@ public class ActivityApp extends ActivityBase {
         // Not again when the screen is restored
         if (savedInstanceState == null)
             reveal = getIntent().getStringExtra(EXTRA_HOOK);
+        else {
+            // The restart still needed and the open groups, also after the process was ended in the background
+            dirty = savedInstanceState.getBoolean(STATE_DIRTY);
+            ArrayList<String> groups = savedInstanceState.getStringArrayList(STATE_EXPANDED);
+            if (groups != null)
+                expanded.addAll(groups);
+        }
 
         toolbar = setupToolbar(packageName);
         toolbar.inflateMenu(R.menu.app);
@@ -732,6 +742,13 @@ public class ActivityApp extends ActivityBase {
             if (app.stopsAutomatically())
                 Data.forceStop(context, app);
         });
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(STATE_DIRTY, dirty);
+        outState.putStringArrayList(STATE_EXPANDED, new ArrayList<>(expanded));
     }
 
     // Changes apply when the app starts, stopped apps start with the new restrictions

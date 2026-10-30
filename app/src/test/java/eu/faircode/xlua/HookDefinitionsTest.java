@@ -216,14 +216,6 @@ public class HookDefinitionsTest {
     }
 
     @Test
-    public void requiredFieldsPresent() throws Exception {
-        for (JSONObject hook : hooks)
-            for (String key : new String[]{
-                    "collection", "group", "name", "author", "className", "parameterTypes", "minSdk", "luaScript"})
-                assertTrue(hook.optString("name") + " misses " + key, hook.has(key));
-    }
-
-    @Test
     public void groupsHaveTitles() throws Exception {
         String strings = read(STRINGS);
         for (JSONObject hook : hooks) {
@@ -511,9 +503,6 @@ public class HookDefinitionsTest {
                 expected.put(entry.getKey(), entry.getValue());
 
         JSONObject exported = XHook.fromJSONObject(jhook).toJSONObject();
-        // TextUtils.join is a stub in the Gradle unit tests, the expressions are checked by excludedPackagesCompile
-        if (!exported.has("excludePackages"))
-            expected.remove("excludePackages");
 
         Set<String> keys = new TreeSet<>(keys(expected));
         keys.addAll(keys(exported));

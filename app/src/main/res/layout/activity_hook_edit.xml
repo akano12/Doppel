@@ -79,7 +79,7 @@
                                 android:id="@+id/etClass"
                                 style="@style/XLua.Field.Edit"
                                 android:fontFamily="@font/plex_mono"
-                                android:inputType="text" />
+                                android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
@@ -92,7 +92,7 @@
                                 android:id="@+id/etMethod"
                                 style="@style/XLua.Field.Edit"
                                 android:fontFamily="@font/plex_mono"
-                                android:inputType="text" />
+                                android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
@@ -105,7 +105,7 @@
                                 android:id="@+id/etParams"
                                 style="@style/XLua.Field.Edit"
                                 android:fontFamily="@font/plex_mono"
-                                android:inputType="text" />
+                                android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
@@ -117,7 +117,7 @@
                                 android:id="@+id/etReturn"
                                 style="@style/XLua.Field.Edit"
                                 android:fontFamily="@font/plex_mono"
-                                android:inputType="text" />
+                                android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <LinearLayout
@@ -179,7 +179,7 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etCollection"
                                 style="@style/XLua.Field.Edit"
-                                android:inputType="text" />
+                                android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <!-- A row of its own, the names of groups are long, like Determine.Activity -->
@@ -192,7 +192,7 @@
                                 android:id="@+id/etGroup"
                                 style="@style/XLua.Field.Edit"
                                 android:completionThreshold="1"
-                                android:inputType="text" />
+                                android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
@@ -205,7 +205,7 @@
                                 android:id="@+id/etName"
                                 style="@style/XLua.Field.Edit"
                                 android:fontFamily="@font/plex_mono"
-                                android:inputType="text" />
+                                android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <LinearLayout
@@ -349,7 +349,7 @@
                                 android:id="@+id/etExclude"
                                 style="@style/XLua.Field.Edit"
                                 android:fontFamily="@font/plex_mono"
-                                android:inputType="text" />
+                                android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
@@ -362,7 +362,7 @@
                                 android:id="@+id/etSettings"
                                 style="@style/XLua.Field.Edit"
                                 android:fontFamily="@font/plex_mono"
-                                android:inputType="text" />
+                                android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

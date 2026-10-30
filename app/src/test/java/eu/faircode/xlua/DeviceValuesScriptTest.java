@@ -59,7 +59,8 @@ public class DeviceValuesScriptTest {
     public void propertiesOfTheDeviceAreFaked() throws Exception {
         Globals globals = load("systemproperties_get");
         for (String key : new String[]{"ro.boot.hardware", "ro.board.platform", "ro.build.expect.bootloader",
-                "ro.build.expect.baseband", "ro.boot.hardware.platform", "ro.vendor.build.id"})
+                "ro.build.expect.baseband", "ro.boot.hardware.platform", "ro.vendor.build.id",
+                "ro.product.marketname", "ro.product.vendor.marketname", "ro.config.marketing_name"})
             assertEquals(key, "unknown", Scripts.run(globals, "return fakedevice('" + key + "', 'x')").arg1().tojstring());
         // Not all properties of the hardware, WallpaperManager reads ro.boot.hardware.color
         assertTrue(Scripts.run(globals, "return fakedevice('ro.boot.hardware.color', 'x')").arg1().isnil());
@@ -596,6 +597,11 @@ public class DeviceValuesScriptTest {
         for (int level : new int[]{0, 3, 12})
             assertEquals(String.valueOf(level), 15, Scripts.run(globals, "return run(hookof('BatteryManager.getIntProperty', " +
                     "'getIntProperty'), paramof(" + level + ", { [0] = 4 }))").arg(2).toint());
+        // Other properties as not supported: an int is 0 before Android 9 (SDK_INT is 0 here), a long its minimum
+        assertEquals(0, Scripts.run(globals, "return run(hookof('BatteryManager.getIntProperty', " +
+                "'getIntProperty'), paramof(-1234, { [0] = 2 }))").arg(2).toint());
+        assertEquals(Long.MIN_VALUE, Scripts.run(globals, "return run(hookof('BatteryManager.getLongProperty', " +
+                "'getLongProperty'), paramof(-1234, { [0] = 2 }))").arg(2).tolong());
     }
 
     // The UUID of an SD card is made of its fake id, like Android makes it of the real one, and both stay the same

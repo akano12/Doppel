@@ -51,7 +51,9 @@ local DEVICE = {
                    'ro.boot.hardware', 'ro.boot.hardware.platform', 'ro.board.platform',
                    'ro.boot.hardware.sku', 'ro.boot.product.hardware.sku', 'ro.boot.vbmeta.digest',
                    'ro.bootloader', 'ro.boot.bootloader', 'ro.build.expect.bootloader',
-                   'gsm.version.baseband', 'ro.build.expect.baseband' } },
+                   'gsm.version.baseband', 'ro.build.expect.baseband', 'ro.product.marketname',
+                   'ro.product.*.marketname', 'ro.config.marketing_name', 'ro.vendor.oplus.market.name',
+                   'ro.oppo.market.name' } },
     { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
                    'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
                    'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
@@ -109,7 +111,7 @@ local HIDING = { 'identifiers', 'tracking', 'biometrics' }
 -- The commands which read files and get the error of a missing file for these files; dd takes if=file
 local READERS = { 'cat', 'head', 'tail', 'dd', 'od', 'xxd', 'hexdump', 'strings', 'base64', 'md5sum', 'sha1sum',
                   'sha224sum', 'sha256sum', 'sha384sum', 'sha512sum', 'cksum', 'wc', 'grep', 'cut', 'sed', 'awk',
-                  'cp', 'cmp', 'diff' }
+                  'cp', 'cmp', 'diff', 'sort', 'tac', 'nl', 'rev', 'uniq', 'paste', 'fold', 'comm', 'expand' }
 local READER = {}
 for _, name in ipairs(READERS) do
     READER[name] = true
@@ -366,11 +368,15 @@ function hiddenfile(file, variants)
     return false
 end
 
--- Whether a script or command names a file which does not exist for the variants; not paths made while
+-- Whether a script or command names a file which does not exist for the variants, also by a path relative to a
+-- directory of /sys it changes to or by a pattern, which the functions resolve when they run; not paths made while
 -- the script runs, like "$dir"/cid, and files of /sys which exist are read without functions
 function hiddenin(text, variants)
     if not string.find(text, 'sys/', 1, true) then
         return false
+    end
+    if hasword(text, 'cd') or string.find(text, '[%*%?%[]') then
+        return true
     end
     for word in string.gmatch(text, '[^%s;&|<>()\'"`]+') do
         if hiddenfile(word, variants) then

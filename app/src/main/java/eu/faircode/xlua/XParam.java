@@ -266,6 +266,17 @@ public class XParam {
         return Util.getPackageInfo(pm, packageName, flags);
     }
 
+    // A value for the log of debug builds: its toString can be hooked, like NetworkInfo.toString,
+    // and must not run the scripts as if the app called it
+    private static String text(Object value) {
+        XCore.enterService();
+        try {
+            return String.valueOf(value);
+        } finally {
+            XCore.leaveService();
+        }
+    }
+
     @SuppressWarnings("unused")
     public Throwable getException() {
         Throwable ex = (this.field == null ? this.param.getThrowable() : null);
@@ -278,7 +289,7 @@ public class XParam {
     public Object getResult() throws Throwable {
         Object result = (this.field == null ? this.param.getResult() : this.field.get(null));
         if (BuildConfig.DEBUG)
-            Log.i(TAG, "Get " + this.getPackageName() + ":" + this.getUid() + " result=" + result);
+            Log.i(TAG, "Get " + this.getPackageName() + ":" + this.getUid() + " result=" + text(result));
         return result;
     }
 
@@ -286,7 +297,7 @@ public class XParam {
     public void setResult(Object result) throws Throwable {
         if (BuildConfig.DEBUG)
             Log.i(TAG, "Set " + this.getPackageName() + ":" + this.getUid() +
-                    " result=" + result + " return=" + this.returnType);
+                    " result=" + text(result) + " return=" + this.returnType);
         // A throwable is thrown instead of returned, a constructor has no return type
         if (this.returnType != null && !(result instanceof Throwable))
             result = checkValue(this.returnType, result, "return");
@@ -428,7 +439,7 @@ public class XParam {
     @SuppressWarnings("unused")
     public void putValue(String name, Object value, Object scope) {
         if (BuildConfig.DEBUG)
-            Log.i(TAG, "Put value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value + " @" + scope);
+            Log.i(TAG, "Put value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + text(value) + " @" + text(scope));
         synchronized (scopedValues) {
             if (!scopedValues.containsKey(scope))
                 scopedValues.put(scope, new HashMap<>());
@@ -444,7 +455,7 @@ public class XParam {
             value = (values == null ? null : values.get(name));
         }
         if (BuildConfig.DEBUG)
-            Log.i(TAG, "Get value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + value + " @" + scope);
+            Log.i(TAG, "Get value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + text(value) + " @" + text(scope));
         return value;
     }
 

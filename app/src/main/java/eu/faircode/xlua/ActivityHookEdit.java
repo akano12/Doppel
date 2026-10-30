@@ -348,6 +348,16 @@ public class ActivityHookEdit extends ActivityBase {
         }
     }
 
+    // Shows the error at the field of the maximum when it is below the minimum
+    private boolean below(int tilId, int max, int min) {
+        if (max >= min)
+            return false;
+        TextInputLayout til = findViewById(tilId);
+        til.setError(getString(R.string.msg_invalid, String.valueOf(max)));
+        til.getEditText().requestFocus();
+        return true;
+    }
+
     // The definition as entered, null with an error shown at a field
     private JSONObject getDefinition() throws JSONException {
         Integer version = number(R.id.tilVersion, 0);
@@ -356,6 +366,9 @@ public class ActivityHookEdit extends ActivityBase {
         Integer minApk = number(R.id.tilMinApk, 0);
         Integer maxApk = number(R.id.tilMaxApk, Integer.MAX_VALUE);
         if (version == null || minSdk == null || maxSdk == null || minApk == null || maxApk == null)
+            return null;
+        // A maximum below the minimum would make the definition available nowhere
+        if (below(R.id.tilMaxSdk, maxSdk, minSdk) || below(R.id.tilMaxApk, maxApk, minApk))
             return null;
 
         JSONObject jhook = new JSONObject();
@@ -468,7 +481,9 @@ public class ActivityHookEdit extends ActivityBase {
             if (saved.getId().equals(before))
                 Ui.message(this, getString(R.string.msg_hook_saved));
             else
-                Ui.message(this, getString(R.string.msg_hook_saved), getString(R.string.title_restrict_too),
+                Ui.message(this, before == null ? getString(R.string.msg_hook_saved) :
+                                getString(R.string.msg_hook_saved_as, saved.getId(), before),
+                        getString(R.string.title_restrict_too),
                         () -> run(TAG, () -> Ui.message(this,
                                 Data.restrictForGroups(context, Collections.singletonList(saved)))));
         });

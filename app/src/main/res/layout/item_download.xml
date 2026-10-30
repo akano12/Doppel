@@ -41,8 +41,7 @@
                 android:ellipsize="end"
                 android:fontFamily="@font/plex_mono"
                 android:maxLines="1"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textStyle="bold" />
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
 
             <!-- The group leads, in the text color, then the author, version, date and downloads; a long author wraps -->
             <TextView

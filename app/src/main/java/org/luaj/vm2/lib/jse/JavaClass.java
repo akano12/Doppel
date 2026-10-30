@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -55,9 +56,10 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 
 	static final LuaValue NEW = valueOf("new");
 	
-	Map fields;
-	Map methods;
-	Map innerclasses;
+	// Made on first use by any thread, see classes
+	volatile Map fields;
+	volatile Map methods;
+	volatile Map innerclasses;
 	
 	static JavaClass forClass(Class c) {
 		JavaClass j = (JavaClass) classes.get(c);
@@ -80,13 +82,12 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 	// android.content.pm.ArchivedPackageInfo of a later Android version; the methods are then those
 	// of the classes and interfaces it extends, which run as the methods of the class when called on its objects.
 	static List<Method> methodsOf(Class c) {
-		List<Method> result = new ArrayList<Method>();
+		// A set in the order found, a list would compare each method with all others
+		Set<Method> result = new LinkedHashSet<Method>();
 		try {
 			result.addAll(Arrays.asList(c.getMethods()));
-			for (Method m : c.getDeclaredMethods())
-				if (!result.contains(m))
-					result.add(m);
-			return result;
+			result.addAll(Arrays.asList(c.getDeclaredMethods()));
+			return new ArrayList<Method>(result);
 		} catch (LinkageError ignored) {
 			result.clear();
 		}
@@ -98,9 +99,7 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 			Class k = pending.remove(0);
 			try {
 				// The public methods of Object, like getMethods gives them
-				for (Method m : (k == Object.class ? k.getMethods() : k.getDeclaredMethods()))
-					if (!result.contains(m))
-						result.add(m);
+				result.addAll(Arrays.asList(k == Object.class ? k.getMethods() : k.getDeclaredMethods()));
 			} catch (LinkageError ignored) {
 				// Like the class itself, its methods are of the classes it extends
 			}
@@ -110,37 +109,35 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 				if (seen.add(i))
 					pending.add(i);
 		}
-		return result;
+		return new ArrayList<Method>(result);
 	}
 
 	// The public and declared fields of a class and, should reflection on the class fail, of the classes it extends,
 	// see methodsOf
 	static List<Field> fieldsOf(Class c) {
-		List<Field> result = new ArrayList<Field>();
+		Set<Field> result = new LinkedHashSet<Field>();
 		for (Class k = c; k != null; k = k.getSuperclass())
 			try {
 				if (k == c)
 					result.addAll(Arrays.asList(k.getFields()));
-				for (Field f : k.getDeclaredFields())
-					if (!result.contains(f))
-						result.add(f);
+				result.addAll(Arrays.asList(k.getDeclaredFields()));
 				if (k == c)
 					break;
 			} catch (LinkageError ignored) {
 				result.clear();
 			}
-		return result;
+		return new ArrayList<Field>(result);
 	}
 		
 	Field getField(LuaValue key) {
 		if ( fields == null ) {
 			Map m = new HashMap();
-			List<String> n = new ArrayList();
+			Set<String> n = new HashSet<String>();
 			for (Method p : methodsOf((Class) m_instance))
 				n.add(p.getName());
 			List<Field> lf = new ArrayList();
 			for (Field p : fieldsOf((Class) m_instance))
-				if (!n.contains(p.getName()) && !lf.contains(p))
+				if (!n.contains(p.getName()))
 					lf.add(p);
 			Field[] f = lf.toArray(new Field[0]);
 			for ( int i=0; i<f.length; i++ ) {
@@ -150,7 +147,7 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 					try {
 						if (!fi.isAccessible())
 							fi.setAccessible(true);
-					} catch (SecurityException s) {
+					} catch (RuntimeException s) { // Also the modules of desktop Java
 					}
 				}
 			}

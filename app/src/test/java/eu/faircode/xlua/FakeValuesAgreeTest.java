@@ -64,6 +64,26 @@ public class FakeValuesAgreeTest {
         return Scripts.run(globals, "return " + lua).arg1().tojstring();
     }
 
+    // The kernel release without the build, for Os.uname, the property os.version and the shell, whose
+    // uname -r and /proc/version ShellCommandsScriptTest.kernelIsFaked checks for the same release
+    @Test
+    public void kernel() throws Exception {
+        String real = "6.6.50-android15-8-g8adecb593e9b";
+        Globals uname = load("uname");
+        Scripts.run(uname, "luajava = { newInstance = function(name, sysname, nodename, release, version, machine)\n" +
+                "  return { release = release, nodename = nodename, version = version } end }");
+        assertEquals("6.6.50", run(uname, "fakeof('Os.uname', 'uname', " +
+                "{ sysname = 'Linux', release = '" + real + "', machine = 'aarch64' }).release"));
+        Globals properties = load("system_properties");
+        assertEquals("6.6.50", run(properties, "(function()\n" +
+                "  local values = { ['os.version'] = '" + real + "' }\n" +
+                "  fakeof('System.initUnchangeableSystemProperties', 'x', {\n" +
+                "    get = function(self, key) return values[key] end,\n" +
+                "    put = function(self, key, value) values[key] = value end })\n" +
+                "  return values['os.version']\n" +
+                "end)()"));
+    }
+
     // UTC without a time zone set, else the one set, for the default time zone, its property and the shell
     @Test
     public void timeZone() throws Exception {
@@ -273,8 +293,23 @@ public class FakeValuesAgreeTest {
                 "/sys/bus/mmc/devices/mmc0:0001/cidx", "/sys/class/fingerprint/fingerprintx",
                 "/sys/devices/system/chip-idx/unique_id", "/sys/class/scsi_host/host0/unique_id",
                 "/sys/devices/platform/13100000.ufs/string_descriptors/product_revision"};
+        // Paths of the devices themselves, which both only have to agree on
+        String[] devices = {
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/serial",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/date",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/manfid",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/oemid",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/name",
+                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/type",
+                "/sys/devices/virtual/sec/sdinfo/data", "/sys/devices/virtual/sec/tsp",
+                "/sys/devices/virtual/sec/tsp/raw_check", "/sys/devices/virtual/sec/tsp/fod_pos",
+                "/sys/devices/virtual/sec/tsp/fod_info", "/sys/devices/virtual/sensors/light_sensor/light_cal",
+                "/sys/devices/virtual/sensors/proximity_sensor/prox_cal",
+                "/sys/devices/virtual/fingerprint/fingerprint", "/sys/devices/virtual/fingerprint/fingerprint/name",
+                "/sys/devices/system/cpu/possible", "/sys/kernel/gpu/gpu_model"};
         // Each file of a sample which does not exist is hidden for a group at least, the others for none
-        for (String[] paths : new String[][]{hidden, stay})
+        for (String[] paths : new String[][]{hidden, stay, devices})
             for (String path : paths) {
                 boolean any = false;
                 for (String[] variant : variants) {
@@ -283,7 +318,8 @@ public class FakeValuesAgreeTest {
                             run(shell, "tostring(hiddenfile('" + path + "', { " + variant[1] + " = true }))"));
                     any |= "true".equals(expected);
                 }
-                assertEquals(path, paths == hidden, any);
+                if (paths != devices)
+                    assertEquals(path, paths == hidden, any);
             }
     }
 
