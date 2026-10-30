@@ -43,13 +43,6 @@ function filter(hook)
     return paths
 end
 
--- Whether an object of the system has the field, like the time a file was made, which recent versions have
-function hasfield(object, name)
-    return (pcall(function()
-        return object:getClass():getDeclaredField(name)
-    end))
-end
-
 function after(hook, param)
     if param:getException() ~= nil then
         return false
@@ -68,7 +61,8 @@ function after(hook, param)
             attributes['st_' .. name .. '_sec'] = FAKE
             attributes['st_' .. name .. '_nsec'] = 0
         end
-        if hasfield(attributes, 'st_birthtime_sec') then
+        -- Recent versions have the time a file was made; a field the class does not have is nil
+        if attributes.st_birthtime_sec ~= nil then
             attributes.st_birthtime_sec = FAKE
         end
         return true, tostring(old), tostring(FAKE)

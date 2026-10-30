@@ -100,4 +100,14 @@ public class LuaReflectionTest {
         LuaValue result = globals.load("return manager:resolve('contacts')").call();
         assertEquals("rom:contacts", result.tojstring());
     }
+
+    // A Java byte[] a script gets or makes goes back to Java, like an empty MMS for Bundle.putByteArray
+    // (see intent_createfromparcel)
+    @Test
+    public void byteArraysGoBackToJava() {
+        Globals globals = JsePlatform.standardGlobals();
+        globals.set("bytes", CoerceJavaToLua.coerce(new byte[3]));
+        LuaValue result = globals.load("return luajava.bindClass('java.util.Arrays'):toString(bytes)").call();
+        assertEquals("[0, 0, 0]", result.tojstring());
+    }
 }

@@ -159,11 +159,16 @@ function before(hook, param)
 
     local method = about(hook).method
     if class == 'libcore.io.BlockGuardOs' or class == 'android.system.Os' then
-        -- Os.open, stat, lstat and access, which FileInputStream and File.length use; Os.access of apps
-        -- is hooked itself, since the hook of BlockGuardOs.access does not run for it (Android 14)
+        -- Os.open, stat, lstat, access and readlink, which FileInputStream and File.length use; Os.access and
+        -- Os.readlink of apps are hooked themselves, since the hooks of BlockGuardOs do not run for them (Android 14)
         param:setResult(luajava.newInstance('android.system.ErrnoException', method, ENOENT))
     elseif class == 'java.io.UnixFileSystem' then
-        if method == 'list0' then
+        if method == 'createFileExclusively' then
+            -- File.createNewFile: apps cannot make files in /sys, and not at all in a folder which does not exist
+            local folder = luajava.newInstance('java.io.File', path):getParent()
+            local reason = ((folder ~= nil and hidden(hook, folder)) and 'No such file or directory' or 'Permission denied')
+            param:setResult(luajava.newInstance('java.io.IOException', reason))
+        elseif method == 'list0' then
             -- File.list of a hidden folder: like of a folder which does not exist
             param:setResult(nil)
         elseif method == 'checkAccess' then

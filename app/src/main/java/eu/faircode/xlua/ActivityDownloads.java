@@ -278,8 +278,10 @@ public class ActivityDownloads extends ActivityBase {
     // Installing replaces a built-in definition with the same name and adds to definitions hooking the same member;
     // apps restricting the group of the definition can get it too, like for built-in definitions added by updates
     private void confirmInstall(Entry entry) {
+        // An update or installing again replaces the definition, also changes made to it with the editor
         if (getState(entry) != State.AVAILABLE) {
-            install(entry, false);
+            Ui.areYouSure(this, getString(R.string.msg_update_sure, entry.getId()), R.string.title_update,
+                    () -> install(entry, false));
             return;
         }
 

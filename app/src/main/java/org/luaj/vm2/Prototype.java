@@ -69,17 +69,12 @@ package org.luaj.vm2;
  * f.call();
  * }</pre> 
  * 
- * To simplify the debugging of prototype values, the contents may be printed using {@link Print#print}:
- * <pre> {@code
- * Print.print(p);
- * }</pre>
  * <p>
  *  
  * @see LuaClosure
  * @see Globals
  * @see Globals#undumper
  * @see Globals#compiler
- * @see Print#print
  */
 
 public class Prototype {

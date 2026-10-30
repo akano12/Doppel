@@ -91,8 +91,8 @@ public class ReceiverPackage extends BroadcastReceiver {
                 }
             } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
                 if (BuildConfig.APPLICATION_ID.equals(packageName))
-                    // Removed by the owner: the data of all users, unless other users still have the app
-                    Data.clearData(context, userid, userid == 0 && !installedForAnyUser(context));
+                    // Removed by the last user that had the app: the data of all users, like the custom definitions
+                    Data.clearData(context, userid, !installedForAnyUser(context));
                 else {
                     Data.clearApp(context, packageName, uid, true);
                     XNotify.cancelApp(ctx, userid, uid);

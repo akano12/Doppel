@@ -41,7 +41,6 @@ import org.luaj.vm2.LuaValue;
  * on {@link LuaValue} may be used:
  * <ul>
  * <li>{@link LuaValue#valueOf(boolean)}</li>
- * <li>{@link LuaValue#valueOf(byte[])}</li>
  * <li>{@link LuaValue#valueOf(double)}</li>
  * <li>{@link LuaValue#valueOf(int)}</li>
  * <li>{@link LuaValue#valueOf(String)}</li>
@@ -102,12 +101,6 @@ public class CoerceJavaToLua {
 		}
 	}
 
-	//private static final class BytesCoercion implements Coercion {
-	//	public LuaValue coerce( Object javaValue ) {
-	//		return LuaValue.valueOf((byte[]) javaValue);
-	//	}
-	//}
-
 	private static final class ClassCoercion implements Coercion {
 		public LuaValue coerce( Object javaValue ) {
 			return JavaClass.forClass((Class) javaValue);
@@ -142,7 +135,6 @@ public class CoerceJavaToLua {
 		Coercion charCoercion = new CharCoercion() ;
 		Coercion doubleCoercion = new DoubleCoercion() ;
 		Coercion stringCoercion = new StringCoercion() ;
-		//Coercion bytesCoercion = new BytesCoercion() ;
 		Coercion classCoercion = new ClassCoercion() ;
 		COERCIONS.put( Boolean.class, boolCoercion );
 		COERCIONS.put( Byte.class, intCoercion );
@@ -153,7 +145,7 @@ public class CoerceJavaToLua {
 		COERCIONS.put( Float.class, doubleCoercion );
 		COERCIONS.put( Double.class, doubleCoercion );
 		COERCIONS.put( String.class, stringCoercion );
-		//COERCIONS.put( byte[].class, bytesCoercion );
+		// Not byte[], which is an array in Lua, so scripts can read and pass it back like the other arrays
 		COERCIONS.put( Class.class, classCoercion );
 	}
 

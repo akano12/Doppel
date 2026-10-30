@@ -464,6 +464,7 @@
     <string name="title_updates_snapshot">In the snapshot packaged with this version</string>
     <string name="title_no_updates">No updates</string>
     <string name="title_update_all">Update all</string>
+    <string name="msg_update_sure">Install %1$s again? Changes made to it are replaced.</string>
     <plurals name="msg_update_all">
         <item quantity="one">Update %1$d definition?</item>
         <item quantity="other">Update %1$d definitions?</item>

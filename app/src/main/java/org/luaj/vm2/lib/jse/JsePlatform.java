@@ -24,7 +24,6 @@ package org.luaj.vm2.lib.jse;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LoadState;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
 import org.luaj.vm2.compiler.LuaC;
 import org.luaj.vm2.lib.Bit32Lib;
 import org.luaj.vm2.lib.CoroutineLib;
@@ -38,7 +37,7 @@ import org.luaj.vm2.lib.TableLib;
  * how globals tables are initialized for the JSE platform. 
  * <p>
  * It is used to allocate either a set of standard globals using 
- * {@link #standardGlobals()} or debug globals using {@link #debugGlobals()}
+ * {@link #standardGlobals()}
  * <p>
  * A simple example of initializing globals and using them from Java is:
  * <pre> {@code
@@ -87,7 +86,6 @@ public class JsePlatform {
 	 * Create a standard set of globals for JSE including all the libraries.
 	 * 
 	 * @return Table of globals initialized with the standard JSE libraries
-	 * @see #debugGlobals()
 	 * @see org.luaj.vm2.lib.jse.JsePlatform
 	 * @see org.luaj.vm2.lib.jme.JmePlatform
 	 */
@@ -108,36 +106,4 @@ public class JsePlatform {
 		return globals;		
 	}
 
-	/** Create standard globals including the {@link DebugLib} library.
-	 * 
-	 * @return Table of globals initialized with the standard JSE and debug libraries
-	 * @see #standardGlobals()
-	 * @see org.luaj.vm2.lib.jse.JsePlatform
-	 * @see org.luaj.vm2.lib.jme.JmePlatform
-	 * @see DebugLib
-	 */
-	public static Globals debugGlobals() {
-		Globals globals = standardGlobals();
-		globals.load(new DebugLib());
-		return globals;
-	}
-
-
-	/** Simple wrapper for invoking a lua function with command line arguments.  
-	 * The supplied function is first given a new Globals object as its environment
-	 * then the program is run with arguments.  
-	 * @return {@link Varargs} containing any values returned by mainChunk.
-	 */
-	public static Varargs luaMain(LuaValue mainChunk, String[] args) {
-		Globals g = standardGlobals();
-		int n = args.length;
-		LuaValue[] vargs = new LuaValue[args.length];
-		for (int i = 0; i < n; ++i)
-			vargs[i] = LuaValue.valueOf(args[i]);
-		LuaValue arg = LuaValue.listOf(vargs);
-		arg.set("n", n);
-		g.set("arg", arg);
-		mainChunk.initupvalue1(g);
-		return mainChunk.invoke(LuaValue.varargsOf(vargs));
-	}
 }

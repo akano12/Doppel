@@ -246,7 +246,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private List<Row> all = new ArrayList<>();
     private List<Row> shown = new ArrayList<>();
     private List<Object> items = new ArrayList<>();
-    private long bound = 0; // When the rows were last compared, see set
+    private long bound = 0; // When all rows were last drawn, see apply
     private Filter filter = Filter.USER;
     private Sort sort = Sort.NAME;
     private String query = null;
@@ -346,8 +346,9 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     private void apply() {
-        // The actions shown close when the list changes, like for another filter or search, or after a reload
-        open = RecyclerView.NO_ID;
+        // The actions shown close when the list changes, like for another filter or search, or after a reload;
+        // the row is redrawn, since the list can stay the same
+        closeOpen();
         // Search prefixes: ! restricted, ? not restricted, # system, @ user, or a uid
         String q = (query == null ? "" : query.trim());
         boolean restricted = false;
@@ -398,7 +399,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         long now = System.currentTimeMillis();
         // The times of the rows, like 'just now', change by the minute, also when their data does not
         final boolean stale = (now - bound >= DateUtils.MINUTE_IN_MILLIS);
-        bound = now;
+        if (stale)
+            bound = now;
         Map<Section, List<Row>> sections = new EnumMap<>(Section.class);
         for (Section section : Section.values())
             sections.put(section, new ArrayList<>());
@@ -567,10 +569,13 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             Row row = getRow();
             if (row == null)
                 return false;
+            // An action which would change nothing fails, like its button, which is disabled then
+            if (action != 2 && !(action == 1 ? row.canRestrict() : row.canRemove()))
+                return false;
             setOpen(false);
             if (action == 2)
                 listener.onGroups(row);
-            else if (action == 1 ? row.canRestrict() : row.canRemove())
+            else
                 listener.onSetAll(row, action == 1);
             return true;
         }

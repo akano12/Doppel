@@ -141,10 +141,9 @@ public class FileScriptsTest {
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value end }",
             "end",
-            // An object of the system without the field, like the attributes of java.nio before the time made
+            // An object of the system, with or without the time made, like the attributes of java.nio; LuaJ gives
+            // nil for a field the class does not have, like the table for a key it does not have
             "function objectof(fields, has)",
-            "  local class = { getDeclaredField = function(self, name) assert(has, name) return name end }",
-            "  fields.getClass = function(self) return class end",
             "  return fields",
             "end",
             "function statof(time)",
@@ -232,7 +231,13 @@ public class FileScriptsTest {
     // objects made are tables of their arguments
     private static final String HARDWARE_STUBS = String.join("\n",
             "luajava = {",
-            "  newInstance = function(name, ...) return { class = name, args = { ... } } end,",
+            "  newInstance = function(name, ...)",
+            "    local args = { ... }",
+            "    if name == 'java.io.File' then",
+            "      return { getParent = function(self) return string.match(args[1], '^(.*)/[^/]*$') end }",
+            "    end",
+            "    return { class = name, args = args }",
+            "  end,",
             "  bindClass = function(name)",
             "    assert(name == 'java.lang.reflect.Array', name)",
             "    return { newInstance = function(self, class, length) return { class = class, length = length } end }",
@@ -293,6 +298,30 @@ public class FileScriptsTest {
                 true, true, true, false, false};
         for (int i = 0; i < expected.length; i++)
             assertEquals(String.valueOf(i + 3), expected[i], result.arg(i + 3).toboolean());
+    }
+
+    // Resolving, reading the link of and making a hidden file fail like for a file which does not exist;
+    // making one fails like in /sys, or like in a folder which does not exist when the group hides the folder
+    @Test
+    public void hardwareLinksAndMaking() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local id = '/sys/devices/system/chip-id/unique_id'\n" +
+                        "local function run(group, class, method, path)\n" +
+                        "  local param = paramof(path)\n" +
+                        "  before(hookof(group, class, method), param)\n" +
+                        "  return param.result.class .. ':' .. tostring(param.result.args[1])\n" +
+                        "end\n" +
+                        "return run('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', 'realpath', id),\n" +
+                        "  run('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', 'readlink', id),\n" +
+                        "  run('Read.Identifiers', 'android.system.Os', 'readlink', id),\n" +
+                        "  run('Read.Identifiers', 'java.io.UnixFileSystem', 'createFileExclusively', id),\n" +
+                        "  run('Use.Tracking', 'java.io.UnixFileSystem', 'createFileExclusively', '/sys/devices/system/chip-id/product_id')");
+        assertEquals("sun.nio.fs.UnixException:2", result.arg(1).tojstring());
+        assertEquals("sun.nio.fs.UnixException:2", result.arg(2).tojstring());
+        assertEquals("android.system.ErrnoException:readlink", result.arg(3).tojstring());
+        assertEquals("java.io.IOException:Permission denied", result.arg(4).tojstring());
+        assertEquals("java.io.IOException:No such file or directory", result.arg(5).tojstring());
     }
 
     // The hooks see a file which does not exist: an error of the kernel, no attributes or no names

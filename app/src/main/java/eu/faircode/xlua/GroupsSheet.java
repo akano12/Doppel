@@ -261,7 +261,9 @@ final class GroupsSheet {
         MaterialSwitch swAll = view.findViewById(R.id.swAll);
         Ui.setPartial(swAll, track, restricted > 0 && !complete);
         swAll.setChecked(restricted > 0);
-        view.findViewById(R.id.cvAll).setContentDescription(activity.getString(R.string.title_restrict_all_groups) + ", " +
+        // The action a tap takes: removing all when all are restricted
+        view.findViewById(R.id.cvAll).setContentDescription(activity.getString(
+                complete ? R.string.title_remove_all : R.string.title_restrict_all_groups) + ", " +
                 ((TextView) view.findViewById(R.id.tvCount)).getText());
     }
 

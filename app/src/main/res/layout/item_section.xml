@@ -39,7 +39,9 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:minWidth="0dp"
-            android:minHeight="36dp"
+            android:minHeight="48dp"
+            android:insetTop="6dp"
+            android:insetBottom="6dp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             android:visibility="gone" />

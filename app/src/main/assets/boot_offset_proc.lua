@@ -20,8 +20,9 @@
 -- reading both cannot tell them apart: btime drops the offset, uptime gains it. Also by another path
 -- and by java.nio, like boot_id. shortcut: the offset is whole seconds here, so it can differ by under
 -- a second from the millisecond clock, which does not matter at second resolution.
+-- Wide, since the path is not normalized here, like /proc//stat or /proc/./uptime; opens checks the file
 function filter(hook)
-    return { '*proc/stat*', '*proc/uptime*' }
+    return { '*/stat*', '*/uptime*' }
 end
 
 function after(hook, param)

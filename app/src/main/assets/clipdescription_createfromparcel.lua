@@ -25,5 +25,6 @@ function after(hook, param)
 
     local fake = luajava.bindClass('android.content.ClipData'):newPlainText('text', 'Private'):getDescription()
     param:setResult(fake)
-    return true, tostring(result:getLabel()), 'text'
+    -- Not the label, which can name what was copied, like a password; the log keeps what it gets
+    return true
 end

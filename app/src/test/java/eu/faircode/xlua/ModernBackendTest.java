@@ -41,6 +41,7 @@ import static org.junit.Assert.fail;
 // The modern backend must provide the before/after semantics of the legacy Xposed API
 public class ModernBackendTest {
     private XposedInterface.Hooker hooker;
+    private Object exceptionMode; // Of the hook, see throwableBefore
     private ModernBackend backend;
     private Method method;
 
@@ -66,6 +67,8 @@ public class ModernBackendTest {
                         hooker = (XposedInterface.Hooker) args[0];
                         return null;
                     }
+                    if ("setExceptionMode".equals(m.getName()))
+                        exceptionMode = args[0];
                     return proxy; // setPriority, setExceptionMode, setId
                 });
         XposedInterface xposed = (XposedInterface) Proxy.newProxyInstance(
@@ -159,6 +162,8 @@ public class ModernBackendTest {
                 call.setThrowable(ex);
             }
         });
+        // The protective mode of the framework would swallow the exception and call the original method
+        assertEquals(XposedInterface.ExceptionMode.PASSTHROUGH, exceptionMode);
         try {
             invoke("a", 1);
             fail("No exception");

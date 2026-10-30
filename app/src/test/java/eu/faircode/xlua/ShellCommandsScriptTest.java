@@ -44,7 +44,6 @@ import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 // The shell commands script (assets/shell_commands.lua) with Lua stand-ins for the hooks, the builder and
@@ -463,7 +462,7 @@ public class ShellCommandsScriptTest {
                 String.join(" ", command(start(new String[]{"cat", "/proc/stat"}, "resources"))));
         assertEquals("cat /proc/meminfo",
                 String.join(" ", command(start(new String[]{"cat", "/proc/meminfo"}, "tracking"))));
-        // Also by other paths, and with other files, which are read by cat itself; with options cat reads the files
+        // Also by other paths, and with other files, which are read by cat itself
         String fake = "MemTotal:        3145728 kB\nMemFree:          146484 kB\n";
         assertEquals(fake, run(start("cat", "/proc/self/root/proc/meminfo")).out);
         assertEquals(fake, run(start("sh", "-c", "cat //proc/meminfo")).out);
@@ -480,7 +479,14 @@ public class ShellCommandsScriptTest {
         } finally {
             other.delete();
         }
-        assertNotEquals(fake, run(start("sh", "-c", "cat -v /proc/meminfo | head -2")).out);
+        // Other commands reading the files, and cat with options, read the same text
+        assertEquals(fake, run(start("sh", "-c", "cat -v /proc/meminfo | head -2")).out);
+        assertEquals("MemTotal:        3145728 kB\n", run(start("grep", "MemTotal", "/proc/meminfo")).out);
+        assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
+                run(start("head", "-1", "/proc/sys/kernel/random/boot_id")).out);
+        assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
+                run(start("cat", "--", "/proc/sys/kernel/random/boot_id")).out);
+        assertEquals("123456.78 98765.43\n", run(start("sh", "-c", "dd if=/proc/uptime 2>/dev/null")).out);
     }
 
     // cat of the files of /sys which do not exist for the variants fails like for a missing file, also through
@@ -677,18 +683,27 @@ public class ShellCommandsScriptTest {
         }
     }
 
+    // A tool the tests need: without it they are skipped, like on Windows, unless XLUA_TEST_BIN names the tools,
+    // like on a device (see scripts/test-on-device.sh), where a run without the tests would look like a pass
+    private static void need(String dir, String message, boolean present) {
+        if (dir == null)
+            Assume.assumeTrue(message, present);
+        else
+            assertTrue(message + " in " + dir, present);
+    }
+
     // A directory in place of /system/bin with the tools and stand-ins, created once
     private static Tools tools() throws Exception {
         if (bin == null) {
             String dir = System.getenv("XLUA_TEST_BIN");
             File sh = locate(dir, "sh");
-            Assume.assumeTrue("No shell", sh != null);
+            need(dir, "No shell", sh != null);
             // All tools first, so a missing one skips each test, instead of leaving a directory without it
             String[] names = {"sh", "sed", "grep", "printf", "cat", "readlink", "head", "dd"};
             File[] files = new File[names.length];
             for (int i = 0; i < names.length; i++) {
                 files[i] = locate(dir, names[i]);
-                Assume.assumeTrue("No " + names[i], files[i] != null);
+                need(dir, "No " + names[i], files[i] != null);
             }
             bin = Files.createTempDirectory("xlua-bin").toFile();
             for (int i = 0; i < names.length; i++)

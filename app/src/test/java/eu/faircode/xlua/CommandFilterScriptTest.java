@@ -130,7 +130,11 @@ public class CommandFilterScriptTest {
                 {"sh", "-c", "\"$dir\"/bin/getprop"},
                 {"sh", "-c", "sh -c 'getprop x'"},
                 {"sh", "-c", "eval \"id\""},
-                {"sh", "-c", "if true; then\n id\nfi"}})
+                {"sh", "-c", "if true; then\n id\nfi"},
+                // An assignment in front, also with $ or quotes in its value
+                {"sh", "-c", "A=$HOME id"},
+                {"sh", "-c", "LC_ALL=\"C\" su -c id"},
+                {"sh", "-c", "X='a b' id"}})
             assertTrue(String.join(" ", words), refused(words));
     }
 

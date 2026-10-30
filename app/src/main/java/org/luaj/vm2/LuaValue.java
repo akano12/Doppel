@@ -1055,7 +1055,7 @@ public class LuaValue extends Varargs {
 	 * @param expected String naming the type that was expected
 	 * @throws LuaError in all cases
 	 */
-	protected LuaValue argerror(String expected) { throw new LuaError("bad argument: "+expected+" expected, got "+typename()+" value="+this.tostring()); }
+	protected LuaValue argerror(String expected) { throw new LuaError("bad argument: "+expected+" expected, got "+typename()); }
 	
 	/** 
 	 * Throw a {@link LuaError} indicating an invalid argument was supplied to a function
@@ -1070,7 +1070,7 @@ public class LuaValue extends Varargs {
 	 * @param expected String naming the type that was expected
 	 * @throws LuaError in all cases
 	 */
-	protected LuaValue typerror(String expected) { throw new LuaError(expected+" expected, got "+typename()+" value="+this.tostring()); }
+	protected LuaValue typerror(String expected) { throw new LuaError(expected+" expected, got "+typename()); }
 	
 	/** 
 	 * Throw a {@link LuaError} indicating an operation is not implemented 
@@ -3181,23 +3181,7 @@ public class LuaValue extends Varargs {
 	 */
 	public static LuaString valueOf(String s)     { return LuaString.valueOf(s); }
 
-	/** Convert bytes in an array to a {@link LuaValue}.
-	 * 
-	 * @param bytes byte array to convert
-	 * @return {@link LuaString} instance, possibly pooled, whose bytes are those in the supplied array
-	 */
-	//public static LuaString valueOf(byte[] bytes) { return LuaString.valueOf(bytes); }
-	
-	/** Convert bytes in an array to a {@link LuaValue}.
-	 * 
-	 * @param bytes byte array to convert
-	 * @param off offset into the byte array, starting at 0
-	 * @param len number of bytes to include in the {@link LuaString}
-	 * @return {@link LuaString} instance, possibly pooled, whose bytes are those in the supplied array
-	 */
-	//public static LuaString valueOf(byte[] bytes, int off, int len) {
-	//	return LuaString.valueOf(bytes,off,len);
-	//}
+	// No valueOf(byte[]): a Java byte[] is an array in Lua, see CoerceJavaToLua
 	
 	/** Construct an empty {@link LuaTable}. 
 	 * @return new {@link LuaTable} instance with no values and no metatable. 

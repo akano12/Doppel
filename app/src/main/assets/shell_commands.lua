@@ -435,44 +435,87 @@ end
 -- cat of files prints the text the app reads itself, with the hooks opening files, at the start of the command,
 -- for each file by the path it leads to, like //proc/meminfo or /proc/self/root/proc/meminfo; /proc/version the
 -- kernel like uname (see kernelfunctions). Files the app cannot read keep their error. Files of /sys which do not
--- exist for the variants get the error of a missing file (see hidingfunctions). With options cat reads the files.
-function catfunction(param, text, variants, kernel, hiding)
+-- exist for the variants get the error of a missing file (see hidingfunctions). The other commands reading files,
+-- and cat with options, read that text from their input in place of the file, like grep MemTotal - (see
+-- __xlua_fakeread), for the first such file of a command; dd reads its input in place of if=.
+function catfunction(param, text, variants, kernel, hiding, names)
     local cases = {}
     if kernel then
         -- Apps cannot read /proc/version on recent versions
-        cases[#cases + 1] = '   /proc/version) if /system/bin/cat /proc/version >/dev/null 2>&1; then __xlua_kernel;' ..
-                " /system/bin/printf 'Linux version %s #1 SMP PREEMPT\\n' \"$__xlua_short\"; continue; fi ;;"
+        cases[#cases + 1] = '  /proc/version) if /system/bin/cat /proc/version >/dev/null 2>&1; then __xlua_kernel;' ..
+                " /system/bin/printf 'Linux version %s #1 SMP PREEMPT\\n' \"$__xlua_short\"; return 0; fi ;;"
     end
     for variant, files in pairs(FILES) do
         if variants[variant] then
             for _, file in ipairs(files) do
                 local content = (string.find(text, string.sub(file, 2), 1, true) and param:readFile(file) or nil)
                 if content ~= nil then
-                    cases[#cases + 1] = '   ' .. file .. ") /system/bin/printf '%s' " .. quote(content) .. '; continue ;;'
+                    cases[#cases + 1] = '  ' .. file .. ") /system/bin/printf '%s' " .. quote(content) .. '; return 0 ;;'
                 end
             end
         end
     end
     local read = (hiding and '__xlua_files cat' or '/system/bin/cat')
+    local run = (hiding and '__xlua_files "$__xlua_reader"' or '"/system/bin/$__xlua_reader"')
     local result = {
+        '__xlua_faked() {',
+        ' case "$(/system/bin/readlink -f -- "$1" 2>/dev/null)" in',
+        table.concat(cases, '\n'),
+        ' esac',
+        ' return 1',
+        '}',
+        '__xlua_fakeread() {',
+        ' __xlua_reader=$1',
+        ' shift',
+        ' __xlua_source=',
+        ' __xlua_n=$#',
+        ' while [ $__xlua_n -gt 0 ]; do',
+        '  __xlua_arg=$1',
+        '  shift',
+        '  __xlua_n=$((__xlua_n - 1))',
+        '  if [ -z "$__xlua_source" ] && __xlua_faked "${__xlua_arg#if=}" >/dev/null; then',
+        '   __xlua_source=${__xlua_arg#if=}',
+        '   case "$__xlua_arg" in if=*) ;; *) set -- "$@" - ;; esac',
+        '  else',
+        '   set -- "$@" "$__xlua_arg"',
+        '  fi',
+        ' done',
+        ' if [ -z "$__xlua_source" ]; then ' .. run .. ' "$@"; return; fi',
+        ' __xlua_faked "$__xlua_source" | ' .. run .. ' "$@"',
+        '}',
         'cat() {',
         ' case "$*" in',
-        '  -*|*" -"*) ' .. read .. ' "$@"; return ;;',
+        '  -*|*" -"*) __xlua_fakeread cat "$@"; return ;;',
         ' esac',
         ' [ $# -gt 0 ] || { ' .. read .. '; return; }',
         -- Not __xlua_rc, which __xlua_files sets for each file
         ' __xlua_catrc=0',
         ' for __xlua_cat in "$@"; do',
-        '  case "$(/system/bin/readlink -f -- "$__xlua_cat" 2>/dev/null)" in',
-        table.concat(cases, '\n'),
-        '  esac',
+        '  __xlua_faked "$__xlua_cat" && continue',
         '  ' .. read .. ' "$__xlua_cat" || __xlua_catrc=1',
         ' done',
         ' return $__xlua_catrc',
         '}',
-        ''
     }
+    for _, name in ipairs(names) do
+        if name ~= 'cat' and READER[name] then
+            result[#result + 1] = name .. '() {'
+            result[#result + 1] = ' __xlua_fakeread ' .. name .. ' "$@"'
+            result[#result + 1] = '}'
+        end
+    end
+    result[#result + 1] = ''
     return table.concat(result, '\n')
+end
+
+-- The commands reading files in the text, for files of which they print another text: cat always, see catfunction
+function fakereaders(text, names)
+    names[#names + 1] = 'cat'
+    for _, name in ipairs(READERS) do
+        if name ~= 'cat' and hasword(text, name) then
+            names[#names + 1] = name
+        end
+    end
 end
 
 -- A basic regular expression matching the text exactly
@@ -760,7 +803,7 @@ function commands(text, variant)
             end
         end
         if wantscat then
-            names[#names + 1] = 'cat'
+            fakereaders(text, names)
         end
         readers(text, variant, names)
         if #names > 0 then
@@ -769,7 +812,9 @@ function commands(text, variant)
     elseif variant == 'resources' then
         for _, file in ipairs(FILES[variant]) do
             if string.find(text, file, 1, true) then
-                return { 'cat' }
+                local names = {}
+                fakereaders(text, names)
+                return names
             end
         end
     elseif variant == 'identifiers' or variant == 'timezone' then
@@ -840,7 +885,7 @@ function functions(param, text, variants, script)
         result = result .. hidingfunctions(variants, reading)
     end
     if seen['cat'] then
-        result = result .. catfunction(param, text, variants, seen['uname'], hiding)
+        result = result .. catfunction(param, text, variants, seen['uname'], hiding, reading)
     end
     if seen['pm'] then
         result = result .. packagefunctions(param, variants)
@@ -985,7 +1030,9 @@ function commandplace(text, at)
         first = first - 1
     end
     local word = string.sub(text, first, index)
-    if RESERVED[word] or string.match(word, '^[%a_][%w_]*=[^\'"`$\\()]*$') then
+    -- An assignment in front of a command, also with quotes or $ in its value; a value with a blank leaves a
+    -- word which counts as a program, so the command is refused rather than run
+    if RESERVED[word] or string.match(word, '^[%a_][%w_]*=') then
         return commandplace(text, first)
     end
     return false
@@ -1221,7 +1268,7 @@ function before(hook, param)
                 elseif READER[name] then
                     -- Commands reading files which exist run as they are
                     for index = at + 1, #words do
-                        if hiddenfile(words[index], own) then
+                        if catfile((string.gsub(words[index], '^if=', '')), own) or hiddenfile(words[index], own) then
                             direct = true
                         end
                     end

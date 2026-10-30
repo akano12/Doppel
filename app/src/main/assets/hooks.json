@@ -1006,6 +1006,44 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
+    "name": "Context.bindIsolatedService/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindIsolatedService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "java.util.concurrent.Executor",
+      "android.content.ServiceConnection"
+    ],
+    "returnType": "boolean",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.bindIsolatedService.flags/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindIsolatedService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.Context$BindServiceFlags",
+      "java.lang.String",
+      "java.util.concurrent.Executor",
+      "android.content.ServiceConnection"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
     "name": "Context.startService/hidden",
     "author": "akano12",
     "className": "android.app.ContextImpl",
@@ -7275,6 +7313,62 @@
   },
   {
     "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.realpath/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "realpath",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.readlink/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.readlink/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixFileSystem.createFileExclusively/hardware_ids",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "createFileExclusively",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
     "group": "Use.Tracking",
     "name": "BlockGuardOs.open/hardware_model",
     "author": "akano12",
@@ -7526,6 +7620,62 @@
   },
   {
     "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.realpath/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "realpath",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.readlink/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.readlink/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.createFileExclusively/hardware_model",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "createFileExclusively",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 24,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
     "group": "Read.Biometrics",
     "name": "BlockGuardOs.open/fingerprint_sensor",
     "author": "akano12",
@@ -7773,6 +7923,62 @@
     ],
     "returnType": "java.nio.file.DirectoryStream",
     "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.realpath/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "realpath",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.readlink/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 26,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.readlink/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 23,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixFileSystem.createFileExclusively/fingerprint_sensor",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "createFileExclusively",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 24,
     "luaScript": "@hardware_files"
   },
   // The device name is often set to the name of the owner

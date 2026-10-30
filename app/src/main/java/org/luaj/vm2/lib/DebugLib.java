@@ -34,7 +34,6 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaThread;
 import org.luaj.vm2.LuaUserdata;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Print;
 import org.luaj.vm2.Prototype;
 import org.luaj.vm2.Varargs;
 
@@ -49,11 +48,10 @@ import org.luaj.vm2.Varargs;
  * via a {@link org.luaj.vm2.Globals.Compiler} such as {@link org.luaj.vm2.luajc.LuaJC}, 
  * this cannot be done in all cases.  
  * <p> 
- * Typically, this library is included as part of a call to either 
- * {@link org.luaj.vm2.lib.jse.JsePlatform#debugGlobals()} or 
- * {@link org.luaj.vm2.lib.jme.JmePlatform#debugGlobals()}
+ * Typically, this library is loaded into the standard globals:
  * <pre> {@code
- * Globals globals = JsePlatform.debugGlobals();
+ * Globals globals = JsePlatform.standardGlobals();
+ * globals.load(new DebugLib());
  * System.out.println( globals.get("debug").get("traceback").call() );
  * } </pre>
  * <p>
@@ -78,10 +76,8 @@ import org.luaj.vm2.Varargs;
  */
 public class DebugLib extends TwoArgFunction {
 	public static boolean CALLS;
-	public static boolean TRACE;
 	static {
 		try { CALLS = (null != System.getProperty("CALLS")); } catch (Exception e) {}
-		try { TRACE = (null != System.getProperty("TRACE")); } catch (Exception e) {}
 	}
 	
 	private static final LuaString LUA             = valueOf("Lua");  
@@ -668,8 +664,6 @@ public class DebugLib extends TwoArgFunction {
 			this.pc = pc;
 			this.v = v;
 			this.top = top;
-			if (TRACE)
-				Print.printState(f.checkclosure(), pc, stack, top, v);
 		}
 		Varargs getLocal(int i) {
 			LuaString name = getlocalname(i);

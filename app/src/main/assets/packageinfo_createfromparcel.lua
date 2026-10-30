@@ -21,13 +21,15 @@
 -- The times become those of apps of the system image of AOSP builds, which have the file times of
 -- reproducible builds (2009-01-01 00:00 UTC). The times of the app itself stay: the app can use them,
 -- like to show what is new after an update, and they do not tell other apps anything.
--- Apps of the system keep their times too, which are the same on all devices with the same firmware.
+-- Apps of the system keep their times too, which are the same on all devices with the same firmware; an update
+-- of one, like of Play services, has the time it was installed on the device, which becomes the time of the firmware.
 -- The paths of the apps stay, like applicationInfo.sourceDir, which have random parts since Android 11
 -- (/data/app/~~...==/com.example-...==/base.apk) that are the same for every app which asks too: the framework
 -- reads the icons and labels of other apps from these files in the process of the app, which another path breaks.
 -- Get.Applications hides the apps which are not of the system, which hides their paths too.
 local FAKE = 1230768000000
 local FLAG_SYSTEM = 1
+local FLAG_UPDATED_SYSTEM_APP = 128
 
 -- Times as digits; string.format of LuaJ formats numbers beyond an int as an int or with an exponent,
 -- so the digits are formatted in two parts which each fit an int
@@ -52,7 +54,12 @@ function after(hook, param)
 
     local ai = info.applicationInfo
     if ai ~= nil and math.floor(ai.flags / FLAG_SYSTEM) % 2 == 1 then
-        return false
+        if math.floor(ai.flags / FLAG_UPDATED_SYSTEM_APP) % 2 == 0 or info.lastUpdateTime == info.firstInstallTime then
+            return false
+        end
+        local last = info.lastUpdateTime
+        info.lastUpdateTime = info.firstInstallTime
+        return true, info.packageName .. ' ' .. millis(last), millis(info.firstInstallTime)
     end
 
     local first = info.firstInstallTime

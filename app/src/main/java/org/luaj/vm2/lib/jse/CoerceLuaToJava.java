@@ -204,6 +204,11 @@ public class CoerceLuaToJava {
 						(targetType==TARGET_TYPE_BYTES? 0: SCORE_WRONG_TYPE);
 			case LuaValue.TNIL:
 				return SCORE_NULL_VALUE;
+			case LuaValue.TUSERDATA:
+				// A Java byte[], which Lua gets as an array (see CoerceJavaToLua), goes back as it is
+				if ( targetType == TARGET_TYPE_BYTES && value.touserdata() instanceof byte[] )
+					return 0;
+				return targetType == TARGET_TYPE_STRING? SCORE_WRONG_TYPE: SCORE_UNCOERCIBLE;
 			default:
 				return targetType == TARGET_TYPE_STRING? SCORE_WRONG_TYPE: SCORE_UNCOERCIBLE;
 			}
@@ -213,6 +218,8 @@ public class CoerceLuaToJava {
 				return null;
 			if ( targetType == TARGET_TYPE_STRING )
 				return value.tojstring();
+			if ( value.isuserdata(byte[].class) )
+				return value.touserdata();
 			LuaString s = value.checkstring();
 			byte[] b = new byte[s.m_length];
 			s.copyInto(0, b, 0, b.length);

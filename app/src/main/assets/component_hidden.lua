@@ -80,7 +80,7 @@ function before(hook, param)
         return false
     end
 
-    if method == 'bindService' then
+    if method == 'bindService' or method == 'bindIsolatedService' then
         param:setResult(false)
     elseif method == 'startService' or method == 'startForegroundService' then
         param:setResult(nil)

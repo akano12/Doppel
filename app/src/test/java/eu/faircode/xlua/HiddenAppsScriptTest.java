@@ -163,6 +163,11 @@ public class HiddenAppsScriptTest {
             assertTrue(intent, result.arg(1).toboolean());
             assertFalse(intent, result.arg(3).toboolean());
             assertEquals("com.other.hidden", result.arg(4).tojstring());
+            // Binding an isolated service fails the same, else Android names the service of the app
+            result = component(globals, "bindIsolatedService", "{ [0] = " + intent + " }");
+            assertTrue(intent, result.arg(1).toboolean());
+            assertTrue(intent, result.arg(2).toboolean());
+            assertFalse(intent, result.arg(3).toboolean());
             for (String method : new String[]{"startService", "startForegroundService", "sendBroadcast"}) {
                 result = component(globals, method, "{ [0] = " + intent + " }");
                 assertTrue(method, result.arg(1).toboolean());

@@ -93,6 +93,8 @@ final class XNotify {
         Resources resources = getResources(context);
         Notification.Builder builder = getBuilder(context, true);
         builder.setSmallIcon(android.R.drawable.ic_dialog_alert);
+        // Several hooks of an app can fail at once, each with its own report
+        builder.setOnlyAlertOnce(true);
         builder.setContentTitle(resources.getString(R.string.msg_exception, hookid));
         builder.setContentText(getLabel(context, packageName));
         builder.setContentIntent(getAppIntent(context, uid, packageName));

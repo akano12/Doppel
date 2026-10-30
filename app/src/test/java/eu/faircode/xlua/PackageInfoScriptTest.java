@@ -96,6 +96,17 @@ public class PackageInfoScriptTest {
         assertEquals("1720734637000", result.arg(4).tojstring());
     }
 
+    // An update of a system app, FLAG_UPDATED_SYSTEM_APP, has the time it was installed on the device;
+    // it gets the time of the firmware, like before the update
+    @Test
+    public void updatedSystemApps() {
+        Varargs result = run("infoof('com.google.android.gms', 129, 1720734637000, 1761400000456)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("com.google.android.gms 1761400000456", result.arg(2).tojstring());
+        assertEquals("1720734637000", result.arg(4).tojstring());
+        assertEquals("1720734637000", result.arg(5).tojstring());
+    }
+
     @Test
     public void systemProcessesSeeAll() {
         Varargs result = run("infoof('com.other.app', 0, 1760565949123, 1760565949123), true");

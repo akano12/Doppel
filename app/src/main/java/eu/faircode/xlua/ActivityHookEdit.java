@@ -45,8 +45,11 @@ import com.google.android.material.textfield.TextInputLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
+import org.luaj.vm2.compiler.LuaC;
 
+import java.io.ByteArrayInputStream;
 import java.lang.reflect.Member;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -450,6 +453,10 @@ public class ActivityHookEdit extends ActivityBase {
         // A new definition, also one saved with another name, is not assigned to apps yet
         final String before = (hook == null ? null : hook.getId());
         run(TAG, () -> {
+            // A script which does not compile would only fail in the apps; the error shows where
+            String script = jhook.optString("luaScript");
+            if (!script.startsWith("@"))
+                LuaC.instance.compile(new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)), "script");
             final XHook saved = Data.putCustom(context, jhook);
             runOnUiThread(() -> {
                 hook = saved;
