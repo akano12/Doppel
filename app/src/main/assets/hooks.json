@@ -6240,6 +6240,52 @@
     "usage": false,
     "luaScript": "@systemproperties_get"
   },
+  // The graphics chip in the strings of the OpenGL driver and the firmware build in the version of the DRM plugin
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES20.glGetString",
+    "author": "akano12",
+    "className": "android.opengl.GLES20",
+    "methodName": "glGetString",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 8,
+    "usage": false,
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GL10.glGetString",
+    "author": "akano12",
+    "className": "com.google.android.gles_jni.GLImpl",
+    "methodName": "glGetString",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaDrm.getPropertyString/version",
+    "author": "akano12",
+    "className": "android.media.MediaDrm",
+    "methodName": "getPropertyString",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 18,
+    "luaScript": "@mediadrm_version"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -9087,6 +9133,50 @@
     "returnType": "android.content.Intent",
     "minSdk": 1,
     "luaScript": "@intent_createfromparcel"
+  },
+  // USB debugging in the properties, like adbd running and mtp,adb, which agree with adb_enabled 0
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "SystemProperties.get/debugging",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "SystemProperties.get.default/debugging",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "ProcessBuilder.start/debugging",
+    "author": "akano12",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 1,
+    "luaScript": "@shell_commands"
   },
   // Memory and storage sizes, rounded to the sizes devices are sold with, free space to two digits
   {

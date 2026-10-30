@@ -284,6 +284,18 @@ public class ShellCommandsScriptTest {
                 run(start("sh", "-c", "getprop | grep -e product.model -e serialno")).out);
     }
 
+    // USB debugging off, like the properties of Read.Debugging (see systemproperties_get)
+    @Test
+    public void debuggingIsOff() throws Exception {
+        tools().properties("[init.svc.adbd]: [running]\n[persist.sys.usb.config]: [adb]\n" +
+                "[sys.usb.config]: [mtp,adb]\n[sys.usb.state]: [adb,mtp]\n[ro.product.model]: [Pixel 9]\n");
+        assertEquals("[init.svc.adbd]: [stopped]\n[persist.sys.usb.config]: [none]\n[sys.usb.config]: [mtp]\n" +
+                        "[sys.usb.state]: [mtp]\n[ro.product.model]: [Pixel 9]\n",
+                run(start(new String[]{"getprop"}, "debugging")).out);
+        assertEquals("stopped\n", run(start(new String[]{"getprop", "init.svc.adbd"}, "debugging")).out);
+        assertEquals("mtp\n", run(start(new String[]{"getprop", "sys.usb.config"}, "debugging")).out);
+    }
+
     // The serial is a value of Read.Identifiers, like Build.SERIAL, and not of Use.Tracking
     @Test
     public void identifiersFakeTheSerial() throws Exception {

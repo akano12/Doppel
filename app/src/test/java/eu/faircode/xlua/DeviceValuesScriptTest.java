@@ -41,6 +41,7 @@ public class DeviceValuesScriptTest {
             "  param.getResult = function(self) return self.result end",
             "  param.setResult = function(self, value) self.result = value end",
             "  param.getArgument = function(self, index) return arguments[index] end",
+            "  param.getException = function(self) return nil end",
             "  param.getSetting = function(self, name) return nil end",
             "  return param",
             "end",
@@ -77,6 +78,62 @@ public class DeviceValuesScriptTest {
                 "paramof('2025-05-05', { [0] = 'ro.build.version.security_patch' }))");
         assertTrue(result.arg1().toboolean());
         assertEquals("2025-04-01", result.arg(2).tojstring());
+    }
+
+    // USB debugging off, like adb_enabled 0 (see settingssecure_getstring): adbd stopped, adb left out of the USB
+    // functions, else they stay
+    @Test
+    public void propertiesOfDebuggingAreFaked() throws Exception {
+        Globals globals = load("systemproperties_get");
+        String[][] cases = {{"init.svc.adbd", "running", "stopped"}, {"sys.usb.config", "mtp,adb", "mtp"},
+                {"sys.usb.state", "adb", "none"}, {"persist.sys.usb.config", "adb,mtp", "mtp"},
+                {"sys.usb.config", "mtp,adb,rndis", "mtp,rndis"}};
+        for (String[] c : cases) {
+            Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get/debugging', 'get'), " +
+                    "paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))");
+            assertTrue(c[0] + " " + c[1], result.arg1().toboolean());
+            assertEquals(c[0] + " " + c[1], c[2], result.arg(2).tojstring());
+        }
+        for (String[] c : new String[][]{{"init.svc.adbd", "stopped"}, {"sys.usb.state", "mtp"}, {"sys.usb.state", ""}})
+            assertFalse(c[0] + " " + c[1], Scripts.run(globals, "return run(hookof('SystemProperties.get/debugging', " +
+                    "'get'), paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))").arg1().toboolean());
+    }
+
+    // The OpenGL strings without the model of the chip and the build of the driver; the family and version stay
+    @Test
+    public void graphicsStringsOnlyNameTheFamily() throws Exception {
+        Globals globals = load("gles_getstring");
+        String[][] cases = {{"7937", "Adreno (TM) 740", "Adreno"}, {"7937", "Mali-G715-Immortalis MC11", "Mali"},
+                {"7937", "PowerVR Rogue GE8320", "PowerVR Rogue"},
+                {"7937", "Android Emulator OpenGL ES Translator (NVIDIA GeForce RTX 5060 Laptop GPU)",
+                        "Android Emulator OpenGL ES Translator"},
+                {"7937", "740", "unknown"}, {"7936", "Google (NVIDIA Corporation)", "Google"},
+                {"7938", "OpenGL ES 3.2 V@0502.0 (GIT@4f7d2a8, I8bd1c1a3b0, 1681374963) (Date:04/13/23)", "OpenGL ES 3.2"}};
+        for (String[] c : cases) {
+            Varargs result = Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
+                    "paramof('" + c[1] + "', { [0] = " + c[0] + " }))");
+            assertTrue(c[1], result.arg1().toboolean());
+            assertEquals(c[1], c[2], result.arg(2).tojstring());
+        }
+        // Already without a model, like Qualcomm, and other strings, like the extensions, stay
+        assertFalse(Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
+                "paramof('Qualcomm', { [0] = 7936 }))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
+                "paramof('GL_OES_EGL_image', { [0] = 7939 }))").arg1().toboolean());
+    }
+
+    // The version of the DRM plugin without the build of the firmware; other properties stay
+    @Test
+    public void drmVersionWithoutBuild() throws Exception {
+        Globals globals = load("mediadrm_version");
+        Varargs result = Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
+                "'getPropertyString'), paramof('19.0.1@AV1A.240428.001', { [0] = 'version' }))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("19.0.1", result.arg(2).tojstring());
+        assertFalse(Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
+                "'getPropertyString'), paramof('16.1.0', { [0] = 'version' }))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
+                "'getPropertyString'), paramof('Google@x', { [0] = 'vendor' }))").arg1().toboolean());
     }
 
     // The operator of the test network, like TelephonyManager, and the same as getprop prints (see shell_commands);

@@ -73,8 +73,16 @@ local OPERATOR = {
 local SERIAL = { 'ro.serialno', 'ro.boot.serialno', 'ril.serialnumber', 'ro.boot.ap_serial', 'sys.serialnumber',
                  'ro.ril.oem.sno', 'ro.ril.oem.psno', 'gsm.serial' }
 
+-- The properties of USB debugging, which agree with adb_enabled 0 of Read.Debugging (see settingssecure_getstring):
+-- adbd stopped, and adb left out of the USB functions, like mtp,adb, which adb alone makes none (see systemproperties_get)
+local NOADB = {}
+local DEBUGGING = {
+    { 'stopped', { 'init.svc.adbd' } },
+    { NOADB, { 'sys.usb.config', 'sys.usb.state', 'persist.sys.usb.config' } },
+}
+
 -- The variants faking properties, which getprop prints
-local PROPERTIES = { 'tracking', 'identifiers', 'timezone' }
+local PROPERTIES = { 'tracking', 'identifiers', 'timezone', 'debugging' }
 
 -- The files of the variants of which apps read another text, which cat prints (see catfunction),
 -- like the hooks opening files: the id of boot_id per app, the boot time in /proc/uptime and /proc/stat
@@ -161,6 +169,8 @@ function rules(param, variant)
             serial = 'unknown'
         end
         return { { serial, SERIAL } }
+    elseif variant == 'debugging' then
+        return DEBUGGING
     else
         -- tracking
         local result = {}
@@ -203,6 +213,16 @@ function quartercommands(pattern)
     return result
 end
 
+-- sed commands leaving adb out of a list of USB functions, like mtp,adb, like systemproperties_get;
+-- adb alone becomes none
+function noadbcommands(pattern)
+    local property = '\\[\\(' .. propertyregex(pattern) .. '\\)\\]: \\['
+    return { 's/^' .. property .. 'adb\\]$/[\\1]: [none]/',
+             's/^' .. property .. 'adb,\\(.*\\)\\]$/[\\1]: [\\2]/',
+             's/^' .. property .. '\\(.*\\),adb,\\(.*\\)\\]$/[\\1]: [\\2,\\3]/',
+             's/^' .. property .. '\\(.*\\),adb\\]$/[\\1]: [\\2]/' }
+end
+
 -- getprop without arguments lists all properties, with a name prints its value;
 -- the value goes through the same sed as the list, so both are the same
 function getpropfunction(rules)
@@ -211,7 +231,14 @@ function getpropfunction(rules)
     for _, rule in ipairs(rules) do
         for _, pattern in ipairs(rule[2]) do
             patterns[#patterns + 1] = (string.gsub(pattern, '%*', '?*'))
-            local commands = (rule[1] == QUARTER and quartercommands(pattern) or { sedcommand(pattern, rule[1]) })
+            local commands
+            if rule[1] == QUARTER then
+                commands = quartercommands(pattern)
+            elseif rule[1] == NOADB then
+                commands = noadbcommands(pattern)
+            else
+                commands = { sedcommand(pattern, rule[1]) }
+            end
             for _, command in ipairs(commands) do
                 seds[#seds + 1] = '-e ' .. quote(command)
             end
@@ -817,7 +844,7 @@ function commands(text, variant)
                 return names
             end
         end
-    elseif variant == 'identifiers' or variant == 'timezone' then
+    elseif variant == 'identifiers' or variant == 'timezone' or variant == 'debugging' then
         local names = {}
         if string.find(text, 'getprop', 1, true) then
             names[#names + 1] = 'getprop'

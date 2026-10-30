@@ -51,6 +51,25 @@ local OPERATOR = {
     ['gsm.operator.iso-country'] = 'xx', ['gsm.sim.operator.iso-country'] = 'xx',
 }
 
+-- The properties of USB debugging, which agree with adb_enabled 0 of Read.Debugging (see settingssecure_getstring),
+-- the same as getprop prints (see shell_commands): adbd stopped, adb left out of the USB functions
+local NOADB = {}
+local DEBUGGING = {
+    ['init.svc.adbd'] = 'stopped',
+    ['sys.usb.config'] = NOADB, ['sys.usb.state'] = NOADB, ['persist.sys.usb.config'] = NOADB,
+}
+
+-- A list of USB functions without adb, like mtp for mtp,adb; adb alone becomes none
+function noadb(value)
+    local kept = {}
+    for item in string.gmatch(value, '[^,]+') do
+        if item ~= 'adb' then
+            kept[#kept + 1] = item
+        end
+    end
+    return (#kept == 0 and 'none' or table.concat(kept, ','))
+end
+
 -- The fake values by property name and the Lua patterns of the names with a *,
 -- made once because properties are read often
 local NAMES = {}
@@ -148,6 +167,12 @@ function filter(hook)
         return keys
     elseif name == 'timezone' then
         return { 'persist.sys.timezone' }
+    elseif name == 'debugging' then
+        local keys = {}
+        for key, _ in pairs(DEBUGGING) do
+            table.insert(keys, key)
+        end
+        return keys
     end
     return nil
 end
@@ -156,7 +181,8 @@ function after(hook, param)
     -- The hooked methods are called for all properties, so check the name first
     local key = param:getArgument(0)
     if key == nil or not (string.sub(key, 1, 3) == 'ro.' or string.sub(key, 1, 4) == 'ril.' or
-            string.sub(key, 1, 4) == 'gsm.' or key == 'sys.serialnumber' or key == 'persist.sys.timezone') then
+            string.sub(key, 1, 4) == 'gsm.' or key == 'sys.serialnumber' or key == 'persist.sys.timezone' or
+            DEBUGGING[key] ~= nil) then
         return false
     end
 
@@ -187,6 +213,16 @@ function after(hook, param)
         return true, result, fake
     elseif name == 'operator' and OPERATOR[key] ~= nil then
         local fake = OPERATOR[key]
+        if fake == result then
+            return false
+        end
+        param:setResult(fake)
+        return true, result, fake
+    elseif name == 'debugging' and DEBUGGING[key] ~= nil then
+        local fake = DEBUGGING[key]
+        if fake == NOADB then
+            fake = noadb(result)
+        end
         if fake == result then
             return false
         end
