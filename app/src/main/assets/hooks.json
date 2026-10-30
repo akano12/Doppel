@@ -3012,6 +3012,20 @@
     "minSdk": 11,
     "luaScript": "@clipdata_createfromparcel"
   },
+  {
+    "collection": "Privacy",
+    "group": "Read.Clipboard",
+    "name": "ClipDescription.createFromParcel",
+    "author": "akano12",
+    "className": "android.content.ClipDescription",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.ClipDescription",
+    "minSdk": 11,
+    "luaScript": "@clipdescription_createfromparcel"
+  },
   // Read identifiers
   // https://developers.google.com/android/reference/com/google/android/gms/ads/identifier/AdvertisingIdClient.html
   // https://developer.android.com/reference/android/os/Build.html
