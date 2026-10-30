@@ -65,7 +65,8 @@ public class HookDefinitionsTest {
 
     // Hidden framework classes, which are not part of the SDK, and a class of which the hooked members are hidden
     private static final Set<String> HIDDEN = new HashSet<>(Arrays.asList(
-            "android.os.SystemProperties", "android.app.ContextImpl", "android.app.Instrumentation"));
+            "android.os.SystemProperties", "android.app.ContextImpl", "android.app.Instrumentation",
+            "android.app.LoadedApk$ServiceDispatcher"));
 
     // The defaults XHook.fromJSONObject uses for missing attributes, see docs/DEFINE.md
     private static final Map<String, Object> DEFAULTS = new HashMap<>();

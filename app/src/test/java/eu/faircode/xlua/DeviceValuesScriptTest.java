@@ -136,6 +136,71 @@ public class DeviceValuesScriptTest {
                 "'getPropertyString'), paramof('Google@x', { [0] = 'vendor' }))").arg1().toboolean());
     }
 
+    // Values of MMS other than the generic ones of Android become those; generic and empty ones stay
+    @Test
+    public void mmsValuesAreGeneric() throws Exception {
+        Globals globals = load("mms_useragent");
+        String[][] cases = {{"getMmsUserAgent", "SAMSUNG-SM-G991B", "Android-Mms/2.0"},
+                {"getMmsUAProfUrl", "http://wap.samsungmobile.com/uaprof/SM-G991B.xml",
+                        "http://www.google.com/oha/rdf/ua-profile-kila.xml"}};
+        for (String[] c : cases) {
+            Varargs result = Scripts.run(globals, "return run(hookof('TelephonyManager." + c[0] + "', '" + c[0] + "'), " +
+                    "paramof('" + c[1] + "', {}))");
+            assertTrue(c[0], result.arg1().toboolean());
+            assertEquals(c[0], c[2], result.arg(2).tojstring());
+            assertFalse(c[0], Scripts.run(globals, "return run(hookof('TelephonyManager." + c[0] + "', '" + c[0] +
+                    "'), paramof('" + c[2] + "', {}))").arg1().toboolean());
+            assertFalse(c[0], Scripts.run(globals, "return run(hookof('TelephonyManager." + c[0] + "', '" + c[0] +
+                    "'), paramof('', {}))").arg1().toboolean());
+        }
+    }
+
+    // The advertising id service of Play services gets a binder in front: the id of zeros and limited ad tracking,
+    // other calls and other services go to the service
+    @Test
+    public void advertisingIdServiceAnswersZeros() throws Exception {
+        Globals globals = Scripts.load("adid_service", String.join("\n",
+                "proxy = nil",
+                "luajava = { createProxy = function(interface, methods) proxy = methods return methods end }",
+                "calls = {}",
+                "service = { transact = function(self, code, data, reply, flags) calls[#calls + 1] = code return true end,",
+                "  pingBinder = function(self) return true end }",
+                "function componentof(class) return { getClassName = function(self) return class end } end",
+                "function replyof()",
+                "  return { written = {}, writeNoException = function(self) self.written[#self.written + 1] = 'ok' end,",
+                "    writeString = function(self, value) self.written[#self.written + 1] = value end,",
+                "    writeInt = function(self, value) self.written[#self.written + 1] = tostring(value) end,",
+                "    setDataPosition = function(self, position) self.written[#self.written + 1] = '@' .. position end }",
+                "end",
+                "function connect(class)",
+                "  proxy = nil",
+                "  local param = { args = { [0] = componentof(class), [1] = service } }",
+                "  param.getArgument = function(self, index) return self.args[index] end",
+                "  param.setArgument = function(self, index, value) self.args[index] = value end",
+                "  return before({}, param), param.args[1] == service",
+                "end"));
+        Varargs result = Scripts.run(globals,
+                "local restricted, same = connect('com.google.android.gms.ads.identifier.service.AdvertisingIdService')\n" +
+                        "local id, limited = replyof(), replyof()\n" +
+                        "proxy.transact(1, nil, id, 0)\n" +
+                        "proxy.transact(2, nil, limited, 0)\n" +
+                        "proxy.transact(3, nil, replyof(), 0)\n" +
+                        "return restricted, same, table.concat(id.written, ' '), table.concat(limited.written, ' '),\n" +
+                        "  table.concat(calls, ','), tostring(proxy.queryLocalInterface('x')), tostring(proxy.pingBinder())");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals("ok 00000000-0000-0000-0000-000000000000 @0", result.arg(3).tojstring());
+        assertEquals("ok 1 @0", result.arg(4).tojstring());
+        assertEquals("3", result.arg(5).tojstring());
+        assertEquals("nil", result.arg(6).tojstring());
+        assertEquals("true", result.arg(7).tojstring());
+
+        // Other services keep their binder
+        Varargs other = Scripts.run(globals, "return connect('com.example.Service')");
+        assertFalse(other.arg(1).toboolean());
+        assertTrue(other.arg(2).toboolean());
+    }
+
     // The operator of the test network, like TelephonyManager, and the same as getprop prints (see shell_commands);
     // properties which are not set stay empty
     @Test

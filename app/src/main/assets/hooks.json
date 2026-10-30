@@ -3367,6 +3367,24 @@
     "optional": true,
     "luaScript": "@generic_true_value"
   },
+  // The advertising id service of Play services, which apps can ask with their own copy of its interface
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ServiceDispatcher.doConnected/adid",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ServiceDispatcher",
+    "methodName": "doConnected",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "android.os.IBinder",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "usage": false,
+    "luaScript": "@adid_service"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -6285,6 +6303,31 @@
     "returnType": "java.lang.String",
     "minSdk": 18,
     "luaScript": "@mediadrm_version"
+  },
+  // The user agent and profile of MMS, which can name the model
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TelephonyManager.getMmsUserAgent",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getMmsUserAgent",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 19,
+    "luaScript": "@mms_useragent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TelephonyManager.getMmsUAProfUrl",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getMmsUAProfUrl",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 19,
+    "luaScript": "@mms_useragent"
   },
   {
     "collection": "Privacy",
