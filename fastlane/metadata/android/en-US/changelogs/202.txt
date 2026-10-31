@@ -1,0 +1,10 @@
+* Requires Android 8.1 or later; on Android 6 or 7, stay on 2.1
+* A boot time of its own for each app, new each boot
+* Boot id and memory size hidden by every path
+* Add an app to the LSPosed scope from its screen
+* Activity: the overview follows the filter and the search
+* Faster app starts
+* BlockGuardOs.open removed from Downloads; if installed, remove it in Hooks
+* No flicker when switching light and dark
+* Battery, hidden apps, notification and Downloads fixes
+* Reboot after updating

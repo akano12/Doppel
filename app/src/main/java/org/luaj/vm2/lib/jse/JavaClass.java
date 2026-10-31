@@ -24,7 +24,6 @@ package org.luaj.vm2.lib.jse;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -124,7 +123,8 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 				if (k == c)
 					break;
 			} catch (LinkageError ignored) {
-				result.clear();
+				if (k == c)
+					result.clear();
 			}
 		return new ArrayList<Field>(result);
 	}
@@ -142,13 +142,11 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 			Field[] f = lf.toArray(new Field[0]);
 			for ( int i=0; i<f.length; i++ ) {
 				Field fi = f[i];
-				if ( true || Modifier.isPublic(fi.getModifiers()) ) {
-					m.put(LuaValue.valueOf(fi.getName()), fi);
-					try {
-						if (!fi.isAccessible())
-							fi.setAccessible(true);
-					} catch (RuntimeException s) { // Also the modules of desktop Java
-					}
+				m.put(LuaValue.valueOf(fi.getName()), fi);
+				try {
+					if (!fi.isAccessible())
+						fi.setAccessible(true);
+				} catch (RuntimeException s) { // Also the modules of desktop Java
 				}
 			}
 			fields = m;
@@ -163,13 +161,11 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 			Method[] m = lm.toArray(new Method[0]);
 			for ( int i=0; i<m.length; i++ ) {
 				Method mi = m[i];
-				if ( true || Modifier.isPublic( mi.getModifiers()) ) {
-					String name = mi.getName();
-					List list = (List) namedlists.get(name);
-					if ( list == null )
-						namedlists.put(name, list = new ArrayList());
-					list.add( JavaMethod.forMethod(mi) );
-				}
+				String name = mi.getName();
+				List list = (List) namedlists.get(name);
+				if ( list == null )
+					namedlists.put(name, list = new ArrayList());
+				list.add( JavaMethod.forMethod(mi) );
 			}
 			Map map = new HashMap();
 			List<Constructor> lc = new ArrayList();
@@ -184,8 +180,7 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 			Constructor[] c = lc.toArray(new Constructor[0]);
 			List list = new ArrayList();
 			for ( int i=0; i<c.length; i++ ) 
-				if ( true || Modifier.isPublic(c[i].getModifiers()) )
-					list.add( JavaConstructor.forConstructor(c[i]) );
+				list.add( JavaConstructor.forConstructor(c[i]) );
 			switch ( list.size() ) {
 			case 0: break;
 			case 1: map.put(NEW, list.get(0)); break;

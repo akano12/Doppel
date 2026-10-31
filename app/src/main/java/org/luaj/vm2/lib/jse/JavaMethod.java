@@ -66,7 +66,7 @@ class JavaMethod extends JavaMember {
 		try {
 			if (!m.isAccessible())
 				m.setAccessible(true);
-		} catch (SecurityException s) {
+		} catch (RuntimeException s) { // Also the modules of desktop Java
 		}
 	}
 

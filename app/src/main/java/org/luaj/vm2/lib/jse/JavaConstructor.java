@@ -68,7 +68,7 @@ class JavaConstructor extends JavaMember {
 		try {
 			if (!c.isAccessible())
 				c.setAccessible(true);
-		} catch (SecurityException s) {
+		} catch (RuntimeException s) { // Also the modules of desktop Java
 		}
 	}
 	

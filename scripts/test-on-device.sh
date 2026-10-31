@@ -4,7 +4,8 @@
 # Usage: ./gradlew testDebugUnitTest first (it compiles the tests), then scripts/test-on-device.sh [test classes],
 # by default eu.faircode.xlua.ShellCommandsScriptTest; with adb on the path or ADB set, ANDROID_SERIAL for one of
 # several devices, and ANDROID_HOME and JAVA_HOME set like for Gradle. Tests which need AndroidX or the Xposed API
-# (AppSectionsTest, ModernBackendTest) do not run here. Exits 1 when a test fails.
+# (AppSectionsTest, HookCheckTest, ModernBackendTest) or class files (LuaJavaMembersTest, LuaReflectionTest)
+# do not run here. Exits 1 when a test fails.
 
 set -e
 ADB=${ADB:-adb}
@@ -25,6 +26,8 @@ win() {
 OUT=app/build/intermediates/javac
 "$JAVA_HOME/bin/jar" cf "$(win "$WORK/main.jar")" -C $OUT/debug/compileDebugJavaWithJavac/classes .
 "$JAVA_HOME/bin/jar" cf "$(win "$WORK/test.jar")" -C $OUT/debugUnitTest/compileDebugUnitTestJavaWithJavac/classes .
+# The resource ids, which the compiled classes of the app refer to, like the titles of the groups
+RJAR=app/build/intermediates/compile_and_runtime_r_class_jar/debug/processDebugResources/R.jar
 CACHE=${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1
 JUNIT=$(find "$CACHE/junit/junit" -name 'junit-4*.jar' ! -name '*sources*' | sort | tail -1)
 HAMCREST=$(find "$CACHE/org.hamcrest/hamcrest-core" -name 'hamcrest-core-*.jar' ! -name '*sources*' | sort | tail -1)
@@ -33,7 +36,7 @@ D8=$TOOLS/d8
 [ -f "$D8" ] || D8=$TOOLS/d8.bat
 ANDROID_JAR=$(ls -d "$ANDROID_HOME"/platforms/android-* | sort -V | tail -1)/android.jar
 "$D8" --min-api 27 --lib "$(win "$ANDROID_JAR")" --output "$(win "$WORK")" "$(win "$WORK/main.jar")" \
-    "$(win "$WORK/test.jar")" "$(win "$JUNIT")" "$(win "$HAMCREST")" 2>&1 | grep -v -i -e '^warning' -e 'missing class' -e '^ ' || true
+    "$(win "$WORK/test.jar")" "$(win "$RJAR")" "$(win "$JUNIT")" "$(win "$HAMCREST")" 2>&1 | grep -v -i -e '^warning' -e 'missing class' -e '^ ' || true
 
 # The tests read the scripts and Downloads from the source folders, relative to the folder of the app;
 # folders are pushed to targets which do not exist yet, which old and new versions of adb fill alike

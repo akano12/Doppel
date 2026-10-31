@@ -188,6 +188,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   like by shell commands such as stat and ls, are not restricted.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
+  The Firebase, Segment and Facebook SDKs store the opt-outs *Use analytics* sets, so collection stays off after
+  the restriction is removed, until the app turns it on again or its data is cleared.
 * *Get applications* keeps the app itself, apps sharing its user id and system apps visible to lookups of single apps,
   because the Android code running in apps, like WebView, needs them.
 * Discovery of local devices with the app's own sockets, like mDNS or SSDP, cannot be prevented.
