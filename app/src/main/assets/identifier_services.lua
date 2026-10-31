@@ -44,9 +44,10 @@ local PROVIDERS = {
     ['cn.nubia.identity'] = true, -- Nubia
 }
 
--- The service of the table an intent binds, nil when none; an intent naming no package is resolved by Android
--- to any app which offers the action, so it is denied for the actions of the table
-function serviceof(intent)
+-- The service of the table an intent binds, nil when none. An intent naming no package (implicit) is resolved by
+-- Android to the app offering the action for apps targeting Android 4.4 or earlier only, so it is denied for the
+-- actions of the table; for the others Android throws itself, "Service Intent must be explicit", which stays.
+function serviceof(intent, target)
     if intent == nil then
         return nil
     end
@@ -55,7 +56,7 @@ function serviceof(intent)
     local action = intent:getAction()
     for _, service in ipairs(SERVICES) do
         if packageName == nil then
-            if service.action ~= nil and action == service.action then
+            if target < 21 and service.action ~= nil and action == service.action then
                 return service
             end
         elseif packageName == service.package and (service.action == nil or action == service.action or
@@ -80,7 +81,8 @@ function before(hook, param)
     local method = hook:getMethodName()
     if string.find(method, '^bind') then
         -- bindService, bindIsolatedService and bindServiceAsUser: the intent is the first argument
-        local service = serviceof(param:getArgument(0))
+        local target = param:getApplicationContext():getApplicationInfo().targetSdkVersion
+        local service = serviceof(param:getArgument(0), target)
         if service == nil then
             return false
         end

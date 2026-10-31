@@ -40,8 +40,13 @@ public class IdentifierServicesScriptTest {
             "function uriof(authority)",
             "  return { getAuthority = function(self) return authority end }",
             "end",
+            // The Android version the app targets, like ApplicationInfo.targetSdkVersion
+            "target = 34",
             "function paramof(arg)",
             "  return { result = 'real', set = false,",
+            "    getApplicationContext = function(self)",
+            "      return { getApplicationInfo = function(self) return { targetSdkVersion = target } end }",
+            "    end,",
             "    getArgument = function(self, i) return arg end,",
             "    setResult = function(self, v) self.result = v; self.set = true end }",
             "end",
@@ -78,15 +83,29 @@ public class IdentifierServicesScriptTest {
                 {"componentof('com.coloros.mcs', 'com.oplus.stdid.IdentifyService')", "nil", "'action.com.oplus.stdid.ID_SERVICE'"},
                 {"nil", "'com.android.creator'", "'android.service.action.msa'"},
                 {"nil", "'com.hihonor.id'", "'com.hihonor.id.HnOaIdService'"},
-                {"nil", "'com.huawei.hwid'", "'com.uodis.opendevice.OPENIDS_SERVICE'"},
-                // An action without a package, which Android resolves to the service offering it
-                {"nil", "nil", "'com.uodis.opendevice.OPENIDS_SERVICE'"}};
+                {"nil", "'com.huawei.hwid'", "'com.uodis.opendevice.OPENIDS_SERVICE'"}};
         for (String method : new String[]{"bindService", "bindIsolatedService", "bindServiceAsUser"})
             for (String[] intent : intents) {
                 Varargs result = run("return bind(intentof(" + String.join(", ", intent) + "), '" + method + "')");
                 assertTrue(method + " " + String.join(" ", intent), result.arg(1).toboolean());
                 assertFalse(result.arg(2).toboolean());
             }
+    }
+
+    // An action without a package (an implicit intent), which Android resolves to the service offering it for apps
+    // targeting Android 4.4 or earlier only; for the others it throws "Service Intent must be explicit" itself
+    // (ContextImpl.validateServiceIntent), which stays, like on any device
+    @Test
+    public void implicitIntentsOfOldApps() throws Exception {
+        String intent = "intentof(nil, nil, 'com.uodis.opendevice.OPENIDS_SERVICE')";
+        Varargs current = run("return bind(" + intent + ")");
+        assertFalse(current.arg(1).toboolean());
+        assertEquals("real", current.arg(2).tojstring());
+        Varargs old = run("target = 19\nreturn bind(" + intent + ")");
+        assertTrue(old.arg(1).toboolean());
+        assertFalse(old.arg(2).toboolean());
+        assertTrue(run("target = 20\nreturn bind(" + intent + ")").arg(1).toboolean());
+        assertFalse(run("target = 21\nreturn bind(" + intent + ")").arg(1).toboolean());
     }
 
     // Other services of the same packages stay, like the push service of ColorOS and the account of Honor
