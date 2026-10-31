@@ -6,9 +6,9 @@
 
 <p>Features:</p>
 <ul>
-<li>Simple to use</li>
 <li>Manage any user or system app</li>
-<li>Fake values for all apps or per app</li>
+<li>Fake values for all apps or per app; identifiers fixed or new each boot</li>
+<li>Restrict new apps as soon as they are installed</li>
 <li>A log of what each app tried, with the real and the fake value</li>
 <li>Extensible with your own hook definitions and definitions shared by others</li>
 <li>Light and dark theme, accent colors, a pure black background and a choice of app icons</li>
@@ -27,19 +27,19 @@
 <li>Get messages</li>
 <li>Get sensors</li>
 <li>Read account name</li>
-<li>Read biometric sensors</li>
 <li>Read battery</li>
+<li>Read biometric sensors</li>
 <li>Read clipboard</li>
 <li>Read debugging state</li>
-<li>Read memory and storage</li>
+<li>Read device features</li>
 <li>Read device settings</li>
 <li>Read identifiers</li>
-<li>Read notifications</li>
+<li>Read memory and storage</li>
 <li>Read network data</li>
+<li>Read notifications</li>
 <li>Read sync data</li>
 <li>Read telephony data</li>
 <li>Read time zone</li>
-<li>Read device features</li>
 <li>Read VPN state</li>
 <li>Record audio</li>
 <li>Record video</li>

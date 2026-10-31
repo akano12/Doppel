@@ -16,9 +16,21 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
-function before(hook, param)
-    local restricted = false
+-- The events of the cells, which the app does not get (variant of Read.Network); the call state, of which the listener
+-- gets the number of an incoming call empty, like apps without the permission of the call log (call_log).
+-- The parameter is not named hook, the function to hook a method is.
+function before(h, param)
     local events = param:getArgument(1)
+    if string.match(h:getName(), '/(.*)$') == 'call_log' then
+        local listener = param:getArgument(0)
+        if listener == nil or bit32.band(events, 32) == 0 then -- call state
+            return false
+        end
+        hook(listener, 'onCallStateChanged', nonumber)
+        return true
+    end
+
+    local restricted = false
     -- Subtracted, not bit32.bxor, which makes the negative int of the highest bit a number an int cannot hold
     if bit32.band(events, 16) ~= 0 then -- cell location
         restricted = true
@@ -32,4 +44,11 @@ function before(hook, param)
         param:setArgument(1, events)
     end
     return restricted
+end
+
+-- onCallStateChanged(state, number) of the listener, with the number empty
+function nonumber(when, param)
+    if when == 'before' then
+        param:setArgument(1, '')
+    end
 end

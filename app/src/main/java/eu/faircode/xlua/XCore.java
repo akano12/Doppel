@@ -99,12 +99,7 @@ class XCore {
     // class there, which look up packages and call the service themselves: a restriction like Get.Applications
     // would else hide the module and the apps from the service. See installMethod.
     // In apps the reports and the package lookups of XParam are neither restricted nor reported as calls of the app.
-    private static final ThreadLocal<int[]> serviceCalls = new ThreadLocal<int[]>() {
-        @Override
-        protected int[] initialValue() {
-            return new int[1];
-        }
-    };
+    private static final ThreadLocal<int[]> serviceCalls = ThreadLocal.withInitial(() -> new int[1]);
 
     static void enterService() {
         serviceCalls.get()[0]++;
@@ -756,15 +751,12 @@ class XCore {
 
     // The standard libraries, once per thread, because loading them takes much longer than running a script:
     // base, bit32, coroutine, io, math, os, package, string, table, luajava (and debug in debug builds)
-    private static final ThreadLocal<Globals> libraries = new ThreadLocal<Globals>() {
-        @Override
-        protected Globals initialValue() {
-            Globals globals = JsePlatform.standardGlobals();
-            if (BuildConfig.DEBUG)
-                globals.load(new DebugLib());
-            return globals;
-        }
-    };
+    private static final ThreadLocal<Globals> libraries = ThreadLocal.withInitial(() -> {
+        Globals globals = JsePlatform.standardGlobals();
+        if (BuildConfig.DEBUG)
+            globals.load(new DebugLib());
+        return globals;
+    });
 
     // The globals of a hook on the current thread, with the functions the script defines
     private static Globals getGlobals(Context context, XHook hook, Prototype script, Map<String, String> settings) {

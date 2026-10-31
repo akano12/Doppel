@@ -175,6 +175,13 @@ public class PackageScriptsTest {
                         "return param.args[0], param.args[1]");
         assertEquals("com.example.app", signatures.arg(1).tojstring());
         assertTrue(signatures.arg(2).tojstring().startsWith("com.example.bank.x"));
+        // The storage of another app, like its sizes, by its package, the second argument (volume, package, user)
+        Varargs storage = Scripts.run(globals,
+                "local param = paramof({ [0] = 'uuid', [1] = 'com.example.bank', [2] = 'user' }, {})\n" +
+                        "before(hookof('StorageStatsManager.queryStatsForPackage', 'queryStatsForPackage'), param)\n" +
+                        "return param.args[0], param.args[1]");
+        assertEquals("uuid", storage.arg(1).tojstring());
+        assertTrue(storage.arg(2).tojstring().startsWith("com.example.bank.x"));
     }
 
     // An array of targets is copied, the array of the app stays as it is

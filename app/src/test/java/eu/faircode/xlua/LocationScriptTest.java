@@ -64,7 +64,8 @@ public class LocationScriptTest {
         Globals callbacks = Scripts.load("telephonymanager_registertelephonycallback", String.join("\n",
                 "hooked = {}",
                 "function hook(object, method, fun) hooked[#hooked + 1] = method end",
-                "function hookof(name) return { getName = function(self) return name end } end",
+                // The callback is the last parameter: (executor, callback) and of Android 13 (flag, executor, callback)
+                "function hookof(count) return { getParameterTypes = function(self) return { length = count } end } end",
                 "function paramof(interfaces, index)",
                 "  local callback = {}",
                 "  return { result = 'none',",
@@ -75,12 +76,12 @@ public class LocationScriptTest {
         Varargs result = Scripts.run(callbacks,
                 "local param = paramof({ ['android.telephony.TelephonyCallback$CellInfoListener'] = true,\n" +
                         "  ['android.telephony.TelephonyCallback$CallStateListener'] = true }, 2)\n" +
-                        "local restricted = before(hookof('TelephonyManager.registerTelephonyCallback.33'), param)\n" +
+                        "local restricted = before(hookof(3), param)\n" +
                         "local cell = paramof({}, 0)\n" +
                         "skip('before', cell)\n" +
                         "local calls = paramof({ ['android.telephony.TelephonyCallback$CallStateListener'] = true }, 1)\n" +
                         "return restricted, param.result, table.concat(hooked, ','), cell.result,\n" +
-                        "  before(hookof('TelephonyManager.registerTelephonyCallback'), calls), calls.result");
+                        "  before(hookof(2), calls), calls.result");
         assertTrue(result.arg(1).toboolean());
         assertEquals("none", result.arg(2).tojstring());
         assertEquals("onCellInfoChanged", result.arg(3).tojstring());

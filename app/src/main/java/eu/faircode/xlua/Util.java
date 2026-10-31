@@ -25,6 +25,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Process;
 import android.os.UserHandle;
+import android.system.Os;
 import android.util.Log;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
@@ -51,10 +52,8 @@ class Util {
 
     static void setPermissions(String path, int mode, int uid, int gid) {
         try {
-            Class<?> fileUtils = Class.forName("android.os.FileUtils");
-            Method setPermissions = fileUtils
-                    .getMethod("setPermissions", String.class, int.class, int.class, int.class);
-            setPermissions.invoke(null, path, mode, uid, gid);
+            Os.chmod(path, mode);
+            Os.chown(path, uid, gid);
         } catch (Throwable ex) {
             Log.e(TAG, Log.getStackTraceString(ex));
         }

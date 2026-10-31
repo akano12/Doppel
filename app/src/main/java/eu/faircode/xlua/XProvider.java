@@ -66,6 +66,9 @@ class XProvider {
     private static final String WHERE_USER = "uid >= ? AND uid <= ?";
     // Selection of a setting: the user, the category and the name
     private static final String WHERE_SETTING = "user = ? AND category = ? AND name = ?";
+    // Selection of the settings of a user, all or of a category
+    private static final String WHERE_SETTINGS = "user = ?";
+    private static final String WHERE_CATEGORY = "user = ? AND category = ?";
 
     // Loading and changing the definitions is serialized; the maps are replaced instead of changed,
     // so they are read without the lock, also during database calls
@@ -975,7 +978,7 @@ class XProvider {
             d.delete("`group`", WHERE_APP, where);
             return new long[]{
                     d.delete("assignment", WHERE_APP, where),
-                    full ? d.delete("setting", "user = ? AND category = ?",
+                    full ? d.delete("setting", WHERE_CATEGORY,
                             new String[]{Integer.toString(userid), packageName}) : 0
             };
         });
@@ -1003,7 +1006,7 @@ class XProvider {
                 String[] range = getUidRange(userid);
                 d.delete("assignment", WHERE_USER, range);
                 d.delete("`group`", WHERE_USER, range);
-                d.delete("setting", "user = ?", new String[]{Integer.toString(userid)});
+                d.delete("setting", WHERE_SETTINGS, new String[]{Integer.toString(userid)});
             }
             return null;
         });
@@ -1147,7 +1150,7 @@ class XProvider {
         return db.read(d -> {
             Map<String, String> result = new HashMap<>();
             try (Cursor cursor = d.query("setting", new String[]{"name", "value"},
-                    "user = ? AND category = ?", new String[]{Integer.toString(userid), category},
+                    WHERE_CATEGORY, new String[]{Integer.toString(userid), category},
                     null, null, null)) {
                 while (cursor.moveToNext())
                     result.put(cursor.getString(0), cursor.getString(1));
@@ -1171,7 +1174,7 @@ class XProvider {
         return db.read(d -> {
             MatrixCursor result = new MatrixCursor(new String[]{"category", "name", "value"});
             try (Cursor cursor = d.query("setting", new String[]{"category", "name", "value"},
-                    "user = ?", new String[]{Integer.toString(userid)},
+                    WHERE_SETTINGS, new String[]{Integer.toString(userid)},
                     null, null, "category, name")) {
                 while (cursor.moveToNext())
                     result.addRow(new String[]{cursor.getString(0), cursor.getString(1), cursor.getString(2)});
@@ -1250,7 +1253,7 @@ class XProvider {
     }
 
     // System server and the app, for any user: a package name belongs to one app on the device.
-    // Apps signed with the same key are not let in, the companion app of XPrivacyLua which they were for is gone.
+    // Apps signed with the same key are not let in: there is no companion app anymore.
     private static void enforcePermission(Context context) throws SecurityException {
         int callingUid = Binder.getCallingUid();
         if (Util.getAppId(callingUid) == Process.SYSTEM_UID ||

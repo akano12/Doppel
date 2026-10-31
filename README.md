@@ -88,16 +88,16 @@ Installation
 Doppel needs Android 8.1 or later and a rooted device with an Xposed framework.
 It uses the [modern Xposed API](https://github.com/libxposed/api) when the framework has it, else the legacy API.
 
-1. Install [Magisk](https://www.xda-developers.com/how-to-install-magisk/)
+1. Root the device, like with [Magisk](https://topjohnwu.github.io/Magisk/install.html)
 2. Install and activate an Xposed framework: [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork
-3. Install Doppel from the [releases](https://github.com/akano12/Doppel/releases) and activate it
+3. Install Doppel from the [releases](https://github.com/akano12/Doppel/releases) and enable it in the framework
 4. Reboot
 
 > [!IMPORTANT]
 > In LSPosed, the scope needs *System Framework*, which hosts the Doppel service, and each app you want to restrict;
 > with the legacy API (like EdXposed) also *Settings Storage*.
 > Add only apps you restrict: LSPosed is loaded into every app in the scope.
-> *In LSPosed scope* on the screen of an app adds it for you.
+> With the modern API, *In LSPosed scope* on the screen of an app adds it for you.
 
 > [!WARNING]
 > Uninstall XPrivacyLua first: both use the same service and data.
@@ -115,12 +115,12 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 
 * **Read account name**: fake name
 * **Read biometric sensors**: no fingerprint sensor, face or iris unlock
-* **Read identifiers**: fake serial, Android ID, advertising and app set ID, MAC addresses;
+* **Read identifiers**: fake serial, Android ID, DRM id, advertising and app set ID, MAC addresses;
   the permanent ids of the chip, SD card and storage in /sys do not exist, and neither do the advertising ids (OAID)
   of the services of device makers (Samsung, Lenovo, Asus, OPPO, OnePlus, realme, Honor, Huawei, Coolpad, Nubia,
   Freeme and 360), the ids they and SDKs keep in the settings (Xiaomi, OnePlus, Amazon Fire OS, Baidu) and the
   SIM serial in their system properties
-* **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more
+* **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more, also in the phone accounts of the SIMs
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
   boot id, the boot time (each app sees its own, so the time since boot no longer links apps across restarts) and the
   folder times that tell when the device was set up; the hardware files in /sys do not exist
@@ -130,7 +130,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <details>
 <summary><b>Where you are</b> · 4 groups</summary>
 
-* **Determine activity**: fake unknown activity, no activity transitions
+* **Determine activity**: fake unknown activity, no activity transitions or sleep events
 * **Get location**: fake location, no NMEA messages or raw GNSS measurements
 * **Get sensors**: hide them
 * **Read time zone**: fake time zone, *Time zone* in *Fake values*, default UTC
@@ -140,11 +140,12 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <details>
 <summary><b>Your data</b> · 7 groups</summary>
 
-* **Get calendars**, **Get call log**: hide them
+* **Get calendars**: hide them
+* **Get call log**: hide it, also the number of incoming and outgoing calls
 * **Get contacts**: hide contacts, optionally except (non) starred ones, and blocked numbers
 * **Get messages**: hide SMS, MMS, SIM messages and voicemail
 * **Read clipboard**: fake paste
-* **Read notifications**: hide the notifications of other apps
+* **Read notifications**: hide the notifications and media sessions of other apps
 * **Read sync data**: hide sync data
 
 </details>
@@ -152,13 +153,15 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <details>
 <summary><b>Your device and apps</b> · 8 groups</summary>
 
-* **Get applications**: hide other apps, their components, widgets and usage statistics; hidden apps cannot be reached
+* **Get applications**: hide other apps, their components, widgets, install sessions and usage statistics, keyboards
+  and accessibility services; hidden apps cannot be reached
 * **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
 * **Read debugging state**: developer options and USB or wireless debugging off
 * **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers
 * **Read device settings**: the values of a new device, like the animation scale and the screen timeout
 * **Read memory and storage**: sizes rounded like devices are sold, free space rounded down
-* **Read network data**: hide cells, Wi-Fi networks, Bluetooth devices and local network discovery, fake Wi-Fi name
+* **Read network data**: hide cells, Wi-Fi networks, Bluetooth devices (also in broadcasts) and local network discovery,
+  fake Wi-Fi name
 * **Read VPN state**: no VPN
 
 </details>
@@ -214,11 +217,11 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 Help
 ----
 
-* Questions: see the [FAQ](FAQ.md)
+* Questions: see the [FAQ](FAQ.md), or ask in the [XDA thread](https://xdaforums.com/t/module-6-0-lsposed-doppel-fake-data-for-apps-maintained-continuation-of-xprivacylua.4806280/)
 * Problems with Doppel: open an [issue](https://github.com/akano12/Doppel/issues)
-* Problems with Xposed: see the [Xposed forum](http://forum.xda-developers.com/xposed)
+* Problems with LSPosed or another framework: ask where that framework is supported
 
-Doppel with [Island](http://forum.xda-developers.com/android/-t3366295) and similar apps is not supported.
+Doppel with Island and similar apps is not supported.
 
 Contributing
 ------------
@@ -234,7 +237,7 @@ Building
 <details>
 <summary>Build from source</summary>
 
-With [Android Studio](http://developer.android.com/sdk/), or from the command line with JDK 17 or later and the Android SDK (platform 37):
+With [Android Studio](https://developer.android.com/studio), or from the command line with JDK 17 or later and the Android SDK (platform 37):
 
 ```
 ./gradlew assembleDebug        # debug build
@@ -257,7 +260,7 @@ Doppel is based on [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel 
 <details>
 <summary>Doppel uses</summary>
 
-* [LuaJ](https://sourceforge.net/projects/luaj/). Copyright 2007-2013 LuaJ. All rights reserved. See [license](http://luaj.sourceforge.net/license.txt).
+* [LuaJ](https://sourceforge.net/projects/luaj/). Copyright 2007-2013 LuaJ. All rights reserved. See [license](https://luaj.sourceforge.net/license.txt).
 * [Glide](https://bumptech.github.io/glide/). Copyright 2014 Google, Inc. All rights reserved. See [license](https://raw.githubusercontent.com/bumptech/glide/master/LICENSE).
 * [AndroidX](https://developer.android.com/jetpack/androidx). Copyright (C) 2011 The Android Open Source Project. See [license](https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt).
 * [libxposed service](https://github.com/libxposed/service). See [license](https://github.com/libxposed/service/blob/master/LICENSE) (Apache License 2.0).

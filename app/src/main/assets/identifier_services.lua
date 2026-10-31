@@ -67,14 +67,17 @@ function serviceof(intent, target)
     return nil
 end
 
--- The authority of the first argument, a Uri or a name
+-- The authority of the first argument, a Uri or a name, without a user in front, like 0@cn.nubia.identity, which
+-- the provider of the user of the app answers too (like contentresolver_query, which a unit test checks)
 function authorityof(value)
     if value == nil then
         return nil
-    elseif type(value) == 'string' then
-        return value
     end
-    return value:getAuthority()
+    local authority = (type(value) == 'string' and value or value:getAuthority())
+    if authority == nil then
+        return nil
+    end
+    return (string.gsub(authority, '^%d+@', ''))
 end
 
 function before(hook, param)

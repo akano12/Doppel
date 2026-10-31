@@ -15,9 +15,10 @@
 
 -- Copyright 2026 akano12
 
--- Installed keyboards and accessibility services reveal installed apps and help to fingerprint devices.
--- Services of other apps are hidden, like for checks for specific packages (package_probe),
--- services of the system and of the app itself stay.
+-- Installed keyboards, spell checkers and accessibility services reveal installed apps and help to fingerprint
+-- devices. Services of other apps are hidden, like for checks for specific packages (package_probe),
+-- services of the system and of the app itself stay. Spell checking in the app is not affected,
+-- the framework does not use these methods for it.
 
 -- Whether a service is of a system app or of the app itself (see XParam.isVisible). The app of a service is part
 -- of the service info, so this works for apps which are hidden by the package visibility rules too.
@@ -26,7 +27,7 @@ function visible(hook, param, item)
     if hook:getClassName() == 'android.view.accessibility.AccessibilityManager' then
         ai = item:getResolveInfo().serviceInfo.applicationInfo -- AccessibilityServiceInfo
     else
-        ai = item:getServiceInfo().applicationInfo -- InputMethodInfo
+        ai = item:getServiceInfo().applicationInfo -- InputMethodInfo, SpellCheckerInfo
     end
     return param:isVisible(ai)
 end
@@ -37,7 +38,9 @@ function after(hook, param)
         return false
     end
 
-    if hook:getMethodName() == 'getCurrentInputMethodInfo' then
+    local method = hook:getMethodName()
+    if method == 'getCurrentInputMethodInfo' or method == 'getCurrentSpellChecker' or
+            method == 'getCurrentSpellCheckerInfo' then
         if visible(hook, param, result) then
             return false
         end
@@ -45,18 +48,24 @@ function after(hook, param)
         return true, result:getPackageName(), nil
     end
 
-    local filtered = false
-    local items = result:toArray()
-    local list = luajava.newInstance('java.util.ArrayList')
+    -- getEnabledSpellCheckers returns an array, the others a list
+    local array = (method == 'getEnabledSpellCheckers')
+    local items = (array and result or result:toArray())
+    local kept = luajava.newInstance('java.util.ArrayList')
     for index = 1, items['length'] do
         if visible(hook, param, items[index]) then
-            list:add(items[index])
-        else
-            filtered = true
+            kept:add(items[index])
         end
     end
-    if filtered then
-        param:setResult(list)
+    if kept:size() == items['length'] then
+        return false
     end
-    return filtered
+    if array then
+        local infoClass = luajava.bindClass('android.view.textservice.SpellCheckerInfo')
+        local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+        param:setResult(kept:toArray(arrayClass:newInstance(infoClass, 0)))
+    else
+        param:setResult(kept)
+    end
+    return true, tostring(items['length']), tostring(kept:size())
 end

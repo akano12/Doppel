@@ -235,6 +235,66 @@ public class IntentScriptTest {
         assertTrue(battery.arg(2).toboolean());
     }
 
+    // Broadcasts of Bluetooth name the devices around, which the hooks of Bluetooth hide; on Android 8.1 the broadcasts
+    // of the Wi-Fi state and the connectivity have the access point (bssid) and the network name (extraInfo)
+    @Test
+    public void networkExtrasAreLeftOut() {
+        String device = "['android.bluetooth.device.extra.DEVICE']";
+        Varargs bond = run(
+                "local intent = intentof('android.bluetooth.device.action.BOND_STATE_CHANGED', { " + device + " = 'AA:BB',\n" +
+                        "  ['android.bluetooth.device.extra.BOND_STATE'] = 12 })\n" +
+                        "return after(hookof('Intent.createFromParcel/network'), paramof(intent)),\n" +
+                        "  intent.extras" + device + ", intent.extras['android.bluetooth.device.extra.BOND_STATE']");
+        assertTrue(bond.arg(1).toboolean());
+        assertTrue(bond.arg(2).isnil());
+        assertEquals(12, bond.arg(3).toint());
+        Varargs found = run(
+                "local intent = intentof('android.bluetooth.device.action.FOUND', { " + device + " = 'AA:BB',\n" +
+                        "  ['android.bluetooth.device.extra.NAME'] = 'Headphones of Alice' })\n" +
+                        "after(hookof('Intent.createFromParcel/network'), paramof(intent))\n" +
+                        "return intent.extras" + device + ", intent.extras['android.bluetooth.device.extra.NAME']");
+        assertTrue(found.arg(1).isnil());
+        assertTrue(found.arg(2).isnil());
+        Varargs wifi = run(
+                "local state = intentof('android.net.wifi.STATE_CHANGE', { bssid = '02:11:22:33:44:55', networkInfo = 'info' })\n" +
+                        "local connectivity = intentof('android.net.conn.CONNECTIVITY_CHANGE', { extraInfo = 'Home', networkType = 1 })\n" +
+                        "return after(hookof('Intent.createFromParcel/network'), paramof(state)), state.extras.bssid,\n" +
+                        "  state.extras.networkInfo, after(hookof('Intent.createFromParcel/network'), paramof(connectivity)),\n" +
+                        "  connectivity.extras.extraInfo, connectivity.extras.networkType");
+        assertTrue(wifi.arg(1).toboolean());
+        assertTrue(wifi.arg(2).isnil());
+        assertEquals("info", wifi.arg(3).tojstring());
+        assertTrue(wifi.arg(4).toboolean());
+        assertTrue(wifi.arg(5).isnil());
+        assertEquals(1, wifi.arg(6).toint());
+        // Nothing to leave out, and other variants
+        assertFalse(run("return after(hookof('Intent.createFromParcel/network'),\n" +
+                "  paramof(intentof('android.bluetooth.adapter.action.STATE_CHANGED', { ['android.bluetooth.adapter.extra.STATE'] = 12 })))")
+                .arg1().toboolean());
+        assertFalse(run("return after(hookof('Intent.createFromParcel/battery'),\n" +
+                "  paramof(intentof('android.bluetooth.device.action.FOUND', { " + device + " = 'AA:BB' })))").arg1().toboolean());
+    }
+
+    // The number of a call in the broadcasts of the call state and of outgoing calls, like the call log
+    @Test
+    public void callNumbersAreLeftOut() {
+        Varargs incoming = run(
+                "local intent = intentof('android.intent.action.PHONE_STATE', { state = 'RINGING', incoming_number = '+3161234' })\n" +
+                        "return after(hookof('Intent.createFromParcel/call_log'), paramof(intent)), intent.extras.incoming_number,\n" +
+                        "  intent.extras.state");
+        assertTrue(incoming.arg(1).toboolean());
+        assertTrue(incoming.arg(2).isnil());
+        assertEquals("RINGING", incoming.arg(3).tojstring());
+        Varargs outgoing = run(
+                "local intent = intentof('android.intent.action.NEW_OUTGOING_CALL', { ['android.intent.extra.PHONE_NUMBER'] = '+3161234' })\n" +
+                        "return after(hookof('Intent.createFromParcel/call_log'), paramof(intent)),\n" +
+                        "  intent.extras['android.intent.extra.PHONE_NUMBER']");
+        assertTrue(outgoing.arg(1).toboolean());
+        assertTrue(outgoing.arg(2).isnil());
+        assertFalse(run("return after(hookof('Intent.createFromParcel/call_log'),\n" +
+                "  paramof(intentof('android.intent.action.PHONE_STATE', { state = 'IDLE' })))").arg1().toboolean());
+    }
+
     // The battery level in steps of 10 percent of its scale, but at least 15 percent, like BatteryManager (see battery)
     @Test
     public void batteryLevelIsRounded() {

@@ -282,11 +282,15 @@ public class FakeValuesAgreeTest {
         Globals open = Scripts.load("contentresolver_open", STUBS + "\n" + uri);
         Globals query = Scripts.load("contentresolver_query", STUBS + "\n" + uri);
         Globals hidden = Scripts.load("provider_hidden", STUBS + "\n" + uri);
+        Globals identifiers = Scripts.load("identifier_services", STUBS + "\n" + uri);
         for (String authority : new String[]{"'com.android.contacts'", "'10@com.android.contacts'", "nil"}) {
             String expected = run(open, "tostring(authorityof(uriof(" + authority + ")))");
             assertEquals(authority, expected, run(query, "tostring(authorityof(uriof(" + authority + ")))"));
             assertEquals(authority, expected, run(hidden, "tostring(authorityof(uriof(" + authority + ")))"));
+            assertEquals(authority, expected, run(identifiers, "tostring(authorityof(uriof(" + authority + ")))"));
         }
+        // Names too, like ContentResolver.call(authority, ...), also of another user, like 0@cn.nubia.identity
+        assertEquals("cn.nubia.identity", run(identifiers, "authorityof('0@cn.nubia.identity')"));
         assertEquals("com.android.contacts", run(open, "authorityof(uriof('10@com.android.contacts'))"));
     }
 
@@ -363,6 +367,53 @@ public class FakeValuesAgreeTest {
                 if (paths != devices)
                     assertEquals(path, paths == hidden, any);
             }
+    }
+
+    // The files which opening hides (contentresolver_open) are of providers whose queries are hidden for the same
+    // variant (contentresolver_query); the voicemails are of the variant mmssms for opening, of voicemail for queries
+    @Test
+    public void openedProvidersAreQueried() throws Exception {
+        Globals query = Scripts.load("contentresolver_query", STUBS + "\n" +
+                "luajava = { newInstance = function(name, columns) return 'fake' end }\n" +
+                "function cursorof()\n" +
+                "  return { getColumnNames = function(self) return {} end, close = function(self) end }\n" +
+                "end\n" +
+                "function uriof(authority)\n" +
+                "  return { getAuthority = function(self) return authority end,\n" +
+                "    getPath = function(self) return '/data/1' end }\n" +
+                "end");
+        Matcher pair = Pattern.compile("\\(name == '([^']*)' and authority == '([^']*)'\\)")
+                .matcher(Scripts.function("contentresolver_open", "restricts"));
+        int pairs = 0;
+        while (pair.find()) {
+            String authority = pair.group(2);
+            String name = ("com.android.voicemail".equals(authority) ? "voicemail" : pair.group(1));
+            assertEquals(name + " " + authority, "true", run(query, "tostring(after(hookof('ContentResolver.query/" +
+                    name + "'), paramof(cursorof(), { uriof('" + authority + "') }, {})))"));
+            pairs++;
+        }
+        assertEquals(6, pairs);
+    }
+
+    // The advertising id of Play services is zeros, from the client library and from the service
+    @Test
+    public void advertisingId() throws Exception {
+        assertEquals(constantOf("adid_service", "ZEROS"),
+                "'" + run(load("advertisingidclient$info_getid"), "fakeof('AdvertisingIdClient$Info.getId', 'getId', 'real')") + "'");
+    }
+
+    // The install times of other apps (ms) and the times of the folders of the storage (s) are the same time
+    @Test
+    public void installTimeIsTheTimeOfFolders() throws Exception {
+        assertEquals(Long.parseLong(constantOf("storage_times", "FAKE")) * 1000,
+                Long.parseLong(constantOf("packageinfo_createfromparcel", "FAKE")));
+    }
+
+    // The value of a constant of a script, like local NAME = 1 or local NAME = 'a', as it is written
+    private static String constantOf(String script, String name) throws Exception {
+        Matcher constant = Pattern.compile("\nlocal " + name + " = ('[^']*'|\\d+)\n").matcher(Scripts.read(script).replace("\r\n", "\n"));
+        assertTrue(script + " " + name, constant.find());
+        return constant.group(1);
     }
 
     // The texts in the table of a local of a script, like local NAME = { 'a', ['b'] = true }

@@ -235,7 +235,9 @@ class XDatabase {
             "SystemProperties.get/build", "SystemProperties.get/vendor", "SystemProperties.getBoolean",
             "SystemProperties.getInt", "SystemProperties.getLong", "WebView.constructor.11",
             "WebView.constructor.15", "WebView.constructor.1a", "WebView.constructor.1b", "WebView.constructor.1c",
-            "WebView.constructor.21", "WebView.constructor.23", "WebView.constructor.5"
+            "WebView.constructor.21", "WebView.constructor.23", "WebView.constructor.5",
+            // getDefaultSensor picks from getSensorList, which is hooked; addNmeaListener of GpsStatus does nothing since Android 7
+            "SensorManager.getDefaultSensor", "SensorManager.getDefaultSensor/wakeup", "LocationManager.addNmeaListener5"
     };
 
     private final SQLiteDatabase db;

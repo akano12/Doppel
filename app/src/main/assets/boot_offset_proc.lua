@@ -52,9 +52,6 @@ function after(hook, param)
 
     if param:opens('/proc/stat') then
         local text = param:getFileText()
-        if text == nil then
-            return false
-        end
         local new, n = string.gsub(text, '(btime%s+)(%d+)', function(pre, secs)
             return pre .. string.format('%d', tonumber(secs) - seconds)
         end)
@@ -66,9 +63,6 @@ function after(hook, param)
 
     elseif param:opens('/proc/uptime') then
         local text = param:getFileText()
-        if text == nil then
-            return false
-        end
         -- The whole seconds only, the fraction stays as the kernel printed it (LuaJ ignores the precision of %f)
         local new, n = string.gsub(text, '^(%d+)', function(up)
             return string.format('%d', tonumber(up) + seconds)
@@ -81,9 +75,6 @@ function after(hook, param)
 
     elseif ownstat(param) then
         local text = param:getFileText()
-        if text == nil then
-            return false
-        end
         -- Field 22, the start in ticks, is the 20th after the name, which can hold spaces and brackets.
         -- shortcut: USER_HZ is taken as 100, which Android kernels use; read sysconf(_SC_CLK_TCK) if one does not
         local name, rest = string.match(text, '^(.*%))(.*)$')

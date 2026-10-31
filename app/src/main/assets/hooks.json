@@ -38,6 +38,37 @@
     "luaScript": "@activityrecognitionresult_extractresult"
   },
   // https://developers.google.com/android/reference/com/google/android/gms/location/ActivityTransitionResult
+  // Sleep segments and classifications of Play services, like when and how well the user slept
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "SleepSegmentEvent.extractEvents",
+    "author": "akano12",
+    "className": "com.google.android.gms.location.SleepSegmentEvent",
+    "methodName": "extractEvents",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "SleepClassifyEvent.extractEvents",
+    "author": "akano12",
+    "className": "com.google.android.gms.location.SleepClassifyEvent",
+    "methodName": "extractEvents",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_empty"
+  },
   {
     "collection": "Privacy",
     "group": "Determine.Activity",
@@ -1912,7 +1943,7 @@
     "returnType": "java.util.List",
     "minSdk": 31,
     "excludePackages": "android",
-    "luaScript": "@spellchecker_filter"
+    "luaScript": "@service_filter"
   },
   {
     "collection": "Privacy",
@@ -1926,7 +1957,7 @@
     "minSdk": 23,
     "optional": true,
     "excludePackages": "android",
-    "luaScript": "@spellchecker_filter"
+    "luaScript": "@service_filter"
   },
   {
     "collection": "Privacy",
@@ -1939,7 +1970,7 @@
     "returnType": "android.view.textservice.SpellCheckerInfo",
     "minSdk": 31,
     "excludePackages": "android",
-    "luaScript": "@spellchecker_filter"
+    "luaScript": "@service_filter"
   },
   {
     "collection": "Privacy",
@@ -1953,7 +1984,7 @@
     "minSdk": 23,
     "optional": true,
     "excludePackages": "android",
-    "luaScript": "@spellchecker_filter"
+    "luaScript": "@service_filter"
   },
   {
     "collection": "Privacy",
@@ -2434,6 +2465,172 @@
     "luaScript": "@generic_filter_by_uid"
   },
   // https://developer.android.com/reference/android/app/usage/UsageStatsManager
+  // Install sessions of all apps and the changes of packages name other apps
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.getAllSessions",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller",
+    "methodName": "getAllSessions",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.getStagedSessions",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller",
+    "methodName": "getStagedSessions",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.getSessionInfo",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller",
+    "methodName": "getSessionInfo",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInstaller$SessionInfo",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.registerSessionCallback",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller",
+    "methodName": "registerSessionCallback",
+    "parameterTypes": [
+      "android.content.pm.PackageInstaller$SessionCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.registerSessionCallback/handler",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller",
+    "methodName": "registerSessionCallback",
+    "parameterTypes": [
+      "android.content.pm.PackageInstaller$SessionCallback",
+      "android.os.Handler"
+    ],
+    "returnType": "void",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "LauncherApps.getAllPackageInstallerSessions",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getAllPackageInstallerSessions",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "LauncherApps.registerPackageInstallerSessionCallback",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "registerPackageInstallerSessionCallback",
+    "parameterTypes": [
+      "java.util.concurrent.Executor",
+      "android.content.pm.PackageInstaller$SessionCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "LauncherApps.registerCallback",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "registerCallback",
+    "parameterTypes": [
+      "android.content.pm.LauncherApps$Callback"
+    ],
+    "returnType": "void",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "LauncherApps.registerCallback/handler",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "registerCallback",
+    "parameterTypes": [
+      "android.content.pm.LauncherApps$Callback",
+      "android.os.Handler"
+    ],
+    "returnType": "void",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  // With usage access, the idle state and the sizes of another app tell it is installed (see package_probe)
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UsageStatsManager.isAppInactive",
+    "author": "akano12",
+    "className": "android.app.usage.UsageStatsManager",
+    "methodName": "isAppInactive",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "StorageStatsManager.queryStatsForPackage",
+    "author": "akano12",
+    "className": "android.app.usage.StorageStatsManager",
+    "methodName": "queryStatsForPackage",
+    "parameterTypes": [
+      "java.util.UUID",
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.app.usage.StorageStats",
+    "minSdk": 26,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -2517,6 +2714,38 @@
     "returnType": "android.database.Cursor",
     "minSdk": 26,
     "luaScript": "@contentresolver_query"
+  },
+  // The call state of a phone state listener, with the number of an incoming call
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "TelephonyManager.listen/call_log",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "listen",
+    "parameterTypes": [
+      "android.telephony.PhoneStateListener",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@telephonymanager_listen"
+  },
+  // Broadcasts with the number of a call: the call state and outgoing calls
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "Intent.createFromParcel/call_log",
+    "author": "akano12",
+    "className": "android.content.Intent",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 1,
+    "luaScript": "@intent_createfromparcel"
   },
   // Get call log
   // https://developer.android.com/reference/android/provider/CallLog.html API 1
@@ -2772,20 +3001,6 @@
       "location.accuracy"
     ],
     "luaScript": "@location"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Location",
-    "name": "LocationManager.addNmeaListener5",
-    "author": "M66B",
-    "className": "android.location.LocationManager",
-    "methodName": "addNmeaListener",
-    "parameterTypes": [
-      "android.location.GpsStatus$NmeaListener"
-    ],
-    "returnType": "boolean",
-    "minSdk": 5,
-    "luaScript": "@generic_block"
   },
   {
     "collection": "Privacy",
@@ -3135,35 +3350,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Sensors",
-    "name": "SensorManager.getDefaultSensor",
-    "author": "M66B",
-    "className": "android.hardware.SensorManager",
-    "methodName": "getDefaultSensor",
-    "parameterTypes": [
-      "int"
-    ],
-    "returnType": "android.hardware.Sensor",
-    "minSdk": 3,
-    "luaScript": "@generic_null_value"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Sensors",
-    "name": "SensorManager.getDefaultSensor/wakeup",
-    "author": "M66B",
-    "className": "android.hardware.SensorManager",
-    "methodName": "getDefaultSensor",
-    "parameterTypes": [
-      "int",
-      "boolean"
-    ],
-    "returnType": "android.hardware.Sensor",
-    "minSdk": 21,
-    "luaScript": "@generic_null_value"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Sensors",
     "name": "SensorManager.getDynamicSensorList",
     "author": "M66B",
     "className": "android.hardware.SensorManager",
@@ -3247,7 +3433,7 @@
     "parameterTypes": [],
     "returnType": "android.content.ClipDescription",
     "minSdk": 11,
-    "luaScript": "@clipdescription_createfromparcel"
+    "luaScript": "@clipdata_createfromparcel"
   },
   // Read identifiers
   // https://developers.google.com/android/reference/com/google/android/gms/ads/identifier/AdvertisingIdClient.html
@@ -3388,6 +3574,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 26,
+    "excludePackages": "com\\.vivo\\..*,com\\.meizu\\..*",
     "luaScript": "@contentresolver_query"
   },
   {
@@ -3405,6 +3592,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 26,
+    "excludePackages": "com\\.vivo\\..*,com\\.meizu\\..*",
     "luaScript": "@contentresolver_query"
   },
   {
@@ -3770,6 +3958,7 @@
     ],
     "returnType": "android.os.Bundle",
     "minSdk": 11,
+    "maxSdk": 28,
     "excludePackages": "android",
     "luaScript": "@identifier_services"
   },
@@ -4378,6 +4567,147 @@
   },
   // Read notifications
   // https://developer.android.com/reference/android/service/notification/NotificationListenerService.html
+  // Media sessions of other apps, which notification listeners get: what plays, in which app
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.getActiveSessions",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "getActiveSessions",
+    "parameterTypes": [
+      "android.content.ComponentName"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.getActiveSessionsForPackage",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "getActiveSessionsForPackage",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 37,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.getActiveSessionsForPackage/listener",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "getActiveSessionsForPackage",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.ComponentName"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 37,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.getSession2Tokens",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "getSession2Tokens",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.getMediaKeyEventSessionPackageName",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "getMediaKeyEventSessionPackageName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.addOnActiveSessionsChangedListener",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "addOnActiveSessionsChangedListener",
+    "parameterTypes": [
+      "android.media.session.MediaSessionManager$OnActiveSessionsChangedListener",
+      "android.content.ComponentName"
+    ],
+    "returnType": "void",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.addOnActiveSessionsChangedListener/handler",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "addOnActiveSessionsChangedListener",
+    "parameterTypes": [
+      "android.media.session.MediaSessionManager$OnActiveSessionsChangedListener",
+      "android.content.ComponentName",
+      "android.os.Handler"
+    ],
+    "returnType": "void",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.addOnActiveSessionsForPackageChangedListener",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "addOnActiveSessionsForPackageChangedListener",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.util.concurrent.Executor",
+      "android.media.session.MediaSessionManager$OnActiveSessionsChangedListener"
+    ],
+    "returnType": "void",
+    "minSdk": 37,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.addOnActiveSessionsForPackageChangedListener/listener",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "addOnActiveSessionsForPackageChangedListener",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.util.concurrent.Executor",
+      "android.content.ComponentName",
+      "android.media.session.MediaSessionManager$OnActiveSessionsChangedListener"
+    ],
+    "returnType": "void",
+    "minSdk": 37,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Notifications",
@@ -4597,6 +4927,39 @@
     ],
     "luaScript": "@value_device_id"
   },
+  // The phone account of a SIM has the phone number as its address, like getLine1Number (see phone_account_address)
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "PhoneAccount.getAddress",
+    "author": "akano12",
+    "className": "android.telecom.PhoneAccount",
+    "methodName": "getAddress",
+    "parameterTypes": [],
+    "returnType": "android.net.Uri",
+    "minSdk": 23,
+    "excludePackages": "android",
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@phone_account_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "PhoneAccount.getSubscriptionAddress",
+    "author": "akano12",
+    "className": "android.telecom.PhoneAccount",
+    "methodName": "getSubscriptionAddress",
+    "parameterTypes": [],
+    "returnType": "android.net.Uri",
+    "minSdk": 23,
+    "excludePackages": "android",
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@phone_account_address"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Telephony",
@@ -4659,6 +5022,95 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 26,
+    "luaScript": "@generic_null_value"
+  },
+  // The id of a SIM account is the serial number of the SIM (ICC ID) until Android 13, which gives it with the phone
+  // state permission (PhoneUtils.makePstnPhoneAccountHandleWithPrefix); later ones use the subscription id
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelecomManager.getCallCapablePhoneAccounts",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getCallCapablePhoneAccounts",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 23,
+    "maxSdk": 32,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelecomManager.getDefaultOutgoingPhoneAccount",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getDefaultOutgoingPhoneAccount",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.telecom.PhoneAccountHandle",
+    "minSdk": 23,
+    "maxSdk": 32,
+    "excludePackages": "android",
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelecomManager.getUserSelectedOutgoingPhoneAccount",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getUserSelectedOutgoingPhoneAccount",
+    "parameterTypes": [],
+    "returnType": "android.telecom.PhoneAccountHandle",
+    "minSdk": 29,
+    "maxSdk": 32,
+    "excludePackages": "android",
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelecomManager.getSimCallManager",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getSimCallManager",
+    "parameterTypes": [],
+    "returnType": "android.telecom.PhoneAccountHandle",
+    "minSdk": 23,
+    "maxSdk": 32,
+    "excludePackages": "android",
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getPhoneAccountHandle",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getPhoneAccountHandle",
+    "parameterTypes": [],
+    "returnType": "android.telecom.PhoneAccountHandle",
+    "minSdk": 31,
+    "maxSdk": 32,
+    "excludePackages": "android",
+    "luaScript": "@generic_null_value"
+  },
+  // The network access identifier, often of the subscriber id, which only Android 9 gives with the phone state permission
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getNai",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getNai",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 28,
+    "maxSdk": 28,
+    "excludePackages": "android",
     "luaScript": "@generic_null_value"
   },
   {
@@ -7055,6 +7507,19 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "SmsManager.getCarrierConfigValues",
+    "author": "akano12",
+    "className": "android.telephony.SmsManager",
+    "methodName": "getCarrierConfigValues",
+    "parameterTypes": [],
+    "returnType": "android.os.Bundle",
+    "minSdk": 21,
+    "excludePackages": "android",
+    "luaScript": "@mms_useragent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "SubscriptionInfo.getCarrierName",
     "author": "M66B",
     "className": "android.telephony.SubscriptionInfo",
@@ -7749,7 +8214,6 @@
     ],
     "returnType": "void",
     "minSdk": 34,
-    "optional": true,
     "settings": [
       "value.boot_offset"
     ],
@@ -8793,6 +9257,21 @@
     "minSdk": 24,
     "luaScript": "@hardware_files"
   },
+  // The own device of Wi-Fi Direct with the name users give the device (see wifip2pdevice_name)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "WifiP2pDevice.createFromParcel",
+    "author": "akano12",
+    "className": "android.net.wifi.p2p.WifiP2pDevice",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.net.wifi.p2p.WifiP2pDevice",
+    "minSdk": 14,
+    "luaScript": "@wifip2pdevice_name"
+  },
   // The device name is often set to the name of the owner
   {
     "collection": "Privacy",
@@ -9332,6 +9811,50 @@
     "minSdk": 18,
     "luaScript": "@generic_empty"
   },
+  // Bluetooth input devices, like keyboards, mice and game controllers, of the HID device profile
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothHidDevice.getConnectedDevices",
+    "author": "akano12",
+    "className": "android.bluetooth.BluetoothHidDevice",
+    "methodName": "getConnectedDevices",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BluetoothHidDevice.getDevicesMatchingConnectionStates",
+    "author": "akano12",
+    "className": "android.bluetooth.BluetoothHidDevice",
+    "methodName": "getDevicesMatchingConnectionStates",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  // Broadcasts with the Bluetooth devices around, and with the access point and the network name on Android 8.1
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "Intent.createFromParcel/network",
+    "author": "akano12",
+    "className": "android.content.Intent",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 1,
+    "luaScript": "@intent_createfromparcel"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -9534,6 +10057,24 @@
     ],
     "returnType": "void",
     "minSdk": 33,
+    "luaScript": "@nsdmanager_listener"
+  },
+  // The service info callback by a discovery request, of Android 17
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NsdManager.registerServiceInfoCallback/discovery",
+    "author": "akano12",
+    "className": "android.net.nsd.NsdManager",
+    "methodName": "registerServiceInfoCallback",
+    "parameterTypes": [
+      "android.net.nsd.DiscoveryRequest",
+      "java.util.concurrent.Executor",
+      "android.net.nsd.NsdManager$ServiceInfoCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 37,
+    "excludePackages": "android",
     "luaScript": "@nsdmanager_listener"
   },
   {
@@ -9856,6 +10397,20 @@
     "minSdk": 1,
     "luaScript": "@intent_createfromparcel"
   },
+  // The location mode of battery saver, which is only set while battery saver is on
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "PowerManager.getLocationPowerSaveMode",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "getLocationPowerSaveMode",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@generic_zero_value"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Battery",
@@ -10124,6 +10679,22 @@
     "luaScript": "@resources"
   },
   // StatFs itself, see resources.lua
+  // The free space an app can allocate, exactly
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "StorageManager.getAllocatableBytes",
+    "author": "akano12",
+    "className": "android.os.storage.StorageManager",
+    "methodName": "getAllocatableBytes",
+    "parameterTypes": [
+      "java.util.UUID"
+    ],
+    "returnType": "long",
+    "minSdk": 26,
+    "excludePackages": "android",
+    "luaScript": "@resources"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Resources",

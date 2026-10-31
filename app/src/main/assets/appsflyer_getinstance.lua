@@ -18,7 +18,7 @@
 
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or result.stop == nil or type(result.stop) ~= 'function' then
+    if result == nil or type(result.stop) ~= 'function' then
         return false
     end
 

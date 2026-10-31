@@ -27,7 +27,8 @@ local arguments = {
     checkPermission = { 1 }, -- permission, package
     checkSignatures = { 0, 1 },
     canPackageQuery = { 0, 1 }, -- source, target or targets
-    getProperty = { 1 } -- property, package or component
+    getProperty = { 1 }, -- property, package or component
+    queryStatsForPackage = { 1 } -- volume, package, user
 }
 
 -- The substitutes of the calls in progress on this thread, for after, which comes in reverse order

@@ -159,6 +159,29 @@ public class DeviceValuesScriptTest {
         }
     }
 
+    // The carrier configuration of MMS has the same user agent and profile, by its keys userAgent and uaProfUrl;
+    // the configuration is a copy for the app, other values stay
+    @Test
+    public void mmsCarrierConfigIsGeneric() throws Exception {
+        Globals globals = load("mms_useragent");
+        Varargs result = Scripts.run(globals, "local values = { userAgent = 'SAMSUNG-SM-G991B',\n" +
+                "  uaProfUrl = 'http://wap.samsungmobile.com/uaprof/SM-G991B.xml', maxMessageSize = 1048576 }\n" +
+                "local bundle = { getString = function(self, key) return values[key] end,\n" +
+                "  putString = function(self, key, value) values[key] = value end }\n" +
+                "local restricted = run(hookof('SmsManager.getCarrierConfigValues', 'getCarrierConfigValues'), paramof(bundle, {}))\n" +
+                "return restricted, values.userAgent, values.uaProfUrl, values.maxMessageSize");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("Android-Mms/2.0", result.arg(2).tojstring());
+        assertEquals("http://www.google.com/oha/rdf/ua-profile-kila.xml", result.arg(3).tojstring());
+        assertEquals(1048576, result.arg(4).toint());
+        // Generic and empty values stay
+        assertFalse(Scripts.run(globals, "local values = { userAgent = 'Android-Mms/2.0', uaProfUrl = '' }\n" +
+                "local bundle = { getString = function(self, key) return values[key] end,\n" +
+                "  putString = function(self, key, value) values[key] = value end }\n" +
+                "return run(hookof('SmsManager.getCarrierConfigValues', 'getCarrierConfigValues'), paramof(bundle, {}))")
+                .arg1().toboolean());
+    }
+
     // The advertising id service of Play services gets a binder in front: the id of zeros and limited ad tracking,
     // other calls and other services go to the service
     @Test
@@ -664,9 +687,29 @@ public class DeviceValuesScriptTest {
         Varargs result = Scripts.run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(118000000000, {}))");
         assertTrue(result.arg1().toboolean());
         assertEquals(128000000000L, result.arg(2).tolong());
+        // The free space an app can allocate is rounded like other free space
+        result = Scripts.run(globals, "return run(hookof('StorageManager.getAllocatableBytes', 'getAllocatableBytes'), paramof(7917, {}))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(7900, result.arg(2).toint());
         // Small file systems keep their size
         assertFalse(Scripts.run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(500000000, {}))")
                 .arg1().toboolean());
+
+        // statvfs: the blocks are rounded, and the inodes with them, of which ext4 has a fixed number per size,
+        // so their total does not give the exact size back
+        result = Scripts.run(globals, "luajava = { newInstance = function(name, ...) return { name = name, args = { ... } } end }\n" +
+                "local real = { f_bsize = 4096, f_frsize = 4096, f_blocks = 28808593, f_bfree = 12000000, f_bavail = 11900000,\n" +
+                "  f_files = 7208960, f_ffree = 6000000, f_favail = 6000000, f_fsid = 1, f_flag = 0, f_namemax = 255 }\n" +
+                "local param = paramof(real, {})\n" +
+                "local restricted = run(hookof('Os.statvfs', 'statvfs'), param)\n" +
+                "local a = param.result.args\n" +
+                "return restricted, a[3], a[6], a[7], a[8]");
+        assertTrue(result.arg(1).toboolean());
+        long blocks = result.arg(2).tolong();
+        assertEquals(31250000L, blocks);
+        assertEquals((long) Math.floor(7208960.0 * blocks / 28808593), result.arg(3).tolong());
+        assertEquals((long) Math.floor(6000000.0 * blocks / 28808593), result.arg(4).tolong());
+        assertEquals((long) Math.floor(6000000.0 * blocks / 28808593), result.arg(5).tolong());
 
         // The memory info of the app is changed in place
         result = Scripts.run(globals, "local info = { totalMem = 4109369344, availMem = 1234567890 }\n" +

@@ -18,6 +18,18 @@
 
 function after(hook, param)
     local result = param:getResult()
+    -- The description of the clip, like from getPrimaryClipDescription: the one of the clip apps get instead,
+    -- so the label and the types of the real clip stay hidden
+    if hook:getMethodName() == 'getPrimaryClipDescription' then
+        if result == nil then
+            return false
+        end
+        local fake = luajava.bindClass('android.content.ClipData'):newPlainText('text', 'Private'):getDescription()
+        param:setResult(fake)
+        -- Not the label, which can name what was copied, like a password; the log keeps what it gets
+        return true
+    end
+
     if result == nil or result:getItemCount() == 0 then
         return false
     end

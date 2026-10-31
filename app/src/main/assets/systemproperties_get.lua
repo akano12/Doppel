@@ -208,7 +208,7 @@ end
 function after(hook, param)
     -- The hooked methods are called for all properties, so check the name first
     local key = param:getArgument(0)
-    if key == nil or not (string.sub(key, 1, 3) == 'ro.' or string.sub(key, 1, 4) == 'ril.' or
+    if key == nil or not (string.sub(key, 1, 3) == 'ro.' or
             string.sub(key, 1, 4) == 'gsm.' or SERIALS[key] ~= nil or iccid(key) or key == 'persist.sys.timezone' or
             DEBUGGING[key] ~= nil) then
         return false

@@ -46,7 +46,7 @@ import android.widget.TextView;
 import androidx.annotation.StringRes;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.graphics.ColorUtils;
-import androidx.core.util.Consumer;
+import java.util.function.Consumer;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;

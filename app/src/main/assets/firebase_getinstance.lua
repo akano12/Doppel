@@ -31,7 +31,7 @@ function after(hook, param)
     end
 
     local set = result[name]
-    if set == nil or type(set) ~= 'function' then
+    if type(set) ~= 'function' then
         return false
     end
 

@@ -15,16 +15,23 @@
 
 -- Copyright 2026 akano12
 
--- The description of the clip, like from getPrimaryClipDescription: the one of the clip apps get instead,
--- see clipdata_createfromparcel, so the label and the types of the real clip stay hidden
+-- The phone accounts of the SIMs have the phone number as their address (tel:), like getLine1Number: the fake number
+-- (value.phone_number), else none. The accounts of the app itself and other addresses, like sip: of calling apps, stay.
 function after(hook, param)
     local result = param:getResult()
-    if result == nil then
+    if result == nil or result:getScheme() ~= 'tel' then
+        return false
+    end
+    local handle = param:getThis():getAccountHandle()
+    if handle ~= nil and handle:getComponentName():getPackageName() == param:getPackageName() then
         return false
     end
 
-    local fake = luajava.bindClass('android.content.ClipData'):newPlainText('text', 'Private'):getDescription()
+    local number = param:getSetting('value.phone_number')
+    local fake = nil
+    if number ~= nil then
+        fake = luajava.bindClass('android.net.Uri'):fromParts('tel', number, nil)
+    end
     param:setResult(fake)
-    -- Not the label, which can name what was copied, like a password; the log keeps what it gets
-    return true
+    return true, result:toString(), number
 end

@@ -247,6 +247,19 @@ public class SettingsScriptTest {
         assertFalse(run("return hooked('voice_recognition_service')").arg1().toboolean());
     }
 
+    // More settings name apps by their components: screen savers, disabled print services, the default payment app
+    // and the credential services; the Android code in apps does not read these, unlike voice_recognition_service and
+    // tts_default_synth, which speech recognition and text to speech read and which stay
+    @Test
+    public void moreSettingsOfOtherAppsAreHidden() {
+        for (String key : new String[]{"screensaver_components", "screensaver_default_component", "disabled_print_services",
+                "nfc_payment_default_component", "credential_service", "credential_service_primary"}) {
+            assertTrue(key, run("return hooked('" + key + "')").arg1().toboolean());
+            assertEquals(key, null, applications("input_method", key, "com.third.hidden/.Service"));
+        }
+        assertFalse(run("return hooked('tts_default_synth')").arg1().toboolean());
+    }
+
     // Apps expect a default SMS and phone app: the one of the system replaces a hidden one,
     // the configured one when installed, else a system app which can be the default
     @Test

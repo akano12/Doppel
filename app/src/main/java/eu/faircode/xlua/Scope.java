@@ -29,8 +29,8 @@ import io.github.libxposed.service.XposedService;
 import io.github.libxposed.service.XposedServiceHelper;
 
 // Adds an app to Doppel's own LSPosed scope from the manager, so the user does not open the framework.
-// The framework delivers its service to this app through the provider the libxposed service library declares in the
-// manifest; only a modern framework (the libxposed API, Android 8.1 and later) has it, so without one everything here
+// The framework delivers its service to this app through ScopeProvider, which replaces the provider of the libxposed
+// service library in the manifest; only a modern framework (the libxposed API, Android 8.1 and later) has it, so without one everything here
 // is a no-op and the toggle is hidden (see ActivityApp). All calls but init are binder calls, not on the main thread.
 class Scope {
     private static final String TAG = "XLua.Scope";

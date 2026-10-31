@@ -33,7 +33,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 // Keyboards, spell checkers and accessibility services of hidden apps are left out of what an app gets,
-// see service_filter and spellchecker_filter
+// see service_filter
 public class ServiceFilterScriptTest {
     // A visible and a hidden service; accessibility services have their app in the resolve info,
     // the others in the service info, so a script reading the wrong one fails
@@ -84,17 +84,20 @@ public class ServiceFilterScriptTest {
                 {"service_filter", "android.view.inputmethod.InputMethodManager", "getEnabledInputMethodList", "serviceof"},
                 {"service_filter", "android.view.accessibility.AccessibilityManager", "getEnabledAccessibilityServiceList", "accessibilityof"},
                 {"service_filter", "android.view.accessibility.AccessibilityManager", "getInstalledAccessibilityServiceList", "accessibilityof"},
-                {"spellchecker_filter", "android.view.textservice.TextServicesManager", "getEnabledSpellCheckerInfos", "serviceof"}};
+                {"service_filter", "android.view.textservice.TextServicesManager", "getEnabledSpellCheckerInfos", "serviceof"}};
         for (String[] list : lists) {
             Globals globals = Scripts.load(list[0], STUBS);
             String call = "filter('" + list[1] + "', '" + list[2] + "', ";
 
-            Varargs result = Scripts.run(globals, "local restricted, set, list = " + call +
+            Varargs result = Scripts.run(globals, "local restricted, set, list, old, new = " + call +
                     "listof(" + list[3] + "('com.android.inputmethod'), " + list[3] + "('com.other.hidden')))\n" +
-                    "return restricted, set, packages('" + list[1] + "', list)");
+                    "return restricted, set, packages('" + list[1] + "', list), old, new");
             assertTrue(list[2], result.arg(1).toboolean());
             assertTrue(list[2], result.arg(2).toboolean());
             assertEquals(list[2], "com.android.inputmethod", result.arg(3).tojstring());
+            // The log tells how many there were and how many are left
+            assertEquals(list[2], "2", result.arg(4).tojstring());
+            assertEquals(list[2], "1", result.arg(5).tojstring());
 
             // Nothing hidden or no list: the result stays
             result = Scripts.run(globals, "return " + call + "listof(" + list[3] + "('com.android.inputmethod')))");
@@ -108,8 +111,8 @@ public class ServiceFilterScriptTest {
     public void currentServiceOfHiddenAppIsNone() throws Exception {
         String[][] currents = {
                 {"service_filter", "android.view.inputmethod.InputMethodManager", "getCurrentInputMethodInfo"},
-                {"spellchecker_filter", "android.view.textservice.TextServicesManager", "getCurrentSpellCheckerInfo"},
-                {"spellchecker_filter", "android.view.textservice.TextServicesManager", "getCurrentSpellChecker"}};
+                {"service_filter", "android.view.textservice.TextServicesManager", "getCurrentSpellCheckerInfo"},
+                {"service_filter", "android.view.textservice.TextServicesManager", "getCurrentSpellChecker"}};
         for (String[] current : currents) {
             Globals globals = Scripts.load(current[0], STUBS);
             String call = "filter('" + current[1] + "', '" + current[2] + "', serviceof(";
@@ -143,7 +146,7 @@ public class ServiceFilterScriptTest {
     // getEnabledSpellCheckers returns SpellCheckerInfo[], so an array of any other type would fail in the app
     @Test
     public void spellCheckersStayAnArrayOfTheirType() throws Exception {
-        Globals globals = Scripts.load("spellchecker_filter", STUBS + "\n" +
+        Globals globals = Scripts.load("service_filter", STUBS + "\n" +
                 "local bind = luajava.bindClass\n" +
                 "luajava.bindClass = function(name)\n" +
                 "  return bind(name == 'android.view.textservice.SpellCheckerInfo' and '" + Checker.class.getName() + "' or name)\n" +

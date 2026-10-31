@@ -70,7 +70,13 @@ local COMPONENTS = {
     sms_default_application = 'packages',
     dialer_default_application = 'packages',
     enabled_print_services = 'packages',
+    disabled_print_services = 'packages',
     enabled_vr_listeners = 'packages',
+    screensaver_components = 'packages',
+    screensaver_default_component = 'packages',
+    nfc_payment_default_component = 'packages',
+    credential_service = 'packages',
+    credential_service_primary = 'packages',
 }
 
 -- Shortcut targets of the framework itself, like com.android.server.accessibility/ColorInversion;
@@ -390,15 +396,15 @@ function listed(param, group, result)
     return true, table.concat(names, ',')
 end
 
--- Apps can read settings from the settings provider too, which Settings.*.getString use:
--- call(GET_secure, name) returns a bundle with the value, call(LIST_secure) all settings
--- and a query rows of names and values
 -- The methods of the settings provider which read settings
 local GETTERS = {
     GET_secure = true, GET_system = true, GET_global = true,
     LIST_secure = true, LIST_system = true, LIST_global = true,
 }
 
+-- Apps can read settings from the settings provider too, which Settings.*.getString use:
+-- call(GET_secure, name) returns a bundle with the value, call(LIST_secure) all settings
+-- and a query rows of names and values
 function provider(hook, param, group)
     local target = param:getArgument(0)
     local authority = target

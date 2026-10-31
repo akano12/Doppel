@@ -96,13 +96,17 @@ public class GenericScriptsTest {
             assertTrue(kind[0], ((Collection<?>) fake).isEmpty());
         }
 
-        // An array becomes an empty array of the component type of the return type
+        // An array becomes an empty array of the component type of the return type,
+        // named like Class.getName or like the built-in definitions
         globals.set("array", CoerceJavaToLua.coerce(new String[]{"a"}));
-        Varargs result = Scripts.run(globals, "local param = paramof(array)\n" +
-                "local restricted = after(hookof('[Ljava.lang.String;'), param)\n" +
-                "return restricted, param.result");
-        assertTrue(result.arg(1).toboolean());
-        assertEquals(0, ((String[]) result.arg(2).checkuserdata()).length);
+        Varargs result;
+        for (String type : new String[]{"[Ljava.lang.String;", "java.lang.String[]"}) {
+            result = Scripts.run(globals, "local param = paramof(array)\n" +
+                    "local restricted = after(hookof('" + type + "'), param)\n" +
+                    "return restricted, param.result");
+            assertTrue(type, result.arg(1).toboolean());
+            assertEquals(type, 0, ((String[]) result.arg(2).checkuserdata()).length);
+        }
 
         // Empty results and no result stay
         globals.set("empty", CoerceJavaToLua.coerce(new String[0]));

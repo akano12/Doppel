@@ -32,7 +32,7 @@ function after(hook, param)
 end
 
 function optout(analytics)
-    if analytics == nil or analytics.optOut == nil then
+    if analytics == nil then
         return false
     end
 

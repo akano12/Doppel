@@ -26,8 +26,8 @@ import android.widget.ImageButton;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
-import androidx.core.util.Consumer;
-import androidx.core.util.Supplier;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;

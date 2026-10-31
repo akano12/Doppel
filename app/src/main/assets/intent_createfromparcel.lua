@@ -19,14 +19,46 @@
 -- The functions of the USB connection (UsbManager), which are extras of USB_STATE, like adb for USB debugging
 local USB_FUNCTIONS = { 'mtp', 'ptp', 'rndis', 'midi', 'accessory', 'audio_source', 'ncm', 'uvc' }
 
--- The actions of the variant package, the other intents go by without a lookup
+-- The actions of the variant package with what they tell: a package which becomes the app itself (own),
+-- lists of packages (lists) or the user id of a removed app (uid); the other intents go by without a lookup
 local PACKAGE_ACTIONS = {}
-for _, action in ipairs({ 'PACKAGE_ADDED', 'PACKAGE_CHANGED', 'PACKAGE_DATA_CLEARED', 'PACKAGE_FIRST_LAUNCH',
-                          'PACKAGE_FULLY_REMOVED', 'PACKAGE_INSTALL', 'PACKAGE_NEEDS_VERIFICATION', 'PACKAGE_REMOVED',
-                          'PACKAGE_REPLACED', 'PACKAGE_RESTARTED', 'PACKAGE_UNSTOPPED', 'PACKAGE_VERIFIED',
-                          'EXTERNAL_APPLICATIONS_AVAILABLE', 'EXTERNAL_APPLICATIONS_UNAVAILABLE', 'PACKAGES_SUSPENDED',
-                          'PACKAGES_UNSUSPENDED', 'UID_REMOVED' }) do
-    PACKAGE_ACTIONS['android.intent.action.' .. action] = true
+for kind, actions in pairs({
+    own = { 'PACKAGE_ADDED', 'PACKAGE_CHANGED', 'PACKAGE_DATA_CLEARED', 'PACKAGE_FIRST_LAUNCH', 'PACKAGE_FULLY_REMOVED',
+            'PACKAGE_INSTALL', 'PACKAGE_NEEDS_VERIFICATION', 'PACKAGE_REMOVED', 'PACKAGE_REPLACED',
+            'PACKAGE_RESTARTED', 'PACKAGE_UNSTOPPED', 'PACKAGE_VERIFIED' },
+    lists = { 'EXTERNAL_APPLICATIONS_AVAILABLE', 'EXTERNAL_APPLICATIONS_UNAVAILABLE', 'PACKAGES_SUSPENDED',
+              'PACKAGES_UNSUSPENDED' },
+    uid = { 'UID_REMOVED' } }) do
+    for _, action in ipairs(actions) do
+        PACKAGE_ACTIONS['android.intent.action.' .. action] = kind
+    end
+end
+
+-- Extras left out of broadcasts, per variant and action: the Bluetooth devices around and their names, which the hooks
+-- of Bluetooth hide, of each action of Bluetooth (network); on Android 8.1 the access point of the Wi-Fi state and the
+-- network name of the connectivity (network); the number of a call (call_log)
+local BLUETOOTH = { 'android.bluetooth.device.extra.DEVICE', 'android.bluetooth.device.extra.NAME' }
+local EXTRAS = {
+    network = {
+        ['android.net.wifi.STATE_CHANGE'] = { 'bssid' },
+        ['android.net.conn.CONNECTIVITY_CHANGE'] = { 'extraInfo' },
+    },
+    call_log = {
+        ['android.intent.action.PHONE_STATE'] = { 'incoming_number' },
+        ['android.intent.action.NEW_OUTGOING_CALL'] = { 'android.intent.extra.PHONE_NUMBER' },
+    },
+}
+
+-- The extras a variant leaves out of a broadcast, nil when none
+function extrasof(name, action)
+    local actions = EXTRAS[name]
+    if actions == nil then
+        return nil
+    end
+    if name == 'network' and string.sub(action, 1, 18) == 'android.bluetooth.' then
+        return BLUETOOTH
+    end
+    return actions[action]
 end
 
 function after(hook, param)
@@ -43,23 +75,32 @@ function after(hook, param)
     -- Hook names are like Function/variant
     local name = string.match(hook:getName(), '/(.*)$')
 
+    local remove = extrasof(name, action)
+    if remove ~= nil then
+        local extras = intent:getExtras()
+        if extras == nil then
+            return false
+        end
+        local removed = false
+        for _, key in ipairs(remove) do
+            if extras:containsKey(key) then
+                extras:remove(key)
+                removed = true
+            end
+        end
+        if removed then
+            intent:replaceExtras(extras)
+        end
+        return removed
+    end
+
     -- Processes of the system manage the packages of all apps
-    if name == 'package' and (not PACKAGE_ACTIONS[action] or param:isSystem()) then
+    local kind = (name == 'package' and PACKAGE_ACTIONS[action] or nil)
+    if name == 'package' and (kind == nil or param:isSystem()) then
         return false
     end
 
-    if name == 'package' and (action == 'android.intent.action.PACKAGE_ADDED' or
-            action == 'android.intent.action.PACKAGE_CHANGED' or
-            action == 'android.intent.action.PACKAGE_DATA_CLEARED' or
-            action == 'android.intent.action.PACKAGE_FIRST_LAUNCH' or
-            action == 'android.intent.action.PACKAGE_FULLY_REMOVED' or
-            action == 'android.intent.action.PACKAGE_INSTALL' or
-            action == 'android.intent.action.PACKAGE_NEEDS_VERIFICATION' or
-            action == 'android.intent.action.PACKAGE_REMOVED' or
-            action == 'android.intent.action.PACKAGE_REPLACED' or
-            action == 'android.intent.action.PACKAGE_RESTARTED' or
-            action == 'android.intent.action.PACKAGE_UNSTOPPED' or
-            action == 'android.intent.action.PACKAGE_VERIFIED') then
+    if kind == 'own' then
         -- Packages which stay visible, like the app itself and system apps, stay, like their probes (see package_probe),
         -- also the components of the app which it changed itself
         local data = intent:getData()
@@ -95,10 +136,7 @@ function after(hook, param)
             intent:replaceExtras(extras)
         end
         return true
-    elseif name == 'package' and (action == 'android.intent.action.EXTERNAL_APPLICATIONS_AVAILABLE' or
-            action == 'android.intent.action.EXTERNAL_APPLICATIONS_UNAVAILABLE' or
-            action == 'android.intent.action.PACKAGES_SUSPENDED' or
-            action == 'android.intent.action.PACKAGES_UNSUSPENDED') then
+    elseif kind == 'lists' then
         -- No packages and no user ids, empty, because receivers iterate them
         local extras = intent:getExtras()
         if extras == nil then
@@ -113,7 +151,7 @@ function after(hook, param)
         end
         intent:replaceExtras(extras)
         return true
-    elseif name == 'package' and action == 'android.intent.action.UID_REMOVED' then
+    elseif kind == 'uid' then
         -- The user id of a removed app can come with its package
         local extras = intent:getExtras()
         if extras == nil or not extras:containsKey('android.intent.extra.PACKAGE_NAME') then

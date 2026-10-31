@@ -38,7 +38,8 @@ function after(hook, param)
     elseif type == PHONE_TYPE_CDMA and method ~= 'getImei' and method ~= 'getPrimaryImei' then
         fake = param:getSetting('value.meid')
     end
-    if result == nil and fake == nil then
+    -- Also the fake of the overload this one calls, like getImei() calls getImei(slot), which reported it already
+    if result == fake then
         return false
     end
 

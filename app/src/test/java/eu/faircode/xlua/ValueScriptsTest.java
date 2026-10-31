@@ -89,6 +89,9 @@ public class ValueScriptsTest {
                 {"cdma", "getImei", null}, {"cdma", "getPrimaryImei", null}})
             check(globals, "return after_(hookof('" + c[1] + "'), paramof('real', {}, " + c[0] + "))", true, true, c[2]);
 
+        // The fake already, like getImei() calling the hooked getImei(slot): not reported twice
+        check(globals, "return after_(hookof('getImei'), paramof('fake-imei', {}, gsm))", false, false, "fake-imei");
+
         // Without a setting the real id is gone; no id and no setting stays
         Scripts.run(globals, "settings = {}");
         check(globals, "return after_(hookof('getImei'), paramof('real', {}, gsm))", true, true, null);
@@ -96,6 +99,51 @@ public class ValueScriptsTest {
         // Apps without permission keep the exception, static calls stay
         check(globals, "return after_(hookof('getImei'), paramof('real', {}, gsm, 'security'))", false, false, "real");
         check(globals, "return after_(hookof('getImei'), paramof('real', {}, nil))", false, false, "real");
+    }
+
+    // The address of the phone account of a SIM is its number (tel:): the fake number, else none; the accounts of the app
+    // itself and other addresses, like sip: of calling apps, stay
+    @Test
+    public void phoneAccountAddressIsReplaced() throws Exception {
+        Globals globals = load("phone_account_address");
+        Scripts.run(globals, "luajava = { bindClass = function(name)\n" +
+                "  assert(name == 'android.net.Uri', name)\n" +
+                "  return { fromParts = function(self, scheme, part, fragment) return uriof(scheme, part) end }\n" +
+                "end }\n" +
+                "function uriof(scheme, part) return { scheme = scheme, part = part,\n" +
+                "  getScheme = function(self) return self.scheme end, toString = function(self) return self.scheme .. ':' .. self.part end } end\n" +
+                "function accountof(pkg) return { getAccountHandle = function(self)\n" +
+                "  return { getComponentName = function(self) return { getPackageName = function(self) return pkg end } end } end } end");
+        Varargs sim = Scripts.run(globals, "local param = paramof(uriof('tel', '+3161234'), {}, accountof('com.android.phone'))\n" +
+                "return after(nil, param), param.result");
+        assertTrue(sim.arg(1).toboolean());
+        assertTrue(sim.arg(2).isnil());
+        Varargs fake = Scripts.run(globals, "settings['value.phone_number'] = '+3100000'\n" +
+                "local param = paramof(uriof('tel', '+3161234'), {}, accountof('com.android.phone'))\n" +
+                "return after(nil, param), param.result.part\n");
+        assertTrue(fake.arg(1).toboolean());
+        assertEquals("+3100000", fake.arg(2).tojstring());
+        assertFalse(Scripts.run(globals, "return after(nil, paramof(uriof('tel', '+3161234'), {}, accountof('com.example')))")
+                .arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return after(nil, paramof(uriof('sip', 'alice@example.com'), {}, accountof('org.voip')))")
+                .arg1().toboolean());
+    }
+
+    // The own device of Wi-Fi Direct, of which apps get the anonymous address, has the name users give the device,
+    // often with their own name, like device_name (see settingssecure_getstring); devices around keep theirs
+    @Test
+    public void ownWifiDirectNameIsEmpty() throws Exception {
+        Globals globals = load("wifip2pdevice_name");
+        Varargs own = Scripts.run(globals, "local device = { deviceAddress = '02:00:00:00:00:00', deviceName = 'Pixel of Alice' }\n" +
+                "return after(nil, paramof(device, {})), device.deviceName");
+        assertTrue(own.arg(1).toboolean());
+        assertEquals("", own.arg(2).tojstring());
+        Varargs other = Scripts.run(globals, "local device = { deviceAddress = '6a:11:22:33:44:55', deviceName = 'TV' }\n" +
+                "return after(nil, paramof(device, {})), device.deviceName");
+        assertFalse(other.arg(1).toboolean());
+        assertEquals("TV", other.arg(2).tojstring());
+        assertFalse(Scripts.run(globals, "return after(nil, paramof({ deviceAddress = '02:00:00:00:00:00', deviceName = '' }, {}))")
+                .arg1().toboolean());
     }
 
     @Test
@@ -134,21 +182,49 @@ public class ValueScriptsTest {
     @Test
     public void listenWithoutCells() throws Exception {
         Globals globals = load("telephonymanager_listen");
+        Scripts.run(globals, "function listenof(variant)\n" +
+                "  return { getName = function(self) return 'TelephonyManager.listen' .. (variant and '/' .. variant or '') end }\n" +
+                "end");
         Varargs result = Scripts.run(globals, "local param = paramof(nil, { [0] = 'listener', [1] = 16 + 1024 + 1 })\n" +
-                "return before(nil, param), param.args[1]");
+                "return before(listenof(), param), param.args[1]");
         assertTrue(result.arg1().toboolean());
         assertEquals(1, result.arg(2).toint());
-        check(globals, "return before_(nil, paramof(nil, { [0] = 'listener', [1] = 1 }))", false, false, null);
+        check(globals, "return before_(listenof(), paramof(nil, { [0] = 'listener', [1] = 1 }))", false, false, null);
 
         // With the highest bit (LISTEN_BARRING_INFO) the events are a negative int, which must stay an int
         for (int events : new int[]{0x80000010, 0x80000400}) {
             globals.set("events", LuaValue.valueOf(events));
             result = Scripts.run(globals, "local param = paramof(nil, { [0] = 'listener', [1] = events })\n" +
-                    "return before(nil, param), param.args[1]");
+                    "return before(listenof(), param), param.args[1]");
             assertTrue(result.arg1().toboolean());
             Object value = XParam.coerceValue(int.class, CoerceLuaToJava.coerce(result.arg(2), Object.class));
             assertEquals(Integer.toHexString(events), Integer.MIN_VALUE, value);
         }
+    }
+
+    // The call state (LISTEN_CALL_STATE, 32) comes with the number of an incoming call, like the call log: the listener
+    // gets it empty, like apps without the permission of the call log; its events stay
+    @Test
+    public void callStateWithoutNumber() throws Exception {
+        Globals globals = load("telephonymanager_listen");
+        Varargs result = Scripts.run(globals, "local hooked = {}\n" +
+                "function hook(object, method, fn) hooked = { object = object, method = method, fn = fn } end\n" +
+                "local hook_ = { getName = function(self) return 'TelephonyManager.listen/call_log' end }\n" +
+                "local param = paramof(nil, { [0] = 'listener', [1] = 32 + 16 })\n" +
+                "local restricted = before(hook_, param)\n" +
+                "local call = paramof(nil, { [0] = 1, [1] = '+3161234' })\n" +
+                "hooked.fn('before', call)\n" +
+                "return restricted, param.args[1], hooked.object, hooked.method, call.args[1], call.args[0]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(48, result.arg(2).toint());
+        assertEquals("listener", result.arg(3).tojstring());
+        assertEquals("onCallStateChanged", result.arg(4).tojstring());
+        assertEquals("", result.arg(5).tojstring());
+        assertEquals(1, result.arg(6).toint());
+        // Without the call state nothing is hooked
+        assertFalse(Scripts.run(globals, "hook = function() error('hooked') end\n" +
+                "return before({ getName = function(self) return 'TelephonyManager.listen/call_log' end },\n" +
+                "  paramof(nil, { [0] = 'listener', [1] = 16 }))").arg1().toboolean());
     }
 
     // All events are read, so the app gets none
@@ -201,16 +277,16 @@ public class ValueScriptsTest {
                 "  return { getItemCount = function(self) return count end,\n" +
                 "    newPlainText = function(self, label, text) return label .. ':' .. text end }\n" +
                 "end");
-        check(globals, "return after_(nil, paramof(clipof(1)))", true, true, "text:Private");
-        assertFalse(Scripts.run(globals, "return after_(nil, paramof(clipof(0)))").arg(2).toboolean());
-        check(globals, "return after_(nil, paramof(nil))", false, false, null);
+        check(globals, "return after_(hookof('getPrimaryClip'), paramof(clipof(1)))", true, true, "text:Private");
+        assertFalse(Scripts.run(globals, "return after_(hookof('getPrimaryClip'), paramof(clipof(0)))").arg(2).toboolean());
+        check(globals, "return after_(hookof('getPrimaryClip'), paramof(nil))", false, false, null);
 
-        globals = load("clipdescription_createfromparcel");
+        // The description is of the same fake clip
         Scripts.run(globals, "luajava = { bindClass = function(name) assert(name == 'android.content.ClipData', name)\n" +
                 "  return { newPlainText = function(self, label, text)\n" +
                 "    return { getDescription = function(self) return 'description ' .. label .. ':' .. text end } end } end }");
-        check(globals, "return after_(nil, paramof('real'))", true, true, "description text:Private");
-        check(globals, "return after_(nil, paramof(nil))", false, false, null);
+        check(globals, "return after_(hookof('getPrimaryClipDescription'), paramof('real'))", true, true, "description text:Private");
+        check(globals, "return after_(hookof('getPrimaryClipDescription'), paramof(nil))", false, false, null);
     }
 
     // Opening the camera throws the error of a camera disabled by policy

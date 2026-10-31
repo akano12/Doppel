@@ -750,7 +750,7 @@ public class HookDefinitionsTest {
         check("ContentResolver.acquireUnstableContentProviderClient.name/identifiers",
                 r + "acquireUnstableContentProviderClient(java.lang.String) @identifier_services 16-");
         check("ContentResolver.call.uri/oaid", r + "call(android.net.Uri,java.lang.String,java.lang.String," +
-                "android.os.Bundle) @identifier_services 11-");
+                "android.os.Bundle) @identifier_services 11-28");
         check("ContentResolver.call/oaid", r + "call(java.lang.String,java.lang.String,java.lang.String," +
                 "android.os.Bundle) @identifier_services 29-");
         // Identifiers which manufacturers and SDKs keep in settings, in any table (see settingssecure_getstring)
@@ -805,6 +805,87 @@ public class HookDefinitionsTest {
         }
     }
 
+    // Routes to data of groups which other hooks of the groups leave open, found by an audit
+    @Test
+    public void routesOfAudit() throws Exception {
+        String t = "android.telecom.TelecomManager ";
+        // The id of a SIM account is its serial number (ICC ID) until Android 13
+        check("TelecomManager.getCallCapablePhoneAccounts", t + "getCallCapablePhoneAccounts() @generic_empty 23-32");
+        check("TelecomManager.getDefaultOutgoingPhoneAccount", t + "getDefaultOutgoingPhoneAccount(java.lang.String) @generic_null_value 23-32");
+        check("TelecomManager.getUserSelectedOutgoingPhoneAccount", t + "getUserSelectedOutgoingPhoneAccount() @generic_null_value 29-32");
+        check("TelecomManager.getSimCallManager", t + "getSimCallManager() @generic_null_value 23-32");
+        check("TelephonyManager.getPhoneAccountHandle", "android.telephony.TelephonyManager getPhoneAccountHandle() @generic_null_value 31-32");
+        // The number of a SIM is the address of its phone account
+        for (String method : new String[]{"getAddress", "getSubscriptionAddress"})
+            check("PhoneAccount." + method, "android.telecom.PhoneAccount " + method + "() @phone_account_address 23-");
+        // The carrier configuration of MMS with the user agent and profile, which can name the model
+        check("SmsManager.getCarrierConfigValues", "android.telephony.SmsManager getCarrierConfigValues() @mms_useragent 21-");
+        // The name of the own device of Wi-Fi Direct
+        check("WifiP2pDevice.createFromParcel", "android.net.wifi.p2p.WifiP2pDevice CREATOR:createFromParcel(android.os.Parcel) " +
+                "@wifip2pdevice_name 14-");
+        // The network access identifier, which only Android 9 gives to apps with the phone state permission
+        check("TelephonyManager.getNai", "android.telephony.TelephonyManager getNai() @generic_null_value 28-28");
+        // Media sessions of other apps, which notification listeners get
+        String m = "android.media.session.MediaSessionManager ";
+        check("MediaSessionManager.getActiveSessions", m + "getActiveSessions(android.content.ComponentName) @generic_empty 21-");
+        check("MediaSessionManager.getActiveSessionsForPackage", m + "getActiveSessionsForPackage(java.lang.String) @generic_empty 37-");
+        check("MediaSessionManager.getActiveSessionsForPackage/listener", m + "getActiveSessionsForPackage(java.lang.String," +
+                "android.content.ComponentName) @generic_empty 37-");
+        check("MediaSessionManager.getSession2Tokens", m + "getSession2Tokens() @generic_empty 29-");
+        check("MediaSessionManager.getMediaKeyEventSessionPackageName", m + "getMediaKeyEventSessionPackageName() @generic_null_value 33-");
+        String l = "android.media.session.MediaSessionManager$OnActiveSessionsChangedListener";
+        check("MediaSessionManager.addOnActiveSessionsChangedListener", m + "addOnActiveSessionsChangedListener(" + l +
+                ",android.content.ComponentName) @generic_block 21-");
+        check("MediaSessionManager.addOnActiveSessionsChangedListener/handler", m + "addOnActiveSessionsChangedListener(" + l +
+                ",android.content.ComponentName,android.os.Handler) @generic_block 21-");
+        check("MediaSessionManager.addOnActiveSessionsForPackageChangedListener", m + "addOnActiveSessionsForPackageChangedListener(" +
+                "java.lang.String,java.util.concurrent.Executor," + l + ") @generic_block 37-");
+        check("MediaSessionManager.addOnActiveSessionsForPackageChangedListener/listener", m +
+                "addOnActiveSessionsForPackageChangedListener(java.lang.String,java.util.concurrent.Executor," +
+                "android.content.ComponentName," + l + ") @generic_block 37-");
+        // Install sessions and package changes name other apps
+        String i = "android.content.pm.PackageInstaller ";
+        check("PackageInstaller.getAllSessions", i + "getAllSessions() @generic_empty 21-");
+        check("PackageInstaller.getStagedSessions", i + "getStagedSessions() @generic_empty 29-");
+        check("PackageInstaller.getSessionInfo", i + "getSessionInfo(int) @generic_null_value 21-");
+        check("PackageInstaller.registerSessionCallback", i + "registerSessionCallback(" +
+                "android.content.pm.PackageInstaller$SessionCallback) @generic_block 21-");
+        check("PackageInstaller.registerSessionCallback/handler", i + "registerSessionCallback(" +
+                "android.content.pm.PackageInstaller$SessionCallback,android.os.Handler) @generic_block 21-");
+        String a = "android.content.pm.LauncherApps ";
+        check("LauncherApps.getAllPackageInstallerSessions", a + "getAllPackageInstallerSessions() @generic_empty 29-");
+        check("LauncherApps.registerPackageInstallerSessionCallback", a + "registerPackageInstallerSessionCallback(" +
+                "java.util.concurrent.Executor,android.content.pm.PackageInstaller$SessionCallback) @generic_block 29-");
+        check("LauncherApps.registerCallback", a + "registerCallback(android.content.pm.LauncherApps$Callback) @generic_block 21-");
+        check("LauncherApps.registerCallback/handler", a + "registerCallback(android.content.pm.LauncherApps$Callback," +
+                "android.os.Handler) @generic_block 21-");
+        // Usage access tells about other apps by their package
+        check("UsageStatsManager.isAppInactive", "android.app.usage.UsageStatsManager isAppInactive(java.lang.String) @package_probe 23-");
+        check("StorageStatsManager.queryStatsForPackage", "android.app.usage.StorageStatsManager queryStatsForPackage(" +
+                "java.util.UUID,java.lang.String,android.os.UserHandle) @package_probe 26-");
+        // The exact free space, Bluetooth input devices, battery saver, NSD by a request, sleep of Play services
+        check("StorageManager.getAllocatableBytes", "android.os.storage.StorageManager getAllocatableBytes(java.util.UUID) @resources 26-");
+        check("BluetoothHidDevice.getConnectedDevices", "android.bluetooth.BluetoothHidDevice getConnectedDevices() @generic_empty 28-");
+        check("BluetoothHidDevice.getDevicesMatchingConnectionStates", "android.bluetooth.BluetoothHidDevice " +
+                "getDevicesMatchingConnectionStates(int[]) @generic_empty 28-");
+        check("PowerManager.getLocationPowerSaveMode", "android.os.PowerManager getLocationPowerSaveMode() @generic_zero_value 28-");
+        check("NsdManager.registerServiceInfoCallback/discovery", "android.net.nsd.NsdManager registerServiceInfoCallback(" +
+                "android.net.nsd.DiscoveryRequest,java.util.concurrent.Executor,android.net.nsd.NsdManager$ServiceInfoCallback) " +
+                "@nsdmanager_listener 37-");
+        // Broadcasts with Bluetooth devices and the network of Android 8.1, and with the number of a call
+        for (String[] variant : new String[][]{{"network", "Read.Network"}, {"call_log", "Get.Call.log"}}) {
+            check("Intent.createFromParcel/" + variant[0], "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +
+                    "@intent_createfromparcel 1-");
+            assertEquals(variant[1], hook("Intent.createFromParcel/" + variant[0]).getString("group"));
+        }
+        check("TelephonyManager.listen/call_log", "android.telephony.TelephonyManager listen(android.telephony.PhoneStateListener," +
+                "int) @telephonymanager_listen 1-");
+        assertEquals("Get.Call.log", hook("TelephonyManager.listen/call_log").getString("group"));
+        for (String c : new String[]{"SleepSegmentEvent", "SleepClassifyEvent"})
+            check(c + ".extractEvents", "com.google.android.gms.location." + c + " extractEvents(android.content.Intent) " +
+                    "@generic_empty 1- optional");
+    }
+
     // Permissions and their groups name the app which defines them (see package_resolve)
     @Test
     public void permissionsOfHiddenApps() throws Exception {
@@ -829,7 +910,7 @@ public class HookDefinitionsTest {
     @Test
     public void alarmWindowWithExecutorFromApi34() throws Exception {
         check("AlarmManager.setWindow/executor", "android.app.AlarmManager setWindow(int,long,long,java.lang.String," +
-                "java.util.concurrent.Executor,android.app.AlarmManager$OnAlarmListener) @boot_offset_alarm 34- optional");
+                "java.util.concurrent.Executor,android.app.AlarmManager$OnAlarmListener) @boot_offset_alarm 34-");
     }
 
     // Apps targeting Android 9 or older still get the neighboring cells on Android 10 and newer; the method is not
@@ -847,6 +928,6 @@ public class HookDefinitionsTest {
         check("ClipboardManager.getPrimaryClip", "android.content.ClipboardManager getPrimaryClip() " +
                 "@clipdata_createfromparcel 11-");
         check("ClipboardManager.getPrimaryClipDescription", "android.content.ClipboardManager getPrimaryClipDescription() " +
-                "@clipdescription_createfromparcel 11-");
+                "@clipdata_createfromparcel 11-");
     }
 }

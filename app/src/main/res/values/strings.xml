@@ -617,7 +617,7 @@
     <string name="group_desc_get_call_log">Calls made and received</string>
     <string name="group_desc_get_contacts">Contacts and their details</string>
     <string name="group_desc_get_location">Precise and approximate location</string>
-    <string name="group_desc_get_messages">SMS and MMS messages</string>
+    <string name="group_desc_get_messages">SMS, MMS and voicemail messages, also incoming ones</string>
     <string name="group_desc_get_sensors">Motion and environment sensors</string>
     <string name="group_desc_read_account">Accounts on the device, like email addresses</string>
     <string name="group_desc_read_biometrics">Whether there is a fingerprint sensor or face unlock and fingerprints are enrolled</string>
@@ -626,7 +626,7 @@
     <string name="group_desc_read_debugging">Whether developer options and USB or wireless debugging are on</string>
     <string name="group_desc_read_resources">Exact size of memory and storage and the free space, which help to recognize the device</string>
     <string name="group_desc_read_settings">Settings like the window animation scale, screen timeout, proxy and alarm sound, which help to recognize the device</string>
-    <string name="group_desc_read_identifiers">Device, DRM and advertising ids, serial number, ids of the chip and of SD cards</string>
+    <string name="group_desc_read_identifiers">Device, DRM and advertising ids, serial number, MAC addresses, ids of the chip, SD cards and storage</string>
     <string name="group_desc_read_network">Wi-Fi and cell networks, addresses of the device, nearby Bluetooth and Wi-Fi Direct devices, network service discovery</string>
     <string name="group_desc_read_notifications">Notifications of other apps</string>
     <string name="group_desc_read_sync">Accounts which are being synchronized</string>

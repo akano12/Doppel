@@ -20,12 +20,8 @@
 -- like listen leaves the other events (see telephonymanager_listen); their methods of the cell info and the cell
 -- location do not run, so the app gets neither. The parameter is not named hook, the function to hook a method is.
 function before(h, param)
-    local index = 1
-    if string.sub(h:getName(), -3) == '.33' then
-        index = 2
-    end
-
-    local callback = param:getArgument(index)
+    -- The callback is the last parameter, also of the form of Android 13 with a flag first
+    local callback = param:getArgument(h:getParameterTypes()['length'] - 1)
     if callback == nil then
         return false
     end

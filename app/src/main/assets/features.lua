@@ -15,7 +15,6 @@
 
 -- Copyright 2026 akano12
 
--- Device features
 -- The features of a device (android.hardware.* and android.software.*, some with a version, and the ones
 -- of its maker, like com.google.android.feature.* or com.samsung.feature.*) tell its model. Apps get none:
 -- hasSystemFeature answers false and getSystemAvailableFeatures lists only the OpenGL ES version, which has

@@ -153,9 +153,12 @@ function after(hook, param)
         if blocks == result.f_blocks and free == result.f_bfree and avail == result.f_bavail then
             return false
         end
+        -- The inodes grow with the size: ext4 makes a fixed number per size, so the total would tell the exact size
+        local scale = blocks / result.f_blocks
         fake = luajava.newInstance('android.system.StructStatVfs',
                 result.f_bsize, result.f_frsize, blocks, free, avail,
-                result.f_files, result.f_ffree, result.f_favail, result.f_fsid, result.f_flag, result.f_namemax)
+                math.floor(result.f_files * scale), math.floor(result.f_ffree * scale), math.floor(result.f_favail * scale),
+                result.f_fsid, result.f_flag, result.f_namemax)
         param:setResult(fake)
         return true, tostring(result.f_blocks * unit) .. ' ' .. tostring(result.f_bavail * unit),
                 tostring(blocks * unit) .. ' ' .. tostring(avail * unit)

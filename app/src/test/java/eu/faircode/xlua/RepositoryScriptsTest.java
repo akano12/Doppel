@@ -60,11 +60,15 @@ public class RepositoryScriptsTest {
         return load(id, STUBS);
     }
 
-    private static Globals load(int id, String stubs) throws Exception {
+    private static String script(int id) throws Exception {
         String json = new String(Files.readAllBytes(new File("../repo/hook_" + id + ".json").toPath()),
                 StandardCharsets.UTF_8);
+        return new JSONObject(json).getString("luaScript");
+    }
+
+    private static Globals load(int id, String stubs) throws Exception {
         Globals globals = JsePlatform.standardGlobals();
-        globals.load(new JSONObject(json).getString("luaScript"), "hook_" + id).call();
+        globals.load(script(id), "hook_" + id).call();
         globals.load(stubs, "stubs").call();
         return globals;
     }
@@ -186,6 +190,55 @@ public class RepositoryScriptsTest {
         Varargs result = Scripts.run(globals, "return after({}, param), param.result");
         assertTrue("restricted", result.arg1().toboolean());
         assertEquals("Private", result.arg(2).tojstring());
+    }
+
+    // The definitions of get(key) and get(key, default) fake the same, so they have one script
+    @Test
+    public void propertyScriptsAreTheSame() throws Exception {
+        assertEquals(script(51), script(52));
+    }
+
+    // The lists of apps and of services leave out gms and gsf only, read from the type of item of each method
+    @Test
+    public void fcmListsLeaveOutTargets() throws Exception {
+        String stubs = Scripts.ARRAYOF + "\n" +
+                "function hookof(name) return { getName = function(self) return name end } end\n" +
+                "function listof(...)\n" +
+                "  local items = arrayof(...)\n" +
+                "  return { items = items, toArray = function(self) return arrayof(table.unpack(items)) end,\n" +
+                "    remove = function(self, index) table.remove(items, index + 1) end }\n" +
+                "end\n" +
+                "function namesof(list, field)\n" +
+                "  local names = {}\n" +
+                "  for _, item in ipairs(list.items) do names[#names + 1] = field and item[field].packageName or item.packageName end\n" +
+                "  return table.concat(names, ',')\n" +
+                "end";
+        String[][] cases = {
+                {"143", "PackageManager.getInstalledApplications", null},
+                {"180", "PackageManager.getInstalledPackages.33", null},
+                {"184", "PackageManager.queryIntentServices.33", "serviceInfo"}};
+        for (String[] c : cases) {
+            String item = (c[2] == null ? "{ packageName = '%s' }" : "{ " + c[2] + " = { packageName = '%s' } }");
+            Globals globals = load(Integer.parseInt(c[0]), stubs);
+            Varargs result = Scripts.run(globals, "local list = listof(" +
+                    String.format(item, "com.google.android.gms") + ", " + String.format(item, "com.example") + ", " +
+                    String.format(item, "com.google.android.gsf") + ")\n" +
+                    "local restricted = after(hookof('" + c[1] + "'), { getResult = function(self) return list end })\n" +
+                    "local kept = listof(" + String.format(item, "com.example") + ")\n" +
+                    "return restricted, namesof(list, " + (c[2] == null ? "nil" : "'" + c[2] + "'") + "),\n" +
+                    "  after(hookof('" + c[1] + "'), { getResult = function(self) return kept end })");
+            assertTrue(c[0], result.arg1().toboolean());
+            assertEquals(c[0], "com.example", result.arg(2).tojstring());
+            assertFalse(c[0], result.arg(3).toboolean());
+        }
+    }
+
+    // Radar is blocked like the built-in definitions which block a method (generic_block), with the same body
+    @Test
+    public void radarIsGenericBlock() throws Exception {
+        String radar = script(162).replace("\r\n", "\n");
+        String block = Scripts.read("generic_block").replace("\r\n", "\n");
+        assertEquals(block.substring(block.indexOf("\nfunction ")), radar.substring(radar.indexOf("\nfunction ")));
     }
 
     // [51] The MCC and MNC of the configuration are those of the test network which Use.Tracking fakes (test_network)

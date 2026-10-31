@@ -8,13 +8,11 @@ Doppel allows you to define Xposed hooks without developing an Xposed module.
 
 Defined hooks can be added and updated at run time,
 with the big advantage that no reboot is required to test a new or changed hook
-(with the exception of persistent system apps, which are clearly marked in Doppel).
+(except for persistent system apps, which Doppel marks *Persistent*).
 To apply an updated definition an app just needs to be stopped (force closed) and started again.
 An easy way to do this is with *Stop* or *Stop automatically* on the screen of the app in Doppel.
 
 Doppel allows you to select which apps a definition should be applied to.
-
-You can edit hook definitions in Doppel itself, on the *Hooks* tab.
 
 Definition
 ----------
@@ -66,8 +64,10 @@ Definitions can be imported from and exported to JSON files there too.
 
 <br>
 
+* Required are *collection*, *group*, *name*, *author*, *className*, *parameterTypes*, *minSdk* and *luaScript*; the others are optional
 * The *collection* and *name* attributes are used to uniquely identify a hook
-* For convenience Doppel applies hooks by *group*
+* For convenience Doppel applies hooks by *group*; a group of Doppel, like *Read.Telephony*, is shown by its title,
+  like *Read telephony data*, another group by its name
 * The *version* is a number which *Downloads* uses to offer updates of an installed definition
 * The *description* is optional and is shown in the hook editor and in *Downloads*
 * The attributes *minSdk* and *maxSdk* determine for which [Android versions](https://source.android.com/docs/setup/reference/build-numbers) (API level) the hook should be used (*maxSdk* is optional, default 999: all later versions)
@@ -125,7 +125,7 @@ The functions of *param* ([all](../app/src/main/java/eu/faircode/xlua/XParam.jav
 * *getThis()*: the current object instance or *nil* if the method is static
 * *getArgument(index)* and *setArgument(index, value)*: the arguments, zero based
 * *getResult()* and *setResult(value)*: the result, available after the hooked method has been executed;
-  setting it *before* skips the method, a throwable is thrown instead
+  setting it *before* skips the method; a throwable is thrown instead of returned
 * *getException()*: the exception the hooked method threw, in *after*
 * *getSetting(name)*: a setting (fake value) of the definition, see above
 * *getApplicationContext()*: the context of the app, see remarks below
@@ -139,7 +139,7 @@ The functions of *param* ([all](../app/src/main/java/eu/faircode/xlua/XParam.jav
 * *opens(path)*, *getFileText()*, *setFileText(text)*, *readFile(path)* and *uuidOf(seed)*: see remarks below
 
 The before/after function **must** return *true* when something was done and **must** return *false* otherwise.
-Doppel will show the last date/time of the last time *true* was returned.
+Doppel shows when *true* was returned last.
 Optionally the function can return the original and the fake value as text too, like *return true, old, fake*,
 which the *Activity* tab shows.
 
@@ -188,7 +188,7 @@ You can write to the Android logcat using the *log* function:
 ```
 
 A log line starts with the word *Log* followed by the package name and uid of the app and the id of the hook (*collection.name*)
-and ends with the log text. This way it is always clear which hook/app logging belongs to.
+and ends with the text and its Lua type, so it is always clear which hook and app a line belongs to.
 
 You can hook a method of an object the script gets hold of, like a listener or the settings of a WebView,
 with the *hook* function:
