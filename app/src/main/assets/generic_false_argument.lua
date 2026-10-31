@@ -16,12 +16,15 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
--- Also null of a Boolean, which can mean the default, like of the manifest, which can be enabled
+-- The switch is the last argument, like setAnalyticsCollectionEnabled(enabled) and
+-- submitPolicyGrantResult(context, granted); also null of a Boolean, which can mean the default, like of the manifest,
+-- which can be enabled
 function before(hook, param)
-    local enabled = param:getArgument(0)
+    local index = hook:getParameterTypes()['length'] - 1
+    local enabled = param:getArgument(index)
     if enabled == false then
         return false
     end
-    param:setArgument(0, false)
+    param:setArgument(index, false)
     return true
 end

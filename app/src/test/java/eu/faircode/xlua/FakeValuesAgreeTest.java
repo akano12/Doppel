@@ -200,6 +200,48 @@ public class FakeValuesAgreeTest {
         }
     }
 
+    // Serial numbers of manufacturers in properties, which some ROMs set, are the serial of Build.getSerial; the serial
+    // number of the SIM card (ICC ID) in properties of vendors is empty, like getSimSerialNumber, in each case of its
+    // name; both in the properties and getprop
+    @Test
+    public void serialsOfManufacturers() throws Exception {
+        Globals properties = load("systemproperties_get");
+        Globals shell = load("shell_commands");
+        String settings = "{ ['value.serial'] = 'ABC123' }";
+        for (String key : new String[]{"ro.boot.em.did", "persist.sys.lite.uid", "persist.radio.serialno",
+                "persist.sys.oneplus.serialno"}) {
+            assertEquals(key, "ABC123", run(properties, "fakeof('SystemProperties.get/serial', 'get', 'R58M1234', { '" +
+                    key + "' }, " + settings + ")"));
+            assertEquals(key, "ABC123", shellValue(shell, key, settings));
+        }
+        for (String key : new String[]{"ril.iccid.sim1", "ril.iccid.sim2", "gsm.sim.preiccid_0", "persist.sys.tctPowerIccid",
+                "persist.vendor.radio.cfu.iccid.1", "vendor.ril.ICCID"}) {
+            assertEquals(key, "", run(properties, "fakeof('SystemProperties.get/serial', 'get', '8949012345678901234', { '" +
+                    key + "' }, " + settings + ")"));
+            assertEquals(key, "", shellValue(shell, key, settings));
+        }
+        // Not of other variants, and other properties stay
+        assertEquals("8949012345678901234", run(properties, "fakeof('SystemProperties.get/device', 'get', " +
+                "'8949012345678901234', { 'ril.iccid.sim1' }, " + settings + ")"));
+        assertEquals("R58M1234", run(properties, "fakeof('SystemProperties.get/serial', 'get', 'R58M1234', " +
+                "{ 'persist.sys.locale' }, " + settings + ")"));
+        // The digest of the key verifying the boot partitions, like the digest of vbmeta, names the manufacturer
+        assertEquals("unknown", run(properties, "fakeof('SystemProperties.get/device', 'get', 'a1b2c3', " +
+                "{ 'ro.boot.vbmeta.public_key_digest' })"));
+    }
+
+    // The value of the rules of getprop for the identifiers, nil when no rule matches the property
+    private static String shellValue(Globals shell, String key, String settings) throws Exception {
+        return run(shell, "(function()\n" +
+                "  for _, rule in ipairs(rules(paramof(nil, {}, " + settings + "), 'identifiers')) do\n" +
+                "    for _, pattern in ipairs(rule[2]) do\n" +
+                "      local lua = string.gsub(pattern, '[%.%*%-]', { ['.'] = '%.', ['*'] = '.+', ['-'] = '%-' })\n" +
+                "      if string.match('" + key + "', '^' .. lua .. '$') then return rule[1] end\n" +
+                "    end\n" +
+                "  end\n" +
+                "end)()");
+    }
+
     // The first day of the quarter, for Build.VERSION.SECURITY_PATCH and its property; other texts stay
     @Test
     public void securityPatch() throws Exception {

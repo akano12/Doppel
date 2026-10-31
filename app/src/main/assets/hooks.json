@@ -3412,7 +3412,7 @@
     "group": "Read.Identifiers",
     "name": "Settings.Global.getStringForUser/oaid",
     "author": "akano12",
-    "description": "Advertising id (OAID) of the system of Huawei devices",
+    "description": "Identifiers of manufacturers and SDKs in the settings: the advertising id (OAID) of Huawei, ids of Xiaomi and OnePlus",
     "className": "android.provider.Settings$Global",
     "methodName": "getStringForUser",
     "parameterTypes": [
@@ -3422,6 +3422,42 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 21,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Settings.Secure.getStringForUser/oaid",
+    "author": "akano12",
+    "description": "Identifiers of manufacturers in the secure settings, like the advertising id of Amazon Fire OS",
+    "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
+    "optional": true,
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Settings.System.getStringForUser/oaid",
+    "author": "akano12",
+    "description": "Identifiers in the system settings, like the device id the SDKs of Baidu share between apps",
+    "className": "android.provider.Settings$System",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 17,
     "optional": true,
     "luaScript": "@settingssecure_getstring"
   },
@@ -3512,6 +3548,291 @@
     "minSdk": 1,
     "optional": true,
     "luaScript": "@generic_true_value"
+  },
+  // The identifier services of manufacturers (OAID), which the SDKs bind or ask: like on a device without them
+  // (see identifier_services); each method binding services and acquiring or calling providers by itself
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindService/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindService.executor/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.util.concurrent.Executor",
+      "android.content.ServiceConnection"
+    ],
+    "returnType": "boolean",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindService.flags/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "android.content.Context$BindServiceFlags"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindService.flags.executor/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.Context$BindServiceFlags",
+      "java.util.concurrent.Executor",
+      "android.content.ServiceConnection"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindIsolatedService/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindIsolatedService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "java.util.concurrent.Executor",
+      "android.content.ServiceConnection"
+    ],
+    "returnType": "boolean",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindIsolatedService.flags/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindIsolatedService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.Context$BindServiceFlags",
+      "java.lang.String",
+      "java.util.concurrent.Executor",
+      "android.content.ServiceConnection"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindServiceAsUser/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "int",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindServiceAsUser.flags/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "android.content.Context$BindServiceFlags",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.acquireContentProviderClient/identifiers",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireContentProviderClient",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.content.ContentProviderClient",
+    "minSdk": 5,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.acquireContentProviderClient.name/identifiers",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireContentProviderClient",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.ContentProviderClient",
+    "minSdk": 5,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.acquireUnstableContentProviderClient/identifiers",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireUnstableContentProviderClient",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.content.ContentProviderClient",
+    "minSdk": 16,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.acquireUnstableContentProviderClient.name/identifiers",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireUnstableContentProviderClient",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.ContentProviderClient",
+    "minSdk": 16,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.call.uri/oaid",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 11,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.call/oaid",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  // Coosea: hidden methods of the keyguard manager give the identifiers, which other devices do not have
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "KeyguardManager.obtainOaid",
+    "author": "akano12",
+    "className": "android.app.KeyguardManager",
+    "methodName": "obtainOaid",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "KeyguardManager.obtainAaid",
+    "author": "akano12",
+    "className": "android.app.KeyguardManager",
+    "methodName": "obtainAaid",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "KeyguardManager.obtainVaid",
+    "author": "akano12",
+    "className": "android.app.KeyguardManager",
+    "methodName": "obtainVaid",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "optional": true,
+    "luaScript": "@generic_null_value"
   },
   {
     "collection": "Privacy",
@@ -5636,6 +5957,207 @@
     "optional": true,
     "luaScript": "@generic_true_value"
   },
+  // Unity Ads keeps the ads of the app, without consent for personalized ads: none before it starts, none the app gives
+  // (see unityads_consent); its names stay in minified apps
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.initialize",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "android.content.Context",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@unityads_consent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.initialize/listener",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "android.content.Context",
+      "java.lang.String",
+      "com.unity3d.ads.IUnityAdsInitializationListener"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@unityads_consent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.initialize/test",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "android.content.Context",
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@unityads_consent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.initialize/test/listener",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "android.content.Context",
+      "java.lang.String",
+      "boolean",
+      "com.unity3d.ads.IUnityAdsInitializationListener"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@unityads_consent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.initialize/configuration",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "com.unity3d.ads.InitializationConfiguration",
+      "com.unity3d.ads.InitializationListener"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@unityads_consent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.setUserConsent",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "setUserConsent",
+    "parameterTypes": [
+      "java.lang.Boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_false_argument"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.setUserOptOut",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "setUserOptOut",
+    "parameterTypes": [
+      "java.lang.Boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_true_argument"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.setNonBehavioral",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "setNonBehavioral",
+    "parameterTypes": [
+      "java.lang.Boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_true_argument"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAdsMetaData.set",
+    "author": "akano12",
+    "className": "com.unity3d.ads.metadata.MetaData",
+    "methodName": "set",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.Object"
+    ],
+    "returnType": "boolean",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@unityads_consent"
+  },
+  // Umeng (U-App) collects once it starts: it does not start, like when the user declined the privacy policy, which
+  // its documentation says to do by not calling init (preInit collects and sends nothing), and the policy is not granted
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UMConfigure.init",
+    "author": "akano12",
+    "className": "com.umeng.commonsdk.UMConfigure",
+    "methodName": "init",
+    "parameterTypes": [
+      "android.content.Context",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UMConfigure.init/appkey",
+    "author": "akano12",
+    "className": "com.umeng.commonsdk.UMConfigure",
+    "methodName": "init",
+    "parameterTypes": [
+      "android.content.Context",
+      "java.lang.String",
+      "java.lang.String",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UMConfigure.submitPolicyGrantResult",
+    "author": "akano12",
+    "className": "com.umeng.commonsdk.UMConfigure",
+    "methodName": "submitPolicyGrantResult",
+    "parameterTypes": [
+      "android.content.Context",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 1,
+    "optional": true,
+    "luaScript": "@generic_false_argument"
+  },
   // Use camera
   // https://developer.android.com/reference/android/hardware/Camera.html
   // https://developer.android.com/reference/android/hardware/camera2/CameraManager.html
@@ -6445,6 +6967,21 @@
     "luaScript": "@systemproperties_get"
   },
   // The graphics chip in the strings of the OpenGL driver and the firmware build in the version of the DRM plugin
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES10.glGetString",
+    "author": "akano12",
+    "className": "android.opengl.GLES10",
+    "methodName": "glGetString",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 4,
+    "usage": false,
+    "luaScript": "@gles_getstring"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -10168,6 +10705,47 @@
     "returnType": "java.lang.String",
     "minSdk": 14,
     "luaScript": "@network_tostring"
+  },
+  // The entries of getifaddrs of libcore, which NetworkInterface reads and apps allowed to use hidden APIs can call:
+  // left out like the hooks of NetworkInterface leave out what they hide (see interface_entries)
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "ForwardingOs.getifaddrs/network",
+    "author": "akano12",
+    "className": "libcore.io.ForwardingOs",
+    "methodName": "getifaddrs",
+    "parameterTypes": [],
+    "returnType": "android.system.StructIfaddrs[]",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@interface_entries"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "ForwardingOs.getifaddrs/vpn",
+    "author": "akano12",
+    "className": "libcore.io.ForwardingOs",
+    "methodName": "getifaddrs",
+    "parameterTypes": [],
+    "returnType": "android.system.StructIfaddrs[]",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@interface_entries"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ForwardingOs.getifaddrs/mac",
+    "author": "akano12",
+    "className": "libcore.io.ForwardingOs",
+    "methodName": "getifaddrs",
+    "parameterTypes": [],
+    "returnType": "android.system.StructIfaddrs[]",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@interface_entries"
   },
   {
     "collection": "Privacy",

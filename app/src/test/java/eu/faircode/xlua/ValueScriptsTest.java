@@ -242,7 +242,8 @@ public class ValueScriptsTest {
         }
     }
 
-    // Opt-outs by an argument: false, also for null of a Boolean, and true
+    // Opt-outs by the last argument: false, also for null of a Boolean, and true; like setAnalyticsCollectionEnabled(enabled)
+    // and submitPolicyGrantResult(context, granted), of which the context stays
     @Test
     public void genericArguments() throws Exception {
         String[][] cases = {
@@ -251,10 +252,17 @@ public class ValueScriptsTest {
                 {"generic_false_argument", "false", "false", "false"},
                 {"generic_true_argument", "false", "true", "true"}, {"generic_true_argument", "true", "false", "true"}};
         for (String[] c : cases) {
-            Varargs result = Scripts.run(load(c[0]), "local param = paramof(nil, { [0] = " + c[1] + " })\n" +
-                    "return before(nil, param), param.args[0]");
-            assertEquals(c[0] + " " + c[1], Boolean.parseBoolean(c[2]), result.arg1().toboolean());
-            assertEquals(c[0] + " " + c[1], c[3], result.arg(2).tojstring());
+            Varargs single = Scripts.run(load(c[0]), "local param = paramof(nil, { [0] = " + c[1] + " })\n" +
+                    "local hook = { getParameterTypes = function(self) return { length = 1 } end }\n" +
+                    "return before(hook, param), param.args[0]");
+            assertEquals(c[0] + " " + c[1], Boolean.parseBoolean(c[2]), single.arg1().toboolean());
+            assertEquals(c[0] + " " + c[1], c[3], single.arg(2).tojstring());
+            Varargs last = Scripts.run(load(c[0]), "local param = paramof(nil, { [0] = 'context', [1] = " + c[1] + " })\n" +
+                    "local hook = { getParameterTypes = function(self) return { length = 2 } end }\n" +
+                    "return before(hook, param), param.args[1], param.args[0]");
+            assertEquals(c[0] + " " + c[1], Boolean.parseBoolean(c[2]), last.arg1().toboolean());
+            assertEquals(c[0] + " " + c[1], c[3], last.arg(2).tojstring());
+            assertEquals("context", last.arg(3).tojstring());
         }
     }
 

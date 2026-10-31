@@ -235,6 +235,8 @@ public class DeviceValuesScriptTest {
                 "  return result\n" +
                 "end\n" +
                 "local operator = keys('SystemProperties.get/operator')\n" +
+                "local serial = keys('SystemProperties.get/serial')\n" +
+                "assert(serial['*iccid*'] and serial['*Iccid*'] and serial['*ICCID*'] and serial['persist.radio.serialno'])\n" +
                 "return keys('SystemProperties.get.default/serial')['ril.serialnumber'],\n" +
                 "  operator['gsm.sim.operator.iso-country'], #filter(hookof('SystemProperties.get/operator', 'get')),\n" +
                 "  keys('SystemProperties.get/timezone')['persist.sys.timezone'],\n" +

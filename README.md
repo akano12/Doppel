@@ -116,7 +116,10 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Read account name**: fake name
 * **Read biometric sensors**: no fingerprint sensor, face or iris unlock
 * **Read identifiers**: fake serial, Android ID, advertising and app set ID, MAC addresses;
-  the permanent ids of the chip, SD card and storage in /sys do not exist
+  the permanent ids of the chip, SD card and storage in /sys do not exist, and neither do the advertising ids (OAID)
+  of the services of device makers (Samsung, Lenovo, Asus, OPPO, OnePlus, realme, Honor, Huawei, Coolpad, Nubia,
+  Freeme and 360), the ids they and SDKs keep in the settings (Xiaomi, OnePlus, Amazon Fire OS, Baidu) and the
+  SIM serial in their system properties
 * **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
   boot id, the boot time (each app sees its own, so the time since boot no longer links apps across restarts) and the
@@ -175,7 +178,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   and the command lines matching *Allowed command lines*, both in *Fake values*
 * **Send messages**: prevent sending SMS, MMS and data messages
 * **Use analytics**: Adjust, AppsFlyer, Facebook app events, Firebase Analytics and Crashlytics, Mixpanel, Segment,
-  Amplitude, Branch, Microsoft Clarity, Singular
+  Amplitude, Branch, Microsoft Clarity, Singular, Umeng; Unity Ads without consent for personalized ads
 
 </details>
 

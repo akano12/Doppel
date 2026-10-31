@@ -215,16 +215,27 @@ function components(param, key, value)
     return fake
 end
 
+-- Identifiers which manufacturers and SDKs keep in settings, which all apps can read: they appear missing, like on
+-- a device without them (variant oaid), in any table, since ROMs move them between Global, Secure and System
+local IDENTIFIERS = {
+    pps_oaid = true, -- The advertising identifier (OAID) of Huawei
+    advertising_id = true, limit_ad_tracking = true, -- The advertising identifier of Amazon Fire OS, with its opt-out
+    mi_health_id = true, gcbooster_uuid = true, key_mqs_uuid = true, extm_uuid = true, -- Xiaomi
+    ad_aaid = true, -- The identifier of the app of Xiaomi for advertising (AAID)
+    op_security_uuid = true, -- OnePlus
+    ['com.baidu.deviceid'] = true, ['com.baidu.deviceid.v2'] = true, ['com.baidu.uuid'] = true, -- Shared by SDKs of Baidu
+}
+
 -- The other settings which hooks change
 local HOOKED = {
-    android_id = true, bluetooth_name = true, device_name = true, boot_count = true, pps_oaid = true,
+    android_id = true, bluetooth_name = true, device_name = true, wifi_p2p_device_name = true, boot_count = true,
     adb_enabled = true, adb_wifi_enabled = true, development_settings_enabled = true, low_power = true,
     bluetooth_address = true,
 }
 
 -- Whether hooks change the setting; the hooked methods are called for all settings, so check the name first
 function hooked(key)
-    return key ~= nil and (HOOKED[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil)
+    return key ~= nil and (HOOKED[key] ~= nil or IDENTIFIERS[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil)
 end
 
 -- The fake value of a setting for a variant: true and the fake value, or false when it stays
@@ -240,9 +251,10 @@ function fakesetting(param, name, key, result)
         end
         return true, fake
     elseif (name == 'bluetooth_name' and key == 'bluetooth_name') or
-            (name == 'device_name' and key == 'device_name') or
+            -- The name of the device, also for Wi-Fi Direct, which users set, often with their own name
+            (name == 'device_name' and (key == 'device_name' or key == 'wifi_p2p_device_name')) or
             (name == 'boot_count' and key == 'boot_count') or
-            (name == 'oaid' and key == 'pps_oaid') then
+            (name == 'oaid' and IDENTIFIERS[key] ~= nil) then
         return true
     elseif (name == 'accessibility' and COMPONENTS[key] == 'accessibility') or
             (name == 'input_method' and COMPONENTS[key] ~= nil and COMPONENTS[key] ~= 'accessibility') then

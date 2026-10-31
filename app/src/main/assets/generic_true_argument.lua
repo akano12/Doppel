@@ -16,10 +16,12 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
+-- The switch is the last argument, like optOut(optOut) and setNonBehavioral(nonBehavioral)
 function before(hook, param)
-    local optout = param:getArgument(0)
+    local index = hook:getParameterTypes()['length'] - 1
+    local optout = param:getArgument(index)
     if not optout then
-        param:setArgument(0, true)
+        param:setArgument(index, true)
     end
     return not optout
 end

@@ -52,7 +52,7 @@ local DEVICE = {
                    'ro.product.*.board', 'ro.soc.model', 'ro.soc.manufacturer', 'ro.hardware',
                    'ro.boot.hardware', 'ro.boot.hardware.platform', 'ro.board.platform',
                    'ro.boot.hardware.sku', 'ro.boot.product.hardware.sku', 'ro.boot.vbmeta.digest',
-                   'ro.bootloader', 'ro.boot.bootloader', 'ro.build.expect.bootloader',
+                   'ro.boot.vbmeta.public_key_digest', 'ro.bootloader', 'ro.boot.bootloader', 'ro.build.expect.bootloader',
                    'gsm.version.baseband', 'ro.build.expect.baseband', 'ro.product.marketname',
                    'ro.product.*.marketname', 'ro.config.marketing_name', 'ro.vendor.oplus.market.name',
                    'ro.oppo.market.name' } },
@@ -75,7 +75,12 @@ local OPERATOR = {
 
 -- The properties of the serial, like Build.SERIAL (see systemproperties_get)
 local SERIAL = { 'ro.serialno', 'ro.boot.serialno', 'ril.serialnumber', 'ro.boot.ap_serial', 'sys.serialnumber',
-                 'ro.ril.oem.sno', 'ro.ril.oem.psno', 'gsm.serial' }
+                 'ro.ril.oem.sno', 'ro.ril.oem.psno', 'gsm.serial',
+                 'ro.boot.em.did', 'persist.sys.lite.uid', 'persist.radio.serialno', 'persist.sys.oneplus.serialno' }
+
+-- The serial number of the SIM card (ICC ID) in properties of vendors, empty, for each name containing iccid in any
+-- case, also at the end, like persist.sys.tctPowerIccid (see systemproperties_get)
+local ICCID = { '*[Ii][Cc][Cc][Ii][Dd]*', '*[Ii][Cc][Cc][Ii][Dd]' }
 
 -- The properties of USB debugging, which agree with adb_enabled 0 of Read.Debugging (see settingssecure_getstring):
 -- adbd stopped, and adb left out of the USB functions, like mtp,adb, which adb alone makes none (see systemproperties_get)
@@ -176,7 +181,7 @@ function rules(param, variant)
         if serial == nil then
             serial = 'unknown'
         end
-        return { { serial, SERIAL } }
+        return { { serial, SERIAL }, { '', ICCID } }
     elseif variant == 'debugging' then
         return DEBUGGING
     else

@@ -286,6 +286,31 @@ public class SettingsScriptTest {
         assertFalse(run("return hooked(nil)").arg1().toboolean());
     }
 
+    // Identifiers which manufacturers and SDKs keep in settings appear missing, like on a device without them, in any
+    // table, since ROMs move them: of Huawei, Amazon Fire OS, Xiaomi, OnePlus and the SDKs of Baidu
+    @Test
+    public void identifiersOfManufacturersAreMissing() {
+        for (String key : new String[]{"pps_oaid", "advertising_id", "limit_ad_tracking", "mi_health_id", "gcbooster_uuid",
+                "key_mqs_uuid", "extm_uuid", "ad_aaid", "op_security_uuid", "com.baidu.deviceid", "com.baidu.deviceid.v2",
+                "com.baidu.uuid"}) {
+            assertTrue(key, run("return hooked('" + key + "')").arg1().toboolean());
+            assertEquals(key, null, applications("oaid", key, "4f3e2d1c-real"));
+            // Also by the provider, like ContentResolver.call(GET_global) and queries, see fakeany
+            assertTrue(key, run("return (fakeany(paramof({}, {}, 10123), 'identifiers', '" + key + "', 'real'))").arg1().toboolean());
+        }
+        // Not of other variants, and other settings stay
+        assertEquals("same", applications("android_id", "mi_health_id", "4f3e2d1c-real"));
+        assertEquals("same", applications("oaid", "android_id", "1234abcd1234abcd"));
+    }
+
+    // The name of the device for Wi-Fi Direct, which users set like the name of the device, often with their own name
+    @Test
+    public void wifiDirectNameIsMissing() {
+        assertTrue(run("return hooked('wifi_p2p_device_name')").arg1().toboolean());
+        assertEquals(null, applications("device_name", "wifi_p2p_device_name", "Pixel of Alice"));
+        assertEquals(null, applications("device_name", "device_name", "Pixel of Alice"));
+    }
+
     // Settings.Secure.getString calls the hooked getStringForUser, which already faked the value
     @Test
     public void androidIdIsFakedOnce() {

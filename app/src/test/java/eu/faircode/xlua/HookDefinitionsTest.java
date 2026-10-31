@@ -716,6 +716,95 @@ public class HookDefinitionsTest {
                 "int,android.os.Bundle) @component_hidden 16-");
     }
 
+    // The identifier services of manufacturers are bound by each method binding services, and their providers are
+    // acquired or called by their Uri or name (see identifier_services); like the hooks of hidden apps
+    @Test
+    public void identifierServicesByEveryOverload() throws Exception {
+        String i = "android.content.Intent,";
+        check("Context.bindService/identifiers", "android.app.ContextImpl bindService(" + i +
+                "android.content.ServiceConnection,int) @identifier_services 1-");
+        check("Context.bindService.executor/identifiers", "android.app.ContextImpl bindService(" + i +
+                "int,java.util.concurrent.Executor,android.content.ServiceConnection) @identifier_services 29-");
+        check("Context.bindService.flags/identifiers", "android.app.ContextImpl bindService(" + i +
+                "android.content.ServiceConnection,android.content.Context$BindServiceFlags) @identifier_services 34-");
+        check("Context.bindService.flags.executor/identifiers", "android.app.ContextImpl bindService(" + i +
+                "android.content.Context$BindServiceFlags,java.util.concurrent.Executor,android.content.ServiceConnection) " +
+                "@identifier_services 34-");
+        check("Context.bindIsolatedService/identifiers", "android.app.ContextImpl bindIsolatedService(" + i +
+                "int,java.lang.String,java.util.concurrent.Executor,android.content.ServiceConnection) @identifier_services 29-");
+        check("Context.bindIsolatedService.flags/identifiers", "android.app.ContextImpl bindIsolatedService(" + i +
+                "android.content.Context$BindServiceFlags,java.lang.String,java.util.concurrent.Executor," +
+                "android.content.ServiceConnection) @identifier_services 34-");
+        check("Context.bindServiceAsUser/identifiers", "android.app.ContextImpl bindServiceAsUser(" + i +
+                "android.content.ServiceConnection,int,android.os.UserHandle) @identifier_services 30-");
+        check("Context.bindServiceAsUser.flags/identifiers", "android.app.ContextImpl bindServiceAsUser(" + i +
+                "android.content.ServiceConnection,android.content.Context$BindServiceFlags,android.os.UserHandle) " +
+                "@identifier_services 34-");
+        String r = "android.content.ContentResolver ";
+        check("ContentResolver.acquireContentProviderClient/identifiers",
+                r + "acquireContentProviderClient(android.net.Uri) @identifier_services 5-");
+        check("ContentResolver.acquireContentProviderClient.name/identifiers",
+                r + "acquireContentProviderClient(java.lang.String) @identifier_services 5-");
+        check("ContentResolver.acquireUnstableContentProviderClient/identifiers",
+                r + "acquireUnstableContentProviderClient(android.net.Uri) @identifier_services 16-");
+        check("ContentResolver.acquireUnstableContentProviderClient.name/identifiers",
+                r + "acquireUnstableContentProviderClient(java.lang.String) @identifier_services 16-");
+        check("ContentResolver.call.uri/oaid", r + "call(android.net.Uri,java.lang.String,java.lang.String," +
+                "android.os.Bundle) @identifier_services 11-");
+        check("ContentResolver.call/oaid", r + "call(java.lang.String,java.lang.String,java.lang.String," +
+                "android.os.Bundle) @identifier_services 29-");
+        // Identifiers which manufacturers and SDKs keep in settings, in any table (see settingssecure_getstring)
+        for (String table : new String[]{"Global", "Secure", "System"})
+            check("Settings." + table + ".getStringForUser/oaid", "android.provider.Settings$" + table +
+                    " getStringForUser(android.content.ContentResolver,java.lang.String,int) @settingssecure_getstring " +
+                    ("Global".equals(table) ? "21" : "17") + "- optional");
+        // Coosea: hidden methods of the keyguard manager, which other devices do not have
+        for (String method : new String[]{"obtainOaid", "obtainAaid", "obtainVaid"})
+            check("KeyguardManager." + method, "android.app.KeyguardManager " + method + "() @generic_null_value 1- optional");
+    }
+
+    // The graphics chip by each version of OpenGL ES: GLES11 inherits glGetString of GLES10, GLES30 to GLES32 the one of
+    // GLES20, GLImpl serves javax.microedition.khronos (see gles_getstring)
+    @Test
+    public void graphicsChipByEveryVersionOfOpenGl() throws Exception {
+        check("GLES10.glGetString", "android.opengl.GLES10 glGetString(int) @gles_getstring 4-");
+        check("GLES20.glGetString", "android.opengl.GLES20 glGetString(int) @gles_getstring 8-");
+    }
+
+    // Unity Ads gets no consent, by its setters, the MetaData of former versions and before each way it starts (see
+    // unityads_consent); Umeng does not start, like when the user declined (see generic_block), the way its
+    // documentation says, and the policy is not granted
+    @Test
+    public void analyticsOfUnityAdsAndUmeng() throws Exception {
+        String ads = "com.unity3d.ads.UnityAds initialize(android.content.Context,java.lang.String";
+        check("UnityAds.initialize", ads + ") @unityads_consent 1- optional");
+        check("UnityAds.initialize/listener", ads + ",com.unity3d.ads.IUnityAdsInitializationListener) @unityads_consent 1- optional");
+        check("UnityAds.initialize/test", ads + ",boolean) @unityads_consent 1- optional");
+        check("UnityAds.initialize/test/listener", ads + ",boolean,com.unity3d.ads.IUnityAdsInitializationListener) " +
+                "@unityads_consent 1- optional");
+        check("UnityAds.initialize/configuration", "com.unity3d.ads.UnityAds initialize(com.unity3d.ads.InitializationConfiguration," +
+                "com.unity3d.ads.InitializationListener) @unityads_consent 1- optional");
+        check("UnityAds.setUserConsent", "com.unity3d.ads.UnityAds setUserConsent(java.lang.Boolean) @generic_false_argument 1- optional");
+        check("UnityAds.setUserOptOut", "com.unity3d.ads.UnityAds setUserOptOut(java.lang.Boolean) @generic_true_argument 1- optional");
+        check("UnityAds.setNonBehavioral", "com.unity3d.ads.UnityAds setNonBehavioral(java.lang.Boolean) @generic_true_argument 1- optional");
+        check("UnityAdsMetaData.set", "com.unity3d.ads.metadata.MetaData set(java.lang.String,java.lang.Object) @unityads_consent 1- optional");
+        String umeng = "com.umeng.commonsdk.UMConfigure ";
+        check("UMConfigure.init", umeng + "init(android.content.Context,int,java.lang.String) @generic_block 1- optional");
+        check("UMConfigure.init/appkey", umeng + "init(android.content.Context,java.lang.String,java.lang.String,int," +
+                "java.lang.String) @generic_block 1- optional");
+        check("UMConfigure.submitPolicyGrantResult", umeng + "submitPolicyGrantResult(android.content.Context,boolean) " +
+                "@generic_false_argument 1- optional");
+    }
+
+    // The entries of getifaddrs, which NetworkInterface reads, for each group of its hooks (see interface_entries)
+    @Test
+    public void interfaceEntriesForEachGroup() throws Exception {
+        for (String[] variant : new String[][]{{"network", "Read.Network"}, {"vpn", "Read.VPN"}, {"mac", "Read.Identifiers"}}) {
+            check("ForwardingOs.getifaddrs/" + variant[0], "libcore.io.ForwardingOs getifaddrs() @interface_entries 27- optional");
+            assertEquals(variant[1], hook("ForwardingOs.getifaddrs/" + variant[0]).getString("group"));
+        }
+    }
+
     // Permissions and their groups name the app which defines them (see package_resolve)
     @Test
     public void permissionsOfHiddenApps() throws Exception {

@@ -29,6 +29,7 @@ local DEVICE = {
                    'ro.product.*.board', 'ro.soc.model', 'ro.soc.manufacturer', 'ro.hardware',
                    'ro.boot.hardware', 'ro.boot.hardware.platform', 'ro.board.platform',
                    'ro.boot.hardware.sku', 'ro.boot.product.hardware.sku', 'ro.boot.vbmeta.digest',
+                   'ro.boot.vbmeta.public_key_digest',
                    'ro.bootloader', 'ro.boot.bootloader', 'ro.build.expect.bootloader',
                    'gsm.version.baseband', 'ro.build.expect.baseband', 'ro.product.marketname',
                    'ro.product.*.marketname', 'ro.config.marketing_name', 'ro.vendor.oplus.market.name',
@@ -46,7 +47,23 @@ local DEVICE = {
 -- The properties of the serial, like Build.SERIAL, and of the operator, like TelephonyManager.getNetworkOperator
 -- (see test_network), with their fake values, the same as getprop prints (see shell_commands)
 local SERIAL = { 'ro.serialno', 'ro.boot.serialno', 'ril.serialnumber', 'ro.boot.ap_serial', 'sys.serialnumber',
-                 'ro.ril.oem.sno', 'ro.ril.oem.psno', 'gsm.serial' }
+                 'ro.ril.oem.sno', 'ro.ril.oem.psno', 'gsm.serial',
+                 -- Serial numbers of manufacturers, which some ROMs set, like Samsung (em.did) and OnePlus
+                 'ro.boot.em.did', 'persist.sys.lite.uid', 'persist.radio.serialno', 'persist.sys.oneplus.serialno' }
+local SERIALS = {}
+for _, key in ipairs(SERIAL) do
+    SERIALS[key] = true
+end
+
+-- The serial number of the SIM card (ICC ID), which properties of vendors hold, like ril.iccid.sim1 of Samsung,
+-- gsm.sim.preiccid_0 of MediaTek and persist.sys.tctPowerIccid of TCL: empty, like getSimSerialNumber of Android 10
+-- and later, for each name containing iccid (variant serial, like getprop of the identifiers, see shell_commands)
+local ICCID = { '*iccid*', '*Iccid*', '*ICCID*' }
+
+function iccid(key)
+    return string.find(string.lower(key), 'iccid', 1, true) ~= nil
+end
+
 local OPERATOR = {
     ['gsm.operator.alpha'] = 'unknown', ['gsm.sim.operator.alpha'] = 'unknown',
     ['gsm.operator.numeric'] = '00101', ['gsm.sim.operator.numeric'] = '00101',
@@ -160,7 +177,14 @@ end
 function filter(hook)
     local name = string.match(hook:getName(), '/(.*)$')
     if name == 'serial' then
-        return SERIAL
+        local keys = {}
+        for _, key in ipairs(SERIAL) do
+            table.insert(keys, key)
+        end
+        for _, key in ipairs(ICCID) do
+            table.insert(keys, key)
+        end
+        return keys
     elseif name == 'operator' then
         local keys = {}
         for key, _ in pairs(OPERATOR) do
@@ -185,7 +209,7 @@ function after(hook, param)
     -- The hooked methods are called for all properties, so check the name first
     local key = param:getArgument(0)
     if key == nil or not (string.sub(key, 1, 3) == 'ro.' or string.sub(key, 1, 4) == 'ril.' or
-            string.sub(key, 1, 4) == 'gsm.' or key == 'sys.serialnumber' or key == 'persist.sys.timezone' or
+            string.sub(key, 1, 4) == 'gsm.' or SERIALS[key] ~= nil or iccid(key) or key == 'persist.sys.timezone' or
             DEBUGGING[key] ~= nil) then
         return false
     end
@@ -204,11 +228,10 @@ function after(hook, param)
     -- Hook names are like Function/variant
     local name = string.match(hook:getName(), '/(.*)$')
 
-    local serial = false
-    for _, property in ipairs(SERIAL) do
-        serial = serial or property == key
-    end
-    if name == 'serial' and serial then
+    if name == 'serial' and iccid(key) then
+        param:setResult('')
+        return true, result, ''
+    elseif name == 'serial' and SERIALS[key] ~= nil then
         local fake = param:getSetting('value.serial')
         if fake == nil then
             fake = 'unknown'
