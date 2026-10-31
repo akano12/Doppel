@@ -55,6 +55,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -670,5 +671,93 @@ public class HookDefinitionsTest {
         } finally {
             apk.delete();
         }
+    }
+
+    // A built-in definition by its name, null when there is none
+    private static JSONObject hook(String name) throws Exception {
+        for (JSONObject hook : hooks)
+            if (name.equals(hook.getString("name")))
+                return hook;
+        return null;
+    }
+
+    // Definitions which close gaps: the method, its versions and its script,
+    // as "class method(params) script minSdk-maxSdk optional"
+    private static void check(String name, String expected) throws Exception {
+        JSONObject hook = hook(name);
+        assertNotNull(name + " is not defined", hook);
+        JSONArray params = hook.getJSONArray("parameterTypes");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < params.length(); i++)
+            sb.append(i == 0 ? "" : ",").append(params.getString(i));
+        String actual = hook.getString("className") + " " + hook.getString("methodName") + "(" + sb + ") " +
+                hook.getString("luaScript") + " " + hook.getInt("minSdk") + "-" + hook.optString("maxSdk", "") +
+                (hook.optBoolean("optional", false) ? " optional" : "");
+        assertEquals(name, expected, actual);
+    }
+
+    // Each overload calls Android itself, so each one is hooked (see component_hidden)
+    @Test
+    public void componentsOfHiddenAppsByEveryOverload() throws Exception {
+        String i = "android.content.Intent,";
+        check("Context.bindServiceAsUser/hidden", "android.app.ContextImpl bindServiceAsUser(" + i +
+                "android.content.ServiceConnection,int,android.os.UserHandle) @component_hidden 30-");
+        check("Context.bindServiceAsUser.flags/hidden", "android.app.ContextImpl bindServiceAsUser(" + i +
+                "android.content.ServiceConnection,android.content.Context$BindServiceFlags,android.os.UserHandle) @component_hidden 34-");
+        check("Context.sendBroadcast.options/hidden", "android.app.ContextImpl sendBroadcast(" + i +
+                "java.lang.String,android.os.Bundle) @component_hidden 34-");
+        check("Context.sendBroadcastWithMultiplePermissions/hidden", "android.content.Context sendBroadcastWithMultiplePermissions(" + i +
+                "java.lang.String[]) @component_hidden 30-");
+        check("Context.sendBroadcastAsUser/hidden", "android.app.ContextImpl sendBroadcastAsUser(" + i +
+                "android.os.UserHandle) @component_hidden 17-");
+        check("Context.sendBroadcastAsUser.permission/hidden", "android.app.ContextImpl sendBroadcastAsUser(" + i +
+                "android.os.UserHandle,java.lang.String) @component_hidden 17-");
+        check("Activity.startActivityIfNeeded/hidden", "android.app.Activity startActivityIfNeeded(" + i +
+                "int,android.os.Bundle) @component_hidden 16-");
+    }
+
+    // Permissions and their groups name the app which defines them (see package_resolve)
+    @Test
+    public void permissionsOfHiddenApps() throws Exception {
+        check("PackageManager.getPermissionGroupInfo", "android.content.pm.PackageManager getPermissionGroupInfo(" +
+                "java.lang.String,int) @package_resolve 1-");
+        check("PackageManager.getAllPermissionGroups", "android.content.pm.PackageManager getAllPermissionGroups(" +
+                "int) @package_resolve 1-");
+        check("PackageManager.getPermissionInfo", "android.content.pm.PackageManager getPermissionInfo(" +
+                "java.lang.String,int) @package_resolve 1-");
+        check("PackageManager.queryPermissionsByGroup", "android.content.pm.PackageManager queryPermissionsByGroup(" +
+                "java.lang.String,int) @package_resolve 1-");
+    }
+
+    // Files.getFileStore(path).getTotalSpace() and the others, also by getAttribute, read statvfs themselves
+    @Test
+    public void fileStoreSizesAreRounded() throws Exception {
+        for (String method : new String[]{"getTotalSpace", "getUsableSpace", "getUnallocatedSpace"})
+            check("UnixFileStore." + method, "sun.nio.fs.UnixFileStore " + method + "() @resources 26-");
+    }
+
+    // The version of the method in api-versions, else it is tried and missed on Android 13 at every start
+    @Test
+    public void alarmWindowWithExecutorFromApi34() throws Exception {
+        check("AlarmManager.setWindow/executor", "android.app.AlarmManager setWindow(int,long,long,java.lang.String," +
+                "java.util.concurrent.Executor,android.app.AlarmManager$OnAlarmListener) @boot_offset_alarm 34- optional");
+    }
+
+    // Apps targeting Android 9 or older still get the neighboring cells on Android 10 and newer; the method is not
+    // in the android.jar of recent versions, so it is optional
+    @Test
+    public void neighboringCellsOnAllVersions() throws Exception {
+        check("TelephonyManager.getNeighboringCellInfo", "android.telephony.TelephonyManager getNeighboringCellInfo() " +
+                "@generic_empty 3- optional");
+    }
+
+    // The clipboard of the app is read by the clipboard manager; data of a parcel is also of drag and drop and of
+    // intents, like the app's own drags, which are not the clipboard
+    @Test
+    public void clipboardIsReadFromTheClipboardManager() throws Exception {
+        check("ClipboardManager.getPrimaryClip", "android.content.ClipboardManager getPrimaryClip() " +
+                "@clipdata_createfromparcel 11-");
+        check("ClipboardManager.getPrimaryClipDescription", "android.content.ClipboardManager getPrimaryClipDescription() " +
+                "@clipdescription_createfromparcel 11-");
     }
 }

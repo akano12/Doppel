@@ -386,4 +386,29 @@ public class PackageScriptsTest {
         assertEquals(1, list.arg(2).toint());
         assertEquals("android", list.arg(3).tojstring());
     }
+
+    // Permission groups name the app which defines them too, like getAllPermissionGroups an app's own group
+    @Test
+    public void permissionGroupsOfHiddenAppsAreNotFound() throws Exception {
+        Globals globals = load("package_resolve");
+        Varargs single = Scripts.run(globals,
+                "local param = paramof({ [0] = 'com.example.bank.permission-group.API', [1] = 0 }, {})\n" +
+                        "param.result = { name = 'com.example.bank.permission-group.API', packageName = 'com.example.bank' }\n" +
+                        "local restricted, old = after(hookof('PackageManager.getPermissionGroupInfo', 'getPermissionGroupInfo'), param)\n" +
+                        "return restricted, old, param.result.exception, param.result.message");
+        assertTrue(single.arg(1).toboolean());
+        assertEquals("com.example.bank", single.arg(2).tojstring());
+        assertEquals("android.content.pm.PackageManager$NameNotFoundException", single.arg(3).tojstring());
+        assertEquals("com.example.bank.permission-group.API", single.arg(4).tojstring());
+
+        Varargs list = Scripts.run(globals,
+                "local list = listof({ { packageName = 'android' }, { packageName = 'com.example.bank' } })\n" +
+                        "local param = paramof({ [0] = 0 }, { android = true })\n" +
+                        "param.result = list\n" +
+                        "local restricted = after(hookof('PackageManager.getAllPermissionGroups', 'getAllPermissionGroups'), param)\n" +
+                        "return restricted, list:size(), list:get(0).packageName");
+        assertTrue(list.arg(1).toboolean());
+        assertEquals(1, list.arg(2).toint());
+        assertEquals("android", list.arg(3).tojstring());
+    }
 }

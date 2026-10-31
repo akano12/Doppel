@@ -414,6 +414,38 @@
     "excludePackages": "android",
     "luaScript": "@package_resolve"
   },
+  // Permission groups name the app which defines them too, like a group for the permissions of its API
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPermissionGroupInfo",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPermissionGroupInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.pm.PermissionGroupInfo",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getAllPermissionGroups",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getAllPermissionGroups",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",

@@ -36,6 +36,8 @@ import static org.junit.Assert.assertTrue;
 // the hooks, the builder and the parameter, like ShellCommandsScriptTest
 public class CommandFilterScriptTest {
     private static final String STUBS = String.join("\n",
+            // The environment of an app, which a builder copies, unless a test sets another
+            "SYSTEM = { PATH = '/product/bin:/apex/com.android.runtime/bin:/system/bin:/system/xbin:/odm/bin:/vendor/bin' }",
             "function listof(items)",
             "  return { toArray = function(self) return arrayof(items) end }",
             "end",
@@ -58,7 +60,8 @@ public class CommandFilterScriptTest {
             // variant changed it: whether the hook restricted, the exception and what it logs
             "function startof(words, settings, original)",
             "  local thrown",
-            "  local builder = { command = function(self) return listof(words) end }",
+            "  local builder = { command = function(self) return listof(words) end,",
+            "    environment = function(self) return { get = function(self, key) return (environment or SYSTEM)[key] end } end }",
             "  local param = {",
             "    getSetting = function(self, name) return settings[name] end,",
             "    getThis = function(self) return builder end,",
@@ -103,6 +106,36 @@ public class CommandFilterScriptTest {
                 {"sh", "-c", "eval \"getprop x\""},
                 {"sh", "-c", "A=1 getprop x 2>/dev/null"}})
             assertFalse(String.join(" ", words), refused(words));
+    }
+
+    // Programs of the app by an allowed name: by its path, a relative path, PATH, or a library it makes them load
+    @Test
+    public void programsOfTheAppAreRefused() {
+        String files = "/data/user/0/com.example/files";
+        for (String[] words : new String[][]{
+                {files + "/getprop"},
+                {"./getprop"},
+                {"/system/../data/local/tmp/getprop"},
+                {"env", "PATH=" + files, "getprop"},
+                {"env", "LD_PRELOAD=" + files + "/x.so", "getprop"},
+                {"sh", "-c", "PATH=" + files + " getprop"},
+                {"sh", "-c", "export PATH=" + files + "; getprop"},
+                {"sh", "-c", "cd " + files + "; ./getprop"},
+                {"sh", "-c", files + "/getprop"}})
+            assertTrue(String.join(" ", words), refused(words));
+
+        // The environment of the builder, which the app can change
+        globals.load("environment = { PATH = '/data/user/0/com.example/files' }").call();
+        assertTrue("PATH of the builder", refused("getprop"));
+        globals.load("environment = { PATH = SYSTEM.PATH, LD_PRELOAD = '/data/user/0/com.example/files/x.so' }").call();
+        assertTrue("LD_PRELOAD of the builder", refused("getprop"));
+        globals.load("environment = { PATH = SYSTEM.PATH .. '::' }").call();
+        assertTrue("working directory in PATH", refused("getprop"));
+        globals.load("environment = { PATH = '/system/../data/local/tmp:/system/bin' }").call();
+        assertTrue("folder of the app by ..", refused("getprop"));
+        globals.load("environment = nil").call();
+        assertFalse("environment of the app", refused("getprop"));
+        assertFalse("program of the system", refused("/system/bin/getprop"));
     }
 
     @Test

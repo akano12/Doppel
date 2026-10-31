@@ -16,7 +16,8 @@
 -- Copyright 2026 akano12
 
 -- The boot time is also in /proc/stat (btime, the second the device booted), /proc/uptime (the seconds
--- since it booted) and /proc/self/stat (the start of the process since boot, like getStartElapsedRealtime).
+-- since it booted) and /proc/self/stat (the start of the process since boot, like getStartElapsedRealtime), also
+-- of its threads (task/<tid>/stat, thread-self/stat).
 -- These are made to match the offset boot_offset adds to elapsedRealtime, so an app reading both cannot tell
 -- them apart: btime drops the offset, uptime and the start of the process gain it. Also by another path
 -- and by java.nio, like boot_id. shortcut: the offset is whole seconds here, so it can differ by under
@@ -24,6 +25,19 @@
 -- Wide, since the path is not normalized here, like /proc//stat or /proc/./uptime; opens checks the file
 function filter(hook)
     return { '*/stat*', '*/uptime*' }
+end
+
+-- The stat file of the process or of one of its threads, of which the main thread started with the process,
+-- also by another path, which opens checks
+function ownstat(param)
+    local pid = luajava.bindClass('android.os.Process'):myPid()
+    if param:opens('/proc/self/stat') or param:opens('/proc/' .. pid .. '/stat') or param:opens('/proc/thread-self/stat') then
+        return true
+    end
+    local path = param:getArgument(0)
+    local tid = (path ~= nil and string.match(tostring(path), '/task/(%d+)/stat$') or nil)
+    return tid ~= nil and (param:opens('/proc/self/task/' .. tid .. '/stat') or
+            param:opens('/proc/' .. pid .. '/task/' .. tid .. '/stat'))
 end
 
 function after(hook, param)
@@ -65,8 +79,7 @@ function after(hook, param)
         param:setFileText(new)
         return true
 
-    elseif param:opens('/proc/self/stat') or
-            param:opens('/proc/' .. luajava.bindClass('android.os.Process'):myPid() .. '/stat') then
+    elseif ownstat(param) then
         local text = param:getFileText()
         if text == nil then
             return false

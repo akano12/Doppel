@@ -60,8 +60,19 @@ public class ShellCommandsScriptTest {
     private static final String REAL = "2025-05-05";
 
     private static final String STUBS = String.join("\n",
+            // The packages Android lets the app see, with the permissions and groups they define (GET_PERMISSIONS)
+            "INSTALLED = {",
+            "  { packageName = 'android', permissions = { length = 1, { name = 'android.permission.INTERNET' } } },",
+            "  { packageName = 'com.example', permissions = { length = 1, { name = 'com.example.permission.OWN' } } },",
+            "  { packageName = 'com.bank', permissions = { length = 1, { name = 'com.bank.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION' } },",
+            "    permissionGroups = { length = 1, { name = 'com.bank.permission-group.API',",
+            "      loadLabel = function(self, pm) return 'Bank permissions' end } } } }",
             "function contextof(packages)",
-            "  local manager = { getPackagesForUid = function(self, uid) return packages end }",
+            "  local manager = { getPackagesForUid = function(self, uid) return packages end,",
+            "    getInstalledPackages = function(self, flags)",
+            "      assert(flags == 4096, flags)",
+            "      return { toArray = function(self) return arrayof(INSTALLED) end }",
+            "    end }",
             "  return { getPackageManager = function(self) return manager end }",
             "end",
             // values are shared by the hooks of a command, like the scoped values of XParam
@@ -72,6 +83,8 @@ public class ShellCommandsScriptTest {
             "    getUid = function(self) return 10123 end,",
             "    getPackageName = function(self) return 'com.example' end,",
             "    getApplicationContext = function(self) return context end,",
+            "    isPackageVisible = function(self, name) return name ~= 'com.bank' end,",
+            "    unhooked = function(self, f) return f() end,",
             "    readFile = function(self, path) return files[path] end,",
             "    getThis = function(self) return this end,",
             "    getArgument = function(self, index) return args[index + 1] end,",
@@ -323,8 +336,34 @@ public class ShellCommandsScriptTest {
         assertEquals("instrumentation:com.example/androidx.test.runner.AndroidJUnitRunner (target=com.example)\n",
                 run(start("cmd", "package", "list", "instrumentation")).out);
         // Other commands stay
-        assertEquals("permission:com.bank.permission.C2D_MESSAGE\n", run(start("pm", "list", "permissions")).out);
+        assertEquals("pm dump com.bank\n", run(start("pm", "dump", "com.bank")).out);
         assertEquals("cmd activity get-config\n", run(start("cmd", "activity", "get-config")).out);
+    }
+
+    // The permissions and groups of apps which stay hidden, like package_resolve, in each format of pm
+    @Test
+    public void permissionListsLeaveOutHiddenApps() throws Exception {
+        tools();
+        assertEquals("All Permissions:\n\npermission:android.permission.INTERNET\npermission:com.example.permission.OWN\n",
+                run(start("pm", "list", "permissions")).out);
+        assertEquals("All Permissions:\n\n" +
+                        "+ permission:android.permission.INTERNET\n  package:android\n  label:have full network access\n" +
+                        "  description:null\n  protectionLevel:normal\n" +
+                        "+ permission:com.example.permission.OWN\n  package:com.example\n  label:null\n" +
+                        "  description:null\n  protectionLevel:signature\n",
+                run(start("pm", "list", "permissions", "-f")).out);
+        assertEquals("All Permissions:\n\ngroup:android.permission-group.NETWORK\n" +
+                        "  permission:android.permission.INTERNET\n\nungrouped:\n  permission:com.example.permission.OWN\n",
+                run(start("cmd", "package", "list", "permissions", "-g")).out);
+        assertEquals("All Permissions:\n\n+ group:android.permission-group.NETWORK\n" +
+                        "  package:android\n  label:Network\n  description:null\n" +
+                        "  + permission:android.permission.INTERNET\n    package:android\n    label:have full network access\n" +
+                        "\nungrouped:\n  + permission:com.example.permission.OWN\n    package:com.example\n    label:null\n",
+                run(start("pm", "list", "permissions", "-g", "-f")).out);
+        assertEquals("All Permissions:\n\nNetwork: have full network access\n\n",
+                run(start("pm", "list", "permissions", "-s")).out);
+        assertEquals("permission group:android.permission-group.NETWORK\n",
+                run(start("pm", "list", "permission-groups")).out);
     }
 
     // Like package_probe: own and system packages stay, also with the options of path
@@ -851,6 +890,31 @@ public class ShellCommandsScriptTest {
             write("instrumentation.txt",
                     "instrumentation:com.bank.test/androidx.test.runner.AndroidJUnitRunner (target=com.bank)\n" +
                             "instrumentation:com.example/androidx.test.runner.AndroidJUnitRunner (target=com.example)\n");
+            // The formats of pm list permissions and permission-groups of Android 16
+            write("permissions.txt", "All Permissions:\n\npermission:android.permission.INTERNET\n" +
+                    "permission:com.bank.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\npermission:com.example.permission.OWN\n");
+            write("permissions-f.txt", "All Permissions:\n\n" +
+                    "+ permission:android.permission.INTERNET\n  package:android\n  label:have full network access\n" +
+                    "  description:null\n  protectionLevel:normal\n" +
+                    "+ permission:com.bank.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\n  package:com.bank\n  label:null\n" +
+                    "  description:null\n  protectionLevel:signature\n" +
+                    "+ permission:com.example.permission.OWN\n  package:com.example\n  label:null\n" +
+                    "  description:null\n  protectionLevel:signature\n");
+            write("permissions-g.txt", "All Permissions:\n\ngroup:android.permission-group.NETWORK\n" +
+                    "  permission:android.permission.INTERNET\n\ngroup:com.bank.permission-group.API\n" +
+                    "  permission:com.bank.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\n\nungrouped:\n" +
+                    "  permission:com.example.permission.OWN\n");
+            write("permissions-gf.txt", "All Permissions:\n\n+ group:android.permission-group.NETWORK\n" +
+                    "  package:android\n  label:Network\n  description:null\n" +
+                    "  + permission:android.permission.INTERNET\n    package:android\n    label:have full network access\n" +
+                    "\n+ group:com.bank.permission-group.API\n  package:com.bank\n  label:Bank permissions\n" +
+                    "  description:null\n  + permission:com.bank.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\n" +
+                    "    package:com.bank\n    label:null\n\nungrouped:\n  + permission:com.example.permission.OWN\n" +
+                    "    package:com.example\n    label:null\n");
+            write("permissions-s.txt", "All Permissions:\n\nNetwork: have full network access\n\n" +
+                    "Bank permissions: null\n\n");
+            write("groups.txt", "permission group:android.permission-group.NETWORK\n" +
+                    "permission group:com.bank.permission-group.API\n");
             write("long-own.txt", dump(LONG_OWN));
             write("long-other.txt", dump(LONG_OTHER));
             new Tools().properties("").features("").libraries("");
@@ -904,7 +968,15 @@ public class ShellCommandsScriptTest {
             "   features) cat $d/features.txt ;;",
             "   libraries) cat $d/libraries.txt ;;",
             "   instrumentation) cat $d/instrumentation.txt ;;",
-            "   permissions) echo permission:com.bank.permission.C2D_MESSAGE ;;",
+            "   permissions)",
+            "    case \"${3-}${4-}\" in",
+            "     -f) cat $d/permissions-f.txt ;;",
+            "     -g) cat $d/permissions-g.txt ;;",
+            "     -g-f|-f-g) cat $d/permissions-gf.txt ;;",
+            "     -s) cat $d/permissions-s.txt ;;",
+            "     *) cat $d/permissions.txt ;;",
+            "    esac ;;",
+            "   permission-groups) cat $d/groups.txt ;;",
             "  esac ;;",
             " -l|-L) cat $d/packages.txt ;;",
             " -lf) cat $d/packages-f.txt ;;",

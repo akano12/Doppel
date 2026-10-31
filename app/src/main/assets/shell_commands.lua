@@ -566,6 +566,52 @@ function regex(text)
     return (string.gsub(text, '[%^%$%.%*%[%]\\/]', '\\%0'))
 end
 
+-- A sed leaving out of pm list permissions and permission-groups what hidden apps define (see package_resolve), like
+-- the permission every app for Android 13 or later gets for its receivers, <package>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION,
+-- in each format: names (permission:, group:, permission group:), the blocks of -f, the groups of -g with their
+-- permissions up to the empty line, and the summary of -s by the labels of the groups; nil when nothing is hidden.
+-- shortcut: the labels of permissions of hidden apps in groups of the system stay in the summary, -s is rare.
+function permissionfilter(param)
+    local pm = param:getApplicationContext():getPackageManager()
+    -- GET_PERMISSIONS, without the hook of Get.Applications, which leaves out the packages which stay hidden
+    local installed = param:unhooked(function()
+        return pm:getInstalledPackages(4096)
+    end):toArray()
+    -- Extended expressions: the end of a block of -f is a header ("+ " also indented), a line of the list
+    -- itself (not indented, like ungrouped:) or the empty line after a group, which stay
+    local next = '^( *\\+ |[^ ]|$)'
+    local expressions = {}
+    for index = 1, installed['length'] do
+        local info = installed[index]
+        if not param:isPackageVisible(info.packageName) then
+            local permissions = info.permissions
+            for at = 1, (permissions == nil and 0 or permissions['length']) do
+                local name = extendedregex(permissions[at].name)
+                expressions[#expressions + 1] = '-e ' .. quote('/^ *permission:' .. name .. '$/d')
+                expressions[#expressions + 1] = '-e ' .. quote('/^ *\\+ permission:' .. name .. '$/,/' .. next .. '/{' ..
+                        '/^ *\\+ permission:' .. name .. '$/d;/' .. next .. '/!d;}')
+            end
+            local groups = info.permissionGroups
+            for at = 1, (groups == nil and 0 or groups['length']) do
+                local name = extendedregex(groups[at].name)
+                expressions[#expressions + 1] = '-e ' .. quote('/^permission group:' .. name .. '$/d')
+                expressions[#expressions + 1] = '-e ' .. quote('/^(\\+ )?group:' .. name .. '$/,/^$/d')
+                local label = extendedregex(tostring(groups[at]:loadLabel(pm)))
+                expressions[#expressions + 1] = '-e ' .. quote('/^' .. label .. ': /,/^$/d')
+            end
+        end
+    end
+    if #expressions == 0 then
+        return nil
+    end
+    return '/system/bin/sed -r ' .. table.concat(expressions, ' ')
+end
+
+-- An extended regular expression of a text, like regex
+function extendedregex(text)
+    return (string.gsub(text, '[%^%$%.%*%[%]\\/%+%?%(%)%{%}|]', '\\%0'))
+end
+
 -- The packages of the app
 function ownpackages(param)
     local own = {}
@@ -600,7 +646,7 @@ end
 -- activities, services and receivers find nothing when they find other apps, like the queries of PackageManager,
 -- resolve-activity finds nothing for other apps than these (see package_resolve). The arguments are parsed
 -- like PackageManagerShellCommand does, with the short forms -l, -lf and -p of former versions.
-function applicationfunctions(param, lists, cases)
+function applicationfunctions(param, lists, cases, text)
     -- Lines like package:com.example or package:/data/app/.../base.apk=com.example versionCode:1, and
     -- instrumentation:com.example.test/androidx.test.runner.AndroidJUnitRunner (target=com.example);
     -- one sed for all lines, starting a command for each line takes seconds
@@ -617,6 +663,11 @@ function applicationfunctions(param, lists, cases)
 
     lists[#lists + 1] = '   package|packages) __xlua_package "$@" | __xlua_packages ;;'
     lists[#lists + 1] = '   instrumentation) __xlua_package "$@" | __xlua_instrumentations ;;'
+    local permissions = (hasword(text, 'permissions') or string.find(text, 'permission-groups', 1, true)) and
+            permissionfilter(param) or nil
+    if permissions ~= nil then
+        lists[#lists + 1] = '   permissions|permission-groups) __xlua_package "$@" | ' .. permissions .. ' ;;'
+    end
     cases[#cases + 1] = '  path) __xlua_path "$@" ;;'
     cases[#cases + 1] = '  -[lL]|-[lL][fF]) if [ $# -eq 1 ]; then __xlua_package "$@" | __xlua_packages;' ..
             ' else __xlua_package "$@"; fi ;;'
@@ -753,12 +804,12 @@ function featurefunctions(param, variants, lists, cases)
 end
 
 -- pm and cmd package (also cmd -w package) with the cases of the variants, other commands stay
-function packagefunctions(param, variants)
+function packagefunctions(param, variants, text)
     local result = {}
     local lists = {}
     local cases = {}
     if variants['packages'] then
-        result[#result + 1] = applicationfunctions(param, lists, cases)
+        result[#result + 1] = applicationfunctions(param, lists, cases, text)
     end
     if variants['features'] or variants['biometrics'] then
         result[#result + 1] = featurefunctions(param, variants, lists, cases)
@@ -937,7 +988,7 @@ function functions(param, text, variants, script)
         result = result .. catfunction(param, text, variants, seen['uname'], hiding, reading)
     end
     if seen['pm'] then
-        result = result .. packagefunctions(param, variants)
+        result = result .. packagefunctions(param, variants, text)
     end
     if script then
         local multiplexers, more = multiplexerfunctions(text, names)
@@ -1150,7 +1201,7 @@ end
 function programin(words, at)
     while true do
         local word = unquote(words[at])
-        if word == '' or string.find(word, '[$`]') then
+        if word == '' or string.find(word, '[$`]') or not systemprogram(word) then
             return nil, at
         end
         local name = basename(word)
@@ -1172,6 +1223,44 @@ function programin(words, at)
         end
         at = next
     end
+end
+
+-- Whether a path is of a partition of the system, which the app cannot write, without . or .. to leave it
+function systempath(path)
+    for _, dir in ipairs({ '/system/', '/system_ext/', '/product/', '/vendor/', '/odm/', '/apex/', '/bin/' }) do
+        if string.sub(path .. '/', 1, #dir) == dir then
+            return not string.find(path .. '/', '/%.%.?/')
+        end
+    end
+    return false
+end
+
+-- Whether a program is one of the system: by its name, which the shell finds in the folders of PATH (see loaders),
+-- or by a path of the system; not a file of the app with an allowed name, like ./getprop
+function systemprogram(word)
+    return not string.find(word, '/', 1, true) or systempath(word)
+end
+
+-- Whether the app chose where programs are found or which code they load, so it could run its own files by an
+-- allowed name: PATH or LD_ variables in the command, like PATH=files getprop, or in the environment of the builder,
+-- which the app can change, also for its own process; an empty folder of PATH is the working directory
+function loaders(builder, line)
+    if hasword(line, 'PATH') or string.find(' ' .. line, '[^%w_]LD_[%w_]') then
+        return true
+    end
+    local environment = builder:environment()
+    local path = environment:get('PATH')
+    if path ~= nil then
+        if string.find(':' .. path .. ':', '::', 1, true) then
+            return true
+        end
+        for dir in string.gmatch(path, '[^:]+') do
+            if not systempath(dir) then
+                return true
+            end
+        end
+    end
+    return environment:get('LD_PRELOAD') ~= nil or environment:get('LD_LIBRARY_PATH') ~= nil
 end
 
 -- The programs a script runs: the words in the place of a command (see commandplace) with the words of their
@@ -1261,7 +1350,7 @@ function refuse(param)
         allowed[basename(name)] = true
     end
     local programs = commandprograms(words)
-    local refused = (programs == nil)
+    local refused = (programs == nil or loaders(builder, line))
     for _, program in ipairs(programs or {}) do
         if not allowed[program] then
             refused = true
