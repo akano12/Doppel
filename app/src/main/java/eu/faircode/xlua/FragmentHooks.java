@@ -169,7 +169,7 @@ public class FragmentHooks extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         submit(() -> {
             try {
-                List<XHook> hooks = Data.getAllHooks(context, false);
+                List<XHook> hooks = Data.getAllHooks(context, null);
                 Set<String> ids = Data.getBuiltinIds(context);
                 List<String> collection = Data.getCollection(context);
                 // In the order of the group titles shown, like Groups.sortByTitle;

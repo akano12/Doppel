@@ -109,10 +109,12 @@ final class Data {
         return query(context, "getHooks2", new String[]{"false", "false"}, XHook.CREATOR);
     }
 
-    // All hook definitions, including disabled hooks and hooks for other Android versions,
-    // optionally with their scripts
-    static List<XHook> getAllHooks(Context context, boolean lua) {
-        return query(context, "getHooks2", new String[]{"true", Boolean.toString(lua)}, XHook.CREATOR);
+    // All hook definitions, including disabled hooks and hooks for other Android versions, without scripts (null),
+    // with the script of one definition (its id) or with the scripts of the custom definitions (XProvider.SCRIPTS_CUSTOM)
+    static List<XHook> getAllHooks(Context context, String scripts) {
+        return query(context, "getHooks2", scripts == null
+                ? new String[]{"true", "false"}
+                : new String[]{"true", "true", scripts}, XHook.CREATOR);
     }
 
     // Hooks assigned to an app, with their scripts, which come once each, with the first hook which has it;
@@ -148,7 +150,7 @@ final class Data {
     // Custom definitions as users edit them, for exports and backups
     static JSONArray getCustomHooks(Context context) throws JSONException {
         JSONArray jhooks = new JSONArray();
-        for (XHook hook : getAllHooks(context, true))
+        for (XHook hook : getAllHooks(context, XProvider.SCRIPTS_CUSTOM))
             if (!hook.isBuiltin())
                 jhooks.put(toEditable(hook));
         return jhooks;

@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 // What hooked apps may ask the service without the permission of the app, see XProvider.APP_CALLS
@@ -39,6 +40,42 @@ public class XProviderTest {
         assertEquals(Collections.singleton("report"), XProvider.APP_CALLS);
         assertEquals(new HashSet<>(Arrays.asList("getAssignedHooks2", "getSettings", "getBootValues")),
                 XProvider.APP_QUERIES);
+    }
+
+    // Hooked apps read the settings for all apps and the settings and fake values of their own packages only
+    @Test
+    public void hookedAppsReadTheirOwnPackagesOnly() {
+        String[] own = {"own.app", "shared.app"};
+        assertTrue(XProvider.mayRead("global", true, own));
+        assertTrue(XProvider.mayRead("shared.app", true, own));
+        assertTrue(XProvider.mayRead("own.app", false, own));
+        // The fake values new each boot are of a package, global is no package
+        assertFalse(XProvider.mayRead("global", false, own));
+        assertFalse(XProvider.mayRead("other.app", true, own));
+        assertFalse(XProvider.mayRead("other.app", true, null));
+        assertFalse(XProvider.mayRead(null, true, own));
+    }
+
+    // The scripts are sent of the definitions which need them only, see getHooks
+    @Test
+    public void scriptsOfTheDefinitionsAskedFor() throws Exception {
+        XHook builtin = builtin(hook("Now", android.os.Build.VERSION.SDK_INT, true));
+        XHook custom = hook("Custom", android.os.Build.VERSION.SDK_INT, true);
+        assertFalse(XProvider.sendsScript(builtin, false, null));
+        assertTrue(XProvider.sendsScript(builtin, true, null));
+        assertFalse(XProvider.sendsScript(builtin, false, builtin.getId()));
+
+        assertTrue(XProvider.sendsScript(custom, true, XProvider.SCRIPTS_CUSTOM));
+        assertFalse(XProvider.sendsScript(builtin, true, XProvider.SCRIPTS_CUSTOM));
+
+        assertTrue(XProvider.sendsScript(builtin, true, builtin.getId()));
+        assertFalse(XProvider.sendsScript(custom, true, builtin.getId()));
+    }
+
+    private static XHook builtin(XHook hook) throws Exception {
+        org.json.JSONObject jhook = hook.toJSONObject();
+        jhook.put("builtin", true);
+        return XHook.fromJSONObject(jhook);
     }
 
     // The built-in hooks an update or an upgrade of Android adds to the apps which restrict their group, see

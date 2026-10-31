@@ -227,7 +227,7 @@ public class ActivityDownloads extends ActivityBase {
     // All definitions by id, built-in and custom
     private static Map<String, XHook> getInstalled(Context context) {
         Map<String, XHook> installed = new HashMap<>();
-        for (XHook hook : Data.getAllHooks(context, false))
+        for (XHook hook : Data.getAllHooks(context, null))
             installed.put(hook.getId(), hook);
         return installed;
     }

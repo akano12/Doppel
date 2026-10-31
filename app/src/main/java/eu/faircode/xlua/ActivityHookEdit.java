@@ -248,8 +248,8 @@ public class ActivityHookEdit extends ActivityBase {
     private void load(final String id, final boolean fill) {
         final Context context = getApplicationContext();
         run(TAG, () -> {
-            // Only an existing definition needs the scripts
-            List<XHook> hooks = Data.getAllHooks(context, id != null);
+            // Only an existing definition needs its script, the others none
+            List<XHook> hooks = Data.getAllHooks(context, id);
             Set<String> ids = Data.getBuiltinIds(context);
             List<String> groups = Data.getGroupNames(hooks);
             XHook found = null;

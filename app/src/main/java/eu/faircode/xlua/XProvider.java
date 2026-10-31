@@ -322,13 +322,15 @@ class XProvider {
         return new Bundle();
     }
 
-    // Selection: whether to include definitions which are not available (disabled, other collection or Android version)
-    // and whether to include the scripts, which most screens of the app do not need
+    // Selection: whether to include definitions which are not available (disabled, other collection or Android version),
+    // whether to include the scripts, which most screens of the app do not need, and optionally of which definitions
+    // only, see sendsScript. A service of the former version refuses three items, instead of leaving out all scripts.
     private static Cursor getHooks(String[] selection) throws Throwable {
-        if (selection == null || selection.length != 2)
+        if (selection == null || selection.length < 2 || selection.length > 3)
             throw new IllegalArgumentException("selection invalid");
         boolean all = Boolean.parseBoolean(selection[0]);
         boolean lua = Boolean.parseBoolean(selection[1]);
+        String only = (selection.length == 3 ? selection[2] : null);
         List<String> collection = getCollection(Util.getUserId(Binder.getCallingUid()));
 
         List<XHook> hv = new ArrayList<>();
@@ -339,8 +341,19 @@ class XProvider {
 
         MatrixCursor result = new MatrixCursor(new String[]{"blob"});
         for (XHook hook : hv)
-            result.addRow(new Object[]{hook.marshall(lua)});
+            result.addRow(new Object[]{hook.marshall(sendsScript(hook, lua, only))});
         return result;
+    }
+
+    // The scripts of the custom definitions, for backups and exports
+    static final String SCRIPTS_CUSTOM = "custom";
+
+    // Many definitions share a script, which all definitions with their scripts would send hundreds of times, so the
+    // scripts are sent of the custom definitions only (SCRIPTS_CUSTOM) or of one definition (its id), like for the editor
+    static boolean sendsScript(XHook hook, boolean lua, String only) {
+        if (!lua || only == null)
+            return lua;
+        return (SCRIPTS_CUSTOM.equals(only) ? !hook.isBuiltin() : only.equals(hook.getId()));
     }
 
     // Ids of the built-in definitions, which custom definitions can replace, of the module version which runs
@@ -1112,8 +1125,7 @@ class XProvider {
         int uid = Integer.parseInt(selection[1]);
         if (!permitted) {
             enforceCallerOrPermission(context, uid);
-            // Apps read the settings for all apps and of their own packages only
-            if (!"global".equals(category) && !isPackageOf(context, category, uid))
+            if (!mayRead(category, true, getPackagesForUid(context, uid)))
                 enforcePermission(context);
         }
         MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
@@ -1133,7 +1145,7 @@ class XProvider {
         int uid = Integer.parseInt(selection[1]);
         if (!permitted) {
             enforceCallerOrPermission(context, uid);
-            if (!isPackageOf(context, packageName, uid))
+            if (!mayRead(packageName, false, getPackagesForUid(context, uid)))
                 enforcePermission(context);
         }
         final int userid = Util.getUserId(uid);
@@ -1186,8 +1198,15 @@ class XProvider {
     // Permissions
 
     private static boolean isPackageOf(Context context, String packageName, int uid) {
-        String[] packages = getPackagesForUid(context, uid);
-        return (packages != null && Arrays.asList(packages).contains(packageName));
+        return mayRead(packageName, false, getPackagesForUid(context, uid));
+    }
+
+    // Whether a hooked app may read the data of a category without the permission of the app: of its own packages,
+    // the packages of its uid, and with global also the settings for all apps; else it could read the fake values
+    // of other apps, see XProviderTest
+    static boolean mayRead(String category, boolean global, String[] packages) {
+        return ((global && "global".equals(category)) ||
+                (packages != null && Arrays.asList(packages).contains(category)));
     }
 
     // Access package manager as system user
