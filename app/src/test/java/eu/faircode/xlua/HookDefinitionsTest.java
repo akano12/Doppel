@@ -21,6 +21,7 @@ package eu.faircode.xlua;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
@@ -39,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -310,6 +312,8 @@ public class HookDefinitionsTest {
         Set<String> attributes = new HashSet<>(Arrays.asList("id", "updated"));
         Set<String> listed = new HashSet<>();
         Set<String> ids = new HashSet<>();
+        int sdk = compileSdk();
+        List<String> errors = new ArrayList<>();
         for (int i = 0; i < list.length(); i++) {
             JSONObject entry = list.getJSONObject(i);
             File file = new File(repo, "hook_" + entry.getInt("id") + ".json");
@@ -327,11 +331,123 @@ public class HookDefinitionsTest {
             checkRead(file.getName(), hook);
             compileExcluded(file.getName(), hook);
             runScript(file.getName(), hook.getString("luaScript"));
+            // Installed hooks which do not resolve report an error for every app, see XCore.install
+            if (isFramework(hook, sdk))
+                resolve(hook, errors);
         }
+        if (!errors.isEmpty())
+            fail(errors.size() + " repository hooks do not resolve against SDK " + sdk + ":\n" + String.join("\n", errors));
 
         File[] files = repo.listFiles((dir, name) -> name.startsWith("hook_"));
         for (File file : files)
             assertTrue("Not listed " + file.getName(), listed.contains(file.getName()));
+    }
+
+    // The definitions of Downloads by file name
+    private static Map<String, JSONObject> repository() throws Exception {
+        Map<String, JSONObject> repository = new HashMap<>();
+        for (File file : new File("../repo").listFiles((dir, name) -> name.startsWith("hook_")))
+            repository.put(file.getName(), new JSONObject(readLikeAndroid(file)));
+        return repository;
+    }
+
+    // Scripts of Downloads do not write to the log, like the built-in scripts: the app can read the lines
+    // of its own uid, which show Doppel and the real values
+    @Test
+    public void repositoryScriptsDoNotLog() throws Exception {
+        Pattern log = Pattern.compile("(^|[^\\w.:])log\\s*\\(", Pattern.MULTILINE);
+        Set<String> logging = new TreeSet<>();
+        for (Map.Entry<String, JSONObject> entry : repository().entrySet())
+            if (log.matcher(entry.getValue().getString("luaScript").replaceAll("--[^\n]*", "")).find())
+                logging.add(entry.getKey());
+        assertTrue("Scripts which log: " + logging, logging.isEmpty());
+    }
+
+    // Every getDrawable of WallpaperManager of the SDK is hidden, not only the one without arguments,
+    // which delegates to getDrawable(int) since Android 14
+    @Test
+    public void wallpaperOverloadsAreHidden() throws Exception {
+        int sdk = compileSdk();
+        Collection<JSONObject> repository = repository().values();
+        for (Method method : Class.forName("android.app.WallpaperManager").getMethods()) {
+            if (!method.getName().equals("getDrawable"))
+                continue;
+            boolean hooked = false;
+            for (JSONObject hook : repository)
+                if (hook.getString("className").equals("android.app.WallpaperManager")
+                        && method.getName().equals(hook.optString("methodName")) && isFramework(hook, sdk)) {
+                    JSONArray jparams = hook.getJSONArray("parameterTypes");
+                    String[] names = new String[jparams.length()];
+                    for (int i = 0; i < names.length; i++)
+                        names[i] = jparams.getString(i);
+                    hooked |= Arrays.equals(method.getParameterTypes(),
+                            XResolver.resolveClasses(names, getClass().getClassLoader()));
+                }
+            assertTrue("Not hooked on SDK " + sdk + ": " + method, hooked);
+        }
+    }
+
+    // Each definition carries its own script (no includes); the probes and the list filters of Intika-Google-FCM
+    // carry one script each, so a change of the one reaches all copies; the main hook (Intent) has its own
+    @Test
+    public void fcmScriptsAreShared() throws Exception {
+        Map<String, Set<String>> scripts = new HashMap<>();
+        for (Map.Entry<String, JSONObject> entry : repository().entrySet())
+            if (entry.getValue().getString("collection").equals("Intika-Google-FCM")) {
+                String script = entry.getValue().getString("luaScript");
+                if (!scripts.containsKey(script))
+                    scripts.put(script, new TreeSet<>());
+                scripts.get(script).add(entry.getKey());
+            }
+        assertTrue("Scripts of Intika-Google-FCM: " + scripts.values(), scripts.size() <= 3);
+    }
+
+    // Downloads offers an update of an installed definition only for a higher version (ActivityDownloads.getState),
+    // so every earlier text of a definition in the history has a lower version than the current one
+    @Test
+    public void repositoryVersionsRaised() throws Exception {
+        File root = new File("..").getCanonicalFile();
+        Assume.assumeTrue("No git history", git(root, "rev-parse", "--git-dir") != null);
+        Set<String> errors = new TreeSet<>();
+        for (Map.Entry<String, JSONObject> entry : repository().entrySet()) {
+            String path = "repo/" + entry.getKey();
+            File file = new File(root, path);
+            JSONObject current = entry.getValue();
+            String log = git(root, "log", "--format=%H", "--", path);
+            for (String commit : (log == null ? "" : log).split("\n")) {
+                String text = (commit.isEmpty() ? null : git(root, "show", commit + ":" + path));
+                if (text == null)
+                    continue; // Removed by the commit
+                JSONObject earlier = new JSONObject(text);
+                if (!text.trim().replace("\\/", "/").equals(read(file).trim().replace("\\/", "/"))
+                        && earlier.optInt("version") >= current.optInt("version"))
+                    errors.add(entry.getKey() + " version " + current.optInt("version") +
+                            " differs from version " + earlier.optInt("version") + " of " + commit.substring(0, 7));
+            }
+        }
+        if (!errors.isEmpty())
+            fail(String.join("\n", errors));
+    }
+
+    // The output of a git command, or null if it fails
+    private static String git(File dir, String... args) throws Exception {
+        List<String> command = new ArrayList<>(Arrays.asList(args));
+        command.add(0, "git");
+        try {
+            Process process = new ProcessBuilder(command).directory(dir).redirectErrorStream(true).start();
+            byte[] out = readAll(process.getInputStream());
+            return (process.waitFor() == 0 ? new String(out, StandardCharsets.UTF_8) : null);
+        } catch (java.io.IOException ex) {
+            return null;
+        }
+    }
+
+    private static byte[] readAll(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        for (int n; (n = in.read(buffer)) > 0; )
+            out.write(buffer, 0, n);
+        return out.toByteArray();
     }
 
     // The settings attribute declares the settings a script reads, which the values screen offers.
@@ -371,52 +487,58 @@ public class HookDefinitionsTest {
         int sdk = compileSdk();
         int checked = 0;
         List<String> errors = new ArrayList<>();
-        for (JSONObject hook : hooks) {
-            String className = hook.getString("className");
-            if (!className.startsWith("android.") || HIDDEN.contains(className))
-                continue;
-            if (hook.optBoolean("optional", false))
-                continue;
-            if (hook.getInt("minSdk") > sdk || hook.optInt("maxSdk", 999) < sdk)
-                continue;
-
-            String name = hook.getString("name");
-            checked++;
-            try {
-                Class<?> cls = Class.forName(className, false, getClass().getClassLoader());
-
-                JSONArray jparams = hook.getJSONArray("parameterTypes");
-                String[] names = new String[jparams.length()];
-                for (int i = 0; i < names.length; i++)
-                    names[i] = jparams.getString(i);
-                Class<?>[] params = XResolver.resolveClasses(names, getClass().getClassLoader());
-
-                // Like XCore.install: the return type of a method is the declared one or a subclass,
-                // the type of a field the declared one
-                String methodName = hook.optString("methodName", null);
-                String returnName = hook.optString("returnType", null);
-                Class<?> returnType = (returnName == null ? null
-                        : XResolver.resolveClass(returnName, getClass().getClassLoader()));
-                if (methodName == null)
-                    cls.getDeclaredConstructor(params);
-                else if (methodName.startsWith("#")) {
-                    Field field = XResolver.resolveField(cls, methodName.substring(1), null);
-                    if (returnType != null && !field.getType().equals(returnType))
-                        errors.add(name + ": field type " + field.getType().getName() + " not " + returnName);
-                } else if (methodName.contains(":"))
-                    XResolver.resolveField(cls, methodName.split(":")[0], null);
-                else {
-                    Method method = findMethod(cls, methodName, params);
-                    if (returnType != null && !method.getReturnType().isAssignableFrom(returnType))
-                        errors.add(name + ": return type " + method.getReturnType().getName() + " not " + returnName);
-                }
-            } catch (Throwable ex) {
-                errors.add(name + ": " + ex);
+        for (JSONObject hook : hooks)
+            if (isFramework(hook, sdk)) {
+                checked++;
+                resolve(hook, errors);
             }
-        }
         assertTrue("Only " + checked + " hooks checked against SDK " + sdk, sdk >= 36 && checked > 100);
         if (!errors.isEmpty())
             fail(errors.size() + " hooks do not resolve against SDK " + sdk + ":\n" + String.join("\n", errors));
+    }
+
+    // A non-optional hook of a framework class of the SDK, for the SDK the app is compiled against
+    private static boolean isFramework(JSONObject hook, int sdk) throws Exception {
+        String className = hook.getString("className");
+        return className.startsWith("android.") && !HIDDEN.contains(className) && !hook.optBoolean("optional", false)
+                && hook.getInt("minSdk") <= sdk && hook.optInt("maxSdk", 999) >= sdk;
+    }
+
+    // Resolves the hooked member like XCore.install: the class, the member with the parameter types and the return type
+    private void resolve(JSONObject hook, List<String> errors) throws Exception {
+        String className = hook.getString("className");
+        String name = hook.getString("name");
+        try {
+            Class<?> cls = Class.forName(className, false, getClass().getClassLoader());
+
+            JSONArray jparams = hook.getJSONArray("parameterTypes");
+            String[] names = new String[jparams.length()];
+            for (int i = 0; i < names.length; i++)
+                names[i] = jparams.getString(i);
+            Class<?>[] params = XResolver.resolveClasses(names, getClass().getClassLoader());
+
+            // Like XCore.install: the return type of a method is the declared one or a subclass,
+            // the type of a field the declared one
+            String methodName = hook.optString("methodName", null);
+            String returnName = hook.optString("returnType", null);
+            Class<?> returnType = (returnName == null ? null
+                    : XResolver.resolveClass(returnName, getClass().getClassLoader()));
+            if (methodName == null)
+                cls.getDeclaredConstructor(params);
+            else if (methodName.startsWith("#")) {
+                Field field = XResolver.resolveField(cls, methodName.substring(1), null);
+                if (returnType != null && !field.getType().equals(returnType))
+                    errors.add(name + ": field type " + field.getType().getName() + " not " + returnName);
+            } else if (methodName.contains(":"))
+                XResolver.resolveField(cls, methodName.split(":")[0], null);
+            else {
+                Method method = findMethod(cls, methodName, params);
+                if (returnType != null && !method.getReturnType().isAssignableFrom(returnType))
+                    errors.add(name + ": return type " + method.getReturnType().getName() + " not " + returnName);
+            }
+        } catch (Throwable ex) {
+            errors.add(name + ": " + ex);
+        }
     }
 
     private static Method findMethod(Class<?> cls, String name, Class<?>[] params) throws NoSuchMethodException {

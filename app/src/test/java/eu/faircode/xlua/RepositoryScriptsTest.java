@@ -22,12 +22,15 @@ package eu.faircode.xlua;
 import org.json.JSONObject;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -54,11 +57,15 @@ public class RepositoryScriptsTest {
             "end");
 
     private static Globals load(int id) throws Exception {
+        return load(id, STUBS);
+    }
+
+    private static Globals load(int id, String stubs) throws Exception {
         String json = new String(Files.readAllBytes(new File("../repo/hook_" + id + ".json").toPath()),
                 StandardCharsets.UTF_8);
         Globals globals = JsePlatform.standardGlobals();
         globals.load(new JSONObject(json).getString("luaScript"), "hook_" + id).call();
-        globals.load(STUBS, "stubs").call();
+        globals.load(stubs, "stubs").call();
         return globals;
     }
 
@@ -85,5 +92,121 @@ public class RepositoryScriptsTest {
                 "return after(hookof('com.localytics.androidx.Localytics'), paramof('failed')), #calls");
         assertFalse(failed.arg1().toboolean());
         assertEquals(0, failed.arg(2).toint());
+    }
+
+    // The package hooks of Intika-Google-FCM: the app (uid 10100) and the packages the package manager knows.
+    // The values of the scope are one map of the process, like XParam.putValue/getValue, shared by the globals
+    // of each thread (store). The package manager calls during, which runs a call of another thread.
+    private static final String FCM = String.join("\n",
+            "PACKAGES = {",
+            "  ['com.google.android.gms'] = { packageName = 'com.google.android.gms', applicationInfo = { uid = 10050 } },",
+            "  ['com.example'] = { packageName = 'com.example', applicationInfo = { uid = 10200 } } }",
+            "ipc = 0",
+            "luajava = { bindClass = function(name) return name end, new = function(cls, text) return cls .. ': ' .. text end }",
+            "function log() end",
+            "function hookof(name) return { getName = function(self) return name end } end",
+            "function paramof(args, result)",
+            "  local pm = {}",
+            "  function pm.getPackageInfo(self, name, flags) return pm.lookup(name) end",
+            "  function pm.getApplicationInfo(self, name, flags) local p = pm.lookup(name) return p and p.applicationInfo end",
+            "  function pm.lookup(name)",
+            "    ipc = ipc + 1",
+            "    if during then during() end",
+            "    return PACKAGES[name]",
+            "  end",
+            "  return {",
+            "    getResult = function(self) return result end,",
+            "    setResult = function(self, value) self.result = value end,",
+            "    getArgument = function(self, i) return args[i + 1] end,",
+            "    getApplicationContext = function(self) return 'context' end,",
+            "    getValue = function(self, name, scope) return store[name] end,",
+            "    putValue = function(self, name, value, scope) store[name] = value end,",
+            "    getUid = function(self) return 10100 end,",
+            "    getThis = function(self) return pm end,",
+            "    unhooked = function(self, f) return f() end }",
+            "end");
+
+    // [48] A lookup of gms by another thread while the hook of a thread looks up gms itself is hidden too:
+    // values of the scope are of the whole process, not of the thread
+    @Test
+    public void fcmHidesDuringOwnLookup() throws Exception {
+        String[][] cases = {
+                {"150", "PackageManager.getPackageUid", "10050",
+                        "147", "PackageManager.getPackageInfo/packageName", "PACKAGES['com.google.android.gms']"},
+                {"140", "PackageManager.getApplicationEnabledSetting", "1",
+                        "141", "PackageManager.getApplicationInfo", "PACKAGES['com.google.android.gms'].applicationInfo"}};
+        for (String[] c : cases) {
+            LuaTable store = new LuaTable();
+            Globals a = load(Integer.parseInt(c[0]), FCM);
+            Globals b = load(Integer.parseInt(c[3]), FCM);
+            a.set("store", store);
+            b.set("store", store);
+            Scripts.run(b, "function other() restricted = after(hookof('" + c[4] + "'), " +
+                    "paramof({ 'com.google.android.gms', 0 }, " + c[5] + ")) end");
+            a.set("during", b.get("other"));
+            Varargs result = Scripts.run(a,
+                    "return after(hookof('" + c[1] + "'), paramof({ 'com.google.android.gms', 0 }, " + c[2] + "))");
+            assertTrue(c[0], result.arg1().toboolean());
+            assertTrue(c[3] + " during " + c[0] + " restricted=" + b.get("restricted"), b.get("restricted").toboolean());
+        }
+    }
+
+    // [53] The hooks look up only gms and gsf themselves, not every package the app asks for
+    @Test
+    public void fcmLooksUpTargetsOnly() throws Exception {
+        String[][] cases = {
+                {"150", "PackageManager.getPackageUid", "10200"},
+                {"145", "PackageManager.getPackageGids", "{}"},
+                {"140", "PackageManager.getApplicationEnabledSetting", "1"},
+                {"183", "PackageManager.getPackageUid.33", "10200"}};
+        for (String[] c : cases) {
+            Globals globals = load(Integer.parseInt(c[0]), FCM);
+            globals.set("store", new LuaTable());
+            Varargs result = Scripts.run(globals,
+                    "return after(hookof('" + c[1] + "'), paramof({ 'com.example', 0 }, " + c[2] + ")), ipc");
+            assertFalse(c[0], result.arg1().toboolean());
+            assertEquals(c[0] + " lookups", 0, result.arg(2).toint());
+        }
+    }
+
+    // [50] A blacklisted property is faked also when its value is the default the app gives,
+    // else the app tests guesses of the value
+    @Test
+    public void propertyDefaultIsNoOracle() throws Exception {
+        Globals globals = load(51, String.join("\n",
+                "function log() end",
+                "param = {",
+                "  getResult = function(self) return 'orange' end,",
+                "  setResult = function(self, value) self.result = value end,",
+                "  getArgument = function(self, i) return ({ 'ro.boot.verifiedbootstate', 'orange' })[i + 1] end,",
+                "  getApplicationContext = function(self) return 'context' end,",
+                "  getValue = function(self) return nil end,",
+                "  putValue = function(self) end,",
+                "  getSetting = function(self) return 'ro.boot.' end }"));
+        Varargs result = Scripts.run(globals, "return after({}, param), param.result");
+        assertTrue("restricted", result.arg1().toboolean());
+        assertEquals("Private", result.arg(2).tojstring());
+    }
+
+    // [51] The MCC and MNC of the configuration are those of the test network which Use.Tracking fakes (test_network)
+    @Test
+    public void configurationHasTestNetwork() throws Exception {
+        String network = Scripts.read("test_network");
+        Matcher mcc = Pattern.compile("getMcc = (\\d+)").matcher(network);
+        Matcher mnc = Pattern.compile("getMnc = (\\d+)").matcher(network);
+        assertTrue(mcc.find() && mnc.find());
+
+        Globals globals = load(161, "");
+        Varargs result = Scripts.run(globals,
+                "local c = { mcc = 310, mnc = 260 }\nreturn after({}, { getResult = function() return c end }), c.mcc, c.mnc");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("mcc", Integer.parseInt(mcc.group(1)), result.arg(2).toint());
+        assertEquals("mnc", Integer.parseInt(mnc.group(1)), result.arg(3).toint());
+
+        // No SIM, which the test network leaves empty too
+        Varargs none = Scripts.run(globals,
+                "local c = { mcc = 0, mnc = 0 }\nreturn after({}, { getResult = function() return c end }), c.mcc");
+        assertFalse(none.arg1().toboolean());
+        assertEquals(0, none.arg(2).toint());
     }
 }
