@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 
 import javax.crypto.Mac;
@@ -53,7 +54,26 @@ final class FakeIds {
     static final String BOOT = "boot"; // A value of its own for each app
     static final String BOOT_ALL = "boot_all"; // The same value for all apps
 
+    static final String INHERIT = "inherit"; // An app takes the mode of all apps, see ActivityValues
+
     private FakeIds() {
+    }
+
+    // What Fake values writes for a value: the value entered when it differs from the saved one, unless the app takes
+    // the mode of all apps, and the mode chosen when it differs from the saved mode; chosen is null without modes
+    static void putChanges(Map<String, String> changed, String key, String chosen, String savedMode,
+                           String value, Map<String, String> values) {
+        if (!INHERIT.equals(chosen) && !Objects.equals(value, values.get(key))) {
+            changed.put(key, value);
+            // A value fixed only because it was set stays fixed, with its default, when it is cleared
+            if (value == null && FIXED.equals(chosen) && values.get(key + MODE) == null)
+                changed.put(key + MODE, FIXED);
+        }
+        if (chosen != null && !chosen.equals(savedMode)) {
+            changed.put(key + MODE, INHERIT.equals(chosen) ? null : chosen);
+            if (INHERIT.equals(chosen) && values.get(key) != null)
+                changed.put(key, null);
+        }
     }
 
     static boolean isId(String key) {

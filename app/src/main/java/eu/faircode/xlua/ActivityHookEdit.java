@@ -466,10 +466,7 @@ public class ActivityHookEdit extends ActivityBase {
         // A new definition, also one saved with another name, is not assigned to apps yet
         final String before = (hook == null ? null : hook.getId());
         run(TAG, () -> {
-            // A script which does not compile would only fail in the apps; the error shows where
-            String script = jhook.optString("luaScript");
-            if (!script.startsWith("@"))
-                LuaC.instance.compile(new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)), "script");
+            check(jhook);
             final XHook saved = Data.putCustom(context, jhook);
             runOnUiThread(() -> {
                 hook = saved;
@@ -487,6 +484,14 @@ public class ActivityHookEdit extends ActivityBase {
                         () -> run(TAG, () -> Ui.message(this,
                                 Data.restrictForGroups(context, Collections.singletonList(saved)))));
         });
+    }
+
+    // Like Data.putCustom stores it, with a script which compiles, which would else only fail in the apps; the error
+    // shows where. Also for import. Only built-in definitions resolve a script '@name', see XHook.readHooks.
+    static void check(JSONObject jhook) throws Exception {
+        XHook.fromJSONObject(jhook).validate();
+        String script = jhook.getString("luaScript");
+        LuaC.instance.compile(new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)), "script");
     }
 
     // Deleting a definition which replaces a built-in one brings back the built-in one, which is shown then

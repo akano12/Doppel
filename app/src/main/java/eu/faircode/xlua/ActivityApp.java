@@ -73,8 +73,8 @@ import java.util.Set;
 public class ActivityApp extends ActivityBase {
     private static final String TAG = "XLua.App";
 
-    private static final String EXTRA_PACKAGE = "package";
-    private static final String EXTRA_UID = "uid";
+    static final String EXTRA_PACKAGE = "package";
+    static final String EXTRA_UID = "uid";
     private static final String EXTRA_HOOK = "hook";
     private static final String STATE_DIRTY = "dirty";
     private static final String STATE_EXPANDED = "expanded";
@@ -323,28 +323,15 @@ public class ActivityApp extends ActivityBase {
                 ? getString(R.string.title_values_none)
                 : getResources().getQuantityString(R.plurals.title_values_own, values, values));
 
-        // Sections with their groups by title
-        Map<Integer, List<String>> sections = new HashMap<>();
-        for (String group : available.keySet()) {
-            int section = Groups.getSection(group);
-            if (!sections.containsKey(section))
-                sections.put(section, new ArrayList<>());
-            sections.get(section).add(group);
-        }
-
         LinearLayout llSections = findViewById(R.id.llSections);
         llSections.removeAllViews();
         views.clear();
         LayoutInflater inflater = LayoutInflater.from(this);
-        for (int section : Groups.SECTIONS) {
-            List<String> groups = sections.get(section);
-            if (groups == null)
-                continue;
-            Groups.sortByTitle(this, groups);
-
+        for (Map.Entry<Integer, List<String>> entry : GroupsSheet.bySection(this, available.keySet()).entrySet()) {
+            final List<String> groups = entry.getValue();
             View vSection = inflater.inflate(R.layout.item_section, llSections, false);
             TextView tvSection = vSection.findViewById(R.id.tvSection);
-            tvSection.setText(section);
+            tvSection.setText(entry.getKey());
             ViewCompat.setAccessibilityHeading(tvSection, true);
             vSection.setTag(groups);
             // All groups of the section, or none when all are complete, like the sheet of the groups of the Apps tab
@@ -622,12 +609,7 @@ public class ActivityApp extends ActivityBase {
             for (String group : groupsOf)
                 if (!app.getAssignments(group).isEmpty())
                     count++;
-            ((TextView) vSection.findViewById(R.id.tvCount)).setText(getString(R.string.title_of, count, groupsOf.size()));
-            boolean all = isComplete(groupsOf);
-            Button btnSection = vSection.findViewById(R.id.btnSection);
-            btnSection.setText(all ? R.string.title_section_none : R.string.title_section_all);
-            btnSection.setContentDescription(getString(all ? R.string.title_section_none_of : R.string.title_section_all_of,
-                    ((TextView) vSection.findViewById(R.id.tvSection)).getText()));
+            GroupsSheet.bindSection(this, vSection, count, groupsOf.size(), isComplete(groupsOf));
         }
     }
 

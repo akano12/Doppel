@@ -49,7 +49,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeSet;
@@ -99,7 +98,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     }
 
     // An app without a mode of its own uses the one of all apps
-    private static final String INHERIT = "inherit";
+    private static final String INHERIT = FakeIds.INHERIT;
 
     // Settings used by the scripts in assets, with their built-in defaults
     private static final Object[] SECTIONS = new Object[]{
@@ -697,21 +696,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             if (til == null)
                 continue;
             Mode mode = modes.get(field.key);
-            String chosen = (mode == null ? null : getMode(mode));
-            if (!INHERIT.equals(chosen)) {
-                String value = getValue(field, til.getEditText());
-                if (!Objects.equals(value, values.get(field.key))) {
-                    changed.put(field.key, value);
-                    // A value fixed only because it was set stays fixed, with its default, when it is cleared
-                    if (mode != null && value == null && FakeIds.FIXED.equals(chosen) && values.get(field.key + FakeIds.MODE) == null)
-                        changed.put(field.key + FakeIds.MODE, FakeIds.FIXED);
-                }
-            }
-            if (mode != null && !chosen.equals(getSavedMode(field.key))) {
-                changed.put(field.key + FakeIds.MODE, INHERIT.equals(chosen) ? null : chosen);
-                if (INHERIT.equals(chosen) && values.get(field.key) != null)
-                    changed.put(field.key, null);
-            }
+            FakeIds.putChanges(changed, field.key, mode == null ? null : getMode(mode),
+                    mode == null ? null : getSavedMode(field.key), getValue(field, til.getEditText()), values);
         }
         return changed;
     }

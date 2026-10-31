@@ -171,14 +171,16 @@ final class XNotify {
         return builder;
     }
 
-    // Opens the restrictions of the app; the activity itself, since the launcher entry changes with the icon.
-    // One pending intent per app, since the extra does not tell them apart and apps can share a uid
+    // Opens the restrictions of the app, on top of the screens open in the task of Doppel, like an editor with changes
+    // which are not saved: the main screen would only bring the task to the front, being the root of the task.
+    // System server may start the screen, which is not exported. One pending intent per app, since apps can share a uid.
     private static PendingIntent getAppIntent(Context context, int uid, String packageName) {
-        Intent main = new Intent(Intent.ACTION_MAIN)
-                .setClassName(BuildConfig.APPLICATION_ID, ActivityMain.class.getName())
+        Intent app = new Intent()
+                .setClassName(BuildConfig.APPLICATION_ID, ActivityApp.class.getName())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                .putExtra(ActivityMain.EXTRA_PACKAGE, packageName);
-        return PendingIntent.getActivity(context, Objects.hash(packageName, uid), main,
+                .putExtra(ActivityApp.EXTRA_PACKAGE, packageName)
+                .putExtra(ActivityApp.EXTRA_UID, uid);
+        return PendingIntent.getActivity(context, Objects.hash(packageName, uid), app,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 

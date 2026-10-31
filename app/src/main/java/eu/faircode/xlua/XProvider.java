@@ -385,7 +385,8 @@ class XProvider {
 
     // Built-in hooks added by an update are assigned to the apps which restrict their group,
     // like the screens of the app assign all hooks of a group
-    // Enabled built-in hooks are tracked, so a hook enabled by an update is assigned too.
+    // The hooks which can be assigned are tracked (see enabledBuiltins), so a hook enabled by an update, or for the
+    // Android version of an upgrade, is assigned too.
     // Hooks which were known already are never assigned again: a hook switched off for an app stays off.
     // Without the current marker the former marker "builtins" tells which hooks were known, disabled ones too;
     // without both, like at the first start, the current hooks are known.
@@ -393,20 +394,10 @@ class XProvider {
         final Map<String, XHook> all = hooks;
         final Collection<XHook> builtin = builtins.values();
         db.write(d -> {
-            Set<String> known = new HashSet<>();
-            List<String> enabled = new ArrayList<>();
-            for (XHook hook : builtin)
-                if (hook.isEnabled())
-                    enabled.add(hook.getId());
-
+            List<String> enabled = enabledBuiltins(builtin);
             String current = readSetting(d, -1, "service", "builtins_enabled");
             String marker = (current == null ? readSetting(d, -1, "service", "builtins") : current);
-            if (marker == null)
-                known.addAll(enabled);
-            else
-                // Under the names of now, like a restore does, so a renamed definition is not new
-                for (String id : Util.split(marker))
-                    known.add(Backup.renamed(id));
+            Set<String> known = knownBuiltins(enabled, marker);
 
             List<String> added = new ArrayList<>();
             for (String id : enabled)
@@ -429,6 +420,28 @@ class XProvider {
             }
             return null;
         });
+    }
+
+    // The built-in hooks which can be assigned: enabled and for this Android version. A hook of a newer Android version
+    // stays out of the marker, so after an upgrade of Android it is new and goes to the apps which restrict its group.
+    static List<String> enabledBuiltins(Collection<XHook> builtins) {
+        List<String> enabled = new ArrayList<>();
+        for (XHook hook : builtins)
+            if (hook.isEnabled() && hook.isForThisSdk())
+                enabled.add(hook.getId());
+        return enabled;
+    }
+
+    // The hooks the marker knows, under the names of now, like a restore does, so a renamed definition is not new;
+    // without a marker, like at the first start, the enabled hooks
+    static Set<String> knownBuiltins(List<String> enabled, String marker) {
+        Set<String> known = new HashSet<>();
+        if (marker == null)
+            known.addAll(enabled);
+        else
+            for (String id : Util.split(marker))
+                known.add(Backup.renamed(id));
+        return known;
     }
 
     // Built-in hooks moved to another group (see XDatabase.MOVED) are assigned once to the apps which restrict
@@ -895,13 +908,23 @@ class XProvider {
     // All assignments of the apps of the user of the caller, also of hooks which are not available, for backups
     private static Cursor getAssignments() throws Throwable {
         final String[] range = getUidRange(Util.getUserId(Binder.getCallingUid()));
-        return db.read(d -> {
-            Cursor cursor = d.query("assignment", new String[]{"package", "uid", "hook"},
-                    WHERE_USER, range, null, null, "package, hook");
-            // Fill the cursor window while holding the lock
-            cursor.getCount();
-            return cursor;
-        });
+        return db.read(d -> copy(d.query("assignment", new String[]{"package", "uid", "hook"},
+                WHERE_USER, range, null, null, "package, hook")));
+    }
+
+    // The rows of a query, all read while holding the lock: a cursor of the database reads the rows after its first
+    // window again later, from the rows of then, so a row which moved meanwhile would show twice and another not
+    private static Cursor copy(Cursor cursor) {
+        try (Cursor c = cursor) {
+            MatrixCursor result = new MatrixCursor(c.getColumnNames(), c.getCount());
+            while (c.moveToNext()) {
+                Object[] row = new Object[c.getColumnCount()];
+                for (int i = 0; i < row.length; i++)
+                    row[i] = (c.getType(i) == Cursor.FIELD_TYPE_INTEGER ? (Object) c.getLong(i) : c.getString(i));
+                result.addRow(row);
+            }
+            return result;
+        }
     }
 
     // The last restriction of each hook of the apps of the user of the caller
@@ -910,15 +933,10 @@ class XProvider {
             throw new IllegalArgumentException("selection invalid");
 
         final String[] range = getUidRange(Util.getUserId(Binder.getCallingUid()));
-        return db.read(d -> {
-            Cursor cursor = d.query("assignment",
-                    new String[]{"package", "uid", "hook", "used", "old", "new"},
-                    "restricted = 1 AND " + WHERE_USER, range,
-                    null, null, "used DESC");
-            // Fill the cursor window while holding the lock
-            cursor.getCount();
-            return cursor;
-        });
+        return db.read(d -> copy(d.query("assignment",
+                new String[]{"package", "uid", "hook", "used", "old", "new"},
+                "restricted = 1 AND " + WHERE_USER, range,
+                null, null, "used DESC")));
     }
 
     // A new app, see ReceiverPackage, which is not running yet

@@ -54,8 +54,7 @@
             android:name=".ActivityMain"
             android:exported="true"
             android:theme="@style/Theme.XLua.Starting"
-            android:configChanges="orientation|screenSize"
-            android:launchMode="singleTask" />
+            android:configChanges="orientation|screenSize" />
 
         <!-- The entries of the launcher, one per app icon, of which one is enabled, see LauncherIcons -->
         <activity-alias

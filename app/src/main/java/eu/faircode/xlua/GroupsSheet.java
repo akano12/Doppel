@@ -39,6 +39,7 @@ import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -145,31 +146,44 @@ final class GroupsSheet {
         dialog.show();
     }
 
-    // The sections of the screen of the app, in its order, with the groups by title
-    private void buildSections(LayoutInflater inflater) {
+    // The sections with groups, in the order of the screen of the app, with the groups by title; also for that screen
+    static Map<Integer, List<String>> bySection(Context context, Collection<String> groups) {
         Map<Integer, List<String>> bySection = new LinkedHashMap<>();
-        for (int section : Groups.SECTIONS)
-            bySection.put(section, new ArrayList<>());
-        for (String group : groups.keySet())
-            bySection.get(Groups.getSection(group)).add(group);
+        for (int section : Groups.SECTIONS) {
+            List<String> names = new ArrayList<>();
+            for (String group : groups)
+                if (Groups.getSection(group) == section)
+                    names.add(group);
+            if (!names.isEmpty()) {
+                Groups.sortByTitle(context, names);
+                bySection.put(section, names);
+            }
+        }
+        return bySection;
+    }
 
+    // The count of a section and its button for all or none of its groups; also for the screen of the app
+    static void bindSection(Context context, View vSection, int restricted, int total, boolean complete) {
+        ((TextView) vSection.findViewById(R.id.tvCount)).setText(context.getString(R.string.title_of, restricted, total));
+        Button btnSection = vSection.findViewById(R.id.btnSection);
+        btnSection.setText(complete ? R.string.title_section_none : R.string.title_section_all);
+        btnSection.setContentDescription(context.getString(complete ? R.string.title_section_none_of : R.string.title_section_all_of,
+                ((TextView) vSection.findViewById(R.id.tvSection)).getText()));
+    }
+
+    // The sections of the screen of the app
+    private void buildSections(LayoutInflater inflater) {
         LinearLayout llSections = view.findViewById(R.id.llSections);
-        for (Map.Entry<Integer, List<String>> entry : bySection.entrySet()) {
+        for (Map.Entry<Integer, List<String>> entry : bySection(activity, groups.keySet()).entrySet()) {
             final List<String> names = entry.getValue();
-            if (names.isEmpty())
-                continue;
-            Groups.sortByTitle(activity, names);
-
             View vSection = inflater.inflate(R.layout.item_section, llSections, false);
             TextView tvSection = vSection.findViewById(R.id.tvSection);
-            String title = activity.getString(entry.getKey());
-            tvSection.setText(title);
+            tvSection.setText(entry.getKey());
             ViewCompat.setAccessibilityHeading(tvSection, true);
             LinearLayout llRows = vSection.findViewById(R.id.llRows);
             for (String group : names)
                 llRows.addView(buildGroup(inflater, llRows, group));
 
-            TextView tvCount = vSection.findViewById(R.id.tvCount);
             Button btnSection = vSection.findViewById(R.id.btnSection);
             btnSection.setVisibility(View.VISIBLE);
             final List<XHook> hooks = new ArrayList<>();
@@ -187,11 +201,7 @@ final class GroupsSheet {
                 for (String group : names)
                     if (isRestricted(groups.get(group)))
                         restricted++;
-                tvCount.setText(activity.getString(R.string.title_of, restricted, names.size()));
-                boolean complete = isComplete(hooks);
-                btnSection.setText(complete ? R.string.title_section_none : R.string.title_section_all);
-                btnSection.setContentDescription(activity.getString(
-                        complete ? R.string.title_section_none_of : R.string.title_section_all_of, title));
+                bindSection(activity, vSection, restricted, names.size(), isComplete(hooks));
             });
             llSections.addView(vSection);
         }

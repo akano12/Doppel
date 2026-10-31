@@ -98,9 +98,10 @@ class Backup {
         JSONArray jhooks = Data.getCustomHooks(context);
         jroot.put("hooks", jhooks);
 
-        // The built-in definitions of this version, so a restore by a later version knows which are newer
+        // The built-in definitions of this version, so a restore by a later version knows which are newer,
+        // for this Android version only, so a restore on a newer Android version adds the hooks of that version
         JSONArray jbuiltins = new JSONArray();
-        for (String id : Data.getBuiltinIds(context))
+        for (String id : builtinsForThisSdk(Data.getBuiltinIds(context), Data.getAllHooks(context, false)))
             jbuiltins.put(id);
         jroot.put("builtins", jbuiltins);
 
@@ -250,6 +251,19 @@ class Backup {
                         result.partial++;
         }
 
+        return result;
+    }
+
+    // The built-in ids of which the definition, built-in or replaced by a custom one, is for this Android version
+    static List<String> builtinsForThisSdk(Collection<String> builtins, List<XHook> hooks) {
+        Set<String> forThisSdk = new HashSet<>();
+        for (XHook hook : hooks)
+            if (hook.isForThisSdk())
+                forThisSdk.add(hook.getId());
+        List<String> result = new ArrayList<>();
+        for (String id : builtins)
+            if (forThisSdk.contains(id))
+                result.add(id);
         return result;
     }
 

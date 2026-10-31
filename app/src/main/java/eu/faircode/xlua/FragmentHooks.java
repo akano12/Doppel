@@ -331,6 +331,15 @@ public class FragmentHooks extends FragmentBase {
                                 ? R.string.msg_import_backup : R.string.msg_no_hooks_file));
                         return;
                     }
+                    // Like the editor checks it; nothing is imported from a file with a definition which would fail
+                    try {
+                        ActivityHookEdit.check(jhook);
+                    } catch (Throwable ex) {
+                        Log.w(TAG, "Import: " + ex);
+                        Ui.message(activity, activity.getString(R.string.msg_error,
+                                XHook.id(jhook.optString("collection"), jhook.optString("name")) + ": " + ex.getMessage()));
+                        return;
+                    }
                 }
                 List<XHook> imported = new ArrayList<>();
                 for (int i = 0; i < jarray.length(); i++)

@@ -81,6 +81,17 @@ public class BackupTest {
                 Collections.singletonList("Other")).isEmpty());
     }
 
+    // A backup lists the built-in definitions for its Android version only, so a restore on a newer Android version
+    // completes the restricted groups with the hooks of that version. A minSdk above the SDK version (0 in unit tests)
+    // stands for a hook of a newer Android version.
+    @Test
+    public void backupListsTheBuiltinsOfItsAndroidVersion() throws Exception {
+        XHook now = hook("Get.Applications", "Now", null, true);
+        XHook newer = XHook.fromJSON(now.toJSON().replace("\"Now\"", "\"Newer\"").replace("\"minSdk\": 0", "\"minSdk\": " + (android.os.Build.VERSION.SDK_INT + 1)));
+        List<String> listed = Backup.builtinsForThisSdk(Arrays.asList(now.getId(), newer.getId()), Arrays.asList(now, newer));
+        assertEquals(Collections.singletonList(now.getId()), listed);
+    }
+
     // Unit tests run with an SDK version of 0, see the android.jar stubs, so the definitions are for all versions
     private static XHook hook(String group, String name, String exclude, boolean enabled) throws Exception {
         return XHook.fromJSON("{\"collection\": \"" + Util.COLLECTION_DEFAULT + "\", \"group\": \"" + group + "\"," +
