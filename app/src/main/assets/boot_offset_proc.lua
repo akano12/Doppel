@@ -15,9 +15,10 @@
 
 -- Copyright 2026 akano12
 
--- The boot time is also in /proc/stat (btime, the second the device booted) and /proc/uptime (the seconds
--- since it booted). These are made to match the offset boot_offset adds to elapsedRealtime, so an app
--- reading both cannot tell them apart: btime drops the offset, uptime gains it. Also by another path
+-- The boot time is also in /proc/stat (btime, the second the device booted), /proc/uptime (the seconds
+-- since it booted) and /proc/self/stat (the start of the process since boot, like getStartElapsedRealtime).
+-- These are made to match the offset boot_offset adds to elapsedRealtime, so an app reading both cannot tell
+-- them apart: btime drops the offset, uptime and the start of the process gain it. Also by another path
 -- and by java.nio, like boot_id. shortcut: the offset is whole seconds here, so it can differ by under
 -- a second from the millisecond clock, which does not matter at second resolution.
 -- Wide, since the path is not normalized here, like /proc//stat or /proc/./uptime; opens checks the file
@@ -62,6 +63,31 @@ function after(hook, param)
             return false
         end
         param:setFileText(new)
+        return true
+
+    elseif param:opens('/proc/self/stat') or
+            param:opens('/proc/' .. luajava.bindClass('android.os.Process'):myPid() .. '/stat') then
+        local text = param:getFileText()
+        if text == nil then
+            return false
+        end
+        -- Field 22, the start in ticks, is the 20th after the name, which can hold spaces and brackets.
+        -- shortcut: USER_HZ is taken as 100, which Android kernels use; read sysconf(_SC_CLK_TCK) if one does not
+        local name, rest = string.match(text, '^(.*%))(.*)$')
+        if name == nil then
+            return false
+        end
+        local field = 0
+        local new = string.gsub(rest, '%S+', function(value)
+            field = field + 1
+            if field == 20 and tonumber(value) ~= nil then
+                return string.format('%d', tonumber(value) + seconds * 100)
+            end
+        end)
+        if new == rest then
+            return false
+        end
+        param:setFileText(name .. new)
         return true
     end
 

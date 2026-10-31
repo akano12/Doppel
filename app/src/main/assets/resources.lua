@@ -76,18 +76,30 @@ function meminfo(param)
     local changed = false
     local old, new = {}, {}
     local lines = {}
+    local scale = 1 -- Of the total, which is the first line
     for line in string.gmatch(param:getFileText(), '[^\n]*\n') do
         local name, value = string.match(line, '^(%w+:)%s*(%d+) kB\n$')
-        if name == 'MemTotal:' or name == 'MemFree:' or name == 'MemAvailable:' then
+        -- SwapTotal, a share of the memory with zram, and CommitLimit, half of it plus SwapTotal, tell the total,
+        -- so they grow with it, like on a device with the faked total
+        if name == 'MemTotal:' or name == 'MemFree:' or name == 'MemAvailable:' or
+                name == 'SwapTotal:' or name == 'CommitLimit:' then
             local size = tonumber(value) * 1024
-            local fake = (name == 'MemTotal:' and memorysize(size) or freesize(size))
+            local fake
+            if name == 'MemTotal:' then
+                fake = memorysize(size)
+                scale = fake / size
+            elseif name == 'SwapTotal:' or name == 'CommitLimit:' then
+                fake = math.floor(size * scale / 1024) * 1024
+            else
+                fake = freesize(size)
+            end
             -- The name in 16 characters, the size in 8, like the kernel; LuaJ formats no widths
             local kb = tostring(math.floor(fake / 1024))
             local faked = name .. string.rep(' ', 16 - #name) .. string.rep(' ', 8 - #kb) .. kb .. ' kB\n'
             changed = changed or faked ~= line
             line = faked
             -- Like the log of ActivityManager.getMemoryInfo: total and available memory
-            if name ~= 'MemFree:' then
+            if name == 'MemTotal:' or name == 'MemAvailable:' then
                 table.insert(old, tostring(size))
                 table.insert(new, tostring(fake))
             end

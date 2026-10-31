@@ -121,6 +121,7 @@ public class SettingsScriptTest {
             "luajava = {",
             "  newInstance = function(name, action)",
             "    if name == 'android.content.Intent' then return { action = action } end",
+            "    if name == 'android.database.MatrixCursor' then return cursorof(action, {}) end",
             "    assert(name == 'java.util.ArrayList', name)",
             "    return listof()",
             "  end,",
@@ -128,6 +129,42 @@ public class SettingsScriptTest {
             "    assert(name == 'android.content.res.Resources', name)",
             "    return { getSystem = function(self) return resources end }",
             "  end }",
+            // A cursor of the settings provider with rows of values of Cursor types (1 long, 3 string, 0 null),
+            // and a MatrixCursor, as Lua sees them
+            "function cursorof(columns, rows)",
+            "  local cursor = { columns = columns, rows = rows, position = -1, closed = false }",
+            "  function cursor:getColumnNames() return self.columns end",
+            "  function cursor:getColumnIndex(name)",
+            "    for index = 1, self.columns.length do if self.columns[index] == name then return index - 1 end end",
+            "    return -1",
+            "  end",
+            "  function cursor:getCount() return #self.rows end",
+            "  function cursor:getPosition() return self.position end",
+            "  function cursor:moveToPosition(position) self.position = position return true end",
+            "  function cursor:moveToNext() self.position = self.position + 1 return self.position < #self.rows end",
+            "  function cursor:value(index) return self.rows[self.position + 1][index + 1] end",
+            "  function cursor:getType(index)",
+            "    local value = self:value(index)",
+            "    return (value == nil and 0 or type(value) == 'number' and 1 or 3)",
+            "  end",
+            "  function cursor:getLong(index) return self:value(index) end",
+            "  function cursor:getString(index) return self:value(index) end",
+            "  function cursor:close() self.closed = true end",
+            "  function cursor:newRow()",
+            "    local row = { n = 0 }",
+            "    table.insert(self.rows, row)",
+            "    return { add = function(self, value) row.n = row.n + 1 row[row.n] = value end }",
+            "  end",
+            "  return cursor",
+            "end",
+            "function uriof(authority, ...)",
+            "  local segments = { ... }",
+            "  return { getAuthority = function(self) return authority end,",
+            "    getPathSegments = function(self)",
+            "      return { size = function(self) return #segments end,",
+            "        get = function(self, index) return segments[index + 1] end }",
+            "    end }",
+            "end",
             // The bundle of call(LIST_secure)
             "function bundleof(...)",
             "  local list = listof()",
@@ -283,6 +320,89 @@ public class SettingsScriptTest {
         Varargs all = selected("nil", "nil");
         assertTrue(all.arg1().isnil());
         assertTrue(all.arg(2).isnil());
+    }
+
+    // A query of the settings provider: whether restricted, the rows of the result as text, whether the cursor
+    // of the provider was closed and whether the result is the cursor of the provider
+    private Varargs query(String group, String uri, String columns, String rows, String queryArgs) {
+        return run("local cursor = cursorof(arrayof(" + columns + "), { " + rows + " })\n" +
+                "local param = paramof({ [0] = " + uri + ", [2] = " + queryArgs + " }, {})\n" +
+                "param.getResult = function(self) return self.result end\n" +
+                "param.setResult = function(self, value) self.result = value end\n" +
+                "param.result = cursor\n" +
+                "local restricted = after(hookof('ContentResolver.query/" + group + "', " +
+                "'android.content.ContentResolver', 'query'), param)\n" +
+                "local lines = {}\n" +
+                "for _, row in ipairs(param.result.rows) do\n" +
+                "  local values = {}\n" +
+                "  for index = 1, row.n or #row do values[index] = tostring(row[index]) end\n" +
+                "  lines[#lines + 1] = table.concat(values, ',')\n" +
+                "end\n" +
+                "return restricted, table.concat(lines, ';'), cursor.closed, param.result == cursor");
+    }
+
+    @Test
+    public void queriesOfSettingsAreFaked() {
+        String rows = "{ 1, 'android_id', '1234abcd1234abcd' }, { 2, 'bluetooth_name', nil }, { 3, 'adb_enabled', '1' }";
+        Varargs result = query("identifiers", "uriof('settings', 'secure')", "'_id', 'name', 'value'", rows, "nil");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("1,android_id,0000000000000000;2,bluetooth_name,nil;3,adb_enabled,1", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+
+        result = query("debugging", "uriof('0@settings', 'secure')", "'_id', 'name', 'value'", rows, "nil");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("1,android_id,1234abcd1234abcd;2,bluetooth_name,nil;3,adb_enabled,0", result.arg(2).tojstring());
+
+        // Nothing to fake: the cursor of the provider stays, not closed
+        result = query("battery", "uriof('settings', 'secure')", "'_id', 'name', 'value'", rows, "nil");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+
+        // content://settings/secure/android_id: the name is in the path
+        result = query("identifiers", "uriof('settings', 'secure', 'android_id')", "'value'",
+                "{ '1234abcd1234abcd' }", "nil");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("0000000000000000", result.arg(2).tojstring());
+
+        // Without the name column, the selection tells the setting
+        result = query("identifiers", "uriof('settings', 'secure')", "'value'", "{ '1234abcd1234abcd' }",
+                "{ getString = function(self, key) return \"name='android_id'\" end," +
+                        " getStringArray = function(self, key) return nil end }");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("0000000000000000", result.arg(2).tojstring());
+
+        // All values without their names: there are none
+        result = query("identifiers", "uriof('settings', 'secure')", "'value'", "{ '1234abcd1234abcd' }, { '1' }", "nil");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+    }
+
+    // call(authority, GET_secure, name, null) of ContentResolver returns a bundle with the value
+    @Test
+    public void callsOfSettingsAreFaked() {
+        Varargs result = run("local values = { value = '1234abcd1234abcd' }\n" +
+                "local bundle = { getString = function(self, key) return values[key] end,\n" +
+                "  putString = function(self, key, value) values[key] = value end }\n" +
+                "local param = paramof({ [0] = 'settings', [1] = 'GET_secure', [2] = 'android_id' }, {})\n" +
+                "param.getResult = function(self) return bundle end\n" +
+                "local restricted, old, new = after(hookof('ContentResolver.call/identifiers', " +
+                "'android.content.ContentResolver', 'call'), param)\n" +
+                "return restricted, old, values.value");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("1234abcd1234abcd", result.arg(2).tojstring());
+        assertEquals("0000000000000000", result.arg(3).tojstring());
+    }
+
+    // Settings.Secure.getString(cr, null) is not a query of the provider: the getter returns without an error
+    @Test
+    public void getterWithoutName() {
+        Varargs result = run("local param = paramof({ [0] = {}, [1] = nil }, {})\n" +
+                "param.getResult = function(self) return nil end\n" +
+                "return after(hookof('Settings.Secure.getStringForUser/android_id', " +
+                "'android.provider.Settings$Secure', 'getStringForUser'), param)");
+        assertFalse(result.arg1().toboolean());
     }
 
     // call(authority, LIST_secure, null, null) of ContentResolver

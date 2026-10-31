@@ -33,10 +33,45 @@ function before(hook, param)
     end
 
     -- The listener is the last argument of all variants
-    local listener = param:getArgument(hook:getParameterTypes()['length'] - 1)
-    if listener ~= nil then
-        param:putValue('nsd.blocked', true, listener)
-    end
+    local types = hook:getParameterTypes()
+    local count = types['length']
+    local listener = param:getArgument(count - 1)
     param:setResult(nil)
+    if listener == nil then
+        return true
+    end
+    param:putValue('nsd.blocked', true, listener)
+
+    -- Android always answers, so apps can wait for the answer; the answer is a failure (FAILURE_INTERNAL_ERROR),
+    -- like wifi_discovery, on the executor of the call, else posted to the main thread
+    local answer
+    if method == 'discoverServices' then
+        local serviceType = param:getArgument(0)
+        if types[1] == 'android.net.nsd.DiscoveryRequest' then
+            serviceType = serviceType:getServiceType()
+        end
+        answer = function()
+            listener:onStartDiscoveryFailed(serviceType, 0)
+        end
+    elseif method == 'resolveService' then
+        local info = param:getArgument(0)
+        answer = function()
+            listener:onResolveFailed(info, 0)
+        end
+    elseif method == 'registerServiceInfoCallback' then
+        answer = function()
+            listener:onServiceInfoCallbackRegistrationFailed(0)
+        end
+    else
+        return true
+    end
+
+    local runnable = luajava.createProxy('java.lang.Runnable', { run = answer })
+    if types[count - 1] == 'java.util.concurrent.Executor' then
+        param:getArgument(count - 2):execute(runnable)
+    else
+        local looper = luajava.bindClass('android.os.Looper'):getMainLooper()
+        luajava.newInstance('android.os.Handler', looper):post(runnable)
+    end
     return true
 end

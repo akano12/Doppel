@@ -101,6 +101,29 @@ function underlyinginterface(param)
     return 'wlan0'
 end
 
+-- The names of the capabilities below NOT_VPN (15): the platform lists the names in bit order
+local BELOW_NOT_VPN = {
+    MMS = true, SUPL = true, DUN = true, FOTA = true, IMS = true, CBS = true, WIFI_P2P = true, IA = true,
+    RCS = true, XCAP = true, EIMS = true, NOT_METERED = true, INTERNET = true, NOT_RESTRICTED = true, TRUSTED = true
+}
+
+-- Names like INTERNET&VALIDATED with NOT_VPN in its place
+function withnotvpn(names)
+    local list = {}
+    local added = false
+    for name in string.gmatch(names, '[^&]+') do
+        if not added and not BELOW_NOT_VPN[name] then
+            list[#list + 1] = 'NOT_VPN'
+            added = true
+        end
+        list[#list + 1] = name
+    end
+    if not added then
+        list[#list + 1] = 'NOT_VPN'
+    end
+    return table.concat(list, '&')
+end
+
 function after(hook, param)
     if nested.running then
         return false
@@ -139,10 +162,18 @@ function restrict(hook, param)
             local arrayClass = luajava.bindClass('java.lang.reflect.Array')
             local intClass = luajava.bindClass('java.lang.Integer')
             local fake = arrayClass:newInstance(intClass.TYPE, length + 1)
+            -- In bit order, like the platform lists them
+            local shift = 0
             for index = 1, length do
-                fake[index] = result[index]
+                if shift == 0 and result[index] > NET_CAPABILITY_NOT_VPN then
+                    fake[index] = NET_CAPABILITY_NOT_VPN
+                    shift = 1
+                end
+                fake[index + shift] = result[index]
             end
-            fake[length + 1] = NET_CAPABILITY_NOT_VPN
+            if shift == 0 then
+                fake[length + 1] = NET_CAPABILITY_NOT_VPN
+            end
             param:setResult(fake)
             return true
         end
@@ -185,7 +216,9 @@ function restrict(hook, param)
                     fake = string.gsub(fake, 'Transports: VPN', 'Transports: ' .. (TRANSPORTS[type] or 'WIFI'))
                 end
                 if not string.find(fake, 'NOT_VPN', 1, true) then
-                    fake = string.gsub(fake, 'Capabilities: ', 'Capabilities: NOT_VPN&', 1)
+                    fake = string.gsub(fake, 'Capabilities: ([%w_&]*)', function(names)
+                        return 'Capabilities: ' .. withnotvpn(names)
+                    end, 1)
                 end
             end
             if fake ~= result then

@@ -90,11 +90,14 @@ function before(hook, param)
     end
 
     -- The query of API 26, which the other queries call, has the selection in its Bundle of query arguments
+    -- A copy: the app could read the filter back from its own Bundle, and a reused Bundle would filter it again
     local bundle = param:getArgument(2)
     if bundle == nil then
         bundle = luajava.newInstance('android.os.Bundle')
-        param:setArgument(2, bundle)
+    else
+        bundle = luajava.newInstance('android.os.Bundle', bundle)
     end
+    param:setArgument(2, bundle)
     local where = bundle:getString('android:query-arg-sql-selection')
 
     -- A selection which could undo the filter selects nothing, its arguments are left out with it

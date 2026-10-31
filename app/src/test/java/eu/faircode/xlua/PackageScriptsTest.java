@@ -76,6 +76,9 @@ public class PackageScriptsTest {
             "luajava = { new = real.new,",
             "  newInstance = function(name, ...)",
             "    if name == 'java.util.ArrayList' then return listof({}) end",
+            "    if name == 'android.content.pm.PackageManager$NameNotFoundException' then",
+            "      return { exception = name, message = ... }",
+            "    end",
             "    assert(name == 'android.content.pm.ChangedPackages', name)",
             "    local sequence, names = ...",
             "    return { sequence = sequence, names = names }",
@@ -349,5 +352,38 @@ public class PackageScriptsTest {
                 "return after(hook, param), param.result == result");
         assertFalse(all.arg(1).toboolean());
         assertTrue(all.arg(2).toboolean());
+    }
+
+    // A permission which a hidden app defines, like com.example.bank.permission.C2D_MESSAGE, is not found,
+    // like of an app which is not installed; those of Android and of visible apps stay
+    @Test
+    public void permissionsOfHiddenAppsAreNotFound() throws Exception {
+        Globals globals = load("package_resolve");
+        Varargs single = Scripts.run(globals,
+                "local param = paramof({ [0] = 'com.example.bank.permission.C2D_MESSAGE', [1] = 0 }, {})\n" +
+                        "param.result = { name = 'com.example.bank.permission.C2D_MESSAGE', packageName = 'com.example.bank' }\n" +
+                        "local restricted, old = after(hookof('PackageManager.getPermissionInfo', 'getPermissionInfo'), param)\n" +
+                        "return restricted, old, param.result.exception, param.result.message");
+        assertTrue(single.arg(1).toboolean());
+        assertEquals("com.example.bank", single.arg(2).tojstring());
+        assertEquals("android.content.pm.PackageManager$NameNotFoundException", single.arg(3).tojstring());
+        assertEquals("com.example.bank.permission.C2D_MESSAGE", single.arg(4).tojstring());
+
+        Varargs own = Scripts.run(globals,
+                "local param = paramof({ [0] = 'android.permission.CAMERA', [1] = 0 }, { android = true })\n" +
+                        "param.result = { name = 'android.permission.CAMERA', packageName = 'android' }\n" +
+                        "return after(hookof('PackageManager.getPermissionInfo', 'getPermissionInfo'), param), param.result.name");
+        assertFalse(own.arg(1).toboolean());
+        assertEquals("android.permission.CAMERA", own.arg(2).tojstring());
+
+        Varargs list = Scripts.run(globals,
+                "local list = listof({ { packageName = 'android' }, { packageName = 'com.example.bank' } })\n" +
+                        "local param = paramof({ [0] = nil, [1] = 0 }, { android = true })\n" +
+                        "param.result = list\n" +
+                        "local restricted = after(hookof('PackageManager.queryPermissionsByGroup', 'queryPermissionsByGroup'), param)\n" +
+                        "return restricted, list:size(), list:get(0).packageName");
+        assertTrue(list.arg(1).toboolean());
+        assertEquals(1, list.arg(2).toint());
+        assertEquals("android", list.arg(3).tojstring());
     }
 }

@@ -77,6 +77,26 @@ public class FileScriptsTest {
         assertEquals("3221225472 560000000", result.arg(4).tojstring());
     }
 
+    // SwapTotal, a share of the memory with zram, and CommitLimit, half of the memory plus SwapTotal, give back
+    // the exact total, so they grow with the faked total and give back that one; the log stays the one of the total
+    // and available memory
+    @Test
+    public void meminfoDerivedTotals() throws Exception {
+        Globals globals = Scripts.load("resources", STUBS);
+        Varargs result = Scripts.run(globals,
+                "local param = paramof('MemTotal:        2534116 kB\\nSwapTotal:       1900580 kB\\nCommitLimit:     3167636 kB\\n')\n" +
+                        "local restricted, old, new = after(hookof('open'), param)\n" +
+                        "return restricted, param.text, old, new");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(String.join("\n",
+                "MemTotal:        3145728 kB",
+                "SwapTotal:       2359287 kB",
+                "CommitLimit:     3932148 kB",
+                ""), result.arg(2).tojstring());
+        assertEquals("2594934784", result.arg(3).tojstring());
+        assertEquals("3221225472", result.arg(4).tojstring());
+    }
+
     // Only /proc/meminfo, also by other paths (see XParam.opens), the other hooks of the script have no filter;
     // another file with meminfo in its path keeps its text
     @Test
@@ -102,6 +122,24 @@ public class FileScriptsTest {
                         "return after(hookof('open'), param), param.set");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
+    }
+
+    // The sizes of java.nio FileStore like the ones of File: the total rounded up, the free space down
+    @Test
+    public void fileStoreSizes() throws Exception {
+        Globals globals = Scripts.load("resources", STUBS);
+        Varargs result = Scripts.run(globals,
+                "local function size(method, value)\n" +
+                        "  local param = { result = value, getResult = function(self) return self.result end,\n" +
+                        "    setResult = function(self, v) self.result = v end }\n" +
+                        "  after(hookof(method), param)\n" +
+                        "  return param.result\n" +
+                        "end\n" +
+                        "return size('getTotalSpace', 118000000000), size('getUsableSpace', 7917000000), " +
+                        "size('getUnallocatedSpace', 7999000000)");
+        assertEquals(128000000000L, result.arg(1).tolong());
+        assertEquals(7900000000L, result.arg(2).tolong());
+        assertEquals(7900000000L, result.arg(3).tolong());
     }
 
     // An id of the app, which the id of the kernel changes, and no id for a file without one

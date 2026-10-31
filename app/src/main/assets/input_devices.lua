@@ -19,6 +19,23 @@
 -- reveal what someone uses and help to recognize a device. External input devices are hidden,
 -- built-in devices, like the touch screen and the buttons, stay, because apps need them.
 
+-- The classes on the stack (see keymap)
+function callers()
+    return luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
+end
+
+-- Up to Android 13 KeyCharacterMap.load looks up the device of a key event with InputManager.getInputDevice:
+-- without it an external keyboard types with the US layout instead of its own
+function keymap()
+    local frames = callers()
+    for index = 1, frames['length'] do
+        if frames[index]:getClassName() == 'android.view.KeyCharacterMap' then
+            return true
+        end
+    end
+    return false
+end
+
 function after(hook, param)
     local method = hook:getMethodName()
     local result = param:getResult()
@@ -28,7 +45,7 @@ function after(hook, param)
 
     -- InputManager.getInputDevice, InputDevice.getDevice
     if method == 'getInputDevice' or method == 'getDevice' then
-        if not result:isExternal() then
+        if not result:isExternal() or keymap() then
             return false
         end
         param:setResult(nil)

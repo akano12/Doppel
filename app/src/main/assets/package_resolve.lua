@@ -16,9 +16,10 @@
 -- Copyright 2026 akano12
 
 -- Lookups which tell about other apps, like resolveActivity for an intent which only a banking app handles,
--- resolveContentProvider for the provider of a messenger or getNameForUid for the user ids of other apps,
--- find nothing, like the probes of packages (see package_probe). The app itself, apps sharing its user id
--- and system apps stay visible, because the Android framework looks them up in the app process.
+-- resolveContentProvider for the provider of a messenger, getNameForUid for the user ids of other apps or
+-- getPermissionInfo for a permission an app defines, find nothing, like the probes of packages (see package_probe).
+-- The app itself, apps sharing its user id and system apps stay visible, because the Android framework looks them
+-- up in the app process.
 
 local SIGNATURE_UNKNOWN_PACKAGE = -4 -- PackageManager
 
@@ -63,6 +64,25 @@ function after(hook, param)
         return true, packageName
     elseif method == 'resolveContentProvider' then
         packageName = result.packageName -- ProviderInfo
+    elseif method == 'getPermissionInfo' then
+        -- A permission which a hidden app defines is missing, which Android throws for
+        packageName = result.packageName
+        if param:isPackageVisible(packageName) then
+            return false
+        end
+        param:setResult(luajava.newInstance('android.content.pm.PackageManager$NameNotFoundException', param:getArgument(0)))
+        return true, packageName
+    elseif method == 'queryPermissionsByGroup' then
+        -- The permissions which hidden apps define are left out
+        local filtered = false
+        local info = result:toArray()
+        for index = info['length'], 1, -1 do
+            if not param:isPackageVisible(info[index].packageName) then
+                result:remove(index - 1)
+                filtered = true
+            end
+        end
+        return filtered
     else
         -- ResolveInfo of an activity or a service
         local info = result.activityInfo

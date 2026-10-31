@@ -25,6 +25,7 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 // The script of notifications of listeners (assets/statusbarnotification_getnotification.lua)
@@ -38,18 +39,18 @@ public class NotificationScriptTest {
             "end",
             "built = 0",
             "values = {}",
-            "function paramof(result)",
+            // The notification is of another app, unless the package of the app is given
+            "function paramof(result, packageName)",
+            "  local sbn = { getPackageName = function(self) return packageName or 'com.other' end }",
             "  return { getResult = function(self) return result end,",
+            "    getThis = function(self) return sbn end,",
+            "    getPackageName = function(self) return 'com.example' end,",
             "    setResult = function(self, value) self.result = value end,",
             "    getValue = function(self, name, scope) return values[scope] end,",
             "    putValue = function(self, name, value, scope) values[scope] = value end,",
             "    getApplicationContext = function(self) return 'context' end }",
             "end",
             "luajava = {",
-            "  bindClass = function(name)",
-            "    assert(name == 'android.os.Build$VERSION', name)",
-            "    return { SDK_INT = sdk }",
-            "  end,",
             "  newInstance = function(name, context, channel)",
             "    assert(name == 'android.app.Notification$Builder', name)",
             "    local builder = { fake = { context = context, channel = channel } }",
@@ -70,8 +71,7 @@ public class NotificationScriptTest {
     @Test
     public void fakeHasSmallIconAndChannel() {
         Varargs result = Scripts.run(globals,
-                "sdk = 34\n" +
-                        "local param = paramof(notificationof('messages', 'icon'))\n" +
+                "local param = paramof(notificationof('messages', 'icon'))\n" +
                         "local restricted = after(nil, param)\n" +
                         "local fake = param.result\n" +
                         "return restricted, fake.smallIcon, fake.channel, fake.when, fake.icon, fake.largeIcon, fake.tickerText");
@@ -84,12 +84,23 @@ public class NotificationScriptTest {
         assertTrue(result.arg(7).isnil());
     }
 
+    // The app's own notifications stay, apps read them back to update or merge them
+    @Test
+    public void ownNotificationIsNotFaked() {
+        Varargs result = Scripts.run(globals,
+                "local param = paramof(notificationof('messages', 'icon'), 'com.example')\n" +
+                        "local restricted = after(nil, param)\n" +
+                        "return restricted, param.result, built");
+        assertFalse("own notification restricted", result.arg(1).toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertEquals(0, result.arg(3).toint());
+    }
+
     // The flags and the category stay, listeners act on them; a notification is made once for each notification
     @Test
     public void fakeIsMadeOnceWithFlags() {
         Varargs result = Scripts.run(globals,
-                "sdk = 34\n" +
-                        "local real = notificationof('messages', 'icon')\n" +
+                "local real = notificationof('messages', 'icon')\n" +
                         "local first = paramof(real)\n" +
                         "after(nil, first)\n" +
                         "local again = paramof(real)\n" +

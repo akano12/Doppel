@@ -514,8 +514,12 @@ function after(hook, param)
     -- Hook names are like Function/variant
     local name = string.match(hook:getName(), '/(.*)$')
     local class = hook:getClassName()
-    if not getter or class == 'android.content.ContentResolver' or class == 'android.content.ContentProviderClient' then
+    if class == 'android.content.ContentResolver' or class == 'android.content.ContentProviderClient' then
         return provider(hook, param, name)
+    end
+    -- A getter without a name, like Settings.Secure.getString(cr, null), is no call of the provider
+    if not getter then
+        return false
     end
 
     local result = param:getResult()

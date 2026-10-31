@@ -43,6 +43,9 @@ public class DeviceValuesScriptTest {
             "  param.getArgument = function(self, index) return arguments[index] end",
             "  param.getException = function(self) return nil end",
             "  param.getSetting = function(self, name) return nil end",
+            // The app is made for the version of Android in target, see batteryCapacityIsRounded
+            "  param.getApplicationContext = function(self)",
+            "    return { getApplicationInfo = function(self) return { targetSdkVersion = target } end } end",
             "  return param",
             "end",
             // Runs after() and returns whether restricted and the result
@@ -222,7 +225,7 @@ public class DeviceValuesScriptTest {
                 "paramof('26201', { [0] = 'gsm.operator.foo' }))").arg1().toboolean());
     }
 
-    // The variants with names run for their properties only, the properties of the device have patterns
+    // The variants with names run for their properties only, the properties of the device by their prefix
     @Test
     public void filtersOfVariants() throws Exception {
         Globals globals = load("systemproperties_get");
@@ -235,8 +238,8 @@ public class DeviceValuesScriptTest {
                 "return keys('SystemProperties.get.default/serial')['ril.serialnumber'],\n" +
                 "  operator['gsm.sim.operator.iso-country'], #filter(hookof('SystemProperties.get/operator', 'get')),\n" +
                 "  keys('SystemProperties.get/timezone')['persist.sys.timezone'],\n" +
-                "  filter(hookof('SystemProperties.get/device', 'get')) == nil,\n" +
-                "  filter(hookof('SystemProperties.getInt/device', 'getInt')) == nil");
+                "  keys('SystemProperties.get/device')['ro.*'],\n" +
+                "  keys('SystemProperties.getInt/device')['gsm.version.baseband']");
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).toboolean());
         assertEquals(6, result.arg(3).toint());
@@ -597,9 +600,18 @@ public class DeviceValuesScriptTest {
         for (int level : new int[]{0, 3, 12})
             assertEquals(String.valueOf(level), 15, Scripts.run(globals, "return run(hookof('BatteryManager.getIntProperty', " +
                     "'getIntProperty'), paramof(" + level + ", { [0] = 4 }))").arg(2).toint());
-        // Other properties as not supported: an int is 0 before Android 9 (SDK_INT is 0 here), a long its minimum
-        assertEquals(0, Scripts.run(globals, "return run(hookof('BatteryManager.getIntProperty', " +
-                "'getIntProperty'), paramof(-1234, { [0] = 2 }))").arg(2).toint());
+        // Other properties as not supported: an int is 0 before Android 9 and for apps made for it, else its minimum,
+        // with the version of Android of the test, so a device runs the same branches as the JVM
+        Scripts.run(globals, "local real = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                "  return real(name)\n" +
+                "end");
+        for (int[] version : new int[][]{{27, 34, 0}, {34, 27, 0}, {34, 34, Integer.MIN_VALUE}})
+            assertEquals(version[0] + "/" + version[1], version[2], Scripts.run(globals,
+                    "sdk = " + version[0] + " target = " + version[1] + "\n" +
+                            "return run(hookof('BatteryManager.getIntProperty', 'getIntProperty'), " +
+                            "paramof(-1234, { [0] = 2 }))").arg(2).toint());
         assertEquals(Long.MIN_VALUE, Scripts.run(globals, "return run(hookof('BatteryManager.getLongProperty', " +
                 "'getLongProperty'), paramof(-1234, { [0] = 2 }))").arg(2).tolong());
     }
@@ -671,6 +683,7 @@ public class DeviceValuesScriptTest {
             "end",
             "devices = { [1] = deviceof(false, 'touchscreen'), [7] = deviceof(true, 'keyboard') }",
             "unhooked = false",
+            "function callers() return { length = 0 } end",
             "luajava = { bindClass = function(name)",
             "  if name == 'android.view.InputDevice' then",
             "    return { getDevice = function(self, id) assert(unhooked, 'hooked lookup') return devices[id] end }",

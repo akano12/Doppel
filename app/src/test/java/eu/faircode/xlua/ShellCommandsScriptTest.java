@@ -123,12 +123,14 @@ public class ShellCommandsScriptTest {
             "    return listof()",
             "  end }",
             // The hooks of the variants for a command like ProcessBuilder.start: the command started,
-            // its time zone, the command and time zone of the builder afterwards and whether a hook restricted
-            "function startof(words, variants, settings)",
+            // its time zone, the command and time zone of the builder afterwards and whether a hook restricted;
+            // the working directory of the builder, nil for the one of the app
+            "function startof(words, variants, settings, dir)",
             "  local values = {}",
             "  local builder = { list = listof(words), env = mapof({}),",
             "    command = function(self, value) if value == nil then return self.list end self.list = value end,",
-            "    environment = function(self) return self.env end }",
+            "    environment = function(self) return self.env end,",
+            "    directory = function(self) return dir and { getPath = function(self) return dir end } end }",
             "  local restricted = false",
             "  for _, variant in ipairs(variants) do",
             "    local hook = hookof(nameof('ProcessBuilder.start', variant))",
@@ -560,6 +562,92 @@ public class ShellCommandsScriptTest {
         }
     }
 
+    // The host name is localhost also first or last of several fields, like Os.uname
+    @Test
+    public void hostNameIsFakedInAllFields() throws Exception {
+        tools();
+        assertEquals("localhost 6.6.50\n", run(start("uname", "-n", "-r")).out);
+        assertEquals("Linux localhost\n", run(start("uname", "-s", "-n")).out);
+    }
+
+    // The files of /proc by other paths than their own, like /proc//meminfo or meminfo in /proc
+    @Test
+    public void filesAreFakedByOtherPaths() throws Exception {
+        tools();
+        String fake = "MemTotal:        3145728 kB\nMemFree:          146484 kB\n";
+        assertEquals(fake, run(start("cat", "/proc//meminfo")).out);
+        assertEquals(fake, run(start("cat", "/proc/./meminfo")).out);
+        assertEquals(fake, run(start("sh", "-c", "cat /proc/self/../meminfo")).out);
+        assertEquals(fake, run(start("sh", "-c", "cd /proc && cat meminfo")).out);
+        assertEquals("123456.78 98765.43\n", run(start("cat", "/proc/./uptime")).out);
+        assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
+                run(start("cat", "/proc/sys/kernel/random//boot_id")).out);
+    }
+
+    // The working directory of the builder: relative paths are files of it
+    @Test
+    public void filesAreFakedInTheWorkingDirectory() throws Exception {
+        tools();
+        File root = Files.createTempDirectory("xlua-sys").toFile();
+        try {
+            File device = new File(root, "sys/devices/mmc0:0001");
+            assertTrue(device.mkdirs());
+            Files.write(new File(device, "cid").toPath(), "1501004d4b4e3237a0f2c3d4e5f6b700\n".getBytes(StandardCharsets.UTF_8));
+            Files.write(new File(device, "type").toPath(), "SD\n".getBytes(StandardCharsets.UTF_8));
+            assertEquals("", run(startIn(device, "cat", "cid"), device).out);
+            assertEquals("SD\n", run(startIn(device, "sh", "-c", "cat cid type 2>/dev/null"), device).out);
+            assertEquals("cat type", String.join(" ", command(startIn(device, "cat", "type"))));
+        } finally {
+            delete(root);
+        }
+        File proc = new File("/proc");
+        assertEquals("MemTotal:        3145728 kB\nMemFree:          146484 kB\n",
+                run(startIn(proc, "cat", "meminfo"), proc).out);
+    }
+
+    // Commands of a hidden file fail like for a missing file, with the status of a missing file: 2 for grep
+    @Test
+    public void hiddenFilesHaveTheStatusOfMissingFiles() throws Exception {
+        tools();
+        File root = Files.createTempDirectory("xlua-sys").toFile();
+        try {
+            File device = new File(root, "sys/devices/mmc0:0001");
+            assertTrue(device.mkdirs());
+            Files.write(new File(device, "cid").toPath(), "1501004d4b4e3237a0f2c3d4e5f6b700\n".getBytes(StandardCharsets.UTF_8));
+            String cid = new File(device, "cid").getAbsolutePath();
+            assertEquals("2\n", run(start("sh", "-c", "grep -q 15 " + cid + " 2>/dev/null; echo $?")).out);
+            assertEquals(2, run(start("grep", "15", cid)).status);
+            assertEquals("1\n", run(start("sh", "-c", "head -c 4 " + cid + " 2>/dev/null; echo $?")).out);
+        } finally {
+            delete(root);
+        }
+    }
+
+    // Commands behind nohup, nice and timeout, which run the rest of the command
+    @Test
+    public void wrappedCommandsAreFaked() throws Exception {
+        tools().properties("[ro.product.model]: [Pixel 9]\n");
+        for (String[] args : new String[][]{
+                {"nohup", "getprop", "ro.product.model"},
+                {"nice", "-n", "5", "getprop", "ro.product.model"},
+                {"timeout", "5", "getprop", "ro.product.model"},
+                {"timeout", "-s", "KILL", "5", "/system/bin/getprop", "ro.product.model"},
+                {"env", "A=1", "nohup", "getprop", "ro.product.model"}})
+            assertEquals(String.join(" ", args), "unknown\n", run(start(args)).out);
+        assertEquals("MemTotal:        3145728 kB\nMemFree:          146484 kB\n",
+                run(start("timeout", "5", "cat", "/proc/meminfo")).out);
+    }
+
+    // Paths of the commands with repeated slashes or ./, like /system/bin//getprop
+    @Test
+    public void otherSpellingsOfPathsAreFaked() throws Exception {
+        tools().properties("[ro.product.model]: [Pixel 9]\n");
+        for (String text : new String[]{"/system/bin//getprop ro.product.model",
+                "//system/bin/getprop ro.product.model", "/system/./bin/getprop ro.product.model",
+                "x=$(//bin/getprop ro.product.model); echo $x"})
+            assertEquals(text, "unknown\n", run(start("sh", "-c", text)).out);
+    }
+
     private static void delete(File file) {
         File[] files = (Files.isSymbolicLink(file.toPath()) ? null : file.listFiles());
         if (files != null)
@@ -650,6 +738,12 @@ public class ShellCommandsScriptTest {
                 Scripts.strings(words), Scripts.strings(variants), settings}));
     }
 
+    // A command started in a working directory, like ProcessBuilder.directory
+    private Varargs startIn(File dir, String... words) {
+        return globals.get("startof").invoke(LuaValue.varargsOf(new LuaValue[]{
+                Scripts.strings(words), Scripts.strings(ALL), settings, LuaValue.valueOf(dir.getPath())}));
+    }
+
     private static List<String> command(Varargs started) {
         return words(started.arg(1));
     }
@@ -733,8 +827,10 @@ public class ShellCommandsScriptTest {
                     "[ -n \"$v\" ] || v=$2\n" +
                     "printf '%s\\n' \"$v\"\n");
             stand("uname", header +
-                    "case \"$1\" in\n" +
+                    "case \"$*\" in\n" +
                     " -r) echo 6.6.50-android15-8-g8adecb593e9b ;;\n" +
+                    " '-n -r') echo realhost 6.6.50-android15-8-g8adecb593e9b ;;\n" +
+                    " '-s -n') echo Linux realhost ;;\n" +
                     " -n) echo realhost ;;\n" +
                     " -v) echo '#1 SMP PREEMPT Fri Jan 3 12:00:00 UTC 2025' ;;\n" +
                     " -a) echo 'Linux realhost 6.6.50-android15-8-g8adecb593e9b" +
@@ -863,12 +959,16 @@ public class ShellCommandsScriptTest {
     }
 
     private static Result run(Varargs started) throws Exception {
-        return run(command(started));
+        return run(command(started), null);
+    }
+
+    private static Result run(Varargs started, File dir) throws Exception {
+        return run(command(started), dir);
     }
 
     // Runs a started command with the directory in place of /system/bin; the path of the processes,
     // which ProcessBuilder does not use itself, finds the stand-ins too
-    private static Result run(List<String> command) throws Exception {
+    private static Result run(List<String> command, File dir) throws Exception {
         tools();
         List<String> words = new ArrayList<>();
         for (String word : command)
@@ -878,6 +978,7 @@ public class ShellCommandsScriptTest {
             words.set(0, new File(bin, words.get(0)).exists() ? new File(bin, words.get(0)).getAbsolutePath()
                     : program.getAbsolutePath());
         ProcessBuilder builder = new ProcessBuilder(words);
+        builder.directory(dir);
         builder.environment().put("PATH", bin.getAbsolutePath() + File.pathSeparator + System.getenv("PATH"));
         builder.redirectError(ProcessBuilder.Redirect.INHERIT);
         Process process = builder.start();

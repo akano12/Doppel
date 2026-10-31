@@ -194,18 +194,23 @@ function after(hook, param)
         return false
     end
 
-    -- getSystemAvailableFeatures, the OpenGL ES version has no name
-    local kept = luajava.newInstance('java.util.ArrayList')
+    -- getSystemAvailableFeatures, the OpenGL ES version has no name;
+    -- one stack walk for all features, the caller is the same for each
+    if calledbyframework(method) then
+        return false
+    end
+    local shown = luajava.newInstance('java.util.ArrayList')
     for index = 1, result['length'] do
-        if not hidden(result[index].name, param, method) then
-            kept:add(result[index])
+        local name = result[index].name
+        if name == nil or kept(name, param) then
+            shown:add(result[index])
         end
     end
-    if kept:size() == result['length'] then
+    if shown:size() == result['length'] then
         return false
     end
     local featureClass = luajava.bindClass('android.content.pm.FeatureInfo')
     local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-    param:setResult(kept:toArray(arrayClass:newInstance(featureClass, 0)))
-    return true, tostring(result['length']), tostring(kept:size())
+    param:setResult(shown:toArray(arrayClass:newInstance(featureClass, 0)))
+    return true, tostring(result['length']), tostring(shown:size())
 end

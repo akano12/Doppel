@@ -114,4 +114,23 @@ public class GenericScriptsTest {
             assertFalse(value, result.arg(2).toboolean());
         }
     }
+
+    // Build.VERSION.BASE_OS is the property itself, empty on most devices; it stays empty like the property
+    // (see systemproperties_get), while a value becomes unknown
+    @Test
+    public void emptyValuesStayUnknownValuesAreFaked() throws Exception {
+        Globals globals = load("generic_unknown_value");
+        for (String value : new String[]{"''", "nil"}) {
+            Varargs result = Scripts.run(globals, "local param = paramof(" + value + ")\n" +
+                    "local restricted = after(hookof('java.lang.String'), param)\n" +
+                    "return restricted, param.set");
+            assertFalse(value, result.arg(1).toboolean());
+            assertFalse(value, result.arg(2).toboolean());
+        }
+        Varargs result = Scripts.run(globals, "local param = paramof('google/os')\n" +
+                "local restricted = after(hookof('java.lang.String'), param)\n" +
+                "return restricted, param.result");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("unknown", result.arg(2).tojstring());
+    }
 }

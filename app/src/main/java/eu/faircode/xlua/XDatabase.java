@@ -198,6 +198,9 @@ class XDatabase {
             {"Runtime.exec/biometrics", "ProcessBuilder.start/biometrics"},
             {"Runtime.exec/resources", "ProcessBuilder.start/resources"},
             {"Runtime.exec/commands", "ProcessBuilder.start/commands"},
+            // The clipboard is read by the clipboard manager; parcels of clip data are also of drag and drop
+            {"ClipData.createFromParcel", "ClipboardManager.getPrimaryClip"},
+            {"ClipDescription.createFromParcel", "ClipboardManager.getPrimaryClipDescription"},
     };
 
     // Built-in hook names removed by this and former versions, without a definition which took over; their assignments

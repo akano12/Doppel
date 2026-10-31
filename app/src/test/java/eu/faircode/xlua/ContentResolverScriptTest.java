@@ -70,7 +70,13 @@ public class ContentResolverScriptTest {
             "  function cursor:close() self.closed = true end",
             "  return cursor",
             "end",
+            // A new Bundle, also a copy of one, and a MatrixCursor
             "luajava = { newInstance = function(name, columns)",
+            "  if name == 'android.os.Bundle' then",
+            "    local copy = bundleof()",
+            "    if columns ~= nil then for key, value in pairs(columns.values) do copy.values[key] = value end end",
+            "    return copy",
+            "  end",
             "  assert(name == 'android.database.MatrixCursor', name)",
             "  local matrix = cursorof(columns, {})",
             "  function matrix:newRow()",
@@ -133,6 +139,33 @@ public class ContentResolverScriptTest {
         // Also with the user in front of the authority
         assertEquals("(starred = 1) AND (display_name = ?)",
                 starred("0@com.android.contacts", "'display_name = ?'").arg(1).tojstring());
+    }
+
+    // The Bundle of the app stays as it was, so the app cannot read the filter back
+    // and a query again with the same Bundle does not filter the filter
+    @Test
+    public void starredFilterLeavesBundleOfApp() {
+        Varargs result = Scripts.run(globals,
+                "local param = paramof(urlof('com.android.contacts', '/contacts'), 'display_name LIKE ?', 'args', " +
+                        "{ ['contacts.starred'] = '1' })\n" +
+                        "local bundle = param.arguments[2]\n" +
+                        "local hook = hookof('ContentResolver.query26/contacts')\n" +
+                        "before(hook, param)\n" +
+                        "param.arguments[2] = bundle\n" +
+                        "before(hook, param)\n" +
+                        "return bundle:getString('android:query-arg-sql-selection'),\n" +
+                        "  param.arguments[2]:getString('android:query-arg-sql-selection')");
+        assertEquals("display_name LIKE ?", result.arg(1).tojstring());
+        assertEquals("(starred = 1) AND (display_name LIKE ?)", result.arg(2).tojstring());
+
+        // Also its arguments, which a selection which could undo the filter leaves out
+        Varargs unsafe = Scripts.run(globals,
+                "local param = paramof(urlof('com.android.contacts', '/contacts'), '1) OR (1', 'args', " +
+                        "{ ['contacts.starred'] = '1' })\n" +
+                        "local bundle = param.arguments[2]\n" +
+                        "before(hookof('ContentResolver.query26/contacts'), param)\n" +
+                        "return bundle.values['android:query-arg-sql-selection-args']");
+        assertEquals("args", unsafe.arg(1).tojstring());
     }
 
     // A selection like 1) OR (1 would select all contacts, it selects none

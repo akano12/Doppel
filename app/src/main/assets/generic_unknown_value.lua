@@ -17,7 +17,8 @@
 
 function after(hook, param)
     local result = param:getResult()
-    if result == nil then
+    -- Empty stays empty, like the property Build.VERSION.BASE_OS reads (see systemproperties_get)
+    if result == nil or result == '' then
         return false
     end
 

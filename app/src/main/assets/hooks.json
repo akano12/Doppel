@@ -381,6 +381,39 @@
     "excludePackages": "android",
     "luaScript": "@package_resolve"
   },
+  // A permission names the app which defines it, like com.example.bank.permission.C2D_MESSAGE
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getPermissionInfo",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPermissionInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.pm.PermissionInfo",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.queryPermissionsByGroup",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "queryPermissionsByGroup",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -1041,6 +1074,43 @@
     "excludePackages": "android",
     "luaScript": "@component_hidden"
   },
+  // Binding as a user, also the own one, which needs no permission
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.bindServiceAsUser/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "int",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.bindServiceAsUser.flags/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "android.content.Context$BindServiceFlags",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -1099,6 +1169,73 @@
     ],
     "returnType": "void",
     "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  // Each of these calls Android itself, not the overloads above
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendBroadcast.options/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendBroadcast",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "void",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendBroadcastWithMultiplePermissions/hidden",
+    "author": "akano12",
+    "className": "android.content.Context",
+    "methodName": "sendBroadcastWithMultiplePermissions",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendBroadcastAsUser/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendBroadcastAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.os.UserHandle"
+    ],
+    "returnType": "void",
+    "minSdk": 17,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendBroadcastAsUser.permission/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendBroadcastAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.os.UserHandle",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 17,
     "excludePackages": "android",
     "luaScript": "@component_hidden"
   },
@@ -1287,6 +1424,24 @@
       "int"
     ],
     "minSdk": 17,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  // Starts the screen through Android itself, not through Instrumentation; the overload without options calls this one
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Activity.startActivityIfNeeded/hidden",
+    "author": "akano12",
+    "className": "android.app.Activity",
+    "methodName": "startActivityIfNeeded",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "android.os.Bundle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 16,
     "excludePackages": "android",
     "luaScript": "@component_hidden"
   },
@@ -3035,17 +3190,17 @@
     "luaScript": "@account_createfromparcel"
   },
   // Read clipboard
-  // https://developer.android.com/reference/android/content/ClipData.html
+  // https://developer.android.com/reference/android/content/ClipboardManager.html
+  // The clipboard manager, not the parcels of clip data, which are also of drag and drop, like the app's own drags,
+  // and of intents; getText and the other methods read the primary clip
   {
     "collection": "Privacy",
     "group": "Read.Clipboard",
-    "name": "ClipData.createFromParcel",
+    "name": "ClipboardManager.getPrimaryClip",
     "author": "M66B",
-    "className": "android.content.ClipData",
-    "methodName": "CREATOR:createFromParcel",
-    "parameterTypes": [
-      "android.os.Parcel"
-    ],
+    "className": "android.content.ClipboardManager",
+    "methodName": "getPrimaryClip",
+    "parameterTypes": [],
     "returnType": "android.content.ClipData",
     "minSdk": 11,
     "luaScript": "@clipdata_createfromparcel"
@@ -3053,13 +3208,11 @@
   {
     "collection": "Privacy",
     "group": "Read.Clipboard",
-    "name": "ClipDescription.createFromParcel",
+    "name": "ClipboardManager.getPrimaryClipDescription",
     "author": "akano12",
-    "className": "android.content.ClipDescription",
-    "methodName": "CREATOR:createFromParcel",
-    "parameterTypes": [
-      "android.os.Parcel"
-    ],
+    "className": "android.content.ClipboardManager",
+    "methodName": "getPrimaryClipDescription",
+    "parameterTypes": [],
     "returnType": "android.content.ClipDescription",
     "minSdk": 11,
     "luaScript": "@clipdescription_createfromparcel"
@@ -3523,6 +3676,7 @@
     "minSdk": 1,
     "luaScript": "@generic_null_value"
   },
+  // Android 10 and newer still give the cells to apps targeting Android 9 or older; not in recent android.jar
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -3534,7 +3688,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 3,
-    "maxSdk": 28,
+    "optional": true,
     "luaScript": "@generic_empty"
   },
   {
@@ -7025,7 +7179,7 @@
       "android.app.AlarmManager$OnAlarmListener"
     ],
     "returnType": "void",
-    "minSdk": 33,
+    "minSdk": 34,
     "optional": true,
     "settings": [
       "value.boot_offset"
@@ -9296,6 +9450,43 @@
       "int"
     ],
     "returnType": "int",
+    "minSdk": 26,
+    "luaScript": "@resources"
+  },
+  // java.nio FileStore reads statvfs itself, not by Os.statvfs; getAttribute("totalSpace") and the others call these
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "UnixFileStore.getTotalSpace",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileStore",
+    "methodName": "getTotalSpace",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 26,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "UnixFileStore.getUsableSpace",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileStore",
+    "methodName": "getUsableSpace",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 26,
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "UnixFileStore.getUnallocatedSpace",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileStore",
+    "methodName": "getUnallocatedSpace",
+    "parameterTypes": [],
+    "returnType": "long",
     "minSdk": 26,
     "luaScript": "@resources"
   },

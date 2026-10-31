@@ -80,11 +80,12 @@ function before(hook, param)
         return false
     end
 
-    if method == 'bindService' or method == 'bindIsolatedService' then
+    -- bindService, bindIsolatedService and bindServiceAsUser
+    if string.find(method, '^bind') then
         param:setResult(false)
     elseif method == 'startService' or method == 'startForegroundService' then
         param:setResult(nil)
-    elseif method == 'execStartActivity' then
+    elseif method == 'execStartActivity' or method == 'startActivityIfNeeded' then
         param:setResult(notfound(intent))
     elseif method == 'sendOrderedBroadcast' then
         -- Sent to a package which cannot exist, a name with a colon, so a result receiver gets the answer of Android
@@ -94,7 +95,7 @@ function before(hook, param)
         copy:setPackage(packageName .. ':hidden')
         param:setArgument(0, copy)
     else
-        -- sendBroadcast: nothing is sent, like without receivers
+        -- sendBroadcast and its variants: nothing is sent, like without receivers
         param:setResult(nil)
     end
     return true, packageName

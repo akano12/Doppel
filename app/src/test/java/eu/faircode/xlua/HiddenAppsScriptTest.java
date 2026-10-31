@@ -21,6 +21,7 @@ package eu.faircode.xlua;
 
 import org.junit.Test;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import static org.junit.Assert.assertEquals;
@@ -219,5 +220,25 @@ public class HiddenAppsScriptTest {
         }
         assertFalse(component(globals, "execStartActivitiesAsUser",
                 "{ [4] = { length = 1, [1] = intentof(nil, 'com.android.settings') } }").arg(1).toboolean());
+    }
+
+    // The other ways to a service, a broadcast and a screen answer the same
+    @Test
+    public void otherOverloadsOfHiddenAppsAreNotFound() throws Exception {
+        Globals globals = Scripts.load("component_hidden", STUBS);
+        String hidden = "{ [0] = intentof(componentof('com.other.hidden', '.Service'), nil) }";
+
+        Varargs result = component(globals, "bindServiceAsUser", hidden);
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(LuaValue.FALSE, result.arg(3));
+        for (String method : new String[]{"sendBroadcastAsUser", "sendBroadcastWithMultiplePermissions"}) {
+            result = component(globals, method, hidden);
+            assertTrue(method, result.arg(2).toboolean());
+            assertTrue(method, result.arg(3).isnil());
+        }
+        // Android throws like for a screen which is not installed, through checkStartActivityResult
+        result = component(globals, "startActivityIfNeeded", hidden);
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("android.content.ActivityNotFoundException", className(result, 3));
     }
 }

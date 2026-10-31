@@ -138,6 +138,38 @@ public class CommandFilterScriptTest {
             assertTrue(String.join(" ", words), refused(words));
     }
 
+    // A shell reading its commands from its input runs what the app writes there, a script file what the app wrote,
+    // whatever their name; the script files of the system run
+    @Test
+    public void shellInputAndScriptFilesAreRefused() {
+        for (String[] words : new String[][]{
+                {"sh", "-s", "getprop"},
+                {"sh", "-s", "--", "getprop"},
+                {"sh", "-i", "getprop"},
+                {"sh", "-es", "getprop"},
+                {"sh", "getprop"},
+                {"sh", "./getprop"},
+                {"sh", "/data/data/com.example/getprop"},
+                {"sh", "/system/../data/local/tmp/getprop"}})
+            assertTrue(String.join(" ", words), refused(words));
+        allowed = "pm";
+        assertFalse(refused("sh", "/system/bin/pm", "list", "packages"));
+    }
+
+    // The value of an option of a wrapper is no program, like env -u getprop id or exec -a getprop id
+    @Test
+    public void wrapperOptionsAreRefused() {
+        for (String[] words : new String[][]{
+                {"env", "-u", "getprop", "id"},
+                {"env", "-C", "getprop", "id"},
+                {"timeout", "-s", "getprop", "id"},
+                {"nice", "-n", "getprop", "id"},
+                {"sh", "-c", "exec -a getprop id"},
+                {"sh", "-c", "env -u getprop id"}})
+            assertTrue(String.join(" ", words), refused(words));
+        assertFalse(refused("timeout", "5", "getprop"));
+    }
+
     // Refused commands fail like a program which cannot be run, Activity shows the command
     @Test
     public void refusedCommandsFail() {

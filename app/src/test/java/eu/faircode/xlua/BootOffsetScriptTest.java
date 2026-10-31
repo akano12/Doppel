@@ -187,4 +187,20 @@ public class BootOffsetScriptTest {
         assertFalse(other.arg(1).toboolean());
         assertFalse(other.arg(2).toboolean());
     }
+
+    // /proc/self/stat field 22, the start of the process in ticks since boot (USER_HZ 100), gains the offset,
+    // like getStartElapsedRealtime; also by the pid (Process.myPid, 0 in unit tests) and with a ) in the name
+    @Test
+    public void procSelfStat() throws Exception {
+        String text = "1234 (com.ex (a)) S 1 1234 0 0 -1 4194624 100 0 0 0 5 3 0 0 20 0 30 0 98765 123456 789 18446744073709551615\n";
+        String faked = "1234 (com.ex (a)) S 1 1234 0 0 -1 4194624 100 0 0 0 5 3 0 0 20 0 30 0 278765 123456 789 18446744073709551615\n";
+        for (String file : new String[]{"/proc/self/stat", "/proc/" + android.os.Process.myPid() + "/stat"}) {
+            Varargs stat = run("boot_offset_proc",
+                    "local p = paramof({ result = 'fd', offset = '1800000', opensfile = '" + file + "',\n" +
+                            "  text = '" + text.replace("\n", "\\n") + "' })\n" +
+                            "return after(hookof('open'), p), p.text");
+            assertTrue(file, stat.arg(1).toboolean());
+            assertEquals(file, faked, stat.arg(2).tojstring());
+        }
+    }
 }

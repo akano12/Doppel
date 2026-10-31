@@ -156,7 +156,7 @@ function typed(hook, param, key, result, method)
 end
 
 -- The properties of a variant, so its script runs for these only (see XCore.getFilter); the properties of the device
--- have patterns, its script checks the names itself
+-- have patterns, its script checks the names itself; all of them start with ro. except the baseband
 function filter(hook)
     local name = string.match(hook:getName(), '/(.*)$')
     if name == 'serial' then
@@ -169,6 +169,8 @@ function filter(hook)
         return keys
     elseif name == 'timezone' then
         return { 'persist.sys.timezone' }
+    elseif name == 'device' then
+        return { 'ro.*', 'gsm.version.baseband' }
     elseif name == 'debugging' then
         local keys = {}
         for key, _ in pairs(DEBUGGING) do

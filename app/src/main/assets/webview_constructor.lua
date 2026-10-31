@@ -30,10 +30,10 @@ end
 -- The parameter is not named hook, the function to hook a method is
 function after(h, param)
     local this = param:getThis()
-    if this == nil or param:getValue('hooked', this) then
+    -- The hooked constructor is the one all others call, so this runs once per WebView
+    if this == nil then
         return false
     end
-    param:putValue('hooked', true, this)
 
     local settings = this:getSettings()
     if settings == nil then

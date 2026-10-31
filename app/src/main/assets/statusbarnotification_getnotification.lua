@@ -21,8 +21,14 @@
 -- not the large icon, which is often a photo of the sender, nor the ids of the conversation or of its shortcut.
 -- The flags and the category stay, which listeners act on, like for ongoing notifications and group summaries,
 -- and tell nothing of the content. Each notification is made once, listeners get it several times.
+-- The app's own notifications stay: apps read them back with getActiveNotifications to update or merge them.
 
 function after(hook, param)
+    local sbn = param:getThis()
+    if sbn ~= nil and sbn:getPackageName() == param:getPackageName() then
+        return false
+    end
+
     local result = param:getResult()
     if result == nil then
         return false

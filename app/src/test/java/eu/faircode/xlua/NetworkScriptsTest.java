@@ -242,12 +242,37 @@ public class NetworkScriptsTest {
                         "local tun = paramof({ getName = function() return 'tun0' end })\n" +
                         "return nc.result, text.result,\n" +
                         "  after(hookof('getByInetAddress'), tun), tun.result");
-        assertEquals("[ Transports: WIFI Capabilities: NOT_VPN&INTERNET&TRUSTED&VALIDATED UnderlyingNetworks: null]",
+        assertEquals("[ Transports: WIFI Capabilities: INTERNET&TRUSTED&NOT_VPN&VALIDATED UnderlyingNetworks: null]",
                 result.arg(1).tojstring());
         assertEquals("{InterfaceName: rmnet_data0 LinkAddresses: [ 10.8.0.2/32 ]" +
                 " Routes: [ 0.0.0.0/0 -> 0.0.0.0 rmnet_data0 mtu 0 ]}", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
         assertTrue(result.arg(4).isnil());
+    }
+
+    // NOT_VPN in its place in bit order, like a real network has it: after TRUSTED (14), before VALIDATED (16)
+    @Test
+    public void vpnNotVpnInBitOrder() throws Exception {
+        Globals globals = load("vpn");
+        Scripts.run(globals, Scripts.ARRAYOF + "\n" +
+                "luajava = { bindClass = function(name)\n" +
+                "  if name == 'java.lang.Integer' then return { TYPE = 'int' } end\n" +
+                "  assert(name == 'java.lang.reflect.Array', name)\n" +
+                "  return { newInstance = function(self, type, length) return { length = length } end }\n" +
+                "end }");
+        Varargs result = Scripts.run(globals,
+                "local param = paramof(arrayof(12, 13, 14, 16, 18))\n" +
+                        "after(hookof('getCapabilities'), param)\n" +
+                        "local list = {}\n" +
+                        "for index = 1, param.result.length do list[index] = param.result[index] end\n" +
+                        "return table.concat(list, ',')");
+        assertEquals("12,13,14,15,16,18", result.arg(1).tojstring());
+
+        // Also without capabilities below or above it
+        assertEquals("NOT_VPN&VALIDATED", tostring(globals, "android.net.NetworkCapabilities",
+                "[ Transports: VPN Capabilities: VALIDATED UnderlyingNetworks: null]").replaceAll(".*Capabilities: (\\S*).*", "$1"));
+        assertEquals("INTERNET&NOT_VPN", tostring(globals, "android.net.NetworkCapabilities",
+                "[ Transports: VPN Capabilities: INTERNET UnderlyingNetworks: null]").replaceAll(".*Capabilities: (\\S*).*", "$1"));
     }
 
     // The transport info is a Java object, which the script checks with XParam, because Lua sees a Class
@@ -321,6 +346,8 @@ public class NetworkScriptsTest {
     @Test
     public void nsdStopsBlockedListenersOnly() throws Exception {
         Globals globals = load("nsdmanager_listener");
+        // The answers of blocked listeners need a looper, which app_process does not have, see HANDLERS
+        Scripts.run(globals, HANDLERS);
         Varargs result = Scripts.run(globals,
                 "local listener = {}\n" +
                         "local other = {}\n" +

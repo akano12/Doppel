@@ -20,13 +20,15 @@
 -- and the time zone, uname and /proc/version the kernel build of Os.uname, pm the installed packages
 -- and the features of the device, date the time zone, cat the files of which apps read another text, like
 -- /proc/meminfo and boot_id, and cat, head, dd and other commands reading files fail for the files of /sys which
--- do not exist for the app (see hardware_files), named in the command or the script, also by a link; not
--- covered are redirections of the shell, like read x < file.
+-- do not exist for the app (see hardware_files), named in the command or the script, also by a link, or relative
+-- to the working directory of the builder; not covered are redirections of the shell, like read x < file, and
+-- commands which show that these files exist without reading them, like ls, stat, find and test (or [ -e file ]).
+-- Not covered either are df and free, which print the exact sizes that Read.Resources rounds (see resources).
 -- These commands print the same fake values: they run
 -- in a shell with functions of the same names in front, which run the real command and replace the values,
 -- so the output keeps its format; date gets the fake time zone in its environment (TZ).
--- The functions cover commands run directly, also with their path, with toybox, toolbox or env in front,
--- the pm script run with sh, and scripts of sh -c naming the commands, also with toybox or toolbox.
+-- The functions cover commands run directly, also with their path, with toybox, toolbox, env, nohup, nice or
+-- timeout in front, the pm script run with sh, and scripts of sh -c naming the commands, also with toybox or toolbox.
 -- Not covered are shells reading commands from their input (filtering their input could break apps
 -- which wait for output), script files, command and env in scripts, names and paths made while the script runs
 -- (like "$dir"/bin/getprop) and native code. Runtime.exec starts processes with ProcessBuilder.start.
@@ -128,6 +130,10 @@ local GOOGLE = { 'com.google.android.maps', 'com.google.android.media.effects' }
 -- Programs running a command of their arguments: multiplexers run the command named by their first argument,
 -- env the command after its options and variables
 local MULTIPLEXERS = { toybox = true, toolbox = true, busybox = true }
+-- Programs running the rest of the command, which stay in front of the shell of the functions, with their
+-- options taking a value
+local RUNNERS = { env = { ['-u'] = true, ['-C'] = true }, nohup = {}, nice = { ['-n'] = true },
+                  timeout = { ['-s'] = true, ['-k'] = true } }
 local SHELLS = { sh = true, mksh = true, bash = true }
 
 -- Reserved words of the shell which a command follows, like if /system/bin/getprop ... or do /system/bin/getprop,
@@ -292,7 +298,10 @@ function kernelfunctions()
                 ' -e "s|$(__xlua_regex "$(/system/bin/uname -v)")|#1 SMP PREEMPT|"' ..
                 ' -e "s|$(__xlua_regex "$__xlua_release")|$__xlua_short|"' ..
                 ' -e "s|^\\([^ ]* \\)$__xlua_node |\\1localhost |"' ..
-                ' -e "s|^$__xlua_node\\$|localhost|"',
+                ' -e "s|^$__xlua_node\\$|localhost|"' ..
+                -- Also first or last of several fields, like uname -n -r or uname -s -n
+                ' -e "s|^$__xlua_node |localhost |"' ..
+                ' -e "s|^\\([^ ]* \\)$__xlua_node\\$|\\1localhost|"',
         '}',
         ''
     }, '\n')
@@ -422,7 +431,8 @@ function hidingfunctions(variants, names)
         '  __xlua_file=${__xlua_arg#if=}',
         '  if __xlua_hidden "$__xlua_file"; then',
         "   /system/bin/printf '%s: %s: No such file or directory\\n' \"$__xlua_program\" \"$__xlua_file\" >&2",
-        '   __xlua_rc=1',
+        -- The status of a missing file: 2 for grep, cmp and diff, 1 for the others
+        '   case $__xlua_program in grep|cmp|diff) __xlua_rc=2 ;; *) __xlua_rc=1 ;; esac',
         '  else',
         '   set -- "$@" "$__xlua_arg"',
         '  fi',
@@ -432,7 +442,7 @@ function hidingfunctions(variants, names)
         '  return',
         ' fi',
         ' if [ $# -gt 0 ]; then "/system/bin/$__xlua_program" "$@" </dev/null; fi',
-        ' return 1',
+        ' return $__xlua_rc',
         '}',
     }
     for _, name in ipairs(names) do
@@ -481,7 +491,7 @@ function catfunction(param, text, variants, kernel, hiding, names)
     for variant, files in pairs(FILES) do
         if variants[variant] then
             for _, file in ipairs(files) do
-                local content = (string.find(text, string.sub(file, 2), 1, true) and param:readFile(file) or nil)
+                local content = (namesfile(text, file) and param:readFile(file) or nil)
                 if content ~= nil then
                     cases[#cases + 1] = '  ' .. file .. ") /system/bin/printf '%s' " .. quote(content) .. '; return 0 ;;'
                 end
@@ -818,6 +828,12 @@ function hasword(text, word)
     return string.find(' ' .. text .. ' ', '[^%w_.-]' .. word .. '[^%w_.-]') ~= nil
 end
 
+-- Whether the text can name the file of /proc, also by another path, like /proc//meminfo, /proc/self/../meminfo
+-- or meminfo after cd /proc; __xlua_faked decides by the path it leads to
+function namesfile(text, file)
+    return string.find(text, 'proc', 1, true) ~= nil and hasword(text, basename(file))
+end
+
 -- The commands of a variant in the text, nil when there are none
 function commands(text, variant)
     if variant == 'tracking' then
@@ -831,7 +847,7 @@ function commands(text, variant)
             wantscat = true
         end
         for _, file in ipairs(FILES[variant]) do
-            if string.find(text, file, 1, true) then
+            if namesfile(text, file) then
                 wantscat = true
             end
         end
@@ -844,7 +860,7 @@ function commands(text, variant)
         end
     elseif variant == 'resources' then
         for _, file in ipairs(FILES[variant]) do
-            if string.find(text, file, 1, true) then
+            if namesfile(text, file) then
                 local names = {}
                 fakereaders(text, names)
                 return names
@@ -949,8 +965,9 @@ function wordsof(args)
     return words
 end
 
--- The index of the command in the words, after multiplexers and env with its options and variables,
--- and the words in front which stay: env runs the shell of the functions with the same environment
+-- The index of the command in the words, after multiplexers and env, nohup, nice and timeout with their options,
+-- variables and duration, and the words in front which stay: env runs the shell of the functions with the same
+-- environment, the others with the same priority and time
 function commandof(words)
     local at = 1
     local prefix = {}
@@ -958,19 +975,24 @@ function commandof(words)
         local name = basename(words[at])
         if MULTIPLEXERS[name] then
             at = at + 1
-        elseif name == 'env' then
+        elseif RUNNERS[name] then
             prefix[#prefix + 1] = words[at]
             at = at + 1
-            while at < #words and (string.sub(words[at], 1, 1) == '-' or string.find(words[at], '=', 1, true)) do
+            while at < #words and (string.sub(words[at], 1, 1) == '-' or
+                    (name == 'env' and string.find(words[at], '=', 1, true))) do
                 local option = words[at]
                 prefix[#prefix + 1] = option
                 at = at + 1
                 if option == '--' then
                     break
-                elseif (option == '-u' or option == '-C') and at < #words then
+                elseif RUNNERS[name][option] and at < #words then
                     prefix[#prefix + 1] = words[at]
                     at = at + 1
                 end
+            end
+            if name == 'timeout' and at < #words then
+                prefix[#prefix + 1] = words[at]
+                at = at + 1
             end
         else
             break
@@ -980,10 +1002,11 @@ function commandof(words)
 end
 
 -- The index of the first operand of a shell after its options, like sh -c script or sh -ec script,
--- and whether the operand is a script (option c)
+-- whether the operand is a script (option c) and whether the shell reads its commands from its input (s or i)
 function shelloperand(words, at)
     local index = at + 1
     local script = false
+    local input = false
     while index <= #words do
         local word = words[index]
         if word == '--' or word == '-' then
@@ -995,12 +1018,15 @@ function shelloperand(words, at)
             if string.sub(word, 1, 1) == '-' and string.find(word, 'c', 2, true) then
                 script = true
             end
+            if string.sub(word, 1, 1) == '-' and string.find(word, '[si]', 2) then
+                input = true
+            end
             index = index + 1
         else
             break
         end
     end
-    return index, script
+    return index, script, input
 end
 
 -- Whether the ) at the index ends a case pattern like *) or (a), which a command follows, or a function like f();
@@ -1072,32 +1098,33 @@ function commandplace(text, at)
 end
 
 -- Scripts can run the commands with their path, which would skip the functions; only paths in the place of
--- a command are replaced, also when quoted, others are arguments like [ -x /system/bin/getprop ], which stay
+-- a command are replaced, also when quoted, others are arguments like [ -x /system/bin/getprop ], which stay.
+-- Also paths with repeated slashes or ./, like /system/bin//getprop or /system/./bin/getprop.
 function unpath(script, name)
-    local text = script
-    for _, dir in ipairs({ '/system/bin/', '/bin/' }) do
-        local path = dir .. name
-        local parts = {}
-        local from = 1
-        local at = string.find(text, path, 1, true)
-        while at ~= nil do
+    local parts = {}
+    local from = 1
+    for at, path, after in string.gmatch(script, '()(/[^%s;&|)`<>"\']*)()') do
+        local clean = path
+        repeat
+            local last = clean
+            clean = string.gsub(string.gsub(clean, '/%./', '/'), '//+', '/')
+        until clean == last
+        if clean == '/system/bin/' .. name or clean == '/bin/' .. name then
             local first = at
-            local after = at + #path
-            local quote = string.sub(text, at - 1, at - 1)
-            if (quote == '"' or quote == "'") and string.sub(text, after, after) == quote then
+            local next = after
+            local quote = string.sub(script, at - 1, at - 1)
+            if (quote == '"' or quote == "'") and string.sub(script, after, after) == quote then
                 first = at - 1
-                after = after + 1
+                next = after + 1
             end
-            if string.find(string.sub(text, after, after), '^[%s;&|)`<>]?$') and commandplace(text, first) then
-                parts[#parts + 1] = string.sub(text, from, at - 1) .. name
-                from = at + #path
+            if string.find(string.sub(script, next, next), '^[%s;&|)`<>]?$') and commandplace(script, first) then
+                parts[#parts + 1] = string.sub(script, from, at - 1) .. name
+                from = after
             end
-            at = string.find(text, path, at + 1, true)
         end
-        parts[#parts + 1] = string.sub(text, from)
-        text = table.concat(parts)
     end
-    return text
+    parts[#parts + 1] = string.sub(script, from)
+    return table.concat(parts)
 end
 
 -- date prints the time in the time zone of its environment, which is the real one,
@@ -1117,8 +1144,9 @@ function unquote(word)
     return (string.gsub(word, '["\'\\]', ''))
 end
 
--- The program a command runs, after wrappers like exec, env and busybox with their options, variables and
--- durations, and its index in the words; nil when it is not known before the command runs, like $cmd
+-- The program a command runs, after wrappers like exec, env and busybox with their variables and the duration
+-- of timeout, and its index in the words; nil when it is not known before the command runs, like $cmd, or when
+-- a wrapper has options other than -i and --, of which the value could be taken as the program, like env -u getprop id
 function programin(words, at)
     while true do
         local word = unquote(words[at])
@@ -1130,8 +1158,12 @@ function programin(words, at)
             return name, at
         end
         local next = at + 1
-        while next <= #words and (string.find(words[next], '^[-+]') or
-                string.find(words[next], '^[%a_][%w_]*=') or string.find(words[next], '^[%d.]+[smhd]?$')) do
+        while next <= #words and (string.find(words[next], '^[-+]') or string.find(words[next], '^[%a_][%w_]*=') or
+                (name == 'timeout' and string.find(words[next], '^[%d.]+[smhd]?$'))) do
+            local option = unquote(words[next])
+            if string.find(option, '^[-+]') and option ~= '-i' and option ~= '-' and option ~= '--' then
+                return nil, at
+            end
             next = next + 1
         end
         if next > #words then
@@ -1178,21 +1210,23 @@ function scriptprograms(text)
 end
 
 -- The programs a command of the app runs, nil when one is not known before it runs: the program, after
--- wrappers, else the programs of the script of a shell (sh -c), or the script file a shell runs
--- (sh /system/bin/pm); a shell reading the commands of its input is a program of its own
+-- wrappers, else the programs of the script of a shell (sh -c), or the script file of the system a shell runs
+-- (sh /system/bin/pm); a shell reading the commands of its input (sh, sh -s) is a program of its own, and
+-- other script files are not known, the app can write them, like ./getprop
 function commandprograms(words)
     local program, at = programin(words, 1)
     if program == nil or not SHELLS[program] then
         return (program and { program })
     end
-    local operand, option = shelloperand(words, at)
-    if operand > #words then
+    local operand, option, input = shelloperand(words, at)
+    if operand > #words or input then
         return { program }
     elseif option then
         return scriptprograms(words[operand])
-    else
+    elseif string.find(words[operand], '^/system/') and not string.find(words[operand], '/%.%.?/') then
         return { basename(words[operand]) }
     end
+    return nil
 end
 
 -- Only commands running allowed programs can run, like the setting commands.allowed: getprop,uname, or the
@@ -1266,9 +1300,17 @@ function before(hook, param)
         return false
     end
     local line = table.concat(words, ' ')
+    -- Relative paths are files of the working directory of the builder, like cat cid in a directory of /sys:
+    -- the text changes to it first, like a script would (see hiddenin)
+    local dir = builder:directory()
+    local text = (dir and 'cd ' .. dir:getPath() .. '; ' .. line or line)
+    local function file(word)
+        word = string.gsub(word, '^if=', '')
+        return ((dir and string.sub(word, 1, 1) ~= '/') and dir:getPath() .. '/' .. word or word)
+    end
 
     local zone = (variant == 'timezone' and hasword(line, 'date') and settimezone(param, builder))
-    local names = commands(line, variant)
+    local names = commands(text, variant)
     if names == nil then
         return zone, line
     end
@@ -1291,17 +1333,10 @@ function before(hook, param)
         local own = { [variant] = true }
         for _, name in ipairs(names) do
             if program == name then
-                if name == 'cat' then
+                if READER[name] then
                     -- Commands reading files which exist run as they are
                     for index = at + 1, #words do
-                        if catfile(words[index], own) or hiddenfile(words[index], own) then
-                            direct = true
-                        end
-                    end
-                elseif READER[name] then
-                    -- Commands reading files which exist run as they are
-                    for index = at + 1, #words do
-                        if catfile((string.gsub(words[index], '^if=', '')), own) or hiddenfile(words[index], own) then
+                        if catfile(file(words[index]), own) or hiddenfile(file(words[index]), own) then
                             direct = true
                         end
                     end
@@ -1325,7 +1360,7 @@ function before(hook, param)
     end
     variants[variant] = true
 
-    local prelude, functionnames = functions(param, line, variants, script ~= nil)
+    local prelude, functionnames = functions(param, text, variants, script ~= nil)
     local fake = luajava.newInstance('java.util.ArrayList')
     if script ~= nil then
         local text = words[script]
