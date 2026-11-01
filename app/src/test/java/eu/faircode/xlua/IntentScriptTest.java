@@ -37,13 +37,14 @@ public class IntentScriptTest {
             "  return { getName = function(self) return name end }",
             "end",
             // The packages which stay visible besides the app itself, and whether the process is of the system
-            "function paramof(intent, visible, system)",
+            "function paramof(intent, visible, system, settings)",
             "  return { getResult = function(self) return intent end,",
             "    getPackageName = function(self) return 'com.example.app' end,",
             "    getUid = function(self) return 10001 end,",
             "    isPackageVisible = function(self, name)",
             "      return name == 'com.example.app' or (visible ~= nil and visible[name] == true) end,",
-            "    isSystem = function(self) return system == true end }",
+            "    isSystem = function(self) return system == true end,",
+            "    getSetting = function(self, name) return settings and settings[name] end }",
             "end",
             // An intent with a copy of its extras, like Intent.getExtras, and the package of its data
             "function intentof(action, extras, package)",
@@ -64,6 +65,7 @@ public class IntentScriptTest {
             "    function bundle:containsKey(key) return self.values[key] ~= nil end",
             "    function bundle:remove(key) self.values[key] = nil end",
             "    function bundle:getInt(key, default) return self.values[key] or default end",
+            "    function bundle:getString(key) return self.values[key] end",
             "    function bundle:put(key, value) self.values[key] = value end",
             "    bundle.putInt = bundle.put",
             "    bundle.putString = bundle.put",
@@ -331,5 +333,43 @@ public class IntentScriptTest {
                         "return after(hookof('Intent.createFromParcel/message'), paramof(intent)), intent.extras.pdus.length");
         assertTrue(result.arg(1).toboolean());
         assertEquals(0, result.arg(2).toint());
+    }
+
+    // The messages for the default SMS app are like the received ones
+    @Test
+    public void deliveredMessagesAreEmpty() {
+        Varargs sms = run(
+                "local intent = intentof('android.provider.Telephony.SMS_DELIVER', { pdus = { length = 1, 'pdu' } })\n" +
+                        "return after(hookof('Intent.createFromParcel/message'), paramof(intent)), intent.extras.pdus.length");
+        assertTrue(sms.arg(1).toboolean());
+        assertEquals(0, sms.arg(2).toint());
+
+        Varargs wap = run(
+                "local intent = intentof('android.provider.Telephony.WAP_PUSH_DELIVER', { data = 'pdu', address = '+31612345678' })\n" +
+                        "return after(hookof('Intent.createFromParcel/message'), paramof(intent)), intent.extras.data.length,\n" +
+                        "  intent.extras.address");
+        assertTrue(wap.arg(1).toboolean());
+        assertEquals(0, wap.arg(2).toint());
+        assertTrue(wap.arg(3).isnil());
+    }
+
+    // The broadcast of a time zone change has the fake zone, UTC without a setting
+    @Test
+    public void timeZoneChangeIsFake() {
+        Varargs fake = run(
+                "local intent = intentof('android.intent.action.TIMEZONE_CHANGED', { ['time-zone'] = 'Europe/Amsterdam' })\n" +
+                        "local restricted, old, new = after(hookof('Intent.createFromParcel/timezone'),\n" +
+                        "  paramof(intent, nil, false, { ['value.timezone'] = 'America/New_York' }))\n" +
+                        "return restricted, old, new, intent.extras['time-zone']");
+        assertTrue(fake.arg(1).toboolean());
+        assertEquals("Europe/Amsterdam", fake.arg(2).tojstring());
+        assertEquals("America/New_York", fake.arg(3).tojstring());
+        assertEquals("America/New_York", fake.arg(4).tojstring());
+
+        Varargs utc = run(
+                "local intent = intentof('android.intent.action.TIMEZONE_CHANGED', { ['time-zone'] = 'Europe/Amsterdam' })\n" +
+                        "after(hookof('Intent.createFromParcel/timezone'), paramof(intent))\n" +
+                        "return intent.extras['time-zone']");
+        assertEquals("UTC", utc.arg1().tojstring());
     }
 }

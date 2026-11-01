@@ -431,4 +431,46 @@ public class PackageScriptsTest {
         assertEquals(1, list.arg(2).toint());
         assertEquals("android", list.arg(3).tojstring());
     }
+
+    // The hidden methods for a user have the items of their public twins, also when filtered twice
+    @Test
+    public void listsForUser() throws Exception {
+        Globals globals = load("generic_filter_by_uid");
+        String items = "local own = { uid = 10001 }\n" +
+                "local system = { uid = 10010, system = true }\n" +
+                "local other = { uid = 10060 }\n";
+        Varargs services = Scripts.run(globals, items +
+                "local list = listof({ { serviceInfo = { applicationInfo = own } },\n" +
+                "  { serviceInfo = { applicationInfo = system } }, { serviceInfo = { applicationInfo = other } } })\n" +
+                "local param = paramof({}, {})\n" +
+                "param.result = list\n" +
+                "local restricted = after(hookof('PackageManager.queryIntentServicesAsUser.33'), param)\n" +
+                "local again = after(hookof('PackageManager.queryIntentServices.33'), param)\n" +
+                "return restricted, again, list:size()");
+        assertTrue(services.arg(1).toboolean());
+        assertFalse(services.arg(2).toboolean());
+        assertEquals(2, services.arg(3).toint());
+
+        Varargs packages = Scripts.run(globals, items +
+                "local list = listof({ { applicationInfo = own }, { applicationInfo = other } })\n" +
+                "local param = paramof({}, {})\n" +
+                "param.result = list\n" +
+                "after(hookof('PackageManager.getInstalledPackagesAsUser'), param)\n" +
+                "return list:size(), list:get(0).applicationInfo == own");
+        assertEquals(1, packages.arg(1).toint());
+        assertTrue(packages.arg(2).toboolean());
+    }
+
+    // A provider of a hidden app is not found, also for a user
+    @Test
+    public void providerForUser() throws Exception {
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local param = paramof({ [0] = 'com.example.bank.provider' }, {})\n" +
+                        "param.result = { packageName = 'com.example.bank' }\n" +
+                        "local restricted, pkg = after(hookof('PackageManager.resolveContentProviderAsUser', 'resolveContentProviderAsUser'), param)\n" +
+                        "return restricted, param.result, pkg");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertEquals("com.example.bank", result.arg(3).tojstring());
+    }
 }

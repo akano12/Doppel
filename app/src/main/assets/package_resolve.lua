@@ -62,7 +62,7 @@ function after(hook, param)
         end
         param:setResult(nil)
         return true, packageName
-    elseif method == 'resolveContentProvider' then
+    elseif method == 'resolveContentProvider' or method == 'resolveContentProviderAsUser' then
         packageName = result.packageName -- ProviderInfo
     elseif method == 'getPermissionInfo' or method == 'getPermissionGroupInfo' then
         -- A permission which a hidden app defines is missing, which Android throws for

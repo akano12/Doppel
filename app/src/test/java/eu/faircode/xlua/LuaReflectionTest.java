@@ -110,4 +110,25 @@ public class LuaReflectionTest {
         LuaValue result = globals.load("return luajava.bindClass('java.util.Arrays'):toString(bytes)").call();
         assertEquals("[0, 0, 0]", result.tojstring());
     }
+
+    public interface Checker {
+        boolean check(int value);
+        long count();
+        void run();
+    }
+
+    // A proxy without Lua functions for methods returning primitives: Proxy throws on null
+    @Test
+    public void proxyMethodsWithoutFunctions() {
+        Globals globals = JsePlatform.standardGlobals();
+        Checker checker = (Checker) globals.load(
+                "return luajava.createProxy('" + Checker.class.getName() + "', {})").call().touserdata();
+        assertEquals(false, checker.check(1));
+        assertEquals(0L, checker.count());
+        checker.run();
+        assertEquals(System.identityHashCode(checker), checker.hashCode());
+        assertEquals(true, checker.equals(checker));
+        assertEquals(false, checker.equals(new Object()));
+        assertEquals(true, checker.toString().startsWith("Proxy@"));
+    }
 }

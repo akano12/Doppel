@@ -183,6 +183,9 @@ class XProvider {
         return answer(context, () -> {
             if (!permitted && !APP_CALLS.contains(method))
                 enforcePermission(context);
+            if (extras != null && !forOwnUser(Binder.getCallingUid(), method,
+                    extras.getInt("user"), extras.getInt("uid"), extras.getBoolean("all")))
+                throw new SecurityException("Other user cuid=" + Binder.getCallingUid());
 
             switch (method) {
                 case "putHook":
@@ -210,6 +213,29 @@ class XProvider {
                     return null;
             }
         });
+    }
+
+    // The calls for a user and for the app of a uid, which read 0, the owner, for a missing one
+    static final Set<String> USER_CALLS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("getSetting", "putSetting", "clearData")));
+    static final Set<String> UID_CALLS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("assignHooks", "initApp", "clearApp", "forceStop")));
+
+    // The app of a secondary user or a work profile acts for its own user only, else it could read, change and clear
+    // the data of the owner, or put scripts into the apps of the owner; system server, like ReceiverPackage, acts for
+    // any user, see XProviderTest
+    static boolean forOwnUser(int callingUid, String method, int user, int uid, boolean all) {
+        if (Util.getAppId(callingUid) == Process.SYSTEM_UID)
+            return true;
+        int own = Util.getUserId(callingUid);
+        if (USER_CALLS.contains(method))
+            return (user == own && !all);
+        if (UID_CALLS.contains(method))
+            return (Util.getUserId(uid) == own);
+        // Definitions are shared by all users and run in the apps of all users, so only the owner changes them
+        if ("putHook".equals(method))
+            return (own == 0);
+        return true;
     }
 
     // Methods ending in 2 return parcels; permitted: the permission of the caller was checked already, see answers
@@ -272,36 +298,35 @@ class XProvider {
             hook.resolveClassName(context);
         }
 
-        // Only a custom definition can be deleted
+        // The database and the cache are changed together, else concurrent calls could leave them different
         synchronized (lock) {
+            // Only a custom definition can be deleted
             XHook current = (hook == null ? hooks.get(id) : null);
             if (current != null && current.isBuiltin())
                 throw new IllegalArgumentException("builtin");
-        }
 
-        // The database is written first, so a definition which could not be stored is not active either
-        // A deleted definition which did not replace a built-in definition leaves no hook to assign:
-        // its assignments would not be shown anymore, but still be backed up and count for answers
-        final boolean orphan = (hook == null && !builtins.containsKey(id));
-        db.write(d -> {
-            if (hook == null) {
-                d.delete("hook", "id = ?", new String[]{id});
-                if (orphan) {
-                    int rows = d.delete("assignment", "hook = ?", new String[]{id});
-                    Log.i(TAG, "Deleted assignments hook=" + id + " rows=" + rows);
+            // The database is written first, so a definition which could not be stored is not active either
+            // A deleted definition which did not replace a built-in definition leaves no hook to assign:
+            // its assignments would not be shown anymore, but still be backed up and count for answers
+            final boolean orphan = (hook == null && !builtins.containsKey(id));
+            db.write(d -> {
+                if (hook == null) {
+                    d.delete("hook", "id = ?", new String[]{id});
+                    if (orphan) {
+                        int rows = d.delete("assignment", "hook = ?", new String[]{id});
+                        Log.i(TAG, "Deleted assignments hook=" + id + " rows=" + rows);
+                    }
+                } else {
+                    ContentValues cv = new ContentValues();
+                    cv.put("id", id);
+                    cv.put("definition", hook.toJSON());
+                    if (d.insertWithOnConflict("hook", null, cv, SQLiteDatabase.CONFLICT_REPLACE) < 0)
+                        throw new Throwable("Error inserting hook");
                 }
-            } else {
-                ContentValues cv = new ContentValues();
-                cv.put("id", id);
-                cv.put("definition", hook.toJSON());
-                if (d.insertWithOnConflict("hook", null, cv, SQLiteDatabase.CONFLICT_REPLACE) < 0)
-                    throw new Throwable("Error inserting hook");
-            }
-            return null;
-        });
+                return null;
+            });
 
-        // Cache hook
-        synchronized (lock) {
+            // Cache hook
             Map<String, XHook> next = new HashMap<>(hooks);
             if (hook == null) {
                 Log.i(TAG, "Deleting hook id=" + id);
@@ -404,16 +429,14 @@ class XProvider {
     // The hooks which can be assigned are tracked (see enabledBuiltins), so a hook enabled by an update, or for the
     // Android version of an upgrade, is assigned too.
     // Hooks which were known already are never assigned again: a hook switched off for an app stays off.
-    // Without the current marker the former marker "builtins" tells which hooks were known, disabled ones too;
-    // without both, like at the first start, the current hooks are known.
+    // Without the marker, like at the first start, the current hooks are known.
     private static void assignNewBuiltins() throws Throwable {
         final Map<String, XHook> all = hooks;
         final Collection<XHook> builtin = builtins.values();
         db.write(d -> {
             List<String> enabled = enabledBuiltins(builtin);
             String current = readSetting(d, -1, "service", "builtins_enabled");
-            String marker = (current == null ? readSetting(d, -1, "service", "builtins") : current);
-            Set<String> known = knownBuiltins(enabled, marker);
+            Set<String> known = knownBuiltins(enabled, current);
 
             List<String> added = new ArrayList<>();
             for (String id : enabled)
@@ -430,10 +453,8 @@ class XProvider {
                 Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + counts[0]);
             }
 
-            if (current == null || !new HashSet<>(enabled).equals(known)) {
+            if (current == null || !new HashSet<>(enabled).equals(known))
                 writeSetting(d, -1, "service", "builtins_enabled", TextUtils.join(",", enabled));
-                writeSetting(d, -1, "service", "builtins", null);
-            }
             return null;
         });
     }
@@ -767,13 +788,8 @@ class XProvider {
     }
 
     private static Cursor getAssignedHooks(Context context, String[] selection, boolean permitted) throws Throwable {
-        if (selection == null || selection.length != 2)
-            throw new IllegalArgumentException("selection invalid");
-
+        int uid = ownUid(context, selection, permitted, null);
         final String packageName = selection[0];
-        int uid = Integer.parseInt(selection[1]);
-        if (!permitted)
-            enforceCallerOrPermission(context, uid);
 
         final List<String> collection = getCollection(Util.getUserId(uid));
         final Map<String, XHook> all = hooks;
@@ -1007,27 +1023,28 @@ class XProvider {
         final boolean all = extras.getBoolean("all");
         Log.i(TAG, "Clearing data user=" + userid + " all=" + all);
 
-        db.write(d -> {
-            if (all) {
-                d.delete("assignment", null, null);
-                d.delete("`group`", null, null);
-                // The built-in hooks known to the service (user -1) are not data of a user
-                d.delete("setting", "user >= 0", null);
-                // Custom definitions are shared by all users
-                d.delete("hook", null, null);
-            } else {
-                String[] range = getUidRange(userid);
-                d.delete("assignment", WHERE_USER, range);
-                d.delete("`group`", WHERE_USER, range);
-                d.delete("setting", WHERE_SETTINGS, new String[]{Integer.toString(userid)});
-            }
-            return null;
-        });
+        // The database and the cache are changed together, see putHook
+        synchronized (lock) {
+            db.write(d -> {
+                if (all) {
+                    d.delete("assignment", null, null);
+                    d.delete("`group`", null, null);
+                    // The built-in hooks known to the service (user -1) are not data of a user
+                    d.delete("setting", "user >= 0", null);
+                    // Custom definitions are shared by all users
+                    d.delete("hook", null, null);
+                } else {
+                    String[] range = getUidRange(userid);
+                    d.delete("assignment", WHERE_USER, range);
+                    d.delete("`group`", WHERE_USER, range);
+                    d.delete("setting", WHERE_SETTINGS, new String[]{Integer.toString(userid)});
+                }
+                return null;
+            });
 
-        if (all)
-            synchronized (lock) {
+            if (all)
                 hooks = new HashMap<>(builtins);
-            }
+        }
 
         return new Bundle();
     }
@@ -1118,16 +1135,8 @@ class XProvider {
 
     // Settings of a category (global or a package name) of an app
     private static Cursor getSettings(Context context, String[] selection, boolean permitted) throws Throwable {
-        if (selection == null || selection.length != 2)
-            throw new IllegalArgumentException("selection invalid");
-
+        int uid = ownUid(context, selection, permitted, true);
         final String category = selection[0];
-        int uid = Integer.parseInt(selection[1]);
-        if (!permitted) {
-            enforceCallerOrPermission(context, uid);
-            if (!mayRead(category, true, getPackagesForUid(context, uid)))
-                enforcePermission(context);
-        }
         MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
         for (Map.Entry<String, String> entry : readSettings(Util.getUserId(uid), category).entrySet())
             result.addRow(new String[]{entry.getKey(), entry.getValue()});
@@ -1138,16 +1147,8 @@ class XProvider {
     // so apps sharing a user id read each other's, and the values for all apps are the same for every app.
     // The secret they are derived from is the service's own, new each boot, which no app can read.
     private static Cursor getBootValues(Context context, String[] selection, boolean permitted) throws Throwable {
-        if (selection == null || selection.length != 2)
-            throw new IllegalArgumentException("selection invalid");
-
+        int uid = ownUid(context, selection, permitted, false);
         final String packageName = selection[0];
-        int uid = Integer.parseInt(selection[1]);
-        if (!permitted) {
-            enforceCallerOrPermission(context, uid);
-            if (!mayRead(packageName, false, getPackagesForUid(context, uid)))
-                enforcePermission(context);
-        }
         final int userid = Util.getUserId(uid);
 
         Map<String, String> global = readSettings(userid, "global");
@@ -1263,6 +1264,20 @@ class XProvider {
         } catch (SecurityException ignored) {
             return false;
         }
+    }
+
+    // The uid of a selection of a package or category and a uid, which a hooked app may ask about for itself only,
+    // and with global not null about its own packages only (see mayRead), else the app is needed
+    private static int ownUid(Context context, String[] selection, boolean permitted, Boolean global) {
+        if (selection == null || selection.length != 2)
+            throw new IllegalArgumentException("selection invalid");
+        int uid = Integer.parseInt(selection[1]);
+        if (!permitted) {
+            enforceCallerOrPermission(context, uid);
+            if (global != null && !mayRead(selection[0], global, getPackagesForUid(context, uid)))
+                enforcePermission(context);
+        }
+        return uid;
     }
 
     // Hooked apps may read their own data only

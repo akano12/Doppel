@@ -31,16 +31,6 @@ local FAKE = 1230768000000
 local FLAG_SYSTEM = 1
 local FLAG_UPDATED_SYSTEM_APP = 128
 
--- Times as digits; string.format of LuaJ formats numbers beyond an int as an int or with an exponent,
--- so the digits are formatted in two parts which each fit an int
-function millis(value)
-    local high = math.floor(value / 1000000)
-    if high == 0 then
-        return string.format('%d', value)
-    end
-    return string.format('%d%06d', high, value - high * 1000000)
-end
-
 function after(hook, param)
     local info = param:getResult()
     if info == nil or info.packageName == nil then
@@ -59,7 +49,7 @@ function after(hook, param)
         end
         local last = info.lastUpdateTime
         info.lastUpdateTime = info.firstInstallTime
-        return true, info.packageName .. ' ' .. millis(last), millis(info.firstInstallTime)
+        return true, info.packageName .. ' ' .. last, tostring(info.firstInstallTime)
     end
 
     local first = info.firstInstallTime
@@ -69,5 +59,5 @@ function after(hook, param)
 
     info.firstInstallTime = FAKE
     info.lastUpdateTime = FAKE
-    return true, info.packageName .. ' ' .. millis(first), millis(FAKE)
+    return true, info.packageName .. ' ' .. first, tostring(FAKE)
 end

@@ -47,7 +47,6 @@ import org.luaj.vm2.Varargs;
  * <li>{@link ZeroArgFunction}</li>
  * <li>{@link OneArgFunction}</li>
  * <li>{@link TwoArgFunction}</li>
- * <li>{@link ThreeArgFunction}</li>
  * <li>{@link VarArgFunction}</li>
  * </ul>
  * <p>

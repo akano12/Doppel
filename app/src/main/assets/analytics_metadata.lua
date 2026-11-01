@@ -27,7 +27,10 @@ local SDKS = {
                   'com.google.firebase.crashlytics.FirebaseCrashlytics' },
       key = 'firebase_crashlytics_collection_enabled', value = false },
     { classes = { 'com.facebook.internal.FacebookInitProvider', 'com.facebook.FacebookSdk' },
-      key = 'com.facebook.sdk.AutoLogAppEventsEnabled', value = false }
+      key = 'com.facebook.sdk.AutoLogAppEventsEnabled', value = false },
+    -- The advertising id goes with the events, on when the key is absent
+    { classes = { 'com.facebook.internal.FacebookInitProvider', 'com.facebook.FacebookSdk' },
+      key = 'com.facebook.sdk.AdvertiserIDCollectionEnabled', value = false }
 }
 local GET_META_DATA = 128
 

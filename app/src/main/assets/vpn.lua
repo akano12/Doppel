@@ -188,11 +188,12 @@ function restrict(hook, param)
             return true, result, nil
         end
 
-    elseif method == 'toString' and hook:getClassName() == 'android.net.LinkProperties' then
+    elseif method == 'toString' and (hook:getClassName() == 'android.net.LinkProperties' or
+            hook:getClassName() == 'android.net.RouteInfo') then
         -- The interface name of a VPN, also in the routes, like getInterfaceName;
         -- the name is a word, like in "-> 0.0.0.0 tun0 mtu"
         if result ~= nil then
-            local name = string.match(result, 'InterfaceName: (%S+)')
+            local name = string.match(result, 'InterfaceName: (%S+)') or string.match(result, ' (%S+) mtu ')
             if isvpninterface(name) then
                 local other = underlyinginterface(param)
                 local fake = string.gsub(result, '([^%w])' .. string.gsub(name, '%p', '%%%0') .. '([^%w])',
@@ -287,8 +288,8 @@ function restrict(hook, param)
             return removed
         end
 
-    elseif method == 'getInterfaceName' then
-        -- LinkProperties of the active network, like tun0
+    elseif method == 'getInterfaceName' or method == 'getInterface' then
+        -- LinkProperties of the active network, like tun0, and its routes (RouteInfo.getInterface)
         if isvpninterface(result) then
             local fake = underlyinginterface(param)
             param:setResult(fake)

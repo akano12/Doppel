@@ -21,10 +21,8 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -39,9 +37,6 @@ import androidx.recyclerview.widget.RecyclerView;
 // Top level screens: apps, activity, hooks and settings
 public class ActivityMain extends ActivityBase implements Ui.Anchored {
     private static final String TAG = "XLua.Main";
-
-    // Opens the restrictions of an app, used by notifications
-    public static final String EXTRA_PACKAGE = "package";
 
     private static final String TAB_APPS = "apps";
     private static final String TAB_ACTIVITY = "activity";
@@ -90,7 +85,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
                 else
                     show.run();
             });
-        });
+        }, this::recreate); // Without the retry a failed check would leave the screen blank
     }
 
     @Override
@@ -131,10 +126,8 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
         }, false);
 
         // Else the selected tab and fragments are restored by the framework
-        if (first) {
+        if (first)
             show(TAB_APPS);
-            handleIntent(getIntent());
-        }
 
         checkFirstRun();
     }
@@ -162,24 +155,6 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
     public View getMessageAnchor() {
         // Null without the main layout, which places messages at the bottom
         return findViewById(R.id.nav);
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        if (available)
-            handleIntent(intent);
-    }
-
-    // Only the package name is taken from the intent, for a new intent to the screen of the app, which is not exported;
-    // lint takes the factory ActivityApp.getIntent for the intent this activity was started with, see lint.xml
-    private void handleIntent(Intent intent) {
-        String packageName = intent.getStringExtra(EXTRA_PACKAGE);
-        if (packageName != null) {
-            Log.i(TAG, "Show pkg=" + packageName);
-            intent.removeExtra(EXTRA_PACKAGE);
-            startActivity(ActivityApp.getIntent(this, packageName, -1));
-        }
     }
 
     // Opens a tab, like the overview card of the Apps tab opens the Activity tab

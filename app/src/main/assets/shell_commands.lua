@@ -40,7 +40,7 @@
 
 local SH = '/system/bin/sh'
 
--- The security patch level per quarter, like 2025-04-01 for 2025-05-05 (see security_patch)
+-- The security patch level per quarter, like 2025-04-01 for 2025-05-05 (see systemproperties_get)
 local QUARTER = {}
 
 -- Shell patterns of the properties behind the fields of android.os.Build with their fake values, the same

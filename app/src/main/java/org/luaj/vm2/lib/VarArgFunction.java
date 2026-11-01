@@ -35,7 +35,7 @@ import org.luaj.vm2.Varargs;
  * dropping or extending return values with {@code nil} values as required.
  * <p>
  * If between one and three arguments are required, and only one return value is returned,   
- * {@link ZeroArgFunction}, {@link OneArgFunction}, {@link TwoArgFunction}, or {@link ThreeArgFunction}.
+ * {@link ZeroArgFunction}, {@link OneArgFunction}, or {@link TwoArgFunction}.
  * <p>
  * See {@link LibFunction} for more information on implementation libraries and library functions.
  * @see #invoke(Varargs)
@@ -43,7 +43,6 @@ import org.luaj.vm2.Varargs;
  * @see ZeroArgFunction
  * @see OneArgFunction
  * @see TwoArgFunction
- * @see ThreeArgFunction
  */
 abstract public class VarArgFunction extends LibFunction {
 

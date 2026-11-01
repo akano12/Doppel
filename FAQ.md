@@ -34,7 +34,7 @@ Disable and enable Doppel in the manager app and hard reboot again.
 <a name="faq4"></a>
 **(4) Can you add ...?**
 
-* *Network and storage restrictions*: access to the internet and to the device storage can only be prevented by revoking Linux permission from an app, which will often result in the app crashing. Therefore this will not be added.
+* *Storage restrictions*: access to the device storage can only be prevented by revoking a Linux permission from an app, which often makes it crash, so this will not be added.
 * *User interface features* like *templates*: Doppel keeps restriction management simple, so features like these will not be added.
 * *On demand restricting*: it cannot be made to work stable and be supported on the long term, so this will not be added; see *Notify on restriction* below.
 * *App specific*: anything specific for an app will not be added.
@@ -130,8 +130,7 @@ With many restrictions you might notice a slight delay when starting apps, but g
 <a name="faq14"></a>
 **(14) Will Doppel keep running after updating?**
 
-Yes, the restrictions keep working with the old version until you restart the device.
-Until then the app shows *Module not running or updated* and new features are not available, so restart the device after updating.
+Yes, with the old version until you restart the device; until then the app shows *Module not running or updated*, see [(3)](#user-content-faq3).
 
 <a name="faq16"></a>
 **(16) Can apps with root access be restricted?**

@@ -168,14 +168,12 @@ final class Data {
     static JSONObject toEditable(XHook hook) throws JSONException {
         JSONObject jhook = hook.toJSONObject();
         jhook.remove("builtin");
-        jhook.remove("resolvedClassName");
         return jhook;
     }
 
     // Store a definition as custom definition, which replaces a built-in definition with the same id
     static XHook putCustom(Context context, JSONObject jhook) throws JSONException {
         jhook.put("builtin", false);
-        jhook.remove("resolvedClassName");
         XHook hook = XHook.fromJSONObject(jhook);
         hook.validate();
         putHook(context, hook.getId(), hook.toJSON());

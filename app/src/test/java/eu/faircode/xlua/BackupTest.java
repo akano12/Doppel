@@ -88,7 +88,10 @@ public class BackupTest {
     public void backupListsTheBuiltinsOfItsAndroidVersion() throws Exception {
         XHook now = hook("Get.Applications", "Now", null, true);
         XHook newer = XHook.fromJSON(now.toJSON().replace("\"Now\"", "\"Newer\"").replace("\"minSdk\": 0", "\"minSdk\": " + (android.os.Build.VERSION.SDK_INT + 1)));
-        List<String> listed = Backup.builtinsForThisSdk(Arrays.asList(now.getId(), newer.getId()), Arrays.asList(now, newer));
+        // A disabled hook is not listed either, so a restore by a version which enables it adds it
+        XHook disabled = hook("Get.Applications", "Disabled", null, false);
+        List<String> listed = Backup.builtinsForThisSdk(Arrays.asList(now.getId(), newer.getId(), disabled.getId()),
+                Arrays.asList(now, newer, disabled));
         assertEquals(Collections.singletonList(now.getId()), listed);
     }
 

@@ -307,13 +307,14 @@ public class DeviceValuesScriptTest {
 
     @Test
     public void securityPatchIsAQuarter() throws Exception {
-        Globals globals = load("security_patch");
-        Varargs result = Scripts.run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('2025-09-05', {}))");
+        Globals globals = load("systemproperties_get");
+        String hook = "hookof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH')";
+        Varargs result = Scripts.run(globals, "return run(" + hook + ", paramof('2025-09-05', {}))");
         assertTrue(result.arg1().toboolean());
         assertEquals("2025-07-01", result.arg(2).tojstring());
-        assertFalse(Scripts.run(globals,
-                "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('2025-07-01', {}))").arg1().toboolean());
-        assertFalse(Scripts.run(globals, "return run(hookof('Build.VERSION.SECURITY_PATCH', nil), paramof('', {}))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return run(" + hook + ", paramof('2025-07-01', {}))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return run(" + hook + ", paramof('', {}))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return run(" + hook + ", paramof(nil, {}))").arg1().toboolean());
     }
 
     // The script reads the method of the hook only
@@ -331,6 +332,7 @@ public class DeviceValuesScriptTest {
         assertEquals("unknown", operator(globals, "getOperatorAlphaLong", "'Telekom.de'").arg(2).tojstring());
         assertEquals("00101", operator(globals, "getRegisteredPlmn", "'310260'").arg(2).tojstring());
         assertEquals(-1, operator(globals, "getSimCarrierId", "1").arg(2).toint());
+        assertEquals(-1, operator(globals, "getCarrierIdFromSimMccMnc", "1839").arg(2).toint());
 
         // Without a SIM or service
         assertFalse(operator(globals, "getSimOperator", "''").arg1().toboolean());
@@ -658,6 +660,7 @@ public class DeviceValuesScriptTest {
                 "    unhooked = function(self, fn) return fn() end,",
                 "    getValue = function(self, name, scope) return values[name] end,",
                 "    putValue = function(self, name, value, scope) values[name] = value end,",
+                "    uuidOf = function(self, seed) return '12345678-1234-4234-8234-' .. string.rep('0', 12 - #seed) .. seed end,",
                 "    setResult = function(self, value) self.result = value end }",
                 "end"));
         Varargs result = Scripts.run(globals,
@@ -673,6 +676,17 @@ public class DeviceValuesScriptTest {
         assertNotEquals("1A2B-3C4D", fake);
         assertEquals("fafafafa-fafa-5afa-8afa-fafa" + fake.replace("-", "").toLowerCase(), result.arg(2).tojstring());
         assertEquals(fake, result.arg(3).tojstring());
+
+        // An id which is not of FAT nor a UUID gives the same UUID each time
+        Varargs other = Scripts.run(globals,
+                "volume.getUuid = function(self) return 'abcdef' end\n" +
+                        "local first = paramof('x')\n" +
+                        "after(hookof('getStorageUuid'), first)\n" +
+                        "local second = paramof('x')\n" +
+                        "after(hookof('getStorageUuid'), second)\n" +
+                        "return first.result:toString(), second.result:toString()");
+        assertTrue(other.arg(1).tojstring(), other.arg(1).tojstring().startsWith("12345678-1234-4234-8234-"));
+        assertEquals(other.arg(1).tojstring(), other.arg(2).tojstring());
     }
 
     @Test
@@ -712,12 +726,18 @@ public class DeviceValuesScriptTest {
         assertEquals((long) Math.floor(6000000.0 * blocks / 28808593), result.arg(5).tolong());
 
         // The memory info of the app is changed in place
-        result = Scripts.run(globals, "local info = { totalMem = 4109369344, availMem = 1234567890 }\n" +
+        // with the thresholds grown like the total; without a hidden threshold it stays absent
+        result = Scripts.run(globals, "local info = { totalMem = 4109369344, availMem = 1234567890,\n" +
+                "  threshold = 226492416, foregroundAppThreshold = 75497472 }\n" +
                 "local restricted = after(hookof('ActivityManager.getMemoryInfo', 'getMemoryInfo'), paramof(nil, { [0] = info }))\n" +
-                "return restricted, info.totalMem, info.availMem");
+                "return restricted, info.totalMem, info.availMem, info.threshold, info.foregroundAppThreshold,\n" +
+                "  info.hiddenAppThreshold");
         assertTrue(result.arg1().toboolean());
         assertEquals(4294967296L, result.arg(2).tolong());
         assertEquals(1200000000L, result.arg(3).tolong());
+        assertEquals((long) Math.floor(226492416 * (4294967296.0 / 4109369344L)), result.arg(4).tolong());
+        assertEquals((long) Math.floor(75497472 * (4294967296.0 / 4109369344L)), result.arg(5).tolong());
+        assertTrue(result.arg(6).isnil());
     }
 
     // Input devices by id and luajava for the lookups, which must not run the hooks (see XParam.unhooked)

@@ -46,8 +46,9 @@ function fakeid(param, real)
     return fake
 end
 
--- Like StorageManager.convert: an id of FAT like 1A2B-3C4D after a fixed prefix, else the id itself
-function storageuuid(id)
+-- Like StorageManager.convert: an id of FAT like 1A2B-3C4D after a fixed prefix, else the id itself;
+-- another id becomes a UUID made of it, the same each time
+function storageuuid(param, id)
     local uuid = luajava.bindClass('java.util.UUID')
     if string.find(id, '^%x%x%x%x%-%x%x%x%x$') then
         return uuid:fromString('fafafafa-fafa-5afa-8afa-fafa' .. string.lower(string.gsub(id, '%-', '')))
@@ -55,7 +56,7 @@ function storageuuid(id)
     local ok, result = pcall(function()
         return uuid:fromString(id)
     end)
-    return (ok and result or uuid:randomUUID())
+    return (ok and result or uuid:fromString(param:uuidOf(id)))
 end
 
 function after(hook, param)
@@ -74,7 +75,7 @@ function after(hook, param)
         if id == nil then
             return false
         end
-        fake = storageuuid(fakeid(param, id))
+        fake = storageuuid(param, fakeid(param, id))
     else
         fake = fakeid(param, result)
     end

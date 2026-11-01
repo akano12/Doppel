@@ -272,7 +272,7 @@ public class ValueScriptsTest {
     // The clip and its description are a plain text, without the label and the types of the real clip
     @Test
     public void clipIsPlainText() throws Exception {
-        Globals globals = load("clipdata_createfromparcel");
+        Globals globals = load("clipboard_getprimaryclip");
         Scripts.run(globals, "function clipof(count)\n" +
                 "  return { getItemCount = function(self) return count end,\n" +
                 "    newPlainText = function(self, label, text) return label .. ':' .. text end }\n" +
@@ -378,19 +378,19 @@ public class ValueScriptsTest {
     // The SDKs of apps are stopped once for each instance
     @Test
     public void analyticsSdksAreStoppedOnce() throws Exception {
-        Globals globals = load("appsflyer_getinstance");
+        Globals globals = load("analytics_getinstance");
         Varargs result = Scripts.run(globals, "local stops = {}\n" +
                 "local sdk = { stop = function(self, stop, context) stops[#stops + 1] = tostring(stop) .. ' ' .. context end }\n" +
-                "local first = after(nil, paramof(sdk))\n" +
-                "local again = after(nil, paramof(sdk))\n" +
-                "return first, again, #stops, stops[1], after(nil, paramof({}))");
+                "local hook = hookof('getInstance', 'com.appsflyer.AppsFlyerLib')\n" +
+                "local first = after(hook, paramof(sdk))\n" +
+                "local again = after(hook, paramof(sdk))\n" +
+                "return first, again, #stops, stops[1], after(hook, paramof({}))");
         assertTrue(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertEquals(1, result.arg(3).toint());
         assertEquals("true context", result.arg(4).tojstring());
         assertFalse(result.arg(5).toboolean());
 
-        globals = load("firebase_getinstance");
         for (String[] c : new String[][]{{"com.google.firebase.analytics.FirebaseAnalytics", "setAnalyticsCollectionEnabled"},
                 {"com.google.firebase.crashlytics.FirebaseCrashlytics", "setCrashlyticsCollectionEnabled"}}) {
             result = Scripts.run(globals, "local calls = {}\n" +

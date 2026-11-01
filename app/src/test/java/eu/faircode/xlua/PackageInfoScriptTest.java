@@ -47,8 +47,8 @@ public class PackageInfoScriptTest {
             "end",
             "function run(info, system)",
             "  local restricted, old, new = after({}, paramof(info, system))",
-            "  return restricted, old, new, millis(info.firstInstallTime),",
-            "    millis(info.lastUpdateTime)",
+            "  return restricted, old, new, tostring(info.firstInstallTime),",
+            "    tostring(info.lastUpdateTime)",
             "end");
 
     private Globals globals;

@@ -211,15 +211,18 @@ function after(hook, param)
         intent:replaceExtras(extras)
         return true
     elseif name == 'message' and (action == 'android.provider.Telephony.SMS_RECEIVED' or
+            action == 'android.provider.Telephony.SMS_DELIVER' or
             action == 'android.intent.action.DATA_SMS_RECEIVED') then
         local objectClass = luajava.bindClass('java.lang.Object')
         local arrayClass = luajava.bindClass('java.lang.reflect.Array')
         local objectArray = arrayClass:newInstance(objectClass, 0)
         intent:putExtra('pdus', objectArray)
         return true
-    elseif name == 'message' and action == 'android.provider.Telephony.WAP_PUSH_RECEIVED' then
+    elseif name == 'message' and (action == 'android.provider.Telephony.WAP_PUSH_RECEIVED' or
+            action == 'android.provider.Telephony.WAP_PUSH_DELIVER') then
         -- The notification of an MMS message (data), with the sender and the subject, and the address of the push;
-        -- empty, because receivers parse it (PduParser), which then finds nothing
+        -- empty, because receivers parse it (PduParser), which then finds nothing; the DELIVER actions go to the
+        -- default SMS app only
         local extras = intent:getExtras()
         if extras == nil then
             return false
@@ -234,6 +237,23 @@ function after(hook, param)
         extras:remove('address')
         intent:replaceExtras(extras)
         return true
+    elseif name == 'timezone' and action == 'android.intent.action.TIMEZONE_CHANGED' then
+        -- The new time zone of the device, which the fake one replaces, like timezone (setting value.timezone)
+        local extras = intent:getExtras()
+        if extras == nil or not extras:containsKey('time-zone') then
+            return false
+        end
+        local id = param:getSetting('value.timezone')
+        if id == nil or id == '' then
+            id = 'UTC'
+        end
+        local old = extras:getString('time-zone')
+        if old == id then
+            return false
+        end
+        extras:putString('time-zone', id)
+        intent:replaceExtras(extras)
+        return true, old, id
     else
         return false
     end

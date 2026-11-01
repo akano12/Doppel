@@ -18,7 +18,7 @@
 
 -- The user agent of a WebView contains the device model and firmware build, like
 -- '(Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv)', which is reduced like Chrome does:
--- '(Linux; Android 15; K; wv)', the same as WebSettings.getDefaultUserAgent (see webview_useragent).
+-- '(Linux; Android 15; K; wv)', also by WebSettings.getDefaultUserAgent, which apps send with their own requests.
 -- It is set when the WebView is made, because pages see it (navigator.userAgent, the requests);
 -- user agents the app sets later with the model and build are reduced too, and so is the default
 -- the app brings back with null or an empty user agent. Other user agents of the app stay.
@@ -29,6 +29,19 @@ end
 
 -- The parameter is not named hook, the function to hook a method is
 function after(h, param)
+    if h:getMethodName() == 'getDefaultUserAgent' then
+        local result = param:getResult()
+        if result == nil then
+            return false
+        end
+        local fake = reduce(result)
+        if fake == result then
+            return false
+        end
+        param:setResult(fake)
+        return true, result, fake
+    end
+
     local this = param:getThis()
     -- The hooked constructor is the one all others call, so this runs once per WebView
     if this == nil then

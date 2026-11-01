@@ -42,7 +42,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.Arrays;
 
-public class XHook implements Parcelable {
+public class XHook {
     private static final String TAG = "XLua.XHook";
 
     private boolean builtin = false;
@@ -282,9 +282,8 @@ public class XHook implements Parcelable {
         if (this.description != null)
             jroot.put("description", this.description);
 
+        // Not the resolved class name, which the service resolves again, as it can change with an upgrade of Android
         jroot.put("className", this.className);
-        if (this.resolvedClassName != null)
-            jroot.put("resolvedClassName", this.resolvedClassName);
         if (this.methodName != null)
             jroot.put("methodName", this.methodName);
 
@@ -331,7 +330,6 @@ public class XHook implements Parcelable {
         hook.description = jroot.optString("description", null);
 
         hook.className = jroot.getString("className");
-        hook.resolvedClassName = jroot.optString("resolvedClassName", null);
         hook.methodName = jroot.optString("methodName", null);
 
         JSONArray jparam = jroot.getJSONArray("parameterTypes");
@@ -408,17 +406,6 @@ public class XHook implements Parcelable {
     @Override
     public int hashCode() {
         return this.getId().hashCode();
-    }
-
-    @Override
-    public int describeContents() {
-        return 0;
-    }
-
-    // Parcels of assignments and app lists do not include the script
-    @Override
-    public void writeToParcel(Parcel dest, int flags) {
-        write(dest, false);
     }
 
     byte[] marshall(boolean withLua) {

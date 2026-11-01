@@ -240,14 +240,21 @@ public class NetworkScriptsTest {
                         "local text = paramof(lp, {}, nil, context)\n" +
                         "after(hookof('toString', 'android.net.LinkProperties'), text)\n" +
                         "local tun = paramof({ getName = function() return 'tun0' end })\n" +
+                        "local route = paramof('0.0.0.0/0 -> 10.8.0.1 tun0 mtu 1500', {}, nil, context)\n" +
+                        "after(hookof('toString', 'android.net.RouteInfo'), route)\n" +
+                        "local iface = paramof('tun0', {}, nil, context)\n" +
+                        "after(hookof('getInterface', 'android.net.RouteInfo'), iface)\n" +
                         "return nc.result, text.result,\n" +
-                        "  after(hookof('getByInetAddress'), tun), tun.result");
+                        "  after(hookof('getByInetAddress'), tun), tun.result, route.result, iface.result");
         assertEquals("[ Transports: WIFI Capabilities: INTERNET&TRUSTED&NOT_VPN&VALIDATED UnderlyingNetworks: null]",
                 result.arg(1).tojstring());
         assertEquals("{InterfaceName: rmnet_data0 LinkAddresses: [ 10.8.0.2/32 ]" +
                 " Routes: [ 0.0.0.0/0 -> 0.0.0.0 rmnet_data0 mtu 0 ]}", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
         assertTrue(result.arg(4).isnil());
+        // The routes of the VPN network, which LinkProperties.getRoutes gives
+        assertEquals("0.0.0.0/0 -> 10.8.0.1 rmnet_data0 mtu 1500", result.arg(5).tojstring());
+        assertEquals("rmnet_data0", result.arg(6).tojstring());
     }
 
     // NOT_VPN in its place in bit order, like a real network has it: after TRUSTED (14), before VALIDATED (16)
@@ -593,5 +600,26 @@ public class NetworkScriptsTest {
         assertTrue(result.arg(6).isnil()); // No Firebase Analytics in the app
         assertFalse(result.arg(7).toboolean());
         assertFalse(result.arg(8).toboolean());
+    }
+
+    // Facebook logs events and sends the advertising id with them unless the meta-data turns them off
+    @Test
+    public void facebookIsOffInMetaData() throws Exception {
+        Globals globals = load("analytics_metadata");
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
+                "classes['com.facebook.FacebookSdk'] = true\n" +
+                        "local info = { metaData = bundleof() }\n" +
+                        "info.metaData:putBoolean('com.facebook.sdk.AdvertiserIDCollectionEnabled', true)\n" +
+                        "local param = paramof(info, { [0] = 'com.example', [1] = 128 }, nil, context)\n" +
+                        "local restricted = after(hookof('getApplicationInfo'), param)\n" +
+                        "local items = param.result.metaData.items\n" +
+                        "return restricted, items['com.facebook.sdk.AutoLogAppEventsEnabled'],\n" +
+                        "  items['com.facebook.sdk.AdvertiserIDCollectionEnabled']");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).isnil());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).isnil());
+        assertFalse(result.arg(3).toboolean());
     }
 }

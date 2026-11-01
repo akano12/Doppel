@@ -36,14 +36,13 @@ import org.luaj.vm2.Varargs;
  * If more than one argument are required, or no arguments are required, 
  * or variable argument or variable return values, 
  * then use one of the related function
- * {@link ZeroArgFunction}, {@link TwoArgFunction}, {@link ThreeArgFunction}, or {@link VarArgFunction}.
+ * {@link ZeroArgFunction}, {@link TwoArgFunction}, or {@link VarArgFunction}.
  * <p>
  * See {@link LibFunction} for more information on implementation libraries and library functions.
  * @see #call(LuaValue)
  * @see LibFunction
  * @see ZeroArgFunction
  * @see TwoArgFunction
- * @see ThreeArgFunction
  * @see VarArgFunction
  */
 abstract public class OneArgFunction extends LibFunction {

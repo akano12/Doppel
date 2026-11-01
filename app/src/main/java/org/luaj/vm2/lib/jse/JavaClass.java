@@ -213,8 +213,8 @@ class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 					m.put(LuaValue.valueOf(stub), ci);
 				}
 			}
-			catch (NoClassDefFoundError ex) {
-				ex.printStackTrace();
+			catch (LinkageError ex) {
+				// no stack trace: org.luaj frames in the log of the hooked app
 			}
 			innerclasses = m;
 		}

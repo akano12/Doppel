@@ -226,9 +226,9 @@
         <item quantity="one">%1$d in all</item>
         <item quantity="other">%1$d in all</item>
     </plurals>
-    <plurals name="title_compact_hooks">
-        <item quantity="one">%1$d hooks · %2$d group</item>
-        <item quantity="other">%1$d hooks · %2$d groups</item>
+    <plurals name="title_group_count">
+        <item quantity="one">%1$d group</item>
+        <item quantity="other">%1$d groups</item>
     </plurals>
     <string name="title_no_apps">No apps</string>
     <string name="title_no_matches">No matches</string>

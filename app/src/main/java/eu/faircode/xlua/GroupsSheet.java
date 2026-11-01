@@ -171,21 +171,39 @@ final class GroupsSheet {
                 ((TextView) vSection.findViewById(R.id.tvSection)).getText()));
     }
 
+    // A section with its title and its button for all or none, without rows; also for the screen of the app
+    static View inflateSection(LayoutInflater inflater, ViewGroup parent, int title) {
+        View vSection = inflater.inflate(R.layout.item_section, parent, false);
+        TextView tvSection = vSection.findViewById(R.id.tvSection);
+        tvSection.setText(title);
+        ViewCompat.setAccessibilityHeading(tvSection, true);
+        vSection.findViewById(R.id.btnSection).setVisibility(View.VISIBLE);
+        return vSection;
+    }
+
+    // A group row with its title, icon and description; also for the screen of the app
+    static View inflateGroup(Context context, LayoutInflater inflater, ViewGroup parent, String group) {
+        View vGroup = inflater.inflate(R.layout.item_group, parent, false);
+        ((TextView) vGroup.findViewById(R.id.tvTitle)).setText(Groups.getTitle(context, group));
+        ((ImageView) vGroup.findViewById(R.id.ivIcon)).setImageResource(Groups.getIcon(group));
+        TextView tvDescription = vGroup.findViewById(R.id.tvDescription);
+        String description = Groups.getDescription(context, group);
+        tvDescription.setText(description);
+        tvDescription.setVisibility(description == null ? View.GONE : View.VISIBLE);
+        return vGroup;
+    }
+
     // The sections of the screen of the app
     private void buildSections(LayoutInflater inflater) {
         LinearLayout llSections = view.findViewById(R.id.llSections);
         for (Map.Entry<Integer, List<String>> entry : bySection(activity, groups.keySet()).entrySet()) {
             final List<String> names = entry.getValue();
-            View vSection = inflater.inflate(R.layout.item_section, llSections, false);
-            TextView tvSection = vSection.findViewById(R.id.tvSection);
-            tvSection.setText(entry.getKey());
-            ViewCompat.setAccessibilityHeading(tvSection, true);
+            View vSection = inflateSection(inflater, llSections, entry.getKey());
             LinearLayout llRows = vSection.findViewById(R.id.llRows);
             for (String group : names)
                 llRows.addView(buildGroup(inflater, llRows, group));
 
             Button btnSection = vSection.findViewById(R.id.btnSection);
-            btnSection.setVisibility(View.VISIBLE);
             final List<XHook> hooks = new ArrayList<>();
             for (String group : names)
                 hooks.addAll(groups.get(group));
@@ -209,13 +227,7 @@ final class GroupsSheet {
 
     // A group row of the screen of the app, without its hooks; the row and the switch restrict or remove the group
     private View buildGroup(LayoutInflater inflater, ViewGroup parent, String group) {
-        View vGroup = inflater.inflate(R.layout.item_group, parent, false);
-        ((TextView) vGroup.findViewById(R.id.tvTitle)).setText(Groups.getTitle(activity, group));
-        ((ImageView) vGroup.findViewById(R.id.ivIcon)).setImageResource(Groups.getIcon(group));
-        TextView tvDescription = vGroup.findViewById(R.id.tvDescription);
-        String description = Groups.getDescription(activity, group);
-        tvDescription.setText(description);
-        tvDescription.setVisibility(description == null ? View.GONE : View.VISIBLE);
+        View vGroup = inflateGroup(activity, inflater, parent, group);
         View flInfo = vGroup.findViewById(R.id.flInfo);
         flInfo.setClickable(false);
         flInfo.setFocusable(false);

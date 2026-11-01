@@ -26,7 +26,9 @@
 -- so the links of /sys do not lead to the files either, like /sys/bus/mmc/devices/mmc0:0001/cid.
 -- Each variant hides the files of its group; cat, head and other commands run by the app fail for them too
 -- (see shell_commands), and folders listed with java.nio.file leave the names of hidden files out.
--- Not covered is native code.
+-- Not covered are native code and the entries of a listed folder opened by a SecureDirectoryStream of java.nio
+-- (Files.newDirectoryStream gives one, of which newByteChannel and getFileAttributeView use openat and fstatat
+-- with a name relative to the folder), like a hidden file of a folder which is not hidden itself.
 
 -- The files of each group, as patterns of the path; a pattern ending in / covers the files of a folder
 local FILES = {

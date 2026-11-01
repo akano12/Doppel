@@ -14,27 +14,28 @@
 -- along with Doppel.  If not, see <http://www.gnu.org/licenses/>.
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
--- Copyright 2026 akano12
 
--- FirebaseAnalytics and FirebaseCrashlytics, once per instance, like appsflyer_getinstance: apps get the instance
--- for each event they log
+-- SDKs which collect by themselves are turned off when the app gets their instance, once per instance:
+-- apps get the instance for each event they log. The method of each class, which AppsFlyer calls to stop
+-- and Firebase Analytics and Crashlytics to turn collection on or off.
+local METHODS = {
+    ['com.appsflyer.AppsFlyerLib'] = 'stop',
+    ['com.google.firebase.analytics.FirebaseAnalytics'] = 'setAnalyticsCollectionEnabled',
+    ['com.google.firebase.crashlytics.FirebaseCrashlytics'] = 'setCrashlyticsCollectionEnabled',
+}
+
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or param:getValue('stopped', result) then
+    local name = METHODS[hook:getClassName()]
+    if result == nil or name == nil or type(result[name]) ~= 'function' or param:getValue('stopped', result) then
         return false
     end
     param:putValue('stopped', true, result)
 
-    local name = 'setAnalyticsCollectionEnabled'
-    if hook:getClassName() == 'com.google.firebase.crashlytics.FirebaseCrashlytics' then
-        name = 'setCrashlyticsCollectionEnabled'
+    if name == 'stop' then
+        result:stop(true, param:getApplicationContext())
+    else
+        result[name](result, false)
     end
-
-    local set = result[name]
-    if type(set) ~= 'function' then
-        return false
-    end
-
-    set(result, false)
     return true
 end

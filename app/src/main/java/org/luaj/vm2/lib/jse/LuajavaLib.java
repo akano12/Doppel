@@ -143,7 +143,12 @@ public class LuajavaLib extends VarArgFunction {
 				InvocationHandler handler = new ProxyInvocationHandler(lobj);
 				
 				// create the proxy object
-				Object proxy = Proxy.newProxyInstance(getClass().getClassLoader(), ifaces, handler);
+				// loader of the interfaces, which may be private to the app; boot interfaces have none
+				ClassLoader loader = getClass().getClassLoader();
+				for ( int i=niface-1; i>=0; i-- )
+					if ( ifaces[i].getClassLoader() != null )
+						loader = ifaces[i].getClassLoader();
+				Object proxy = Proxy.newProxyInstance(loader, ifaces, handler);
 				
 				// return the proxy
 				return LuaValue.userdataOf( proxy );
@@ -204,8 +209,26 @@ public class LuajavaLib extends VarArgFunction {
 		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 			String name = method.getName();
 			LuaValue func = lobj.get(name);
-			if ( func.isnil() )
+			if ( func.isnil() ) {
+				// Proxy throws NullPointerException on null for a primitive return type
+				Class[] types = method.getParameterTypes();
+				if ( name.equals("equals") && types.length == 1 && types[0] == Object.class )
+					return Boolean.valueOf(proxy == args[0]);
+				if ( name.equals("hashCode") && types.length == 0 )
+					return Integer.valueOf(System.identityHashCode(proxy));
+				if ( name.equals("toString") && types.length == 0 )
+					return "Proxy@" + Integer.toHexString(System.identityHashCode(proxy));
+				Class r = method.getReturnType();
+				if ( r == boolean.class ) return Boolean.FALSE;
+				if ( r == char.class ) return Character.valueOf((char) 0);
+				if ( r == byte.class ) return Byte.valueOf((byte) 0);
+				if ( r == short.class ) return Short.valueOf((short) 0);
+				if ( r == int.class ) return Integer.valueOf(0);
+				if ( r == long.class ) return Long.valueOf(0);
+				if ( r == float.class ) return Float.valueOf(0);
+				if ( r == double.class ) return Double.valueOf(0);
 				return null;
+			}
 			boolean isvarargs = ((method.getModifiers() & METHOD_MODIFIERS_VARARGS) != 0);
 			int n = args!=null? args.length: 0; 
 			LuaValue[] v;

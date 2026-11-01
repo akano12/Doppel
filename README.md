@@ -57,7 +57,6 @@ What an app sees
 | Location                     | where you are      | a place you choose       |
 | Contacts, calendar, call log | all of them        | hidden                   |
 | Other apps                   | all of them        | hidden                   |
-| Time since boot              | same in every app  | different per app        |
 | Battery                      | 84%, charging      | 80%, no charging details |
 | Clipboard                    | what you copied    | a fake paste             |
 | `getprop`, `pm`, `cat`       | the real values    | the same fakes           |
@@ -137,7 +136,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 </details>
 
 <details>
-<summary><b>Your data</b> · 7 groups</summary>
+<summary><b>Your data</b> · 8 groups</summary>
 
 * **Get calendars**: hide them
 * **Get call log**: hide it, also the number of incoming and outgoing calls
@@ -201,10 +200,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * Discovery of local devices with the app's own sockets, like mDNS or SSDP, cannot be prevented.
 * The paths of other apps, like `/data/app/~~…==/com.example-…==/base.apk`, stay: Android reads their icons and labels
   from these files inside the app. They differ per install, so restrict *Get applications* to hide other apps entirely.
-* The boot time is not faked, so apps can still link each other by it until the device restarts (the wall clock minus
-  the time since boot or the uptime). Hooks on these clocks do not reach compiled app code on Android 12 and newer,
-  which reads the real time, so apps would get a mix of fake and real times and measure durations wrong (like voice
-  notes 35 minutes long); timestamps from the system, like of input events and sensors, cannot be shifted either.
+* The boot time is not faked: apps can work it out (the wall clock minus the time since boot) and use it to link
+  each other until the device restarts. Hooks on these clocks do not reach compiled app code on Android 12 and newer.
 * Restricted apps can detect Doppel, but cannot change anything, see [the FAQ](FAQ.md#user-content-faq21).
 * Apps with root access can get around any restriction.
 
@@ -250,8 +247,6 @@ Sign with the v1 and v2 schemes only, like the build does: LSPosed cannot read a
 
 Attribution
 -----------
-
-Doppel is based on [XPrivacyLua](https://github.com/M66B/XPrivacyLua) by Marcel Bokhorst (M66B).
 
 <details>
 <summary>Doppel uses</summary>

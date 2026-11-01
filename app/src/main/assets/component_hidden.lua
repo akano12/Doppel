@@ -73,8 +73,15 @@ function before(hook, param)
         return false
     end
 
-    -- The intent is the first argument of the methods of Context, the fifth of Instrumentation.execStartActivity
-    local intent = param:getArgument(method == 'execStartActivity' and 4 or 0)
+    -- The intent is the first argument of the methods of Context, the second of ActivityManager.AppTask.startActivity,
+    -- the fifth of Instrumentation.execStartActivity
+    local index = 0
+    if method == 'execStartActivity' then
+        index = 4
+    elseif method == 'startActivity' then
+        index = 1
+    end
+    local intent = param:getArgument(index)
     local isHidden, packageName = hidden(param, intent)
     if not isHidden then
         return false
@@ -83,11 +90,17 @@ function before(hook, param)
     -- bindService, bindIsolatedService and bindServiceAsUser
     if string.find(method, '^bind') then
         param:setResult(false)
-    elseif method == 'startService' or method == 'startForegroundService' then
+    elseif string.find(method, '^start%a*Service') then
+        -- startService, startForegroundService and their AsUser variants
         param:setResult(nil)
-    elseif method == 'execStartActivity' or method == 'startActivityIfNeeded' then
+    elseif method == 'execStartActivity' or method == 'startActivity' or method == 'startActivityIfNeeded' then
         param:setResult(notfound(intent))
-    elseif method == 'sendOrderedBroadcast' then
+    elseif string.find(method, 'OrderedBroadcast') then
+        -- sendOrderedBroadcast, sendStickyOrderedBroadcast and their AsUser variants;
+        -- Android throws itself for a sticky broadcast to a component, also of an app which is not installed
+        if string.find(method, '^sendSticky') and intent:getComponent() ~= nil then
+            return false
+        end
         -- Sent to a package which cannot exist, a name with a colon, so a result receiver gets the answer of Android
         -- without receivers, like for an app which is not installed; the intent of the app stays as it is
         local copy = intent:clone()

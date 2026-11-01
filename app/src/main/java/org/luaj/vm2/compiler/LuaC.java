@@ -103,14 +103,6 @@ public class LuaC extends Constants implements Globals.Compiler, Globals.Loader 
 		return new LuaClosure(prototype, env);
 	}
 
-	/** @deprecated
-	 * Use Globals.load(InputString, String, String) instead, 
-	 * or LuaC.compile(InputStream, String) and construct LuaClosure directly.
-	 */
-	public LuaValue load(InputStream stream, String chunkname, Globals globals) throws IOException {
-		return new LuaClosure(compile(stream, chunkname), globals);
-	}
-
 	static class CompileState {
 		int nCcalls = 0;
 		private Hashtable strings = new Hashtable();

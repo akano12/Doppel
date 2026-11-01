@@ -66,10 +66,14 @@ class XDatabase {
                 // Unique hook ids
                 Map<String, XHook> hooks = new HashMap<>();
                 try (Cursor cursor = db.query("hook", new String[]{"definition"}, null, null, null, null, null)) {
-                    while (cursor.moveToNext()) {
-                        XHook hook = XHook.fromJSON(cursor.getString(0));
-                        hooks.put(hook.getId(), hook);
-                    }
+                    // A definition which cannot be read is left out, else the database could never be opened
+                    while (cursor.moveToNext())
+                        try {
+                            XHook hook = XHook.fromJSON(cursor.getString(0));
+                            hooks.put(hook.getId(), hook);
+                        } catch (Throwable ex) {
+                            Log.w(TAG, "Definition not converted: " + ex);
+                        }
                 }
                 Log.i(TAG, "Converting definitions=" + hooks.size());
 
@@ -118,6 +122,8 @@ class XDatabase {
     // Hook names renamed by former versions: old name, new name; the ids of assignments have the collection
     // in front (see XHook.getId), which the renames of former versions left out, so they never applied
     static final String[][] RENAMED = new String[][]{
+            // The NMEA listener of GpsStatus still works on Android 8.1 and 9
+            {"LocationManager.addNmeaListener5", "LocationManager.addNmeaListener27"},
             {"TelephonyManager/getDeviceId", "TelephonyManager.getDeviceId"},
             {"TelephonyManager/getDeviceId/slot", "TelephonyManager.getDeviceId/slot"},
             {"TelephonyManager/getGroupIdLevel1", "TelephonyManager.getGroupIdLevel1"},
@@ -200,7 +206,6 @@ class XDatabase {
             {"Runtime.exec/commands", "ProcessBuilder.start/commands"},
             // The clipboard is read by the clipboard manager; parcels of clip data are also of drag and drop
             {"ClipData.createFromParcel", "ClipboardManager.getPrimaryClip"},
-            {"ClipDescription.createFromParcel", "ClipboardManager.getPrimaryClipDescription"},
     };
 
     // Built-in hook names removed by this and former versions, without a definition which took over; their assignments
@@ -236,8 +241,8 @@ class XDatabase {
             "SystemProperties.getInt", "SystemProperties.getLong", "WebView.constructor.11",
             "WebView.constructor.15", "WebView.constructor.1a", "WebView.constructor.1b", "WebView.constructor.1c",
             "WebView.constructor.21", "WebView.constructor.23", "WebView.constructor.5",
-            // getDefaultSensor picks from getSensorList, which is hooked; addNmeaListener of GpsStatus does nothing since Android 7
-            "SensorManager.getDefaultSensor", "SensorManager.getDefaultSensor/wakeup", "LocationManager.addNmeaListener5"
+            // getDefaultSensor picks from getSensorList, which is hooked
+            "SensorManager.getDefaultSensor", "SensorManager.getDefaultSensor/wakeup"
     };
 
     private final SQLiteDatabase db;

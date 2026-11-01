@@ -240,5 +240,41 @@ public class HiddenAppsScriptTest {
         result = component(globals, "startActivityIfNeeded", hidden);
         assertTrue(result.arg(1).toboolean());
         assertEquals("android.content.ActivityNotFoundException", className(result, 3));
+
+        // A screen of a task of the app, with the intent as second argument
+        result = component(globals, "startActivity", "{ [1] = intentof(componentof('com.other.hidden', '.Main'), nil) }");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("android.content.ActivityNotFoundException", className(result, 3));
+        assertFalse(component(globals, "startActivity",
+                "{ [1] = intentof(componentof('com.example.app', '.Main'), nil) }").arg(1).toboolean());
+
+        for (String method : new String[]{"startServiceAsUser", "startForegroundServiceAsUser"}) {
+            result = component(globals, method, hidden);
+            assertTrue(method, result.arg(1).toboolean());
+            assertTrue(method, result.arg(2).toboolean());
+            assertTrue(method, result.arg(3).isnil());
+        }
+    }
+
+    // Each ordered broadcast goes to a package which cannot exist, so its result receiver is called
+    @Test
+    public void orderedBroadcastsReachNoReceiver() throws Exception {
+        Globals globals = Scripts.load("component_hidden", STUBS);
+        String run = "local param = paramof({ [0] = %s })\n" +
+                "param.setArgument = function(self, index, value) self.args[index] = value end\n" +
+                "local restricted = before(hookof('%s'), param)\n" +
+                "return restricted, param.set, param.args[0]:getPackage()";
+        for (String method : new String[]{"sendOrderedBroadcastAsUser", "sendStickyOrderedBroadcast",
+                "sendStickyOrderedBroadcastAsUser"}) {
+            Varargs result = Scripts.run(globals, String.format(run, "intentof(nil, 'com.other.hidden')", method));
+            assertTrue(method, result.arg(1).toboolean());
+            assertFalse(method, result.arg(2).toboolean());
+            assertEquals(method, "com.other.hidden:hidden", result.arg(3).tojstring());
+        }
+        // Android refuses a sticky broadcast to a component itself, also of an app which is not installed
+        Varargs sticky = Scripts.run(globals, String.format(run,
+                "intentof(componentof('com.other.hidden', '.Receiver'), nil)", "sendStickyOrderedBroadcast"));
+        assertFalse(sticky.arg(1).toboolean());
+        assertTrue(sticky.arg(3).isnil());
     }
 }

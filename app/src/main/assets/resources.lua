@@ -62,7 +62,8 @@ function freesize(value)
 end
 
 -- Opening files, of which only /proc/meminfo has the sizes, see XCore.getFilter; also by other paths,
--- like /proc/self/root/proc/meminfo, and by java.nio (UnixNativeDispatcher.open), see XParam.opens
+-- like /proc/self/root/proc/meminfo, and by java.nio (UnixNativeDispatcher.open), see XParam.opens.
+-- Not covered are links of apps themselves to the file, which have paths without meminfo.
 function filter(hook)
     if hook:getMethodName() == 'open' then
         return { '*meminfo*' }
@@ -93,9 +94,8 @@ function meminfo(param)
             else
                 fake = freesize(size)
             end
-            -- The name in 16 characters, the size in 8, like the kernel; LuaJ formats no widths
-            local kb = tostring(math.floor(fake / 1024))
-            local faked = name .. string.rep(' ', 16 - #name) .. string.rep(' ', 8 - #kb) .. kb .. ' kB\n'
+            -- The name in 16 characters, the size in 8, like the kernel; LuaJ pads numbers, not texts (%s)
+            local faked = name .. string.rep(' ', 16 - #name) .. string.format('%8d', math.floor(fake / 1024)) .. ' kB\n'
             changed = changed or faked ~= line
             line = faked
             -- Like the log of ActivityManager.getMemoryInfo: total and available memory
@@ -129,7 +129,19 @@ function after(hook, param)
             return false
         end
         local old = info.totalMem .. ' ' .. info.availMem
-        info.totalMem = memorysize(info.totalMem)
+        -- The low memory thresholds are shares of the total, so they grow with it, like SwapTotal;
+        -- the hidden ones are nil when the runtime does not show them
+        local total = info.totalMem
+        local fake = memorysize(total)
+        if total > 0 then
+            for _, name in ipairs({ 'threshold', 'hiddenAppThreshold', 'secondaryServerThreshold',
+                                    'visibleAppThreshold', 'foregroundAppThreshold' }) do
+                if info[name] ~= nil then
+                    info[name] = math.floor(info[name] * (fake / total))
+                end
+            end
+        end
+        info.totalMem = fake
         info.availMem = freesize(info.availMem)
         local new = info.totalMem .. ' ' .. info.availMem
         return old ~= new, old, new

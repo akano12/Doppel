@@ -17,7 +17,7 @@
 -- Copyright 2026 akano12
 
 -- The security patch level per quarter, like 2025-04-01 for 2025-05-05: a date of fewer values,
--- which apps can still parse and compare (see security_patch)
+-- which apps can still parse and compare, where 'unknown' would make them fail; also Build.VERSION.SECURITY_PATCH
 local QUARTER = {}
 
 -- Properties behind the fields of android.os.Build with their fake values, the same as getprop
@@ -206,6 +206,17 @@ function filter(hook)
 end
 
 function after(hook, param)
+    -- The field Build.VERSION.SECURITY_PATCH of the property, without an argument; not set it stays empty
+    if hook:getMethodName() == '#SECURITY_PATCH' then
+        local result = param:getResult()
+        local fake = (result ~= nil and quarter(result) or nil)
+        if fake == nil or fake == result then
+            return false
+        end
+        param:setResult(fake)
+        return true, result, fake
+    end
+
     -- The hooked methods are called for all properties, so check the name first
     local key = param:getArgument(0)
     if key == nil or not (string.sub(key, 1, 3) == 'ro.' or

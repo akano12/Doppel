@@ -245,29 +245,32 @@ public class FakeValuesAgreeTest {
     // The first day of the quarter, for Build.VERSION.SECURITY_PATCH and its property; other texts stay
     @Test
     public void securityPatch() throws Exception {
-        Globals field = load("security_patch");
-        Globals properties = load("systemproperties_get");
+        Globals globals = load("systemproperties_get");
         for (String date : new String[]{"2025-01-01", "2025-03-31", "2025-05-05", "2025-07-01", "2025-12-31",
                 "2025-5-5", "unknown"}) {
-            String expected = run(field, "fakeof(nil, nil, '" + date + "')");
-            assertEquals(date, expected, run(properties, "fakeof('SystemProperties.get/device', 'get', '" + date +
+            String expected = run(globals, "fakeof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH', '" + date + "')");
+            assertEquals(date, expected, run(globals, "fakeof('SystemProperties.get/device', 'get', '" + date +
                     "', { 'ro.build.version.security_patch' })"));
         }
-        assertEquals("2025-04-01", run(field, "fakeof(nil, nil, '2025-05-05')"));
+        assertEquals("2025-04-01", run(globals, "fakeof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH', '2025-05-05')"));
     }
 
     // The model and build in the user agent of WebView become K, like Chrome does, for the default user agent
     // and for the ones the app sets
     @Test
     public void userAgent() throws Exception {
-        Globals getter = load("webview_useragent");
-        Globals constructor = load("webview_constructor");
-        for (String ua : new String[]{
-                "Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv) AppleWebKit/537.36",
-                "Mozilla/5.0 (Linux; Android 10; SM-G973F Build/QP1A.190711.020) AppleWebKit/537.36",
-                "Mozilla/5.0 (Linux; Android 15; K; wv) AppleWebKit/537.36"}) {
-            String expected = run(getter, "fakeof(nil, 'getDefaultUserAgent', '" + ua + "')");
-            assertEquals(ua, expected, run(constructor, "reduce('" + ua + "')"));
+        Globals globals = load("webview_constructor");
+        String[][] agents = {
+                {"Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv) AppleWebKit/537.36",
+                        "Mozilla/5.0 (Linux; Android 15; K; wv) AppleWebKit/537.36"},
+                {"Mozilla/5.0 (Linux; Android 10; SM-G973F Build/QP1A.190711.020) AppleWebKit/537.36",
+                        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"},
+                {"Mozilla/5.0 (Linux; Android 15; K; wv) AppleWebKit/537.36",
+                        "Mozilla/5.0 (Linux; Android 15; K; wv) AppleWebKit/537.36"}};
+        for (String[] ua : agents) {
+            String expected = run(globals, "fakeof(nil, 'getDefaultUserAgent', '" + ua[0] + "')");
+            assertEquals(ua[0], ua[1], expected);
+            assertEquals(ua[0], expected, run(globals, "reduce('" + ua[0] + "')"));
         }
     }
 

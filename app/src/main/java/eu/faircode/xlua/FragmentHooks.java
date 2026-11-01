@@ -234,8 +234,11 @@ public class FragmentHooks extends FragmentBase {
         Ui.setChipCount(cgFilter, R.id.chipCustom, R.string.title_hook_custom, custom);
         Ui.setChipCount(cgFilter, R.id.chipDisabled, R.string.title_hook_disabled, disabled);
         Ui.setChipCount(cgFilter, R.id.chipUnavailable, R.string.title_hook_unavailable, unavailable);
+        // Each count picks its own plural, like 1 hook · 2 groups
         compact.setSubtitle(getString(R.string.title_pair,
-                getResources().getQuantityString(R.plurals.title_compact_hooks, groups.size(), all.size(), groups.size()),
+                getString(R.string.title_pair,
+                        getResources().getQuantityString(R.plurals.title_hook_count, all.size(), all.size()),
+                        getResources().getQuantityString(R.plurals.title_group_count, groups.size(), groups.size())),
                 getString(FILTER_TITLES[filter.ordinal()])));
 
         String q = (query == null ? "" : query.trim());

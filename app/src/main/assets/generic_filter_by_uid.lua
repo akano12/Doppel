@@ -33,6 +33,7 @@ function after(hook, param)
 
     local filtered = false
     local name = string.gsub(hook:getName(), '%.%d+$', '')
+    name = string.gsub(name, 'AsUser$', '') -- Hidden methods for a user, with the items of their public twin
     local cuid = param:getUid()
 
     local info = list:toArray()

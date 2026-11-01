@@ -99,7 +99,7 @@ class Backup {
         jroot.put("hooks", jhooks);
 
         // The built-in definitions of this version, so a restore by a later version knows which are newer,
-        // for this Android version only, so a restore on a newer Android version adds the hooks of that version
+        // enabled and for this Android version only, so a restore adds the hooks enabled since and of a newer Android version
         JSONArray jbuiltins = new JSONArray();
         for (String id : builtinsForThisSdk(Data.getBuiltinIds(context), Data.getAllHooks(context, null)))
             jbuiltins.put(id);
@@ -254,15 +254,14 @@ class Backup {
         return result;
     }
 
-    // The built-in ids of which the definition, built-in or replaced by a custom one, is for this Android version
+    // The built-in ids of which the definition, built-in or replaced by a custom one, can be assigned: enabled and for
+    // this Android version, like the service tracks them (XProvider.enabledBuiltins), so a restore by a later version
+    // which enables a hook adds it
     static List<String> builtinsForThisSdk(Collection<String> builtins, List<XHook> hooks) {
-        Set<String> forThisSdk = new HashSet<>();
-        for (XHook hook : hooks)
-            if (hook.isForThisSdk())
-                forThisSdk.add(hook.getId());
+        Set<String> enabled = new HashSet<>(XProvider.enabledBuiltins(hooks));
         List<String> result = new ArrayList<>();
         for (String id : builtins)
-            if (forThisSdk.contains(id))
+            if (enabled.contains(id))
                 result.add(id);
         return result;
     }

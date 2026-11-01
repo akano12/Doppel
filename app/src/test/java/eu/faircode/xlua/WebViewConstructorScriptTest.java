@@ -48,7 +48,7 @@ public class WebViewConstructorScriptTest {
     public void newWebViewKeepsNoValue() throws Exception {
         Varargs result = Scripts.run(Scripts.load("webview_constructor", STUBS),
                 "local webview = webviewof('Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv)')\n" +
-                        "local restricted = after(nil, paramof(webview))\n" +
+                        "local restricted = after({ getMethodName = function(self) return nil end }, paramof(webview))\n" +
                         "return restricted, webview.settings.ua, hooked, scoped");
         assertTrue(result.arg1().toboolean());
         assertEquals("Mozilla/5.0 (Linux; Android 15; K; wv)", result.arg(2).tojstring());

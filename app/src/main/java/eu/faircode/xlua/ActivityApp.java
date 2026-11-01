@@ -329,14 +329,10 @@ public class ActivityApp extends ActivityBase {
         LayoutInflater inflater = LayoutInflater.from(this);
         for (Map.Entry<Integer, List<String>> entry : GroupsSheet.bySection(this, available.keySet()).entrySet()) {
             final List<String> groups = entry.getValue();
-            View vSection = inflater.inflate(R.layout.item_section, llSections, false);
-            TextView tvSection = vSection.findViewById(R.id.tvSection);
-            tvSection.setText(entry.getKey());
-            ViewCompat.setAccessibilityHeading(tvSection, true);
+            View vSection = GroupsSheet.inflateSection(inflater, llSections, entry.getKey());
             vSection.setTag(groups);
             // All groups of the section, or none when all are complete, like the sheet of the groups of the Apps tab
             Button btnSection = vSection.findViewById(R.id.btnSection);
-            btnSection.setVisibility(View.VISIBLE);
             btnSection.setOnClickListener(view -> {
                 if (isComplete(groups))
                     assign(groups, false);
@@ -345,7 +341,7 @@ public class ActivityApp extends ActivityBase {
             });
             LinearLayout llRows = vSection.findViewById(R.id.llRows);
             for (final String group : groups) {
-                View vGroup = inflater.inflate(R.layout.item_group, llRows, false);
+                View vGroup = GroupsSheet.inflateGroup(this, inflater, llRows, group);
                 GroupView gv = new GroupView();
                 gv.llRow = vGroup.findViewById(R.id.llRow);
                 gv.flInfo = vGroup.findViewById(R.id.flInfo);
@@ -358,12 +354,7 @@ public class ActivityApp extends ActivityBase {
                 gv.ibError = vGroup.findViewById(R.id.ibError);
                 gv.llHooks = vGroup.findViewById(R.id.llHooks);
                 String title = Groups.getTitle(this, group);
-                ((TextView) vGroup.findViewById(R.id.tvTitle)).setText(title);
-                gv.ivIcon.setImageResource(Groups.getIcon(group));
-                TextView tvDescription = vGroup.findViewById(R.id.tvDescription);
                 String description = Groups.getDescription(this, group);
-                tvDescription.setText(description);
-                tvDescription.setVisibility(description == null ? View.GONE : View.VISIBLE);
                 // The icon shows the whole description, which the row shortens to a line
                 if (description == null) {
                     gv.flInfo.setClickable(false);

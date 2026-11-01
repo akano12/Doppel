@@ -20,7 +20,8 @@
 -- changed later, like of Download. Their times become those of the files of reproducible builds
 -- (2009-01-01 00:00 UTC), like the install times of other apps (see packageinfo_createfromparcel).
 -- The times are read with Os.stat and Os.lstat, File.lastModified and java.nio.file.Files (also the time
--- the folder was made); not covered are the times of files in the folders, Os.fstat and native code.
+-- the folder was made); not covered are the times of files in the folders, Os.fstat, the attributes of entries
+-- of a SecureDirectoryStream of java.nio (fstatat, like Files.newDirectoryStream of the storage gives) and native code.
 local FAKE = 1230768000
 
 -- The folders the system makes, which apps can read the times of

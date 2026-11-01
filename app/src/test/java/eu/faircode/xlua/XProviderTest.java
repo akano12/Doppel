@@ -42,6 +42,30 @@ public class XProviderTest {
                 XProvider.APP_QUERIES);
     }
 
+    // The app of a secondary user acts for its own user only; system server, like ReceiverPackage, for any user
+    @Test
+    public void appActsForItsOwnUserOnly() {
+        int owner = Util.getUserUid(0, 10123);
+        int secondary = Util.getUserUid(10, 10123);
+        int system = Util.getUserUid(10, android.os.Process.SYSTEM_UID);
+        assertTrue(XProvider.forOwnUser(secondary, "getSetting", 10, 0, false));
+        assertTrue(XProvider.forOwnUser(secondary, "forceStop", 0, Util.getUserUid(10, 10200), false));
+        assertTrue(XProvider.forOwnUser(owner, "putHook", 0, 0, false));
+        assertFalse(XProvider.forOwnUser(secondary, "putHook", 0, 0, false));
+        assertTrue(XProvider.forOwnUser(system, "putHook", 0, 0, false));
+        assertTrue(XProvider.forOwnUser(owner, "clearData", 0, 0, false));
+
+        for (String method : XProvider.USER_CALLS)
+            assertFalse(method, XProvider.forOwnUser(secondary, method, 0, 0, false));
+        for (String method : XProvider.UID_CALLS)
+            assertFalse(method, XProvider.forOwnUser(secondary, method, 10, Util.getUserUid(0, 10200), false));
+        assertFalse(XProvider.forOwnUser(secondary, "clearData", 10, 0, true));
+        assertFalse(XProvider.forOwnUser(owner, "clearData", 0, 0, true));
+
+        assertTrue(XProvider.forOwnUser(system, "clearData", 0, 0, true));
+        assertTrue(XProvider.forOwnUser(android.os.Process.SYSTEM_UID, "initApp", 0, Util.getUserUid(10, 10200), false));
+    }
+
     // Hooked apps read the settings for all apps and the settings and fake values of their own packages only
     @Test
     public void hookedAppsReadTheirOwnPackagesOnly() {

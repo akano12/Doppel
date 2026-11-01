@@ -42,6 +42,7 @@ local FAKES = {
     getCarrierId = -1,
     getSimCarrierId = -1, -- TelephonyManager
     getSimSpecificCarrierId = -1,
+    getCarrierIdFromSimMccMnc = -1,
 }
 
 -- Whether a code of 0 is empty: getMcc and getMnc of a subscription give 0 without its codes. No MCC is 0,
