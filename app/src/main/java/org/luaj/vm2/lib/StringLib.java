@@ -21,16 +21,12 @@
 ******************************************************************************/
 package org.luaj.vm2.lib;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 
-import org.luaj.vm2.LuaClosure;
 import org.luaj.vm2.Buffer;
 import org.luaj.vm2.LuaString;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.compiler.DumpState;
 
 /** 
  * Subclass of {@link LibFunction} which implements the lua standard {@code string} 
@@ -47,8 +43,7 @@ import org.luaj.vm2.compiler.DumpState;
  * link it into your globals table via {@link LuaValue#load(LuaValue)} using code such as:
  * <pre> {@code
  * Globals globals = new Globals();
- * globals.load(new JseBaseLib());
- * globals.load(new PackageLib());
+ * globals.load(new BaseLib());
  * globals.load(new StringLib());
  * System.out.println( globals.get("string").get("upper").call( LuaValue.valueOf("abcde") ) );
  * } </pre>
@@ -85,7 +80,6 @@ public class StringLib extends TwoArgFunction {
 		LuaTable string = new LuaTable();
 		string.set("byte", new byte_());
 		string.set("char", new char_());
-		string.set("dump", new dump());
 		string.set("find", new find());
 		string.set("format", new format());
 		string.set("gmatch", new gmatch());
@@ -100,7 +94,6 @@ public class StringLib extends TwoArgFunction {
 		LuaTable mt = LuaValue.tableOf(
 				new LuaValue[] { INDEX, string });
 		env.set("string", string);
-		env.get("package").get("loaded").set("string", string);
 		if (LuaString.s_metatable == null)
 			LuaString.s_metatable = mt;
 		return string;
@@ -161,28 +154,6 @@ public class StringLib extends TwoArgFunction {
 		}
 	}
 		
-	/** 
-	 * string.dump (function)
-	 * 
-	 * Returns a string containing a binary representation of the given function, 
-	 * so that a later loadstring on this string returns a copy of the function. 
-	 * function must be a Lua function without upvalues.
-	 *  
-	 * TODO: port dumping code as optional add-on
-	 */
-	static final class dump extends OneArgFunction {
-		public LuaValue call(LuaValue arg) {
-			LuaValue f = arg.checkfunction();
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			try {
-				DumpState.dump( ((LuaClosure)f).p, baos, true );
-				return LuaString.valueUsing(baos.toByteArray());
-			} catch (IOException e) {
-				return error( e.getMessage() );
-			}
-		}
-	}
-
 	/** 
 	 * string.find (s, pattern [, init [, plain]])
 	 * 

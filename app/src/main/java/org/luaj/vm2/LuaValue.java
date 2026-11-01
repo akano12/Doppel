@@ -66,18 +66,7 @@ import org.luaj.vm2.Varargs;
  * print.call( r.arg(1), r.arg(2) );
  * } </pre>
  * <p>
- * To load and run a script, {@link LoadState} is used:
- * <pre> {@code
- * LoadState.load( new FileInputStream("main.lua"), "main.lua", globals ).call();
- * } </pre>
- * <p>
- * although {@code require} could also be used: 
- * <pre> {@code
- * globals.get("require").call(LuaValue.valueOf("main"));
- * } </pre>
- * For this to work the file must be in the current directory, or in the class path, 
- * dependening on the platform.  
- * See {@link org.luaj.vm2.lib.jse.JsePlatform} and {@link org.luaj.vm2.lib.jme.JmePlatform} for details. 
+ * To load and run a script, use {@link Globals#load(String)}.
  * <p>
  * In general a {@link LuaError} may be thrown on any operation when the  
  * types supplied to any operation are illegal from a lua perspective. 
@@ -105,7 +94,6 @@ import org.luaj.vm2.Varargs;
  * 
  * @see org.luaj.vm2.lib.jse.JsePlatform
  * @see org.luaj.vm2.lib.jme.JmePlatform
- * @see LoadState 
  * @see Varargs
  */
 abstract

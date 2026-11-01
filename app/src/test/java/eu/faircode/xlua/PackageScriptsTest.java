@@ -318,6 +318,17 @@ public class PackageScriptsTest {
         assertEquals(1, properties.arg(1).toint());
         assertEquals("com.android.vending", properties.arg(2).tojstring());
 
+        // Device admins are components, by their package
+        Varargs admins = Scripts.run(globals,
+                "local function admin(name) return { getPackageName = function(self) return name end } end\n" +
+                        "local list = listof({ admin('com.google.android.gms'), admin('com.example.mdm') })\n" +
+                        "local param = paramof({}, { ['com.google.android.gms'] = true })\n" +
+                        "param.result = list\n" +
+                        "after(hookof('DevicePolicyManager.getActiveAdmins'), param)\n" +
+                        "return list:size(), list:get(0):getPackageName()");
+        assertEquals(1, admins.arg(1).toint());
+        assertEquals("com.google.android.gms", admins.arg(2).tojstring());
+
         // Instrumentations stay when both the test runner and the package it tests are visible
         Varargs instrumentations = Scripts.run(globals,
                 "local function instrumentation(name, target) return { packageName = name, targetPackage = target } end\n" +

@@ -56,8 +56,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * link it into your globals table via {@link Globals#load} using code such as:
  * <pre> {@code
  * Globals globals = new Globals();
- * globals.load(new JseBaseLib());
- * globals.load(new PackageLib());
+ * globals.load(new BaseLib());
  * globals.load(new LuajavaLib());
  * globals.load( 
  *      "sys = luajava.bindClass('java.lang.System')\n"+
@@ -112,7 +111,6 @@ public class LuajavaLib extends VarArgFunction {
 				LuaTable t = new LuaTable();
 				bind( t, this.getClass(), NAMES, BINDCLASS );
 				env.set("luajava", t);
-				env.get("package").get("loaded").set("luajava", t);
 				return t;
 			}
 			case BINDCLASS: {

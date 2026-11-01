@@ -41,7 +41,7 @@ public class BackupTest {
     // Renamed definitions get the restrictions of their former name, as the database upgrade gives them
     @Test
     public void renamedDefinitionsGetTheirNameNow() {
-        assertEquals(PREFIX + "TelephonyManager.getImei", Backup.renamed(PREFIX + "TelephonyManager/getImei"));
+        assertEquals(PREFIX + "TelephonyManager.getSimOperator", Backup.renamed(PREFIX + "TelephonyManager/getSimOperator"));
         for (String[] rename : XDatabase.RENAMED) {
             String now = Backup.renamed(PREFIX + rename[0]);
             assertFalse(rename[0], now.equals(PREFIX + rename[0]));
@@ -54,7 +54,7 @@ public class BackupTest {
     @Test
     public void otherDefinitionsKeepTheirId() {
         assertEquals(PREFIX + "Location.createFromParcel", Backup.renamed(PREFIX + "Location.createFromParcel"));
-        assertEquals("Custom.TelephonyManager/getImei", Backup.renamed("Custom.TelephonyManager/getImei"));
+        assertEquals("Custom.TelephonyManager/getSimOperator", Backup.renamed("Custom.TelephonyManager/getSimOperator"));
     }
 
     // Definitions added since the backup complete the groups it restricted, if the app can have them

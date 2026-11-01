@@ -312,9 +312,7 @@ public class ActivityApp extends ActivityBase {
         available.clear();
         boolean hasValues = false;
         for (XHook hook : hooks) {
-            if (!available.containsKey(hook.getGroup()))
-                available.put(hook.getGroup(), new ArrayList<>());
-            available.get(hook.getGroup()).add(hook);
+            available.computeIfAbsent(hook.getGroup(), k -> new ArrayList<>()).add(hook);
             if (hook.getSettings().length > 0)
                 hasValues = true;
         }

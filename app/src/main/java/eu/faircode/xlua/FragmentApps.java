@@ -124,11 +124,6 @@ public class FragmentApps extends FragmentBase {
             }
 
             @Override
-            public void onRestrictAll(AdapterApp.Row row) {
-                setAll(row.app, true);
-            }
-
-            @Override
             public void onSetAll(AdapterApp.Row row, boolean restrict) {
                 // Like Restrict all on the screen of the app, restricting all of system server asks first
                 if (restrict)

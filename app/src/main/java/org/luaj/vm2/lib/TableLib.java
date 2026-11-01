@@ -41,8 +41,7 @@ import org.luaj.vm2.Varargs;
  * link it into your globals table via {@link LuaValue#load(LuaValue)} using code such as:
  * <pre> {@code
  * Globals globals = new Globals();
- * globals.load(new JseBaseLib());
- * globals.load(new PackageLib());
+ * globals.load(new BaseLib());
  * globals.load(new TableLib());
  * System.out.println( globals.get("table").get("length").call( LuaValue.tableOf() ) );
  * } </pre>
@@ -70,7 +69,6 @@ public class TableLib extends TwoArgFunction {
 		table.set("sort", new sort());
 		table.set("unpack", new unpack());
 		env.set("table", table);
-		env.get("package").get("loaded").set("table", table);
 		return NIL;
 	}
 

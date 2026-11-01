@@ -74,9 +74,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
         void onLaunch(XApp app);
 
-        void onRestrictAll(Row row);
-
-        // From the actions behind a row, see Swipe
+        // From the actions behind a row, see Swipe, and the button of a new app
         void onSetAll(Row row, boolean restrict);
 
         void onGroups(Row row);
@@ -547,7 +545,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 if (row == null)
                     return;
                 if (row.canRestrictAll())
-                    listener.onRestrictAll(row);
+                    listener.onSetAll(row, true);
                 else
                     listener.onApp(row.app);
             });
@@ -584,10 +582,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         void setOpen(boolean show) {
             long previous = open;
             open = (show ? getKey() : RecyclerView.NO_ID);
-            if (previous != RecyclerView.NO_ID && previous != open)
-                for (int i = 0; i < items.size(); i++)
-                    if (AdapterApp.this.getItemId(i) == previous)
-                        notifyItemChanged(i);
+            if (previous != open)
+                notifyRow(previous);
             slide(show);
         }
 
@@ -634,9 +630,13 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     void closeOpen() {
         long previous = open;
         open = RecyclerView.NO_ID;
-        if (previous != RecyclerView.NO_ID)
+        notifyRow(previous);
+    }
+
+    private void notifyRow(long id) {
+        if (id != RecyclerView.NO_ID)
             for (int i = 0; i < items.size(); i++)
-                if (getItemId(i) == previous)
+                if (getItemId(i) == id)
                     notifyItemChanged(i);
     }
 

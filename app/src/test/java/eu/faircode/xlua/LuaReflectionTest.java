@@ -131,4 +131,17 @@ public class LuaReflectionTest {
         assertEquals(false, checker.equals(new Object()));
         assertEquals(true, checker.toString().startsWith("Proxy@"));
     }
+
+    // Scripts get no io, coroutine, package or file loading, and of os only the times
+    @Test
+    public void librariesOfScripts() {
+        Globals globals = JsePlatform.standardGlobals();
+        LuaValue result = globals.load("return io == nil and coroutine == nil and package == nil and require == nil" +
+                " and dofile == nil and loadfile == nil and string.dump == nil" +
+                " and os.execute == nil and os.getenv == nil and os.remove == nil and os.exit == nil" +
+                " and type(os.time()) == 'number' and type(os.clock()) == 'number'" +
+                " and os.difftime(2, 1) == 1 and os.date('%Y', 0) ~= nil" +
+                " and load('return 1')() == 1 and bit32 ~= nil and luajava ~= nil").call();
+        assertEquals(true, result.toboolean());
+    }
 }

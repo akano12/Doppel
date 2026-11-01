@@ -28,9 +28,6 @@ import java.io.Reader;
 
 import org.luaj.vm2.lib.BaseLib;
 import org.luaj.vm2.lib.DebugLib;
-import org.luaj.vm2.lib.IoLib;
-import org.luaj.vm2.lib.PackageLib;
-import org.luaj.vm2.lib.ResourceFinder;
 
 /**
  * Global environment used by luaj.  Contains global variables referenced by executing lua.
@@ -64,27 +61,21 @@ import org.luaj.vm2.lib.ResourceFinder;
  * <h3>Fine-Grained Control of Compiling and Loading Lua</h3>
  * Executable LuaFunctions are created from lua code in several steps
  * <ul>
- * <li>find the resource using the platform's {@link ResourceFinder}
  * <li>compile lua to lua bytecode using {@link Compiler}
- * <li>load lua bytecode to a {@link Prototype} using {@link Undumper}
  * <li>construct {@link LuaClosure} from {@link Prototype} with {@link Globals} using {@link Loader}
  * </ul>
  * <p>
  * There are alternate flows when the direct lua-to-Java bytecode compiling {@link org.luaj.vm2.luajc.LuaJC} is used.
  * <ul>
- * <li>compile lua to lua bytecode using {@link Compiler} or load precompiled code using {@link Undumper}
+ * <li>compile lua to lua bytecode using {@link Compiler}
  * <li>convert lua bytecode to equivalent Java bytecode using {@link org.luaj.vm2.luajc.LuaJC} that implements {@link Loader} directly
  * </ul>
  * 
  * <h3>Java Field</h3>
  * Certain public fields are provided that contain the current values of important global state:
  * <ul>
- * <li>{@link #STDIN} Current value for standard input in the laaded {@link IoLib}, if any.
- * <li>{@link #STDOUT} Current value for standard output in the loaded {@link IoLib}, if any.
- * <li>{@link #STDERR} Current value for standard error in the loaded {@link IoLib}, if any.
- * <li>{@link #finder} Current loaded {@link ResourceFinder}, if any.
+ * <li>{@link #STDOUT} Current value for standard output, used by print.
  * <li>{@link #compiler} Current loaded {@link Compiler}, if any.
- * <li>{@link #undumper} Current loaded {@link Undumper}, if any.
  * <li>{@link #loader} Current loaded {@link Loader}, if any.
  * </ul>
  * 
@@ -107,33 +98,19 @@ import org.luaj.vm2.lib.ResourceFinder;
  * @see LuaValue
  * @see Compiler
  * @see Loader
- * @see Undumper
- * @see ResourceFinder
  * @see org.luaj.vm2.compiler.LuaC
  * @see org.luaj.vm2.luajc.LuaJC
  */
 public class Globals extends LuaTable {
 
-	/** The current default input stream. */
-	public InputStream STDIN  = null;
-
 	/** The current default output stream. */
 	public PrintStream STDOUT = System.out;
 
-	/** The current default error stream. */
-	public PrintStream STDERR = System.err;
-
-	/** The installed ResourceFinder for looking files by name. */
-	public ResourceFinder finder;
-	
 	/** The currently running thread.  Should not be changed by non-library code. */
 	public LuaThread running = new LuaThread(this);
 
 	/** The BaseLib instance loaded into this Globals */
 	public BaseLib baselib;
-	
-	/** The PackageLib instance loaded into this Globals */
-	public PackageLib package_;
 	
 	/** The DebugLib instance loaded into this Globals, or null if debugging is not enabled */
 	public DebugLib debuglib;
@@ -150,12 +127,6 @@ public class Globals extends LuaTable {
 		Prototype compile(InputStream stream, String chunkname) throws IOException;
 	}
 
-	/** Interface for module that loads lua binary chunk into a prototype. */
-	public interface Undumper {
-		/** Load the supplied input stream into a prototype. */
-		Prototype undump(InputStream stream, String chunkname) throws IOException;
-	}
-	
 	/** Check that this object is a Globals object, and return it, otherwise throw an error. */
 	public Globals checkglobals() {
 		return this;
@@ -168,23 +139,6 @@ public class Globals extends LuaTable {
 	/** The installed compiler.
 	 * @see Compiler */
 	public Compiler compiler;
-
-	/** The installed undumper.
-	 * @see Undumper */
-	public Undumper undumper;
-
-	/** Convenience function for loading a file that is either binary lua or lua source.
-	 * @param filename Name of the file to load.
-	 * @return LuaValue that can be call()'ed or invoke()'ed.
-	 * @throws LuaError if the file could not be loaded.
-	 */
-	public LuaValue loadfile(String filename) {
-		try {
-			return load(finder.findResource(filename), "@"+filename, "bt", this);
-		} catch (Exception e) {
-			return error("load "+filename+": "+e);
-		}
-	}
 
 	/** Convenience function to load a string value as a script.  Must be lua source.
 	 * @param script Contents of a lua script, such as "print 'hello, world.'"
@@ -268,17 +222,6 @@ public class Globals extends LuaTable {
 	 * @param mode String containing 'b' or 't' or both to control loading as binary or text or either.
 	 */
 	public Prototype loadPrototype(InputStream is, String chunkname, String mode) throws IOException {
-		if (mode.indexOf('b') >= 0) {
-			if (undumper == null)
-				error("No undumper.");
-			if (!is.markSupported())
-				is = new BufferedStream(is);
-			is.mark(4);
-			final Prototype p = undumper.undump(is, chunkname);
-			if (p != null)
-				return p;
-			is.reset();
-		}
 		if (mode.indexOf('t') >= 0) {
 			return compilePrototype(is, chunkname);
 		}
@@ -302,17 +245,6 @@ public class Globals extends LuaTable {
 		if (compiler == null)
 			error("No compiler.");
 		return compiler.compile(stream, chunkname);
-	}
-
-	/** Function which yields the current thread. 
-	 * @param args  Arguments to supply as return values in the resume function of the resuming thread.
-	 * @return Values supplied as arguments to the resume() call that reactivates this thread.
-	 */
-	public Varargs yield(Varargs args) {
-		if (running == null || running.isMainThread())
-			throw new LuaError("cannot yield main thread");
-		final LuaThread.State s = running.state;
-		return s.lua_yield(args);
 	}
 
 	/** Reader implementation to read chars from a String in JME or JSE. */
@@ -404,55 +336,4 @@ public class Globals extends LuaTable {
 		}
 	}
 	
-	/** Simple buffered InputStream that supports mark.
-	 * Used to examine an InputStream for a 4-byte binary lua signature, 
-	 * and fall back to text input when the signature is not found,
-	 * as well as speed up normal compilation and reading of lua scripts.
-	 * This class may be moved to its own package in the future.
-	 */
-	static class BufferedStream extends AbstractBufferedStream {
-		private final InputStream s;
-		public BufferedStream(InputStream s) {
-			this(128, s);
-		}
-		BufferedStream(int buflen, InputStream s) {
-			super(buflen);
-			this.s = s;
-		}
-		protected int avail() throws IOException {
-			if (i < j) return j - i;
-			if (j >= b.length) i = j = 0;
-			// leave previous bytes in place to implement mark()/reset().
-			int n = s.read(b, j, b.length - j);
-			if (n < 0)
-				return -1;
-			if (n == 0) {
-				int u = s.read();
-				if (u < 0)
-					return -1;
-				b[j] = (byte) u;
-				n = 1;
-			}
-			j += n;
-			return n;
-		}
-		public void close() throws IOException {
-			s.close();
-		}
-		public synchronized void mark(int n) {
-			if (i > 0 || n > b.length) {
-				byte[] dest = n > b.length ? new byte[n] : b;
-				System.arraycopy(b, i, dest, 0, j - i);
-				j -= i;
-				i = 0;
-				b = dest;
-			}
-		}
-		public boolean markSupported() {
-			return true;
-		}
-		public synchronized void reset() throws IOException {
-			i = 0;
-		}
-	}
 }

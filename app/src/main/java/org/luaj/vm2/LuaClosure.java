@@ -78,7 +78,6 @@ package org.luaj.vm2;
  * @see LuaValue#isclosure()
  * @see LuaValue#checkclosure()
  * @see LuaValue#optclosure(LuaClosure)
- * @see LoadState
  * @see Globals#compiler
  */
 public class LuaClosure extends LuaFunction {

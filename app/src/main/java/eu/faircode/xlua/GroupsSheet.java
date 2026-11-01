@@ -93,11 +93,8 @@ final class GroupsSheet {
         this.app = app;
         this.host = host;
         this.available = Data.getAvailable(hooks, app, collection, null);
-        for (XHook hook : available) {
-            if (!groups.containsKey(hook.getGroup()))
-                groups.put(hook.getGroup(), new ArrayList<>());
-            groups.get(hook.getGroup()).add(hook);
-        }
+        for (XHook hook : available)
+            groups.computeIfAbsent(hook.getGroup(), k -> new ArrayList<>()).add(hook);
         for (XAssignment assignment : app.assignments)
             assigned.add(assignment.id);
         this.before = new HashSet<>(assigned);

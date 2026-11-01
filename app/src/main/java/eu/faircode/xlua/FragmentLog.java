@@ -362,9 +362,7 @@ public class FragmentLog extends FragmentBase {
                 else
                     day = DateUtils.formatDateTime(context, entry.time,
                             DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_ABBREV_ALL);
-                if (!days.containsKey(day))
-                    days.put(day, new ArrayList<>());
-                days.get(day).add(entry);
+                days.computeIfAbsent(day, k -> new ArrayList<>()).add(entry);
             }
             for (Map.Entry<String, List<Entry>> day : days.entrySet()) {
                 items.add(getString(R.string.title_count, day.getKey(), day.getValue().size()));

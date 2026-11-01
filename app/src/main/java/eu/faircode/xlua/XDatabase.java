@@ -119,24 +119,10 @@ class XDatabase {
             {"SubscriptionInfo.toString/plmn", "Use.Tracking"},
     };
 
-    // Hook names renamed by former versions: old name, new name; the ids of assignments have the collection
-    // in front (see XHook.getId), which the renames of former versions left out, so they never applied
+    // Built-in hook names renamed by this and former versions: old name, new name, see upgrade and Backup.renamed
     static final String[][] RENAMED = new String[][]{
             // The NMEA listener of GpsStatus still works on Android 8.1 and 9
             {"LocationManager.addNmeaListener5", "LocationManager.addNmeaListener27"},
-            {"TelephonyManager/getDeviceId", "TelephonyManager.getDeviceId"},
-            {"TelephonyManager/getDeviceId/slot", "TelephonyManager.getDeviceId/slot"},
-            {"TelephonyManager/getGroupIdLevel1", "TelephonyManager.getGroupIdLevel1"},
-            {"TelephonyManager/getImei", "TelephonyManager.getImei"},
-            {"TelephonyManager/getImei/slot", "TelephonyManager.getImei/slot"},
-            {"TelephonyManager/getLine1Number", "TelephonyManager.getLine1Number"},
-            {"TelephonyManager/getMeid", "TelephonyManager.getMeid"},
-            {"TelephonyManager/getMeid/slot", "TelephonyManager.getMeid/slot"},
-            {"TelephonyManager/getNetworkSpecifier", "TelephonyManager.getNetworkSpecifier"},
-            {"TelephonyManager/getSimSerialNumber", "TelephonyManager.getSimSerialNumber"},
-            {"TelephonyManager/getSubscriberId", "TelephonyManager.getSubscriberId"},
-            {"TelephonyManager/getVoiceMailAlphaTag", "TelephonyManager.getVoiceMailAlphaTag"},
-            {"TelephonyManager/getVoiceMailNumber", "TelephonyManager.getVoiceMailNumber"},
             {"TelephonyManager/getNetworkCountryIso", "TelephonyManager.getNetworkCountryIso"},
             {"TelephonyManager/getNetworkCountryIso.30", "TelephonyManager.getNetworkCountryIso.30"},
             {"TelephonyManager/getNetworkOperator", "TelephonyManager.getNetworkOperator"},

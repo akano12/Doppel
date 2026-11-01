@@ -215,11 +215,11 @@ class XProvider {
         });
     }
 
-    // The calls for a user and for the app of a uid, which read 0, the owner, for a missing one
+    // The calls for a user and the calls and queries for the app of a uid, which read 0, the owner, for a missing one
     static final Set<String> USER_CALLS = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList("getSetting", "putSetting", "clearData")));
-    static final Set<String> UID_CALLS = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList("assignHooks", "initApp", "clearApp", "forceStop")));
+    static final Set<String> UID_CALLS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            "assignHooks", "initApp", "clearApp", "forceStop", "getAssignedHooks2", "getSettings", "getBootValues")));
 
     // The app of a secondary user or a work profile acts for its own user only, else it could read, change and clear
     // the data of the owner, or put scripts into the apps of the owner; system server, like ReceiverPackage, acts for
@@ -788,7 +788,7 @@ class XProvider {
     }
 
     private static Cursor getAssignedHooks(Context context, String[] selection, boolean permitted) throws Throwable {
-        int uid = ownUid(context, selection, permitted, null);
+        int uid = ownUid(context, "getAssignedHooks2", selection, permitted, null);
         final String packageName = selection[0];
 
         final List<String> collection = getCollection(Util.getUserId(uid));
@@ -1135,7 +1135,7 @@ class XProvider {
 
     // Settings of a category (global or a package name) of an app
     private static Cursor getSettings(Context context, String[] selection, boolean permitted) throws Throwable {
-        int uid = ownUid(context, selection, permitted, true);
+        int uid = ownUid(context, "getSettings", selection, permitted, true);
         final String category = selection[0];
         MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
         for (Map.Entry<String, String> entry : readSettings(Util.getUserId(uid), category).entrySet())
@@ -1147,7 +1147,7 @@ class XProvider {
     // so apps sharing a user id read each other's, and the values for all apps are the same for every app.
     // The secret they are derived from is the service's own, new each boot, which no app can read.
     private static Cursor getBootValues(Context context, String[] selection, boolean permitted) throws Throwable {
-        int uid = ownUid(context, selection, permitted, false);
+        int uid = ownUid(context, "getBootValues", selection, permitted, false);
         final String packageName = selection[0];
         final int userid = Util.getUserId(uid);
 
@@ -1267,11 +1267,13 @@ class XProvider {
     }
 
     // The uid of a selection of a package or category and a uid, which a hooked app may ask about for itself only,
-    // and with global not null about its own packages only (see mayRead), else the app is needed
-    private static int ownUid(Context context, String[] selection, boolean permitted, Boolean global) {
+    // and with global not null about its own packages only (see mayRead), else the app is needed, of its own user only
+    private static int ownUid(Context context, String method, String[] selection, boolean permitted, Boolean global) {
         if (selection == null || selection.length != 2)
             throw new IllegalArgumentException("selection invalid");
         int uid = Integer.parseInt(selection[1]);
+        if (!forOwnUser(Binder.getCallingUid(), method, 0, uid, false))
+            throw new SecurityException("Other user cuid=" + Binder.getCallingUid());
         if (!permitted) {
             enforceCallerOrPermission(context, uid);
             if (global != null && !mayRead(selection[0], global, getPackagesForUid(context, uid)))

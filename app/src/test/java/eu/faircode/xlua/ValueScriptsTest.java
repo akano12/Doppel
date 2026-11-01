@@ -58,7 +58,8 @@ public class ValueScriptsTest {
             "    findClass = function(self, name) return name end,",
             "    putValue = function(self, name, value, scope)",
             "      values[scope] = values[scope] or {} values[scope][name] = value end,",
-            "    getValue = function(self, name, scope) return values[scope] and values[scope][name] end }",
+            "    getValue = function(self, name, scope) return values[scope] and values[scope][name] end,",
+            "    unhooked = function(self, fn) unhooked = true local value = fn() unhooked = false return value end }",
             "end",
             // Runs after() or before() and returns whether restricted, whether set and the result
             "function after_(hook, param) return after(hook, param), param.set, param.result end",
@@ -248,7 +249,7 @@ public class ValueScriptsTest {
     public void accountNamesOfOtherApps() throws Exception {
         Globals globals = load("account_createfromparcel");
         Scripts.run(globals, "reads = 0\n" +
-                "manager = { getAuthenticatorTypes = function(self) reads = reads + 1\n" +
+                "manager = { getAuthenticatorTypes = function(self) assert(unhooked, 'hooked lookup') reads = reads + 1\n" +
                 "  return arrayof({ packageName = 'com.example', type = 'com.example.account' },\n" +
                 "    { packageName = 'com.google.android.gms', type = 'com.google' }) end }\n" +
                 "luajava = { bindClass = function(name) assert(name == 'android.accounts.AccountManager', name)\n" +
@@ -267,6 +268,29 @@ public class ValueScriptsTest {
         assertEquals("me", result.arg(4).tojstring());
         assertEquals("set@example.com", result.arg(5).tojstring());
         assertEquals(1, result.arg(6).toint());
+    }
+
+    // The account types of hidden apps are left out, those of visible apps stay
+    @Test
+    public void accountTypesOfHiddenApps() throws Exception {
+        Globals globals = load("account_authenticators");
+        Scripts.run(globals, "luajava = { bindClass = function(name) assert(name == 'java.lang.reflect.Array', name)\n" +
+                "  return { newInstance = function(self, class, size)\n" +
+                "    assert(class == 'android.accounts.AuthenticatorDescription', class) return { length = size } end } end }\n" +
+                "function typesparamof(result)\n" +
+                "  local param = paramof(result)\n" +
+                "  param.isPackageVisible = function(self, name) return name ~= 'com.bank' end\n" +
+                "  return param\n" +
+                "end");
+        Varargs result = Scripts.run(globals, "local param = typesparamof(arrayof({ packageName = 'com.google.android.gms' },\n" +
+                "  { packageName = 'com.bank' }, { packageName = 'com.example' }))\n" +
+                "return after(nil, param), param.result.length, param.result[1].packageName, param.result[2].packageName");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(2, result.arg(2).toint());
+        assertEquals("com.google.android.gms", result.arg(3).tojstring());
+        assertEquals("com.example", result.arg(4).tojstring());
+        assertFalse(Scripts.run(globals, "return after_(nil, typesparamof(arrayof({ packageName = 'com.example' })))").arg(2).toboolean());
+        assertFalse(Scripts.run(globals, "return after_(nil, typesparamof(nil))").arg1().toboolean());
     }
 
     // The clip and its description are a plain text, without the label and the types of the real clip

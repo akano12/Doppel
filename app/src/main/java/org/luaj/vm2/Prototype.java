@@ -54,13 +54,6 @@ package org.luaj.vm2;
  * Prototype p = globals.compileProtoytpe(new StringReader(script), "script");
  * }</pre>
  * 
- * To un-dump a binary file known to be a binary lua file that has been dumped to a string,
- * the {@link Globals.Undumper} interface may be used: 
- * <pre> {@code
- * FileInputStream lua_binary_file = new FileInputStream("foo.lc");  // Known to be compiled lua.
- * Prototype p = globals.undumper.undump(lua_binary_file, "foo.lua");
- * }</pre>
- * 
  * To execute the code represented by the {@link Prototype} it must be supplied to 
  * the constructor of a {@link LuaClosure}:
  * <pre> {@code
@@ -73,7 +66,6 @@ package org.luaj.vm2;
  *  
  * @see LuaClosure
  * @see Globals
- * @see Globals#undumper
  * @see Globals#compiler
  */
 

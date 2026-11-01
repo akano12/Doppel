@@ -43,7 +43,7 @@ An exported definition in [JSON](https://en.wikipedia.org/wiki/JSON) format look
   "methodName": "getDeviceId",
   "parameterTypes": [],
   "returnType": "java.lang.String",
-  "minSdk": 1,
+  "minSdk": 27,
   "maxSdk": 999,
   "enabled": true,
   "optional": false,
@@ -248,6 +248,10 @@ and *param:uuidOf(seed)* gives a random looking UUID, which is the same for the 
 A script is executed once per thread to define its functions, so a script must not assign globals other than functions;
 use *local* for other values, else the hook is not installed ("Globals not allowed").
 
+Lua libraries available to scripts: the basic functions (without *dofile* and *loadfile*), *bit32*, *math*, *string*,
+*table*, *os* with only *time*, *date*, *clock* and *difftime*, and *luajava* to use Java classes.
+There are no *io*, *coroutine* and *package* (*require*) libraries, and *debug* is only there in debug builds.
+
 [LuaJ](https://luaj.sourceforge.net/) globals are not thread safe.
 If you need global caching, you can use something like this:
 
@@ -259,7 +263,7 @@ If you need global caching, you can use something like this:
 
 On the *Hooks* tab you can edit built-in definitions, which will result in making a copy of the definition.
 You could for example enable usage notifications or change returned fake values.
-Deleting copied definitions will restore the built-in definitions.
+*Restore built-in* in the hook editor deletes the copy.
 
 You can find example definitions in the [repository](../repo), which *Downloads* offers,
 and the definitions built into Doppel [here](../app/src/main/assets).

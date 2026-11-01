@@ -17,7 +17,7 @@
 
 # LuaJ creates these library functions by reflection (LibFunction.bind), the rest can be shrunk;
 # no wildcard, it would also keep DebugLib, which XCore loads only in debug builds
--keepclassmembers class org.luaj.vm2.lib.Bit32Lib$Bit32LibV,org.luaj.vm2.lib.Bit32Lib$Bit32Lib2,org.luaj.vm2.lib.IoLib$IoLibV,org.luaj.vm2.lib.jse.LuajavaLib { <init>(); }
+-keepclassmembers class org.luaj.vm2.lib.Bit32Lib$Bit32LibV,org.luaj.vm2.lib.Bit32Lib$Bit32Lib2,org.luaj.vm2.lib.jse.LuajavaLib { <init>(); }
 -keepnames class org.luaj.vm2.** { *; }
 
 # Xposed APIs are provided at runtime

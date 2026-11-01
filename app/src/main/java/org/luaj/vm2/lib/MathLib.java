@@ -65,8 +65,7 @@ import org.luaj.vm2.Varargs;
  * link it into your globals table via {@link LuaValue#load(LuaValue)} using code such as:
  * <pre> {@code
  * Globals globals = new Globals();
- * globals.load(new JseBaseLib());
- * globals.load(new PackageLib());
+ * globals.load(new BaseLib());
  * globals.load(new MathLib());
  * System.out.println( globals.get("math").get("sqrt").call( LuaValue.valueOf(2) ) );
  * } </pre>
@@ -125,7 +124,6 @@ public class MathLib extends TwoArgFunction {
 		math.set("sqrt", new sqrt());
 		math.set("tan", new tan());
 		env.set("math", math);
-		env.get("package").get("loaded").set("math", math);
 		return math;
 	}
 	

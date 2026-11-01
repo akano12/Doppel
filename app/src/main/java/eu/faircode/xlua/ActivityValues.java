@@ -264,10 +264,9 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 for (String name : hook.getSettings()) {
                     if (!known.contains(name))
                         custom.add(name);
-                    if (!readers.containsKey(name))
-                        readers.put(name, new ArrayList<>());
-                    if (!readers.get(name).contains(hook.getGroup()))
-                        readers.get(name).add(hook.getGroup());
+                    List<String> groups = readers.computeIfAbsent(name, k -> new ArrayList<>());
+                    if (!groups.contains(hook.getGroup()))
+                        groups.add(hook.getGroup());
                 }
             for (List<String> groups : readers.values())
                 Groups.sortByTitle(context, groups);
@@ -282,10 +281,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     Set<String> groups = new HashSet<>();
                     for (XAssignment assignment : other.assignments)
                         groups.add(assignment.group);
-                    for (String group : groups) {
-                        Integer count = restricting.get(group);
-                        restricting.put(group, count == null ? 1 : count + 1);
-                    }
+                    for (String group : groups)
+                        restricting.merge(group, 1, Integer::sum);
                 }
             } else {
                 app = Data.getApp(context, category, -1);
@@ -468,8 +465,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             Button btnRestrict = view.findViewById(R.id.btnRestrict);
             int color;
             if (global) {
-                Integer count = restricting.get(group);
-                int apps = (count == null ? 0 : count);
+                int apps = restricting.getOrDefault(group, 0);
                 tvHint.setText(apps == 0
                         ? getString(R.string.title_hint_no_apps, title)
                         : getResources().getQuantityString(R.plurals.title_hint_apps, apps, title, apps));

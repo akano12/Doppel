@@ -125,8 +125,8 @@ public class XProviderTest {
         assertEquals(Collections.singleton(id("Newer")), minus(upgraded, before));
 
         // Renamed hooks of a marker are known under their names of now
-        assertTrue(XProvider.knownBuiltins(enabled, Util.COLLECTION_DEFAULT + ".TelephonyManager/getImei")
-                .contains(Util.COLLECTION_DEFAULT + ".TelephonyManager.getImei"));
+        assertTrue(XProvider.knownBuiltins(enabled, Util.COLLECTION_DEFAULT + ".TelephonyManager/getSimOperator")
+                .contains(Util.COLLECTION_DEFAULT + ".TelephonyManager.getSimOperator"));
     }
 
     private static Set<String> minus(List<String> ids, Set<String> known) {

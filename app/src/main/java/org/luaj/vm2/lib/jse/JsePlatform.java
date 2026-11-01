@@ -22,86 +22,29 @@
 package org.luaj.vm2.lib.jse;
 
 import org.luaj.vm2.Globals;
-import org.luaj.vm2.LoadState;
-import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.compiler.LuaC;
+import org.luaj.vm2.lib.BaseLib;
 import org.luaj.vm2.lib.Bit32Lib;
-import org.luaj.vm2.lib.CoroutineLib;
-import org.luaj.vm2.lib.DebugLib;
-import org.luaj.vm2.lib.PackageLib;
-import org.luaj.vm2.lib.ResourceFinder;
+import org.luaj.vm2.lib.OsLib;
 import org.luaj.vm2.lib.StringLib;
 import org.luaj.vm2.lib.TableLib;
 
-/** The {@link org.luaj.vm2.lib.jse.JsePlatform} class is a convenience class to standardize 
- * how globals tables are initialized for the JSE platform. 
- * <p>
- * It is used to allocate either a set of standard globals using 
- * {@link #standardGlobals()}
- * <p>
- * A simple example of initializing globals and using them from Java is:
- * <pre> {@code
- * Globals globals = JsePlatform.standardGlobals();
- * globals.get("print").call(LuaValue.valueOf("hello, world"));
- * } </pre>
- * <p>
- * Once globals are created, a simple way to load and run a script is:
- * <pre> {@code
- * globals.load( new FileInputStream("main.lua"), "main.lua" ).call();
- * } </pre>
- * <p>
- * although {@code require} could also be used: 
- * <pre> {@code
- * globals.get("require").call(LuaValue.valueOf("main"));
- * } </pre>
- * For this to succeed, the file "main.lua" must be in the current directory or a resource.
- * See {@link org.luaj.vm2.lib.jse.JseBaseLib} for details on finding scripts using {@link ResourceFinder}.
- * <p>
- * The standard globals will contain all standard libraries plus {@code luajava}:
- * <ul>
- * <li>{@link Globals}</li>
- * <li>{@link org.luaj.vm2.lib.jse.JseBaseLib}</li>
- * <li>{@link PackageLib}</li>
- * <li>{@link Bit32Lib}</li>
- * <li>{@link TableLib}</li>
- * <li>{@link StringLib}</li>
- * <li>{@link CoroutineLib}</li>
- * <li>{@link org.luaj.vm2.lib.jse.JseMathLib}</li>
- * <li>{@link org.luaj.vm2.lib.jse.JseIoLib}</li>
- * <li>{@link org.luaj.vm2.lib.jse.JseOsLib}</li>
- * <li>{@link org.luaj.vm2.lib.jse.LuajavaLib}</li>
- * </ul>
- * In addition, the {@link LuaC} compiler is installed so lua files may be loaded in their source form. 
- * <p> 
- * The debug globals are simply the standard globals plus the {@code debug} library {@link DebugLib}.
- * <p>
- * The class ensures that initialization is done in the correct order.
- * 
- * @see Globals
- * @see org.luaj.vm2.lib.jme.JmePlatform
+/** Initializes the globals of the scripts of hooks:
+ * base (without dofile and loadfile), bit32, table, string, math, os (clock, date, difftime and time only)
+ * and luajava, with the {@link LuaC} compiler for source text.
+ * There are no io, coroutine, package and debug libraries.
  */
 public class JsePlatform {
 
-	/**
-	 * Create a standard set of globals for JSE including all the libraries.
-	 * 
-	 * @return Table of globals initialized with the standard JSE libraries
-	 * @see org.luaj.vm2.lib.jse.JsePlatform
-	 * @see org.luaj.vm2.lib.jme.JmePlatform
-	 */
 	public static Globals standardGlobals() {
 		Globals globals = new Globals();
-		globals.load(new JseBaseLib());
-		globals.load(new PackageLib());
+		globals.load(new BaseLib());
 		globals.load(new Bit32Lib());
 		globals.load(new TableLib());
 		globals.load(new StringLib());
-		globals.load(new CoroutineLib());
 		globals.load(new JseMathLib());
-		globals.load(new JseIoLib());
-		globals.load(new JseOsLib());
+		globals.load(new OsLib());
 		globals.load(new LuajavaLib());
-		LoadState.install(globals);
 		LuaC.install(globals);
 		return globals;		
 	}

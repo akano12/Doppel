@@ -749,8 +749,8 @@ class XCore {
         }
     }
 
-    // The standard libraries, once per thread, because loading them takes much longer than running a script:
-    // base, bit32, coroutine, io, math, os, package, string, table, luajava (and debug in debug builds)
+    // The libraries of scripts (see JsePlatform, and debug in debug builds), once per thread,
+    // because loading them takes much longer than running a script
     private static final ThreadLocal<Globals> libraries = ThreadLocal.withInitial(() -> {
         Globals globals = JsePlatform.standardGlobals();
         if (BuildConfig.DEBUG)

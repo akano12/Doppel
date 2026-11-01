@@ -59,8 +59,7 @@ import org.luaj.vm2.Varargs;
  * link it into your globals table via {@link LuaValue#load(LuaValue)} using code such as:
  * <pre> {@code
  * Globals globals = new Globals();
- * globals.load(new JseBaseLib());
- * globals.load(new PackageLib());
+ * globals.load(new BaseLib());
  * globals.load(new DebugLib());
  * System.out.println( globals.get("debug").get("traceback").call() );
  * } </pre>
@@ -131,7 +130,6 @@ public class DebugLib extends TwoArgFunction {
 		debug.set("upvalueid", new upvalueid());
 		debug.set("upvaluejoin", new upvaluejoin());
 		env.set("debug", debug);
-		env.get("package").get("loaded").set("debug", debug);
 		return debug;
 	}
 

@@ -23,7 +23,10 @@ function owntypes(param)
     local own = param:getValue('account.types', context)
     if own == nil then
         own = {}
-        local auths = luajava.bindClass('android.accounts.AccountManager'):get(context):getAuthenticatorTypes()
+        -- Without the hook of the types (see account_authenticators), which would report a call of the app
+        local auths = param:unhooked(function()
+            return luajava.bindClass('android.accounts.AccountManager'):get(context):getAuthenticatorTypes()
+        end)
         local packageName = param:getPackageName()
         for index = 1, auths['length'] do
             if auths[index].packageName == packageName then

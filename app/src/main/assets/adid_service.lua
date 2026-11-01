@@ -72,6 +72,13 @@ function before(hook, param)
         dumpAsync = function(fd, args)
             service:dumpAsync(fd, args)
         end,
+        -- Android 16
+        addFrozenStateChangeCallback = function(executor, callback)
+            service:addFrozenStateChangeCallback(executor, callback)
+        end,
+        removeFrozenStateChangeCallback = function(callback)
+            return service:removeFrozenStateChangeCallback(callback)
+        end,
         getExtension = function()
             return service:getExtension()
         end,

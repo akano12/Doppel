@@ -2934,6 +2934,35 @@
     "excludePackages": "android",
     "luaScript": "@usageevents_query"
   },
+  // Device admin apps, like an MDM or an antivirus, which any app can list and check without a permission
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "DevicePolicyManager.getActiveAdmins",
+    "author": "akano12",
+    "className": "android.app.admin.DevicePolicyManager",
+    "methodName": "getActiveAdmins",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "DevicePolicyManager.isAdminActive",
+    "author": "akano12",
+    "className": "android.app.admin.DevicePolicyManager",
+    "methodName": "isAdminActive",
+    "parameterTypes": [
+      "android.content.ComponentName"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html
   {
@@ -3678,6 +3707,19 @@
       "value.email"
     ],
     "luaScript": "@account_createfromparcel"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Account",
+    "name": "AccountManager.getAuthenticatorTypes",
+    "author": "akano12",
+    "description": "The account types of other apps, which tell they are installed",
+    "className": "android.accounts.AccountManager",
+    "methodName": "getAuthenticatorTypes",
+    "parameterTypes": [],
+    "returnType": "android.accounts.AuthenticatorDescription[]",
+    "minSdk": 27,
+    "luaScript": "@account_authenticators"
   },
   // Read clipboard
   // https://developer.android.com/reference/android/content/ClipboardManager.html
@@ -5410,6 +5452,35 @@
     ],
     "luaScript": "@value_phone_number"
   },
+  // The label of the phone number on the SIM, often the name of the subscriber; hidden, with the phone state permission
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getLine1AlphaTag",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getLine1AlphaTag",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getLine1AlphaTag/subid",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getLine1AlphaTag",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Telephony",
@@ -5770,6 +5841,33 @@
     "author": "akano12",
     "className": "android.telephony.TelephonyManager",
     "methodName": "getTypeAllocationCode",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
+  // The manufacturer code, the start of the MEID like the type allocation code is of the IMEI
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getManufacturerCode",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getManufacturerCode",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getManufacturerCode/slot",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getManufacturerCode",
     "parameterTypes": [
       "int"
     ],
@@ -6613,6 +6711,22 @@
     "parameterTypes": [
       "com.segment.analytics.kotlin.core.BaseEvent",
       "kotlin.jvm.functions.Function1"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  // Versions before the enrichment closure (1.16)
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "SegmentAnalytics.process/event",
+    "author": "akano12",
+    "className": "com.segment.analytics.kotlin.core.Analytics",
+    "methodName": "process",
+    "parameterTypes": [
+      "com.segment.analytics.kotlin.core.BaseEvent"
     ],
     "returnType": "void",
     "minSdk": 27,
@@ -11478,7 +11592,8 @@
     "methodName": "toString",
     "parameterTypes": [],
     "returnType": "java.lang.String",
-    "minSdk": 30,
+    // A system API on Android 10, where the text of the service state contains it too
+    "minSdk": 29,
     "luaScript": "@network_tostring"
   },
   {
@@ -11490,7 +11605,7 @@
     "methodName": "toString",
     "parameterTypes": [],
     "returnType": "java.lang.String",
-    "minSdk": 30,
+    "minSdk": 29,
     "luaScript": "@operator_tostring"
   },
   {

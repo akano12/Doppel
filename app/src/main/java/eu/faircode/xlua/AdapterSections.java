@@ -107,8 +107,6 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
         // it is open; first is the key open at first; tapping the row opens or closes it, then the list is shown again
         void addGroup(Context context, List<Object> items, String key, String title, String meta, @Nullable String pill,
                       int icon, List<?> children, String first, boolean filtering, Runnable show) {
-            if (key == null || children.isEmpty())
-                return;
             boolean expanded = isOpen(key, first, filtering);
             items.add(new Group(title, meta, pill, icon, expanded,
                     context.getString(expanded ? R.string.title_hide_hooks : R.string.title_show_hooks, title),

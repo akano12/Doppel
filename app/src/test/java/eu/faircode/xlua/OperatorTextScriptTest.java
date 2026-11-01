@@ -37,7 +37,7 @@ public class OperatorTextScriptTest {
     private static final String SUBSCRIPTION = "android.telephony.SubscriptionInfo";
     // The names, the carrier and the country, in Use.Tracking
     private static final String OPERATOR = "SubscriptionInfo.toString/operator";
-    // The network codes, in Read.Telephony
+    // The network codes, in Use.Tracking
     private static final String PLMN = "SubscriptionInfo.toString/plmn";
 
     private Globals globals;

@@ -77,9 +77,7 @@ public class LuaC extends Constants implements Globals.Compiler, Globals.Loader 
 	/** A sharable instance of the LuaC compiler. */
 	public static final LuaC instance = new LuaC();
 	
-	/** Install the compiler so that LoadState will first 
-	 * try to use it when handed bytes that are 
-	 * not already a compiled lua chunk.
+	/** Install the compiler and loader of lua source text.
 	 * @param globals the Globals into which this is to be installed.
 	 */
 	public static void install(Globals globals) {

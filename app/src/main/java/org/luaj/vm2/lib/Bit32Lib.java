@@ -39,8 +39,7 @@ import org.luaj.vm2.Varargs;
  * link it into your globals table via {@link LuaValue#load(LuaValue)} using code such as:
  * <pre> {@code
  * Globals globals = new Globals();
- * globals.load(new JseBaseLib());
- * globals.load(new PackageLib());
+ * globals.load(new BaseLib());
  * globals.load(new Bit32Lib());
  * System.out.println( globals.get("bit32").get("bnot").call( LuaValue.valueOf(2) ) );
  * } </pre>
@@ -71,7 +70,6 @@ public class Bit32Lib extends TwoArgFunction {
 			"arshift", "lrotate", "lshift", "rrotate", "rshift"
 		});
 		env.set("bit32", t);
-		env.get("package").get("loaded").set("bit32", t);
 		return t;
 	}
 
