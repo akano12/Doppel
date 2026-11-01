@@ -28,6 +28,7 @@ local arguments = {
     checkSignatures = { 0, 1 },
     canPackageQuery = { 0, 1 }, -- source, target or targets
     getProperty = { 1 }, -- property, package or component
+    isPermissionRevokedByPolicy = { 1 }, -- permission, package
     queryStatsForPackage = { 1 } -- volume, package, user
 }
 

@@ -123,9 +123,7 @@ public class ShellCommandsScriptTest {
             "end",
             // The files as the app reads them, with the hooks opening files, see XParam.readFile
             "files = { ['/proc/meminfo'] = 'MemTotal:        3145728 kB\\nMemFree:          146484 kB\\n',",
-            "  ['/proc/sys/kernel/random/boot_id'] = '0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\\n',",
-            "  ['/proc/uptime'] = '123456.78 98765.43\\n',",
-            "  ['/proc/stat'] = 'cpu  1 2 3\\nbtime 1699998200\\nprocesses 100\\n' }",
+            "  ['/proc/sys/kernel/random/boot_id'] = '0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\\n' }",
             "luajava = {",
             "  newInstance = function(name, path)",
             // Files resolve their path on the file system of the test, see canonical
@@ -502,17 +500,11 @@ public class ShellCommandsScriptTest {
                 run(start("cat", "/proc/sys/kernel/random/boot_id")).out);
         assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
                 run(start("sh", "-c", "x=$(cat /proc/sys/kernel/random/boot_id); echo $x")).out);
-        // The boot time of /proc/uptime and /proc/stat, faked by Use.Tracking like boot_id (see boot_offset_proc)
-        assertEquals("123456.78 98765.43\n", run(start("cat", "/proc/uptime")).out);
-        assertEquals("123456.78 98765.43\n", run(start("cat", "/proc/self/root/proc/uptime")).out);
-        assertEquals("cpu  1 2 3\nbtime 1699998200\nprocesses 100\n", run(start("cat", "/proc/stat")).out);
-        // Read.Resources does not restrict boot_id, /proc/uptime or /proc/stat, Use.Tracking not /proc/meminfo
+        // /proc/uptime is read as it is: the boot time is not faked
+        assertEquals("cat /proc/uptime", String.join(" ", command(start("cat", "/proc/uptime"))));
+        // Read.Resources does not restrict boot_id, Use.Tracking not /proc/meminfo
         assertEquals("cat /proc/sys/kernel/random/boot_id",
                 String.join(" ", command(start(new String[]{"cat", "/proc/sys/kernel/random/boot_id"}, "resources"))));
-        assertEquals("cat /proc/uptime",
-                String.join(" ", command(start(new String[]{"cat", "/proc/uptime"}, "resources"))));
-        assertEquals("cat /proc/stat",
-                String.join(" ", command(start(new String[]{"cat", "/proc/stat"}, "resources"))));
         assertEquals("cat /proc/meminfo",
                 String.join(" ", command(start(new String[]{"cat", "/proc/meminfo"}, "tracking"))));
         // Also by other paths, and with other files, which are read by cat itself
@@ -539,7 +531,6 @@ public class ShellCommandsScriptTest {
                 run(start("head", "-1", "/proc/sys/kernel/random/boot_id")).out);
         assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
                 run(start("cat", "--", "/proc/sys/kernel/random/boot_id")).out);
-        assertEquals("123456.78 98765.43\n", run(start("sh", "-c", "dd if=/proc/uptime 2>/dev/null")).out);
     }
 
     // cat of the files of /sys which do not exist for the variants fails like for a missing file, also through
@@ -618,7 +609,6 @@ public class ShellCommandsScriptTest {
         assertEquals(fake, run(start("cat", "/proc/./meminfo")).out);
         assertEquals(fake, run(start("sh", "-c", "cat /proc/self/../meminfo")).out);
         assertEquals(fake, run(start("sh", "-c", "cd /proc && cat meminfo")).out);
-        assertEquals("123456.78 98765.43\n", run(start("cat", "/proc/./uptime")).out);
         assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
                 run(start("cat", "/proc/sys/kernel/random//boot_id")).out);
     }

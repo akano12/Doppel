@@ -318,6 +318,19 @@ public class PackageScriptsTest {
         assertEquals(1, properties.arg(1).toint());
         assertEquals("com.android.vending", properties.arg(2).tojstring());
 
+        // Instrumentations stay when both the test runner and the package it tests are visible
+        Varargs instrumentations = Scripts.run(globals,
+                "local function instrumentation(name, target) return { packageName = name, targetPackage = target } end\n" +
+                        "local list = listof({ instrumentation('com.example.test', 'com.example'),\n" +
+                        "  instrumentation('com.example.test', 'com.example.bank'),\n" +
+                        "  instrumentation('com.example.bank.test', 'com.example') })\n" +
+                        "local param = paramof({}, { ['com.example'] = true, ['com.example.test'] = true })\n" +
+                        "param.result = list\n" +
+                        "after(hookof('PackageManager.queryInstrumentation'), param)\n" +
+                        "return list:size(), list:get(0).targetPackage");
+        assertEquals(1, instrumentations.arg(1).toint());
+        assertEquals("com.example", instrumentations.arg(2).tojstring());
+
         // Processes of the system manage all apps
         Varargs managed = Scripts.run(globals, items +
                 "local list = listof({ { applicationInfo = own }, { applicationInfo = other } })\n" +

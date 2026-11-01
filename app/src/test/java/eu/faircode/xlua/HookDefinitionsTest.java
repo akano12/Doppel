@@ -906,13 +906,6 @@ public class HookDefinitionsTest {
             check("UnixFileStore." + method, "sun.nio.fs.UnixFileStore " + method + "() @resources 26-");
     }
 
-    // The version of the method in api-versions, else it is tried and missed on Android 13 at every start
-    @Test
-    public void alarmWindowWithExecutorFromApi34() throws Exception {
-        check("AlarmManager.setWindow/executor", "android.app.AlarmManager setWindow(int,long,long,java.lang.String," +
-                "java.util.concurrent.Executor,android.app.AlarmManager$OnAlarmListener) @boot_offset_alarm 34-");
-    }
-
     // Apps targeting Android 9 or older still get the neighboring cells on Android 10 and newer; the method is not
     // in the android.jar of recent versions, so it is optional
     @Test

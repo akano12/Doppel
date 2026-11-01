@@ -122,8 +122,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   SIM serial in their system properties
 * **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more, also in the phone accounts of the SIMs
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
-  boot id, the boot time (each app sees its own, so the time since boot no longer links apps across restarts) and the
-  folder times that tell when the device was set up; the hardware files in /sys do not exist
+  boot id and the folder times that tell when the device was set up; the hardware files in /sys do not exist
 
 </details>
 
@@ -145,6 +144,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Get contacts**: hide contacts, optionally except (non) starred ones, and blocked numbers
 * **Get messages**: hide SMS, MMS, SIM messages and voicemail
 * **Read clipboard**: fake paste
+* **Learn typing**: ask the keyboard not to learn what is typed, like in incognito mode; keyboards can ignore it
 * **Read notifications**: hide the notifications and media sessions of other apps
 * **Read sync data**: hide sync data
 
@@ -201,14 +201,10 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * Discovery of local devices with the app's own sockets, like mDNS or SSDP, cannot be prevented.
 * The paths of other apps, like `/data/app/~~…==/com.example-…==/base.apk`, stay: Android reads their icons and labels
   from these files inside the app. They differ per install, so restrict *Get applications* to hide other apps entirely.
-* The fake boot time shifts only the time-since-boot clock (elapsedRealtime), by its own amount per app. The wall clock
-  and the uptime clock are left alone, because faking them breaks input events and secure connections; so an app can
-  still link itself within one awake session (until the device sleeps) from the wall clock minus the uptime. A location
-  fix's time and elapsed-time alarms are corrected to the shift, so a fix reads as fresh and alarms still fire on time,
-  but timestamps the system reports on that clock in other ways are not: sensor events and camera frames can read as
-  the shift old, and a media app's progress bar on the lock screen can be off by the shift. This stops apps that read
-  the boot time without knowing Doppel, which is how trackers link apps; an app written to defeat Doppel can read its
-  own offset the same way its hooks do and undo the shift, like it can tell Doppel is there.
+* The boot time is not faked, so apps can still link each other by it until the device restarts (the wall clock minus
+  the time since boot or the uptime). Hooks on these clocks do not reach compiled app code on Android 12 and newer,
+  which reads the real time, so apps would get a mix of fake and real times and measure durations wrong (like voice
+  notes 35 minutes long); timestamps from the system, like of input events and sensors, cannot be shifted either.
 * Restricted apps can detect Doppel, but cannot change anything, see [the FAQ](FAQ.md#user-content-faq21).
 * Apps with root access can get around any restriction.
 

@@ -56,6 +56,7 @@ final class Groups {
         group("Get.Location", R.string.group_get_location, R.string.group_desc_get_location, R.drawable.ic_group_location);
         group("Get.Messages", R.string.group_get_messages, R.string.group_desc_get_messages, R.drawable.ic_group_messages);
         group("Get.Sensors", R.string.group_get_sensors, R.string.group_desc_get_sensors, R.drawable.ic_group_sensors);
+        group("Learn.Typing", R.string.group_learn_typing, R.string.group_desc_learn_typing, R.drawable.ic_group_keyboard);
         group("Read.Account", R.string.group_read_account, R.string.group_desc_read_account, R.drawable.ic_group_account);
         group("Read.Battery", R.string.group_read_battery, R.string.group_desc_read_battery, R.drawable.ic_group_battery);
         group("Read.Biometrics", R.string.group_read_biometrics, R.string.group_desc_read_biometrics, R.drawable.ic_group_biometrics);
@@ -85,7 +86,7 @@ final class Groups {
                 "Read.Timezone", "Read.Features", "Read.Battery", "Read.Resources", "Read.Settings",
                 "Read.Biometrics", "Read.Debugging", "Read.Account", "Read.Sync");
         put(R.string.section_personal, "Get.Contacts", "Get.Call.log", "Get.Messages", "Send.Messages",
-                "Get.Calendars", "Get.Applications", "Read.Clipboard", "Read.Notifications");
+                "Get.Calendars", "Get.Applications", "Read.Clipboard", "Read.Notifications", "Learn.Typing");
         put(R.string.section_media, "Use.Camera", "Record.Audio", "Record.Video");
         put(R.string.section_tracking, "Use.Analytics", "Use.Tracking", "Run.Commands");
     }

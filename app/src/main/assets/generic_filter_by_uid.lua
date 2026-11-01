@@ -62,6 +62,12 @@ function after(hook, param)
             ai = item:getApplicationInfo() -- LauncherActivityInfo
         elseif string.match(name, '^PackageManager%.query%a+Property$') then
             packageName = item:getPackageName() -- PackageManager.Property
+        elseif name == 'PackageManager.queryInstrumentation' then
+            -- InstrumentationInfo: the test runner and the package it tests are both visible, or it is left out
+            packageName = item.packageName
+            if not param:isPackageVisible(item.targetPackage) then
+                packageName = item.targetPackage
+            end
         else
             uid = item.uid
         end

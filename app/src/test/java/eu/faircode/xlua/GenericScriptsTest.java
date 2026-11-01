@@ -68,6 +68,20 @@ public class GenericScriptsTest {
         return globals;
     }
 
+    // The keyboard is asked not to learn, also when the options have the sign bit set (IME_FLAG_FORCE_ASCII)
+    @Test
+    public void keyboardIsAskedNotToLearn() throws Exception {
+        Globals globals = Scripts.load("keyboard_incognito", "");
+        for (int options : new int[]{0, 6, 0x80000000, 0x80000006, 0x1000000}) {
+            Varargs result = Scripts.run(globals, "local info = { imeOptions = " + options + " }\n" +
+                    "local param = { getThis = function(self) return info end }\n" +
+                    "local restricted = before(nil, param)\n" +
+                    "return restricted, info.imeOptions");
+            assertEquals("options " + options, options != 0x1000000, result.arg(1).toboolean());
+            assertEquals("options " + options, options | 0x1000000, result.arg(2).toint());
+        }
+    }
+
     @Test
     public void blockedMethodsReturnTheValueOfTheirType() throws Exception {
         Globals globals = load("generic_block");

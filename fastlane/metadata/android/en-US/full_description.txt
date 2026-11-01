@@ -26,6 +26,7 @@
 <li>Get location</li>
 <li>Get messages</li>
 <li>Get sensors</li>
+<li>Learn typing</li>
 <li>Read account name</li>
 <li>Read battery</li>
 <li>Read biometric sensors</li>

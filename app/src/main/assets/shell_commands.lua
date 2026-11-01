@@ -94,9 +94,8 @@ local DEBUGGING = {
 local PROPERTIES = { 'tracking', 'identifiers', 'timezone', 'debugging' }
 
 -- The files of the variants of which apps read another text, which cat prints (see catfunction),
--- like the hooks opening files: the id of boot_id per app, the boot time in /proc/uptime and /proc/stat
--- (see boot_offset_proc), and the rounded sizes of /proc/meminfo
-local FILES = { tracking = { '/proc/sys/kernel/random/boot_id', '/proc/uptime', '/proc/stat' },
+-- like the hooks opening files: the id of boot_id per app, and the rounded sizes of /proc/meminfo
+local FILES = { tracking = { '/proc/sys/kernel/random/boot_id' },
                 resources = { '/proc/meminfo' } }
 
 -- The files of /sys which do not exist for the variants, like for the hooks opening files (see hardware_files),

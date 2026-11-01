@@ -591,6 +591,7 @@
     <string name="group_read_battery">Read battery</string>
     <string name="group_read_biometrics">Read biometric sensors</string>
     <string name="group_read_clipboard">Read clipboard</string>
+    <string name="group_learn_typing">Learn typing</string>
     <string name="group_read_debugging">Read debugging state</string>
     <string name="group_read_resources">Read memory and storage</string>
     <string name="group_read_settings">Read device settings</string>
@@ -623,6 +624,7 @@
     <string name="group_desc_read_biometrics">Whether there is a fingerprint sensor or face unlock and fingerprints are enrolled</string>
     <string name="group_desc_read_battery">Exact battery level, charge and wear, which help to recognize the device</string>
     <string name="group_desc_read_clipboard">Contents of the clipboard</string>
+    <string name="group_desc_learn_typing">What the keyboard learns from typing, which it is asked not to keep</string>
     <string name="group_desc_read_debugging">Whether developer options and USB or wireless debugging are on</string>
     <string name="group_desc_read_resources">Exact size of memory and storage and the free space, which help to recognize the device</string>
     <string name="group_desc_read_settings">Settings like the window animation scale, screen timeout, proxy and alarm sound, which help to recognize the device</string>

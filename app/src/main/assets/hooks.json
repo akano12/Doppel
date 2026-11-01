@@ -1524,6 +1524,126 @@
     "excludePackages": "android",
     "luaScript": "@package_probe"
   },
+  // Launch intent senders resolve the package without the filtering of package visibility (Android 12+), so they
+  // tell an app is installed even to apps which cannot see it; the sender of a missing package cannot be sent
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getLaunchIntentSenderForPackage",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getLaunchIntentSenderForPackage",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.IntentSender",
+    "minSdk": 31,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  // The instrumentation (test runner) of a package, missing when the package is not installed
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getInstrumentationInfo",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getInstrumentationInfo",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "int"
+    ],
+    "returnType": "android.content.pm.InstrumentationInfo",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  // The restricted permissions an installer allowlisted: for an installed package an app which is not its installer
+  // gets an exception, for a missing package nothing, so these tell whether a package is installed
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getWhitelistedRestrictedPermissions",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getWhitelistedRestrictedPermissions",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.util.Set",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.addWhitelistedRestrictedPermission",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "addWhitelistedRestrictedPermission",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.removeWhitelistedRestrictedPermission",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "removeWhitelistedRestrictedPermission",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  // A permission of another package fixed by a device policy, false for a missing package
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.isPermissionRevokedByPolicy",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "isPermissionRevokedByPolicy",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 23,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  // The instrumentations (test runners) of the packages, of all or of one target, see generic_filter_by_uid
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.queryInstrumentation",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "queryInstrumentation",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 1,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -3435,6 +3555,23 @@
     "minSdk": 11,
     "luaScript": "@clipdata_createfromparcel"
   },
+  // The settings of a text field go to the keyboard as an EditorInfo through binder, for all kinds of text fields
+  // (views, WebView, Compose); the keyboard is asked not to learn what is typed, like in incognito mode
+  {
+    "collection": "Privacy",
+    "group": "Learn.Typing",
+    "name": "EditorInfo.writeToParcel",
+    "author": "akano12",
+    "className": "android.view.inputmethod.EditorInfo",
+    "methodName": "writeToParcel",
+    "parameterTypes": [
+      "android.os.Parcel",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 26,
+    "luaScript": "@keyboard_incognito"
+  },
   // Read identifiers
   // https://developers.google.com/android/reference/com/google/android/gms/ads/identifier/AdvertisingIdClient.html
   // https://developer.android.com/reference/android/os/Build.html
@@ -4090,6 +4227,20 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 1,
+    "optional": true,
+    "luaScript": "@advertisingidclient$info_getid"
+  },
+  // The App Set ID of the Privacy Sandbox (AdServices), the same for the apps of a developer on the device
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AppSetId.getId",
+    "author": "akano12",
+    "className": "android.adservices.appsetid.AppSetId",
+    "methodName": "getId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 33,
     "optional": true,
     "luaScript": "@advertisingidclient$info_getid"
   },
@@ -7872,392 +8023,6 @@
     "returnType": "int",
     "minSdk": 26,
     "luaScript": "@boot_id"
-  },
-  // The time since boot is the same for all apps, so the boot time (the wall clock now minus it) is too and
-  // links them until restart; each app adds its own offset, see boot_offset. In ms (elapsedRealtime) and in ns.
-  // usage is off: these are called very often, so reporting each call would flood the activity log.
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "SystemClock.elapsedRealtime",
-    "author": "akano12",
-    "className": "android.os.SystemClock",
-    "methodName": "elapsedRealtime",
-    "parameterTypes": [],
-    "returnType": "long",
-    "minSdk": 23,
-    "usage": false,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "SystemClock.elapsedRealtimeNanos",
-    "author": "akano12",
-    "className": "android.os.SystemClock",
-    "methodName": "elapsedRealtimeNanos",
-    "parameterTypes": [],
-    "returnType": "long",
-    "minSdk": 23,
-    "usage": false,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset"
-  },
-  // The process start on the elapsed clock: without the offset too, an app could take the real start, and so
-  // the real boot time, back from elapsedRealtime minus it. Added the offset, like elapsedRealtime (ms).
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Process.getStartElapsedRealtime",
-    "author": "akano12",
-    "className": "android.os.Process",
-    "methodName": "getStartElapsedRealtime",
-    "parameterTypes": [],
-    "returnType": "long",
-    "minSdk": 24,
-    "usage": false,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Process.getStartRequestedElapsedRealtime",
-    "author": "akano12",
-    "className": "android.os.Process",
-    "methodName": "getStartRequestedElapsedRealtime",
-    "parameterTypes": [],
-    "returnType": "long",
-    "minSdk": 33,
-    "usage": false,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset"
-  },
-  // A location fix carries the time since boot it was taken at; the app compares it to the shifted clock to see how
-  // fresh it is, so the stamp is shifted the same way. The age methods then cancel out on their own, see boot_offset_loc.
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Location.getElapsedRealtimeNanos",
-    "author": "akano12",
-    "className": "android.location.Location",
-    "methodName": "getElapsedRealtimeNanos",
-    "parameterTypes": [],
-    "returnType": "long",
-    "minSdk": 23,
-    "usage": false,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_loc"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Location.getElapsedRealtimeMillis",
-    "author": "akano12",
-    "className": "android.location.Location",
-    "methodName": "getElapsedRealtimeMillis",
-    "parameterTypes": [],
-    "returnType": "long",
-    "minSdk": 33,
-    "usage": false,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_loc"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Location.setElapsedRealtimeNanos",
-    "author": "akano12",
-    "className": "android.location.Location",
-    "methodName": "setElapsedRealtimeNanos",
-    "parameterTypes": [
-      "long"
-    ],
-    "returnType": "void",
-    "minSdk": 23,
-    "usage": false,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_loc"
-  },
-  // An alarm the app sets on the elapsed clock (type 2 or 3) would fire the offset too late, so it is taken
-  // back off the trigger, the second argument, see boot_offset_alarm. These all start with (int type, long when).
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.set",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "set",
-    "parameterTypes": [
-      "int",
-      "long",
-      "android.app.PendingIntent"
-    ],
-    "returnType": "void",
-    "minSdk": 23,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.setExact",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "setExact",
-    "parameterTypes": [
-      "int",
-      "long",
-      "android.app.PendingIntent"
-    ],
-    "returnType": "void",
-    "minSdk": 23,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.setAndAllowWhileIdle",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "setAndAllowWhileIdle",
-    "parameterTypes": [
-      "int",
-      "long",
-      "android.app.PendingIntent"
-    ],
-    "returnType": "void",
-    "minSdk": 23,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.setExactAndAllowWhileIdle",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "setExactAndAllowWhileIdle",
-    "parameterTypes": [
-      "int",
-      "long",
-      "android.app.PendingIntent"
-    ],
-    "returnType": "void",
-    "minSdk": 23,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.setWindow",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "setWindow",
-    "parameterTypes": [
-      "int",
-      "long",
-      "long",
-      "android.app.PendingIntent"
-    ],
-    "returnType": "void",
-    "minSdk": 23,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.setRepeating",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "setRepeating",
-    "parameterTypes": [
-      "int",
-      "long",
-      "long",
-      "android.app.PendingIntent"
-    ],
-    "returnType": "void",
-    "minSdk": 23,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.setInexactRepeating",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "setInexactRepeating",
-    "parameterTypes": [
-      "int",
-      "long",
-      "long",
-      "android.app.PendingIntent"
-    ],
-    "returnType": "void",
-    "minSdk": 23,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  // The same alarms set with a listener (and an executor) instead of a PendingIntent: these take back the offset too.
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.set/listener",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "set",
-    "parameterTypes": [
-      "int",
-      "long",
-      "java.lang.String",
-      "android.app.AlarmManager$OnAlarmListener",
-      "android.os.Handler"
-    ],
-    "returnType": "void",
-    "minSdk": 24,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.setExact/listener",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "setExact",
-    "parameterTypes": [
-      "int",
-      "long",
-      "java.lang.String",
-      "android.app.AlarmManager$OnAlarmListener",
-      "android.os.Handler"
-    ],
-    "returnType": "void",
-    "minSdk": 24,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.setWindow/listener",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "setWindow",
-    "parameterTypes": [
-      "int",
-      "long",
-      "long",
-      "java.lang.String",
-      "android.app.AlarmManager$OnAlarmListener",
-      "android.os.Handler"
-    ],
-    "returnType": "void",
-    "minSdk": 24,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "AlarmManager.setWindow/executor",
-    "author": "akano12",
-    "className": "android.app.AlarmManager",
-    "methodName": "setWindow",
-    "parameterTypes": [
-      "int",
-      "long",
-      "long",
-      "java.lang.String",
-      "java.util.concurrent.Executor",
-      "android.app.AlarmManager$OnAlarmListener"
-    ],
-    "returnType": "void",
-    "minSdk": 34,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_alarm"
-  },
-  // The boot time is also in /proc/stat (btime) and /proc/uptime; kept matching the offset, see boot_offset_proc.
-  // The paths containing proc/stat or proc/uptime, also by another path and by java.nio, like boot_id.
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "BlockGuardOs.open/boot_time",
-    "author": "akano12",
-    "className": "libcore.io.BlockGuardOs",
-    "methodName": "open",
-    "parameterTypes": [
-      "java.lang.String",
-      "int",
-      "int"
-    ],
-    "returnType": "java.io.FileDescriptor",
-    "minSdk": 23,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_proc"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "UnixNativeDispatcher.open/boot_time",
-    "author": "akano12",
-    "className": "sun.nio.fs.UnixNativeDispatcher",
-    "methodName": "open",
-    "parameterTypes": [
-      "sun.nio.fs.UnixPath",
-      "int",
-      "int"
-    ],
-    "returnType": "int",
-    "minSdk": 26,
-    "settings": [
-      "value.boot_offset"
-    ],
-    "luaScript": "@boot_offset_proc"
   },
   // The times of the folders of the shared storage: Os.stat and Os.lstat, File.lastModified and java.nio.file.Files;
   // the script runs for these folders only
