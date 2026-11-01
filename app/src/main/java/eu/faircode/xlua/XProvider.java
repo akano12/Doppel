@@ -1097,7 +1097,8 @@ class XProvider {
         final String name = extras.getString("name");
         final String value = extras.getString("value");
         boolean kill = extras.getBoolean("kill", false);
-        Log.i(TAG, "Put setting " + userid + ":" + category + " " + name + "=" + value);
+        // Values are fake ids and the user's own data, which release builds do not write to the system log
+        Log.i(TAG, "Put setting " + userid + ":" + category + " " + name + (BuildConfig.DEBUG ? "=" + value : ""));
 
         db.write(d -> {
             writeSetting(d, userid, category, name, value);
