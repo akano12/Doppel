@@ -44,15 +44,23 @@ local FILES = {
         '/sensors/light_sensor/light_cal$', '/sec/tsp$', '/sec/tsp/' },
     ['Read.Biometrics'] = {
         '/fingerprint/fingerprint$', '/fingerprint/fingerprint/', '/sec/tsp/fod_info$', '/sec/tsp/fod_pos$' },
+    -- The files of /proc/net, a link to /proc/self/net, list the addresses, routes, neighbours and hardware addresses
+    -- of the interfaces and the addresses of the sockets, which SELinux lets apps read on Android 9 and before and
+    -- apps for those versions later; only opening them fails (hooks of open of Read.Network), that they exist tells nothing
+    ['Read.Network'] = { '/proc/net/', '/proc/%d+/net/', '/proc/%d+/task/%d+/net/' },
 }
 
 -- The error of a file which does not exist, OsConstants.ENOENT, the same on every Linux
 local ENOENT = 2
 
--- The script runs for the files of /sys only, also by other paths, like /proc/self/root/sys/..., /data/../sys/...
+-- The script runs for the files of /sys only (with net/ in the path for Read.Network), also by other paths, like
+-- /proc/self/root/sys/..., /data/../sys/...
 -- or sys/... relative to /, the folder apps run in; see XCore.getFilter. Not covered are links of apps themselves
 -- to the files, which have paths without sys/.
 function filter(hook)
+    if hook:getGroup() == 'Read.Network' then
+        return { '*net/*' }
+    end
     return { '*sys/*' }
 end
 

@@ -2963,6 +2963,96 @@
     "excludePackages": "android",
     "luaScript": "@package_probe"
   },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "DevicePolicyManager.isDeviceOwnerApp",
+    "author": "akano12",
+    "className": "android.app.admin.DevicePolicyManager",
+    "methodName": "isDeviceOwnerApp",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "DevicePolicyManager.isProfileOwnerApp",
+    "author": "akano12",
+    "className": "android.app.admin.DevicePolicyManager",
+    "methodName": "isProfileOwnerApp",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "StorageStatsManager.queryStatsForUid",
+    "author": "akano12",
+    "className": "android.app.usage.StorageStatsManager",
+    "methodName": "queryStatsForUid",
+    "parameterTypes": [
+      "java.util.UUID",
+      "int"
+    ],
+    "returnType": "android.app.usage.StorageStats",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@storage_stats_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "NetworkStats.getNextBucket",
+    "author": "akano12",
+    "className": "android.app.usage.NetworkStats",
+    "methodName": "getNextBucket",
+    "parameterTypes": [
+      "android.app.usage.NetworkStats$Bucket"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@network_stats_filter"
+  },
+  // The live wallpaper tells which app provides it
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "WallpaperManager.getWallpaperInfo",
+    "author": "akano12",
+    "className": "android.app.WallpaperManager",
+    "methodName": "getWallpaperInfo",
+    "parameterTypes": [],
+    "returnType": "android.app.WallpaperInfo",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@wallpaper_info"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "WallpaperManager.getWallpaperInfo/which",
+    "author": "akano12",
+    "className": "android.app.WallpaperManager",
+    "methodName": "getWallpaperInfo",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.app.WallpaperInfo",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@wallpaper_info"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html
   {
@@ -3720,6 +3810,48 @@
     "returnType": "android.accounts.AuthenticatorDescription[]",
     "minSdk": 27,
     "luaScript": "@account_authenticators"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Account",
+    "name": "ContentProviderClient.call.authority/defaultaccount",
+    "author": "akano12",
+    "description": "The primary account of the user, the default for new contacts",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "settings": [
+      "value.email"
+    ],
+    "luaScript": "@contacts_default_account"
+  },
+  // The same call by the app itself, without ContactsContract
+  {
+    "collection": "Privacy",
+    "group": "Read.Account",
+    "name": "ContentResolver.call/defaultaccount",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "settings": [
+      "value.email"
+    ],
+    "luaScript": "@contacts_default_account"
   },
   // Read clipboard
   // https://developer.android.com/reference/android/content/ClipboardManager.html
@@ -6979,6 +7111,36 @@
     "optional": true,
     "luaScript": "@generic_true_value"
   },
+  // The legacy Amplitude SDK (com.amplitude:android-sdk) reads its opt-out field itself,
+  // so its uploads, which all go through updateServer(boolean), are blocked instead
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AmplitudeClient.updateServer",
+    "author": "akano12",
+    "className": "com.amplitude.api.AmplitudeClient",
+    "methodName": "updateServer",
+    "parameterTypes": [
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AmplitudeClient.isOptedOut",
+    "author": "akano12",
+    "className": "com.amplitude.api.AmplitudeClient",
+    "methodName": "isOptedOut",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Analytics",
@@ -7082,6 +7244,44 @@
     "parameterTypes": [
       "android.content.Context",
       "java.lang.String",
+      "boolean",
+      "com.unity3d.ads.IUnityAdsInitializationListener"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@unityads_consent"
+  },
+  // Unity Ads 3 only, with per placement loading
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.initialize/test/placement",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "android.content.Context",
+      "java.lang.String",
+      "boolean",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@unityads_consent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "UnityAds.initialize/test/placement/listener",
+    "author": "akano12",
+    "className": "com.unity3d.ads.UnityAds",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "android.content.Context",
+      "java.lang.String",
+      "boolean",
       "boolean",
       "com.unity3d.ads.IUnityAdsInitializationListener"
     ],
@@ -8745,7 +8945,7 @@
       "sun.nio.fs.UnixPath"
     ],
     "returnType": "int",
-    "minSdk": 27,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@hardware_files"
   },
@@ -8790,7 +8990,7 @@
       "sun.nio.fs.UnixPath"
     ],
     "returnType": "boolean",
-    "minSdk": 27,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@hardware_files"
   },
@@ -9052,7 +9252,7 @@
       "sun.nio.fs.UnixPath"
     ],
     "returnType": "int",
-    "minSdk": 27,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@hardware_files"
   },
@@ -9097,7 +9297,7 @@
       "sun.nio.fs.UnixPath"
     ],
     "returnType": "boolean",
-    "minSdk": 27,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@hardware_files"
   },
@@ -9359,7 +9559,7 @@
       "sun.nio.fs.UnixPath"
     ],
     "returnType": "int",
-    "minSdk": 27,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@hardware_files"
   },
@@ -9404,7 +9604,7 @@
       "sun.nio.fs.UnixPath"
     ],
     "returnType": "boolean",
-    "minSdk": 27,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@hardware_files"
   },
@@ -10399,7 +10599,7 @@
     "minSdk": 33,
     "luaScript": "@nsdmanager_listener"
   },
-  // The service info callback by a discovery request, of Android 17
+  // The service info callback by a discovery request, public in Android 17, in updated network modules from Android 13 (extension 22)
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -10413,7 +10613,8 @@
       "android.net.nsd.NsdManager$ServiceInfoCallback"
     ],
     "returnType": "void",
-    "minSdk": 37,
+    "minSdk": 33,
+    "optional": true,
     "excludePackages": "android",
     "luaScript": "@nsdmanager_listener"
   },
@@ -11532,6 +11733,18 @@
   },
   {
     "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "ProcessBuilder.start/network",
+    "author": "akano12",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 27,
+    "luaScript": "@shell_commands"
+  },
+  {
+    "collection": "Privacy",
     "group": "Run.Commands",
     "name": "ProcessBuilder.start/commands",
     "author": "akano12",
@@ -11672,6 +11885,155 @@
     "returnType": "java.net.InetAddress",
     "minSdk": 27,
     "luaScript": "@network_address"
+  },
+  // The local address of sockets, which the system chose for their connection (see network_address);
+  // the socket adaptors of channels override the methods of Socket and DatagramSocket
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "Socket.getLocalAddress",
+    "author": "akano12",
+    "className": "java.net.Socket",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 27,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "Socket.getLocalSocketAddress",
+    "author": "akano12",
+    "className": "java.net.Socket",
+    "methodName": "getLocalSocketAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "DatagramSocket.getLocalAddress",
+    "author": "akano12",
+    "className": "java.net.DatagramSocket",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 27,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "DatagramSocket.getLocalSocketAddress",
+    "author": "akano12",
+    "className": "java.net.DatagramSocket",
+    "methodName": "getLocalSocketAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "SocketAdaptor.getLocalAddress",
+    "author": "akano12",
+    "className": "sun.nio.ch.SocketAdaptor",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "DatagramSocketAdaptor.getLocalAddress",
+    "author": "akano12",
+    "className": "sun.nio.ch.DatagramSocketAdaptor",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "SocketChannelImpl.getLocalAddress",
+    "author": "akano12",
+    "className": "sun.nio.ch.SocketChannelImpl",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "DatagramChannelImpl.getLocalAddress",
+    "author": "akano12",
+    "className": "sun.nio.ch.DatagramChannelImpl",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "Os.getsockname",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "getsockname",
+    "parameterTypes": [
+      "java.io.FileDescriptor"
+    ],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "luaScript": "@network_address"
+  },
+  // The files of /proc/net cannot be opened, with java.io and java.nio.file (see hardware_files)
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BlockGuardOs.open/network",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "UnixNativeDispatcher.open/network",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
   },
   // MAC addresses of Wi-Fi, Bluetooth and the network interfaces
   {

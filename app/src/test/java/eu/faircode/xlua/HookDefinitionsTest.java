@@ -870,7 +870,7 @@ public class HookDefinitionsTest {
         check("PowerManager.getLocationPowerSaveMode", "android.os.PowerManager getLocationPowerSaveMode() @generic_zero_value 28-");
         check("NsdManager.registerServiceInfoCallback/discovery", "android.net.nsd.NsdManager registerServiceInfoCallback(" +
                 "android.net.nsd.DiscoveryRequest,java.util.concurrent.Executor,android.net.nsd.NsdManager$ServiceInfoCallback) " +
-                "@nsdmanager_listener 37-");
+                "@nsdmanager_listener 33- optional");
         // Broadcasts with Bluetooth devices and the network of Android 8.1, and with the number of a call
         for (String[] variant : new String[][]{{"network", "Read.Network"}, {"call_log", "Get.Call.log"}}) {
             check("Intent.createFromParcel/" + variant[0], "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +

@@ -19,6 +19,7 @@
 -- reveal the network the device is on and help to fingerprint it;
 -- the private DNS server name can contain the account id of the user at a DNS service.
 -- Loopback addresses stay, because apps communicate with local services with them.
+-- The local address of sockets is the address of the device too, see getLocalAddress.
 
 function after(hook, param)
     local method = hook:getMethodName()
@@ -53,6 +54,23 @@ function after(hook, param)
         local fake = luajava.bindClass('java.net.InetAddress'):getLoopbackAddress()
         param:setResult(fake)
         return true, result:getHostAddress(), fake:getHostAddress()
+
+    elseif method == 'getLocalAddress' or method == 'getLocalSocketAddress' or method == 'getsockname' then
+        -- The address a socket is bound to, which the system chose for its connection, like of a
+        -- DatagramSocket connected to a server without sending anything; loopback, wildcard, link-local and
+        -- multicast addresses stay, the others become the wildcard address of their family, like of a socket
+        -- which is not bound. Socket and DatagramSocket give an InetAddress, channels and getsockname a
+        -- SocketAddress, of which only those of IP change. The socket itself stays as it is.
+        local socket = param:isInstance(result, 'java.net.InetSocketAddress')
+        local address = (socket and result:getAddress() or result)
+        if not param:isInstance(address, 'java.net.InetAddress') or address:isLoopbackAddress() or
+                address:isAnyLocalAddress() or address:isLinkLocalAddress() or address:isMulticastAddress() then
+            return false
+        end
+        local any = (address:getAddress()['length'] == 16 and '::' or '0.0.0.0')
+        local fake = luajava.bindClass('java.net.InetAddress'):getByName(any)
+        param:setResult(socket and luajava.newInstance('java.net.InetSocketAddress', fake, result:getPort()) or fake)
+        return true, address:getHostAddress(), any
 
     elseif method == 'getDomains' or method == 'getDhcpServerAddress' or method == 'getPrivateDnsServerName' then
         -- Like without domains, DHCP and private DNS with a server name (strict mode)

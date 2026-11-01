@@ -316,7 +316,7 @@ public class FakeValuesAgreeTest {
                 "end");
         Globals shell = load("shell_commands");
         String[][] variants = {{"Read.Identifiers", "identifiers"}, {"Use.Tracking", "tracking"},
-                {"Read.Biometrics", "biometrics"}};
+                {"Read.Biometrics", "biometrics"}, {"Read.Network", "network"}};
         String[] hidden = {
                 "/sys/devices/system/chip-id/unique_id", "/sys/devices/system/chip-id/lot_id",
                 "/sys/devices/system/chip-id/lot_id2", "/sys/devices/system/chip-id",
@@ -336,12 +336,15 @@ public class FakeValuesAgreeTest {
                 "/sys/class/sec/tsp", "/sys/class/sec/tsp/cmd", "/sys/class/sec/tsp/fod_info",
                 "/sys/class/sec/tsp/fod_pos", "/sys/class/fingerprint/fingerprint",
                 "/sys/class/fingerprint/fingerprint/name",
-                "/proc/self/root/sys/devices/system/chip-id/unique_id"};
+                "/proc/self/root/sys/devices/system/chip-id/unique_id",
+                "/proc/net/arp", "/proc/net/route", "/proc/self/net/if_inet6", "/proc/1/net/dev",
+                "/proc/1/task/1/net/fib_trie"};
         String[] stay = {
                 "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/class/sec/tspx",
                 "/sys/bus/mmc/devices/mmc0:0001/cidx", "/sys/class/fingerprint/fingerprintx",
                 "/sys/devices/system/chip-idx/unique_id", "/sys/class/scsi_host/host0/unique_id",
-                "/sys/devices/platform/13100000.ufs/string_descriptors/product_revision"};
+                "/sys/devices/platform/13100000.ufs/string_descriptors/product_revision",
+                "/proc/sys/net/ipv4/ip_forward", "/proc/meminfo", "/proc/netx/arp"};
         // Paths of the devices themselves, which both only have to agree on
         String[] devices = {
                 "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid",

@@ -24,6 +24,7 @@
 -- to the working directory of the builder; not covered are redirections of the shell, like read x < file, and
 -- commands which show that these files exist without reading them, like ls, stat, find and test (or [ -e file ]).
 -- Not covered either are df and free, which print the exact sizes that Read.Resources rounds (see resources).
+-- For Read.Network ip, ifconfig, netstat, ss and arp fail and the files of /proc/net do not exist (see NETWORK).
 -- These commands print the same fake values: they run
 -- in a shell with functions of the same names in front, which run the real command and replace the values,
 -- so the output keeps its format; date gets the fake time zone in its environment (TZ).
@@ -111,8 +112,14 @@ local HIDDEN = {
                  '*/sensors/light_sensor/light_cal', '*/sec/tsp', '*/sec/tsp/*' },
     biometrics = { '*/fingerprint/fingerprint', '*/fingerprint/fingerprint/*', '*/sec/tsp/fod_info',
                    '*/sec/tsp/fod_pos' },
+    -- The files of /proc/net, like for Read.Network, which can be opened in hardware_files only (see there)
+    network = { '*/proc/net/*', '*/proc/[0-9]*/net/*' },
 }
-local HIDING = { 'identifiers', 'tracking', 'biometrics' }
+local HIDING = { 'identifiers', 'tracking', 'biometrics', 'network' }
+
+-- The commands listing the addresses, routes and neighbours of the interfaces, from netlink and /proc/net, which
+-- apps can run on Android 10 and before and apps for those versions later; for Read.Network they fail like there
+local NETWORK = { 'ip', 'ifconfig', 'netstat', 'ss', 'arp' }
 
 -- The commands which read files and get the error of a missing file for these files; dd takes if=file
 local READERS = { 'cat', 'head', 'tail', 'dd', 'od', 'xxd', 'hexdump', 'strings', 'base64', 'md5sum', 'sha1sum',
@@ -357,10 +364,15 @@ function resolve(path)
     return path
 end
 
+-- Whether a text can name a file of HIDDEN, of /sys or /proc/net
+function special(text)
+    return string.find(text, 'sys/', 1, true) ~= nil or string.find(text, 'net/', 1, true) ~= nil
+end
+
 -- Whether a file does not exist for the variants, by its path or the path it leads to; dd takes if=file
 function hiddenfile(file, variants)
     file = string.gsub(file, '^if=', '')
-    if not string.find(file, 'sys/', 1, true) then
+    if not special(file) then
         return false
     end
     local patterns = {}
@@ -385,7 +397,7 @@ end
 -- directory of /sys it changes to or by a pattern, which the functions resolve when they run; not paths made while
 -- the script runs, like "$dir"/cid, and files of /sys which exist are read without functions
 function hiddenin(text, variants)
-    if not string.find(text, 'sys/', 1, true) then
+    if not special(text) then
         return false
     end
     if hasword(text, 'cd') or string.find(text, '[%*%?%[]') then
@@ -921,6 +933,17 @@ function commands(text, variant)
                 return names
             end
         end
+    elseif variant == 'network' then
+        local names = {}
+        for _, name in ipairs(NETWORK) do
+            if hasword(text, name) then
+                names[#names + 1] = name
+            end
+        end
+        readers(text, variant, names)
+        if #names > 0 then
+            return names
+        end
     elseif variant == 'identifiers' or variant == 'timezone' or variant == 'debugging' then
         local names = {}
         if string.find(text, 'getprop', 1, true) then
@@ -977,6 +1000,12 @@ function functions(param, text, variants, script)
     end
     if seen['uname'] then
         result = result .. kernelfunctions()
+    end
+    for _, name in ipairs(NETWORK) do
+        if seen[name] then
+            result = result .. name .. "() {\n /system/bin/printf '%s: Permission denied\\n' " .. name ..
+                    " >&2\n return 1\n}\n"
+        end
     end
     local reading = {}
     for _, name in ipairs(READERS) do

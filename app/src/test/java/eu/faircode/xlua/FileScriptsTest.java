@@ -328,7 +328,9 @@ public class FileScriptsTest {
                         "  hidden(finger, '/sys/class/fingerprint/fingerprint/name'),\n" +
                         "  hidden(finger, '/sys/class/fingerprint/fingerprint'),\n" +
                         "  hidden(finger, '/sys/class/sec/tsp/fod_pos'), hidden(finger, '/sys/class/sec/tsp/raw_check'),\n" +
-                        "  hidden(hookof('Read.Network'), '/sys/devices/system/chip-id/unique_id')");
+                        "  hidden(hookof('Read.Network'), '/sys/devices/system/chip-id/unique_id'),\n" +
+                        "  filter(hookof('Read.Network'))[1], hidden(hookof('Read.Network'), '/proc/net/arp'),\n" +
+                        "  hidden(hookof('Read.Network'), '/proc/sys/net/ipv4/ip_forward')");
         assertEquals("*sys/*", result.arg(1).tojstring());
         assertEquals(1, result.arg(2).toint());
         boolean[] expected = {true, true, true, true, false, false, false, false,
@@ -336,6 +338,10 @@ public class FileScriptsTest {
                 true, true, true, false, false};
         for (int i = 0; i < expected.length; i++)
             assertEquals(String.valueOf(i + 3), expected[i], result.arg(i + 3).toboolean());
+        // The files of /proc/net for Read.Network, not the settings of the network in /proc/sys
+        assertEquals("*net/*", result.arg(24).tojstring());
+        assertTrue(result.arg(25).toboolean());
+        assertFalse(result.arg(26).toboolean());
     }
 
     // Resolving, reading the link of and making a hidden file fail like for a file which does not exist;

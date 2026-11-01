@@ -53,7 +53,7 @@ import static org.junit.Assert.assertTrue;
 // (a directory with sh, sed, grep, printf, cat and readlink), else the tools of this computer are used.
 public class ShellCommandsScriptTest {
     private static final String[] ALL = {"tracking", "identifiers", "timezone", "packages", "features", "biometrics",
-            "resources"};
+            "resources", "network"};
     private static final String SETTINGS = "{ ['value.serial'] = 'SERIAL1', ['value.timezone'] = 'Asia/Tokyo'," +
             " ['features.keep'] = 'android.hardware.nfc, android.hardware.camera*' }";
     // The value of the properties compared, a date for the security patch level
@@ -652,6 +652,31 @@ public class ShellCommandsScriptTest {
         }
     }
 
+    // The commands listing the addresses of the interfaces fail for Read.Network, also in scripts and by their path,
+    // and the files of /proc/net do not exist, also by /proc/self/net; other variants run them as they are
+    @Test
+    public void networkCommandsFail() throws Exception {
+        tools();
+        for (String[] args : new String[][]{{"ip", "addr"}, {"/system/bin/ip", "-4", "route"}, {"ifconfig"},
+                {"toybox", "ifconfig", "wlan0"}, {"netstat", "-an"}, {"cat", "/proc/net/dev"},
+                {"head", "-n", "3", "/proc/self/net/route"}}) {
+            Result result = run(start(args, "network"));
+            assertEquals(String.join(" ", args), "", result.out);
+            assertEquals(String.join(" ", args), 1, result.status);
+        }
+        assertEquals("", run(start(new String[]{"sh", "-c", "ip a | grep inet; /system/bin/ip neigh; cat /proc/net/arp"},
+                "network")).out);
+        assertEquals(2, run(start(new String[]{"grep", "-c", ".", "/proc/net/dev"}, "network")).status);
+        assertEquals("inet 192.168.1.5/24 scope global wlan0\n", run(start(new String[]{"ip", "addr"}, "tracking")).out);
+        assertEquals("ip addr", String.join(" ", command(start(new String[]{"ip", "addr"}, "identifiers"))));
+        assertEquals("cat /proc/net/dev", String.join(" ", command(start(new String[]{"cat", "/proc/net/dev"},
+                "resources"))));
+        // Other files of /proc and words like ip in other words stay
+        assertEquals("cat /proc/sys/net/ipv4/ip_forward", String.join(" ", command(start(new String[]{"cat",
+                "/proc/sys/net/ipv4/ip_forward"}, "network"))));
+        assertEquals("getprop ro.ip.x", String.join(" ", command(start(new String[]{"getprop", "ro.ip.x"}, "network"))));
+    }
+
     // Commands behind nohup, nice and timeout, which run the rest of the command
     @Test
     public void wrappedCommandsAreFaked() throws Exception {
@@ -866,6 +891,7 @@ public class ShellCommandsScriptTest {
                     " #1 SMP PREEMPT Fri Jan 3 12:00:00 UTC 2025 aarch64 Toybox' ;;\n" +
                     " *) echo Linux ;;\n" +
                     "esac\n");
+            stand("ip", header + "echo 'inet 192.168.1.5/24 scope global wlan0'\n");
             stand("cmd", header +
                     "[ \"$1\" = -w ] && shift\n" +
                     "if [ \"$1\" = package ]; then shift; exec $d/pm \"$@\"; fi\n" +

@@ -55,6 +55,7 @@ public class NetworkScriptsTest {
             "    setResult = function(self, value) self.result = value self.set = true end,",
             "    getArgument = function(self, index) return self.args[index] end,",
             "    getThis = function(self) return this end,",
+            "    isInstance = function(self, object, name) return checks:isInstance(object, name) end,",
             "    getPackageName = function(self) return 'com.example' end,",
             "    getApplicationContext = function(self) return context end,",
             "    findClass = function(self, name) assert(classes[name], name) return name end,",
@@ -65,7 +66,9 @@ public class NetworkScriptsTest {
             "classes = {}");
 
     private static Globals load(String script) throws Exception {
-        return Scripts.load(script, STUBS);
+        Globals globals = Scripts.load(script, STUBS);
+        globals.set("checks", CoerceJavaToLua.coerce(new GenericScriptsTest.Checks()));
+        return globals;
     }
 
     private static String tostring(Globals globals, String className, String text) {
@@ -153,6 +156,40 @@ public class NetworkScriptsTest {
         assertEquals("\"private\"", result.arg(4).tojstring());
         assertTrue(result.arg(5).toboolean());
         assertEquals("02:00:00:00:00:00", result.arg(6).tojstring());
+    }
+
+    // The local address of sockets: those of the device become the wildcard address of their family, also in a
+    // socket address with its port; loopback, wildcard, link-local and other socket addresses stay
+    @Test
+    public void localAddressOfSocketsIsHidden() throws Exception {
+        Globals globals = load("network_address");
+        Varargs result = Scripts.run(globals,
+                "local inet = luajava.bindClass('java.net.InetAddress')\n" +
+                        "local function bound(method, value)\n" +
+                        "  local param = paramof(value)\n" +
+                        "  return tostring(after(hookof(method), param)) .. ' ' .. tostring(param.result)\n" +
+                        "end\n" +
+                        "local function socket(host, port)\n" +
+                        "  return luajava.newInstance('java.net.InetSocketAddress', inet:getByName(host), port)\n" +
+                        "end\n" +
+                        "return bound('getLocalAddress', inet:getByName('192.168.1.5')),\n" +
+                        "  bound('getLocalAddress', inet:getByName('2001:db8::5')),\n" +
+                        "  bound('getLocalSocketAddress', socket('10.0.0.7', 4321)),\n" +
+                        "  bound('getsockname', socket('2001:db8::5', 443)),\n" +
+                        "  bound('getLocalAddress', inet:getByName('127.0.0.1')),\n" +
+                        "  bound('getLocalAddress', inet:getByName('0.0.0.0')),\n" +
+                        "  bound('getLocalAddress', inet:getByName('fe80::1')),\n" +
+                        "  bound('getLocalSocketAddress', socket('::1', 80)),\n" +
+                        "  bound('getsockname', 'unix')");
+        assertEquals("true /0.0.0.0", result.arg(1).tojstring());
+        assertEquals("true /0:0:0:0:0:0:0:0", result.arg(2).tojstring());
+        assertEquals("true /0.0.0.0:4321", result.arg(3).tojstring());
+        assertEquals("true /[0:0:0:0:0:0:0:0]:443", result.arg(4).tojstring());
+        assertEquals("false /127.0.0.1", result.arg(5).tojstring());
+        assertEquals("false /0.0.0.0", result.arg(6).tojstring());
+        assertEquals("false /fe80:0:0:0:0:0:0:1", result.arg(7).tojstring());
+        assertEquals("false /[0:0:0:0:0:0:0:1]:80", result.arg(8).tojstring());
+        assertEquals("false unix", result.arg(9).tojstring());
     }
 
     @Test
