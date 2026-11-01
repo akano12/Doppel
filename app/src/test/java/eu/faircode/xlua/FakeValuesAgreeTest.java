@@ -297,10 +297,58 @@ public class FakeValuesAgreeTest {
         assertEquals("com.android.contacts", run(open, "authorityof(uriof('10@com.android.contacts'))"));
     }
 
+    // The languages and the properties of the language are the same for the hooks (locale), getprop (shell_commands)
+    // and the settings provider (settingssecure_getstring), for each setting, also of tags without a region
+    @Test
+    public void localeIsTheSame() throws Exception {
+        for (String script : new String[]{"shell_commands", "settingssecure_getstring"})
+            for (String function : new String[]{"fakes", "split"})
+                assertEquals(script + " " + function, Scripts.function("locale", function), Scripts.function(script, function));
+        Globals locale = load("locale");
+        Globals shell = load("shell_commands");
+        Globals settings = load("settingssecure_getstring");
+        for (String setting : new String[]{"{}", "{ ['value.locale'] = 'de-DE,fr' }", "{ ['value.locale'] = 'ja' }",
+                "{ ['value.locale'] = 'zh-Hant-TW' }"}) {
+            for (String key : new String[]{"persist.sys.locale", "ro.product.locale", "persist.sys.language",
+                    "ro.product.locale.language", "persist.sys.country", "ro.product.locale.region", "ro.csc.sales_code",
+                    "ro.miui.region", "ro.omc.region"}) {
+                String expected = run(locale, "fakeof('SystemProperties.get/locale', 'get', 'real', { '" + key + "' }, " +
+                        setting + ", 'android.os.SystemProperties')");
+                assertEquals(setting + " " + key, expected, run(shell, "(function()\n" +
+                        "  for _, rule in ipairs(rules(paramof(nil, {}, " + setting + "), 'locale')) do\n" +
+                        "    for _, pattern in ipairs(rule[2]) do\n" +
+                        "      if pattern == '" + key + "' then return rule[1] end\n" +
+                        "    end\n" +
+                        "  end\n" +
+                        "end)()"));
+            }
+            assertEquals(setting, run(locale, "fakeof('Settings.System.getStringForUser/locale', 'getStringForUser', " +
+                            "'real', { nil, 'system_locales' }, " + setting + ")"),
+                    run(settings, "select(2, fakesetting(paramof(nil, {}, " + setting + "), 'locale', 'system_locales', 'real'))"));
+        }
+    }
+
     // The hooks of opening files and cat run by the app follow links to /sys the same way
     @Test
     public void resolveIsTheSame() throws Exception {
         assertEquals(Scripts.function("hardware_files", "resolve"), Scripts.function("shell_commands", "resolve"));
+    }
+
+    // The folders of the shared storage whose times are faked (storage_times) are the ones stat and ls fail for
+    @Test
+    public void storageFoldersAreTheSame() throws Exception {
+        Pattern folders = Pattern.compile("\nlocal FOLDERS = \\{[^}]*\\}");
+        Matcher times = folders.matcher(Scripts.read("storage_times").replace("\r\n", "\n"));
+        Matcher shell = folders.matcher(Scripts.read("shell_commands").replace("\r\n", "\n"));
+        assertTrue(times.find());
+        assertTrue(shell.find());
+        assertEquals(times.group(), shell.group());
+    }
+
+    // The folders of VPN interfaces which do not exist (hardware_files) are of the interfaces vpn leaves out
+    @Test
+    public void vpnInterfacesAreTheSame() throws Exception {
+        assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("hardware_files", "isvpninterface"));
     }
 
     // The files of /sys which do not exist for each group: the hooks of opening files (hardware_files,
@@ -316,7 +364,7 @@ public class FakeValuesAgreeTest {
                 "end");
         Globals shell = load("shell_commands");
         String[][] variants = {{"Read.Identifiers", "identifiers"}, {"Use.Tracking", "tracking"},
-                {"Read.Biometrics", "biometrics"}, {"Read.Network", "network"}};
+                {"Read.Biometrics", "biometrics"}, {"Read.Network", "network"}, {"Read.Debugging", "debugging"}};
         String[] hidden = {
                 "/sys/devices/system/chip-id/unique_id", "/sys/devices/system/chip-id/lot_id",
                 "/sys/devices/system/chip-id/lot_id2", "/sys/devices/system/chip-id",
@@ -338,13 +386,22 @@ public class FakeValuesAgreeTest {
                 "/sys/class/fingerprint/fingerprint/name",
                 "/proc/self/root/sys/devices/system/chip-id/unique_id",
                 "/proc/net/arp", "/proc/net/route", "/proc/self/net/if_inet6", "/proc/1/net/dev",
-                "/proc/1/task/1/net/fib_trie"};
+                "/proc/1/task/1/net/fib_trie",
+                "/sys/devices/soc0/serial_number", "/sys/devices/soc0/soc_id", "/sys/devices/soc0",
+                "/sys/bus/soc/devices/soc0/family", "/sys/block/sda/device/model", "/sys/class/block/sdb/device/vendor",
+                "/sys/block/sda/device/rev", "/sys/devices/platform/soc/1d84000.ufshc/host0/target0:0:0/0:0:0:0/model",
+                "/proc/scsi/scsi", "/proc/bus/input/devices", "/sys/class/camera/rear/rear_camfw",
+                "/system/bin/su", "/system/xbin/su", "/sbin/su", "/su/bin/su", "/system/app/Superuser.apk",
+                "/system/bin/magisk", "/debug_ramdisk/magisk", "/data/adb/magisk.db", "/proc/self/root/system/xbin/su"};
         String[] stay = {
                 "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/class/sec/tspx",
                 "/sys/bus/mmc/devices/mmc0:0001/cidx", "/sys/class/fingerprint/fingerprintx",
                 "/sys/devices/system/chip-idx/unique_id", "/sys/class/scsi_host/host0/unique_id",
                 "/sys/devices/platform/13100000.ufs/string_descriptors/product_revision",
-                "/proc/sys/net/ipv4/ip_forward", "/proc/meminfo", "/proc/netx/arp"};
+                "/proc/sys/net/ipv4/ip_forward", "/proc/meminfo", "/proc/netx/arp",
+                "/sys/devices/platform/soc/1d84000.ufshc", "/sys/block/sda/size", "/sys/block/sda/device/queue_depth",
+                "/proc/bus/input/handlers", "/proc/cpuinfo", "/system/bin/sh", "/system/bin/sudo", "/sdcard/su",
+                "/data/user/0/com.termux/files/usr/bin/su", "/system/xbin/sum"};
         // Paths of the devices themselves, which both only have to agree on
         String[] devices = {
                 "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid",

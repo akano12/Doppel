@@ -172,9 +172,23 @@ public class FileScriptsTest {
             "  return { getMethodName = function(self) return method end,",
             "    getClassName = function(self) return class or 'libcore.io.BlockGuardOs' end }",
             "end",
+            // The app with its own APK and the packages it can see, see apptime
+            "OWN = '/data/app/~~own==/com.example-a==/base.apk'",
+            "PACKAGES = { ['com.google.android.gms'] = { firstInstallTime = 1720723580123, applicationInfo = { flags = 129 } },",
+            "  ['com.other'] = { firstInstallTime = 5, applicationInfo = { flags = 0 } } }",
+            "CONTEXT = { getApplicationInfo = function(self) return { sourceDir = OWN } end,",
+            "  getPackageManager = function(self)",
+            "    return { getPackageInfo = function(self, name, flags)",
+            "      assert(flags == 0, flags)",
+            "      return PACKAGES[name] or error('NameNotFoundException')",
+            "    end }",
+            "  end }",
             "function paramof(result, args)",
             "  return { result = result,",
-            "    getArgument = function(self, index) return args[index + 1] end,",
+            "    getArgument = function(self, index) return (args or {})[index + 1] end,",
+            "    getApplicationContext = function(self) return CONTEXT end,",
+            "    isSystem = function(self) return false end,",
+            "    unhooked = function(self, f) return f() end,",
             "    getException = function(self) return nil end,",
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value end }",
@@ -265,6 +279,71 @@ public class FileScriptsTest {
         assertTrue(result.arg(11).isnil());
     }
 
+    // The files of other apps in /data/app get the times of their package info: the time of the firmware for updates
+    // of apps of the system, the time of reproducible builds for others, of packages which are gone and for
+    // /data/app itself; the files of the app itself keep theirs, on Android 11 and later and before
+    @Test
+    public void appTimes() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local function seconds(path)\n" +
+                        "  local param = paramof(statof(1791930132), { path })\n" +
+                        "  if not after(hookof('stat'), param) then return 'real' end\n" +
+                        "  return param.result.args[9].args[1] .. '.' .. param.result.args[9].args[2]\n" +
+                        "end\n" +
+                        "local modified = paramof(1791930132512, { '/data/app/~~g==/com.google.android.gms-z==/base.apk' })\n" +
+                        "after(hookof('getLastModifiedTime'), modified)\n" +
+                        "local found = {}\n" +
+                        "for _, path in ipairs(filter(nil)) do found[path] = true end\n" +
+                        "return seconds('/data/app/~~x==/com.other-y==/base.apk'),\n" +
+                        "  seconds('/data/app/~~a-b==/com.google.android.gms-x-y_z==/split_config.en.apk'),\n" +
+                        "  seconds('/data/app/~~x=='), seconds('/data/app'), seconds('/data/app/com.other-1/base.apk'),\n" +
+                        "  seconds('/data/app/~~q==/com.gone-r==/base.apk'), seconds(OWN),\n" +
+                        "  seconds('/data/app/~~own==/com.example-a==/split_config.arm64_v8a.apk'),\n" +
+                        "  seconds('/data/app/~~own==/com.example-a==/oat/arm64/base.odex'), seconds('/data/app/~~own=='),\n" +
+                        "  modified.result, found['/data/app'], found['/data/app/*']");
+        assertEquals("1230768000.0", result.arg(1).tojstring());
+        assertEquals("1720723580.123000000", result.arg(2).tojstring());
+        assertEquals("1230768000.0", result.arg(3).tojstring());
+        assertEquals("1230768000.0", result.arg(4).tojstring());
+        assertEquals("1230768000.0", result.arg(5).tojstring());
+        assertEquals("1230768000.0", result.arg(6).tojstring());
+        for (int i = 7; i <= 10; i++)
+            assertEquals(String.valueOf(i), "real", result.arg(i).tojstring());
+        assertEquals(1720723580123L, result.arg(11).tolong());
+        assertTrue(result.arg(12).toboolean());
+        assertTrue(result.arg(13).toboolean());
+    }
+
+    // The lines of /proc/cpuinfo the kernel of Linux prints for each processor stay, others, like the Hardware and
+    // Serial of kernels of vendors, are left out; a file with only known lines, like of x86, stays as it is
+    @Test
+    public void cpuinfo() throws Exception {
+        Globals globals = Scripts.load("cpuinfo", STUBS);
+        String core = "processor\t: %d\nBogoMIPS\t: 38.40\n" +
+                "Features\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop\n" +
+                "CPU implementer\t: 0x51\nCPU architecture: 8\nCPU variant\t: 0xd\nCPU part\t: 0x805\nCPU revision\t: 14\n\n";
+        String cores = String.format(core, 0) + String.format(core, 1);
+        String snapdragon = cores + "Hardware\t: Qualcomm Technologies, Inc SM8150\nSerial\t\t: 00000000a1b2c3d4\n";
+        String x86 = "processor\t: 0\nvendor_id\t: GenuineIntel\nmodel name\t: Android virtual processor\n" +
+                "flags\t\t: fpu sse sse2\nbugs\t\t: spectre_v1\nbogomips\t: 5836.80\npower management:\n\n";
+        Varargs result = Scripts.run(globals,
+                "local param = paramof([[" + snapdragon + "]])\n" +
+                        "local x86 = paramof([[" + x86 + "]])\n" +
+                        "local other = paramof([[" + snapdragon + "]], true)\n" +
+                        "local restricted, left = after(nil, param)\n" +
+                        "return restricted, left, param.text, after(nil, x86), x86.set, after(nil, other), other.set,\n" +
+                        "  filter(nil)[1]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("2", result.arg(2).tojstring());
+        assertEquals(cores, result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals("*cpuinfo*", result.arg(8).tojstring());
+    }
+
     // The hooks and params of the hardware files script, with the links of /sys as resolve sees them;
     // objects made are tables of their arguments
     private static final String HARDWARE_STUBS = String.join("\n",
@@ -342,6 +421,53 @@ public class FileScriptsTest {
         assertEquals("*net/*", result.arg(24).tojstring());
         assertTrue(result.arg(25).toboolean());
         assertFalse(result.arg(26).toboolean());
+    }
+
+    // The chip of the bus of systems on a chip, SCSI storage by its link to the device, input devices and storage
+    // of /proc, the folders of VPN interfaces (by the names of vpn) and su and Magisk; only their files
+    @Test
+    public void hardwareModelsVpnAndRoot() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/sys/block/sda/device/model'] = '/sys/devices/platform/soc/1d84000.ufshc/host0/target0:0:0/0:0:0:0/model'\n" +
+                        "LINKS['/sys/devices/soc0/../soc0/serial_number'] = '/sys/devices/soc0/serial_number'\n" +
+                        "LINKS['/sys/class/net/tun0'] = '/sys/devices/virtual/net/tun0'\n" +
+                        "LINKS['/sys/class/net/wlan0'] = '/sys/devices/platform/soc/18800000.qcom,icnss/net/wlan0'\n" +
+                        "LINKS['/system/bin/su'] = '/debug_ramdisk/magisk'\n" +
+                        "LINKS['/proc/self/root/system/xbin/su'] = '/system/xbin/su'\n" +
+                        "local results = {}\n" +
+                        "local function check(group, path) results[#results + 1] = hidden(hookof(group), path) end\n" +
+                        "for _, path in ipairs({ '/sys/devices/soc0/serial_number', '/sys/bus/soc/devices/soc0/serial_number',\n" +
+                        "  '/sys/devices/soc0/../soc0/serial_number', '/sys/devices/soc0/soc_id' }) do check('Read.Identifiers', path) end\n" +
+                        "for _, path in ipairs({ '/sys/devices/soc0/soc_id', '/sys/devices/soc0', '/sys/devices/system/soc/soc0/id',\n" +
+                        "  '/sys/block/sda/device/model', '/sys/class/block/sdb/device/vendor',\n" +
+                        "  '/sys/devices/platform/soc/1d84000.ufshc/host0/target0:0:0/0:0:0:0/rev', '/proc/bus/input/devices',\n" +
+                        "  '/proc/scsi/scsi', '/sys/class/camera/rear/rear_camfw', '/sys/devices/platform/soc/1d84000.ufshc',\n" +
+                        "  '/sys/block/sda/size', '/sys/block/sda/device/queue_depth', '/proc/bus/input/handlers',\n" +
+                        "  '/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq' }) do check('Use.Tracking', path) end\n" +
+                        "for _, path in ipairs({ '/sys/class/net/tun0', '/sys/class/net/wg0/address', '/sys/devices/virtual/net/ppp0',\n" +
+                        "  '/sys/class/net/wlan0', '/sys/class/net', '/sys/class/net/lo', '/storage/emulated/0/net/tunes' }) do\n" +
+                        "  check('Read.VPN', path)\n" +
+                        "end\n" +
+                        "for _, path in ipairs({ '/system/xbin/su', '/system/bin/su', '/sbin/su', '/debug_ramdisk/magisk',\n" +
+                        "  '/system/bin/magiskpolicy', '/system/app/Superuser.apk', '/proc/self/root/system/xbin/su',\n" +
+                        "  '/system/bin/sh', '/data/user/0/com.termux/files/usr/bin/su', '/sdcard/su', '/system/bin/sudo' }) do\n" +
+                        "  check('Read.Debugging', path)\n" +
+                        "end\n" +
+                        "local exists = paramof('/sys/class/net/tun0')\n" +
+                        "before(hookof('Read.VPN', 'java.io.UnixFileSystem', 'checkAccess', 'boolean'), exists)\n" +
+                        "local tracking, debugging = {}, {}\n" +
+                        "for _, value in ipairs(filter(hookof('Use.Tracking'))) do tracking[value] = true end\n" +
+                        "for _, value in ipairs(filter(hookof('Read.Debugging'))) do debugging[value] = true end\n" +
+                        "return table.concat((function() local t = {} for i, v in ipairs(results) do t[i] = v and 'T' or 'F' end return t end)()),\n" +
+                        "  exists.early, exists.result, filter(hookof('Read.VPN'))[1], tracking['*proc/scsi/*'], tracking['*sys/*'],\n" +
+                        "  debugging['/system/xbin/*'], debugging['*magisk*']");
+        assertEquals("TTTF" + "TTTTTTTTTFFFFF" + "TTTFFFF" + "TTTTTTTFFFF", result.arg(1).tojstring());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals("*net/*", result.arg(4).tojstring());
+        for (int i = 5; i <= 8; i++)
+            assertTrue(String.valueOf(i), result.arg(i).toboolean());
     }
 
     // Resolving, reading the link of and making a hidden file fail like for a file which does not exist;

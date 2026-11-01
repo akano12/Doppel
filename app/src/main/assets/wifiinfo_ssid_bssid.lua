@@ -24,6 +24,15 @@ function after(hook, param)
         return false
     end
 
+    -- The id of the saved network, -1 like Android shows it to apps without location permission
+    if hook:getMethodName() == 'getNetworkId' then
+        if result == -1 then
+            return false
+        end
+        param:setResult(-1)
+        return true, tostring(result), '-1'
+    end
+
     local fake = '"private"'
     local hidden = '<unknown ssid>'
     if hook:getMethodName() == 'getBSSID' then

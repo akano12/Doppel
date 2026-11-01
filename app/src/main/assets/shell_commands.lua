@@ -17,14 +17,16 @@
 
 -- Apps run commands to read what the other hooks fake, like FingerprintJS runs getprop:
 -- getprop reads the system properties behind the fields of android.os.Build, the serial, the operator
--- and the time zone, uname and /proc/version the kernel build of Os.uname, pm the installed packages
+-- the time zone and the language, uname and /proc/version the kernel build of Os.uname, pm the installed packages
 -- and the features of the device, date the time zone, cat the files of which apps read another text, like
 -- /proc/meminfo and boot_id, and cat, head, dd and other commands reading files fail for the files of /sys which
 -- do not exist for the app (see hardware_files), named in the command or the script, also by a link, or relative
 -- to the working directory of the builder; not covered are redirections of the shell, like read x < file, and
 -- commands which show that these files exist without reading them, like ls, stat, find and test (or [ -e file ]).
+-- stat, ls -l and find with times fail for the folders of which storage_times fakes the times (see timesfunctions).
 -- Not covered either are df and free, which print the exact sizes that Read.Resources rounds (see resources).
 -- For Read.Network ip, ifconfig, netstat, ss and arp fail and the files of /proc/net do not exist (see NETWORK).
+-- For Read.Debugging su is not there, and which and the commands reading files do not find it or Magisk.
 -- These commands print the same fake values: they run
 -- in a shell with functions of the same names in front, which run the real command and replace the values,
 -- so the output keeps its format; date gets the fake time zone in its environment (TZ).
@@ -56,7 +58,11 @@ local DEVICE = {
                    'ro.boot.vbmeta.public_key_digest', 'ro.bootloader', 'ro.boot.bootloader', 'ro.build.expect.bootloader',
                    'gsm.version.baseband', 'ro.build.expect.baseband', 'ro.product.marketname',
                    'ro.product.*.marketname', 'ro.config.marketing_name', 'ro.vendor.oplus.market.name',
-                   'ro.oppo.market.name' } },
+                   'ro.oppo.market.name',
+                   'ro.*.product.model', 'ro.*.product.manufacturer', 'ro.*.product.brand', 'ro.*.product.device',
+                   'ro.*.product.name', 'persist.sys.exif.model',
+                   'ro.*.soc.*', 'ro.chipname', 'ro.hardware.chipname', 'ro.vendor.qti.soc_model',
+                   'ro.vendor.qti.soc_name', 'ro.mediatek.platform', 'ro.vendor.mediatek.platform' } },
     { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
                    'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
                    'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
@@ -89,14 +95,19 @@ local NOADB = {}
 local DEBUGGING = {
     { 'stopped', { 'init.svc.adbd' } },
     { NOADB, { 'sys.usb.config', 'sys.usb.state', 'persist.sys.usb.config' } },
+    -- Not debuggable, like a user build, and the log buffer sizes not set (see systemproperties_get)
+    { '0', { 'ro.debuggable' } },
+    { '1', { 'ro.secure' } },
+    { '', { 'persist.logd.size', 'persist.logd.size.main', 'persist.logd.size.crash' } },
 }
 
 -- The variants faking properties, which getprop prints
-local PROPERTIES = { 'tracking', 'identifiers', 'timezone', 'debugging' }
+local PROPERTIES = { 'tracking', 'identifiers', 'timezone', 'debugging', 'locale' }
 
 -- The files of the variants of which apps read another text, which cat prints (see catfunction),
--- like the hooks opening files: the id of boot_id per app, and the rounded sizes of /proc/meminfo
-local FILES = { tracking = { '/proc/sys/kernel/random/boot_id' },
+-- like the hooks opening files: the id of boot_id per app, /proc/cpuinfo without the lines naming the chip,
+-- and the rounded sizes of /proc/meminfo
+local FILES = { tracking = { '/proc/sys/kernel/random/boot_id', '/proc/cpuinfo' },
                 resources = { '/proc/meminfo' } }
 
 -- The files of /sys which do not exist for the variants, like for the hooks opening files (see hardware_files),
@@ -105,17 +116,32 @@ local FILES = { tracking = { '/proc/sys/kernel/random/boot_id' },
 local HIDDEN = {
     identifiers = { '*/chip-id/unique_id', '*/chip-id/lot_id', '*/chip-id/lot_id2', '*/mmc[0-9]*:*/cid',
                     '*/mmc[0-9]*:*/serial', '*/sec/sdinfo/data', '*/scsi_host/host[0-9]*/unique_number',
-                    '*/string_descriptors/serial_number' },
-    tracking = { '*/chip-id', '*/chip-id/*', '*/mmc[0-9]*:*/date', '*/mmc[0-9]*:*/manfid', '*/mmc[0-9]*:*/oemid',
+                    '*/string_descriptors/serial_number', '*/soc[0-9]*/serial_number' },
+    tracking = { '*/chip-id', '*/chip-id/*', '*/soc[0-9]*', '*/soc[0-9]*/*', '*/mmc[0-9]*:*/date',
+                 '*/mmc[0-9]*:*/manfid', '*/mmc[0-9]*:*/oemid',
                  '*/mmc[0-9]*:*/name', '*/scsi_host/host[0-9]*/man_id', '*/string_descriptors/manufacturer_name',
                  '*/string_descriptors/product_name', '*/string_descriptors/oem_id',
-                 '*/sensors/light_sensor/light_cal', '*/sec/tsp', '*/sec/tsp/*' },
+                 '*/block/sd[a-z]*/device/model', '*/block/sd[a-z]*/device/vendor', '*/block/sd[a-z]*/device/rev',
+                 '*/[0-9]*:[0-9]*:[0-9]*:[0-9]*/model', '*/[0-9]*:[0-9]*:[0-9]*:[0-9]*/vendor',
+                 '*/[0-9]*:[0-9]*:[0-9]*:[0-9]*/rev',
+                 '*/sensors/light_sensor/light_cal', '*/sec/tsp', '*/sec/tsp/*', '*/class/camera/*',
+                 '*/virtual/camera/*', '*/proc/scsi/*', '*/proc/bus/input/devices' },
     biometrics = { '*/fingerprint/fingerprint', '*/fingerprint/fingerprint/*', '*/sec/tsp/fod_info',
                    '*/sec/tsp/fod_pos' },
     -- The files of /proc/net, like for Read.Network, which can be opened in hardware_files only (see there)
     network = { '*/proc/net/*', '*/proc/[0-9]*/net/*' },
+    -- su and Magisk, of which which leaves out the paths too (see whichfunction)
+    debugging = { '/system/bin/su', '/system/xbin/su', '/sbin/su', '/su', '/su/*', '/system/bin/failsafe/su',
+                  '/system/sd/xbin/su', '/system/bin/.ext/su', '/system/usr/we-need-root/su', '/data/local/su',
+                  '/data/local/bin/su', '/data/local/xbin/su', '/cache/su', '/dev/su', '/vendor/bin/su',
+                  '/vendor/xbin/su', '/product/bin/su', '/system_ext/bin/su', '/odm/bin/su',
+                  '/system/app/Superuser.apk', '/system/app/Superuser/*', '/system/app/SuperSU/*',
+                  '/system/bin/magisk*', '/system/bin/resetprop', '/system/bin/supolicy', '/sbin/magisk*',
+                  '/sbin/.magisk*', '/debug_ramdisk/*', '/data/adb/*' },
 }
-local HIDING = { 'identifiers', 'tracking', 'biometrics', 'network' }
+local HIDING = { 'identifiers', 'tracking', 'biometrics', 'network', 'debugging' }
+-- Parts of the texts which can name a file of HIDDEN
+local SPECIAL = { 'sys/', 'net/', 'proc/', 'su', 'magisk', 'debug_ramdisk', 'Super', 'adb/' }
 
 -- The commands listing the addresses, routes and neighbours of the interfaces, from netlink and /proc/net, which
 -- apps can run on Android 10 and before and apps for those versions later; for Read.Network they fail like there
@@ -177,6 +203,34 @@ function fakeid(param)
     return zone
 end
 
+-- The fake languages, normalized, without tags which are no language (und) and without repeats,
+-- which LocaleList does not allow
+function fakes(param)
+    local locale = luajava.bindClass('java.util.Locale')
+    local fake = {}
+    local seen = { und = true }
+    for _, item in ipairs(split(param:getSetting('value.locale') or '')) do
+        local tag = locale:forLanguageTag(item):toLanguageTag()
+        if not seen[tag] then
+            seen[tag] = true
+            fake[#fake + 1] = tag
+        end
+    end
+    if #fake == 0 then
+        fake = { 'en-US' }
+    end
+    return fake
+end
+
+-- The items of a comma separated list
+function split(text)
+    local items = {}
+    for item in string.gmatch(text, '[^,%s]+') do
+        items[#items + 1] = item
+    end
+    return items
+end
+
 -- Shell patterns of property names and their fake values for a variant, like the fields of
 -- android.os.Build and the hooks of SystemProperties.get
 function rules(param, variant)
@@ -190,6 +244,15 @@ function rules(param, variant)
         return { { serial, SERIAL }, { '', ICCID } }
     elseif variant == 'debugging' then
         return DEBUGGING
+    elseif variant == 'locale' then
+        -- The first fake language, its language and region, like PROPERTIES of locale; the region of sale empty
+        local tag = fakes(param)[1]
+        local locale = luajava.bindClass('java.util.Locale'):forLanguageTag(tag)
+        return { { tag, { 'persist.sys.locale', 'ro.product.locale' } },
+                 { locale:getLanguage(), { 'persist.sys.language', 'ro.product.locale.language' } },
+                 { locale:getCountry(), { 'persist.sys.country', 'ro.product.locale.region' } },
+                 { '', { 'ro.csc.country_code', 'ro.csc.countryiso_code', 'ro.csc.sales_code', 'ro.miui.region',
+                         'ro.vendor.miui.cust_variant', 'ro.omc.region' } } }
     else
         -- tracking
         local result = {}
@@ -364,9 +427,14 @@ function resolve(path)
     return path
 end
 
--- Whether a text can name a file of HIDDEN, of /sys or /proc/net
+-- Whether a text can name a file of HIDDEN, like of /sys or /proc/net
 function special(text)
-    return string.find(text, 'sys/', 1, true) ~= nil or string.find(text, 'net/', 1, true) ~= nil
+    for _, part in ipairs(SPECIAL) do
+        if string.find(text, part, 1, true) then
+            return true
+        end
+    end
+    return false
 end
 
 -- Whether a file does not exist for the variants, by its path or the path it leads to; dd takes if=file
@@ -467,6 +535,112 @@ function hidingfunctions(variants, names)
             result[#result + 1] = ' __xlua_files ' .. name .. ' "$@"'
             result[#result + 1] = '}'
         end
+    end
+    result[#result + 1] = ''
+    return table.concat(result, '\n')
+end
+
+-- which without the paths of su and Magisk, with the status of a program it did not find, like RootBeer runs
+-- which su; type and command -v of the shell itself are not covered
+function whichfunction()
+    return table.concat({
+        'which() {',
+        ' __xlua_out=$(/system/bin/which "$@")',
+        ' __xlua_rc=$?',
+        ' __xlua_ifs=$IFS',
+        " IFS='",
+        "'",
+        ' for __xlua_line in $__xlua_out; do',
+        '  case "$__xlua_line" in',
+        '   ' .. table.concat(HIDDEN.debugging, '|') .. ') __xlua_rc=1 ;;',
+        "   *) /system/bin/printf '%s\\n' \"$__xlua_line\" ;;",
+        '  esac',
+        ' done',
+        ' IFS=$__xlua_ifs',
+        ' return $__xlua_rc',
+        '}',
+        '' }, '\n')
+end
+
+-- The folders of the shared storage of which storage_times fakes the times, a copy which a test compares
+local FOLDERS = { 'Alarms', 'Android', 'Android/data', 'Android/media', 'Android/obb', 'Audiobooks', 'DCIM',
+                  'Documents', 'Download', 'Movies', 'Music', 'Notifications', 'Pictures', 'Podcasts', 'Recordings',
+                  'Ringtones' }
+-- The commands which print the times of files, with the options which make ls and find print or compare them
+local TIMERS = { 'stat', 'ls', 'find' }
+
+-- Whether a text can name the shared storage or /data/app
+function timedin(text)
+    return string.find(text, 'sdcard', 1, true) ~= nil or string.find(text, 'storage/', 1, true) ~= nil or
+            string.find(text, 'data/app', 1, true) ~= nil
+end
+
+-- Shell patterns of the folders of storage_times and of /data/app, by the paths of the storage, /sdcard and the
+-- folders of users (/storage/emulated/0, which readlink -f gives)
+function timedpatterns()
+    local patterns = { '/storage/emulated', '/data/app', '/data/app/*' }
+    for _, top in ipairs({ '/sdcard', '/storage/self/primary', '/storage/emulated/[0-9]',
+                           '/storage/emulated/[0-9][0-9]', '/storage/emulated/[0-9][0-9][0-9]' }) do
+        patterns[#patterns + 1] = top
+        for _, folder in ipairs(FOLDERS) do
+            patterns[#patterns + 1] = top .. '/' .. folder
+        end
+    end
+    return patterns
+end
+
+-- stat, ls with options of times and find comparing or printing times fail for the folders storage_times fakes and
+-- /data/app, like for a folder the app cannot read, since they would print the real times; ls without such
+-- options, and other files, stay
+function timesfunctions(seen)
+    local result = {
+        '__xlua_timed() {',
+        ' for __xlua_path in "$1" "$(/system/bin/readlink -f -- "$1" 2>/dev/null)"; do',
+        '  case "${__xlua_path%/}" in',
+        '   ' .. table.concat(timedpatterns(), '|') .. ') return 0 ;;',
+        '  esac',
+        ' done',
+        ' return 1',
+        '}',
+        '__xlua_times() {',
+        ' __xlua_program=$1',
+        ' shift',
+        ' for __xlua_arg in "$@"; do',
+        '  case "$__xlua_arg" in -*) continue ;; esac',
+        '  if __xlua_timed "$__xlua_arg"; then',
+        "   /system/bin/printf '%s: %s: Permission denied\\n' \"$__xlua_program\" \"$__xlua_arg\" >&2",
+        '   return 1',
+        '  fi',
+        ' done',
+        ' "/system/bin/$__xlua_program" "$@"',
+        '}',
+    }
+    if seen['stat'] then
+        result[#result + 1] = 'stat() {\n __xlua_times stat "$@"\n}'
+    end
+    if seen['ls'] then
+        result[#result + 1] = table.concat({
+            'ls() {',
+            ' for __xlua_arg in "$@"; do',
+            '  case "$__xlua_arg" in',
+            '   --full-time|--time-style*) __xlua_times ls "$@"; return ;;',
+            '   --*) ;;',
+            '   -*[lnoge]*) __xlua_times ls "$@"; return ;;',
+            '  esac',
+            ' done',
+            ' /system/bin/ls "$@"',
+            '}' }, '\n')
+    end
+    if seen['find'] then
+        result[#result + 1] = table.concat({
+            'find() {',
+            ' for __xlua_arg in "$@"; do',
+            '  case "$__xlua_arg" in',
+            '   -printf|-fprintf|-ls|-fls|-newer*|-[acm]time|-[acm]min) __xlua_times find "$@"; return ;;',
+            '  esac',
+            ' done',
+            ' /system/bin/find "$@"',
+            '}' }, '\n')
     end
     result[#result + 1] = ''
     return table.concat(result, '\n')
@@ -922,6 +1096,13 @@ function commands(text, variant)
             fakereaders(text, names)
         end
         readers(text, variant, names)
+        if timedin(text) then
+            for _, name in ipairs(TIMERS) do
+                if hasword(text, name) then
+                    names[#names + 1] = name
+                end
+            end
+        end
         if #names > 0 then
             return names
         end
@@ -944,13 +1125,20 @@ function commands(text, variant)
         if #names > 0 then
             return names
         end
-    elseif variant == 'identifiers' or variant == 'timezone' or variant == 'debugging' then
+    elseif variant == 'identifiers' or variant == 'timezone' or variant == 'debugging' or variant == 'locale' then
         local names = {}
         if string.find(text, 'getprop', 1, true) then
             names[#names + 1] = 'getprop'
         end
-        if variant == 'identifiers' then
+        if variant == 'identifiers' or variant == 'debugging' then
             readers(text, variant, names)
+        end
+        if variant == 'debugging' then
+            for _, name in ipairs({ 'su', 'which' }) do
+                if hasword(text, name) then
+                    names[#names + 1] = name
+                end
+            end
         end
         if #names > 0 then
             return names
@@ -1006,6 +1194,17 @@ function functions(param, text, variants, script)
             result = result .. name .. "() {\n /system/bin/printf '%s: Permission denied\\n' " .. name ..
                     " >&2\n return 1\n}\n"
         end
+    end
+    if seen['su'] then
+        -- Like a program which is not there, in the words of the shell
+        result = result .. "su() {\n /system/bin/printf '%s: su: inaccessible or not found\\n' \"$0\" >&2\n" ..
+                " return 127\n}\n"
+    end
+    if seen['which'] then
+        result = result .. whichfunction()
+    end
+    if seen['stat'] or seen['ls'] or seen['find'] then
+        result = result .. timesfunctions(seen)
     end
     local reading = {}
     for _, name in ipairs(READERS) do
@@ -1439,6 +1638,12 @@ function before(hook, param)
 
     local at, prefix = commandof(words)
     local program = basename(words[at])
+    if variant == 'debugging' and program == 'su' then
+        -- Like a program which is not there
+        local exception = luajava.bindClass('java.io.IOException')
+        param:setResult(luajava.new(exception, 'Cannot run program "' .. words[1] .. '": error=2, No such file or directory'))
+        return true, line
+    end
     local script
     if SHELLS[program] then
         local operand, option = shelloperand(words, at)

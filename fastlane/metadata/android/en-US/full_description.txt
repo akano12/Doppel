@@ -35,6 +35,7 @@
 <li>Read device features</li>
 <li>Read device settings</li>
 <li>Read identifiers</li>
+<li>Read languages</li>
 <li>Read memory and storage</li>
 <li>Read network data</li>
 <li>Read notifications</li>

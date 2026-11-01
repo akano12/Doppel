@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
@@ -116,6 +117,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             new Field("location.accuracy", R.string.title_value_accuracy, Type.NUMBER, "10000"),
             R.string.section_other,
             new Field("value.timezone", R.string.title_value_timezone, Type.TIMEZONE, "UTC"),
+            new Field("value.locale", R.string.title_value_locale, Type.TEXT, "en-US"),
             new Field("features.keep", R.string.title_value_features, Type.TEXT, null),
             new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, null),
             new Field("commands.allowed", R.string.title_value_commands, Type.TEXT, null),
@@ -769,6 +771,14 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             switch (field.key) {
                 case "value.timezone":
                     return Arrays.asList(TimeZone.getAvailableIDs()).contains(value);
+                case "value.locale":
+                    // Tags of languages (BCP 47) without repeats, like locale.lua reads them
+                    Set<String> tags = new HashSet<>();
+                    for (String tag : value.split(","))
+                        if (Locale.forLanguageTag(tag.trim()).getLanguage().isEmpty() ||
+                                !tags.add(Locale.forLanguageTag(tag.trim()).toLanguageTag()))
+                            return false;
+                    return true;
                 case "location.latitude":
                     return Math.abs(Double.parseDouble(value)) <= 90;
                 case "location.longitude":

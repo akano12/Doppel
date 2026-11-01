@@ -17,7 +17,45 @@
 
 -- Connected keyboards, mice, game controllers and styluses, with their names and vendor ids,
 -- reveal what someone uses and help to recognize a device. External input devices are hidden,
--- built-in devices, like the touch screen and the buttons, stay, because apps need them.
+-- built-in devices, like the touch screen and the buttons, stay, because apps need them,
+-- but without their names, like sec_touchscreen or fts_ts, and ids, which tell the model of the device:
+-- a generic name by kind, no vendor and product id and a descriptor of the app (key maps use the device id).
+-- The motion ranges stay, they are the size of the display. The virtual keyboard is the same on all devices.
+
+local TOUCHSCREEN = 0x1002 -- InputDevice.SOURCE_TOUCHSCREEN
+
+-- The generic name of a built-in device
+function fakename(device)
+    return (bit32.band(device:getSources(), TOUCHSCREEN) == TOUCHSCREEN and 'touchscreen' or 'gpio-keys')
+end
+
+-- A descriptor of the app, a hash in hex like the real one
+function fakedescriptor(descriptor, param)
+    local package = param:getPackageName()
+    local hex = string.gsub(param:uuidOf(descriptor .. package) .. param:uuidOf(package .. descriptor), '-', '')
+    return string.sub(hex, 1, 40)
+end
+
+-- InputDevice.getName, getVendorId, getProductId, getDescriptor and toString of built-in devices
+function identity(method, device, result, param)
+    if device == nil or device:isExternal() or device:getId() == -1 then
+        return nil
+    end
+    if method == 'getName' then
+        return fakename(device)
+    elseif method == 'getVendorId' or method == 'getProductId' then
+        return 0
+    elseif method == 'getDescriptor' then
+        return fakedescriptor(result, param)
+    end
+    -- toString starts with 'Input Device <id>: <name>' and the line '  Descriptor: <descriptor>'
+    local text = string.gsub(result, '^(Input Device %-?%d+: )[^\n]*', function(label)
+        return label .. fakename(device)
+    end, 1)
+    return (string.gsub(text, '(\n  Descriptor: )([^\n]*)', function(label, descriptor)
+        return label .. fakedescriptor(descriptor, param)
+    end, 1))
+end
 
 -- The classes on the stack (see keymap)
 function callers()
@@ -41,6 +79,16 @@ function after(hook, param)
     local result = param:getResult()
     if result == nil then
         return false
+    end
+
+    if method == 'getName' or method == 'getVendorId' or method == 'getProductId' or method == 'getDescriptor' or
+            method == 'toString' then
+        local fake = identity(method, param:getThis(), result, param)
+        if fake == nil or fake == result then
+            return false
+        end
+        param:setResult(fake)
+        return true, tostring(result), tostring(fake)
     end
 
     -- InputManager.getInputDevice, InputDevice.getDevice

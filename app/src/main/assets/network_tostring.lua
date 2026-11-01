@@ -17,7 +17,8 @@
 
 -- The text of network objects contains the values their getters hide, so the same fake values replace them
 -- in the text; the other fields stay:
--- WifiInfo: the network name, the address of the access point, the MAC and IP address and the Passpoint provider
+-- WifiInfo: the network name, the address of the access point, the MAC and IP address, the id of the saved network
+-- and the Passpoint provider
 -- NetworkInfo: the extra info, which is the network name or the APN
 -- LinkProperties: the addresses of the device, the DNS servers, the domains, the DHCP server and the routes
 -- NetworkRegistrationInfo, also in the text of ServiceState: the cell
@@ -80,6 +81,10 @@ function wifiinfo(text)
 
     -- The IP address, like the getter (0)
     text, changed = replace(text, ', IP: /', ', ', '0.0.0.0', nil)
+    restricted = restricted or changed
+
+    -- The id of the saved network, like the getter (-1)
+    text, changed = replace(text, ', Net ID: ', ', ', '-1', nil)
     restricted = restricted or changed
 
     -- Passpoint networks

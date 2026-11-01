@@ -55,4 +55,28 @@ public class WebViewConstructorScriptTest {
         assertEquals(1, result.arg(3).toint());
         assertEquals("shared values used", 0, result.arg(4).toint());
     }
+
+    // User-Agent headers of HttpURLConnection and OkHttp lose the model and build, other headers and user agents stay
+    @Test
+    public void userAgentHeaderIsReduced() throws Exception {
+        Varargs result = Scripts.run(Scripts.load("webview_constructor", STUBS),
+                "local function header(method, name, value)\n" +
+                        "  local param = { args = { [0] = name, [1] = value },\n" +
+                        "    getArgument = function(self, index) return self.args[index] end,\n" +
+                        "    setArgument = function(self, index, v) self.args[index] = v end }\n" +
+                        "  local restricted = before({ getMethodName = function(self) return method end }, param)\n" +
+                        "  return tostring(restricted) .. ' ' .. tostring(param.args[1])\n" +
+                        "end\n" +
+                        "local ua = 'Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv)'\n" +
+                        "return header('set', 'User-Agent', ua), header('setRequestProperty', 'user-agent', ua),\n" +
+                        "  header('add', 'Accept', ua), header('add', 'User-Agent', 'MyApp/1.0'),\n" +
+                        "  header('set', 'User-Agent', nil), header(nil, 'User-Agent', ua)");
+        assertEquals("true Mozilla/5.0 (Linux; Android 15; K; wv)", result.arg(1).tojstring());
+        assertEquals("true Mozilla/5.0 (Linux; Android 15; K; wv)", result.arg(2).tojstring());
+        assertTrue(result.arg(3).tojstring().startsWith("false "));
+        assertEquals("false MyApp/1.0", result.arg(4).tojstring());
+        assertEquals("false nil", result.arg(5).tojstring());
+        // The constructor of the WebView
+        assertTrue(result.arg(6).tojstring().startsWith("false "));
+    }
 }

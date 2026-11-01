@@ -118,6 +118,7 @@ public class SettingsScriptTest {
             "    toArray = function(self) return arrayof(table.unpack(self.items)) end,",
             "    toString = function(self) return '[' .. table.concat(self.items, ', ') .. ']' end }",
             "end",
+            "local java = luajava",
             "luajava = {",
             "  newInstance = function(name, action)",
             "    if name == 'android.content.Intent' then return { action = action } end",
@@ -126,6 +127,7 @@ public class SettingsScriptTest {
             "    return listof()",
             "  end,",
             "  bindClass = function(name)",
+            "    if name == 'java.util.Locale' then return java.bindClass(name) end",
             "    assert(name == 'android.content.res.Resources', name)",
             "    return { getSystem = function(self) return resources end }",
             "  end }",
@@ -305,15 +307,41 @@ public class SettingsScriptTest {
     public void identifiersOfManufacturersAreMissing() {
         for (String key : new String[]{"pps_oaid", "advertising_id", "limit_ad_tracking", "mi_health_id", "gcbooster_uuid",
                 "key_mqs_uuid", "extm_uuid", "ad_aaid", "op_security_uuid", "com.baidu.deviceid", "com.baidu.deviceid.v2",
-                "com.baidu.uuid"}) {
+                "com.baidu.uuid", "pps_oaid_c", "pps_track_limit", "pps_vaid", "pps_aaid_c", "oaid", "oaid_limit_state",
+                "aaid", "ad_id", "bd_setting_i", "dxCRMxhQkdGePGnp"}) {
             assertTrue(key, run("return hooked('" + key + "')").arg1().toboolean());
             assertEquals(key, null, applications("oaid", key, "4f3e2d1c-real"));
             // Also by the provider, like ContentResolver.call(GET_global) and queries, see fakeany
             assertTrue(key, run("return (fakeany(paramof({}, {}, 10123), 'identifiers', '" + key + "', 'real'))").arg1().toboolean());
         }
-        // Not of other variants, and other settings stay
+        // Not of other variants, and other settings stay, also of Huawei and generic ids
+        for (String key : new String[]{"pps_version", "pps_id_x", "pps_oaid_d", "xpps_oaid", "uuid", "guid", "oaid2"})
+            assertFalse(key, run("return hooked('" + key + "')").arg1().toboolean());
         assertEquals("same", applications("android_id", "mi_health_id", "4f3e2d1c-real"));
         assertEquals("same", applications("oaid", "android_id", "1234abcd1234abcd"));
+    }
+
+    // Stay awake of the developer options appears off, like adb_enabled: the power sources it is on for, 0 by default
+    @Test
+    public void stayAwakeIsOff() {
+        assertTrue(run("return hooked('stay_on_while_plugged')").arg1().toboolean());
+        assertEquals("0", applications("adb", "stay_on_while_plugged", "3"));
+        assertEquals("same", applications("adb", "stay_on_while_plugged", "0"));
+        assertEquals("0", applications("adb", "adb_enabled", "1"));
+        assertEquals("same", applications("settings", "stay_on_while_plugged", "7"));
+    }
+
+    // The languages the user chose (system_locales) are the fake ones by the settings provider too, for Read.Locale
+    @Test
+    public void systemLocalesAreFake() {
+        assertTrue(run("return hooked('system_locales')").arg1().toboolean());
+        assertEquals("en-US", applications("locale", "system_locales", "nl-NL,en-GB"));
+        assertEquals("same", applications("locale", "system_locales", "en-US"));
+        assertEquals("same", applications("locale", "system_locales", ""));
+        assertEquals("same", applications("settings", "system_locales", "nl-NL"));
+        assertEquals("de-DE,fr", run("return select(2, fakesetting(paramof({}, { ['value.locale'] = 'de-DE, fr,de-DE' }), " +
+                "'locale', 'system_locales', 'nl-NL'))").arg1().tojstring());
+        assertTrue(run("return (fakeany(paramof({}, {}), 'locale', 'system_locales', 'nl-NL'))").arg1().toboolean());
     }
 
     // The name of the device for Wi-Fi Direct, which users set like the name of the device, often with their own name

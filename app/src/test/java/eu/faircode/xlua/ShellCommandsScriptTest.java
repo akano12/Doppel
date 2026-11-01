@@ -86,6 +86,7 @@ public class ShellCommandsScriptTest {
             "    isPackageVisible = function(self, name) return name ~= 'com.bank' end,",
             "    unhooked = function(self, f) return f() end,",
             "    readFile = function(self, path) return files[path] end,",
+            "    setResult = function(self, value) values.thrown = value end,",
             "    getThis = function(self) return this end,",
             "    getArgument = function(self, index) return args[index + 1] end,",
             "    setArgument = function(self, index, value) args[index + 1] = value end,",
@@ -123,7 +124,9 @@ public class ShellCommandsScriptTest {
             "end",
             // The files as the app reads them, with the hooks opening files, see XParam.readFile
             "files = { ['/proc/meminfo'] = 'MemTotal:        3145728 kB\\nMemFree:          146484 kB\\n',",
-            "  ['/proc/sys/kernel/random/boot_id'] = '0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\\n' }",
+            "  ['/proc/sys/kernel/random/boot_id'] = '0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\\n',",
+            "  ['/proc/cpuinfo'] = 'processor\\t: 0\\nFeatures\\t: fp asimd\\n\\n' }",
+            "local java = luajava",
             "luajava = {",
             "  newInstance = function(name, path)",
             // Files resolve their path on the file system of the test, see canonical
@@ -132,7 +135,9 @@ public class ShellCommandsScriptTest {
             "    end",
             "    assert(name == 'java.util.ArrayList', name)",
             "    return listof()",
-            "  end }",
+            "  end,",
+            "  bindClass = function(name) return (name == 'java.util.Locale' and java.bindClass(name) or name) end,",
+            "  new = function(class, message) return { class = class, message = message } end }",
             // The hooks of the variants for a command like ProcessBuilder.start: the command started,
             // its time zone, the command and time zone of the builder afterwards and whether a hook restricted;
             // the working directory of the builder, nil for the one of the app
@@ -153,7 +158,7 @@ public class ShellCommandsScriptTest {
             "    local hook = hookof(nameof('ProcessBuilder.start', variant))",
             "    after(hook, paramof(settings, values, builder, {}))",
             "  end",
-            "  return started, zone, builder.list, builder.env:get('TZ'), restricted",
+            "  return started, zone, builder.list, builder.env:get('TZ'), restricted, values.thrown",
             "end",
             // The fake value of the rules of getprop for a property, 'quarter' for the security patch level
             "function fakeof(key, settings, real)",
@@ -307,6 +312,15 @@ public class ShellCommandsScriptTest {
                 run(start(new String[]{"getprop"}, "debugging")).out);
         assertEquals("stopped\n", run(start(new String[]{"getprop", "init.svc.adbd"}, "debugging")).out);
         assertEquals("mtp\n", run(start(new String[]{"getprop", "sys.usb.config"}, "debugging")).out);
+        // Not debuggable, and the log buffer sizes not set
+        tools().properties("[ro.debuggable]: [1]\n[persist.logd.size]: [16M]\n[ro.secure]: [1]\n");
+        assertEquals("[ro.debuggable]: [0]\n[persist.logd.size]: []\n[ro.secure]: [1]\n",
+                run(start(new String[]{"getprop"}, "debugging")).out);
+        assertEquals("0\n", run(start(new String[]{"getprop", "ro.debuggable"}, "debugging")).out);
+        // The language of the device (Read.Locale), of the setting en-US by default, and the region of sale empty
+        tools().properties("[persist.sys.locale]: [nl-NL]\n[ro.csc.sales_code]: [PHN]\n[ro.product.model]: [Pixel 9]\n");
+        assertEquals("[persist.sys.locale]: [en-US]\n[ro.csc.sales_code]: []\n[ro.product.model]: [Pixel 9]\n",
+                run(start(new String[]{"getprop"}, "locale")).out);
     }
 
     // The serial is a value of Read.Identifiers, like Build.SERIAL, and not of Use.Tracking
@@ -486,8 +500,10 @@ public class ShellCommandsScriptTest {
         assertEquals("Linux localhost 6.6.50 #1 SMP PREEMPT aarch64 Toybox\n", run(start("uname", "-a")).out);
         assertEquals("6.6.50\n", run(start("/system/bin/uname", "-r")).out);
         assertEquals("Linux version 6.6.50 #1 SMP PREEMPT\n", run(start("cat", "/proc/version")).out);
-        // Other files stay
-        assertEquals("cat /proc/cpuinfo", String.join(" ", command(start("cat", "/proc/cpuinfo"))));
+        // /proc/cpuinfo like the app reads it, without the lines naming the chip (see cpuinfo)
+        assertEquals("processor\t: 0\nFeatures\t: fp asimd\n\n", run(start("cat", "/proc/cpuinfo")).out);
+        assertEquals("cat /proc/cpuinfo",
+                String.join(" ", command(start(new String[]{"cat", "/proc/cpuinfo"}, "resources"))));
     }
 
     // cat prints the files like the app reads them, of the variants restricting them only
@@ -675,6 +691,68 @@ public class ShellCommandsScriptTest {
         assertEquals("cat /proc/sys/net/ipv4/ip_forward", String.join(" ", command(start(new String[]{"cat",
                 "/proc/sys/net/ipv4/ip_forward"}, "network"))));
         assertEquals("getprop ro.ip.x", String.join(" ", command(start(new String[]{"getprop", "ro.ip.x"}, "network"))));
+    }
+
+    // For Read.Debugging su is not there, which does not find it or Magisk, and reading it fails; other variants
+    // run the commands as they are
+    @Test
+    public void rootIsHidden() throws Exception {
+        tools();
+        stand("which", "#!/bin/sh\nfor w in \"$@\"; do echo " + bin.getAbsolutePath() + "/$w; done\n");
+        Result which = run(start(new String[]{"which", "su"}, "debugging"));
+        assertEquals("", which.out);
+        assertEquals(1, which.status);
+        which = run(start(new String[]{"sh", "-c", "which magisk sh"}, "debugging"));
+        assertEquals(bin.getAbsolutePath() + "/sh\n", which.out);
+        assertEquals(1, which.status);
+        assertEquals("127\n", run(start(new String[]{"sh", "-c", "su -c id; echo $?"}, "debugging")).out);
+        assertEquals(1, run(start(new String[]{"cat", "/system/xbin/su"}, "debugging")).status);
+        for (String program : new String[]{"su", "/system/bin/su"}) {
+            Varargs direct = start(new String[]{program, "-c", "id"}, "debugging");
+            assertTrue(direct.arg(5).toboolean());
+            assertEquals("Cannot run program \"" + program + "\": error=2, No such file or directory",
+                    direct.arg(6).get("message").tojstring());
+        }
+        assertEquals("which su", String.join(" ", command(start(new String[]{"which", "su"}, "tracking"))));
+        assertEquals("su -c id", String.join(" ", command(start(new String[]{"su", "-c", "id"}, ALL))));
+        // Other words with su stay
+        assertEquals("sum su.txt", String.join(" ", command(start(new String[]{"sum", "su.txt"}, "debugging"))));
+    }
+
+    // stat, ls with options of times and find with times fail for the folders of which storage_times fakes the times
+    // and /data/app, like for a folder the app cannot read; other files and ls without times stay
+    @Test
+    public void storageTimesAreNotPrinted() throws Exception {
+        tools();
+        for (String name : new String[]{"stat", "ls", "find"}) {
+            File link = new File(bin, name);
+            File program = locate(null, name);
+            need(null, "No " + name, program != null);
+            if (!link.exists())
+                Files.createSymbolicLink(link.toPath(), program.getAbsoluteFile().toPath());
+        }
+        for (String[] args : new String[][]{{"stat", "-c", "%Y", "/sdcard/Download"}, {"ls", "-l", "/sdcard"},
+                {"ls", "--full-time", "/storage/emulated/0/DCIM/"}, {"find", "/sdcard", "-newermt", "2020-01-01"},
+                {"stat", "/data/app/~~a==/com.bank-b==/base.apk"}}) {
+            assertTrue(String.join(" ", args), script(start(args, "tracking")).contains("__xlua_times " + args[0]));
+            Result result = run(start(args, "tracking"));
+            assertEquals(String.join(" ", args), "", result.out);
+            assertEquals(String.join(" ", args), 1, result.status);
+        }
+        // ls without times runs ls itself, which does not find /sdcard on this computer
+        assertEquals("", run(start(new String[]{"sh", "-c", "ls /sdcard 2>&1 | grep 'Permission denied'"}, "tracking")).out);
+        // Files of the app, also in the same command
+        File own = Files.createTempDirectory("files").toFile();
+        try {
+            Result result = run(start(new String[]{"sh", "-c", "stat -c %Y " + own.getAbsolutePath() +
+                    "; stat -c %Y /sdcard/Download"}, "tracking"));
+            assertTrue(result.out, result.out.matches("\\d+\n"));
+            assertEquals(1, result.status);
+        } finally {
+            own.delete();
+        }
+        assertEquals("stat -c %Y /sdcard/Download",
+                String.join(" ", command(start(new String[]{"stat", "-c", "%Y", "/sdcard/Download"}, "identifiers"))));
     }
 
     // Commands behind nohup, nice and timeout, which run the rest of the command

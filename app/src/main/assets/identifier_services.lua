@@ -35,9 +35,45 @@ local SERVICES = {
     { package = 'com.coloros.mcs', action = 'action.com.oplus.stdid.ID_SERVICE',
       class = 'com.oplus.stdid.IdentifyService' }, -- OPPO, OnePlus and realme with ColorOS 11 and later
     { package = 'com.android.creator', action = 'android.service.action.msa' }, -- Freeme OS
+    -- Freeme OS too: the MSA SDK 2.2 asks for these packages next to com.android.creator
+    { package = 'com.zhuoyi.security.lite', action = 'android.service.action.msa' },
+    { package = 'com.freeme.secureguard', action = 'android.service.action.msa' },
+    { package = 'com.android.secureguard', action = 'android.service.action.msa' },
     { package = 'com.hihonor.id', action = 'com.hihonor.id.HnOaIdService' }, -- Honor
-    { package = 'com.huawei.hwid', action = 'com.uodis.opendevice.OPENIDS_SERVICE' }, -- Huawei, without HMS
+    -- Huawei, without HMS: the SDK binds the first of these which is installed
+    { package = 'com.huawei.hwid', action = 'com.uodis.opendevice.OPENIDS_SERVICE' },
+    { package = 'com.huawei.hwid.tv', action = 'com.uodis.opendevice.OPENIDS_SERVICE' },
+    { package = 'com.huawei.hms', action = 'com.uodis.opendevice.OPENIDS_SERVICE' },
 }
+
+-- The interfaces of the identifier services (their Binder descriptors), so a service of another package or a new
+-- device maker with one of them is not reached either; the binder of such a connection is left out, like a service
+-- giving none (onNullBinding). From the stubs of the MSA SDK 2.2, Android_CN_OAID and the SDKs of Huawei and Honor.
+local DESCRIPTORS = {
+    ['com.android.creator.IdsSupplier'] = true, -- Freeme OS
+    ['com.bun.lib.MsaIdInterface'] = true, -- The service of the MSA itself
+    ['com.asus.msa.SupplementaryDID.IDidAidlInterface'] = true, -- Asus
+    ['com.coolpad.deviceidsupport.IDeviceIdManager'] = true, -- Coolpad
+    ['com.heytap.openid.IOpenID'] = true, -- OPPO (HeyTap)
+    ['com.oplus.stdid.IStdID'] = true, -- OPPO with ColorOS 11 and later
+    ['com.samsung.android.deviceidservice.IDeviceIdService'] = true, -- Samsung
+    ['com.zui.deviceidservice.IDeviceidInterface'] = true, -- Lenovo (ZUI)
+    ['com.qiku.id.IOAIDInterface'] = true, -- 360 (Qiku)
+    ['com.uodis.opendevice.aidl.OpenDeviceIdentifierService'] = true, -- Huawei
+    ['com.hihonor.cloudservice.oaid.IOAIDService'] = true, -- Honor
+}
+
+-- The system services of identifiers, which apps get from the ServiceManager: qikuid of 360 OS
+local SYSTEM = { 'qikuid' }
+
+-- The script runs for the system services of identifiers only, apps and the framework get many others
+function filter(hook)
+    local method = hook:getMethodName()
+    if method == 'getService' or method == 'checkService' then
+        return SYSTEM
+    end
+    return nil
+end
 
 -- The providers, by authority; Nubia answers call(getOAID)
 local PROVIDERS = {
@@ -82,7 +118,25 @@ end
 
 function before(hook, param)
     local method = hook:getMethodName()
-    if string.find(method, '^bind') then
+    if method == 'getService' or method == 'checkService' then
+        -- Not found, like on other devices; the filter passes the services of SYSTEM only
+        param:setResult(nil)
+        return true, param:getArgument(0)
+    elseif method == 'doConnected' then
+        -- ServiceDispatcher.doConnected(name, service, dead): the binder of any service with an interface of
+        -- DESCRIPTORS, but not of the services of the app itself, which answer without a call to another process
+        local name = param:getArgument(0)
+        local service = param:getArgument(1)
+        if name == nil or service == nil or name:getPackageName() == param:getPackageName() then
+            return false
+        end
+        local ok, descriptor = pcall(service.getInterfaceDescriptor, service)
+        if not ok or descriptor == nil or DESCRIPTORS[descriptor] == nil then
+            return false
+        end
+        param:setArgument(1, nil)
+        return true, descriptor
+    elseif string.find(method, '^bind') then
         -- bindService, bindIsolatedService and bindServiceAsUser: the intent is the first argument
         local target = param:getApplicationContext():getApplicationInfo().targetSdkVersion
         local service = serviceof(param:getArgument(0), target)

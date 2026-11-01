@@ -206,7 +206,10 @@ public class ContentResolverScriptTest {
                 {"ContentResolver.query26/contacts", "com.android.contacts", "/contacts"},
                 {"ContentResolver.query26/contacts", "0@com.android.contacts", "/data/phones"},
                 {"ContentProviderClient.query26/contacts", "com.android.simphonebook", "/subid/1/adn"},
-                {"ContentResolver.query26/mmssms", "mms", "/part"}}) {
+                {"ContentResolver.query26/mmssms", "mms", "/part"},
+                // The OAID providers of Huawei (HMS, the SDK falls back to it) and Xiaomi
+                {"ContentResolver.query26/oaid", "com.huawei.hwid.pps.apiprovider", "/oaid/query"},
+                {"ContentProviderClient.query26/oaid", "0@com.miui.idprovider", "/oaid"}}) {
             Varargs result = query(query[0], query[1], query[2], "{}");
             assertTrue(query[1], result.arg(1).toboolean());
             assertFalse(query[1], result.arg(2).toboolean());

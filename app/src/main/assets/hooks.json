@@ -4037,7 +4037,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 27,
-    "excludePackages": "com\\.vivo\\..*,com\\.meizu\\..*",
+    "excludePackages": "com\\.vivo\\..*,com\\.meizu\\..*,com\\.huawei\\..*,com\\.miui\\..*",
     "luaScript": "@contentresolver_query"
   },
   {
@@ -4055,7 +4055,7 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 27,
-    "excludePackages": "com\\.vivo\\..*,com\\.meizu\\..*",
+    "excludePackages": "com\\.vivo\\..*,com\\.meizu\\..*,com\\.huawei\\..*,com\\.miui\\..*",
     "luaScript": "@contentresolver_query"
   },
   {
@@ -4063,7 +4063,7 @@
     "group": "Read.Identifiers",
     "name": "Settings.Global.getStringForUser/oaid",
     "author": "akano12",
-    "description": "Identifiers of manufacturers and SDKs in the settings: the advertising id (OAID) of Huawei, ids of Xiaomi and OnePlus",
+    "description": "Identifiers of manufacturers and SDKs in the settings: the advertising id (OAID) of Huawei and Honor, ids of Xiaomi and OnePlus",
     "className": "android.provider.Settings$Global",
     "methodName": "getStringForUser",
     "parameterTypes": [
@@ -4164,6 +4164,67 @@
     "name": "IdProviderImpl.getUDID",
     "author": "akano12",
     "className": "com.android.id.impl.IdProviderImpl",
+    "methodName": "getUDID",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  // The same identifiers of Xiaomi by the settings class of MIUI, which not every build may have
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "MiuiSettings$Ad.getOAID",
+    "author": "akano12",
+    "className": "android.provider.MiuiSettings$Ad",
+    "methodName": "getOAID",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "MiuiSettings$Ad.getVAID",
+    "author": "akano12",
+    "className": "android.provider.MiuiSettings$Ad",
+    "methodName": "getVAID",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "MiuiSettings$Ad.getAAID",
+    "author": "akano12",
+    "className": "android.provider.MiuiSettings$Ad",
+    "methodName": "getAAID",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "MiuiSettings$Ad.getUDID",
+    "author": "akano12",
+    "className": "android.provider.MiuiSettings$Ad",
     "methodName": "getUDID",
     "parameterTypes": [
       "android.content.Context"
@@ -4441,6 +4502,57 @@
     "returnType": "android.os.Bundle",
     "minSdk": 29,
     "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  // Any service with the interface of an identifier service, also of packages not known (see identifier_services)
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ServiceDispatcher.doConnected/identifiers",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ServiceDispatcher",
+    "methodName": "doConnected",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "android.os.IBinder",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  // The identifier service of 360 OS, which apps get from the hidden ServiceManager
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ServiceManager.getService/identifiers",
+    "author": "akano12",
+    "className": "android.os.ServiceManager",
+    "methodName": "getService",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.os.IBinder",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "optional": true,
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ServiceManager.checkService/identifiers",
+    "author": "akano12",
+    "className": "android.os.ServiceManager",
+    "methodName": "checkService",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.os.IBinder",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "optional": true,
     "luaScript": "@identifier_services"
   },
   // Coosea: hidden methods of the keyguard manager give the identifiers, which other devices do not have
@@ -4778,6 +4890,32 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "luaScript": "@wifiinfo_ssid_bssid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getNetworkId",
+    "author": "akano12",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getNetworkId",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@wifiinfo_ssid_bssid"
+  },
+  // Hidden, null like Android gives it to apps without location permission
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getWifiSsid",
+    "author": "akano12",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getWifiSsid",
+    "parameterTypes": [],
+    "returnType": "android.net.wifi.WifiSsid",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_null_value"
   },
   {
     "collection": "Privacy",
@@ -5481,6 +5619,120 @@
       "value.imei"
     ],
     "luaScript": "@value_device_id"
+  },
+  // The IMEI of a slot by methods of manufacturers (dual SIM of MediaTek and others), like getDeviceId
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getDeviceIdDs",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getDeviceIdDs",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.imei",
+      "value.meid"
+    ],
+    "luaScript": "@value_device_id"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getDeviceIdDs/slot",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getDeviceIdDs",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.imei",
+      "value.meid"
+    ],
+    "luaScript": "@value_device_id"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getDeviceIdGemini",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getDeviceIdGemini",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.imei",
+      "value.meid"
+    ],
+    "luaScript": "@value_device_id"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getDeviceIdGemini/slot",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getDeviceIdGemini",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.imei",
+      "value.meid"
+    ],
+    "luaScript": "@value_device_id"
+  },
+  // The software version of the IMEI (IMEISV), which tells the firmware of the modem; null, like not available
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getDeviceSoftwareVersion",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getDeviceSoftwareVersion",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getDeviceSoftwareVersion/slot",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getDeviceSoftwareVersion",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  // The UUID of a group of subscriptions (like an eSIM and a SIM), the same for all apps; null, like not grouped
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "SubscriptionInfo.getGroupUuid",
+    "author": "akano12",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getGroupUuid",
+    "parameterTypes": [],
+    "returnType": "android.os.ParcelUuid",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
   },
   // The phone account of a SIM has the phone number as its address, like getLine1Number (see phone_account_address)
   {
@@ -6589,6 +6841,130 @@
     "author": "M66B",
     "className": "com.google.firebase.analytics.FirebaseAnalytics",
     "methodName": "setAnalyticsCollectionEnabled",
+    "parameterTypes": [
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_false_argument"
+  },
+  // All consent types denied, then getAppInstanceId gives null
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "FirebaseAnalytics.setConsent",
+    "author": "akano12",
+    "className": "com.google.firebase.analytics.FirebaseAnalytics",
+    "methodName": "setConsent",
+    "parameterTypes": [
+      "java.util.Map"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@analytics_getinstance"
+  },
+  // Google Analytics v4 (play-services-analytics)
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "GoogleAnalytics.getInstance/optout",
+    "author": "akano12",
+    "className": "com.google.android.gms.analytics.GoogleAnalytics",
+    "methodName": "getInstance",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "com.google.android.gms.analytics.GoogleAnalytics",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@analytics_getinstance"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "GoogleAnalytics.setAppOptOut",
+    "author": "akano12",
+    "className": "com.google.android.gms.analytics.GoogleAnalytics",
+    "methodName": "setAppOptOut",
+    "parameterTypes": [
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_true_argument"
+  },
+  // Amazon Publisher Services (aps-sdk): no consent and no location in bids
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AdRegistration.getInstance",
+    "author": "akano12",
+    "className": "com.amazon.device.ads.AdRegistration",
+    "methodName": "getInstance",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.Context"
+    ],
+    "returnType": "com.amazon.device.ads.AdRegistration",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@analytics_getinstance"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AdRegistration.setConsentStatus",
+    "author": "akano12",
+    "className": "com.amazon.device.ads.AdRegistration",
+    "methodName": "setConsentStatus",
+    "parameterTypes": [
+      "com.amazon.device.ads.AdRegistration$ConsentStatus"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@analytics_getinstance"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Aps.setConsentStatus",
+    "author": "akano12",
+    "className": "com.amazon.aps.ads.Aps",
+    "methodName": "setConsentStatus",
+    "parameterTypes": [
+      "com.amazon.device.ads.AdRegistration$ConsentStatus"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@analytics_getinstance"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AdRegistration.useGeoLocation",
+    "author": "akano12",
+    "className": "com.amazon.device.ads.AdRegistration",
+    "methodName": "useGeoLocation",
+    "parameterTypes": [
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_false_argument"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Aps.setLocationEnabled",
+    "author": "akano12",
+    "className": "com.amazon.aps.ads.Aps",
+    "methodName": "setLocationEnabled",
     "parameterTypes": [
       "boolean"
     ],
@@ -8046,6 +8422,93 @@
     "usage": false,
     "luaScript": "@webview_constructor"
   },
+  // User-Agent headers with the model and build (see webview_constructor): the HttpURLConnection of Android
+  // and OkHttp 3 to 5, of which apps often rename the classes
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "HttpURLConnectionImpl.setRequestProperty/useragent",
+    "author": "akano12",
+    "className": "com.android.okhttp.internal.huc.HttpURLConnectionImpl",
+    "methodName": "setRequestProperty",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@webview_constructor"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "HttpURLConnectionImpl.addRequestProperty/useragent",
+    "author": "akano12",
+    "className": "com.android.okhttp.internal.huc.HttpURLConnectionImpl",
+    "methodName": "addRequestProperty",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@webview_constructor"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "OkHttp.Headers.Builder.set/useragent",
+    "author": "akano12",
+    "className": "okhttp3.Headers$Builder",
+    "methodName": "set",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "okhttp3.Headers$Builder",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@webview_constructor"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "OkHttp.Headers.Builder.add/useragent",
+    "author": "akano12",
+    "className": "okhttp3.Headers$Builder",
+    "methodName": "add",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "okhttp3.Headers$Builder",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@webview_constructor"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "OkHttp.Headers.Builder.addUnsafeNonAscii/useragent",
+    "author": "akano12",
+    "className": "okhttp3.Headers$Builder",
+    "methodName": "addUnsafeNonAscii",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "okhttp3.Headers$Builder",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@webview_constructor"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -8273,6 +8736,77 @@
     "optional": true,
     "usage": false,
     "luaScript": "@gles_getstring"
+  },
+  // The exact density of the display panel and the refresh rates it supports (see display_panel); the strings of
+  // EGL are the same on all devices (Android and 1.4 or 1.5 Android META-EGL of the EGL loader)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Display.getMetrics",
+    "author": "akano12",
+    "className": "android.view.Display",
+    "methodName": "getMetrics",
+    "parameterTypes": [
+      "android.util.DisplayMetrics"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "luaScript": "@display_panel"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Display.getRealMetrics",
+    "author": "akano12",
+    "className": "android.view.Display",
+    "methodName": "getRealMetrics",
+    "parameterTypes": [
+      "android.util.DisplayMetrics"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "luaScript": "@display_panel"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Display.getSupportedModes",
+    "author": "akano12",
+    "className": "android.view.Display",
+    "methodName": "getSupportedModes",
+    "parameterTypes": [],
+    "returnType": "android.view.Display$Mode[]",
+    "minSdk": 27,
+    "usage": false,
+    "luaScript": "@display_panel"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Display.getSupportedRefreshRates",
+    "author": "akano12",
+    "className": "android.view.Display",
+    "methodName": "getSupportedRefreshRates",
+    "parameterTypes": [],
+    "returnType": "float[]",
+    "minSdk": 27,
+    "usage": false,
+    "luaScript": "@display_panel"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Display.Mode.getAlternativeRefreshRates",
+    "author": "akano12",
+    "className": "android.view.Display$Mode",
+    "methodName": "getAlternativeRefreshRates",
+    "parameterTypes": [],
+    "returnType": "float[]",
+    "minSdk": 31,
+    "usage": false,
+    "luaScript": "@display_panel"
   },
   {
     "collection": "Privacy",
@@ -8694,6 +9228,39 @@
     "returnType": "int",
     "minSdk": 27,
     "luaScript": "@boot_id"
+  },
+  // The lines of /proc/cpuinfo which name the chip or the board, like Hardware and Serial
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.open/cpuinfo",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@cpuinfo"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.open/cpuinfo",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@cpuinfo"
   },
   // The times of the folders of the shared storage: Os.stat and Os.lstat, File.lastModified and java.nio.file.Files;
   // the script runs for these folders only; not covered is a SecureDirectoryStream of the storage (see storage_times)
@@ -9878,6 +10445,176 @@
     ],
     "luaScript": "@intent_createfromparcel"
   },
+  // Read languages of the device
+  // https://developer.android.com/reference/android/os/LocaleList#getDefault()
+  // Setting value.locale (like en-US,de-DE), default en-US. The defaults are set once to the fake ones,
+  // by the field of the last list the system set (from Android 7); the setters keep the fake
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "LocaleList.sLastExplicitlySetLocaleList",
+    "author": "akano12",
+    "className": "android.os.LocaleList",
+    "methodName": "#sLastExplicitlySetLocaleList",
+    "parameterTypes": [],
+    "returnType": "android.os.LocaleList",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "LocaleList.setDefault",
+    "author": "akano12",
+    "className": "android.os.LocaleList",
+    "methodName": "setDefault",
+    "parameterTypes": [
+      "android.os.LocaleList"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  // Hidden, used by the system on a configuration change
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "LocaleList.setDefault/index",
+    "author": "akano12",
+    "className": "android.os.LocaleList",
+    "methodName": "setDefault",
+    "parameterTypes": [
+      "android.os.LocaleList",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "Locale.setDefault",
+    "author": "akano12",
+    "className": "java.util.Locale",
+    "methodName": "setDefault",
+    "parameterTypes": [
+      "java.util.Locale"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "Locale.setDefault/category",
+    "author": "akano12",
+    "className": "java.util.Locale",
+    "methodName": "setDefault",
+    "parameterTypes": [
+      "java.util.Locale$Category",
+      "java.util.Locale"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "LocaleManager.getSystemLocales",
+    "author": "akano12",
+    "className": "android.app.LocaleManager",
+    "methodName": "getSystemLocales",
+    "parameterTypes": [],
+    "returnType": "android.os.LocaleList",
+    "minSdk": 33,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "Settings.System.getStringForUser/locale",
+    "author": "akano12",
+    "className": "android.provider.Settings$System",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  // The language and the region of sale in system properties
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "SystemProperties.get/locale",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "SystemProperties.get.default/locale",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
   // Read device features
   // https://developer.android.com/reference/android/content/pm/PackageManager#getSystemAvailableFeatures()
   // Hides all features but the ones of setting features.keep (comma separated, a name ending in * matches a prefix)
@@ -10924,6 +11661,68 @@
     "minSdk": 28,
     "luaScript": "@battery"
   },
+  // The design capacity of the battery, which apps read by reflection; getBatteryCapacity calls getAveragePower,
+  // which calls getAveragePowerOrDefault, hooked each since the boot image can have the calls inline
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "PowerProfile.getBatteryCapacity",
+    "author": "akano12",
+    "className": "com.android.internal.os.PowerProfile",
+    "methodName": "getBatteryCapacity",
+    "parameterTypes": [],
+    "returnType": "double",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "PowerProfile.getAveragePower",
+    "author": "akano12",
+    "className": "com.android.internal.os.PowerProfile",
+    "methodName": "getAveragePower",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "double",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "PowerProfile.getAveragePower/level",
+    "author": "akano12",
+    "className": "com.android.internal.os.PowerProfile",
+    "methodName": "getAveragePower",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "double",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "PowerProfile.getAveragePowerOrDefault",
+    "author": "akano12",
+    "className": "com.android.internal.os.PowerProfile",
+    "methodName": "getAveragePowerOrDefault",
+    "parameterTypes": [
+      "java.lang.String",
+      "double"
+    ],
+    "returnType": "double",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@battery"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Battery",
@@ -11024,6 +11823,39 @@
       "java.lang.String"
     ],
     "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  // Not debuggable, like ro.debuggable of a user build, which apps read as a number or a flag too
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "SystemProperties.getInt/debugging",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "getInt",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "SystemProperties.getBoolean/debugging",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "getBoolean",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "boolean",
     "minSdk": 27,
     "usage": false,
     "luaScript": "@systemproperties_get"
@@ -11451,6 +12283,68 @@
     "minSdk": 29,
     "luaScript": "@input_devices"
   },
+  // The names and ids of built-in input devices, which tell the model
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputDevice.getName",
+    "author": "akano12",
+    "className": "android.view.InputDevice",
+    "methodName": "getName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@input_devices"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputDevice.getVendorId",
+    "author": "akano12",
+    "className": "android.view.InputDevice",
+    "methodName": "getVendorId",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 29,
+    "luaScript": "@input_devices"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputDevice.getProductId",
+    "author": "akano12",
+    "className": "android.view.InputDevice",
+    "methodName": "getProductId",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 29,
+    "luaScript": "@input_devices"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputDevice.getDescriptor",
+    "author": "akano12",
+    "className": "android.view.InputDevice",
+    "methodName": "getDescriptor",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@input_devices"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputDevice.toString",
+    "author": "akano12",
+    "className": "android.view.InputDevice",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "usage": false,
+    "luaScript": "@input_devices"
+  },
   // Fingerprint sensor, face and iris unlock, see biometrics.lua
   {
     "collection": "Privacy",
@@ -11677,6 +12571,22 @@
     ],
     "luaScript": "@shell_commands"
   },
+  // The properties of the language, like the hooks of SystemProperties.get of Read.Locale
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "ProcessBuilder.start/locale",
+    "author": "akano12",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 27,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@shell_commands"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Features",
@@ -11847,6 +12757,24 @@
     "minSdk": 27,
     "optional": true,
     "luaScript": "@interface_entries"
+  },
+  // The addresses of an interface by ioctl, like SIOCGIFADDR (see network_address)
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "ForwardingOs.ioctlInetAddress",
+    "author": "akano12",
+    "className": "libcore.io.ForwardingOs",
+    "methodName": "ioctlInetAddress",
+    "parameterTypes": [
+      "java.io.FileDescriptor",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@network_address"
   },
   {
     "collection": "Privacy",
@@ -12033,6 +12961,303 @@
     ],
     "returnType": "int",
     "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The folders of VPN interfaces in /sys/class/net do not exist (see hardware_files): apps can only tell whether
+  // they exist, which java.io, android.system.Os and java.nio.file ask
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "BlockGuardOs.stat/vpn_interfaces",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "BlockGuardOs.lstat/vpn_interfaces",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "BlockGuardOs.access/vpn_interfaces",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Os.access/vpn_interfaces",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixFileSystem.getBooleanAttributes0/vpn_interfaces",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixFileSystem.checkAccess/vpn_interfaces",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixNativeDispatcher.stat/vpn_interfaces",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixNativeDispatcher.lstat/vpn_interfaces",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixNativeDispatcher.access/vpn_interfaces",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // su and the files of Magisk do not exist (see hardware_files), for java.io, android.system.Os and java.nio.file
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "BlockGuardOs.stat/root",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "BlockGuardOs.lstat/root",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "BlockGuardOs.access/root",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.access/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixFileSystem.getBooleanAttributes0/root",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixFileSystem.checkAccess/root",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.stat/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.stat/mode/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "int",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.lstat/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.access/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.exists/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "exists",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "boolean",
+    "minSdk": 31,
+    "optional": true,
     "luaScript": "@hardware_files"
   },
   // MAC addresses of Wi-Fi, Bluetooth and the network interfaces
@@ -12790,6 +14015,128 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 27,
+    "luaScript": "@settingssecure_getstring"
+  },
+  // The languages of the device in the settings provider (system_locales), like Settings.System of Read.Locale
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "ContentResolver.call/locale",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "ContentProviderClient.call/locale",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "ContentProviderClient.call.authority/locale",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "ContentResolver.call.uri/locale",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "ContentResolver.query26/locale",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "ContentProviderClient.query26/locale",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "settings": [
+      "value.locale"
+    ],
     "luaScript": "@settingssecure_getstring"
   },
   // Package lookups for other users, hidden methods which skip the public ones

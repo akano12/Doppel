@@ -224,24 +224,67 @@ end
 -- Identifiers which manufacturers and SDKs keep in settings, which all apps can read: they appear missing, like on
 -- a device without them (variant oaid), in any table, since ROMs move them between Global, Secure and System
 local IDENTIFIERS = {
-    pps_oaid = true, -- The advertising identifier (OAID) of Huawei
+    -- The advertising identifier (OAID) of Huawei, its encrypted copy and its opt-out (HMS ads-identifier SDK);
+    -- the other ids of the family match by their name (see identifier)
+    pps_oaid = true, pps_oaid_c = true, pps_track_limit = true,
+    oaid = true, oaid_limit_state = true, -- The OAID of Honor and its opt-out (Honor ads-identifier SDK)
+    -- Other names of the OAID, VAID and AAID of the MSA SDKs and ROMs, like XPrivacyLua-EX lists them
+    aaid = true, vaid = true, a_aid = true, old_aaid = true, new_aaid = true, ad_oaid = true, ad_vaid = true,
+    ad_id = true, adid = true, ad_adid = true, mdm_uuid = true,
     advertising_id = true, limit_ad_tracking = true, -- The advertising identifier of Amazon Fire OS, with its opt-out
     mi_health_id = true, gcbooster_uuid = true, key_mqs_uuid = true, extm_uuid = true, -- Xiaomi
     ad_aaid = true, -- The identifier of the app of Xiaomi for advertising (AAID)
     op_security_uuid = true, -- OnePlus
     ['com.baidu.deviceid'] = true, ['com.baidu.deviceid.v2'] = true, ['com.baidu.uuid'] = true, -- Shared by SDKs of Baidu
+    bd_setting_i = true, -- The device id of the SDKs of Baidu (mtj-sdk, lbsyun)
+    dxCRMxhQkdGePGnp = true, mqBRboGZkQPcAkyk = true, -- Of older SDKs of Baidu, like XPrivacyLua-EX lists them
 }
+
+-- Whether a setting is an identifier: of IDENTIFIERS, or of the ids of Huawei (pps_ and a name ending with id, also
+-- encrypted with _c, like pps_oaid_c and pps_vaid); not other settings of Huawei, like pps_version
+function identifier(key)
+    return IDENTIFIERS[key] ~= nil or string.match(key, '^pps_%l+id$') ~= nil or string.match(key, '^pps_%l+id_c$') ~= nil
+end
 
 -- The other settings which hooks change
 local HOOKED = {
     android_id = true, bluetooth_name = true, device_name = true, wifi_p2p_device_name = true, boot_count = true,
-    adb_enabled = true, adb_wifi_enabled = true, development_settings_enabled = true, low_power = true,
+    adb_enabled = true, adb_wifi_enabled = true, development_settings_enabled = true, stay_on_while_plugged = true,
+    low_power = true, system_locales = true,
     bluetooth_address = true,
 }
 
 -- Whether hooks change the setting; the hooked methods are called for all settings, so check the name first
 function hooked(key)
-    return key ~= nil and (HOOKED[key] ~= nil or IDENTIFIERS[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil)
+    return key ~= nil and (HOOKED[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil or identifier(key))
+end
+
+-- The fake languages, normalized, without tags which are no language (und) and without repeats,
+-- which LocaleList does not allow
+function fakes(param)
+    local locale = luajava.bindClass('java.util.Locale')
+    local fake = {}
+    local seen = { und = true }
+    for _, item in ipairs(split(param:getSetting('value.locale') or '')) do
+        local tag = locale:forLanguageTag(item):toLanguageTag()
+        if not seen[tag] then
+            seen[tag] = true
+            fake[#fake + 1] = tag
+        end
+    end
+    if #fake == 0 then
+        fake = { 'en-US' }
+    end
+    return fake
+end
+
+-- The items of a comma separated list
+function split(text)
+    local items = {}
+    for item in string.gmatch(text, '[^,%s]+') do
+        items[#items + 1] = item
+    end
+    return items
 end
 
 -- The fake value of a setting for a variant: true and the fake value, or false when it stays
@@ -260,7 +303,7 @@ function fakesetting(param, name, key, result)
             -- The name of the device, also for Wi-Fi Direct, which users set, often with their own name
             (name == 'device_name' and (key == 'device_name' or key == 'wifi_p2p_device_name')) or
             (name == 'boot_count' and key == 'boot_count') or
-            (name == 'oaid' and IDENTIFIERS[key] ~= nil) then
+            (name == 'oaid' and identifier(key)) then
         return true
     elseif (name == 'accessibility' and COMPONENTS[key] == 'accessibility') or
             (name == 'input_method' and COMPONENTS[key] ~= nil and COMPONENTS[key] ~= 'accessibility') then
@@ -285,12 +328,20 @@ function fakesetting(param, name, key, result)
             return false
         end
         return true, fake
-    elseif name == 'adb' and (key == 'adb_enabled' or key == 'adb_wifi_enabled' or key == 'development_settings_enabled') then
-        -- Developer options and USB or wireless debugging appear off
+    elseif name == 'adb' and (key == 'adb_enabled' or key == 'adb_wifi_enabled' or key == 'development_settings_enabled' or
+            key == 'stay_on_while_plugged') then
+        -- Developer options and USB or wireless debugging appear off, also Stay awake (the power sources, 0 by default)
         if result == '0' then
             return false
         end
         return true, '0'
+    elseif name == 'locale' and key == 'system_locales' then
+        -- The languages the user chose, the fake ones, like Settings.System.getStringForUser of locale
+        local fake = table.concat(fakes(param), ',')
+        if result == '' or fake == result then
+            return false
+        end
+        return true, fake
     elseif name == 'battery' and key == 'low_power' then
         -- Battery saver appears off, like PowerManager.isPowerSaveMode
         if result == '0' then
@@ -317,6 +368,7 @@ local PROVIDER = {
     debugging = { 'adb' },
     settings = { 'settings' },
     battery = { 'battery' },
+    locale = { 'locale' },
 }
 
 -- The fake value of a setting for the variants of a provider hook, like fakesetting

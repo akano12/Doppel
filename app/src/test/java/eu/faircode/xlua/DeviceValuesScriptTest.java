@@ -32,9 +32,10 @@ import static org.junit.Assert.assertTrue;
 // memory and storage, input devices and biometrics) with Lua stand-ins, like LocationScriptTest
 public class DeviceValuesScriptTest {
     private static final String STUBS = String.join("\n",
-            "function hookof(name, method)",
+            "function hookof(name, method, class)",
             "  return { getName = function(self) return name end,",
-            "    getMethodName = function(self) return method end }",
+            "    getMethodName = function(self) return method end,",
+            "    getClassName = function(self) return class end }",
             "end",
             "function paramof(result, arguments)",
             "  local param = { result = result }",
@@ -63,11 +64,21 @@ public class DeviceValuesScriptTest {
         Globals globals = load("systemproperties_get");
         for (String key : new String[]{"ro.boot.hardware", "ro.board.platform", "ro.build.expect.bootloader",
                 "ro.build.expect.baseband", "ro.boot.hardware.platform", "ro.vendor.build.id",
-                "ro.product.marketname", "ro.product.vendor.marketname", "ro.config.marketing_name"})
+                "ro.product.marketname", "ro.product.vendor.marketname", "ro.config.marketing_name",
+                "ro.vendor.product.model", "ro.odm.product.manufacturer", "persist.sys.exif.model", "ro.vendor.soc.model",
+                "ro.vendor.soc.model.part_name", "ro.hardware.chipname", "ro.chipname", "ro.vendor.qti.soc_model",
+                "ro.mediatek.platform"})
             assertEquals(key, "unknown", Scripts.run(globals, "return fakedevice('" + key + "', 'x')").arg1().tojstring());
         // Not all properties of the hardware, WallpaperManager reads ro.boot.hardware.color
         assertTrue(Scripts.run(globals, "return fakedevice('ro.boot.hardware.color', 'x')").arg1().isnil());
         assertTrue(Scripts.run(globals, "return fakedevice('ro.product.first_api_level', '34')").arg1().isnil());
+        // Nor the ABIs and the drivers apps load code with, nor the launch level, which TelephonyManager reads too
+        for (String key : new String[]{"ro.vendor.product.cpu.abilist", "ro.hardware.egl", "ro.hardware.vulkan",
+                "ro.vendor.api_level", "ro.vendor.qti.soc_id"})
+            assertTrue(key, Scripts.run(globals, "return fakedevice('" + key + "', 'x')").arg1().isnil());
+        // A property of the device not starting with ro. is faked by get too
+        assertEquals("unknown", Scripts.run(globals, "return run(hookof('SystemProperties.get/device', 'get'), " +
+                "paramof('SM-S918B', { [0] = 'persist.sys.exif.model' }))").arg(2).tojstring());
 
         // The security patch level per quarter
         assertEquals("2025-04-01", Scripts.run(globals,
@@ -91,13 +102,30 @@ public class DeviceValuesScriptTest {
         Globals globals = load("systemproperties_get");
         String[][] cases = {{"init.svc.adbd", "running", "stopped"}, {"sys.usb.config", "mtp,adb", "mtp"},
                 {"sys.usb.state", "adb", "none"}, {"persist.sys.usb.config", "adb,mtp", "mtp"},
-                {"sys.usb.config", "mtp,adb,rndis", "mtp,rndis"}};
+                {"sys.usb.config", "mtp,adb,rndis", "mtp,rndis"}, {"ro.debuggable", "1", "0"}, {"ro.secure", "0", "1"},
+                {"persist.logd.size", "16M", ""}};
         for (String[] c : cases) {
             Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get/debugging', 'get'), " +
                     "paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))");
             assertTrue(c[0] + " " + c[1], result.arg1().toboolean());
             assertEquals(c[0] + " " + c[1], c[2], result.arg(2).tojstring());
         }
+        // A property not set gives the default of get(key, default), and getInt and getBoolean the number and flag
+        assertEquals("def", Scripts.run(globals, "return run(hookof('SystemProperties.get.default/debugging', 'get'), " +
+                "paramof('16M', { [0] = 'persist.logd.size.main', [1] = 'def' }))").arg(2).tojstring());
+        assertEquals(0, Scripts.run(globals, "return run(hookof('SystemProperties.getInt/debugging', 'getInt'), " +
+                "paramof(1, { [0] = 'ro.debuggable', [1] = 0 }))").arg(2).toint());
+        assertFalse(Scripts.run(globals, "return run(hookof('SystemProperties.getBoolean/debugging', 'getBoolean'), " +
+                "paramof(true, { [0] = 'ro.debuggable', [1] = false }))").arg(2).toboolean());
+        Varargs flag = Scripts.run(globals, "return run(hookof('SystemProperties.getBoolean/debugging', 'getBoolean'), " +
+                "paramof(false, { [0] = 'ro.debuggable', [1] = true }))");
+        assertFalse(flag.arg1().toboolean());
+        assertFalse(flag.arg(2).toboolean());
+        assertEquals(262144, Scripts.run(globals, "return run(hookof('SystemProperties.getInt/debugging', 'getInt'), " +
+                "paramof(1048576, { [0] = 'persist.logd.size', [1] = 262144 }))").arg(2).toint());
+        // The USB functions are no numbers, which getInt leaves
+        assertFalse(Scripts.run(globals, "return run(hookof('SystemProperties.getInt/debugging', 'getInt'), " +
+                "paramof(5, { [0] = 'sys.usb.config', [1] = 0 }))").arg1().toboolean());
         for (String[] c : new String[][]{{"init.svc.adbd", "stopped"}, {"sys.usb.state", "mtp"}, {"sys.usb.state", ""}})
             assertFalse(c[0] + " " + c[1], Scripts.run(globals, "return run(hookof('SystemProperties.get/debugging', " +
                     "'get'), paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))").arg1().toboolean());
@@ -124,6 +152,49 @@ public class DeviceValuesScriptTest {
                 "paramof('Qualcomm', { [0] = 7936 }))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
                 "paramof('GL_OES_EGL_image', { [0] = 7939 }))").arg1().toboolean());
+    }
+
+    // The panel of the display: the exact density becomes the logical one, for the app only, and of the modes and
+    // refresh rates only the active one stays
+    @Test
+    public void displayPanelIsGeneric() throws Exception {
+        Globals globals = load("display_panel");
+        Varargs result = Scripts.run(globals, String.join("\n",
+                "local display = { getMode = function(self) return 'active' end,",
+                "  getRefreshRate = function(self) return 120 end }",
+                "local function call(method, result, arguments)",
+                "  local param = paramof(result, arguments or {})",
+                "  param.getThis = function(self) return display end",
+                "  return after(hookof('Display', method), param), param.result",
+                "end",
+                // A Java array as a Lua table, Display.Mode is a stub in unit tests
+                "array = function(class, values) values['length'] = #values return values end",
+                "local metrics = { densityDpi = 480, xdpi = 403.411, ydpi = 403.041 }",
+                "local metrics2 = { densityDpi = 480, xdpi = 403.411, ydpi = 403.041 }",
+                "local same = { densityDpi = 480, xdpi = 480, ydpi = 480 }",
+                "local restricted = call('getRealMetrics', nil, { [0] = metrics })",
+                "local restricted2 = call('getMetrics', nil, { [0] = same })",
+                "framework = function() return true end",
+                "local restricted3 = call('getMetrics', nil, { [0] = metrics2 })",
+                "local _, modes = call('getSupportedModes', { 'a', 'active', 'b', length = 3 })",
+                "local _, rates = call('getSupportedRefreshRates', { 60, 90, 120, length = 3 })",
+                "local _, alternative = call('getAlternativeRefreshRates', { 60, 90, length = 2 })",
+                "local single = call('getSupportedModes', { 'active', length = 1 })",
+                "return restricted, metrics.xdpi, metrics.ydpi, restricted2, restricted3, metrics2.xdpi,",
+                "  modes.length, modes[1], rates.length, rates[1], alternative.length, single"));
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(480, result.arg(2).todouble(), 0);
+        assertEquals(480, result.arg(3).todouble(), 0);
+        assertFalse("already generic", result.arg(4).toboolean());
+        // Up to Android 11 Resources get their metrics from Display.getMetrics, layouts convert pt, mm and in with them
+        assertFalse("framework", result.arg(5).toboolean());
+        assertEquals(403.411, result.arg(6).todouble(), 0.0001);
+        assertEquals(1, result.arg(7).toint());
+        assertEquals("active", result.arg(8).tojstring());
+        assertEquals(1, result.arg(9).toint());
+        assertEquals(120, result.arg(10).toint());
+        assertEquals(0, result.arg(11).toint());
+        assertFalse(result.arg(12).toboolean());
     }
 
     // The version of the DRM plugin without the build of the firmware; other properties stay
@@ -641,6 +712,33 @@ public class DeviceValuesScriptTest {
                             "paramof(-1234, { [0] = 2 }))").arg(2).toint());
         assertEquals(Long.MIN_VALUE, Scripts.run(globals, "return run(hookof('BatteryManager.getLongProperty', " +
                 "'getLongProperty'), paramof(-1234, { [0] = 2 }))").arg(2).tolong());
+    }
+
+    // The design capacity of PowerProfile as on devices without it: 0, or the default the caller gives; other
+    // values of the power profile stay
+    @Test
+    public void batteryDesignCapacityIsMissing() throws Exception {
+        Globals globals = load("battery");
+        String profile = "'com.android.internal.os.PowerProfile'";
+        Varargs result = Scripts.run(globals, "return run(hookof('PowerProfile.getBatteryCapacity', 'getBatteryCapacity', " +
+                profile + "), paramof(4500.0, {}))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(0.0, result.arg(2).todouble(), 0);
+        result = Scripts.run(globals, "return run(hookof('PowerProfile.getAveragePower', 'getAveragePower', " +
+                profile + "), paramof(4500.0, { [0] = 'battery.capacity' }))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(0.0, result.arg(2).todouble(), 0);
+        result = Scripts.run(globals, "return run(hookof('PowerProfile.getAveragePowerOrDefault', " +
+                "'getAveragePowerOrDefault', " + profile + "), paramof(4500.0, { [0] = 'battery.capacity', [1] = 1000.0 }))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(1000.0, result.arg(2).todouble(), 0);
+        result = Scripts.run(globals, "return run(hookof('PowerProfile.getAveragePower', 'getAveragePower', " +
+                profile + "), paramof(110.5, { [0] = 'cpu.active' }))");
+        assertFalse(result.arg1().toboolean());
+        assertEquals(110.5, result.arg(2).todouble(), 0);
+        // A profile without the capacity stays
+        assertFalse(Scripts.run(globals, "return run(hookof('PowerProfile.getBatteryCapacity', 'getBatteryCapacity', " +
+                profile + "), paramof(0, {}))").arg1().toboolean());
     }
 
     // The UUID of an SD card is made of its fake id, like Android makes it of the real one, and both stay the same

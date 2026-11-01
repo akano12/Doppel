@@ -135,9 +135,10 @@ public class NetworkScriptsTest {
                 "\nDevice: Anna's phone\n deviceAddress: 12:34:56:78:9a:bc"));
         // The access point like Android shows it without location permission, like the getter
         String wifi = tostring(globals, "android.net.wifi.WifiInfo",
-                "SSID: \"Home\", BSSID: 12:34:56:78:9a:bc, MAC: 02:00:00:00:00:00, IP: /192.168.1.5, Security type: 2");
+                "SSID: \"Home\", BSSID: 12:34:56:78:9a:bc, MAC: 02:00:00:00:00:00, IP: /192.168.1.5, Security type: 2, " +
+                        "Net ID: 3, Metered hint: false");
         assertEquals("SSID: \"private\", BSSID: 02:00:00:00:00:00, MAC: 02:00:00:00:00:00, IP: /0.0.0.0, " +
-                "Security type: 2", wifi);
+                "Security type: 2, Net ID: -1, Metered hint: false", wifi);
     }
 
     @Test
@@ -149,13 +150,19 @@ public class NetworkScriptsTest {
                         "local ssid = paramof('\"Home\"')\n" +
                         "local bssid = paramof('12:34:56:78:9a:bc')\n" +
                         "return after(hookof('getSSID'), unknown), after(hookof('getBSSID'), hidden),\n" +
-                        "  after(hookof('getSSID'), ssid), ssid.result, after(hookof('getBSSID'), bssid), bssid.result");
+                        "  after(hookof('getSSID'), ssid), ssid.result, after(hookof('getBSSID'), bssid), bssid.result,\n" +
+                        "  after(hookof('getNetworkId'), paramof(-1)), (function() local id = paramof(3)\n" +
+                        "    return after(hookof('getNetworkId'), id), id.result end)()");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
         assertEquals("\"private\"", result.arg(4).tojstring());
         assertTrue(result.arg(5).toboolean());
         assertEquals("02:00:00:00:00:00", result.arg(6).tojstring());
+        // The id of the saved network, -1 when not connected or hidden by Android
+        assertFalse(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+        assertEquals(-1, result.arg(9).toint());
     }
 
     // The local address of sockets: those of the device become the wildcard address of their family, also in a
@@ -180,7 +187,9 @@ public class NetworkScriptsTest {
                         "  bound('getLocalAddress', inet:getByName('0.0.0.0')),\n" +
                         "  bound('getLocalAddress', inet:getByName('fe80::1')),\n" +
                         "  bound('getLocalSocketAddress', socket('::1', 80)),\n" +
-                        "  bound('getsockname', 'unix')");
+                        "  bound('getsockname', 'unix'),\n" +
+                        "  bound('ioctlInetAddress', inet:getByName('255.255.255.0')),\n" +
+                        "  bound('ioctlInetAddress', inet:getByName('127.0.0.1'))");
         assertEquals("true /0.0.0.0", result.arg(1).tojstring());
         assertEquals("true /0:0:0:0:0:0:0:0", result.arg(2).tojstring());
         assertEquals("true /0.0.0.0:4321", result.arg(3).tojstring());
@@ -190,6 +199,9 @@ public class NetworkScriptsTest {
         assertEquals("false /fe80:0:0:0:0:0:0:1", result.arg(7).tojstring());
         assertEquals("false /[0:0:0:0:0:0:0:1]:80", result.arg(8).tojstring());
         assertEquals("false unix", result.arg(9).tojstring());
+        // The address, netmask or broadcast address of an interface by ioctl
+        assertEquals("true /0.0.0.0", result.arg(10).tojstring());
+        assertEquals("false /127.0.0.1", result.arg(11).tojstring());
     }
 
     @Test

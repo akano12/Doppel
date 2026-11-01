@@ -21,10 +21,33 @@
 -- so a nearly empty battery does not show as 0 percent; other properties as not supported,
 -- like BatteryManager does on devices without them. The status stays, apps act on charging.
 -- Battery saver is a setting people switch, it appears off.
+-- The capacity the battery was designed for (mAh), which PowerProfile of the framework reads from the power profile
+-- of the device and apps by reflection, is not there either, like on devices without it: 0, or the default
+-- of getAveragePowerOrDefault. The files of the kernel with the capacities (charge_full, charge_full_design of
+-- /sys/class/power_supply) need no hooks: SELinux denies apps reading them (sysfs_batteryinfo, Android 10 and later).
+local CAPACITY = 'battery.capacity'
 
 function after(hook, param)
     local method = hook:getMethodName()
     local result = param:getResult()
+
+    if hook:getClassName() == 'com.android.internal.os.PowerProfile' then
+        -- getBatteryCapacity, and getAveragePower and getAveragePowerOrDefault of battery.capacity, which it calls
+        local fake = 0
+        if method ~= 'getBatteryCapacity' then
+            if param:getArgument(0) ~= CAPACITY then
+                return false
+            end
+            if method == 'getAveragePowerOrDefault' then
+                fake = param:getArgument(1)
+            end
+        end
+        if result == fake then
+            return false
+        end
+        param:setResult(fake)
+        return true, tostring(result), tostring(fake)
+    end
 
     if method == 'isPowerSaveMode' then
         if not result then

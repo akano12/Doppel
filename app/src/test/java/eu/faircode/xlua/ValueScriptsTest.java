@@ -85,7 +85,8 @@ public class ValueScriptsTest {
                 "settings['value.imei'] = 'fake-imei' settings['value.meid'] = 'fake-meid'");
         for (String[] c : new String[][]{
                 {"gsm", "getDeviceId", "fake-imei"}, {"gsm", "getImei", "fake-imei"}, {"gsm", "getPrimaryImei", "fake-imei"},
-                {"gsm", "getMeid", null},
+                {"gsm", "getMeid", null}, {"gsm", "getDeviceIdGemini", "fake-imei"}, {"gsm", "getDeviceIdDs", "fake-imei"},
+                {"cdma", "getDeviceIdGemini", "fake-meid"},
                 {"cdma", "getDeviceId", "fake-meid"}, {"cdma", "getMeid", "fake-meid"},
                 {"cdma", "getImei", null}, {"cdma", "getPrimaryImei", null}})
             check(globals, "return after_(hookof('" + c[1] + "'), paramof('real', {}, " + c[0] + "))", true, true, c[2]);
@@ -415,8 +416,9 @@ public class ValueScriptsTest {
         assertEquals("true context", result.arg(4).tojstring());
         assertFalse(result.arg(5).toboolean());
 
-        for (String[] c : new String[][]{{"com.google.firebase.analytics.FirebaseAnalytics", "setAnalyticsCollectionEnabled"},
-                {"com.google.firebase.crashlytics.FirebaseCrashlytics", "setCrashlyticsCollectionEnabled"}}) {
+        for (String[] c : new String[][]{{"com.google.firebase.analytics.FirebaseAnalytics", "setAnalyticsCollectionEnabled", "false"},
+                {"com.google.firebase.crashlytics.FirebaseCrashlytics", "setCrashlyticsCollectionEnabled", "false"},
+                {"com.google.android.gms.analytics.GoogleAnalytics", "setAppOptOut", "true"}}) {
             result = Scripts.run(globals, "local calls = {}\n" +
                     "local sdk = { " + c[1] + " = function(self, enabled) calls[#calls + 1] = enabled end }\n" +
                     "local hook = hookof('getInstance', '" + c[0] + "')\n" +
@@ -426,8 +428,50 @@ public class ValueScriptsTest {
             assertTrue(c[0], result.arg(1).toboolean());
             assertFalse(c[0], result.arg(2).toboolean());
             assertEquals(c[0], 1, result.arg(3).toint());
-            assertFalse(c[0], result.arg(4).toboolean());
+            assertEquals(c[0], Boolean.parseBoolean(c[2]), result.arg(4).toboolean());
         }
+    }
+
+    // Firebase Analytics gets all consent types denied, also when the app gives consent; Amazon no consent
+    @Test
+    public void analyticsConsentIsDenied() throws Exception {
+        Globals globals = load("analytics_getinstance");
+        Varargs result = Scripts.run(globals, "classes = {\n" +
+                "  ['com.google.firebase.analytics.FirebaseAnalytics$ConsentType'] =\n" +
+                "    { values = function(self) return arrayof('ANALYTICS_STORAGE', 'AD_STORAGE', 'FUTURE') end },\n" +
+                "  ['com.google.firebase.analytics.FirebaseAnalytics$ConsentStatus'] = { DENIED = 'DENIED' },\n" +
+                "  ['com.amazon.device.ads.AdRegistration$ConsentStatus'] = { EXPLICIT_NO = 'EXPLICIT_NO' } }\n" +
+                "local function paramof2(result, args)\n" +
+                "  local param = paramof(result, args)\n" +
+                "  param.findClass = function(self, name) return classes[name] end\n" +
+                "  return param\n" +
+                "end\n" +
+                "local consent, enabled\n" +
+                "local sdk = { setAnalyticsCollectionEnabled = function(self, value) enabled = value end,\n" +
+                "  setConsent = function(self, map) consent = map end }\n" +
+                "local stopped = after(hookof('getInstance', 'com.google.firebase.analytics.FirebaseAnalytics'), paramof2(sdk))\n" +
+                "local granted = luajava.newInstance('java.util.HashMap')\n" +
+                "granted:put('ANALYTICS_STORAGE', 'GRANTED')\n" +
+                "local param = paramof2(nil, { [0] = granted })\n" +
+                "local replaced = before(hookof('setConsent'), param)\n" +
+                "local status\n" +
+                "local ads = { setConsentStatus = function(self, value) status = value end }\n" +
+                "local amazon = after(hookof('getInstance', 'com.amazon.device.ads.AdRegistration'), paramof2(ads))\n" +
+                "local keep = before(hookof('setConsentStatus'), paramof2(nil, { [0] = 'EXPLICIT_NO' }))\n" +
+                "local yes = paramof2(nil, { [0] = 'EXPLICIT_YES' })\n" +
+                "return stopped, enabled, consent:size(), consent:get('FUTURE'), replaced,\n" +
+                "  param.args[0]:get('ANALYTICS_STORAGE'), amazon, status, keep, before(hookof('setConsentStatus'), yes), yes.args[0]");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals(3, result.arg(3).toint());
+        assertEquals("DENIED", result.arg(4).tojstring());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("DENIED", result.arg(6).tojstring());
+        assertTrue(result.arg(7).toboolean());
+        assertEquals("EXPLICIT_NO", result.arg(8).tojstring());
+        assertFalse(result.arg(9).toboolean());
+        assertTrue(result.arg(10).toboolean());
+        assertEquals("EXPLICIT_NO", result.arg(11).tojstring());
     }
 
     // Segment opts out by the method of older versions or by the AtomicBoolean of newer ones

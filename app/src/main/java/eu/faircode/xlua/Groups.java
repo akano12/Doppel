@@ -64,6 +64,7 @@ final class Groups {
         group("Read.Debugging", R.string.group_read_debugging, R.string.group_desc_read_debugging, R.drawable.ic_group_debugging);
         group("Read.Features", R.string.group_read_features, R.string.group_desc_read_features, R.drawable.ic_group_features);
         group("Read.Identifiers", R.string.group_read_identifiers, R.string.group_desc_read_identifiers, R.drawable.ic_group_identifiers);
+        group("Read.Locale", R.string.group_read_locale, R.string.group_desc_read_locale, R.drawable.ic_group_locale);
         group("Read.Network", R.string.group_read_network, R.string.group_desc_read_network, R.drawable.ic_group_network);
         group("Read.Notifications", R.string.group_read_notifications, R.string.group_desc_read_notifications,
                 R.drawable.ic_group_notifications);
@@ -83,7 +84,7 @@ final class Groups {
 
         put(R.string.section_location, "Get.Location", "Determine.Activity", "Get.Sensors");
         put(R.string.section_identity, "Read.Identifiers", "Read.Telephony", "Read.Network", "Read.VPN",
-                "Read.Timezone", "Read.Features", "Read.Battery", "Read.Resources", "Read.Settings",
+                "Read.Timezone", "Read.Locale", "Read.Features", "Read.Battery", "Read.Resources", "Read.Settings",
                 "Read.Biometrics", "Read.Debugging", "Read.Account", "Read.Sync");
         put(R.string.section_personal, "Get.Contacts", "Get.Call.log", "Get.Messages", "Send.Messages",
                 "Get.Calendars", "Get.Applications", "Read.Clipboard", "Read.Notifications", "Learn.Typing");

@@ -49,6 +49,7 @@
     <string name="title_value_phone_number">Phone number</string>
     <string name="title_value_email">Account name (email)</string>
     <string name="title_value_timezone">Time zone (like Europe/Amsterdam)</string>
+    <string name="title_value_locale">Languages (comma separated, like en-US,de-DE)</string>
     <string name="title_value_features">Shown device features (comma separated, like android.hardware.camera*)</string>
     <string name="title_value_latitude">Latitude</string>
     <string name="title_value_longitude">Longitude</string>
@@ -601,6 +602,7 @@
     <string name="group_read_sync">Read sync data</string>
     <string name="group_read_telephony">Read telephony data</string>
     <string name="group_read_timezone">Read time zone</string>
+    <string name="group_read_locale">Read languages</string>
     <string name="group_read_features">Read device features</string>
     <string name="group_read_vpn">Read VPN state</string>
     <string name="group_record_audio">Record audio</string>
@@ -625,7 +627,7 @@
     <string name="group_desc_read_battery">Exact battery level, charge and wear, which help to recognize the device</string>
     <string name="group_desc_read_clipboard">Contents of the clipboard</string>
     <string name="group_desc_learn_typing">What the keyboard learns from typing, which it is asked not to keep</string>
-    <string name="group_desc_read_debugging">Whether developer options and USB or wireless debugging are on</string>
+    <string name="group_desc_read_debugging">Whether developer options and USB or wireless debugging are on, and su and Magisk</string>
     <string name="group_desc_read_resources">Exact size of memory and storage and the free space, which help to recognize the device</string>
     <string name="group_desc_read_settings">Settings like the window animation scale, screen timeout, proxy and alarm sound, which help to recognize the device</string>
     <string name="group_desc_read_identifiers">Device, DRM and advertising ids, serial number, MAC addresses, ids of the chip, SD cards and storage</string>
@@ -634,6 +636,7 @@
     <string name="group_desc_read_sync">Accounts which are being synchronized</string>
     <string name="group_desc_read_telephony">Phone number, IMEI and SIM card details</string>
     <string name="group_desc_read_timezone">Time zone of the device</string>
+    <string name="group_desc_read_locale">Languages of the device and its region of sale, not the language of the app</string>
     <string name="group_desc_read_features">Hardware and software features of the device, connected keyboards and controllers</string>
     <string name="group_desc_read_vpn">Whether a VPN is connected</string>
     <string name="group_desc_record_audio">Recording with the microphone</string>

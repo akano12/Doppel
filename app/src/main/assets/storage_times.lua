@@ -19,10 +19,16 @@
 -- until it is reset, so all apps read the same time, which links them to each other, like the times of folders
 -- changed later, like of Download. Their times become those of the files of reproducible builds
 -- (2009-01-01 00:00 UTC), like the install times of other apps (see packageinfo_createfromparcel).
+-- The files of other apps in /data/app, like their APKs, have the time they were installed or updated, which
+-- apps read by applicationInfo.sourceDir: their times become the install times their package info gives (see there),
+-- the time of the firmware for updates of apps of the system and FAKE for the others; /data/app itself changes with
+-- each install. The files of the app itself keep their times.
 -- The times are read with Os.stat and Os.lstat, File.lastModified and java.nio.file.Files (also the time
 -- the folder was made); not covered are the times of files in the folders, Os.fstat, the attributes of entries
--- of a SecureDirectoryStream of java.nio (fstatat, like Files.newDirectoryStream of the storage gives) and native code.
+-- of a SecureDirectoryStream of java.nio (fstatat, like Files.newDirectoryStream of the storage gives) and native
+-- code; stat, ls -l and find with times fail for these paths (see shell_commands).
 local FAKE = 1230768000
+local FLAG_SYSTEM = 1
 
 -- The folders the system makes, which apps can read the times of
 local FOLDERS = { 'Alarms', 'Android', 'Android/data', 'Android/media', 'Android/obb', 'Audiobooks', 'DCIM',
@@ -41,32 +47,88 @@ function filter(hook)
             table.insert(paths, top .. '/' .. folder .. '/')
         end
     end
+    table.insert(paths, '/data/app')
+    table.insert(paths, '/data/app/*')
     return paths
+end
+
+-- The time of a path of /data/app, in milliseconds, by the package in it (/data/app/~~...==/com.example-...==/
+-- since Android 11, /data/app/com.example-.../ before); nil for the paths of the app itself, which keep their time.
+-- Per path, since files are read often and the packages do not change while the app runs.
+local TIMES = {}
+
+function apptime(param, path)
+    local known = TIMES[path]
+    if known ~= nil then
+        return known or nil
+    end
+    local time = FAKE * 1000
+    local context = param:getApplicationContext()
+    local own = (context ~= nil and context:getApplicationInfo().sourceDir or nil)
+    if context == nil or param:isSystem() then
+        time = false
+    elseif own ~= nil then
+        local folder = string.match(own, '^(.*)/[^/]*$')
+        local root = string.match(folder, '^(.*)/[^/]*$')
+        if path == folder or string.sub(path, 1, #folder + 1) == folder .. '/' or
+                (root ~= '/data/app' and path == root) then
+            time = false
+        end
+    end
+    -- Names of packages have no -, the random part of the folder can
+    local name = string.match(path, '^/data/app/~~[^/]+/([^/%-]+)%-') or string.match(path, '^/data/app/([^/~][^/%-]*)%-')
+    if time and name ~= nil then
+        -- Without the hook of package infos, which would fake the times the same way; updates of apps of the system
+        -- have the time of the firmware there
+        local ok, info = pcall(function()
+            return param:unhooked(function()
+                return context:getPackageManager():getPackageInfo(name, 0)
+            end)
+        end)
+        if ok and info ~= nil and math.floor(info.applicationInfo.flags / FLAG_SYSTEM) % 2 == 1 then
+            time = info.firstInstallTime
+        end
+    end
+    -- Not before the app has a context, which tells its own files
+    if context ~= nil then
+        TIMES[path] = time
+    end
+    return time or nil
 end
 
 function after(hook, param)
     if param:getException() ~= nil then
         return false
     end
+    local path = tostring(param:getArgument(0))
+    local time = FAKE * 1000
+    if path == '/data/app' or string.sub(path, 1, 10) == '/data/app/' then
+        time = apptime(param, path)
+        if time == nil then
+            return false
+        end
+    end
+    local seconds = math.floor(time / 1000)
+    local nanos = (time % 1000) * 1000000
 
     -- java.nio reads the times into the attributes of its argument; the boot image has the methods calling this
     -- one (UnixFileAttributes.get) compiled inline, so their hooks would not apply
     if hook:getClassName() == 'sun.nio.fs.UnixNativeDispatcher' then
         local attributes = param:getArgument(1)
-        if attributes == nil or (attributes.st_atime_sec == FAKE and attributes.st_mtime_sec == FAKE and
-                attributes.st_ctime_sec == FAKE) then
+        if attributes == nil or (attributes.st_atime_sec == seconds and attributes.st_mtime_sec == seconds and
+                attributes.st_ctime_sec == seconds) then
             return false
         end
         local old = attributes.st_mtime_sec
         for _, name in ipairs({ 'atime', 'mtime', 'ctime' }) do
-            attributes['st_' .. name .. '_sec'] = FAKE
-            attributes['st_' .. name .. '_nsec'] = 0
+            attributes['st_' .. name .. '_sec'] = seconds
+            attributes['st_' .. name .. '_nsec'] = nanos
         end
         -- Recent versions have the time a file was made; a field the class does not have is nil
         if attributes.st_birthtime_sec ~= nil then
-            attributes.st_birthtime_sec = FAKE
+            attributes.st_birthtime_sec = seconds
         end
-        return true, tostring(old), tostring(FAKE)
+        return true, tostring(old), tostring(seconds)
     end
 
     local result = param:getResult()
@@ -77,21 +139,21 @@ function after(hook, param)
     local method = hook:getMethodName()
     if method == 'getLastModifiedTime' then
         -- File.lastModified, 0 when there is no such file
-        if result == 0 or result == FAKE * 1000 then
+        if result == 0 or result == time then
             return false
         end
-        param:setResult(FAKE * 1000)
-        return true, tostring(result), tostring(FAKE * 1000)
+        param:setResult(time)
+        return true, tostring(result), tostring(time)
     end
 
     -- Os.stat and Os.lstat, with times in nanoseconds
-    if result.st_atime == FAKE and result.st_mtime == FAKE and result.st_ctime == FAKE then
+    if result.st_atime == seconds and result.st_mtime == seconds and result.st_ctime == seconds then
         return false
     end
-    local time = luajava.newInstance('android.system.StructTimespec', FAKE, 0)
+    local spec = luajava.newInstance('android.system.StructTimespec', seconds, nanos)
     local fake = luajava.newInstance('android.system.StructStat',
             result.st_dev, result.st_ino, result.st_mode, result.st_nlink, result.st_uid, result.st_gid,
-            result.st_rdev, result.st_size, time, time, time, result.st_blksize, result.st_blocks)
+            result.st_rdev, result.st_size, spec, spec, spec, result.st_blksize, result.st_blocks)
     param:setResult(fake)
-    return true, tostring(result.st_mtime), tostring(FAKE)
+    return true, tostring(result.st_mtime), tostring(seconds)
 end

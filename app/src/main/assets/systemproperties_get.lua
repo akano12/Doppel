@@ -33,7 +33,13 @@ local DEVICE = {
                    'ro.bootloader', 'ro.boot.bootloader', 'ro.build.expect.bootloader',
                    'gsm.version.baseband', 'ro.build.expect.baseband', 'ro.product.marketname',
                    'ro.product.*.marketname', 'ro.config.marketing_name', 'ro.vendor.oplus.market.name',
-                   'ro.oppo.market.name' } },
+                   'ro.oppo.market.name',
+                   -- The same of partitions in front, like ro.vendor.product.model, and the camera (EXIF) of Samsung
+                   'ro.*.product.model', 'ro.*.product.manufacturer', 'ro.*.product.brand', 'ro.*.product.device',
+                   'ro.*.product.name', 'persist.sys.exif.model',
+                   -- The chip (SoC) by vendors: like ro.vendor.soc.model, Exynos, Qualcomm and MediaTek
+                   'ro.*.soc.*', 'ro.chipname', 'ro.hardware.chipname', 'ro.vendor.qti.soc_model',
+                   'ro.vendor.qti.soc_name', 'ro.mediatek.platform', 'ro.vendor.mediatek.platform' } },
     { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
                    'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
                    'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
@@ -71,11 +77,14 @@ local OPERATOR = {
 }
 
 -- The properties of USB debugging, which agree with adb_enabled 0 of Read.Debugging (see settingssecure_getstring),
--- the same as getprop prints (see shell_commands): adbd stopped, adb left out of the USB functions
+-- the same as getprop prints (see shell_commands): adbd stopped, adb left out of the USB functions; a build which is
+-- not debuggable, like a user build; the log buffer sizes of the developer options, which LSPosed sets too, not set
 local NOADB = {}
 local DEBUGGING = {
     ['init.svc.adbd'] = 'stopped',
     ['sys.usb.config'] = NOADB, ['sys.usb.state'] = NOADB, ['persist.sys.usb.config'] = NOADB,
+    ['ro.debuggable'] = '0', ['ro.secure'] = '1',
+    ['persist.logd.size'] = '', ['persist.logd.size.main'] = '', ['persist.logd.size.crash'] = '',
 }
 
 -- A list of USB functions without adb, like mtp for mtp,adb; adb alone becomes none
@@ -155,13 +164,27 @@ function typed(hook, param, key, result, method)
         return false
     end
     local fake
-    if string.match(hook:getName(), '/(.*)$') == 'device' then
+    local name = string.match(hook:getName(), '/(.*)$')
+    if name == 'device' then
         fake = fakedevice(key, '')
+    elseif name == 'debugging' and type(DEBUGGING[key]) == 'string' then
+        fake = DEBUGGING[key]
     end
     if fake == nil then
         return false
     end
-    fake = number(fake, method)
+    if method == 'getBoolean' then
+        -- Of the fake values of DEBUGGING, 1 and 0 (like y, yes, true and on, and their opposites), else the default
+        if fake == '1' then
+            fake = true
+        elseif fake == '0' then
+            fake = false
+        else
+            fake = default
+        end
+    else
+        fake = number(fake, method)
+    end
     if fake == nil then
         fake = default
     end
@@ -194,7 +217,13 @@ function filter(hook)
     elseif name == 'timezone' then
         return { 'persist.sys.timezone' }
     elseif name == 'device' then
-        return { 'ro.*', 'gsm.version.baseband' }
+        local keys = { 'ro.*', 'gsm.version.baseband' }
+        for key, _ in pairs(NAMES) do
+            if string.sub(key, 1, 3) ~= 'ro.' and key ~= 'gsm.version.baseband' then
+                table.insert(keys, key)
+            end
+        end
+        return keys
     elseif name == 'debugging' then
         local keys = {}
         for key, _ in pairs(DEBUGGING) do
@@ -221,13 +250,13 @@ function after(hook, param)
     local key = param:getArgument(0)
     if key == nil or not (string.sub(key, 1, 3) == 'ro.' or
             string.sub(key, 1, 4) == 'gsm.' or SERIALS[key] ~= nil or iccid(key) or key == 'persist.sys.timezone' or
-            DEBUGGING[key] ~= nil) then
+            DEBUGGING[key] ~= nil or NAMES[key] ~= nil) then
         return false
     end
 
     local result = param:getResult()
     local method = hook:getMethodName()
-    if method == 'getInt' or method == 'getLong' then
+    if method == 'getInt' or method == 'getLong' or method == 'getBoolean' then
         return typed(hook, param, key, result, method)
     end
 
@@ -260,6 +289,9 @@ function after(hook, param)
         local fake = DEBUGGING[key]
         if fake == NOADB then
             fake = noadb(result)
+        elseif fake == '' and string.find(hook:getName(), '.default/', 1, true) then
+            -- Like a property which is not set: the default of get(key, default)
+            fake = param:getArgument(1)
         end
         if fake == result then
             return false

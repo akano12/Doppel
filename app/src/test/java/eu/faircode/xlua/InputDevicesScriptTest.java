@@ -23,7 +23,9 @@ import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 // The input devices (assets/input_devices.lua) and the key maps: up to Android 13 KeyCharacterMap.load looks up
@@ -71,5 +73,50 @@ public class InputDevicesScriptTest {
                 "'com.example.app.Main.onCreate'");
         assertTrue(app.arg1().toboolean());
         assertFalse(app.arg(2).toboolean());
+    }
+
+    // Built-in devices get a generic name, no vendor and product id and a descriptor of the app, also in their text;
+    // external devices (kept for key maps) and the virtual keyboard stay
+    @Test
+    public void builtInDevicesHaveNoIdentity() throws Exception {
+        Varargs result = Scripts.run(Scripts.load("input_devices", STUBS),
+                "local function deviceof(id, sources, external)\n" +
+                        "  return { getId = function(self) return id end,\n" +
+                        "    getSources = function(self) return sources end,\n" +
+                        "    isExternal = function(self) return external end }\n" +
+                        "end\n" +
+                        "local function get(method, device, value, package)\n" +
+                        "  local param = { result = value,\n" +
+                        "    getResult = function(self) return self.result end,\n" +
+                        "    setResult = function(self, v) self.result = v end,\n" +
+                        "    getThis = function(self) return device end,\n" +
+                        "    getPackageName = function(self) return package or 'com.example' end,\n" +
+                        // A stand-in of a hash
+                        "    uuidOf = function(self, seed) local sum = 0\n" +
+                        "      for i = 1, #seed do sum = (sum * 31 + string.byte(seed, i)) % 4294967296 end\n" +
+                        "      return string.format('%08x-1111-4111-8111-%012x', sum, sum) end }\n" +
+                        "  after(hookof(method), param)\n" +
+                        "  return param.result\n" +
+                        "end\n" +
+                        "local touch = deviceof(3, 0x1002, false)\n" +
+                        "local keys = deviceof(4, 0x101, false)\n" +
+                        "local real = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'\n" +
+                        "local text = 'Input Device 3: sec_touchscreen\\n  Descriptor: ' .. real .. '\\n  Generation: 7\\n'\n" +
+                        "return get('getName', touch, 'sec_touchscreen'), get('getName', keys, 'qpnp_pon'),\n" +
+                        "  get('getVendorId', touch, 0x1234), get('getProductId', touch, 0x5678),\n" +
+                        "  get('getDescriptor', touch, real), get('toString', touch, text),\n" +
+                        "  get('getName', deviceof(9, 0x1002, true), 'Pen'), get('getName', deviceof(-1, 0x101, false), 'Virtual'),\n" +
+                        "  get('getDescriptor', touch, real, 'com.other')");
+        assertEquals("touchscreen", result.arg(1).tojstring());
+        assertEquals("gpio-keys", result.arg(2).tojstring());
+        assertEquals(0, result.arg(3).toint());
+        assertEquals(0, result.arg(4).toint());
+        String descriptor = result.arg(5).tojstring();
+        assertTrue(descriptor, descriptor.matches("[0-9a-f]{40}"));
+        assertEquals("Input Device 3: touchscreen\n  Descriptor: " + descriptor + "\n  Generation: 7\n",
+                result.arg(6).tojstring());
+        assertEquals("Pen", result.arg(7).tojstring());
+        assertEquals("Virtual", result.arg(8).tojstring());
+        assertNotEquals("the same for other apps", descriptor, result.arg(9).tojstring());
     }
 }

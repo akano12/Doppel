@@ -169,6 +169,8 @@ function after(hook, param)
             (name == 'gsf_id' and authority == 'com.google.android.gsf.gservices') or
             (name == 'oaid' and authority == 'com.vivo.vms.IdProvider') or
             (name == 'oaid' and authority == 'com.meizu.flyme.openidsdk') or
+            (name == 'oaid' and authority == 'com.huawei.hwid.pps.apiprovider') or
+            (name == 'oaid' and authority == 'com.miui.idprovider') or
             (name == 'fb_attribution' and authority == 'com.facebook.katana.provider.AttributionIdProvider') or
             (name == 'fb_attribution' and authority == 'com.facebook.wakizashi.provider.AttributionIdProvider') or
             (name == 'mmssms' and authority == 'mms') or

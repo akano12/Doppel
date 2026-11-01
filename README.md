@@ -117,8 +117,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Read identifiers**: fake serial, Android ID, DRM id, advertising and app set ID, MAC addresses;
   the permanent ids of the chip, SD card and storage in /sys do not exist, and neither do the advertising ids (OAID)
   of the services of device makers (Samsung, Lenovo, Asus, OPPO, OnePlus, realme, Honor, Huawei, Coolpad, Nubia,
-  Freeme and 360), the ids they and SDKs keep in the settings (Xiaomi, OnePlus, Amazon Fire OS, Baidu) and the
-  SIM serial in their system properties
+  Freeme and 360, also any service with one of their interfaces), the ids they and SDKs keep in the settings
+  (Huawei, Honor, Xiaomi, OnePlus, Amazon Fire OS, Baidu) and the SIM serial in their system properties
 * **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more, also in the phone accounts of the SIMs
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
   boot id and the folder times that tell when the device was set up; the hardware files in /sys do not exist
@@ -126,11 +126,14 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 </details>
 
 <details>
-<summary><b>Where you are</b> · 4 groups</summary>
+<summary><b>Where you are</b> · 5 groups</summary>
 
 * **Determine activity**: fake unknown activity, no activity transitions or sleep events
 * **Get location**: fake location, no NMEA messages or raw GNSS measurements
 * **Get sensors**: hide them
+* **Read languages**: fake languages, *Languages* in *Fake values*, default en-US, also in system properties,
+  getprop and the settings; no region of sale (Samsung, Xiaomi). The app keeps the language chosen for it and its
+  texts; the language of its configuration stays real
 * **Read time zone**: fake time zone, *Time zone* in *Fake values*, default UTC
 
 </details>
@@ -155,7 +158,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Get applications**: hide other apps, their components, widgets, install sessions and usage statistics, keyboards
   and accessibility services; hidden apps cannot be reached
 * **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
-* **Read debugging state**: developer options and USB or wireless debugging off
+* **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable
 * **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers
 * **Read device settings**: the values of a new device, like the animation scale and the screen timeout
 * **Read memory and storage**: sizes rounded like devices are sold, free space rounded down
@@ -179,8 +182,10 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Run commands**: commands fail, except the programs in *Allowed commands* (like `getprop, uname`)
   and the command lines matching *Allowed command lines*, both in *Fake values*
 * **Send messages**: prevent sending SMS, MMS and data messages
-* **Use analytics**: Adjust, AppsFlyer, Facebook app events, Firebase Analytics and Crashlytics, Mixpanel, Segment,
-  Amplitude, Branch, Microsoft Clarity, Singular, Umeng; Unity Ads without consent for personalized ads
+* **Use analytics**: Adjust, AppsFlyer, Facebook app events, Firebase Analytics (without consent, so no app
+  instance id) and Crashlytics, Google Analytics v4, Mixpanel, Segment, Amplitude, Branch, Microsoft Clarity,
+  Singular, Umeng; Unity Ads without consent for personalized ads, Amazon Publisher Services without consent
+  and location
 
 </details>
 
@@ -193,8 +198,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   like by shell commands such as stat and ls, are not restricted.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
-  The Firebase, Segment and Facebook SDKs store the opt-outs *Use analytics* sets, so collection stays off after
-  the restriction is removed, until the app turns it on again or its data is cleared.
+  The Firebase, Segment, Amazon and Facebook SDKs store the opt-outs and consents *Use analytics* sets, so collection
+  stays off after the restriction is removed, until the app turns it on again or its data is cleared.
 * *Get applications* keeps the app itself, apps sharing its user id and system apps visible to lookups of single apps,
   because the Android code running in apps, like WebView, needs them.
 * Discovery of local devices with the app's own sockets, like mDNS or SSDP, cannot be prevented.

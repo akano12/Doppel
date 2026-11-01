@@ -83,7 +83,10 @@ public class IdentifierServicesScriptTest {
                 {"componentof('com.coloros.mcs', 'com.oplus.stdid.IdentifyService')", "nil", "'action.com.oplus.stdid.ID_SERVICE'"},
                 {"nil", "'com.android.creator'", "'android.service.action.msa'"},
                 {"nil", "'com.hihonor.id'", "'com.hihonor.id.HnOaIdService'"},
-                {"nil", "'com.huawei.hwid'", "'com.uodis.opendevice.OPENIDS_SERVICE'"}};
+                {"nil", "'com.huawei.hwid'", "'com.uodis.opendevice.OPENIDS_SERVICE'"},
+                {"nil", "'com.huawei.hwid.tv'", "'com.uodis.opendevice.OPENIDS_SERVICE'"},
+                {"nil", "'com.huawei.hms'", "'com.uodis.opendevice.OPENIDS_SERVICE'"},
+                {"nil", "'com.freeme.secureguard'", "'android.service.action.msa'"}};
         for (String method : new String[]{"bindService", "bindIsolatedService", "bindServiceAsUser"})
             for (String[] intent : intents) {
                 Varargs result = run("return bind(intentof(" + String.join(", ", intent) + "), '" + method + "')");
@@ -123,6 +126,55 @@ public class IdentifierServicesScriptTest {
             assertEquals("real", result.arg(2).tojstring());
         }
         assertFalse(run("return bind(nil)").arg(1).toboolean());
+    }
+
+    // The connection to a service with the interface of an identifier service gets no binder, like a service giving
+    // none, also of a package not known; other services and the services of the app itself stay
+    @Test
+    public void connectionsToIdentifierInterfacesGetNoBinder() throws Exception {
+        String connect = String.join("\n",
+                "function connect(pkg, descriptor)",
+                "  local service = { getInterfaceDescriptor = function(self)",
+                "    if descriptor == nil then error('DeadObjectException') end",
+                "    return descriptor end }",
+                "  local param = { args = { componentof(pkg, pkg .. '.Service'), service, false },",
+                "    getPackageName = function(self) return 'com.example.app' end,",
+                "    getArgument = function(self, i) return self.args[i + 1] end,",
+                "    setArgument = function(self, i, v) self.args[i + 1] = v end }",
+                "  local restricted, old = before(hookof('doConnected'), param)",
+                "  return restricted, param.args[2] == service, old",
+                "end");
+        for (String descriptor : new String[]{"com.bun.lib.MsaIdInterface", "com.android.creator.IdsSupplier",
+                "com.samsung.android.deviceidservice.IDeviceIdService", "com.hihonor.cloudservice.oaid.IOAIDService",
+                "com.uodis.opendevice.aidl.OpenDeviceIdentifierService", "com.oplus.stdid.IStdID"}) {
+            Varargs result = run(connect + "\nreturn connect('com.new.vendor', '" + descriptor + "')");
+            assertTrue(descriptor, result.arg(1).toboolean());
+            assertFalse(descriptor, result.arg(2).toboolean());
+            assertEquals(descriptor, result.arg(3).tojstring());
+        }
+        String[][] others = {{"com.new.vendor", "'com.bun.lib.MsaIdInterfaceV2'"},
+                {"com.google.android.gms", "'com.google.android.gms.ads.identifier.internal.IAdvertisingIdService'"},
+                {"com.example.app", "'com.bun.lib.MsaIdInterface'"}, {"com.new.vendor", "nil"}};
+        for (String[] other : others) {
+            Varargs result = run(connect + "\nreturn connect('" + other[0] + "', " + other[1] + ")");
+            assertFalse(other[1], result.arg(1).toboolean());
+            assertTrue(other[1], result.arg(2).toboolean());
+        }
+    }
+
+    // The identifier service of 360 OS from the ServiceManager is not found; the filter passes it only
+    @Test
+    public void systemServiceOfIdentifiersIsNotFound() throws Exception {
+        for (String method : new String[]{"getService", "checkService"}) {
+            Varargs result = run("local param = paramof('qikuid')\n" +
+                    "local restricted, old = before(hookof('" + method + "'), param)\n" +
+                    "return restricted, param.set and param.result, old, filter(hookof('" + method + "'))[1]");
+            assertTrue(method, result.arg(1).toboolean());
+            assertTrue(method, result.arg(2).isnil());
+            assertEquals("qikuid", result.arg(3).tojstring());
+            assertEquals("qikuid", result.arg(4).tojstring());
+        }
+        assertTrue(run("return filter(hookof('bindService')) == nil").arg1().toboolean());
     }
 
     // The provider of Nubia, by its Uri or its name, like ContentResolver.call(authority, ...)
