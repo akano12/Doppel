@@ -19,6 +19,7 @@
 
 package eu.faircode.xlua;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -83,6 +84,11 @@ public class FragmentHooks extends FragmentBase {
     private List<String> collection = new ArrayList<>();
     private AdapterSections.Accordion accordion;
 
+    // The tab shown, which an import reloads when it ends: the screen can be recreated meanwhile, like rotated,
+    // and the new tab loaded before the definitions were stored
+    @SuppressLint("StaticFieldLeak") // Cleared in onPause
+    private static FragmentHooks shown = null;
+
     private final ActivityResultLauncher<String[]> importLauncher = registerForActivityResult(
             new ActivityResultContracts.OpenDocument(), uri -> {
                 if (uri != null)
@@ -94,6 +100,19 @@ public class FragmentHooks extends FragmentBase {
                 if (uri != null)
                     exportHooks(uri);
             });
+
+    @Override
+    public void onResume() {
+        shown = this;
+        super.onResume();
+    }
+
+    @Override
+    public void onPause() {
+        if (shown == this)
+            shown = null;
+        super.onPause();
+    }
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -374,6 +393,9 @@ public class FragmentHooks extends FragmentBase {
                     () -> run(TAG, () -> Ui.message(activity, Data.restrictForGroups(context, imported))));
         } finally {
             // Also the definitions imported before an error
+            FragmentHooks tab = shown;
+            if (tab != null && tab != this)
+                tab.post(tab::load);
             post(this::load);
         }
     }

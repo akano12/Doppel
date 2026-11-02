@@ -84,15 +84,19 @@ final class Data {
         call(context, "report", args);
     }
 
+    // No rows is an answer; no cursor is a failed or refused query, which must not look like empty data, see call
     private static Cursor query(Context context, String method, String[] selection) {
-        return context.getContentResolver()
+        Cursor cursor = context.getContentResolver()
                 .query(XProvider.getURI(), new String[]{XProvider.COLUMN + method}, null, selection, null);
+        if (cursor == null)
+            throw new IllegalStateException("No answer of the service to " + method + ", see the system log");
+        return cursor;
     }
 
     private static <T> List<T> query(Context context, String method, String[] selection, Parcelable.Creator<T> creator) {
         List<T> result = new ArrayList<>();
         try (Cursor cursor = query(context, method, selection)) {
-            while (cursor != null && cursor.moveToNext())
+            while (cursor.moveToNext())
                 result.add(unmarshall(cursor.getBlob(0), creator));
         }
         return result;
@@ -130,7 +134,7 @@ final class Data {
         List<XHook> result = new ArrayList<>();
         List<String> scripts = new ArrayList<>();
         try (Cursor cursor = query(context, "getAssignedHooks2", new String[]{packageName, Integer.toString(uid)})) {
-            while (cursor != null && cursor.moveToNext()) {
+            while (cursor.moveToNext()) {
                 XHook hook = unmarshall(cursor.getBlob(0), XHook.CREATOR);
                 if (cursor.getColumnCount() > 2) {
                     if (!cursor.isNull(1))
@@ -148,7 +152,7 @@ final class Data {
     static Set<String> getBuiltinIds(Context context) {
         Set<String> ids = new HashSet<>();
         try (Cursor cursor = query(context, "getBuiltinIds", null)) {
-            while (cursor != null && cursor.moveToNext())
+            while (cursor.moveToNext())
                 ids.add(cursor.getString(0));
         }
         return ids;
@@ -294,7 +298,7 @@ final class Data {
     static Map<String, List<String>> getAssignments(Context context) {
         Map<String, List<String>> result = new HashMap<>();
         try (Cursor cursor = query(context, "getAssignments", null)) {
-            while (cursor != null && cursor.moveToNext()) {
+            while (cursor.moveToNext()) {
                 String packageName = cursor.getString(0);
                 if (!result.containsKey(packageName))
                     result.put(packageName, new ArrayList<>());
@@ -360,7 +364,7 @@ final class Data {
     private static Map<String, String> queryMap(Context context, String method, String[] selection) {
         Map<String, String> result = new HashMap<>();
         try (Cursor cursor = query(context, method, selection)) {
-            while (cursor != null && cursor.moveToNext())
+            while (cursor.moveToNext())
                 result.put(cursor.getString(0), cursor.getString(1));
         }
         return result;
@@ -370,7 +374,7 @@ final class Data {
     static List<String[]> getAllSettings(Context context) {
         List<String[]> result = new ArrayList<>();
         try (Cursor cursor = query(context, "getAllSettings", null)) {
-            while (cursor != null && cursor.moveToNext())
+            while (cursor.moveToNext())
                 result.add(new String[]{cursor.getString(0), cursor.getString(1), cursor.getString(2)});
         }
         return result;

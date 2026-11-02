@@ -220,7 +220,7 @@ public class FragmentLog extends FragmentBase {
 
                 List<Entry> entries = new ArrayList<>();
                 try (Cursor cursor = Data.getLog(context)) {
-                    while (cursor != null && cursor.moveToNext()) {
+                    while (cursor.moveToNext()) {
                         String pkg = cursor.getString(cursor.getColumnIndexOrThrow("package"));
                         int uid = cursor.getInt(cursor.getColumnIndexOrThrow("uid"));
                         XApp app = apps.get(pkg + ":" + uid);

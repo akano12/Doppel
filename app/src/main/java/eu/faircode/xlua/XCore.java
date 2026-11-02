@@ -742,7 +742,9 @@ class XCore {
                 try {
                     Data.report(context, args);
                 } catch (Throwable ex) {
-                    log(ex);
+                    // One line: the service logged its error already, or refused an app whose restrictions were
+                    // all removed while it runs, which would else log a stack trace each second
+                    Log.w(TAG, "Report " + packageName + ":" + uid + ": " + ex);
                 }
         } finally {
             leaveService();

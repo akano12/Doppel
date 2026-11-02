@@ -415,9 +415,13 @@ public class FragmentApps extends FragmentBase {
         final String text = getString(restrict ? R.string.msg_restricted_all : R.string.msg_removed_all, app.getLabel());
         setAssigned(app, available, after);
         run(TAG, () -> {
-            change(context, app, available, before, after);
-            message(activity, text, app, after, before, available);
-            post(this::load);
+            try {
+                change(context, app, available, before, after);
+                message(activity, text, app, after, before, available);
+            } finally {
+                // Also after an error, else the row shows the change which was not stored
+                post(this::load);
+            }
         });
     }
 
@@ -427,8 +431,11 @@ public class FragmentApps extends FragmentBase {
         Ui.message(activity, text, activity.getString(R.string.title_undo), () -> {
             setAssigned(app, available, before);
             run(TAG, () -> {
-                change(context, app, available, after, before);
-                post(this::load);
+                try {
+                    change(context, app, available, after, before);
+                } finally {
+                    post(this::load);
+                }
             });
         });
     }
