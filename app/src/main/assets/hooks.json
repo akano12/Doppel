@@ -3452,7 +3452,6 @@
       "double",
       "float"
     ],
-    "returnType": "com.google.android.gms.location.Geofence$Builder",
     "minSdk": 27,
     "optional": true,
     "luaScript": "@geofence$builder_setcircularregion"
@@ -7738,7 +7737,6 @@
       "java.lang.String",
       "java.lang.Object"
     ],
-    "returnType": "boolean",
     "minSdk": 27,
     "optional": true,
     "luaScript": "@unityads_consent"
@@ -8458,7 +8456,7 @@
     "usage": false,
     "luaScript": "@webview_constructor"
   },
-  // No return type for the OkHttp header hooks: apps shrunk by R8 can have these methods return void
+  // No return type for hooks of app libraries whose result the script does not use: R8 can make them return void, see HookDefinitionsTest
   {
     "collection": "Privacy",
     "group": "Use.Tracking",

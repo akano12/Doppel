@@ -250,6 +250,26 @@ public class HookDefinitionsTest {
             assertTrue("Unreferenced script " + file.getName(), referenced.contains(file.getName()));
     }
 
+    // A hook of a library in the app which does not use the result must not require a return type: R8 makes methods
+    // whose result the app does not use return void, which XResolver refuses, like OkHttp's Headers.Builder in LinkedIn
+    @Test
+    public void appLibraryHooksWithoutResultHaveNoReturnType() throws Exception {
+        List<String> errors = new ArrayList<>();
+        for (JSONObject hook : hooks) {
+            String className = hook.getString("className");
+            String script = hook.getString("luaScript");
+            String methodName = hook.optString("methodName", "");
+            String returnType = hook.optString("returnType", "void");
+            if (returnType.equals("void") || methodName.startsWith("#") || !script.startsWith("@") ||
+                    className.matches("^(android|androidx|java|javax|com\\.android|libcore|dalvik|sun)\\..*"))
+                continue;
+            String source = read(new File(ASSETS, script.substring(1) + ".lua"));
+            if (!source.contains("setResult(") && !source.contains("getResult("))
+                errors.add(hook.getString("name"));
+        }
+        assertTrue("Return type without result: " + errors, errors.isEmpty());
+    }
+
     // Runs a script like the hook engine does to define its functions (see XCore.LuaLocals):
     // scripts can define functions, other globals are an error at run time
     private static void runScript(String name, String source) throws Exception {
