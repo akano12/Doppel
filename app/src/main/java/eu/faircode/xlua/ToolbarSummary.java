@@ -31,6 +31,7 @@ final class ToolbarSummary {
     private final MaterialToolbar toolbar;
     private CharSequence summary = null;
     private boolean scrolled = false;
+    private boolean hidden = false;
 
     // The top is scrolled away once the scroll passes the end of the header
     ToolbarSummary(MaterialToolbar toolbar, NestedScrollView scroll, View header) {
@@ -45,6 +46,12 @@ final class ToolbarSummary {
         apply();
     }
 
+    // While a search replaces the title, see TitleSearch
+    void setHidden(boolean hidden) {
+        this.hidden = hidden;
+        apply();
+    }
+
     private void setScrolled(boolean scrolled) {
         if (this.scrolled != scrolled) {
             this.scrolled = scrolled;
@@ -53,6 +60,6 @@ final class ToolbarSummary {
     }
 
     private void apply() {
-        toolbar.setSubtitle(scrolled ? summary : null);
+        toolbar.setSubtitle(scrolled && !hidden ? summary : null);
     }
 }

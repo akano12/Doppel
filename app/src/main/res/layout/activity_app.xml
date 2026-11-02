@@ -6,10 +6,32 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <!-- The search takes the place of the title, see TitleSearch -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize" />
+        android:layout_height="?attr/actionBarSize">
+
+        <ImageButton
+            android:id="@+id/ibSearch"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="end"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/menu_search"
+            android:src="@drawable/ic_search" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilSearch"
+            style="@style/XLua.Search"
+            android:visibility="gone">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etSearch"
+                style="@style/XLua.Search.Edit"
+                android:hint="@string/title_search_log_app" />
+        </com.google.android.material.textfield.TextInputLayout>
+    </com.google.android.material.appbar.MaterialToolbar>
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -326,6 +348,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical" />
+
+                <!-- When the search finds no group and no hook -->
+                <TextView
+                    android:id="@+id/tvNoMatches"
+                    style="@style/XLua.Empty"
+                    android:layout_gravity="center_horizontal"
+                    android:text="@string/title_no_matches"
+                    android:visibility="gone" />
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 

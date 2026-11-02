@@ -39,7 +39,7 @@ final class TitleSearch {
     private final ComponentActivity activity;
     private final Supplier<LifecycleOwner> owner; // Of the views, known once they exist
     private final Supplier<Boolean> hidden; // Whether the screen is behind another tab
-    private final View title;
+    private final Consumer<Boolean> showTitle;
     private final View field;
     private final EditText input;
     private final ImageButton button;
@@ -48,25 +48,36 @@ final class TitleSearch {
     // Of a tab, which can be hidden behind another one, see FragmentBase
     TitleSearch(Fragment fragment, View title, View field, EditText input, ImageButton button, Consumer<String> onQuery) {
         this(fragment.requireActivity(), fragment::getViewLifecycleOwner, fragment::isHidden,
-                title, field, input, button, onQuery);
+                visible(title), field, input, button, onQuery);
     }
 
     // Of a screen of its own, see ActivityDownloads
     TitleSearch(ComponentActivity activity, View title, View field, EditText input, ImageButton button, Consumer<String> onQuery) {
-        this(activity, () -> activity, () -> false, title, field, input, button, onQuery);
+        this(activity, () -> activity, () -> false, visible(title), field, input, button, onQuery);
+    }
+
+    // Of a screen with a title the screen shows and hides itself, like the one of a toolbar, see ActivityApp
+    static TitleSearch ofTitle(ComponentActivity activity, Consumer<Boolean> showTitle, View field, EditText input,
+                               ImageButton button, Consumer<String> onQuery) {
+        return new TitleSearch(activity, () -> activity, () -> false, showTitle, field, input, button, onQuery);
     }
 
     private TitleSearch(ComponentActivity activity, Supplier<LifecycleOwner> owner, Supplier<Boolean> hidden,
-                        View title, View field, EditText input, ImageButton button, Consumer<String> onQuery) {
+                        Consumer<Boolean> showTitle, View field, EditText input, ImageButton button,
+                        Consumer<String> onQuery) {
         this.activity = activity;
         this.owner = owner;
         this.hidden = hidden;
-        this.title = title;
+        this.showTitle = showTitle;
         this.field = field;
         this.input = input;
         this.button = button;
         button.setOnClickListener(v -> show(field.getVisibility() != View.VISIBLE));
         Ui.onTextChanged(input, onQuery);
+    }
+
+    private static Consumer<Boolean> visible(View title) {
+        return show -> title.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
     // Once the views exist, see Fragment.onViewCreated; for a screen right after its views are set
@@ -93,7 +104,7 @@ final class TitleSearch {
     }
 
     private void setShown(boolean show) {
-        title.setVisibility(show ? View.GONE : View.VISIBLE);
+        showTitle.accept(!show);
         field.setVisibility(show ? View.VISIBLE : View.GONE);
         button.setImageResource(show ? R.drawable.ic_close : R.drawable.ic_search);
         button.setContentDescription(activity.getString(show ? R.string.title_close_search : R.string.menu_search));

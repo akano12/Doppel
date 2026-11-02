@@ -93,6 +93,9 @@ public class ActivityApp extends ActivityBase {
     private int changes = 0; // Changes made here, which a reload started before does not show yet
     private int scopeRequests = 0; // Scope requests made here, a newer one supersedes the ones before
     private String reveal = null; // The id of a hook tapped in the log, shown when the restrictions are
+    private String query = ""; // Of the search
+    private boolean searching = false; // The search replaces the title
+    private final Set<String> toggled = new HashSet<>(); // Groups the search opened, which were closed again
 
     private MaterialToolbar toolbar;
     private ToolbarSummary toolbarSummary;
@@ -111,8 +114,11 @@ public class ActivityApp extends ActivityBase {
     private Button btnForceStop;
     private View llScope;
     private MaterialCheckBox cbScope;
+    private TitleSearch search;
+    private View tvNoMatches;
 
     private static class GroupView {
+        View vGroup;
         View llRow;
         View flInfo;
         View flIcon;
@@ -185,6 +191,18 @@ public class ActivityApp extends ActivityBase {
         btnForceStop = findViewById(R.id.btnForceStop);
         llScope = findViewById(R.id.llScope);
         cbScope = findViewById(R.id.cbScope);
+        tvNoMatches = findViewById(R.id.tvNoMatches);
+        search = TitleSearch.ofTitle(this, show -> {
+            searching = !show;
+            toolbar.setTitle(show ? getLabel() : null);
+            toolbarSummary.setHidden(!show);
+        }, findViewById(R.id.tilSearch), findViewById(R.id.etSearch), findViewById(R.id.ibSearch), text -> {
+            query = text.trim();
+            toggled.clear();
+            if (app != null)
+                search();
+        });
+        search.attach();
 
         llScope.setOnClickListener(view -> {
             if (cbScope.isEnabled())
@@ -266,7 +284,8 @@ public class ActivityApp extends ActivityBase {
         this.app = app;
         uid = app.uid;
 
-        toolbar.setTitle(getLabel());
+        if (!searching)
+            toolbar.setTitle(getLabel());
         // Most system apps cannot be opened
         toolbar.getMenu().findItem(R.id.menu_launch)
                 .setVisible(getPackageManager().getLaunchIntentForPackage(app.packageName) != null);
@@ -341,6 +360,7 @@ public class ActivityApp extends ActivityBase {
             for (final String group : groups) {
                 View vGroup = GroupsSheet.inflateGroup(this, inflater, llRows, group);
                 GroupView gv = new GroupView();
+                gv.vGroup = vGroup;
                 gv.llRow = vGroup.findViewById(R.id.llRow);
                 gv.flInfo = vGroup.findViewById(R.id.flInfo);
                 gv.flIcon = vGroup.findViewById(R.id.flIcon);
@@ -365,8 +385,9 @@ public class ActivityApp extends ActivityBase {
                 gv.swGroup.setContentDescription(title);
                 // The row shows the hooks, the switch restricts
                 gv.llRow.setOnClickListener(view -> {
-                    if (!expanded.remove(group))
-                        expanded.add(group);
+                    Set<String> open = (isFoundByHooks(group) ? toggled : expanded);
+                    if (!open.remove(group))
+                        open.add(group);
                     bind(group);
                 });
                 // Screen readers tell which group failed
@@ -379,6 +400,7 @@ public class ActivityApp extends ActivityBase {
             llSections.addView(vSection);
         }
 
+        search();
         updateSummary();
         updateRestart();
         pbLoading.setVisibility(View.GONE);
@@ -477,7 +499,7 @@ public class ActivityApp extends ActivityBase {
         gv.tvMeta.setVisibility(meta == null ? View.GONE : View.VISIBLE);
 
         gv.ibError.setVisibility(error ? View.VISIBLE : View.GONE);
-        bindHooks(group, gv, hooks);
+        bindHooks(group, gv);
 
         Ui.setPartial(gv.swGroup, gv.track, restricted && assignments.size() < hooks.size());
         gv.swGroup.setOnCheckedChangeListener(null);
@@ -486,9 +508,11 @@ public class ActivityApp extends ActivityBase {
         gv.swGroup.setOnCheckedChangeListener((button, checked) -> assign(group, !isComplete(group)));
     }
 
-    // The hooks of an expanded group, with whether they restricted something, each can be assigned on its own
-    private void bindHooks(String group, GroupView gv, List<XHook> hooks) {
-        boolean show = expanded.contains(group);
+    // The hooks of an expanded group, with whether they restricted something, each can be assigned on its own;
+    // a group the search found by its hooks is open and shows those
+    private void bindHooks(String group, GroupView gv) {
+        List<XHook> hooks = found(group);
+        boolean show = (isFoundByHooks(group) ? !toggled.contains(group) : expanded.contains(group));
         String title = Groups.getTitle(this, group);
         gv.ivExpand.setRotation(show ? 180 : 0);
         // Screen readers tell what tapping the row does, after its title and state
@@ -542,6 +566,47 @@ public class ActivityApp extends ActivityBase {
             vHook.setOnClickListener(view -> swHook.toggle());
             gv.llHooks.addView(vHook);
         }
+    }
+
+    // The groups and sections the search finds, all without a search
+    private void search() {
+        boolean any = false;
+        LinearLayout llSections = findViewById(R.id.llSections);
+        for (int i = 0; i < llSections.getChildCount(); i++) {
+            View vSection = llSections.getChildAt(i);
+            @SuppressWarnings("unchecked")
+            List<String> groups = (List<String>) vSection.getTag();
+            boolean visible = false;
+            for (String group : groups) {
+                GroupView gv = views.get(group);
+                boolean found = !found(group).isEmpty();
+                gv.vGroup.setVisibility(found ? View.VISIBLE : View.GONE);
+                if (found)
+                    bindHooks(group, gv);
+                visible |= found;
+            }
+            vSection.setVisibility(visible ? View.VISIBLE : View.GONE);
+            any |= visible;
+        }
+        tvNoMatches.setVisibility(any ? View.GONE : View.VISIBLE);
+    }
+
+    // The hooks of a group the search finds: all of a group found by its title, name or description,
+    // else the ones found by their name
+    private List<XHook> found(String group) {
+        List<XHook> hooks = available.get(group);
+        if (query.isEmpty() || Ui.contains(Groups.getTitle(this, group), query) || Ui.contains(group, query) ||
+                Ui.contains(Groups.getDescription(this, group), query))
+            return hooks;
+        List<XHook> found = new ArrayList<>();
+        for (XHook hook : hooks)
+            if (Ui.contains(hook.getName(), query))
+                found.add(hook);
+        return found;
+    }
+
+    private boolean isFoundByHooks(String group) {
+        return (found(group) != available.get(group));
     }
 
     // All available hooks of the group are assigned
@@ -713,6 +778,12 @@ public class ActivityApp extends ActivityBase {
             if (app.stopsAutomatically())
                 Data.forceStop(context, app);
         });
+    }
+
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        search.restore();
     }
 
     @Override
