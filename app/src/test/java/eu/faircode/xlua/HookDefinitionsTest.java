@@ -726,7 +726,7 @@ public class HookDefinitionsTest {
                 "android.content.ServiceConnection,android.content.Context$BindServiceFlags,android.os.UserHandle) @component_hidden 34-");
         check("Context.sendBroadcast.options/hidden", "android.app.ContextImpl sendBroadcast(" + i +
                 "java.lang.String,android.os.Bundle) @component_hidden 34-");
-        check("Context.sendBroadcastWithMultiplePermissions/hidden", "android.content.Context sendBroadcastWithMultiplePermissions(" + i +
+        check("Context.sendBroadcastWithMultiplePermissions/hidden", "android.app.ContextImpl sendBroadcastWithMultiplePermissions(" + i +
                 "java.lang.String[]) @component_hidden 30-");
         check("Context.sendBroadcastAsUser/hidden", "android.app.ContextImpl sendBroadcastAsUser(" + i +
                 "android.os.UserHandle) @component_hidden 27-");

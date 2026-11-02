@@ -115,7 +115,7 @@ public class ActivityApp extends ActivityBase {
     private View llScope;
     private MaterialCheckBox cbScope;
     private TitleSearch search;
-    private View tvNoMatches;
+    private TextView tvNoMatches;
 
     private static class GroupView {
         View vGroup;
@@ -262,7 +262,11 @@ public class ActivityApp extends ActivityBase {
                 });
             } catch (Throwable ex) {
                 postUnlessGone(() -> pbLoading.setVisibility(View.GONE));
-                error(TAG, ex);
+                // Else a failed first load leaves the screen with its toolbar only
+                Ui.error(this, TAG, ex, () -> {
+                    if (!isDestroyed())
+                        load();
+                });
             }
         });
     }
@@ -589,6 +593,7 @@ public class ActivityApp extends ActivityBase {
             vSection.setVisibility(visible ? View.VISIBLE : View.GONE);
             any |= visible;
         }
+        tvNoMatches.setText(query.isEmpty() ? R.string.title_no_available_hooks : R.string.title_no_matches);
         tvNoMatches.setVisibility(any ? View.GONE : View.VISIBLE);
     }
 

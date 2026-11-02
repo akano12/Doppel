@@ -108,10 +108,19 @@ final class GroupsSheet {
         // The sheet is the parent, which the dialog makes
         view = inflater.inflate(R.layout.sheet_groups, null, false);
         dialog.setContentView(view);
-        // Most of the screen, so the sections show; the list scrolls inside
+        // Most of the window, so the sections show; the list scrolls inside. The window can change size while the
+        // sheet is open, like after a rotation, which does not recreate the screen, else Done would be cut off
         ViewGroup.LayoutParams lp = view.getLayoutParams();
         lp.height = (int) (context.getResources().getDisplayMetrics().heightPixels * 0.85f);
         view.setLayoutParams(lp);
+        dialog.getWindow().getDecorView().addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            int height = (int) ((b - t) * 0.85f);
+            if (height > 0 && view.getLayoutParams().height != height) {
+                ViewGroup.LayoutParams params = view.getLayoutParams();
+                params.height = height;
+                view.setLayoutParams(params);
+            }
+        });
         BottomSheetBehavior<?> behavior = dialog.getBehavior();
         behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
         behavior.setSkipCollapsed(true);

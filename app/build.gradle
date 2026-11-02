@@ -114,6 +114,9 @@ android {
             // compiled tests: a change of a script or of Downloads alone would else leave the tests up to date
             inputs.dir('src/main/assets')
             inputs.dir(rootProject.file('repo'))
+            // The test of the versions of Downloads reads the history of git, which a commit changes
+            inputs.files(rootProject.file('.git/HEAD'), rootProject.file('.git/packed-refs'),
+                    rootProject.fileTree('.git/refs/heads')).optional().withPropertyName('gitRefs')
         }
     }
 

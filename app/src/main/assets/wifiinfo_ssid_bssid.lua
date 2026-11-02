@@ -24,6 +24,22 @@ function after(hook, param)
         return false
     end
 
+    -- The name as bytes (Android 13), the same network as getSSID: unknown and empty names stay, like getSSID
+    -- shows them as <unknown ssid>, the others become the fake name, else the two would tell different networks
+    if hook:getMethodName() == 'getWifiSsid' then
+        local text = result:toString()
+        if text == '' or text == '<unknown ssid>' or text == '"private"' then
+            return false
+        end
+        local name = 'private'
+        local bytes = luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('java.lang.Byte').TYPE, #name)
+        for index = 1, #name do
+            bytes[index] = string.byte(name, index)
+        end
+        param:setResult(luajava.bindClass('android.net.wifi.WifiSsid'):fromBytes(bytes))
+        return true, text, '"private"'
+    end
+
     -- The id of the saved network, -1 like Android shows it to apps without location permission
     if hook:getMethodName() == 'getNetworkId' then
         if result == -1 then

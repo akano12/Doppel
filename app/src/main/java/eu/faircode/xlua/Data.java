@@ -331,18 +331,13 @@ final class Data {
         return Boolean.parseBoolean(getSetting(context, user, category, name));
     }
 
+    // Setting a null value deletes the setting
     static void putSetting(Context context, String category, String name, String value) {
-        putSetting(context, category, name, value, false);
-    }
-
-    // Setting a null value deletes the setting; kill force stops the package of the category
-    static void putSetting(Context context, String category, String name, String value, boolean kill) {
         Bundle args = new Bundle();
         args.putInt("user", Util.getUserId(Process.myUid()));
         args.putString("category", category);
         args.putString("name", name);
         args.putString("value", value);
-        args.putBoolean("kill", kill);
         call(context, "putSetting", args);
     }
 

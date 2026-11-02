@@ -305,7 +305,7 @@ class XCore {
                 }
 
                 // Other apps get the answer of the settings provider, like without Doppel
-                int caller = XProvider.answers(context);
+                int caller = answers(call, context);
                 if (caller == XProvider.CALLER_NONE)
                     return;
 
@@ -339,7 +339,7 @@ class XCore {
 
             private void query(XCall call, Context context, String column, String[] selection) throws Throwable {
                 // Other apps get the answer of the settings provider, an error for these columns
-                int caller = XProvider.answers(context);
+                int caller = answers(call, context);
                 if (caller == XProvider.CALLER_NONE)
                     return;
 
@@ -349,6 +349,18 @@ class XCore {
                         caller == XProvider.CALLER_PERMITTED));
             }
         });
+    }
+
+    // Whom the service answers; when the service fails, like with a database which cannot be opened, which it logged,
+    // the caller gets no answer, which Data reports as an error, instead of the error of the settings provider, which
+    // hooked apps take for having no assignments, so they would run without hooks without any error
+    private static int answers(XCall call, Context context) {
+        try {
+            return XProvider.answers(context);
+        } catch (RemoteException ignored) {
+            call.setResult(null);
+            return XProvider.CALLER_NONE;
+        }
     }
 
     // ContentProvider.getContext()

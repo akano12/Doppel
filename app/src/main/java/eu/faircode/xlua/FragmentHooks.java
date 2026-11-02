@@ -212,7 +212,7 @@ public class FragmentHooks extends FragmentBase {
                 });
             } catch (Throwable ex) {
                 post(() -> pbLoading.setVisibility(View.GONE));
-                error(TAG, ex);
+                loadError(TAG, ex);
             }
         });
     }
@@ -293,7 +293,7 @@ public class FragmentHooks extends FragmentBase {
         else if (filter == Filter.CUSTOM && q.isEmpty())
             tvEmpty.setText(R.string.title_no_custom_hooks);
         else
-            tvEmpty.setText(R.string.title_no_matches);
+            tvEmpty.setText(q.isEmpty() ? R.string.title_filter_empty : R.string.title_no_matches);
         // Not while loading, like when a search is restored
         tvEmpty.setVisibility(items.isEmpty() && pbLoading.getVisibility() != View.VISIBLE ? View.VISIBLE : View.GONE);
     }

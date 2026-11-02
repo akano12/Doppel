@@ -183,7 +183,10 @@ class XProvider {
         return answer(context, () -> {
             if (!permitted && !APP_CALLS.contains(method))
                 enforcePermission(context);
-            if (extras != null && !forOwnUser(Binder.getCallingUid(), method,
+            // Each call has arguments, so the user check below is never skipped
+            if (extras == null)
+                throw new IllegalArgumentException("extras missing");
+            if (!forOwnUser(Binder.getCallingUid(), method,
                     extras.getInt("user"), extras.getInt("uid"), extras.getBoolean("all")))
                 throw new SecurityException("Other user cuid=" + Binder.getCallingUid());
 
@@ -199,7 +202,7 @@ class XProvider {
                 case "getSetting":
                     return getSetting(extras);
                 case "putSetting":
-                    return putSetting(context, extras);
+                    return putSetting(extras);
                 case "initApp":
                     return initApp(extras);
                 case "clearApp":
@@ -389,7 +392,8 @@ class XProvider {
         return result;
     }
 
-    // The definitions are kept only when all could be loaded, so a failure is retried on the next call
+    // The definitions are kept only when all built-in ones could be loaded, so a failure is retried on the next call;
+    // a custom definition which cannot be loaded is left out until the next boot
     private static void loadHooks(Context context) throws Throwable {
         final Map<String, XHook> hooks = new HashMap<>();
         final Map<String, XHook> builtins = new HashMap<>();
@@ -701,8 +705,7 @@ class XProvider {
         final int uid = extras.getInt("uid");
         final boolean delete = extras.getBoolean("delete");
         boolean kill = extras.getBoolean("kill");
-        // Restoring a backup does not make apps restricted recently,
-        // and keeps the assignments the app has already, with their usage data
+        // Restoring a backup does not make apps restricted recently
         final boolean restore = extras.getBoolean("restore");
         final long now = (restore ? -1 : System.currentTimeMillis());
 
@@ -717,12 +720,15 @@ class XProvider {
             int rows = 0;
             Set<String> existing = new HashSet<>();
             Set<String> stored = new HashSet<>();
-            if (restore) {
+            // Assigning a hook again would reset its usage data and stop the app for nothing,
+            // like adding a group to all apps from a list which is not up to date
+            if (!delete)
                 try (Cursor cursor = d.query("assignment", new String[]{"hook"}, WHERE_APP,
                         new String[]{packageName, Integer.toString(uid)}, null, null, null)) {
                     while (cursor.moveToNext())
                         existing.add(cursor.getString(0));
                 }
+            if (restore) {
                 try (Cursor cursor = d.query("hook", new String[]{"id"}, null, null, null, null, null)) {
                     while (cursor.moveToNext())
                         stored.add(cursor.getString(0));
@@ -1090,13 +1096,12 @@ class XProvider {
         return result;
     }
 
-    // A null value deletes the setting; kill force stops the package of the category
-    private static Bundle putSetting(Context context, Bundle extras) throws Throwable {
+    // A null value deletes the setting
+    private static Bundle putSetting(Bundle extras) throws Throwable {
         final int userid = extras.getInt("user");
         final String category = extras.getString("category");
         final String name = extras.getString("name");
         final String value = extras.getString("value");
-        boolean kill = extras.getBoolean("kill", false);
         // Values are fake ids and the user's own data, which release builds do not write to the system log
         Log.i(TAG, "Put setting " + userid + ":" + category + " " + name + (BuildConfig.DEBUG ? "=" + value : ""));
 
@@ -1104,9 +1109,6 @@ class XProvider {
             writeSetting(d, userid, category, name, value);
             return null;
         });
-
-        if (kill)
-            forceStop(context, category, userid);
 
         return new Bundle();
     }

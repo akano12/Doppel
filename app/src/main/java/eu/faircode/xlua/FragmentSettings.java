@@ -162,7 +162,7 @@ public class FragmentSettings extends FragmentBase {
     @Override
     protected void load() {
         final Context context = requireContext().getApplicationContext();
-        run(TAG, () -> {
+        Ui.submit(executor, () -> {
             int version = Data.getVersion(context);
             boolean available = Data.isAvailable(version);
             List<XHook> hooks = Data.getAllHooks(context, null);
@@ -246,7 +246,7 @@ public class FragmentSettings extends FragmentBase {
                 llBlack.setAlpha(dark ? 1f : 0.38f);
                 swBlack.setEnabled(dark);
             });
-        });
+        }, ex -> loadError(TAG, ex));
     }
 
     // A swatch per color theme in its own colors, of the light or dark theme shown

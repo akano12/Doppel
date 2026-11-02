@@ -343,11 +343,7 @@ public class FragmentApps extends FragmentBase {
                     swipeRefresh.setRefreshing(false);
                     pbLoading.setVisibility(View.GONE);
                 });
-                // Else a failed first load leaves the tab blank
-                Ui.error(getActivity(), TAG, ex, () -> {
-                    if (isAdded())
-                        load();
-                });
+                loadError(TAG, ex);
             }
         });
     }

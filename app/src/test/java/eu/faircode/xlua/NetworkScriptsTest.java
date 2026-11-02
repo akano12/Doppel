@@ -165,6 +165,30 @@ public class NetworkScriptsTest {
         assertEquals(-1, result.arg(9).toint());
     }
 
+    // The name as bytes is the same network as getSSID: a real name becomes the fake one, unknown and empty ones stay
+    @Test
+    public void wifiSsidAgreesWithGetSsid() throws Exception {
+        Globals globals = load("wifiinfo_ssid_bssid");
+        Varargs result = Scripts.run(globals,
+                "local real = luajava\n" +
+                        "luajava = setmetatable({ bindClass = function(name)\n" +
+                        "  if name ~= 'android.net.wifi.WifiSsid' then return real.bindClass(name) end\n" +
+                        "  return { fromBytes = function(self, bytes)\n" +
+                        "    local text = '\"' .. tostring(real.newInstance('java.lang.String', bytes)) .. '\"'\n" +
+                        "    return { toString = function() return text end } end } end }, { __index = real })\n" +
+                        "local function ssidof(text) return { toString = function() return text end } end\n" +
+                        "local home = paramof(ssidof('\"Home\"'))\n" +
+                        "local ssid = paramof('\"Home\"')\n" +
+                        "after(hookof('getSSID'), ssid)\n" +
+                        "return after(hookof('getWifiSsid'), home), home.result:toString(), ssid.result,\n" +
+                        "  after(hookof('getWifiSsid'), paramof(ssidof('<unknown ssid>'))),\n" +
+                        "  after(hookof('getWifiSsid'), paramof(ssidof('')))");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(result.arg(3).tojstring(), result.arg(2).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+    }
+
     // The local address of sockets: those of the device become the wildcard address of their family, also in a
     // socket address with its port; loopback, wildcard, link-local and other socket addresses stay
     @Test
@@ -306,29 +330,68 @@ public class NetworkScriptsTest {
         assertEquals("rmnet_data0", result.arg(6).tojstring());
     }
 
-    // LinkProperties reading a VPN network from a parcel checks each route against its interface (addRoute), which
-    // throws for a faked route and crashed apps when a VPN connected; apps reading the route still get the fake one
+    // A stack of class.method frames for the scripts which look at who calls (see linkproperties)
+    private static final String STACK = String.join("\n",
+            "stack = {}",
+            "local real = luajava",
+            "luajava = setmetatable({ bindClass = function(name)",
+            "  if name ~= 'java.lang.Thread' then return real.bindClass(name) end",
+            "  return { currentThread = function() return { getStackTrace = function()",
+            "    local frames = { length = #stack }",
+            "    for i, frame in ipairs(stack) do",
+            "      local cls, method = string.match(frame, '^(.*)%.([^.]+)$')",
+            "      frames[i] = { getClassName = function() return cls end, getMethodName = function() return method end }",
+            "    end",
+            "    return frames end } end } end }, { __index = real })");
+
+    // LinkProperties checks each route against its interface when it reads a parcel or copies itself (addRoute), which
+    // throws for a faked route or interface and crashed apps when a VPN connected; apps reading them get the fake ones,
+    // also when the frame of the hooked getter of LinkProperties itself is on the stack
     @Test
-    public void vpnRouteRealForLinkProperties() throws Exception {
+    public void vpnInterfaceRealForLinkProperties() throws Exception {
         Globals globals = load("vpn");
         Scripts.run(globals, NETWORKS);
+        Scripts.run(globals, STACK);
         Varargs result = Scripts.run(globals,
-                "local stack = {}\n" +
-                        "luajava = { bindClass = function(name) assert(name == 'java.lang.Thread') return {\n" +
-                        "  currentThread = function() return { getStackTrace = function()\n" +
-                        "    local frames = { length = #stack }\n" +
-                        "    for i, name in ipairs(stack) do frames[i] = { getClassName = function() return name end } end\n" +
-                        "    return frames end } end } end }\n" +
-                        "stack = { 'java.lang.Thread', 'android.net.LinkProperties', 'android.net.LinkProperties$1' }\n" +
-                        "local own = paramof('tun0', {}, nil, context)\n" +
-                        "local restricted = after(hookof('getInterface', 'android.net.RouteInfo'), own)\n" +
-                        "stack = { 'java.lang.Thread', 'com.example.App' }\n" +
-                        "local app = paramof('tun0', {}, nil, context)\n" +
-                        "after(hookof('getInterface', 'android.net.RouteInfo'), app)\n" +
-                        "return restricted, own.result, app.result");
-        assertFalse(result.arg(1).toboolean());
+                "local function call(method, cls)\n" +
+                        "  local param = paramof('tun0', {}, nil, context)\n" +
+                        "  after(hookof(method, cls), param)\n" +
+                        "  return param.result\n" +
+                        "end\n" +
+                        "stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.addRoute', 'android.net.LinkProperties$1.createFromParcel' }\n" +
+                        "local route = call('getInterface', 'android.net.RouteInfo')\n" +
+                        "stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.getInterfaceName', 'android.net.LinkProperties.<init>' }\n" +
+                        "local copy = call('getInterfaceName', 'android.net.LinkProperties')\n" +
+                        "stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.getInterfaceName', 'com.example.App.run' }\n" +
+                        "local own = call('getInterfaceName', 'android.net.LinkProperties')\n" +
+                        "stack = { 'java.lang.Thread.getStackTrace', 'com.example.App.run' }\n" +
+                        "return route, copy, own, call('getInterface', 'android.net.RouteInfo')");
+        assertEquals("tun0", result.arg(1).tojstring());
         assertEquals("tun0", result.arg(2).tojstring());
         assertEquals("rmnet_data0", result.arg(3).tojstring());
+        assertEquals("rmnet_data0", result.arg(4).tojstring());
+    }
+
+    // LinkProperties compares and copies its routes, addresses and DNS servers through the getters (equals, the copy
+    // constructor), which must give the real ones there, else lp.equals(lp) is false; apps get none
+    @Test
+    public void networkAddressesRealForLinkProperties() throws Exception {
+        Globals globals = load("network_address");
+        Scripts.run(globals, STACK);
+        Varargs result = Scripts.run(globals,
+                // The frame of the hooked getter is on the stack, then its caller
+                "local function call(method, caller)\n" +
+                        "  stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.' .. method, caller }\n" +
+                        "  local param = paramof({ isEmpty = function() return false end })\n" +
+                        "  return tostring(after(hookof(method), param))\n" +
+                        "end\n" +
+                        "return call('getRoutes', 'android.net.LinkProperties.isIdenticalRoutes'),\n" +
+                        "  call('getDomains', 'android.net.LinkProperties.isIdenticalDnses'),\n" +
+                        "  call('getDomains', 'com.example.App.run'), call('getRoutes', 'com.example.App.run')");
+        assertEquals("false", result.arg(1).tojstring());
+        assertEquals("false", result.arg(2).tojstring());
+        assertEquals("true", result.arg(3).tojstring());
+        assertEquals("true", result.arg(4).tojstring());
     }
 
     // NOT_VPN in its place in bit order, like a real network has it: after TRUSTED (14), before VALIDATED (16)

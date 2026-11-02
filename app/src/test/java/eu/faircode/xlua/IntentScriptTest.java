@@ -257,6 +257,13 @@ public class IntentScriptTest {
                         "return intent.extras" + device + ", intent.extras['android.bluetooth.device.extra.NAME']");
         assertTrue(found.arg(1).isnil());
         assertTrue(found.arg(2).isnil());
+        // The name of the device, which BluetoothAdapter.getName hides
+        Varargs name = run(
+                "local intent = intentof('android.bluetooth.adapter.action.LOCAL_NAME_CHANGED',\n" +
+                        "  { ['android.bluetooth.adapter.extra.LOCAL_NAME'] = 'Phone of Alice' })\n" +
+                        "after(hookof('Intent.createFromParcel/network'), paramof(intent))\n" +
+                        "return intent.extras['android.bluetooth.adapter.extra.LOCAL_NAME']");
+        assertTrue(name.arg1().isnil());
         Varargs wifi = run(
                 "local state = intentof('android.net.wifi.STATE_CHANGE', { bssid = '02:11:22:33:44:55', networkInfo = 'info' })\n" +
                         "local connectivity = intentof('android.net.conn.CONNECTIVITY_CHANGE', { extraInfo = 'Home', networkType = 1 })\n" +

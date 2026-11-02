@@ -216,6 +216,8 @@ final class Ui {
 
     static void loadIcon(ImageView iv, String packageName, int icon) {
         if (icon <= 0) {
+            // A load for the app shown before in a recycled row would still put its icon here
+            Glide.with(iv.getContext()).clear(iv);
             iv.setImageResource(android.R.drawable.sym_def_app_icon);
             return;
         }
@@ -265,8 +267,9 @@ final class Ui {
             Snackbar snackbar = Snackbar.make(activity.findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG);
             if (activity instanceof Anchored)
                 snackbar.setAnchorView(((Anchored) activity).getMessageAnchor());
-            // Time to read the message and to reach its action, like Undo
-            if (action != null) {
+            // Time to read the message and to reach its action, like Undo; the action belongs to the screen which
+            // started the work, so it is left out when that screen is gone, else tapping it would do nothing
+            if (action != null && activity == started) {
                 snackbar.setAction(action, view -> onAction.run());
                 snackbar.setDuration(6000);
             }

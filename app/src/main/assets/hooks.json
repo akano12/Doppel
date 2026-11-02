@@ -1291,7 +1291,7 @@
     "group": "Get.Applications",
     "name": "Context.sendBroadcastWithMultiplePermissions/hidden",
     "author": "akano12",
-    "className": "android.content.Context",
+    "className": "android.app.ContextImpl",
     "methodName": "sendBroadcastWithMultiplePermissions",
     "parameterTypes": [
       "android.content.Intent",
@@ -4912,9 +4912,9 @@
     "methodName": "getWifiSsid",
     "parameterTypes": [],
     "returnType": "android.net.wifi.WifiSsid",
-    "minSdk": 27,
+    "minSdk": 33,
     "optional": true,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@wifiinfo_ssid_bssid"
   },
   {
     "collection": "Privacy",

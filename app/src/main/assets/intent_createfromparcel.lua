@@ -34,10 +34,11 @@ for kind, actions in pairs({
     end
 end
 
--- Extras left out of broadcasts, per variant and action: the Bluetooth devices around and their names, which the hooks
--- of Bluetooth hide, of each action of Bluetooth (network); on Android 8.1 the access point of the Wi-Fi state and the
+-- Extras left out of broadcasts, per variant and action: the Bluetooth devices around and their names and the name of
+-- the device, which the hooks of Bluetooth hide, of each action of Bluetooth (network); on Android 8.1 the access point of the Wi-Fi state and the
 -- network name of the connectivity (network); the number of a call (call_log)
-local BLUETOOTH = { 'android.bluetooth.device.extra.DEVICE', 'android.bluetooth.device.extra.NAME' }
+local BLUETOOTH = { 'android.bluetooth.device.extra.DEVICE', 'android.bluetooth.device.extra.NAME',
+    'android.bluetooth.adapter.extra.LOCAL_NAME' }
 local EXTRAS = {
     network = {
         ['android.net.wifi.STATE_CHANGE'] = { 'bssid' },

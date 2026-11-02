@@ -90,6 +90,14 @@ public abstract class FragmentBase extends Fragment {
         Ui.error(getActivity(), tag, ex);
     }
 
+    // A failed load, with a retry, else the tab stays blank or shows what it showed before
+    protected void loadError(String tag, Throwable ex) {
+        Ui.error(getActivity(), tag, ex, () -> {
+            if (isAdded())
+                load();
+        });
+    }
+
     // Run on the background thread, errors are shown; not anymore when the tab is gone, like for a late Undo
     protected void run(String tag, Ui.Task task) {
         Ui.submit(executor, task, ex -> error(tag, ex));

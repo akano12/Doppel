@@ -237,6 +237,10 @@
     </plurals>
     <string name="title_no_apps">No apps</string>
     <string name="title_no_matches">No matches</string>
+    <!-- A filter without anything in it, without a search -->
+    <string name="title_filter_empty">Nothing to show</string>
+    <!-- The screen of an app for which no hook is available, like with only a collection without hooks for it -->
+    <string name="title_no_available_hooks">No hooks available for this app</string>
     <!-- Two parts on one line, like the group restricted last and when, or the apps and the errors of the Activity tab -->
     <string name="title_pair">%1$s · %2$s</string>
     <string name="title_not_restricted">Not restricted</string>
