@@ -129,7 +129,7 @@ local HIDDEN = {
     biometrics = { '*/fingerprint/fingerprint', '*/fingerprint/fingerprint/*', '*/sec/tsp/fod_info',
                    '*/sec/tsp/fod_pos' },
     -- The files of /proc/net, like for Read.Network, which can be opened in hardware_files only (see there)
-    network = { '*/proc/net/*', '*/proc/[0-9]*/net/*' },
+    network = { '*/proc/net/*', '*/proc/[0-9]*/net/*', '*/proc/self/net/*', '*/proc/thread-self/net/*' },
     -- su and Magisk, of which which leaves out the paths too (see whichfunction)
     debugging = { '/system/bin/su', '/system/xbin/su', '/sbin/su', '/su', '/su/*', '/system/bin/failsafe/su',
                   '/system/sd/xbin/su', '/system/bin/.ext/su', '/system/usr/we-need-root/su', '/data/local/su',
@@ -416,6 +416,15 @@ function luapattern(glob)
     return result .. '$'
 end
 
+-- The path without a link to the root folder in front, like /proc/self/root/system/xbin/su, also where the
+-- links cannot be resolved (like hardware_files)
+function unrooted(path)
+    for _, prefix in ipairs({ '^/proc/self/root/', '^/proc/thread%-self/root/', '^/proc/%d+/root/' }) do
+        path = string.gsub(path, prefix, '/')
+    end
+    return path
+end
+
 -- The path a path leads to, by the links of /sys, or the path as it is (like hardware_files)
 function resolve(path)
     local ok, resolved = pcall(function()
@@ -439,7 +448,7 @@ end
 
 -- Whether a file does not exist for the variants, by its path or the path it leads to; dd takes if=file
 function hiddenfile(file, variants)
-    file = string.gsub(file, '^if=', '')
+    file = unrooted((string.gsub(file, '^if=', '')))
     if not special(file) then
         return false
     end

@@ -55,7 +55,8 @@ local FILES = {
     -- The files of /proc/net, a link to /proc/self/net, list the addresses, routes, neighbours and hardware addresses
     -- of the interfaces and the addresses of the sockets, which SELinux lets apps read on Android 9 and before and
     -- apps for those versions later; only opening them fails (hooks of open of Read.Network), that they exist tells nothing
-    ['Read.Network'] = { '/proc/net/', '/proc/%d+/net/', '/proc/%d+/task/%d+/net/' },
+    ['Read.Network'] = { '/proc/net/', '/proc/%d+/net/', '/proc/%d+/task/%d+/net/', '/proc/self/net/',
+                         '/proc/thread-self/net/' },
     -- The folders of the network interfaces of VPNs (see isvpninterface), of which apps could tell they exist on
     -- Android 8.1; SELinux denies apps the folders on later versions and listing them on all
     ['Read.VPN'] = { '^/sys/class/net/([^/]+)', '^/sys/devices/virtual/net/([^/]+)' },
@@ -125,6 +126,15 @@ function about(hook)
     return known
 end
 
+-- The path without a link to the root folder in front, like /proc/self/root/system/xbin/su, also where the
+-- links cannot be resolved (like shell_commands)
+function unrooted(path)
+    for _, prefix in ipairs({ '^/proc/self/root/', '^/proc/thread%-self/root/', '^/proc/%d+/root/' }) do
+        path = string.gsub(path, prefix, '/')
+    end
+    return path
+end
+
 -- The path a path leads to, by the links of /sys, or the path as it is
 function resolve(path)
     local ok, resolved = pcall(function()
@@ -157,14 +167,15 @@ function hidden(hook, path)
         return string.find(text, pattern) ~= nil
     end
     local found = false
+    local plain = unrooted(path)
     for _, pattern in ipairs(patterns) do
-        if matches(path, pattern) then
+        if matches(plain, pattern) then
             found = true
             break
         end
     end
     if not found then
-        local resolved = resolve(path)
+        local resolved = resolve(plain)
         for _, pattern in ipairs(patterns) do
             if matches(resolved, pattern) then
                 found = true
