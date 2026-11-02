@@ -242,10 +242,14 @@ With [Android Studio](https://developer.android.com/studio), or from the command
 ./gradlew assembleDebug        # debug build
 ./gradlew assembleRelease      # release build, signed when keystore.properties exists
 ./gradlew testDebugUnitTest    # checks the hook definitions and scripts
-./gradlew connectedDebugAndroidTest  # on a device or emulator: the database upgrades, and a restore with Doppel active
+./gradlew assembleDebugAndroidTest  # the tests on a device: the database upgrades, and a restore with Doppel active
+adb install -r -t app/build/outputs/apk/androidTest/debug/*.apk    # with the debug build installed, then:
+adb shell am instrument -w sk.akano12.doppel.test/androidx.test.runner.AndroidJUnitRunner
 scripts/test-on-device.sh      # on a device or emulator: the tests of shell commands, which Windows skips
 scripts/check-service.sh       # on a rooted device or emulator with Doppel: whom the service answers
 ```
+
+Not `./gradlew connectedDebugAndroidTest`: it uninstalls Doppel afterwards, which removes its restrictions, settings and LSPosed scope.
 
 *keystore.properties* (storeFile, storePassword, keyAlias, keyPassword) goes next to this file.
 Sign with the v1 and v2 schemes only, like the build does: LSPosed cannot read an APK with a v3 signature.
