@@ -72,7 +72,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:fontFamily="monospace"
+            android:fontFamily="@font/plex_mono"
             android:textAppearance="?attr/textAppearanceBodyLarge"
             android:textIsSelectable="true" />
 

@@ -61,6 +61,8 @@ An exported definition in [JSON](https://en.wikipedia.org/wiki/JSON) format look
 
 Note that you can conveniently edit hook definitions in Doppel (*Hooks* tab), so there is no need to edit JSON files.
 Definitions can be imported from and exported to JSON files there too.
+A script can call any Java code with the rights of the app it runs in, and of the system for *Android* (system server),
+so import definitions from people you trust only.
 
 <br>
 
@@ -127,7 +129,8 @@ The functions of *param* ([all](../app/src/main/java/eu/faircode/xlua/XParam.jav
 * *getResult()* and *setResult(value)*: the result, available after the hooked method has been executed;
   setting it *before* skips the method; a throwable is thrown instead of returned
 * *getException()*: the exception the hooked method threw, in *after*
-* *getSetting(name)*: a setting (fake value) of the definition, see above
+* *getSetting(name)*: a setting (fake value) of the app, else of all apps; the *settings* of the definition only tell
+  which values *Fake values* shows, see above
 * *getApplicationContext()*: the context of the app, see remarks below
 * *getPackageName()*, *getUid()* and *isSystem()*: the app and whether it runs with a system uid (below 10000),
   like system server and Settings; preinstalled apps like Google Play services do not
@@ -189,6 +192,8 @@ You can write to the Android logcat using the *log* function:
 
 A log line starts with the word *Log* followed by the package name and uid of the app and the id of the hook (*collection.name*)
 and ends with the text and its Lua type, so it is always clear which hook and app a line belongs to.
+Release builds write these lines too, in the process of the hooked app, which can read its own log lines,
+so do not log real values, like identifiers, in scripts you share.
 
 You can hook a method of an object the script gets hold of, like a listener or the settings of a WebView,
 with the *hook* function:
@@ -196,7 +201,7 @@ with the *hook* function:
 ```Lua
     hook(settings, 'setUserAgentString', function(when, param)
         if when == 'before' then
-            log(param:getArgument(0))
+            param:setArgument(0, 'Mozilla/5.0')
         end
     end)
 ```

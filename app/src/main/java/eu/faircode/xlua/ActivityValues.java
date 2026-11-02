@@ -495,7 +495,16 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         restricted.add(group);
         bindHints();
         run(TAG, () -> {
-            Data.assign(context, app, available, true);
+            try {
+                Data.assign(context, app, available, true);
+            } catch (Throwable ex) {
+                // Else the hint would say restricted while nothing was assigned
+                postUnlessGone(() -> {
+                    restricted.remove(group);
+                    bindHints();
+                });
+                throw ex;
+            }
             Ui.message(this, getString(R.string.msg_group_restricted, title, label));
         });
     }
@@ -733,12 +742,19 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             // Like for restrictions, the app is stopped when it is stopped automatically
             XApp app = (global ? null : Data.getApp(context, category, -1));
             boolean stop = (app != null && app.stopsAutomatically());
-            List<String> keys = new ArrayList<>(changed.keySet());
-            for (int i = 0; i < keys.size(); i++) {
-                // Stop the app once, so it starts with the new values
-                boolean kill = (stop && i == keys.size() - 1);
-                Data.putSetting(context, category, keys.get(i), changed.get(keys.get(i)), kill);
+            try {
+                for (Map.Entry<String, String> entry : changed.entrySet())
+                    Data.putSetting(context, category, entry.getKey(), entry.getValue());
+            } catch (Throwable ex) {
+                // The values saved before the error apply too, so the app is stopped and the form shows what was saved
+                if (stop)
+                    Data.forceStop(context, app);
+                postUnlessGone(this::load);
+                throw ex;
             }
+            // Stop the app once, so it starts with the new values
+            if (stop)
+                Data.forceStop(context, app);
             runOnUiThread(() -> {
                 findViewById(R.id.bar).setVisibility(View.GONE);
                 load();

@@ -382,7 +382,6 @@ public class ActivityApp extends ActivityBase {
                     gv.flInfo.setContentDescription(getString(R.string.title_group_info, title));
                     gv.flInfo.setOnClickListener(view -> showInfo(gv.flIcon, title, description));
                 }
-                gv.swGroup.setContentDescription(title);
                 // The row shows the hooks, the switch restricts
                 gv.llRow.setOnClickListener(view -> {
                     Set<String> open = (isFoundByHooks(group) ? toggled : expanded);
@@ -418,6 +417,8 @@ public class ActivityApp extends ActivityBase {
         for (Map.Entry<String, List<XHook>> group : available.entrySet())
             for (XHook hook : group.getValue())
                 if (hook.getId().equals(id)) {
+                    // A search left open could hide the hook, which would have no view to scroll to
+                    search.close();
                     expanded.add(group.getKey());
                     bind(group.getKey());
                     View vHook = views.get(group.getKey()).llHooks.findViewWithTag(id);

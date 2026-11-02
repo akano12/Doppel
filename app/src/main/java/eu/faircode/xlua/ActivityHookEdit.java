@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 // Edit a hook definition; saving creates or updates a custom definition
 public class ActivityHookEdit extends ActivityBase {
@@ -432,12 +433,16 @@ public class ActivityHookEdit extends ActivityBase {
             toolbar.setSubtitle(overrides ? R.string.title_hook_overridden : R.string.title_hook_custom);
     }
 
+    // Found anywhere, on each change of the script: a match of the whole text would backtrack over long scripts
+    private static final Pattern FUNCTION_BEFORE = Pattern.compile("\\bfunction\\s+before\\s*\\(");
+    private static final Pattern FUNCTION_AFTER = Pattern.compile("\\bfunction\\s+after\\s*\\(");
+
     private void updateScriptInfo() {
-        String script = etScript.getText().toString();
+        CharSequence script = etScript.getText();
         List<String> functions = new ArrayList<>();
-        if (script.matches("(?s).*\\bfunction\\s+before\\s*\\(.*"))
+        if (FUNCTION_BEFORE.matcher(script).find())
             functions.add("before()");
-        if (script.matches("(?s).*\\bfunction\\s+after\\s*\\(.*"))
+        if (FUNCTION_AFTER.matcher(script).find())
             functions.add("after()");
         tvScriptInfo.setText(functions.isEmpty()
                 ? getString(R.string.title_script_no_function)
@@ -462,6 +467,11 @@ public class ActivityHookEdit extends ActivityBase {
 
         // The fields as saved, also when they change meanwhile
         final String entered = getEntered();
+        // A built-in definition saved unchanged would become a custom copy, which updates of the app no longer reach
+        if (hook != null && hook.isBuiltin() && entered.equals(unchanged)) {
+            Ui.message(this, getString(R.string.msg_no_changes));
+            return;
+        }
         final Context context = getApplicationContext();
         // A new definition, also one saved with another name, is not assigned to apps yet
         final String before = (hook == null ? null : hook.getId());

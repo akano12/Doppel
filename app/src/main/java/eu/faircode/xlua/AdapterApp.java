@@ -32,6 +32,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.recyclerview.widget.DiffUtil;
@@ -43,6 +44,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -533,8 +535,6 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             // Screen readers tell what a long press does, and offer the actions behind the row
             ViewCompat.replaceAccessibilityAction(llRow, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK,
                     context.getString(R.string.menu_launch), null);
-            ViewCompat.addAccessibilityAction(llRow, context.getString(R.string.title_restrict_all_groups), (v, args) -> act(1));
-            ViewCompat.addAccessibilityAction(llRow, context.getString(R.string.title_remove_all), (v, args) -> act(0));
             ViewCompat.addAccessibilityAction(llRow, context.getString(R.string.title_groups), (v, args) -> act(2));
             btnRestrictAll.setOnClickListener(view -> act(1));
             btnRemoveAll.setOnClickListener(view -> act(0));
@@ -560,6 +560,20 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         private Row getRow() {
             int position = getBindingAdapterPosition();
             return (position == RecyclerView.NO_POSITION ? null : ((Item) items.get(position)).row);
+        }
+
+        // Screen readers offer Restrict all and Remove all only when they would change something, like the buttons
+        private int restrictAction = View.NO_ID;
+        private int removeAction = View.NO_ID;
+
+        void bindActions(Row row) {
+            Context context = itemView.getContext();
+            ViewCompat.removeAccessibilityAction(llRow, restrictAction);
+            ViewCompat.removeAccessibilityAction(llRow, removeAction);
+            restrictAction = (row.canRestrict() ? ViewCompat.addAccessibilityAction(llRow,
+                    context.getString(R.string.title_restrict_all_groups), (v, args) -> act(1)) : View.NO_ID);
+            removeAction = (row.canRemove() ? ViewCompat.addAccessibilityAction(llRow,
+                    context.getString(R.string.title_remove_all), (v, args) -> act(0)) : View.NO_ID);
         }
 
         // Restrict all (1), remove all (0) or the groups (2); the actions close
@@ -640,6 +654,18 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     notifyItemChanged(i);
     }
 
+    // Dims an action which would change nothing, which screen readers tell disabled
+    private static void dim(View action, boolean can) {
+        action.setAlpha(can ? 1f : 0.38f);
+        ViewCompat.setAccessibilityDelegate(action, new AccessibilityDelegateCompat() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(@NonNull View host, @NonNull AccessibilityNodeInfoCompat info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setEnabled(can);
+            }
+        });
+    }
+
     // Swiping a row to the start shows its actions behind it, swiping it back hides them, also on the actions, which
     // can leave little of the row to swipe on a narrow screen; a third of the way opens or closes, less springs back.
     // Taps and long presses stay those of the row and the actions; the list does not scroll while a row is swiped.
@@ -706,13 +732,18 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return getIdOf(items.get(position));
     }
 
-    private static long getIdOf(Object item) {
+    // A number per app, which a hash of the package name and the uid is not: two apps can have the same hash
+    private final Map<String, Long> appIds = new HashMap<>();
+
+    private long getIdOf(Object item) {
+        // Below -1, which is RecyclerView.NO_ID
         if (item instanceof Header)
-            return -1 - ((Header) item).section.ordinal();
+            return -2 - ((Header) item).section.ordinal();
         // An app can be in a section and with all apps
         Item i = (Item) item;
         XApp app = i.row.app;
-        return (Objects.hash(app.packageName, app.uid) & 0xffffffffL) << 2 | i.section.ordinal();
+        long id = appIds.computeIfAbsent(app.packageName + ":" + app.uid, key -> (long) appIds.size());
+        return id << 2 | i.section.ordinal();
     }
 
     @Override
@@ -818,11 +849,11 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 if (h.getKey() == this.open)
                     h.llRow.setTranslationX(h.shown());
             });
-        // An action which would change nothing is dimmed, its colors are fixed
-        h.btnRestrictAll.setEnabled(row.canRestrict());
-        h.btnRestrictAll.setAlpha(row.canRestrict() ? 1f : 0.38f);
-        h.btnRemoveAll.setEnabled(row.canRemove());
-        h.btnRemoveAll.setAlpha(row.canRemove() ? 1f : 0.38f);
+        // An action which would change nothing is dimmed, its colors are fixed; it stays enabled, since a disabled
+        // view gets no touches, so a swipe could not start on it, and act refuses it; screen readers tell it disabled
+        dim(h.btnRestrictAll, row.canRestrict());
+        dim(h.btnRemoveAll, row.canRemove());
+        h.bindActions(row);
 
         Ui.loadIcon(h.ivIcon, app.packageName, app.icon);
         h.tvLabel.setText(app.getLabel());

@@ -137,6 +137,28 @@ public class AppSectionsTest {
         assertTrue(FragmentApps.getRestricting(apps, "Read.Clipboard").isEmpty());
     }
 
+    // A change shows in the assignments until the reload, keeping the ones of other hooks and the usage of kept ones
+    @Test
+    public void assignedFollowsAChange() throws Exception {
+        XHook location = hook("Get.Location", "LocationManager.getLastKnownLocation");
+        XHook camera = hook("Use.Camera", "Camera.open");
+        XHook other = hook("Read.Clipboard", "ClipboardManager.getPrimaryClip");
+        XApp app = row().app;
+        XAssignment kept = new XAssignment(location);
+        kept.used = NOW;
+        app.assignments.add(kept);
+        app.assignments.add(new XAssignment(other));
+        List<XHook> available = Arrays.asList(location, camera);
+
+        FragmentApps.setAssigned(app, available, new java.util.HashSet<>(Arrays.asList(location.getId(), camera.getId())));
+        assertEquals(3, app.assignments.size());
+        assertTrue(app.assignments.contains(new XAssignment(camera)));
+        assertEquals(NOW, app.assignments.get(app.assignments.indexOf(kept)).used);
+
+        FragmentApps.setAssigned(app, available, Collections.emptySet());
+        assertEquals(Collections.singletonList(new XAssignment(other)), app.assignments);
+    }
+
     // The overview counts the apps of the filter: with restrictions, to review (new or failed) and recent
     @Test
     public void overviewCountsTheFilter() {

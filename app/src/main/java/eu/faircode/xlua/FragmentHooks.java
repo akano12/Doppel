@@ -344,19 +344,42 @@ public class FragmentHooks extends FragmentBase {
                         return;
                     }
                 }
-                List<XHook> imported = new ArrayList<>();
-                for (int i = 0; i < jarray.length(); i++)
-                    imported.add(Data.putCustom(context, jarray.getJSONObject(i)));
-                // Apps get the definitions when asked, like when installing from Downloads
-                Ui.message(activity,
-                        activity.getResources().getQuantityString(R.plurals.msg_hooks_imported, imported.size(), imported.size()),
-                        activity.getString(R.string.title_restrict_too),
-                        () -> run(TAG, () -> Ui.message(activity, Data.restrictForGroups(context, imported))));
+                // A definition with the id of a built-in one replaces it in all apps, which Downloads tells too
+                Set<String> builtins = Data.getBuiltinIds(context);
+                List<String> replaced = new ArrayList<>();
+                for (int i = 0; i < jarray.length(); i++) {
+                    JSONObject jhook = jarray.getJSONObject(i);
+                    String id = XHook.id(jhook.getString("collection"), jhook.getString("name"));
+                    if (builtins.contains(id))
+                        replaced.add(id);
+                }
+                if (replaced.isEmpty())
+                    putImported(activity, jarray);
+                else
+                    post(() -> Ui.areYouSure(activity,
+                            getString(R.string.msg_import_replaces, "\n• " + TextUtils.join("\n• ", replaced)),
+                            R.string.menu_import, () -> run(TAG, () -> putImported(activity, jarray))));
             } finally {
                 // Also the definitions imported before an error
                 post(this::load);
             }
         });
+    }
+
+    private void putImported(Activity activity, JSONArray jarray) throws Throwable {
+        final Context context = activity.getApplicationContext();
+        try {
+            List<XHook> imported = new ArrayList<>();
+            for (int i = 0; i < jarray.length(); i++)
+                imported.add(Data.putCustom(context, jarray.getJSONObject(i)));
+            // Apps get the definitions when asked, like when installing from Downloads
+            Ui.message(activity,
+                    activity.getResources().getQuantityString(R.plurals.msg_hooks_imported, imported.size(), imported.size()),
+                    activity.getString(R.string.title_restrict_too),
+                    () -> run(TAG, () -> Ui.message(activity, Data.restrictForGroups(context, imported))));
+        } finally {
+            post(this::load);
+        }
     }
 
     // Custom definitions only; built-in definitions are part of the app

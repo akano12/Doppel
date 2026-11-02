@@ -6,7 +6,7 @@
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/etValue"
         style="@style/XLua.Field.Edit"
-        android:fontFamily="monospace"
+        android:fontFamily="@font/plex_mono"
         android:inputType="text|textNoSuggestions"
         android:maxLines="1" />
 </com.google.android.material.textfield.TextInputLayout>

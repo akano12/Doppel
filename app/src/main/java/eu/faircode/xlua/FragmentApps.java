@@ -149,6 +149,7 @@ public class FragmentApps extends FragmentBase {
                             if (after.contains(hook.getId()))
                                 restricted.add(hook.getGroup());
                         }
+                        setAssigned(app, available, after);
                         // After the assignments of the sheet, which run in order on the same thread
                         run(TAG, () -> post(FragmentApps.this::load));
                         message(requireActivity(), getResources().getQuantityString(R.plurals.msg_groups_restricted,
@@ -303,10 +304,16 @@ public class FragmentApps extends FragmentBase {
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.i(TAG, "Received " + intent);
-            // A hidden tab loads when it is shown again
-            if (!isHidden())
-                load();
+            // One load for a burst of changes, like a store updating many apps, instead of one load each
+            swipeRefresh.removeCallbacks(reload);
+            swipeRefresh.postDelayed(reload, 500);
         }
+    };
+
+    // A hidden tab loads when it is shown again
+    private final Runnable reload = () -> {
+        if (isResumed() && !isHidden())
+            load();
     };
 
     @Override
@@ -336,7 +343,11 @@ public class FragmentApps extends FragmentBase {
                     swipeRefresh.setRefreshing(false);
                     pbLoading.setVisibility(View.GONE);
                 });
-                error(TAG, ex);
+                // Else a failed first load leaves the tab blank
+                Ui.error(getActivity(), TAG, ex, () -> {
+                    if (isAdded())
+                        load();
+                });
             }
         });
     }
@@ -402,6 +413,7 @@ public class FragmentApps extends FragmentBase {
             for (XHook hook : available)
                 after.add(hook.getId());
         final String text = getString(restrict ? R.string.msg_restricted_all : R.string.msg_removed_all, app.getLabel());
+        setAssigned(app, available, after);
         run(TAG, () -> {
             change(context, app, available, before, after);
             message(activity, text, app, after, before, available);
@@ -412,10 +424,32 @@ public class FragmentApps extends FragmentBase {
     // A message with Undo, which changes the hooks back to the ones assigned before
     private void message(Activity activity, String text, XApp app, Set<String> after, Set<String> before, List<XHook> available) {
         final Context context = activity.getApplicationContext();
-        Ui.message(activity, text, activity.getString(R.string.title_undo), () -> run(TAG, () -> {
-            change(context, app, available, after, before);
-            post(this::load);
-        }));
+        Ui.message(activity, text, activity.getString(R.string.title_undo), () -> {
+            setAssigned(app, available, before);
+            run(TAG, () -> {
+                change(context, app, available, after, before);
+                post(this::load);
+            });
+        });
+    }
+
+    // The assignments of the app as they are after a change, until the reload shows them: another action before,
+    // like Restrict all tapped twice or the sheet of the groups, starts from them, else it would assign hooks again,
+    // which starts their use over, or undo to the state before the change
+    static void setAssigned(XApp app, List<XHook> available, Set<String> to) {
+        Set<String> ids = new HashSet<>();
+        for (XHook hook : available)
+            ids.add(hook.getId());
+        List<XAssignment> assignments = new ArrayList<>();
+        for (XAssignment assignment : app.assignments)
+            if (!ids.contains(assignment.id) || to.contains(assignment.id))
+                assignments.add(assignment);
+        for (XHook hook : available) {
+            XAssignment assignment = new XAssignment(hook);
+            if (to.contains(hook.getId()) && !assignments.contains(assignment))
+                assignments.add(assignment);
+        }
+        app.assignments = assignments;
     }
 
     // Assigns and removes only the hooks which change, since assigning a hook again starts its use over, and stops

@@ -409,7 +409,8 @@ public class FileScriptsTest {
                         "  hidden(finger, '/sys/class/sec/tsp/fod_pos'), hidden(finger, '/sys/class/sec/tsp/raw_check'),\n" +
                         "  hidden(hookof('Read.Network'), '/sys/devices/system/chip-id/unique_id'),\n" +
                         "  filter(hookof('Read.Network'))[1], hidden(hookof('Read.Network'), '/proc/net/arp'),\n" +
-                        "  hidden(hookof('Read.Network'), '/proc/sys/net/ipv4/ip_forward')");
+                        "  hidden(hookof('Read.Network'), '/proc/sys/net/ipv4/ip_forward'),\n" +
+                        "  hidden(hookof('Read.Network'), '/proc/thread-self/net/tcp')");
         assertEquals("*sys/*", result.arg(1).tojstring());
         assertEquals(1, result.arg(2).toint());
         boolean[] expected = {true, true, true, true, false, false, false, false,
@@ -421,6 +422,8 @@ public class FileScriptsTest {
         assertEquals("*net/*", result.arg(24).tojstring());
         assertTrue(result.arg(25).toboolean());
         assertFalse(result.arg(26).toboolean());
+        // By the link of the thread, which the pattern matches without resolving it
+        assertTrue(result.arg(27).toboolean());
     }
 
     // The chip of the bus of systems on a chip, SCSI storage by its link to the device, input devices and storage

@@ -194,8 +194,9 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <details>
 <summary>What Doppel cannot do</summary>
 
-* Xposed cannot hook native code: audio recorded with OpenSL ES, like WhatsApp does, and files read natively,
-  like by shell commands such as stat and ls, are not restricted.
+* Xposed cannot hook native code: audio recorded with OpenSL ES, like WhatsApp does, and files read natively
+  are not restricted; shell commands the app starts are, but redirections, and ls, stat and test without times,
+  still show that hidden files exist.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
   The Firebase, Segment, Amazon and Facebook SDKs store the opt-outs and consents *Use analytics* sets, so collection

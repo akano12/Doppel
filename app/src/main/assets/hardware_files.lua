@@ -56,7 +56,7 @@ local FILES = {
     -- of the interfaces and the addresses of the sockets, which SELinux lets apps read on Android 9 and before and
     -- apps for those versions later; only opening them fails (hooks of open of Read.Network), that they exist tells nothing
     ['Read.Network'] = { '/proc/net/', '/proc/%d+/net/', '/proc/%d+/task/%d+/net/', '/proc/self/net/',
-                         '/proc/thread-self/net/' },
+                         '/proc/thread%-self/net/' },
     -- The folders of the network interfaces of VPNs (see isvpninterface), of which apps could tell they exist on
     -- Android 8.1; SELinux denies apps the folders on later versions and listing them on all
     ['Read.VPN'] = { '^/sys/class/net/([^/]+)', '^/sys/devices/virtual/net/([^/]+)' },

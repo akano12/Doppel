@@ -116,6 +116,12 @@ final class TitleSearch {
             back.setEnabled(field.getVisibility() == View.VISIBLE && !hidden.get());
     }
 
+    // Closes the search, which clears it, like for a hook tapped in the log which the search hides, see ActivityApp
+    void close() {
+        if (field.getVisibility() == View.VISIBLE)
+            show(false);
+    }
+
     // Closing the search clears it
     private void show(boolean show) {
         setShown(show);

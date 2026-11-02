@@ -111,6 +111,10 @@
         <item quantity="one">%1$d custom definition this version cannot read, left out</item>
         <item quantity="other">%1$d custom definitions this version cannot read, left out</item>
     </plurals>
+    <plurals name="title_restore_failed">
+        <item quantity="one">%1$d setting or app which cannot be read, left out</item>
+        <item quantity="other">%1$d settings or apps which cannot be read, left out</item>
+    </plurals>
     <plurals name="title_restore_apps">
         <item quantity="one">%1$d app, restrictions added: %2$d</item>
         <item quantity="other">%1$d apps, restrictions added: %2$d</item>
@@ -373,6 +377,8 @@
     <string name="title_hook_unavailable">Not on this Android</string>
     <string name="title_no_custom_hooks">No custom definitions</string>
     <string name="msg_no_hooks_file">This file has no hook definitions</string>
+    <string name="msg_import_replaces">These definitions replace built-in definitions in all apps which have them, with their own scripts. Removing them restores the built-in ones.%1$s</string>
+    <string name="title_restore_replaced">Built-in definitions replaced by custom ones: %1$s</string>
     <string name="msg_import_backup">This file is a backup, restore it in Settings</string>
     <!-- The quantity is the number of groups -->
     <plurals name="title_hooks_summary">

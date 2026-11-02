@@ -181,7 +181,10 @@ final class GroupsSheet {
     // A group row with its title, icon and description; also for the screen of the app
     static View inflateGroup(Context context, LayoutInflater inflater, ViewGroup parent, String group) {
         View vGroup = inflater.inflate(R.layout.item_group, parent, false);
-        ((TextView) vGroup.findViewById(R.id.tvTitle)).setText(Groups.getTitle(context, group));
+        String title = Groups.getTitle(context, group);
+        ((TextView) vGroup.findViewById(R.id.tvTitle)).setText(title);
+        // Screen readers name the switch of the row by its group
+        vGroup.findViewById(R.id.swGroup).setContentDescription(title);
         ((ImageView) vGroup.findViewById(R.id.ivIcon)).setImageResource(Groups.getIcon(group));
         TextView tvDescription = vGroup.findViewById(R.id.tvDescription);
         String description = Groups.getDescription(context, group);

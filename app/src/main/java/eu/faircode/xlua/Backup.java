@@ -68,6 +68,8 @@ class Backup {
         int settings;
         int hooks; // Custom definitions
         int hooksFailed; // Custom definitions this version cannot read, like of a newer version
+        int failed; // Settings and restrictions which cannot be read, like of an edited file, left out
+        final List<String> replaced = new ArrayList<>(); // Built-in definitions which restored custom ones replace
         int apps;
         final List<String> missing = new ArrayList<>(); // Packages which are not installed
         int added; // Restrictions which were not there yet
@@ -142,11 +144,17 @@ class Backup {
 
         // Definitions first, so restrictions can refer to them; one this version cannot read leaves the others
         JSONArray jhooks = jroot.optJSONArray("hooks");
+        Set<String> builtinIds = (jhooks == null ? null : Data.getBuiltinIds(context));
         if (jhooks != null)
             for (int i = 0; i < jhooks.length(); i++)
                 try {
-                    Data.putCustom(context, jhooks.getJSONObject(i));
+                    // With a script which compiles, like an import, else it would only fail in the apps
+                    JSONObject jhook = jhooks.getJSONObject(i);
+                    ActivityHookEdit.check(jhook);
+                    XHook hook = Data.putCustom(context, jhook);
                     result.hooks++;
+                    if (builtinIds.contains(hook.getId()))
+                        result.replaced.add(hook.getId());
                 } catch (Throwable ex) {
                     Log.w(TAG, "Custom definition not restored: " + ex);
                     result.hooksFailed++;
@@ -156,7 +164,12 @@ class Backup {
         JSONArray jsettings = jroot.optJSONArray("settings");
         if (jsettings != null)
             for (int i = 0; i < jsettings.length(); i++) {
-                JSONObject jsetting = jsettings.getJSONObject(i);
+                // One which cannot be read leaves the others, like a definition
+                JSONObject jsetting = jsettings.optJSONObject(i);
+                if (jsetting == null || !jsetting.has("category") || !jsetting.has("name")) {
+                    result.failed++;
+                    continue;
+                }
                 Data.putSetting(context,
                         jsetting.getString("category"),
                         jsetting.getString("name"),
@@ -187,7 +200,11 @@ class Backup {
 
         PackageManager pm = context.getPackageManager();
         for (int i = 0; i < jrestrictions.length(); i++) {
-            JSONObject jrestriction = jrestrictions.getJSONObject(i);
+            JSONObject jrestriction = jrestrictions.optJSONObject(i);
+            if (jrestriction == null || !jrestriction.has("package") || jrestriction.optJSONArray("hooks") == null) {
+                result.failed++;
+                continue;
+            }
             String packageName = jrestriction.getString("package");
             int uid;
             try {

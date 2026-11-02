@@ -404,6 +404,10 @@ public class FragmentSettings extends FragmentBase {
         lines.add(context.getResources().getQuantityString(R.plurals.title_restore_hooks, r.hooks, r.hooks));
         if (r.hooksFailed > 0)
             lines.add(context.getResources().getQuantityString(R.plurals.title_restore_hooks_failed, r.hooksFailed, r.hooksFailed));
+        if (!r.replaced.isEmpty())
+            lines.add(context.getString(R.string.title_restore_replaced, names(r.replaced)));
+        if (r.failed > 0)
+            lines.add(context.getResources().getQuantityString(R.plurals.title_restore_failed, r.failed, r.failed));
         lines.add(context.getResources().getQuantityString(R.plurals.title_restore_apps, r.apps, r.apps, r.added));
         if (!r.missing.isEmpty())
             lines.add(context.getResources().getQuantityString(R.plurals.title_restore_missing,
