@@ -33,6 +33,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.RemoteException;
 import android.os.Process;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.Log;
 
@@ -407,6 +408,7 @@ class XCore {
     }
 
     private void hookPackage(final String packageName, int uid, final Context context) throws Throwable {
+        long start = SystemClock.elapsedRealtime();
         List<XHook> hooks;
         try {
             hooks = Data.getAssignedHooks(context, packageName, uid);
@@ -425,6 +427,7 @@ class XCore {
         // Hooks with the same script share the compiled script
         Map<String, Prototype> scripts = new HashMap<>();
 
+        long loaded = SystemClock.elapsedRealtime();
         PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), context.getPackageName(), 0);
         long versionCode = PackageInfoCompat.getLongVersionCode(pi);
         for (final XHook hook : hooks)
@@ -450,6 +453,11 @@ class XCore {
                     report(context, hook.getId(), null, "install", data);
                 }
             }
+
+        // What starting an app costs, the rest of a slower start is the scripts running
+        long end = SystemClock.elapsedRealtime();
+        Log.i(TAG, "Hooked " + packageName + ":" + uid + " hooks=" + hooks.size() +
+                " load=" + (loaded - start) + " ms install=" + (end - loaded) + " ms");
     }
 
     private static Prototype compile(XHook hook, Map<String, Prototype> scripts) throws Throwable {
