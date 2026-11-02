@@ -55,6 +55,8 @@ android {
         versionName = '2.2'
         // The legacy Xposed API version of the manifest, see libs.versions.toml
         manifestPlaceholders = [xposedminversion: libs.versions.xposed.get()]
+        // Tests on a device of what needs Android itself: SQLite and the service, see src/androidTest
+        testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
     }
 
     base {
@@ -146,4 +148,7 @@ dependencies {
     testImplementation libs.libxposed.api
     // Real implementation instead of the android.jar stubs
     testImplementation libs.json
+
+    androidTestImplementation libs.androidx.test.runner
+    androidTestImplementation libs.androidx.test.ext.junit
 }

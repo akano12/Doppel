@@ -315,54 +315,49 @@ public class FragmentHooks extends FragmentBase {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
         run(TAG, () -> {
+            String text = Util.readText(context, uri);
+            JSONArray jarray;
             try {
-                String text = Util.readText(context, uri);
-                JSONArray jarray;
-                try {
-                    jarray = (text.trim().startsWith("[")
-                            ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
-                } catch (JSONException ex) {
-                    Log.w(TAG, "Import: " + ex);
-                    Ui.message(activity, activity.getString(R.string.msg_no_hooks_file));
+                jarray = (text.trim().startsWith("[")
+                        ? new JSONArray(text) : new JSONArray().put(new JSONObject(text)));
+            } catch (JSONException ex) {
+                Log.w(TAG, "Import: " + ex);
+                Ui.message(activity, activity.getString(R.string.msg_no_hooks_file));
+                return;
+            }
+            // Backups and exported definitions are both JSON files with a similar name, see Ui.datedFileName
+            for (int i = 0; i < jarray.length(); i++) {
+                JSONObject jhook = jarray.optJSONObject(i);
+                if (jhook == null || !jhook.has("collection")) {
+                    Ui.message(activity, activity.getString(jhook != null && jhook.has("format")
+                            ? R.string.msg_import_backup : R.string.msg_no_hooks_file));
                     return;
                 }
-                // Backups and exported definitions are both JSON files with a similar name, see Ui.datedFileName
-                for (int i = 0; i < jarray.length(); i++) {
-                    JSONObject jhook = jarray.optJSONObject(i);
-                    if (jhook == null || !jhook.has("collection")) {
-                        Ui.message(activity, activity.getString(jhook != null && jhook.has("format")
-                                ? R.string.msg_import_backup : R.string.msg_no_hooks_file));
-                        return;
-                    }
-                    // Like the editor checks it; nothing is imported from a file with a definition which would fail
-                    try {
-                        ActivityHookEdit.check(jhook);
-                    } catch (Throwable ex) {
-                        Log.w(TAG, "Import: " + ex);
-                        Ui.message(activity, activity.getString(R.string.msg_error,
-                                XHook.id(jhook.optString("collection"), jhook.optString("name")) + ": " + ex.getMessage()));
-                        return;
-                    }
+                // Like the editor checks it; nothing is imported from a file with a definition which would fail
+                try {
+                    ActivityHookEdit.check(jhook);
+                } catch (Throwable ex) {
+                    Log.w(TAG, "Import: " + ex);
+                    Ui.message(activity, activity.getString(R.string.msg_error,
+                            XHook.id(jhook.optString("collection"), jhook.optString("name")) + ": " + ex.getMessage()));
+                    return;
                 }
-                // A definition with the id of a built-in one replaces it in all apps, which Downloads tells too
-                Set<String> builtins = Data.getBuiltinIds(context);
-                List<String> replaced = new ArrayList<>();
-                for (int i = 0; i < jarray.length(); i++) {
-                    JSONObject jhook = jarray.getJSONObject(i);
-                    String id = XHook.id(jhook.getString("collection"), jhook.getString("name"));
-                    if (builtins.contains(id))
-                        replaced.add(id);
-                }
-                if (replaced.isEmpty())
-                    putImported(activity, jarray);
-                else
-                    post(() -> Ui.areYouSure(activity,
-                            getString(R.string.msg_import_replaces, "\n• " + TextUtils.join("\n• ", replaced)),
-                            R.string.menu_import, () -> run(TAG, () -> putImported(activity, jarray))));
-            } finally {
-                // Also the definitions imported before an error
-                post(this::load);
             }
+            // A definition with the id of a built-in one replaces it in all apps, which Downloads tells too
+            Set<String> builtins = Data.getBuiltinIds(context);
+            List<String> replaced = new ArrayList<>();
+            for (int i = 0; i < jarray.length(); i++) {
+                JSONObject jhook = jarray.getJSONObject(i);
+                String id = XHook.id(jhook.getString("collection"), jhook.getString("name"));
+                if (builtins.contains(id))
+                    replaced.add(id);
+            }
+            if (replaced.isEmpty())
+                putImported(activity, jarray);
+            else
+                post(() -> Ui.areYouSure(activity,
+                        getString(R.string.msg_import_replaces, "\n• " + TextUtils.join("\n• ", replaced)),
+                        R.string.menu_import, () -> run(TAG, () -> putImported(activity, jarray))));
         });
     }
 
@@ -378,6 +373,7 @@ public class FragmentHooks extends FragmentBase {
                     activity.getString(R.string.title_restrict_too),
                     () -> run(TAG, () -> Ui.message(activity, Data.restrictForGroups(context, imported))));
         } finally {
+            // Also the definitions imported before an error
             post(this::load);
         }
     }

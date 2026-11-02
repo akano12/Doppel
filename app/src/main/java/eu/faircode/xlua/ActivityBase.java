@@ -20,6 +20,7 @@
 
 package eu.faircode.xlua;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -36,7 +37,6 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
-import java.util.function.Supplier;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.Lifecycle;
@@ -44,8 +44,10 @@ import androidx.lifecycle.Lifecycle;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import java.lang.ref.WeakReference;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 // Screens are drawn edge-to-edge and share a background thread for service calls
 public class ActivityBase extends AppCompatActivity {
@@ -55,6 +57,22 @@ public class ActivityBase extends AppCompatActivity {
 
     // The screen before it was recreated for other colors, see recreateSmoothly
     private static Bitmap snapshot = null;
+
+    // The screen in front, see front
+    private static WeakReference<Activity> resumed = new WeakReference<>(null);
+
+    // The screen in front, unless it is closing or gone, like for a message of work which a screen started
+    // before it was recreated, like rotated; null without one
+    static Activity front() {
+        Activity activity = resumed.get();
+        return (activity == null || activity.isFinishing() || activity.isDestroyed() ? null : activity);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        resumed = new WeakReference<>(this);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

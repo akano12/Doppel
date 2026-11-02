@@ -242,6 +242,7 @@ With [Android Studio](https://developer.android.com/studio), or from the command
 ./gradlew assembleDebug        # debug build
 ./gradlew assembleRelease      # release build, signed when keystore.properties exists
 ./gradlew testDebugUnitTest    # checks the hook definitions and scripts
+./gradlew connectedDebugAndroidTest  # on a device or emulator: the database upgrades, and a restore with Doppel active
 scripts/test-on-device.sh      # on a device or emulator: the tests of shell commands, which Windows skips
 scripts/check-service.sh       # on a rooted device or emulator with Doppel: whom the service answers
 ```

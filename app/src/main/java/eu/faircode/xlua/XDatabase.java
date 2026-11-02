@@ -245,10 +245,7 @@ class XDatabase {
         if (!dir.isDirectory() && !dir.mkdirs())
             throw new IOException("Cannot create " + dir);
 
-        SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(file, null);
-        // Write-ahead logging gives a connection pool, so reads (on every app start) do not wait for each other
-        db.enableWriteAheadLogging();
-        Log.i(TAG, "Database file=" + file);
+        XDatabase database = open(file);
 
         // Owner and group (system): rwx, world: ---
         Util.setPermissions(dir.getAbsolutePath(), 0770, Process.SYSTEM_UID, Process.SYSTEM_UID);
@@ -256,6 +253,15 @@ class XDatabase {
         if (files != null)
             for (File f : files)
                 Util.setPermissions(f.getAbsolutePath(), 0770, Process.SYSTEM_UID, Process.SYSTEM_UID);
+        return database;
+    }
+
+    // A database file upgraded to the current version; also for the test of the migrations, see XDatabaseTest
+    static XDatabase open(File file) throws Throwable {
+        SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(file, null);
+        // Write-ahead logging gives a connection pool, so reads (on every app start) do not wait for each other
+        db.enableWriteAheadLogging();
+        Log.i(TAG, "Database file=" + file);
 
         XDatabase database = new XDatabase(db);
         try {
@@ -294,11 +300,13 @@ class XDatabase {
                     Log.i(TAG, "Renamed hook " + from[0] + " into " + cv.get("hook") + " rows=" + rows + " removed=" + removed);
             }
 
-            // Hooks are installed again and errors reported again after a restart
+            // Hooks are installed again and errors reported again after a restart; only the rows which changed
+            // are written, else every boot would write all assignments of all apps
             ContentValues cv = new ContentValues();
             cv.put("installed", -1);
             cv.putNull("exception");
-            Log.i(TAG, "Reset assigned hook data count=" + db.update("assignment", cv, null, null));
+            Log.i(TAG, "Reset assigned hook data count=" +
+                    db.update("assignment", cv, "installed IS NOT -1 OR exception IS NOT NULL", null));
             return null;
         });
     }

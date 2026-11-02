@@ -24,7 +24,6 @@ package org.luaj.vm2.lib.jse;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
@@ -87,14 +86,12 @@ public class LuajavaLib extends VarArgFunction {
 	static final int NEWINSTANCE	= 2;
 	static final int NEW			= 3;
 	static final int CREATEPROXY	= 4;
-	static final int LOADLIB		= 5;
 
 	static final String[] NAMES = {
 		"bindClass", 
 		"newInstance", 
 		"new", 
 		"createProxy", 
-		"loadLib",
 	};
 	
 	static final int METHOD_MODIFIERS_VARARGS = 0x80;
@@ -151,26 +148,11 @@ public class LuajavaLib extends VarArgFunction {
 				// return the proxy
 				return LuaValue.userdataOf( proxy );
 			}
-			case LOADLIB: {
-				// get constructor
-				String classname = args.checkjstring(1);
-				String methodname = args.checkjstring(2);
-				Class clazz = classForName(classname);
-				Method method = clazz.getMethod(methodname, new Class[] {});
-				Object result = method.invoke(clazz, new Object[] {});
-				if ( result instanceof LuaValue ) {
-					return (LuaValue) result;
-				} else {
-					return NIL;
-				}
-			}
 			default:
 				throw new LuaError("not yet supported: "+this);
 			}
 		} catch (LuaError e) {
 			throw e;
-		} catch (InvocationTargetException ite) {
-			throw new LuaError(ite.getTargetException());
 		} catch (Exception e) {
 			throw new LuaError(e);
 		}

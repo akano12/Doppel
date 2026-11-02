@@ -256,8 +256,12 @@ final class Ui {
         message(activity, message, null, null);
     }
 
-    static void message(Activity activity, CharSequence message, CharSequence action, Runnable onAction) {
-        activity.runOnUiThread(() -> {
+    static void message(Activity started, CharSequence message, CharSequence action, Runnable onAction) {
+        started.runOnUiThread(() -> {
+            // The screen of the work can be recreated meanwhile, like rotated, then the message goes to the screen in front
+            Activity activity = (started.isDestroyed() ? ActivityBase.front() : started);
+            if (activity == null)
+                return;
             Snackbar snackbar = Snackbar.make(activity.findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG);
             if (activity instanceof Anchored)
                 snackbar.setAnchorView(((Anchored) activity).getMessageAnchor());

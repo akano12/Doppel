@@ -746,10 +746,14 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 for (Map.Entry<String, String> entry : changed.entrySet())
                     Data.putSetting(context, category, entry.getKey(), entry.getValue());
             } catch (Throwable ex) {
-                // The values saved before the error apply too, so the app is stopped and the form shows what was saved
-                if (stop)
-                    Data.forceStop(context, app);
+                // The values saved before the error apply too, so the form shows what was saved and the app is
+                // stopped; stopping fails too when the service is gone, which must not hide the error of the save
                 postUnlessGone(this::load);
+                if (stop)
+                    try {
+                        Data.forceStop(context, app);
+                    } catch (Throwable ignored) {
+                    }
                 throw ex;
             }
             // Stop the app once, so it starts with the new values
