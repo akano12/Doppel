@@ -33,7 +33,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.RemoteException;
 import android.os.Process;
-import android.os.SystemClock;
 import android.os.UserHandle;
 import android.util.Log;
 
@@ -407,11 +406,7 @@ class XCore {
         });
     }
 
-    // Nanoseconds of installing the hooks of this app: finding the targets, the scripts and hooking
-    private final long[] cost = new long[3];
-
     private void hookPackage(final String packageName, int uid, final Context context) throws Throwable {
-        long start = SystemClock.elapsedRealtime();
         List<XHook> hooks;
         try {
             hooks = Data.getAssignedHooks(context, packageName, uid);
@@ -430,7 +425,6 @@ class XCore {
         // Hooks with the same script share the compiled script
         Map<String, Prototype> scripts = new HashMap<>();
 
-        long loaded = SystemClock.elapsedRealtime();
         PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), context.getPackageName(), 0);
         long versionCode = PackageInfoCompat.getLongVersionCode(pi);
         for (final XHook hook : hooks)
@@ -439,10 +433,7 @@ class XCore {
                     continue;
 
                 // Only install errors are reported, see XProvider.report
-                long compiling = System.nanoTime();
-                Prototype script = compile(hook, scripts);
-                cost[1] += System.nanoTime() - compiling;
-                install(context, hook, script, settings);
+                install(context, hook, compile(hook, scripts), settings);
             } catch (Throwable ex) {
                 if (hook.isOptional() &&
                         (ex instanceof NoSuchFieldException ||
@@ -459,12 +450,6 @@ class XCore {
                     report(context, hook.getId(), null, "install", data);
                 }
             }
-
-        // What starting an app costs, the rest of a slower start is the scripts running
-        long end = SystemClock.elapsedRealtime();
-        Log.i(TAG, "Hooked " + packageName + ":" + uid + " hooks=" + hooks.size() +
-                " load=" + (loaded - start) + " ms install=" + (end - loaded) + " ms (resolve=" + cost[0] / 1000000 +
-                " script=" + cost[1] / 1000000 + " hook=" + cost[2] / 1000000 + ")");
     }
 
     private static Prototype compile(XHook hook, Map<String, Prototype> scripts) throws Throwable {
@@ -480,7 +465,6 @@ class XCore {
 
     // Hook the method or field of the definition
     private void install(Context context, XHook hook, Prototype script, Map<String, String> settings) throws Throwable {
-        long resolving = System.nanoTime();
         ClassLoader loader = context.getClassLoader();
         Class<?> cls = Class.forName(hook.getResolvedClassName(), false, loader);
 
@@ -488,7 +472,6 @@ class XCore {
         Class<?> returnType = (hook.getReturnType() == null ? null : XResolver.resolveClass(hook.getReturnType(), loader));
 
         Member member = XResolver.resolveTarget(cls, hook.getMethodName(), paramTypes, returnType);
-        cost[0] += System.nanoTime() - resolving;
         if (member instanceof Field) {
             Field field = (Field) member;
             field.setAccessible(true);
@@ -519,11 +502,8 @@ class XCore {
     private void installMethod(final Context context, final XHook hook, final Prototype script,
                                final Map<String, String> settings, final Member member) throws Throwable {
         // The runtime made for the filter is the one of this thread, so the script runs once here
-        long scripting = System.nanoTime();
         final Globals installed = getGlobals(context, hook, script, settings);
         final Filter filter = getFilter(installed, hook);
-        long hooking = System.nanoTime();
-        cost[1] += hooking - scripting;
         backend.hook(member, new XBackend.Callback() {
             // The Lua runtime of this hook per thread, without a lock on each call
             private final ThreadLocal<Globals> threadGlobals = new ThreadLocal<>();
@@ -582,7 +562,6 @@ class XCore {
                 }
             }
         });
-        cost[2] += System.nanoTime() - hooking;
     }
 
     // The answer of the service to a call or query of an app: an illegal argument is thrown to the app;
