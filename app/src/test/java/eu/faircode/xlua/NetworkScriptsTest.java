@@ -306,6 +306,31 @@ public class NetworkScriptsTest {
         assertEquals("rmnet_data0", result.arg(6).tojstring());
     }
 
+    // LinkProperties reading a VPN network from a parcel checks each route against its interface (addRoute), which
+    // throws for a faked route and crashed apps when a VPN connected; apps reading the route still get the fake one
+    @Test
+    public void vpnRouteRealForLinkProperties() throws Exception {
+        Globals globals = load("vpn");
+        Scripts.run(globals, NETWORKS);
+        Varargs result = Scripts.run(globals,
+                "local stack = {}\n" +
+                        "luajava = { bindClass = function(name) assert(name == 'java.lang.Thread') return {\n" +
+                        "  currentThread = function() return { getStackTrace = function()\n" +
+                        "    local frames = { length = #stack }\n" +
+                        "    for i, name in ipairs(stack) do frames[i] = { getClassName = function() return name end } end\n" +
+                        "    return frames end } end } end }\n" +
+                        "stack = { 'java.lang.Thread', 'android.net.LinkProperties', 'android.net.LinkProperties$1' }\n" +
+                        "local own = paramof('tun0', {}, nil, context)\n" +
+                        "local restricted = after(hookof('getInterface', 'android.net.RouteInfo'), own)\n" +
+                        "stack = { 'java.lang.Thread', 'com.example.App' }\n" +
+                        "local app = paramof('tun0', {}, nil, context)\n" +
+                        "after(hookof('getInterface', 'android.net.RouteInfo'), app)\n" +
+                        "return restricted, own.result, app.result");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals("tun0", result.arg(2).tojstring());
+        assertEquals("rmnet_data0", result.arg(3).tojstring());
+    }
+
     // NOT_VPN in its place in bit order, like a real network has it: after TRUSTED (14), before VALIDATED (16)
     @Test
     public void vpnNotVpnInBitOrder() throws Exception {

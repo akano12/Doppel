@@ -134,6 +134,17 @@ function after(hook, param)
     return restricted, old, new
 end
 
+-- Called by LinkProperties itself
+function linkproperties()
+    local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
+    for index = 1, frames['length'] do
+        if frames[index]:getClassName() == 'android.net.LinkProperties' then
+            return true
+        end
+    end
+    return false
+end
+
 function restrict(hook, param)
     local method = hook:getMethodName()
     local result = param:getResult()
@@ -289,8 +300,10 @@ function restrict(hook, param)
         end
 
     elseif method == 'getInterfaceName' or method == 'getInterface' then
-        -- LinkProperties of the active network, like tun0, and its routes (RouteInfo.getInterface)
-        if isvpninterface(result) then
+        -- LinkProperties of the active network, like tun0, and its routes (RouteInfo.getInterface);
+        -- LinkProperties checks the routes it reads from a parcel against its own interface (addRoute),
+        -- which throws for a faked route, so it gets the real one
+        if isvpninterface(result) and not (method == 'getInterface' and linkproperties()) then
             local fake = underlyinginterface(param)
             param:setResult(fake)
             return true, result, fake
