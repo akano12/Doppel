@@ -52,6 +52,10 @@ end
 
 -- The parameter is not named hook, the function to hook a method is
 function after(h, param)
+    -- Headers are done before, their objects have no settings
+    if HEADERS[h:getMethodName()] then
+        return false
+    end
     if h:getMethodName() == 'getDefaultUserAgent' then
         local result = param:getResult()
         if result == nil then

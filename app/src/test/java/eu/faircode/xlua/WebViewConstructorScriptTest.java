@@ -79,4 +79,16 @@ public class WebViewConstructorScriptTest {
         // The constructor of the WebView
         assertTrue(result.arg(6).tojstring().startsWith("false "));
     }
+
+    // After a header method the script returns without touching the object, a connection or builder without settings
+    @Test
+    public void headerMethodsSkipAfter() throws Exception {
+        Varargs result = Scripts.run(Scripts.load("webview_constructor", STUBS),
+                "local results = {}\n" +
+                        "for _, method in ipairs({ 'set', 'add', 'addUnsafeNonAscii', 'setRequestProperty', 'addRequestProperty' }) do\n" +
+                        "  results[#results + 1] = tostring(after({ getMethodName = function(self) return method end }, paramof({})))\n" +
+                        "end\n" +
+                        "return table.concat(results, ' ')");
+        assertEquals("false false false false false", result.arg1().tojstring());
+    }
 }
