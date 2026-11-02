@@ -8458,6 +8458,7 @@
     "usage": false,
     "luaScript": "@webview_constructor"
   },
+  // No return type for the OkHttp header hooks: apps shrunk by R8 can have these methods return void
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -8469,7 +8470,6 @@
       "java.lang.String",
       "java.lang.String"
     ],
-    "returnType": "okhttp3.Headers$Builder",
     "minSdk": 27,
     "optional": true,
     "usage": false,
@@ -8486,7 +8486,6 @@
       "java.lang.String",
       "java.lang.String"
     ],
-    "returnType": "okhttp3.Headers$Builder",
     "minSdk": 27,
     "optional": true,
     "usage": false,
@@ -8503,7 +8502,6 @@
       "java.lang.String",
       "java.lang.String"
     ],
-    "returnType": "okhttp3.Headers$Builder",
     "minSdk": 27,
     "optional": true,
     "usage": false,
