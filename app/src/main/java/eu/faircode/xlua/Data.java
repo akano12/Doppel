@@ -60,7 +60,8 @@ final class Data {
     // Version of the module of the service, -1 when the module is not running
     static int getVersion(Context context) {
         try {
-            Bundle result = call(context, "getVersion", new Bundle());
+            // No answer is no module, see XCore.hookSettings
+            Bundle result = context.getContentResolver().call(XProvider.getURI(), XProvider.METHOD, "getVersion", new Bundle());
             return (result == null ? -1 : result.getInt("version", -1));
         } catch (Throwable ex) {
             Log.e(TAG, Log.getStackTraceString(ex));
@@ -68,8 +69,14 @@ final class Data {
         }
     }
 
+    // The service answers each call it did with a Bundle; it answers none when it failed, which it logs, or refused
+    // the caller (see XCore.serve), which must not look like a call which was done, like a setting which was saved
     private static Bundle call(Context context, String method, Bundle args) {
-        return context.getContentResolver().call(XProvider.getURI(), XProvider.METHOD, method, args);
+        Bundle result = context.getContentResolver().call(XProvider.getURI(), XProvider.METHOD, method, args);
+        if (result == null)
+            // Not a text of the app: system server and hooked apps call too, which have other resources
+            throw new IllegalStateException("No answer of the service to " + method + ", see the system log");
+        return result;
     }
 
     // The usage of hooks collected by the engine, see XCore.flush
@@ -246,7 +253,7 @@ final class Data {
         args.putBoolean("delete", delete);
         args.putBoolean("kill", kill);
         Bundle result = call(context, "assignHooks", args);
-        return (result == null ? 0 : result.getInt("changed"));
+        return result.getInt("changed");
     }
 
     // Assign hooks to the apps of the current user which restrict their group, without stopping them;
@@ -255,7 +262,7 @@ final class Data {
         Bundle args = new Bundle();
         args.putStringArrayList("hooks", hookids);
         Bundle result = call(context, "assignRestricting", args);
-        return (result == null ? 0 : result.getInt("apps"));
+        return result.getInt("apps");
     }
 
     // Assign all available hooks to a new app
@@ -309,7 +316,7 @@ final class Data {
         args.putString("category", category);
         args.putString("name", name);
         Bundle result = call(context, "getSetting", args);
-        return (result == null ? null : result.getString("value"));
+        return result.getString("value");
     }
 
     static boolean getSettingBoolean(Context context, String category, String name) {
