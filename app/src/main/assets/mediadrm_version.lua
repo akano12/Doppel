@@ -19,7 +19,19 @@
 -- like Build.ID, which is faked; the version of the plugin itself stays, apps check it
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or param:getArgument(0) ~= 'version' then
+    if result == nil then
+        return false
+    end
+    -- The id of the system of Widevine, like 18615, names the make and the family of the model; it is not used to play
+    -- content, the DRM itself uses its own
+    if param:getArgument(0) == 'systemId' then
+        if result == '' then
+            return false
+        end
+        param:setResult('')
+        return true, result, ''
+    end
+    if param:getArgument(0) ~= 'version' then
         return false
     end
     local fake = string.match(result, '^([^@]*)@')

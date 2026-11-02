@@ -70,6 +70,11 @@ local FILES = {
         '^/system/app/Superuser%.apk$', '^/system/app/Superuser/', '^/system/app/SuperSU/',
         '^/system/bin/magisk', '^/system/bin/resetprop$', '^/system/bin/supolicy$', '^/sbin/magisk', '^/sbin/%.magisk',
         '^/debug_ramdisk/', '^/data/adb/' },
+    -- The files of the features, libraries and system apps of the device (/system/etc/permissions, also of /vendor,
+    -- /product and the others, and sysconfig), like com.samsung.feature.*, which apps can read
+    ['Read.Features'] = { '/etc/permissions$', '/etc/permissions/', '/etc/sysconfig$', '/etc/sysconfig/' },
+    -- The permissions of the system apps, a file per app, like privapp-permissions-com.samsung.android.dialer.xml
+    ['Get.Applications'] = { '/etc/permissions/privapp%-permissions%-[^/]*$' },
 }
 
 -- The paths the script runs for, of the groups with files outside /sys (see filter)
@@ -81,6 +86,8 @@ local FILTERS = {
                            '/sbin/*', '/su*', '/data/local/*', '/cache/su', '/dev/su', '/vendor/bin/*',
                            '/vendor/xbin/*', '/product/bin/*', '/system_ext/bin/*', '/odm/bin/*', '/debug_ramdisk*',
                            '/data/adb*', '*bin/su*', '*magisk*', '*debug_ramdisk*' },
+    ['Read.Features'] = { '*etc/permissions*', '*etc/sysconfig*' },
+    ['Get.Applications'] = { '*etc/permissions/privapp-permissions-*' },
 }
 
 -- Whether a network interface is of a VPN, like vpn and interface_entries, which a test compares

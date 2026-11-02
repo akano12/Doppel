@@ -31,7 +31,26 @@ function after(hook, param)
 
     local method = hook:getMethodName()
     local packageName
-    if method == 'checkSignatures' then
+    if method == 'getSyncAdapterTypes' then
+        -- The apps which sync, like com.whatsapp and org.telegram.messenger: those of hidden apps are left out
+        local kept = {}
+        for index = 1, result['length'] do
+            local name = syncpackage(param, result[index])
+            if name == nil or param:isPackageVisible(name) then
+                kept[#kept + 1] = result[index]
+            end
+        end
+        if #kept == result['length'] then
+            return false
+        end
+        local fake = luajava.bindClass('java.lang.reflect.Array'):newInstance(
+                param:findClass('android.content.SyncAdapterType'), #kept)
+        for index = 1, #kept do
+            fake[index] = kept[index]
+        end
+        param:setResult(fake)
+        return true, tostring(result['length']), tostring(#kept)
+    elseif method == 'checkSignatures' then
         -- The user ids of two apps, like for a uid which is not in use
         if result == SIGNATURE_UNKNOWN_PACKAGE or
                 (param:isUidVisible(param:getArgument(0)) and param:isUidVisible(param:getArgument(1))) then
@@ -98,6 +117,57 @@ function after(hook, param)
     if param:isPackageVisible(packageName) then
         return false
     end
+    -- An intent any app may handle, like a link, of which a hidden app is the default, like a browser: the chooser
+    -- of Android, which Android itself gives when several apps can and none is the default, so a check whether an app
+    -- can open it does not fail; the hidden app still opens it then, like Android does without the check
+    if (method == 'resolveActivity' or method == 'resolveActivityAsUser') and implicit(param:getArgument(0)) then
+        local chooser = resolver(param)
+        if chooser ~= nil then
+            param:setResult(chooser)
+            return true, packageName, 'android'
+        end
+    end
     param:setResult(nil)
     return true, packageName
+end
+
+-- Without a package or a component, like a link
+function implicit(intent)
+    return intent ~= nil and intent:getComponent() == nil and intent:getPackage() == nil
+end
+
+-- The ResolveInfo of the chooser of Android, of the system app android, nil when it cannot be made
+function resolver(param)
+    local ok, result = pcall(function()
+        return param:unhooked(function()
+            local info = luajava.newInstance('android.content.pm.ActivityInfo')
+            info.packageName = 'android'
+            info.name = 'com.android.internal.app.ResolverActivity'
+            info.exported = true
+            info.applicationInfo = param:getApplicationContext():getPackageManager():getApplicationInfo('android', 0)
+            local ri = luajava.newInstance('android.content.pm.ResolveInfo')
+            ri.activityInfo = info
+            return ri
+        end)
+    end)
+    if ok then
+        return result
+    end
+    return nil
+end
+
+-- The package of a sync adapter: its own (Android 10), else the one of its provider, nil when unknown
+function syncpackage(param, sync)
+    if sync['getPackageName'] ~= nil then
+        return sync:getPackageName()
+    end
+    local ok, info = pcall(function()
+        return param:unhooked(function()
+            return param:getApplicationContext():getPackageManager():resolveContentProvider(sync.authority, 0)
+        end)
+    end)
+    if ok and info ~= nil then
+        return info.packageName
+    end
+    return nil
 end

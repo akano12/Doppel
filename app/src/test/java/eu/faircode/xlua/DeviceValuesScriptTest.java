@@ -209,6 +209,11 @@ public class DeviceValuesScriptTest {
                 "'getPropertyString'), paramof('16.1.0', { [0] = 'version' }))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
                 "'getPropertyString'), paramof('Google@x', { [0] = 'vendor' }))").arg1().toboolean());
+        // The id of the system of Widevine names the make and the family of the model
+        Varargs systemId = Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
+                "'getPropertyString'), paramof('18615', { [0] = 'systemId' }))");
+        assertTrue(systemId.arg1().toboolean());
+        assertEquals("", systemId.arg(2).tojstring());
     }
 
     // Values of MMS other than the generic ones of Android become those; generic and empty ones stay
@@ -739,52 +744,6 @@ public class DeviceValuesScriptTest {
         // A profile without the capacity stays
         assertFalse(Scripts.run(globals, "return run(hookof('PowerProfile.getBatteryCapacity', 'getBatteryCapacity', " +
                 profile + "), paramof(0, {}))").arg1().toboolean());
-    }
-
-    // The UUID of an SD card is made of its fake id, like Android makes it of the real one, and both stay the same
-    // while the app runs (storage_uuid)
-    @Test
-    public void storageIdsAgree() throws Exception {
-        Globals globals = Scripts.load("storage_uuid", String.join("\n",
-                "values = {}",
-                "context = {}",
-                "volume = { isPrimary = function(self) return false end, getUuid = function(self) return '1A2B-3C4D' end }",
-                "function hookof(method) return { getMethodName = function(self) return method end } end",
-                "function paramof(result)",
-                "  return { result = result,",
-                "    getResult = function(self) return result end,",
-                "    getThis = function(self) return volume end,",
-                "    getApplicationContext = function(self) return context end,",
-                "    unhooked = function(self, fn) return fn() end,",
-                "    getValue = function(self, name, scope) return values[name] end,",
-                "    putValue = function(self, name, value, scope) values[name] = value end,",
-                "    uuidOf = function(self, seed) return '12345678-1234-4234-8234-' .. string.rep('0', 12 - #seed) .. seed end,",
-                "    setResult = function(self, value) self.result = value end }",
-                "end"));
-        Varargs result = Scripts.run(globals,
-                "local id = paramof('1A2B-3C4D')\n" +
-                        "after(hookof('getUuid'), id)\n" +
-                        "local uuid = paramof('fafafafa-fafa-5afa-8afa-fafa1a2b3c4d')\n" +
-                        "after(hookof('getStorageUuid'), uuid)\n" +
-                        "local again = paramof('1A2B-3C4D')\n" +
-                        "after(hookof('getUuid'), again)\n" +
-                        "return id.result, uuid.result:toString(), again.result");
-        String fake = result.arg(1).tojstring();
-        assertTrue(fake, fake.matches("[0-9A-F]{4}-[0-9A-F]{4}"));
-        assertNotEquals("1A2B-3C4D", fake);
-        assertEquals("fafafafa-fafa-5afa-8afa-fafa" + fake.replace("-", "").toLowerCase(), result.arg(2).tojstring());
-        assertEquals(fake, result.arg(3).tojstring());
-
-        // An id which is not of FAT nor a UUID gives the same UUID each time
-        Varargs other = Scripts.run(globals,
-                "volume.getUuid = function(self) return 'abcdef' end\n" +
-                        "local first = paramof('x')\n" +
-                        "after(hookof('getStorageUuid'), first)\n" +
-                        "local second = paramof('x')\n" +
-                        "after(hookof('getStorageUuid'), second)\n" +
-                        "return first.result:toString(), second.result:toString()");
-        assertTrue(other.arg(1).tojstring(), other.arg(1).tojstring().startsWith("12345678-1234-4234-8234-"));
-        assertEquals(other.arg(1).tojstring(), other.arg(2).tojstring());
     }
 
     @Test

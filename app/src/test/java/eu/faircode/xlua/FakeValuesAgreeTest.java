@@ -364,7 +364,8 @@ public class FakeValuesAgreeTest {
                 "end");
         Globals shell = load("shell_commands");
         String[][] variants = {{"Read.Identifiers", "identifiers"}, {"Use.Tracking", "tracking"},
-                {"Read.Biometrics", "biometrics"}, {"Read.Network", "network"}, {"Read.Debugging", "debugging"}};
+                {"Read.Biometrics", "biometrics"}, {"Read.Network", "network"}, {"Read.Debugging", "debugging"},
+                {"Read.Features", "features"}, {"Get.Applications", "packages"}};
         String[] hidden = {
                 "/sys/devices/system/chip-id/unique_id", "/sys/devices/system/chip-id/lot_id",
                 "/sys/devices/system/chip-id/lot_id2", "/sys/devices/system/chip-id",
@@ -392,7 +393,10 @@ public class FakeValuesAgreeTest {
                 "/sys/block/sda/device/rev", "/sys/devices/platform/soc/1d84000.ufshc/host0/target0:0:0/0:0:0:0/model",
                 "/proc/scsi/scsi", "/proc/bus/input/devices", "/sys/class/camera/rear/rear_camfw",
                 "/system/bin/su", "/system/xbin/su", "/sbin/su", "/su/bin/su", "/system/app/Superuser.apk",
-                "/system/bin/magisk", "/debug_ramdisk/magisk", "/data/adb/magisk.db", "/proc/self/root/system/xbin/su"};
+                "/system/bin/magisk", "/debug_ramdisk/magisk", "/data/adb/magisk.db", "/proc/self/root/system/xbin/su",
+                "/system/etc/permissions", "/vendor/etc/permissions/android.hardware.bluetooth.xml",
+                "/product/etc/permissions/carrierwifi.xml", "/system/etc/sysconfig/google.xml",
+                "/system/etc/permissions/privapp-permissions-meta.xml"};
         String[] stay = {
                 "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/class/sec/tspx",
                 "/sys/bus/mmc/devices/mmc0:0001/cidx", "/sys/class/fingerprint/fingerprintx",
@@ -401,7 +405,8 @@ public class FakeValuesAgreeTest {
                 "/proc/sys/net/ipv4/ip_forward", "/proc/meminfo", "/proc/netx/arp",
                 "/sys/devices/platform/soc/1d84000.ufshc", "/sys/block/sda/size", "/sys/block/sda/device/queue_depth",
                 "/proc/bus/input/handlers", "/proc/cpuinfo", "/system/bin/sh", "/system/bin/sudo", "/sdcard/su",
-                "/data/user/0/com.termux/files/usr/bin/su", "/system/xbin/sum"};
+                "/data/user/0/com.termux/files/usr/bin/su", "/system/xbin/sum", "/system/etc/hosts",
+                "/system/etc/permissionsx"};
         // Paths of the devices themselves, which both only have to agree on
         String[] devices = {
                 "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid",

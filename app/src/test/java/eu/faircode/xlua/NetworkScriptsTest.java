@@ -394,6 +394,27 @@ public class NetworkScriptsTest {
         assertEquals("true", result.arg(4).tojstring());
     }
 
+    // A request for VPN networks, which Android matches itself, asks for LoWPAN networks instead; others stay
+    @Test
+    public void vpnRequestsFindNothing() throws Exception {
+        Globals globals = load("vpn");
+        Varargs result = Scripts.run(globals,
+                "local function request(transport)\n" +
+                        "  local param = { args = { [0] = transport },\n" +
+                        "    getArgument = function(self, i) return self.args[i] end,\n" +
+                        "    setArgument = function(self, i, v) self.args[i] = v end }\n" +
+                        "  local restricted = before(hookof('addTransportType', 'android.net.NetworkRequest$Builder'), param)\n" +
+                        "  return restricted, param.args[0]\n" +
+                        "end\n" +
+                        "local vpn, transport = request(4)\n" +
+                        "local wifi, other = request(1)\n" +
+                        "return vpn, transport, wifi, other");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(6, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals(1, result.arg(4).toint());
+    }
+
     // NOT_VPN in its place in bit order, like a real network has it: after TRUSTED (14), before VALIDATED (16)
     @Test
     public void vpnNotVpnInBitOrder() throws Exception {

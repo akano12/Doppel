@@ -480,6 +480,17 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
+    "name": "ContentResolver.getSyncAdapterTypes",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "getSyncAdapterTypes",
+    "parameterTypes": [],
+    "minSdk": 27,
+    "luaScript": "@package_resolve"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
     "name": "PackageManager.getApplicationInfo",
     "author": "akano12",
     "className": "android.content.pm.PackageManager",
@@ -10256,6 +10267,620 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "BlockGuardOs.open/feature_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "BlockGuardOs.stat/feature_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "BlockGuardOs.lstat/feature_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "BlockGuardOs.access/feature_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "Os.access/feature_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixFileSystem.getBooleanAttributes0/feature_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixFileSystem.checkAccess/feature_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixFileSystem.getLastModifiedTime/feature_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixFileSystem.list0/feature_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "list0",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixNativeDispatcher.open/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixNativeDispatcher.stat/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixNativeDispatcher.stat/mode/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "int",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixNativeDispatcher.lstat/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixNativeDispatcher.access/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixNativeDispatcher.exists/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "exists",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "boolean",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixNativeDispatcher.opendir/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "opendir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixFileSystemProvider.newDirectoryStream/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "newDirectoryStream",
+    "parameterTypes": [
+      "java.nio.file.Path",
+      "java.nio.file.DirectoryStream$Filter"
+    ],
+    "returnType": "java.nio.file.DirectoryStream",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixNativeDispatcher.realpath/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "realpath",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixNativeDispatcher.readlink/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "Os.readlink/feature_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixFileSystem.createFileExclusively/feature_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "createFileExclusively",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "BlockGuardOs.open/privapp_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "BlockGuardOs.stat/privapp_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "BlockGuardOs.lstat/privapp_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "BlockGuardOs.access/privapp_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.access/privapp_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixFileSystem.getBooleanAttributes0/privapp_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixFileSystem.checkAccess/privapp_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixFileSystem.getLastModifiedTime/privapp_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixFileSystem.list0/privapp_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "list0",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.open/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.stat/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.stat/mode/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "int",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.lstat/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.access/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.exists/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "exists",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "boolean",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.opendir/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "opendir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixFileSystemProvider.newDirectoryStream/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "newDirectoryStream",
+    "parameterTypes": [
+      "java.nio.file.Path",
+      "java.nio.file.DirectoryStream$Filter"
+    ],
+    "returnType": "java.nio.file.DirectoryStream",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.realpath/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "realpath",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.readlink/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.readlink/privapp_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixFileSystem.createFileExclusively/privapp_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "createFileExclusively",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
   // The own device of Wi-Fi Direct with the name users give the device (see wifip2pdevice_name)
   {
     "collection": "Privacy",
@@ -10817,6 +11442,19 @@
     "methodName": "toString",
     "parameterTypes": [],
     "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkRequest.Builder.addTransportType",
+    "author": "akano12",
+    "className": "android.net.NetworkRequest$Builder",
+    "methodName": "addTransportType",
+    "parameterTypes": [
+      "int"
+    ],
     "minSdk": 27,
     "luaScript": "@vpn"
   },
@@ -11592,30 +12230,6 @@
     "luaScript": "@settingssecure_getstring"
   },
   // Ids of SD cards and USB drives
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "StorageVolume.getUuid",
-    "author": "akano12",
-    "className": "android.os.storage.StorageVolume",
-    "methodName": "getUuid",
-    "parameterTypes": [],
-    "returnType": "java.lang.String",
-    "minSdk": 27,
-    "luaScript": "@storage_uuid"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Identifiers",
-    "name": "StorageVolume.getStorageUuid",
-    "author": "akano12",
-    "className": "android.os.storage.StorageVolume",
-    "methodName": "getStorageUuid",
-    "parameterTypes": [],
-    "returnType": "java.util.UUID",
-    "minSdk": 31,
-    "luaScript": "@storage_uuid"
-  },
   // Battery
   {
     "collection": "Privacy",

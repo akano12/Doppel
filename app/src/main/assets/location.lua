@@ -17,10 +17,11 @@
 -- Copyright 2026 akano12
 
 -- The location of a parcel, like of a location update, also of an extra of an intent,
--- becomes the location set, a coarse location or 0, 0
+-- becomes the location set, a coarse location or 0, 0. Only locations of the providers of the system: a location
+-- the app made itself, like a place picked on a map, passed between its screens, stays.
 function after(hook, param)
     local result = param:getResult()
-    if result == nil then
+    if result == nil or not fromsystem(param, result) then
         return false
     end
 
@@ -69,6 +70,23 @@ function after(hook, param)
     result:setExtras(nil)
 
     return true, old, result
+end
+
+-- The providers of Android and of Google Play services, and the others of the device
+local PROVIDERS = { gps = true, network = true, fused = true, passive = true }
+
+function fromsystem(param, location)
+    local provider = location:getProvider()
+    if provider == nil then
+        return false
+    end
+    if PROVIDERS[provider] then
+        return true
+    end
+    local ok, all = pcall(function()
+        return param:getApplicationContext():getSystemService('location'):getAllProviders()
+    end)
+    return ok and all ~= nil and all:contains(provider)
 end
 
 function snaptogrid(latitude, longitude, size)

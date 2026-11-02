@@ -138,10 +138,13 @@ local HIDDEN = {
                   '/system/app/Superuser.apk', '/system/app/Superuser/*', '/system/app/SuperSU/*',
                   '/system/bin/magisk*', '/system/bin/resetprop', '/system/bin/supolicy', '/sbin/magisk*',
                   '/sbin/.magisk*', '/debug_ramdisk/*', '/data/adb/*' },
+    -- The files of the features and of the permissions of system apps (Read.Features, Get.Applications)
+    features = { '*/etc/permissions', '*/etc/permissions/*', '*/etc/sysconfig', '*/etc/sysconfig/*' },
+    packages = { '*/etc/permissions/privapp-permissions-*' },
 }
-local HIDING = { 'identifiers', 'tracking', 'biometrics', 'network', 'debugging' }
+local HIDING = { 'identifiers', 'tracking', 'biometrics', 'network', 'debugging', 'features', 'packages' }
 -- Parts of the texts which can name a file of HIDDEN
-local SPECIAL = { 'sys/', 'net/', 'proc/', 'su', 'magisk', 'debug_ramdisk', 'Super', 'adb/' }
+local SPECIAL = { 'sys/', 'net/', 'proc/', 'su', 'magisk', 'debug_ramdisk', 'Super', 'adb/', 'etc/' }
 
 -- The commands listing the addresses, routes and neighbours of the interfaces, from netlink and /proc/net, which
 -- apps can run on Android 10 and before and apps for those versions later; for Read.Network they fail like there

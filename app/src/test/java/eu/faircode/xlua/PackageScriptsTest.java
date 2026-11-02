@@ -261,6 +261,55 @@ public class PackageScriptsTest {
         assertTrue(hidden.arg(2).isnil());
     }
 
+    // An intent any app may handle, like a link, of which a hidden app is the default, gives the chooser of Android,
+    // so a check whether an app can open it does not fail; an intent for a hidden app itself gives nothing
+    @Test
+    public void linksOfHiddenDefaultsGiveTheChooser() throws Exception {
+        Globals globals = load("package_resolve");
+        // The Android classes are stand-ins, like the rest of the stubs
+        String setup = "local base = luajava.newInstance\n" +
+                "luajava.newInstance = function(name, ...)\n" +
+                "  if name == 'android.content.pm.ActivityInfo' or name == 'android.content.pm.ResolveInfo' then\n" +
+                "    return { class = name } end\n" +
+                "  return base(name, ...) end\n" +
+                "local pm = { getApplicationInfo = function(self, name, flags) return { packageName = name } end }\n" +
+                "local context = { getPackageManager = function(self) return pm end }\n" +
+                "local function intentof(package) return { getComponent = function(self) return nil end,\n" +
+                "  getPackage = function(self) return package end } end\n" +
+                "local function resolve(intent)\n" +
+                "  local param = paramof({ [0] = intent }, {}, context)\n" +
+                "  param.unhooked = function(self, fn) return fn() end\n" +
+                "  param.result = { activityInfo = { packageName = 'org.mozilla.firefox' } }\n" +
+                "  local restricted = after(hookof('PackageManager.resolveActivity', 'resolveActivity'), param)\n" +
+                "  return restricted, param.result\n" +
+                "end\n";
+        Varargs link = Scripts.run(globals, setup +
+                "local restricted, result = resolve(intentof(nil))\n" +
+                "return restricted, result.activityInfo.packageName, result.activityInfo.name");
+        assertTrue(link.arg(1).toboolean());
+        assertEquals("android", link.arg(2).tojstring());
+        assertEquals("com.android.internal.app.ResolverActivity", link.arg(3).tojstring());
+        Varargs app = Scripts.run(globals, setup +
+                "local restricted, result = resolve(intentof('org.mozilla.firefox'))\n" +
+                "return restricted, result");
+        assertTrue(app.arg(1).toboolean());
+        assertTrue(app.arg(2).isnil());
+    }
+
+    // The apps which sync, like com.whatsapp, of which the hidden ones are left out
+    @Test
+    public void syncAdaptersOfHiddenAppsAreLeftOut() throws Exception {
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local function syncof(name) return { getPackageName = function(self) return name end } end\n" +
+                        "local param = paramof({}, { ['com.google.android.gms'] = true })\n" +
+                        "param.findClass = function(self, name) return name end\n" +
+                        "param.result = { length = 3, syncof('com.google.android.gms'), syncof('com.whatsapp'), syncof(nil) }\n" +
+                        "local restricted = after(hookof('ContentResolver.getSyncAdapterTypes', 'getSyncAdapterTypes'), param)\n" +
+                        "return restricted, param.result['length']");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(2, result.arg(2).toint());
+    }
+
     // Like for a user id which is not in use
     @Test
     public void signaturesOfHiddenUid() throws Exception {

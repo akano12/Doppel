@@ -34,7 +34,8 @@ import static org.junit.Assert.assertTrue;
 public class LocationScriptTest {
     private static final String STUBS = String.join("\n",
             "function location(latitude, longitude)",
-            "  return { latitude = latitude, longitude = longitude, altitude = 12, extras = {},",
+            "  return { latitude = latitude, longitude = longitude, altitude = 12, extras = {}, provider = 'gps',",
+            "    getProvider = function(self) return self.provider end,",
             "    getLatitude = function(self) return self.latitude end,",
             "    getLongitude = function(self) return self.longitude end,",
             "    setLatitude = function(self, value) self.latitude = value end,",
@@ -55,6 +56,32 @@ public class LocationScriptTest {
     @Before
     public void load() throws Exception {
         globals = Scripts.load("location", STUBS);
+    }
+
+    // A location the app made itself, like a place picked on a map passed between its screens, stays; one of a
+    // provider of the system, also one the device names only, becomes the fake one
+    @Test
+    public void ownLocationsStay() throws Exception {
+        Varargs result = Scripts.run(globals,
+                "local own = location(52.1, 4.3)\n" +
+                        "own.provider = 'picker'\n" +
+                        "local context = { getSystemService = function(self, name) return {\n" +
+                        "  getAllProviders = function(self) return { contains = function(self, p) return p == 'vendor' end } end } end }\n" +
+                        "local function paramwith(result) local param = paramof(result, {})\n" +
+                        "  param.getApplicationContext = function(self) return context end return param end\n" +
+                        "local mine = after(nil, paramwith(own))\n" +
+                        "local vendor = location(52.1, 4.3)\n" +
+                        "vendor.provider = 'vendor'\n" +
+                        "local fused = location(52.1, 4.3)\n" +
+                        "fused.provider = 'fused'\n" +
+                        "return mine, own.latitude, after(nil, paramwith(vendor)), vendor.latitude,\n" +
+                        "  after(nil, paramwith(fused)), fused.latitude");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals(52.1, result.arg(2).todouble(), 0);
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(0, result.arg(4).todouble(), 0);
+        assertTrue(result.arg(5).toboolean());
+        assertEquals(0, result.arg(6).todouble(), 0);
     }
 
     // Callbacks with cell info are registered for their other events, like the call state, and their method of the cell

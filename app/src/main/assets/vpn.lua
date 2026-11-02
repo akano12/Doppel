@@ -124,6 +124,19 @@ function withnotvpn(names)
     return table.concat(list, '&')
 end
 
+-- A request for VPN networks, like NetworkRequest.Builder().addTransportType(TRANSPORT_VPN) for a callback when a VPN
+-- connects, which Android matches itself: for LoWPAN instead, which phones do not have, so it finds no network
+local TRANSPORT_VPN = 4
+local TRANSPORT_LOWPAN = 6
+
+function before(hook, param)
+    if hook:getMethodName() == 'addTransportType' and param:getArgument(0) == TRANSPORT_VPN then
+        param:setArgument(0, TRANSPORT_LOWPAN)
+        return true, tostring(TRANSPORT_VPN), tostring(TRANSPORT_LOWPAN)
+    end
+    return false
+end
+
 function after(hook, param)
     if nested.running then
         return false
