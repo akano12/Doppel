@@ -18,11 +18,9 @@
 -- The names of the codecs name the vendor of the chip, like c2.qti.avc.decoder (Qualcomm), c2.exynos.h264.decoder
 -- (Samsung) and OMX.MTK.VIDEO.DECODER.AVC (MediaTek), which narrows down the model. The vendor becomes hw, like
 -- c2.hw.avc.decoder; the codecs of Android itself (android, google) stay. What the codecs can do stays, since
--- players choose codecs by it. Media libraries get the real names, since they work around bugs of codecs by
--- their names (ExoPlayer, Media3); a fake name an app opens a codec with is the real one again.
+-- players choose codecs by it. Media libraries get the fake names too, which turns off their workarounds of bugs of
+-- codecs by name (ExoPlayer, Media3); a fake name an app opens a codec with is the real one again.
 -- Not covered is native code (NDK AMediaCodec).
-
-local LIBRARIES = { 'com.google.android.exoplayer2.', 'androidx.media3.', 'androidx.media.' }
 
 -- The fake name of a codec, the same for the same name, so that a fake name stays a fake name
 function fakename(name)
@@ -38,20 +36,6 @@ function fakename(name)
         return name
     end
     return first .. '.hw.' .. rest
-end
-
--- Whether a media library asks, which keeps the real names
-function library()
-    local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
-    for index = 1, frames['length'] do
-        local class = frames[index]:getClassName()
-        for _, prefix in ipairs(LIBRARIES) do
-            if string.sub(class, 1, string.len(prefix)) == prefix then
-                return true
-            end
-        end
-    end
-    return false
 end
 
 -- The real name of a fake name, by the names of all codecs, else the name as it is
@@ -98,7 +82,7 @@ function after(hook, param)
     end
     local result = param:getResult()
     local fake = fakename(result)
-    if fake == nil or fake == result or library() then
+    if fake == nil or fake == result then
         return false
     end
     param:setResult(fake)

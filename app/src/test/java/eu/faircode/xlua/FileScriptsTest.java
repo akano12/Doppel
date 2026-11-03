@@ -354,11 +354,17 @@ public class FileScriptsTest {
                         "local restricted, left = after(nil, param)\n" +
                         "return restricted, left, param.text, after(nil, x86), x86.set, after(nil, other), other.set,\n" +
                         "  filter(nil)[1]");
+        // Without the lines of the cores and the chip, 8 processors like Runtime.availableProcessors
+        StringBuilder eight = new StringBuilder();
+        for (int i = 0; i < 8; i++)
+            eight.append("processor\t: ").append(i).append("\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 " +
+                    "atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop\nCPU architecture: 8\n\n");
         assertTrue(result.arg(1).toboolean());
-        assertEquals("2", result.arg(2).tojstring());
-        assertEquals(cores, result.arg(3).tojstring());
-        assertFalse(result.arg(4).toboolean());
-        assertFalse(result.arg(5).toboolean());
+        assertEquals("12", result.arg(2).tojstring());
+        assertEquals(eight.toString(), result.arg(3).tojstring());
+        // x86: the model and bogomips go, one processor becomes 8
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
         assertFalse(result.arg(6).toboolean());
         assertFalse(result.arg(7).toboolean());
         assertEquals("*cpuinfo*", result.arg(8).tojstring());

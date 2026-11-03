@@ -131,15 +131,14 @@ public class DeviceValuesScriptTest {
                     "'get'), paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))").arg1().toboolean());
     }
 
-    // The OpenGL strings without the model of the chip and the build of the driver; the family and version stay
+    // The OpenGL strings without the chip, its family and the build of the driver; the version stays
     @Test
-    public void graphicsStringsOnlyNameTheFamily() throws Exception {
+    public void graphicsStringsNameNoChip() throws Exception {
         Globals globals = load("gles_getstring");
-        String[][] cases = {{"7937", "Adreno (TM) 740", "Adreno"}, {"7937", "Mali-G715-Immortalis MC11", "Mali"},
-                {"7937", "PowerVR Rogue GE8320", "PowerVR Rogue"},
-                {"7937", "Android Emulator OpenGL ES Translator (NVIDIA GeForce RTX 5060 Laptop GPU)",
-                        "Android Emulator OpenGL ES Translator"},
-                {"7937", "740", "unknown"}, {"7936", "Google (NVIDIA Corporation)", "Google"},
+        String[][] cases = {{"7937", "Adreno (TM) 740", "unknown"}, {"7937", "Mali-G715-Immortalis MC11", "unknown"},
+                {"7937", "PowerVR Rogue GE8320", "unknown"},
+                {"7937", "Android Emulator OpenGL ES Translator (NVIDIA GeForce RTX 5060 Laptop GPU)", "unknown"},
+                {"7936", "Google (NVIDIA Corporation)", "unknown"}, {"7936", "Qualcomm", "unknown"},
                 {"7938", "OpenGL ES 3.2 V@0502.0 (GIT@4f7d2a8, I8bd1c1a3b0, 1681374963) (Date:04/13/23)", "OpenGL ES 3.2"}};
         for (String[] c : cases) {
             Varargs result = Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
@@ -147,9 +146,9 @@ public class DeviceValuesScriptTest {
             assertTrue(c[1], result.arg1().toboolean());
             assertEquals(c[1], c[2], result.arg(2).tojstring());
         }
-        // Already without a model, like Qualcomm, and other strings, like the extensions, stay
+        // Already unknown, and extensions of Khronos only, stay
         assertFalse(Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
-                "paramof('Qualcomm', { [0] = 7936 }))").arg1().toboolean());
+                "paramof('unknown', { [0] = 7936 }))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
                 "paramof('GL_OES_EGL_image', { [0] = 7939 }))").arg1().toboolean());
     }

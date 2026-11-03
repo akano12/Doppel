@@ -16110,41 +16110,6 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
-    "name": "GLES20.glGetIntegerv",
-    "author": "akano12",
-    "className": "android.opengl.GLES20",
-    "methodName": "glGetIntegerv",
-    "parameterTypes": [
-      "int",
-      "int[]",
-      "int"
-    ],
-    "returnType": "void",
-    "minSdk": 27,
-    "usage": false,
-    "excludePackages": "android",
-    "luaScript": "@gles_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "GLES20.glGetIntegerv/buffer",
-    "author": "akano12",
-    "className": "android.opengl.GLES20",
-    "methodName": "glGetIntegerv",
-    "parameterTypes": [
-      "int",
-      "java.nio.IntBuffer"
-    ],
-    "returnType": "void",
-    "minSdk": 27,
-    "usage": false,
-    "excludePackages": "android",
-    "luaScript": "@gles_getstring"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
     "name": "EGL14.eglQueryString",
     "author": "akano12",
     "className": "android.opengl.EGL14",
@@ -17086,5 +17051,136 @@
     "optional": true,
     "excludePackages": "android",
     "luaScript": "@device_details"
+  },
+  // The configuration of the fonts without the families of device makers (font_config)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.open/font_config",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@font_config"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.open/font_config",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@font_config"
+  },
+  // The details of the vibrator and the screen lock (device_details)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Vibrator.getInfo",
+    "author": "akano12",
+    "className": "android.os.Vibrator",
+    "methodName": "getInfo",
+    "parameterTypes": [],
+    "returnType": "android.os.VibratorInfo",
+    "minSdk": 31,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemVibrator.getInfo",
+    "author": "akano12",
+    "className": "android.os.SystemVibrator",
+    "methodName": "getInfo",
+    "parameterTypes": [],
+    "returnType": "android.os.VibratorInfo",
+    "minSdk": 31,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "KeyguardManager.isDeviceSecure",
+    "author": "akano12",
+    "className": "android.app.KeyguardManager",
+    "methodName": "isDeviceSecure",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "KeyguardManager.isKeyguardSecure",
+    "author": "akano12",
+    "className": "android.app.KeyguardManager",
+    "methodName": "isKeyguardSecure",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  // The location columns of MediaStore, which Android 10 and later leave empty (photo_location)
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ContentResolver.query26/photos",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ContentProviderClient.query26/photos",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
   }
 ]

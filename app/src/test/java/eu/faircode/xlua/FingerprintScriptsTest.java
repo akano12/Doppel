@@ -121,31 +121,49 @@ public class FingerprintScriptsTest {
         assertEquals("GL_OES_EGL_image GL_EXT_color_buffer_float GL_KHR_debug GL_ANDROID_extension_pack_es31a GL_OVR_multiview ",
                 result.arg(2).tojstring());
 
-        // EGL: the name is the second argument; the vendor stays
+        // EGL: the name is the second argument; the vendor is unknown, the version stays
         result = Scripts.run(globals, "local p = paramof('EGL_KHR_image EGL_QCOM_create_image EGL_ANDROID_recordable', { [0] = 'display', [1] = 12373 })\n" +
                 "local restricted = after(hookof('eglQueryString'), p)\n" +
-                "return restricted, p.result, after(hookof('eglQueryString'), paramof('Qualcomm Inc.', { [0] = 'display', [1] = 12371 }))");
+                "local vendor = paramof('Qualcomm Inc.', { [0] = 'display', [1] = 12371 })\n" +
+                "after(hookof('eglQueryString'), vendor)\n" +
+                "return restricted, p.result, vendor.result,\n" +
+                "  after(hookof('eglQueryString'), paramof('1.4 Android META-EGL', { [0] = 'display', [1] = 12372 }))");
         assertTrue(result.arg1().toboolean());
         assertEquals("EGL_KHR_image EGL_ANDROID_recordable", result.arg(2).tojstring());
-        assertFalse(result.arg(3).toboolean());
+        assertEquals("unknown", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
 
-        // By index and the number of extensions: those of the kept ones
+        // By index: the kept ones, beyond them an empty name
         result = Scripts.run(globals,
                 "luajava.bindClass = function(name) return { glGetString = function(self, n) return '" + real + "' end } end\n" +
                         "local second = paramof('GL_QCOM_tiled_rendering', { [0] = 7939, [1] = 1 })\n" +
                         "after(hookof('glGetStringi'), second)\n" +
                         "local beyond = paramof('GL_IMG_texture_compression_pvrtc', { [0] = 7939, [1] = 7 })\n" +
                         "after(hookof('glGetStringi'), beyond)\n" +
-                        "local counts = { 8 }\n" +
-                        "local count = paramof(nil, { [0] = 33309, [1] = counts, [2] = 0 })\n" +
-                        "after(hookof('glGetIntegerv'), count)\n" +
-                        "local others = { 4 }\n" +
-                        "after(hookof('glGetIntegerv'), paramof(nil, { [0] = 3379, [1] = others, [2] = 0 }))\n" +
-                        "return second.result, beyond.result, counts[1], others[1]");
+                        "return second.result, beyond.result");
         assertEquals("GL_EXT_color_buffer_float", result.arg1().tojstring());
         assertEquals("", result.arg(2).tojstring());
-        assertEquals(5, result.arg(3).toint());
-        assertEquals(4, result.arg(4).toint());
+    }
+
+    // Older kernels print the lines of all processors in one block, under Processor with the revision of the core
+    @Test
+    public void cpuinfoOfOlderKernels() throws Exception {
+        Globals globals = load("cpuinfo");
+        String old = "Processor\t: AArch64 Processor rev 4 (aarch64)\nprocessor\t: 0\nprocessor\t: 1\nprocessor\t: 2\n" +
+                "processor\t: 3\nFeatures\t: fp asimd\nCPU implementer\t: 0x51\nCPU part\t: 0x801\n\n" +
+                "Hardware\t: Qualcomm Technologies, Inc MSM8998\n";
+        Varargs result = Scripts.run(globals, "local text, left = kept([[" + old + "]])\n" +
+                "local eight, counted = processors(text)\n" +
+                "return left, eight, counted, processors('processor\\t: 0\\nprocessor\\t: 1\\n" +
+                "processor\\t: 2\\nprocessor\\t: 3\\nprocessor\\t: 4\\nprocessor\\t: 5\\nprocessor\\t: 6\\nprocessor\\t: 7\\n')");
+        assertEquals(4, result.arg1().toint());
+        StringBuilder expected = new StringBuilder();
+        for (int i = 0; i < 8; i++)
+            expected.append("processor\t: ").append(i).append('\n');
+        expected.append("Features\t: fp asimd\n\n");
+        assertEquals(expected.toString(), result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertFalse(result.arg(5).toboolean());
     }
 
     @Test
@@ -221,11 +239,89 @@ public class FingerprintScriptsTest {
         assertTrue(Scripts.run(properties, "return heap('0.75')").arg1().isnil());
         result = Scripts.run(properties, "local p = paramof('576m', { [0] = 'dalvik.vm.heapsize' })\n" +
                 "local restricted = after(hookof('SystemProperties.get/resources'), p)\n" +
-                "return restricted, p.result, after(hookof('SystemProperties.get/resources'), " +
-                "paramof('0.75', { [0] = 'dalvik.vm.heaptargetutilization' }))");
+                "local target = paramof('0.75', { [0] = 'dalvik.vm.heaptargetutilization' })\n" +
+                "after(hookof('SystemProperties.get/resources'), target)\n" +
+                "return restricted, p.result, target.result, after(hookof('SystemProperties.get/resources'), " +
+                "paramof('0.5', { [0] = 'dalvik.vm.heaptargetutilization' }))");
         assertTrue(result.arg1().toboolean());
         assertEquals("512m", result.arg(2).tojstring());
-        assertFalse(result.arg(3).toboolean());
+        assertEquals("0.5", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+    }
+
+    // getprop of the shell rounds the heap like systemproperties_get: each size of 1 to 9999 megabytes matches the
+    // command of its step only, and the other settings have the same values
+    @Test
+    public void shellHeapLikeProperties() throws Exception {
+        assertEquals(list("systemproperties_get", "STEPS"), list("shell_commands", "STEPS"));
+        Matcher other = Pattern.compile("local OTHERHEAP = \\{(.*?)\\}\\s*\\n\\s*local", Pattern.DOTALL)
+                .matcher(Scripts.read("systemproperties_get"));
+        assertTrue(other.find());
+        for (String[] c : new String[][]{{"dalvik.vm.heapstartsize", "16m"}, {"dalvik.vm.heapminfree", "8m"},
+                {"dalvik.vm.heapmaxfree", "32m"}, {"dalvik.vm.heaptargetutilization", "0.5"}}) {
+            assertTrue(c[0], other.group(1).contains("['" + c[0] + "'] = '" + c[1] + "'"));
+            assertTrue(c[0], Scripts.read("shell_commands").contains("{ '" + c[1] + "', { '" + c[0] + "' } }"));
+        }
+        Globals shell = Scripts.load("shell_commands", null);
+        Varargs commands = Scripts.run(shell, "return table.concat(heapcommands('dalvik.vm.heapsize'), '\\n')");
+        java.util.List<Pattern> patterns = new java.util.ArrayList<>();
+        java.util.List<String> steps = new java.util.ArrayList<>();
+        for (String command : commands.arg1().tojstring().split("\n")) {
+            Matcher m = Pattern.compile("^s/(.*)/\\[\\\\1\\]: \\[(.*)\\]/$").matcher(command);
+            assertTrue(command, m.matches());
+            patterns.add(Pattern.compile(m.group(1).replace("\\(", "(").replace("\\)", ")")));
+            steps.add(m.group(2));
+        }
+        int[] limits = {128, 192, 256, 384, 512};
+        for (int n = 1; n <= 9999; n++) {
+            String line = "[dalvik.vm.heapsize]: [" + n + "m]";
+            String expected = null;
+            for (int limit : limits)
+                if (n >= limit)
+                    expected = limit + "m";
+            int matches = 0;
+            String got = null;
+            for (int i = 0; i < patterns.size(); i++)
+                if (patterns.get(i).matcher(line).matches()) {
+                    matches++;
+                    got = steps.get(i);
+                }
+            assertEquals(line, expected == null ? 0 : 1, matches);
+            assertEquals(line, expected, got);
+        }
+        assertTrue(patterns.get(patterns.size() - 1).matcher("[dalvik.vm.heapsize]: [2g]").matches());
+    }
+
+    @Test
+    public void fontConfigWithoutMakers() throws Exception {
+        assertEquals(list("hardware_files", "FONTS"), list("font_config", "FONTS"));
+        assertEquals(list("hardware_files", "FONTS"), list("shell_commands", "FONTS"));
+        Globals globals = load("font_config");
+        String xml = "<familyset>\n" +
+                "    <family name=\"sans-serif\">\n        <font weight=\"400\" style=\"normal\">Roboto-Regular.ttf</font>\n    </family>\n" +
+                "    <family name=\"sec\">\n        <font weight=\"400\" style=\"normal\">SECRobotoLight-Regular.ttf\n" +
+                "            <axis tag=\"wght\" stylevalue=\"400\" />\n        </font>\n    </family>\n" +
+                "    <alias name=\"sec-light\" to=\"sec\" weight=\"300\" />\n" +
+                "    <alias name=\"sans-serif-thin\" to=\"sans-serif\" weight=\"100\" />\n" +
+                "    <family lang=\"und-Zsye\">\n        <font weight=\"400\" style=\"normal\">NotoColorEmoji.ttf</font>\n    </family>\n" +
+                "</familyset>\n";
+        Varargs result = Scripts.run(globals, "local text, count = filtered([[" + xml + "]])\n" +
+                "local function path(p) return { getArgument = function(self) return p end } end\n" +
+                "return text, count, config(path('/system/etc/fonts.xml')), config(path('/product/etc/fonts_customization.xml')),\n" +
+                "  config(path('/system/etc/font_fallback.xml')), config(path('/data/user/0/app/files/fonts.xml')),\n" +
+                "  config(path('/system/etc/hosts'))");
+        String text = result.arg1().tojstring();
+        assertEquals(1, result.arg(2).toint());
+        assertTrue(text.contains("Roboto-Regular.ttf"));
+        assertTrue(text.contains("NotoColorEmoji.ttf"));
+        assertTrue(text.contains("sans-serif-thin"));
+        assertFalse(text.contains("SECRoboto"));
+        assertFalse(text.contains("sec-light"));
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
     }
 
     @Test
@@ -264,6 +360,36 @@ public class FingerprintScriptsTest {
         assertEquals(-1, result.arg(9).toint());
         assertTrue(result.arg(10).isnil());
         assertFalse(result.arg(11).toboolean());
+
+        // The location columns of MediaStore are null, the others stay; other providers stay
+        result = Scripts.run(globals,
+                "luajava.newInstance = function(name, columns)\n" +
+                        "  local rows = {}\n" +
+                        "  return { rows = rows, newRow = function(self)\n" +
+                        "      local row = {} rows[#rows + 1] = row\n" +
+                        "      return { add = function(self, v) row[#row + 1] = (v == nil and 'NULL' or v) end } end,\n" +
+                        "    moveToPosition = function(self, p) end }\n" +
+                        "end\n" +
+                        "local function uri(authority) return { getAuthority = function(self) return authority end } end\n" +
+                        "local function cursor()\n" +
+                        "  local data = { { '1', 52.5, 13.4 } }\n" +
+                        "  local names = { 'title', 'latitude', 'longitude' }\n" +
+                        "  local position = -1\n" +
+                        "  return { getColumnIndex = function(self, n) for i, c in ipairs(names) do if c == n then return i - 1 end end return -1 end,\n" +
+                        "    getColumnNames = function(self) return { length = 3 } end, getPosition = function(self) return position end,\n" +
+                        "    moveToPosition = function(self, p) position = p end,\n" +
+                        "    moveToNext = function(self) position = position + 1 return position < #data end,\n" +
+                        "    getType = function(self, i) return i == 0 and 3 or 2 end,\n" +
+                        "    getString = function(self, i) return data[position + 1][i + 1] end,\n" +
+                        "    getDouble = function(self, i) return data[position + 1][i + 1] end, close = function(self) end }\n" +
+                        "end\n" +
+                        "local media = paramof(cursor(), { [0] = uri('media') })\n" +
+                        "local restricted = after(hookof('query'), media)\n" +
+                        "return restricted, table.concat(media.result.rows[1], ','),\n" +
+                        "  after(hookof('query'), paramof(cursor(), { [0] = uri('com.android.contacts') }))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("1,NULL,NULL", result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
     }
 
     @Test
@@ -317,7 +443,8 @@ public class FingerprintScriptsTest {
                         "  table.concat(filter(hookof('containsAlias')), ','), filter(hookof('aliases'))");
         assertTrue(result.arg1().toboolean());
         assertEquals(0, result.arg(2).toint());
-        assertEquals("48000", result.arg(3).tojstring());
+        // The sample rate stays, the frames per buffer are common
+        assertEquals("44100", result.arg(3).tojstring());
         assertEquals("256", result.arg(4).tojstring());
         assertFalse(result.arg(5).toboolean());
         assertEquals(3, result.arg(6).toint());
@@ -327,5 +454,21 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(10).toboolean());
         assertEquals("user:*", result.arg(11).tojstring());
         assertTrue(result.arg(12).isnil());
+
+        // The screen lock is set; the details of the vibrator are empty, by the constant or else built
+        result = Scripts.run(globals,
+                "local secure = paramof(false)\n" +
+                        "after(hookof('isDeviceSecure'), secure)\n" +
+                        "local constant = paramof({ getId = function(self) return 1 end })\n" +
+                        "luajava.bindClass = function(name) return { EMPTY_VIBRATOR_INFO = 'empty' } end\n" +
+                        "after(hookof('getInfo'), constant)\n" +
+                        "local built = paramof({ getId = function(self) return 1 end })\n" +
+                        "luajava.bindClass = function(name) error('no field') end\n" +
+                        "luajava.newInstance = function(name, id) return { build = function(self) return 'built' .. id end } end\n" +
+                        "after(hookof('getInfo'), built)\n" +
+                        "return secure.result, constant.result, built.result");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("empty", result.arg(2).tojstring());
+        assertEquals("built1", result.arg(3).tojstring());
     }
 }

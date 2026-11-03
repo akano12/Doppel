@@ -285,6 +285,43 @@ public class ShellCommandsScriptTest {
         assertEquals(expected.toString(), run(start("getprop")).out);
     }
 
+    // The heap of apps like systemproperties_get: the sizes rounded down to a step, the other settings common
+    @Test
+    public void getpropRoundsTheHeap() throws Exception {
+        tools().properties("[dalvik.vm.heapsize]: [576m]\n[dalvik.vm.heapgrowthlimit]: [200m]\n" +
+                "[dalvik.vm.heapstartsize]: [8m]\n[dalvik.vm.heaptargetutilization]: [0.75]\n[dalvik.vm.heapmaxfree]: [16m]\n");
+        assertEquals("512m\n", run(start("getprop", "dalvik.vm.heapsize")).out);
+        assertEquals("192m\n", run(start("getprop", "dalvik.vm.heapgrowthlimit")).out);
+        assertEquals("16m\n", run(start("getprop", "dalvik.vm.heapstartsize")).out);
+        assertEquals("0.5\n", run(start("getprop", "dalvik.vm.heaptargetutilization")).out);
+        String all = run(start("getprop")).out;
+        assertTrue(all, all.contains("[dalvik.vm.heapsize]: [512m]"));
+        assertTrue(all, all.contains("[dalvik.vm.heapmaxfree]: [32m]"));
+    }
+
+    // The fonts of device makers: ls of a fonts folder of the system leaves them out, readers find no such file;
+    // the filter of ls runs with sed -E of the device
+    @Test
+    public void fontsOfMakersAreNotListed() throws Exception {
+        String ls = String.join(" ", command(start("ls", "/system/fonts")));
+        assertTrue(ls, ls.contains("/system/fonts*"));
+        assertTrue(ls, ls.contains("Roboto|Noto|DroidSans"));
+        String cat = String.join(" ", command(start("cat", "/system/fonts/SamsungOne-400.ttf")));
+        assertTrue(cat, cat.contains("*/fonts/Roboto*"));
+        assertTrue(cat, cat.contains("/system/fonts/*") && cat.contains("__xlua_files cat"));
+        // An own font of the app is not a font of the system
+        assertFalse(String.join(" ", command(start("cat", "/data/user/0/app/files/fonts/Brand.ttf"))).contains("__xlua_files"));
+
+        tools();
+        Matcher filter = Pattern.compile("sed -E '([^']*)'").matcher(ls);
+        assertTrue(ls, filter.find());
+        Result result = run(Arrays.asList("sh", "-c", "printf 'Roboto-Regular.ttf\\nSamsungOne-400.ttf\\nfonts.xml\\n" +
+                "-rw-r--r-- 1 root root 1 2026-01-01 00:00 NotoSansCJK-Regular.ttc\\n" +
+                "-rw-r--r-- 1 root root 1 2026-01-01 00:00 MiSansVF.ttf\\n' | /system/bin/sed -E '" + filter.group(1) + "'"), null);
+        assertEquals("Roboto-Regular.ttf\nfonts.xml\n-rw-r--r-- 1 root root 1 2026-01-01 00:00 NotoSansCJK-Regular.ttc\n",
+                result.out);
+    }
+
     @Test
     public void getpropPrintsFakeValues() throws Exception {
         tools().properties("[ro.product.model]: [Pixel 9]\n[ro.vendor.build.security_patch]: [2025-11-01]\n" +

@@ -19,9 +19,60 @@
 -- the location of photos for apps without ACCESS_MEDIA_LOCATION, unless they ask for the original
 -- (MediaStore.setRequireOriginal): the app gets the photo without it then, like an app without the permission.
 -- ExifInterface of Android, of AndroidX and of the support library gives no GPS tags (like a photo without them),
--- MediaMetadataRetriever no location of videos. Not covered are apps reading the bytes of photos themselves
--- and the location columns of MediaStore of Android 8.1 and 9.
+-- MediaMetadataRetriever no location of videos. The location columns of MediaStore (latitude, longitude), which
+-- Android 10 and later leave empty, are empty on Android 8.1 and 9 too. Not covered are apps reading the bytes of
+-- photos themselves.
 local METADATA_KEY_LOCATION = 23
+local COLUMNS = { 'latitude', 'longitude' }
+
+-- A query of the media provider with the location columns: the rows without the location, null like for a photo
+-- without it
+function query(param)
+    local uri = param:getArgument(0)
+    local result = param:getResult()
+    if uri == nil or result == nil or uri:getAuthority() ~= 'media' then
+        return false
+    end
+    local hidden = {}
+    local any = false
+    for _, name in ipairs(COLUMNS) do
+        local index = result:getColumnIndex(name)
+        if index >= 0 then
+            hidden[index] = true
+            any = true
+        end
+    end
+    if not any then
+        return false
+    end
+    local columns = result:getColumnNames()
+    local fake = luajava.newInstance('android.database.MatrixCursor', columns)
+    local position = result:getPosition()
+    result:moveToPosition(-1)
+    while result:moveToNext() do
+        local row = fake:newRow()
+        for index = 0, columns['length'] - 1 do
+            local kind = result:getType(index)
+            local value = nil
+            if hidden[index] or kind == 0 then
+                value = nil
+            elseif kind == 1 then
+                value = result:getLong(index)
+            elseif kind == 2 then
+                value = result:getDouble(index)
+            elseif kind == 4 then
+                value = result:getBlob(index)
+            else
+                value = result:getString(index)
+            end
+            row:add(value)
+        end
+    end
+    result:close()
+    fake:moveToPosition(position)
+    param:setResult(fake)
+    return true
+end
 
 -- Whether a tag of EXIF is of the location, like GPSLatitude, GPSAltitude and GPSDateStamp
 function gps(tag)
@@ -33,6 +84,9 @@ function after(hook, param)
         return false
     end
     local method = hook:getMethodName()
+    if method == 'query' then
+        return query(param)
+    end
     local result = param:getResult()
     local fake
     if method == 'setRequireOriginal' then

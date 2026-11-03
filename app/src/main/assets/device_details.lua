@@ -17,14 +17,16 @@
 
 -- Small details of the device which together set it apart, with the values of a plain device:
 -- - the heat (PowerManager): no thermal headroom known (NaN, like devices without the HAL), no throttling (0);
--- - the audio output: 48000 Hz and 256 frames per buffer, which most devices have; apps with low latency audio
---   size their buffers by the frames, which a multiple of the burst of the device keeps working;
+-- - the audio output: 256 frames per buffer, which tells the audio chip; the sample rate stays, which is 48000
+--   or 44100 Hz on nearly all devices and tells little, while the app plays at it;
 -- - the vibrator: no amplitude control, effects and primitives unknown or not supported, no resonance (NaN),
 --   which apps answer with a plain vibration;
 -- - the certificates the user installed (AndroidCAStore, user: aliases), like of a VPN, proxy or ad blocker, are not
---   listed; which certificates connections trust stays.
-local PROPERTIES = { ['android.media.property.OUTPUT_SAMPLE_RATE'] = '48000',
-                     ['android.media.property.OUTPUT_FRAMES_PER_BUFFER'] = '256' }
+--   listed; which certificates connections trust stays;
+-- - the details of the vibrator of Android 12 and later (Vibrator.getInfo), which the methods above use: those of a
+--   vibrator without capabilities;
+-- - the screen lock: set (KeyguardManager.isDeviceSecure and isKeyguardSecure), like on most devices.
+local PROPERTIES = { ['android.media.property.OUTPUT_FRAMES_PER_BUFFER'] = '256' }
 
 -- The audio properties and the user certificates, so the script runs for these only (see XCore.getFilter)
 function filter(hook)
@@ -42,7 +44,7 @@ function filter(hook)
 end
 
 -- A Java array of the length of another one, of a type, with one value
-function filled(param, type, length, value)
+function filled(type, length, value)
     local array = luajava.bindClass('java.lang.reflect.Array'):newInstance(type, length)
     for index = 1, length do
         array[index] = value
@@ -84,13 +86,13 @@ function after(hook, param)
         if result == nil then
             return false
         end
-        param:setResult(filled(param, luajava.bindClass('java.lang.Integer').TYPE, result['length'], 0))
+        param:setResult(filled(luajava.bindClass('java.lang.Integer').TYPE, result['length'], 0))
         return true
     elseif method == 'arePrimitivesSupported' then
         if result == nil then
             return false
         end
-        param:setResult(filled(param, luajava.bindClass('java.lang.Boolean').TYPE, result['length'], false))
+        param:setResult(filled(luajava.bindClass('java.lang.Boolean').TYPE, result['length'], false))
         return true
     elseif method == 'aliases' then
         -- The aliases of the certificates, without those of the user
@@ -116,6 +118,26 @@ function after(hook, param)
         end
         param:setResult(luajava.newInstance('java.util.LinkedHashSet'))
         return true, tostring(result:size()), '0'
+    elseif method == 'getInfo' then
+        -- An empty VibratorInfo (hidden): of Android 13 and later its constant, else built
+        if result == nil then
+            return false
+        end
+        local ok, empty = pcall(function()
+            return luajava.bindClass('android.os.VibratorInfo').EMPTY_VIBRATOR_INFO
+        end)
+        if not ok or empty == nil then
+            ok, empty = pcall(function()
+                return luajava.newInstance('android.os.VibratorInfo$Builder', result:getId()):build()
+            end)
+        end
+        if not ok or empty == nil then
+            return false
+        end
+        param:setResult(empty)
+        return true
+    elseif method == 'isDeviceSecure' or method == 'isKeyguardSecure' then
+        fake = true
     elseif method == 'containsAlias' then
         fake = false
     elseif method == 'getCertificate' then

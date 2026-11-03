@@ -18,22 +18,83 @@
 -- Every app can read /proc/cpuinfo. Kernels of vendors add lines naming the chip, like
 -- Hardware : Qualcomm Technologies, Inc SM8550, which tells the model the other hooks fake, and some a Serial
 -- or Revision of the board. The app reads only the lines the kernel of Linux itself prints for each processor
--- (arch/*/kernel of arm, arm64, x86 and riscv), which libraries pick their code by, like Features and CPU part;
--- lines of newer or other kernels are left out until they are known. Also by other paths, see XParam.opens.
--- Not covered are native code and links of apps themselves to the file.
+-- (arch/*/kernel of arm, arm64, x86 and riscv) which do not tell the cores: the instruction sets (Features, flags,
+-- isa) and the architecture stay; the cores (CPU part, implementer, variant and revision, model and its name, the
+-- speed, the caches, BogoMIPS of the clock) go. Like Runtime.availableProcessors (see cpu_count) there are 8
+-- processors, the first one repeated; older kernels (3.x) print the lines of all processors in one block, under
+-- Processor : AArch64 Processor rev 4 (aarch64) with the revision of the core, which goes too.
+-- Lines of newer or other kernels are left out until they are known.
+-- Also by other paths, see XParam.opens. Not covered are native code and links of apps themselves to the file.
+local COUNT = 8
 local KEPT = {}
 for _, key in ipairs({
     -- arm and arm64
-    'processor', 'Processor', 'BogoMIPS', 'Features', 'CPU implementer', 'CPU architecture', 'CPU variant',
-    'CPU part', 'CPU revision', 'model name',
+    'processor', 'Features', 'CPU architecture',
     -- x86
-    'vendor_id', 'cpu family', 'model', 'stepping', 'microcode', 'cpu MHz', 'cache size', 'physical id',
-    'siblings', 'core id', 'cpu cores', 'apicid', 'initial apicid', 'fpu', 'fpu_exception', 'cpuid level', 'wp',
-    'flags', 'vmx flags', 'bugs', 'bogomips', 'TLB size', 'clflush size', 'cache_alignment', 'address sizes',
-    'power management',
+    'vendor_id', 'cpu family', 'physical id', 'siblings', 'core id', 'cpu cores', 'apicid', 'initial apicid', 'fpu',
+    'fpu_exception', 'cpuid level', 'wp', 'flags', 'vmx flags', 'bugs', 'address sizes', 'power management',
     -- riscv
-    'hart', 'isa', 'mmu', 'uarch', 'mvendorid', 'marchid', 'mimpid', 'hart isa' }) do
+    'hart', 'isa', 'mmu', 'hart isa' }) do
     KEPT[key] = true
+end
+
+-- The text with 8 processors: the block of the first one, numbered 0 to 7, like the blocks the kernel prints, and
+-- the other lines as they are; text without numbered processors stays
+function processors(text)
+    -- Older kernels: the lines of all processors in one block, which become the lines of 8 processors
+    local _, lines = string.gsub(text, '\nprocessor%s*:%s*%d+', '')
+    if string.match(text, '^processor%s*:%s*%d+') then
+        lines = lines + 1
+    end
+    local _, blocked = string.gsub('\n\n' .. text, '\n\nprocessor%s*:%s*%d+', '')
+    if lines > blocked then
+        if lines == COUNT then
+            return text, false
+        end
+        local result = {}
+        local done = false
+        for line in string.gmatch(text, '[^\n]*\n?') do
+            local name = string.match(line, '^(processor%s*:%s*)%d+')
+            if name == nil then
+                result[#result + 1] = line
+            elseif not done then
+                for index = 0, COUNT - 1 do
+                    result[#result + 1] = name .. index .. '\n'
+                end
+                done = true
+            end
+        end
+        return table.concat(result), true
+    end
+
+    local blocks = {}
+    for block in string.gmatch(text .. '\n\n', '(.-)\n\n+') do
+        if block ~= '' then
+            blocks[#blocks + 1] = block
+        end
+    end
+    local first
+    local others = {}
+    local count = 0
+    for _, block in ipairs(blocks) do
+        if string.match(block, '^processor%s*:%s*%d+') then
+            count = count + 1
+            first = first or block
+        else
+            others[#others + 1] = block
+        end
+    end
+    if first == nil or count == COUNT then
+        return text, false
+    end
+    local result = {}
+    for index = 0, COUNT - 1 do
+        result[#result + 1] = (string.gsub(first, '^(processor%s*:%s*)%d+', '%1' .. index))
+    end
+    for _, block in ipairs(others) do
+        result[#result + 1] = block
+    end
+    return table.concat(result, '\n\n') .. '\n\n', true
 end
 
 function filter(hook)
@@ -60,7 +121,9 @@ function after(hook, param)
         return false
     end
     local text, left = kept(param:getFileText())
-    if left == 0 then
+    local counted
+    text, counted = processors(text)
+    if left == 0 and not counted then
         return false
     end
     param:setFileText(text)

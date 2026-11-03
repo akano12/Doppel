@@ -109,13 +109,31 @@ local DEBUGGING = {
 }
 
 -- The variants faking properties, which getprop prints
-local PROPERTIES = { 'tracking', 'identifiers', 'timezone', 'debugging', 'locale' }
+local PROPERTIES = { 'tracking', 'identifiers', 'timezone', 'debugging', 'locale', 'resources' }
+
+-- The heap of apps, like systemproperties_get (HEAP, OTHERHEAP and STEPS, which a test compares): the sizes rounded
+-- down to a step in megabytes, the others the values of a common configuration
+local HEAP = {}
+local HEAPSIZES = { 'dalvik.vm.heapgrowthlimit', 'dalvik.vm.heapsize' }
+local STEPS = { 128, 192, 256, 384, 512 }
+local OTHERHEAP = { { '16m', { 'dalvik.vm.heapstartsize' } }, { '8m', { 'dalvik.vm.heapminfree' } },
+                    { '32m', { 'dalvik.vm.heapmaxfree' } }, { '0.5', { 'dalvik.vm.heaptargetutilization' } } }
 
 -- The files of the variants of which apps read another text, which cat prints (see catfunction),
 -- like the hooks opening files: the id of boot_id per app, /proc/cpuinfo without the lines naming the chip,
 -- and the rounded sizes of /proc/meminfo
-local FILES = { tracking = { '/proc/sys/kernel/random/boot_id', '/proc/cpuinfo' },
+local FILES = { tracking = { '/proc/sys/kernel/random/boot_id', '/proc/cpuinfo',
+                             -- The configuration of the fonts without the families of device makers (see font_config)
+                             '/system/etc/fonts.xml', '/system/etc/font_fallback.xml',
+                             '/product/etc/fonts_customization.xml' },
                 resources = { '/proc/meminfo' } }
+-- The fonts of every Android, like hardware_files (FONTS): the other fonts of the system do not exist for tracking
+-- and ls of a fonts folder leaves them out
+local FONTS = { 'Roboto', 'Noto', 'DroidSans', 'CutiveMono', 'ComingSoon', 'DancingScript', 'CarroisGothicSC',
+                'SourceSansPro', 'AndroidClock' }
+-- The folders of the fonts of the partitions, as patterns of the shell
+local FONTFOLDERS = { '/system/fonts', '/product/fonts', '/system_ext/fonts', '/vendor/fonts', '/odm/fonts',
+                      '/oem/fonts', '/my_*/fonts', '/system/*/fonts' }
 
 -- The files of /sys which do not exist for the variants, like for the hooks opening files (see hardware_files),
 -- as patterns of the shell for the path and the path its links lead to, which a test compares with the patterns
@@ -152,7 +170,7 @@ local HIDDEN = {
 }
 local HIDING = { 'identifiers', 'tracking', 'biometrics', 'network', 'debugging', 'features', 'packages' }
 -- Parts of the texts which can name a file of HIDDEN
-local SPECIAL = { 'sys/', 'net/', 'proc/', 'su', 'magisk', 'debug_ramdisk', 'Super', 'adb/', 'etc/' }
+local SPECIAL = { 'sys/', 'net/', 'proc/', 'su', 'magisk', 'debug_ramdisk', 'Super', 'adb/', 'etc/', 'fonts' }
 
 -- The commands listing the addresses, routes and neighbours of the interfaces, from netlink and /proc/net, which
 -- apps can run on Android 10 and before and apps for those versions later; for Read.Network they fail like there
@@ -273,6 +291,12 @@ function rules(param, variant)
         return { { serial, SERIAL }, { '', ICCID } }
     elseif variant == 'debugging' then
         return DEBUGGING
+    elseif variant == 'resources' then
+        local result = { { HEAP, HEAPSIZES } }
+        for _, rule in ipairs(OTHERHEAP) do
+            result[#result + 1] = rule
+        end
+        return result
     elseif variant == 'locale' then
         -- The first fake language, its language and region, like PROPERTIES of locale; the region of sale empty
         local tag = fakes(param)[1]
@@ -324,6 +348,58 @@ function quartercommands(pattern)
     return result
 end
 
+-- Basic regular expressions of the numbers from a to b, texts of digits of the same length, like 1[3-9][0-9]
+function digitranges(a, b)
+    if a == b then
+        return { a }
+    end
+    local n = #a - 1
+    local a1, b1 = string.sub(a, 1, 1), string.sub(b, 1, 1)
+    local ar, br = string.sub(a, 2), string.sub(b, 2)
+    if ar == string.rep('0', n) and br == string.rep('9', n) then
+        return { '[' .. a1 .. '-' .. b1 .. ']' .. string.rep('[0-9]', n) }
+    end
+    local result = {}
+    if a1 == b1 then
+        for _, rest in ipairs(digitranges(ar, br)) do
+            result[#result + 1] = a1 .. rest
+        end
+        return result
+    end
+    for _, rest in ipairs(digitranges(ar, string.rep('9', n))) do
+        result[#result + 1] = a1 .. rest
+    end
+    if tonumber(b1) - tonumber(a1) >= 2 then
+        result[#result + 1] = '[' .. (tonumber(a1) + 1) .. '-' .. (tonumber(b1) - 1) .. ']' .. string.rep('[0-9]', n)
+    end
+    for _, rest in ipairs(digitranges(string.rep('0', n), br)) do
+        result[#result + 1] = b1 .. rest
+    end
+    return result
+end
+
+-- sed commands rounding a heap size in megabytes, like 576m, down to a step, like systemproperties_get; sizes of
+-- gigabytes become the last step, other values stay
+function heapcommands(pattern)
+    local property = '\\[\\(' .. propertyregex(pattern) .. '\\)\\]: \\['
+    local result = {}
+    for index, step in ipairs(STEPS) do
+        local last = (STEPS[index + 1] or 10000) - 1
+        local from = step
+        while from <= last do
+            -- The numbers of the same number of digits
+            local digits = string.len(tostring(from))
+            local to = math.min(last, 10 ^ digits - 1)
+            for _, range in ipairs(digitranges(tostring(from), tostring(math.floor(to)))) do
+                result[#result + 1] = 's/^' .. property .. range .. 'm\\]$/[\\1]: [' .. step .. 'm]/'
+            end
+            from = math.floor(to) + 1
+        end
+    end
+    result[#result + 1] = 's/^' .. property .. '[0-9][0-9]*g\\]$/[\\1]: [' .. STEPS[#STEPS] .. 'm]/'
+    return result
+end
+
 -- sed commands leaving adb out of a list of USB functions, like mtp,adb, like systemproperties_get;
 -- adb alone becomes none
 function noadbcommands(pattern)
@@ -345,6 +421,8 @@ function getpropfunction(rules)
             local commands
             if rule[1] == QUARTER then
                 commands = quartercommands(pattern)
+            elseif rule[1] == HEAP then
+                commands = heapcommands(pattern)
             elseif rule[1] == NOADB then
                 commands = noadbcommands(pattern)
             else
@@ -502,8 +580,30 @@ function special(text)
 end
 
 -- Whether a file does not exist for the variants, by its path or the path it leads to; dd takes if=file
+-- Whether a file is a font of the system which is not of every Android, like hardware_files (brandfont)
+function brandfont(path)
+    local partition, name = string.match(path, '^/([^/]+)/fonts/([^/]+)$')
+    if partition == nil then
+        partition, name = string.match(path, '^/system/([^/]+)/fonts/([^/]+)$')
+    end
+    if partition == nil or not (partition == 'system' or partition == 'product' or partition == 'system_ext' or
+            partition == 'vendor' or partition == 'odm' or partition == 'oem' or string.find(partition, '^my_')) then
+        return false
+    end
+    for _, prefix in ipairs(FONTS) do
+        if string.sub(name, 1, string.len(prefix)) == prefix then
+            return false
+        end
+    end
+    return true
+end
+
 function hiddenfile(file, variants)
     file = unrooted((string.gsub(file, '^if=', '')))
+    if variants['tracking'] and string.find(file, 'fonts/', 1, true) and
+            (brandfont(file) or brandfont(resolve(file))) then
+        return true
+    end
     if not special(file) then
         return false
     end
@@ -566,10 +666,23 @@ end
 -- of a missing file, the others are read by the commands going on after a missing file (GOESON), which do not
 -- read their input then, like cat and head would without files; the other commands fail like for the missing file
 function hidingfunctions(variants, names)
+    -- The fonts of every Android stay, the other fonts of the system do not exist (see brandfont)
+    local fonts = {}
+    local folders = {}
+    if variants['tracking'] then
+        for _, prefix in ipairs(FONTS) do
+            fonts[#fonts + 1] = '*/fonts/' .. prefix .. '*'
+        end
+        for _, folder in ipairs(FONTFOLDERS) do
+            folders[#folders + 1] = folder .. '/*'
+        end
+    end
     local result = {
         '__xlua_hidden() {',
         ' for __xlua_path in "$1" "$(/system/bin/readlink -f -- "$1" 2>/dev/null)"; do',
         '  case "$__xlua_path" in',
+        (#fonts > 0 and '   ' .. table.concat(fonts, '|') .. ') ;;\n   ' .. table.concat(folders, '|') ..
+                ') return 0 ;;' or ''),
         '   ' .. table.concat(hiddenpatterns(variants), '|') .. ') return 0 ;;',
         '  esac',
         ' done',
@@ -812,6 +925,17 @@ function guardfunctions(names, runs, variants)
                 end
                 result[#result + 1] = ' if [ $__xlua_d = 1 ]; then __xlua_check __xlua_near ' .. name ..
                         ' "$@" || return; fi'
+            end
+            if name == 'ls' and times then
+                -- A fonts folder of the system without the fonts which are not of every Android (see brandfont)
+                local folders = {}
+                for _, folder in ipairs(FONTFOLDERS) do
+                    folders[#folders + 1] = '*' .. folder .. '*'
+                end
+                result[#result + 1] = ' case "$*" in ' .. table.concat(folders, '|') .. ') ' ..
+                        (runs[name] or '/system/bin/ls') ..
+                        ' "$@" | /system/bin/sed -E ' .. quote('/\\.(ttf|otf|ttc)$/{/(^|[ /])(' ..
+                        table.concat(FONTS, '|') .. ')[^ /]*$/!d}') .. '; return ;; esac'
             end
             result[#result + 1] = ' ' .. (runs[name] or '/system/bin/' .. name) .. ' "$@"'
             result[#result + 1] = '}'
@@ -1385,7 +1509,8 @@ end
 -- Whether the text can name the file of /proc, also by another path, like /proc//meminfo, /proc/self/../meminfo
 -- or meminfo after cd /proc; __xlua_faked decides by the path it leads to
 function namesfile(text, file)
-    return string.find(text, 'proc', 1, true) ~= nil and hasword(text, basename(file))
+    return (string.find(text, 'proc', 1, true) ~= nil or string.find(text, 'etc', 1, true) ~= nil) and
+            hasword(text, basename(file))
 end
 
 -- The commands of a variant in the text, nil when there are none
@@ -1425,12 +1550,18 @@ function commands(text, variant)
             return names
         end
     elseif variant == 'resources' then
+        local names = {}
+        if string.find(text, 'getprop', 1, true) then
+            names[#names + 1] = 'getprop'
+        end
         for _, file in ipairs(FILES[variant]) do
             if namesfile(text, file) then
-                local names = {}
                 fakereaders(text, names)
-                return names
+                break
             end
+        end
+        if #names > 0 then
+            return names
         end
     elseif variant == 'network' then
         local names = {}

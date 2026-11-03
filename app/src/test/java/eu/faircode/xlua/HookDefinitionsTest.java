@@ -250,6 +250,52 @@ public class HookDefinitionsTest {
             assertTrue("Unreferenced script " + file.getName(), referenced.contains(file.getName()));
     }
 
+    // The values of filter functions are of the forms XCore.Filter matches: a value, a prefix with * at the end or a
+    // part between two *; a * elsewhere, like *font*.xml, is taken as a value no argument has, so the script never runs
+    @Test
+    public void filtersHaveKnownForms() throws Exception {
+        List<String> errors = new ArrayList<>();
+        Map<String, Globals> loaded = new HashMap<>();
+        for (JSONObject hook : hooks) {
+            String script = hook.getString("luaScript");
+            if (!script.startsWith("@"))
+                continue;
+            String name = script.substring(1);
+            if (!read(new File(ASSETS, name + ".lua")).contains("function filter("))
+                continue;
+            Globals globals = loaded.get(name);
+            if (globals == null) {
+                // The shared storage, which storage_times filters by
+                globals = Scripts.load(name, "local bind = luajava.bindClass\n" +
+                        "luajava.bindClass = function(n)\n" +
+                        "  if n == 'android.os.Environment' then return { getExternalStorageDirectory = function()\n" +
+                        "    return { getPath = function() return '/storage/emulated/0' end } end } end\n" +
+                        "  return bind(n)\n" +
+                        "end");
+                loaded.put(name, globals);
+            }
+            globals.set("H_NAME", hook.getString("name"));
+            globals.set("H_GROUP", hook.getString("group"));
+            globals.set("H_CLASS", hook.getString("className"));
+            globals.set("H_METHOD", hook.optString("methodName", ""));
+            globals.set("H_RETURN", hook.optString("returnType", ""));
+            LuaValue values = globals.load("return filter({ getName = function() return H_NAME end, " +
+                    "getGroup = function() return H_GROUP end, getClassName = function() return H_CLASS end, " +
+                    "getMethodName = function() return H_METHOD end, getReturnType = function() return H_RETURN end })").call();
+            if (values.isnil())
+                continue;
+            for (int i = 1; i <= values.length(); i++) {
+                String value = values.get(i).tojstring();
+                String inner = value.replaceAll("^\\*", "").replaceAll("\\*$", "");
+                boolean known = !inner.contains("*") && (!value.startsWith("*") || (value.length() > 1 && value.endsWith("*")));
+                if (!known)
+                    errors.add(hook.getString("name") + ": " + value);
+            }
+        }
+        assertTrue("Filter values of unknown forms: " + errors, errors.isEmpty());
+        assertTrue(loaded.containsKey("font_config"));
+    }
+
     // A hook of a library in the app which does not use the result must not require a return type: R8 makes methods
     // whose result the app does not use return void, which XResolver refuses, like OkHttp's Headers.Builder in LinkedIn
     @Test

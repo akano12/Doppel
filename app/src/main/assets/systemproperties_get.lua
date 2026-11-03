@@ -88,9 +88,12 @@ local DEBUGGING = {
 }
 
 -- The heap of apps, which Android sets per model, like 256m and 512m: rounded down to a step like memory_class
--- (STEPS, which a test compares), in megabytes; not covered is getprop of the shell
+-- (STEPS, which a test compares), in megabytes; the other settings of the heap the values of a common configuration,
+-- like getprop of the shell (see shell_commands)
 local HEAP = { ['dalvik.vm.heapgrowthlimit'] = true, ['dalvik.vm.heapsize'] = true }
 local STEPS = { 128, 192, 256, 384, 512 }
+local OTHERHEAP = { ['dalvik.vm.heapstartsize'] = '16m', ['dalvik.vm.heapminfree'] = '8m',
+                    ['dalvik.vm.heapmaxfree'] = '32m', ['dalvik.vm.heaptargetutilization'] = '0.5' }
 
 -- A heap size like 384m rounded down to a step, nil for other values
 function heap(value)
@@ -262,6 +265,9 @@ function filter(hook)
         for key, _ in pairs(HEAP) do
             table.insert(keys, key)
         end
+        for key, _ in pairs(OTHERHEAP) do
+            table.insert(keys, key)
+        end
         return keys
     end
     return nil
@@ -283,7 +289,7 @@ function after(hook, param)
     local key = param:getArgument(0)
     if key == nil or not (string.sub(key, 1, 3) == 'ro.' or
             string.sub(key, 1, 4) == 'gsm.' or SERIALS[key] ~= nil or iccid(key) or key == 'persist.sys.timezone' or
-            DEBUGGING[key] ~= nil or NAMES[key] ~= nil or HEAP[key] ~= nil) then
+            DEBUGGING[key] ~= nil or NAMES[key] ~= nil or HEAP[key] ~= nil or OTHERHEAP[key] ~= nil) then
         return false
     end
 
@@ -331,8 +337,8 @@ function after(hook, param)
         end
         param:setResult(fake)
         return true, result, fake
-    elseif name == 'resources' and HEAP[key] ~= nil then
-        local fake = heap(result)
+    elseif name == 'resources' and (HEAP[key] ~= nil or OTHERHEAP[key] ~= nil) then
+        local fake = OTHERHEAP[key] or heap(result)
         if fake == nil or fake == result then
             return false
         end

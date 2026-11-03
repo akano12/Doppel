@@ -135,9 +135,10 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more, also in the phone accounts of the SIMs
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
   boot id and the folder times that tell when the device was set up; the hardware files in /sys do not exist, nor do
-  the files of the processors (8 processors), and the fonts of device makers are not listed; codec names and OpenGL
-  extensions without the vendor of the chip; other users and work profiles, user-installed certificates, the heat,
-  the vibrator and the audio output like on a plain device
+  the files of the processors (8 processors, also in /proc/cpuinfo), and the fonts of device makers are not listed,
+  also in the font configuration; codec names, the GPU and OpenGL extensions without the vendor of the chip; other
+  users and work profiles, user-installed certificates, the heat, the vibrator, the audio buffer and the screen lock
+  like on a plain device
 
 </details>
 
@@ -145,7 +146,9 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Where you are</b> · 5 groups</summary>
 
 * **Determine activity**: fake unknown activity, no activity transitions or sleep events
-* **Get location**: fake location, no NMEA messages or raw GNSS measurements, and no location of photos and videos
+* **Get location**: fake location, no NMEA messages or raw GNSS measurements, and no location of photos and videos.
+  Do not restrict it for camera, gallery and photo editing apps whose photos should keep their location: what such
+  an app saves, like an edited copy, is saved without it
 * **Get sensors**: hide them
 * **Read languages**: fake languages, *Languages* in *Fake values*, default en-US, also in system properties,
   getprop and the settings; no region of sale (Samsung, Xiaomi). The app keeps the language chosen for it and its
@@ -213,9 +216,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 
 * Xposed cannot hook native code: audio recorded with OpenSL ES, like WhatsApp does, and files read natively
   are not restricted; shell commands the app starts are, but redirections, and ls, stat and test without times,
-  still show that hidden files exist. Native code also sees the real codecs, GPU extensions, processors and fonts,
-  and so do nproc, getprop of the heap sizes and ls of the fonts folder in the shell. Apps reading the bytes of
-  photos themselves still find their location.
+  still show that hidden files exist. Native code also sees the real codecs, GPU, processors and fonts, and so does
+  nproc in the shell. Apps reading the bytes of photos themselves still find their location.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
   The Firebase, Segment, Amazon and Facebook SDKs store the opt-outs and consents *Use analytics* sets, so collection
