@@ -132,7 +132,8 @@ local HIDDEN = {
                  '*/[0-9]*:[0-9]*:[0-9]*:[0-9]*/model', '*/[0-9]*:[0-9]*:[0-9]*:[0-9]*/vendor',
                  '*/[0-9]*:[0-9]*:[0-9]*:[0-9]*/rev',
                  '*/sensors/light_sensor/light_cal', '*/sec/tsp', '*/sec/tsp/*', '*/class/camera/*',
-                 '*/virtual/camera/*', '*/proc/scsi/*', '*/proc/bus/input/devices' },
+                 '*/virtual/camera/*', '*/proc/scsi/*', '*/proc/bus/input/devices',
+                 '*/devices/system/cpu', '*/devices/system/cpu/*' },
     biometrics = { '*/fingerprint/fingerprint', '*/fingerprint/fingerprint/*', '*/sec/tsp/fod_info',
                    '*/sec/tsp/fod_pos' },
     -- The files of /proc/net, like for Read.Network, which can be opened in hardware_files only (see there)

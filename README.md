@@ -99,6 +99,18 @@ It uses the [modern Xposed API](https://github.com/libxposed/api) when the frame
 > Add only apps you restrict: LSPosed is loaded into every app in the scope.
 > With the modern API, *In LSPosed scope* on the screen of an app adds it for you.
 
+### Work profiles and other users
+
+Doppel supports work profiles and other users: each has its own restricted apps, fake values and settings, and apps
+cannot read those of another one. For a profile or user:
+
+1. Install Doppel in it too, like from an app store in the profile, or with
+   `adb shell pm install-existing --user <id> sk.akano12.doppel`
+2. In LSPosed, enable Doppel for that user and add its apps to the scope; *System Framework* of the owner is enough
+3. Open Doppel in the profile or user (the one with the briefcase for a work profile) to restrict its apps
+
+With *Use tracking*, restricted apps are not told about the other users and profiles of the device.
+
 > [!WARNING]
 > Uninstall XPrivacyLua first: both use the same service and data.
 > A build signed with another key than the official release cannot update it; uninstall the official release first.
@@ -122,7 +134,10 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   (Huawei, Honor, Xiaomi, OnePlus, Amazon Fire OS, Baidu) and the SIM serial in their system properties
 * **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more, also in the phone accounts of the SIMs
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
-  boot id and the folder times that tell when the device was set up; the hardware files in /sys do not exist
+  boot id and the folder times that tell when the device was set up; the hardware files in /sys do not exist, nor do
+  the files of the processors (8 processors), and the fonts of device makers are not listed; codec names and OpenGL
+  extensions without the vendor of the chip; other users and work profiles, user-installed certificates, the heat,
+  the vibrator and the audio output like on a plain device
 
 </details>
 
@@ -130,7 +145,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Where you are</b> · 5 groups</summary>
 
 * **Determine activity**: fake unknown activity, no activity transitions or sleep events
-* **Get location**: fake location, no NMEA messages or raw GNSS measurements
+* **Get location**: fake location, no NMEA messages or raw GNSS measurements, and no location of photos and videos
 * **Get sensors**: hide them
 * **Read languages**: fake languages, *Languages* in *Fake values*, default en-US, also in system properties,
   getprop and the settings; no region of sale (Samsung, Xiaomi). The app keeps the language chosen for it and its
@@ -162,7 +177,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable
 * **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers; the feature and permission files of the system do not exist
 * **Read device settings**: the values of a new device, like the animation scale and the screen timeout
-* **Read memory and storage**: sizes rounded like devices are sold, free space rounded down
+* **Read memory and storage**: sizes rounded like devices are sold, free space rounded down, and the memory apps may
+  use rounded down to a common step
 * **Read network data**: hide cells, Wi-Fi networks, Bluetooth devices (also in broadcasts) and local network discovery,
   fake Wi-Fi name
 * **Read VPN state**: no VPN
@@ -197,7 +213,9 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 
 * Xposed cannot hook native code: audio recorded with OpenSL ES, like WhatsApp does, and files read natively
   are not restricted; shell commands the app starts are, but redirections, and ls, stat and test without times,
-  still show that hidden files exist.
+  still show that hidden files exist. Native code also sees the real codecs, GPU extensions, processors and fonts,
+  and so do nproc, getprop of the heap sizes and ls of the fonts folder in the shell. Apps reading the bytes of
+  photos themselves still find their location.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
   The Firebase, Segment, Amazon and Facebook SDKs store the opt-outs and consents *Use analytics* sets, so collection

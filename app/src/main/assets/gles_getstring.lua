@@ -19,9 +19,95 @@
 -- the device, like Build.MODEL. The family stays, like Adreno or Mali, which games use for workarounds of drivers,
 -- and the version keeps its number, like OpenGL ES 3.2, which they parse; the model and the build of the driver go.
 -- Not covered is native code, which calls the driver itself, like most games and Vulkan.
+-- The extensions of vendors, like GL_QCOM_tiled_rendering, GL_ARM_shader_framebuffer_fetch and EGL_IMG_context_priority,
+-- name the chip and the driver too; the extensions of Khronos and Android (OES, EXT, KHR, ANDROID, OVR) stay, which
+-- apps use for features, also by index (glGetStringi with the number of GL_NUM_EXTENSIONS) and of EGL.
 local VENDOR = 7936 -- GL_VENDOR
 local RENDERER = 7937 -- GL_RENDERER
 local VERSION = 7938 -- GL_VERSION
+local EXTENSIONS = 7939 -- GL_EXTENSIONS
+local NUM_EXTENSIONS = 33309 -- GL_NUM_EXTENSIONS
+local EGL_EXTENSIONS = 12373 -- EGL_EXTENSIONS
+local KEPT = { 'GL_OES_', 'GL_EXT_', 'GL_KHR_', 'GL_ANDROID_', 'GL_OVR_', 'EGL_KHR_', 'EGL_EXT_', 'EGL_ANDROID_' }
+
+-- The extensions of a list separated by spaces which are not of a vendor, as a table
+function kept(list)
+    local result = {}
+    for name in string.gmatch(list, '%S+') do
+        for _, prefix in ipairs(KEPT) do
+            if string.sub(name, 1, string.len(prefix)) == prefix then
+                result[#result + 1] = name
+                break
+            end
+        end
+    end
+    return result
+end
+
+-- The extensions of the current context without those of vendors, from the real list
+function contextkept(param)
+    local list
+    param:unhooked(function()
+        list = luajava.bindClass('android.opengl.GLES20'):glGetString(EXTENSIONS)
+    end)
+    return (list ~= nil and kept(list) or nil)
+end
+
+-- glGetStringi(GL_EXTENSIONS, index): the extension of the index of the kept ones
+function byindex(param)
+    if param:getArgument(0) ~= EXTENSIONS then
+        return false
+    end
+    local list = contextkept(param)
+    local index = param:getArgument(1)
+    local result = param:getResult()
+    if list == nil or result == nil then
+        return false
+    end
+    local fake = list[index + 1]
+    if fake == nil or fake == result then
+        -- Beyond the kept ones, which the number of extensions leaves out (see count)
+        if fake == nil then
+            param:setResult('')
+            return true, result, ''
+        end
+        return false
+    end
+    param:setResult(fake)
+    return true, result, fake
+end
+
+-- glGetIntegerv(GL_NUM_EXTENSIONS): the number of the kept extensions, of OpenGL ES 3 and later
+function count(param)
+    if param:getArgument(0) ~= NUM_EXTENSIONS then
+        return false
+    end
+    local list = contextkept(param)
+    if list == nil then
+        return false
+    end
+    local target = param:getArgument(1)
+    if target == nil then
+        return false
+    end
+    local real
+    if param:isInstance(target, 'java.nio.IntBuffer') then
+        local position = target:position()
+        real = target:get(position)
+        if real <= #list then
+            return false
+        end
+        target:put(position, #list)
+    else
+        local offset = param:getArgument(2)
+        real = target[offset + 1]
+        if real <= #list then
+            return false
+        end
+        target[offset + 1] = #list
+    end
+    return true, tostring(real), tostring(#list)
+end
 
 -- The leading words of a name without digits, like Adreno for Adreno (TM) 740, Mali for Mali-G715 and
 -- PowerVR Rogue for PowerVR Rogue GE8320; nil when the name starts with digits
@@ -44,14 +130,32 @@ function family(name)
 end
 
 function after(hook, param)
+    if param:getException() ~= nil then
+        return false
+    end
+    local method = hook:getMethodName()
+    if method == 'glGetIntegerv' then
+        return count(param)
+    elseif method == 'glGetStringi' then
+        return byindex(param)
+    end
     local result = param:getResult()
-    if result == nil or param:getException() ~= nil then
+    if result == nil then
         return false
     end
 
-    local name = param:getArgument(0)
+    -- eglQueryString(display, name): the name is the second argument
+    local name = param:getArgument(method == 'eglQueryString' and 1 or 0)
     local fake
-    if name == RENDERER then
+    if name == EXTENSIONS or name == EGL_EXTENSIONS then
+        fake = table.concat(kept(result), ' ')
+        -- Lists end with a space, like of most drivers
+        if string.sub(result, -1) == ' ' and fake ~= '' then
+            fake = fake .. ' '
+        end
+    elseif method == 'eglQueryString' then
+        return false
+    elseif name == RENDERER then
         fake = family(result) or 'unknown'
     elseif name == VENDOR then
         -- Like Google (NVIDIA Corporation) of emulators, which names the chip of the computer

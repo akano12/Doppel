@@ -87,6 +87,33 @@ local DEBUGGING = {
     ['persist.logd.size'] = '', ['persist.logd.size.main'] = '', ['persist.logd.size.crash'] = '',
 }
 
+-- The heap of apps, which Android sets per model, like 256m and 512m: rounded down to a step like memory_class
+-- (STEPS, which a test compares), in megabytes; not covered is getprop of the shell
+local HEAP = { ['dalvik.vm.heapgrowthlimit'] = true, ['dalvik.vm.heapsize'] = true }
+local STEPS = { 128, 192, 256, 384, 512 }
+
+-- A heap size like 384m rounded down to a step, nil for other values
+function heap(value)
+    local number, unit = string.match(value, '^(%d+)([kKmMgG]?)$')
+    if number == nil then
+        return nil
+    end
+    local mb = tonumber(number)
+    unit = string.lower(unit)
+    if unit == 'k' or unit == '' then
+        mb = math.floor(mb / 1024 / (unit == '' and 1024 or 1))
+    elseif unit == 'g' then
+        mb = mb * 1024
+    end
+    local result = mb
+    for _, step in ipairs(STEPS) do
+        if mb >= step then
+            result = step
+        end
+    end
+    return result .. 'm'
+end
+
 -- A list of USB functions without adb, like mtp for mtp,adb; adb alone becomes none
 function noadb(value)
     local kept = {}
@@ -230,6 +257,12 @@ function filter(hook)
             table.insert(keys, key)
         end
         return keys
+    elseif name == 'resources' then
+        local keys = {}
+        for key, _ in pairs(HEAP) do
+            table.insert(keys, key)
+        end
+        return keys
     end
     return nil
 end
@@ -250,7 +283,7 @@ function after(hook, param)
     local key = param:getArgument(0)
     if key == nil or not (string.sub(key, 1, 3) == 'ro.' or
             string.sub(key, 1, 4) == 'gsm.' or SERIALS[key] ~= nil or iccid(key) or key == 'persist.sys.timezone' or
-            DEBUGGING[key] ~= nil or NAMES[key] ~= nil) then
+            DEBUGGING[key] ~= nil or NAMES[key] ~= nil or HEAP[key] ~= nil) then
         return false
     end
 
@@ -294,6 +327,13 @@ function after(hook, param)
             fake = param:getArgument(1)
         end
         if fake == result then
+            return false
+        end
+        param:setResult(fake)
+        return true, result, fake
+    elseif name == 'resources' and HEAP[key] ~= nil then
+        local fake = heap(result)
+        if fake == nil or fake == result then
             return false
         end
         param:setResult(fake)

@@ -16015,5 +16015,1076 @@
     "optional": true,
     "excludePackages": "android",
     "luaScript": "@package_probe"
+  },
+  // The names of the codecs, which name the vendor of the chip (media_codecs)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaCodecInfo.getName",
+    "author": "akano12",
+    "className": "android.media.MediaCodecInfo",
+    "methodName": "getName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@media_codecs"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaCodecInfo.getCanonicalName",
+    "author": "akano12",
+    "className": "android.media.MediaCodecInfo",
+    "methodName": "getCanonicalName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@media_codecs"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaCodec.getName",
+    "author": "akano12",
+    "className": "android.media.MediaCodec",
+    "methodName": "getName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@media_codecs"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaCodec.getCanonicalName",
+    "author": "akano12",
+    "className": "android.media.MediaCodec",
+    "methodName": "getCanonicalName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@media_codecs"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaCodec.createByCodecName",
+    "author": "akano12",
+    "className": "android.media.MediaCodec",
+    "methodName": "createByCodecName",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.media.MediaCodec",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@media_codecs"
+  },
+  // The extensions of OpenGL ES and EGL of vendors, by name and by index (gles_getstring)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES30.glGetStringi",
+    "author": "akano12",
+    "className": "android.opengl.GLES30",
+    "methodName": "glGetStringi",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES20.glGetIntegerv",
+    "author": "akano12",
+    "className": "android.opengl.GLES20",
+    "methodName": "glGetIntegerv",
+    "parameterTypes": [
+      "int",
+      "int[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES20.glGetIntegerv/buffer",
+    "author": "akano12",
+    "className": "android.opengl.GLES20",
+    "methodName": "glGetIntegerv",
+    "parameterTypes": [
+      "int",
+      "java.nio.IntBuffer"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "EGL14.eglQueryString",
+    "author": "akano12",
+    "className": "android.opengl.EGL14",
+    "methodName": "eglQueryString",
+    "parameterTypes": [
+      "android.opengl.EGLDisplay",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "EGL10.eglQueryString",
+    "author": "akano12",
+    "className": "com.google.android.gles_jni.EGLImpl",
+    "methodName": "eglQueryString",
+    "parameterTypes": [
+      "javax.microedition.khronos.egl.EGLDisplay",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  // The number of processors (cpu_count); their files in /sys are of hardware_files
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Runtime.availableProcessors",
+    "author": "akano12",
+    "className": "java.lang.Runtime",
+    "methodName": "availableProcessors",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@cpu_count"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.sysconf",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "sysconf",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@cpu_count"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ForwardingOs.sysconf",
+    "author": "akano12",
+    "className": "libcore.io.ForwardingOs",
+    "methodName": "sysconf",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@cpu_count"
+  },
+  // The fonts of the system which are not of every Android (system_fonts); their files are of hardware_files
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemFonts.getAvailableFonts",
+    "author": "akano12",
+    "className": "android.graphics.fonts.SystemFonts",
+    "methodName": "getAvailableFonts",
+    "parameterTypes": [],
+    "returnType": "java.util.Set",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@system_fonts"
+  },
+  // The memory apps may use, rounded down to a common step (memory_class, systemproperties_get)
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "ActivityManager.getMemoryClass",
+    "author": "akano12",
+    "className": "android.app.ActivityManager",
+    "methodName": "getMemoryClass",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@memory_class"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "ActivityManager.getLargeMemoryClass",
+    "author": "akano12",
+    "className": "android.app.ActivityManager",
+    "methodName": "getLargeMemoryClass",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@memory_class"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Runtime.maxMemory",
+    "author": "akano12",
+    "className": "java.lang.Runtime",
+    "methodName": "maxMemory",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@memory_class"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "SystemProperties.get/resources",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "SystemProperties.get.default/resources",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@systemproperties_get"
+  },
+  // The location of photos and videos (photo_location)
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "MediaStore.setRequireOriginal",
+    "author": "akano12",
+    "className": "android.provider.MediaStore",
+    "methodName": "setRequireOriginal",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.net.Uri",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "MediaMetadataRetriever.extractMetadata",
+    "author": "akano12",
+    "className": "android.media.MediaMetadataRetriever",
+    "methodName": "extractMetadata",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.getAttribute",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "methodName": "getAttribute",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.getAttributeInt",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "methodName": "getAttributeInt",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.getAttributeDouble",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "methodName": "getAttributeDouble",
+    "parameterTypes": [
+      "java.lang.String",
+      "double"
+    ],
+    "returnType": "double",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.getLatLong",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "methodName": "getLatLong",
+    "parameterTypes": [
+      "float[]"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.getAltitude",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "methodName": "getAltitude",
+    "parameterTypes": [
+      "double"
+    ],
+    "returnType": "double",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.getAttributeBytes",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "methodName": "getAttributeBytes",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 29,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.getAttribute",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "methodName": "getAttribute",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.getAttributeInt",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "methodName": "getAttributeInt",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.getAttributeDouble",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "methodName": "getAttributeDouble",
+    "parameterTypes": [
+      "java.lang.String",
+      "double"
+    ],
+    "returnType": "double",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.getLatLong",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "methodName": "getLatLong",
+    "parameterTypes": [
+      "float[]"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.getAltitude",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "methodName": "getAltitude",
+    "parameterTypes": [
+      "double"
+    ],
+    "returnType": "double",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.getAttributeBytes",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "methodName": "getAttributeBytes",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceS.getAttribute",
+    "author": "akano12",
+    "className": "android.support.media.ExifInterface",
+    "methodName": "getAttribute",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceS.getAttributeInt",
+    "author": "akano12",
+    "className": "android.support.media.ExifInterface",
+    "methodName": "getAttributeInt",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceS.getAttributeDouble",
+    "author": "akano12",
+    "className": "android.support.media.ExifInterface",
+    "methodName": "getAttributeDouble",
+    "parameterTypes": [
+      "java.lang.String",
+      "double"
+    ],
+    "returnType": "double",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceS.getLatLong",
+    "author": "akano12",
+    "className": "android.support.media.ExifInterface",
+    "methodName": "getLatLong",
+    "parameterTypes": [
+      "float[]"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceS.getAltitude",
+    "author": "akano12",
+    "className": "android.support.media.ExifInterface",
+    "methodName": "getAltitude",
+    "parameterTypes": [
+      "double"
+    ],
+    "returnType": "double",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.getGpsDateTime",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "methodName": "getGpsDateTime",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 31,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.getLatLong/double",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "methodName": "getLatLong",
+    "parameterTypes": [],
+    "returnType": "double[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.getGpsDateTime",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "methodName": "getGpsDateTime",
+    "parameterTypes": [],
+    "returnType": "java.lang.Long",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@photo_location"
+  },
+  // The other users and profiles of the device (user_profiles)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UserManager.getUserProfiles",
+    "author": "akano12",
+    "className": "android.os.UserManager",
+    "methodName": "getUserProfiles",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UserManager.getUserCount",
+    "author": "akano12",
+    "className": "android.os.UserManager",
+    "methodName": "getUserCount",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getProfiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getProfiles",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "CrossProfileApps.getTargetUserProfiles",
+    "author": "akano12",
+    "className": "android.content.pm.CrossProfileApps",
+    "methodName": "getTargetUserProfiles",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  // The heat, the audio output, the vibrator and the certificates of the user (device_details)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PowerManager.getThermalHeadroom",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "getThermalHeadroom",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "float",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PowerManager.getCurrentThermalStatus",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "getCurrentThermalStatus",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PowerManager.getThermalHeadroomThresholds",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "getThermalHeadroomThresholds",
+    "parameterTypes": [],
+    "returnType": "java.util.Map",
+    "minSdk": 35,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "AudioManager.getProperty",
+    "author": "akano12",
+    "className": "android.media.AudioManager",
+    "methodName": "getProperty",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemVibrator.hasAmplitudeControl",
+    "author": "akano12",
+    "className": "android.os.SystemVibrator",
+    "methodName": "hasAmplitudeControl",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Vibrator.areEffectsSupported",
+    "author": "akano12",
+    "className": "android.os.Vibrator",
+    "methodName": "areEffectsSupported",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "int[]",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Vibrator.areAllEffectsSupported",
+    "author": "akano12",
+    "className": "android.os.Vibrator",
+    "methodName": "areAllEffectsSupported",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "int",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Vibrator.arePrimitivesSupported",
+    "author": "akano12",
+    "className": "android.os.Vibrator",
+    "methodName": "arePrimitivesSupported",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "boolean[]",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Vibrator.areAllPrimitivesSupported",
+    "author": "akano12",
+    "className": "android.os.Vibrator",
+    "methodName": "areAllPrimitivesSupported",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "boolean",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Vibrator.getPrimitiveDurations",
+    "author": "akano12",
+    "className": "android.os.Vibrator",
+    "methodName": "getPrimitiveDurations",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "int[]",
+    "minSdk": 31,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Vibrator.getResonantFrequency",
+    "author": "akano12",
+    "className": "android.os.Vibrator",
+    "methodName": "getResonantFrequency",
+    "parameterTypes": [],
+    "returnType": "float",
+    "minSdk": 34,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Vibrator.getQFactor",
+    "author": "akano12",
+    "className": "android.os.Vibrator",
+    "methodName": "getQFactor",
+    "parameterTypes": [],
+    "returnType": "float",
+    "minSdk": 34,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemVibrator.areEffectsSupported",
+    "author": "akano12",
+    "className": "android.os.SystemVibrator",
+    "methodName": "areEffectsSupported",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "int[]",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemVibrator.areAllEffectsSupported",
+    "author": "akano12",
+    "className": "android.os.SystemVibrator",
+    "methodName": "areAllEffectsSupported",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "int",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemVibrator.arePrimitivesSupported",
+    "author": "akano12",
+    "className": "android.os.SystemVibrator",
+    "methodName": "arePrimitivesSupported",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "boolean[]",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemVibrator.areAllPrimitivesSupported",
+    "author": "akano12",
+    "className": "android.os.SystemVibrator",
+    "methodName": "areAllPrimitivesSupported",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "boolean",
+    "minSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemVibrator.getPrimitiveDurations",
+    "author": "akano12",
+    "className": "android.os.SystemVibrator",
+    "methodName": "getPrimitiveDurations",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "int[]",
+    "minSdk": 31,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemVibrator.getResonantFrequency",
+    "author": "akano12",
+    "className": "android.os.SystemVibrator",
+    "methodName": "getResonantFrequency",
+    "parameterTypes": [],
+    "returnType": "float",
+    "minSdk": 34,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemVibrator.getQFactor",
+    "author": "akano12",
+    "className": "android.os.SystemVibrator",
+    "methodName": "getQFactor",
+    "parameterTypes": [],
+    "returnType": "float",
+    "minSdk": 34,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TrustedCertificateStore.aliases",
+    "author": "akano12",
+    "className": "com.android.org.conscrypt.TrustedCertificateStore",
+    "methodName": "aliases",
+    "parameterTypes": [],
+    "returnType": "java.util.Set",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TrustedCertificateStore.userAliases",
+    "author": "akano12",
+    "className": "com.android.org.conscrypt.TrustedCertificateStore",
+    "methodName": "userAliases",
+    "parameterTypes": [],
+    "returnType": "java.util.Set",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TrustedCertificateStore.containsAlias",
+    "author": "akano12",
+    "className": "com.android.org.conscrypt.TrustedCertificateStore",
+    "methodName": "containsAlias",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TrustedCertificateStore.getCertificate",
+    "author": "akano12",
+    "className": "com.android.org.conscrypt.TrustedCertificateStore",
+    "methodName": "getCertificate",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.security.cert.Certificate",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TrustedCertificateStore.getCertificate/deleted",
+    "author": "akano12",
+    "className": "com.android.org.conscrypt.TrustedCertificateStore",
+    "methodName": "getCertificate",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.security.cert.Certificate",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
   }
 ]

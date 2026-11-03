@@ -486,7 +486,7 @@ public class FileScriptsTest {
                         "return table.concat((function() local t = {} for i, v in ipairs(results) do t[i] = v and 'T' or 'F' end return t end)()),\n" +
                         "  exists.early, exists.result, filter(hookof('Read.VPN'))[1], tracking['*proc/scsi/*'], tracking['*sys/*'],\n" +
                         "  debugging['/system/xbin/*'], debugging['*magisk*']");
-        assertEquals("TTTF" + "TTTTTTTTTFFFFF" + "TTTFFFF" + "TTTTTTTFFFF", result.arg(1).tojstring());
+        assertEquals("TTTF" + "TTTTTTTTTFFFFT" + "TTTFFFF" + "TTTTTTTFFFF", result.arg(1).tojstring());
         assertTrue(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
         assertEquals("*net/*", result.arg(4).tojstring());

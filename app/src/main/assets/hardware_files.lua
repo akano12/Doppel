@@ -49,6 +49,8 @@ local FILES = {
         '/block/sd%a+/device/model$', '/block/sd%a+/device/vendor$', '/block/sd%a+/device/rev$',
         '/%d+:%d+:%d+:%d+/model$', '/%d+:%d+:%d+:%d+/vendor$', '/%d+:%d+:%d+:%d+/rev$',
         '/sensors/light_sensor/light_cal$', '/sec/tsp$', '/sec/tsp/', '/class/camera/', '/virtual/camera/',
+        -- The processors, their speeds and their layout, like cpu7/cpufreq/cpuinfo_max_freq (see cpu_count)
+        '/devices/system/cpu$', '/devices/system/cpu/',
         '/proc/scsi/', '/proc/bus/input/devices$' },
     ['Read.Biometrics'] = {
         '/fingerprint/fingerprint$', '/fingerprint/fingerprint/', '/sec/tsp/fod_info$', '/sec/tsp/fod_pos$' },
@@ -81,7 +83,7 @@ local FILES = {
 -- too, since the filter compares the path as the app gives it, like /system/./xbin/su, which are rare. The folders
 -- of su are there for listing them, like File.list of /system/xbin.
 local FILTERS = {
-    ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/./*', '*//*' },
+    ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*/./*', '*//*' },
     ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
     ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',
@@ -178,8 +180,36 @@ function hidden(hook, path)
     return found
 end
 
+-- The fonts every Android has (Roboto, Noto and the families of AOSP); the other fonts of the system, like SamsungOne,
+-- MiSans and Google Sans, name the maker and the ROM. They are left out of listings and do not exist for the app;
+-- text still shows with them, which the system loads itself. Like system_fonts, which a test compares.
+local FONTS = { 'Roboto', 'Noto', 'DroidSans', 'CutiveMono', 'ComingSoon', 'DancingScript', 'CarroisGothicSC',
+                'SourceSansPro', 'AndroidClock' }
+
+-- Whether a file is a font of the system which is not of every Android, in a fonts folder of a partition
+function brandfont(path)
+    local partition, name = string.match(path, '^/([^/]+)/fonts/([^/]+)$')
+    if partition == nil then
+        partition, name = string.match(path, '^/system/([^/]+)/fonts/([^/]+)$')
+    end
+    if partition == nil or not (partition == 'system' or partition == 'product' or partition == 'system_ext' or
+            partition == 'vendor' or partition == 'odm' or partition == 'oem' or string.find(partition, '^my_')) then
+        return false
+    end
+    for _, prefix in ipairs(FONTS) do
+        if string.sub(name, 1, string.len(prefix)) == prefix then
+            return false
+        end
+    end
+    return true
+end
+
 -- Whether a file is one of a group, without the cache, so other threads can ask too (see listing)
 function matched(group, path)
+    if group == 'Use.Tracking' and string.find(path, 'fonts', 1, true) and
+            (brandfont(unrooted(path)) or brandfont(resolve(unrooted(path)))) then
+        return true
+    end
     local patterns = FILES[group]
     -- The patterns of Read.VPN capture the name of the interface
     local function matches(text, pattern)
