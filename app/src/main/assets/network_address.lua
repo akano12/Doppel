@@ -21,14 +21,25 @@
 -- Loopback addresses stay, because apps communicate with local services with them.
 -- The local address of sockets is the address of the device too, see getLocalAddress.
 
--- Called by LinkProperties itself, not counting the frame of the hooked method: it checks, compares, copies
--- and parcels its interface, routes and addresses through the getters, which must agree with its fields there
-function linkproperties(method)
+-- Called by LinkProperties itself where it copies, parcels or compares itself: it reads its interface, routes and
+-- addresses through the getters there, which must agree with its fields. Not where an app adds a route it got:
+-- addRoute checks the interface of the route against the one the app set, which is the fake one then.
+-- Only the frames of LinkProperties right below the hook count, the frames further down are of its caller.
+function linkproperties()
     local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
+    local inside = false
     for index = 1, frames['length'] do
         local frame = frames[index]
-        if frame:getClassName() == 'android.net.LinkProperties' and frame:getMethodName() ~= method then
-            return true
+        local class = frame:getClassName()
+        if class == 'android.net.LinkProperties' or class == 'android.net.LinkProperties$1' then
+            inside = true
+            local method = frame:getMethodName()
+            if method == '<init>' or method == 'createFromParcel' or method == 'writeToParcel' or
+                    method == 'equals' or string.find(method, '^isIdentical') or string.find(method, '^compare') then
+                return true
+            end
+        elseif inside then
+            return false
         end
     end
     return false
@@ -53,7 +64,7 @@ function after(hook, param)
         return true
 
     elseif method == 'getLinkAddresses' or method == 'getDnsServers' or method == 'getRoutes' then
-        if result:isEmpty() or linkproperties(method) then
+        if result:isEmpty() or linkproperties() then
             return false
         end
         param:setResult(luajava.newInstance('java.util.ArrayList'))
@@ -89,7 +100,7 @@ function after(hook, param)
 
     elseif method == 'getDomains' or method == 'getDhcpServerAddress' or method == 'getPrivateDnsServerName' then
         -- Like without domains, DHCP and private DNS with a server name (strict mode)
-        if linkproperties(method) then
+        if linkproperties() then
             return false
         end
         param:setResult(nil)

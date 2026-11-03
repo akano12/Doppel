@@ -39,7 +39,9 @@ local DEVICE = {
                    'ro.*.product.name', 'persist.sys.exif.model',
                    -- The chip (SoC) by vendors: like ro.vendor.soc.model, Exynos, Qualcomm and MediaTek
                    'ro.*.soc.*', 'ro.chipname', 'ro.hardware.chipname', 'ro.vendor.qti.soc_model',
-                   'ro.vendor.qti.soc_name', 'ro.mediatek.platform', 'ro.vendor.mediatek.platform' } },
+                   'ro.vendor.qti.soc_name', 'ro.mediatek.platform', 'ro.vendor.mediatek.platform',
+                   -- The family of the GPU (adreno, mali), which the EGL and Vulkan loaders read natively
+                   'ro.hardware.egl', 'ro.hardware.vulkan' } },
     { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
                    'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
                    'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
@@ -145,6 +147,10 @@ end
 
 -- The fake value of a device property, nil when it is not faked
 function fakedevice(key, result)
+    -- ANGLE as the driver of the system names no GPU, and GraphicsEnvironment sets ANGLE up by it in Java
+    if key == 'ro.hardware.egl' and result == 'angle' then
+        return nil
+    end
     local fake = NAMES[key]
     if fake == nil then
         for _, entry in ipairs(PATTERNS) do

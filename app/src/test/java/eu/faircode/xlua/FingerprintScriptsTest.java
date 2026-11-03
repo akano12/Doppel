@@ -80,7 +80,11 @@ public class FingerprintScriptsTest {
                 {"c2.exynos.h264.decoder.secure", "c2.hw.h264.decoder.secure"},
                 {"OMX.MTK.VIDEO.DECODER.AVC", "OMX.hw.VIDEO.DECODER.AVC"}, {"OMX.qcom.video.decoder.avc", "OMX.hw.video.decoder.avc"},
                 {"c2.android.avc.decoder", "c2.android.avc.decoder"}, {"OMX.google.h264.decoder", "OMX.google.h264.decoder"},
-                {"c2.hw.avc.decoder", "c2.hw.avc.decoder"}, {"aac.encoder", "aac.encoder"}};
+                {"c2.hw.avc.decoder", "c2.hw.avc.decoder"}, {"aac.encoder", "aac.encoder"},
+                // Software codecs of vendors stay software for ExoPlayer before Android 10; FFmpeg names no chip
+                {"OMX.SEC.avc.sw.dec", "OMX.google.avc.sw.dec"},
+                {"OMX.qcom.video.decoder.hevcswvdec", "OMX.google.video.decoder.hevcswvdec"},
+                {"OMX.SEC.avc.dec", "OMX.hw.avc.dec"}, {"OMX.ffmpeg.h264.decoder", "OMX.ffmpeg.h264.decoder"}};
         for (String[] c : cases)
             assertEquals(c[0], c[1], Scripts.run(globals, "return fakename('" + c[0] + "')").arg1().tojstring());
 
@@ -90,6 +94,13 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg1().toboolean());
         assertEquals("c2.hw.avc.decoder", result.arg(2).tojstring());
         assertFalse(Scripts.run(globals, "return after(hookof('getName'), paramof('c2.android.avc.decoder'))").arg1().toboolean());
+        // MediaCodecList.findDecoderForFormat: the real name of the picked codec is faked, a fake one stays
+        result = Scripts.run(globals, "local p = paramof('c2.qti.hevc.decoder')\n" +
+                "local q = paramof('c2.hw.avc.decoder')\n" +
+                "return after(hookof('findDecoderForFormat'), p), p.result, after(hookof('findDecoderForFormat'), q)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("c2.hw.hevc.decoder", result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
 
         // createByCodecName with a fake name opens the real codec; with a real name it stays
         result = Scripts.run(globals,
@@ -108,6 +119,34 @@ public class FingerprintScriptsTest {
         assertEquals("c2.qti.hevc.decoder", result.arg1().tojstring());
         assertEquals("c2.qti.avc.decoder", result.arg(2).tojstring());
         assertFalse(result.arg(3).toboolean());
+
+        // Two codecs never get the same fake name, nor the name of a real codec
+        result = Scripts.run(globals,
+                "local fakes, reals = mapping({ 'OMX.SEC.avc.dec', 'OMX.Exynos.avc.dec', 'OMX.google.avc.sw.dec',\n" +
+                        "  'OMX.SEC.avc.sw.dec', 'c2.android.avc.decoder' })\n" +
+                        "return fakes['OMX.SEC.avc.dec'], fakes['OMX.Exynos.avc.dec'], fakes['OMX.SEC.avc.sw.dec'],\n" +
+                        "  reals['OMX.hw2.avc.dec'], fakes['c2.android.avc.decoder'], reals['c2.android.avc.decoder']");
+        assertEquals("OMX.hw.avc.dec", result.arg1().tojstring());
+        assertEquals("OMX.hw2.avc.dec", result.arg(2).tojstring());
+        assertEquals("OMX.hw2.avc.sw.dec", result.arg(3).tojstring());
+        assertEquals("OMX.Exynos.avc.dec", result.arg(4).tojstring());
+        assertEquals("c2.android.avc.decoder", result.arg(5).tojstring());
+        assertTrue(result.arg(6).isnil());
+
+        // getName by the mapping of the codecs of the device: the second one numbered
+        result = Scripts.run(load("media_codecs"),
+                "luajava.newInstance = function(name, kind)\n" +
+                        "  local names = { 'OMX.SEC.avc.dec', 'OMX.Exynos.avc.dec' }\n" +
+                        "  return { getCodecInfos = function(self)\n" +
+                        "    local infos = { length = #names }\n" +
+                        "    for i, n in ipairs(names) do infos[i] = { getName = function(self) return n end } end\n" +
+                        "    return infos end }\n" +
+                        "end\n" +
+                        "local p = paramof('OMX.Exynos.avc.dec') after(hookof('getName'), p)\n" +
+                        "local open = paramof(nil, { [0] = 'OMX.hw2.avc.dec' }) before(hookof('createByCodecName'), open)\n" +
+                        "return p.result, open.args[0]");
+        assertEquals("OMX.hw2.avc.dec", result.arg1().tojstring());
+        assertEquals("OMX.Exynos.avc.dec", result.arg(2).tojstring());
     }
 
     @Test
@@ -121,28 +160,38 @@ public class FingerprintScriptsTest {
         assertEquals("GL_OES_EGL_image GL_EXT_color_buffer_float GL_KHR_debug GL_ANDROID_extension_pack_es31a GL_OVR_multiview ",
                 result.arg(2).tojstring());
 
-        // EGL: the name is the second argument; the vendor is unknown, the version stays
+        // EGL: the name is the second argument; the vendor (Android of the EGL loader on every device) and the
+        // version stay
         result = Scripts.run(globals, "local p = paramof('EGL_KHR_image EGL_QCOM_create_image EGL_ANDROID_recordable', { [0] = 'display', [1] = 12373 })\n" +
                 "local restricted = after(hookof('eglQueryString'), p)\n" +
-                "local vendor = paramof('Qualcomm Inc.', { [0] = 'display', [1] = 12371 })\n" +
-                "after(hookof('eglQueryString'), vendor)\n" +
-                "return restricted, p.result, vendor.result,\n" +
+                "local vendor = paramof('Android', { [0] = 'display', [1] = 12371 })\n" +
+                "return restricted, p.result, after(hookof('eglQueryString'), vendor), vendor.result,\n" +
                 "  after(hookof('eglQueryString'), paramof('1.4 Android META-EGL', { [0] = 'display', [1] = 12372 }))");
         assertTrue(result.arg1().toboolean());
         assertEquals("EGL_KHR_image EGL_ANDROID_recordable", result.arg(2).tojstring());
-        assertEquals("unknown", result.arg(3).tojstring());
-        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals("Android", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
 
-        // By index: the kept ones, beyond them an empty name
+        // By index: the kept ones, beyond them an empty name; the list is read once per context
         result = Scripts.run(globals,
-                "luajava.bindClass = function(name) return { glGetString = function(self, n) return '" + real + "' end } end\n" +
+                "reads = 0\n" +
+                        "context = 1\n" +
+                        "luajava.bindClass = function(name) return {\n" +
+                        "  glGetString = function(self, n) reads = reads + 1 return '" + real + "' end,\n" +
+                        "  eglGetCurrentContext = function(self) return { getNativeHandle = function(self) return context end } end } end\n" +
                         "local second = paramof('GL_QCOM_tiled_rendering', { [0] = 7939, [1] = 1 })\n" +
                         "after(hookof('glGetStringi'), second)\n" +
                         "local beyond = paramof('GL_IMG_texture_compression_pvrtc', { [0] = 7939, [1] = 7 })\n" +
                         "after(hookof('glGetStringi'), beyond)\n" +
-                        "return second.result, beyond.result");
+                        "local once = reads\n" +
+                        "context = 2\n" +
+                        "after(hookof('glGetStringi'), paramof('GL_OES_EGL_image', { [0] = 7939, [1] = 0 }))\n" +
+                        "return second.result, beyond.result, once, reads");
         assertEquals("GL_EXT_color_buffer_float", result.arg1().tojstring());
         assertEquals("", result.arg(2).tojstring());
+        assertEquals(1, result.arg(3).toint());
+        assertEquals(2, result.arg(4).toint());
     }
 
     // Older kernels print the lines of all processors in one block, under Processor with the revision of the core
@@ -184,6 +233,31 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(5).toboolean());
         assertEquals(4096, result.arg(6).toint());
         assertFalse(result.arg(7).toboolean());
+
+        // The processors possible, present and online of /sys are 0-7; the other files and the folder stay
+        assertTrue(Scripts.run(globals, "return filter(hookof('availableProcessors'))").arg1().isnil());
+        assertEquals("*system/cpu/*", Scripts.run(globals, "return filter(hookof('open'))[1]").arg1().tojstring());
+        result = Scripts.run(globals,
+                "local function fileof(path, text)\n" +
+                        "  local p = paramof('fd', { [0] = path })\n" +
+                        "  p.opens = function(self, file) return string.gsub(path, '^/proc/self/root', '') == file end\n" +
+                        "  p.getFileText = function(self) return text end\n" +
+                        "  p.setFileText = function(self, value) text = value end\n" +
+                        "  p.text = function(self) return text end\n" +
+                        "  return p\n" +
+                        "end\n" +
+                        "local possible = fileof('/sys/devices/system/cpu/possible', '0-5\\n')\n" +
+                        "local online = fileof('/proc/self/root/sys/devices/system/cpu/online', '0-3,6\\n')\n" +
+                        "local core = fileof('/sys/devices/system/cpu/cpu0/online', '1\\n')\n" +
+                        "return after(hookof('open'), possible), possible:text(), after(hookof('open'), online), online:text(),\n" +
+                        "  after(hookof('open'), core), core:text(), after(hookof('open'), fileof('/sys/devices/system/cpu/present', '0-7\\n'))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("0-7\n", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("0-7\n", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals("1\n", result.arg(6).tojstring());
+        assertFalse(result.arg(7).toboolean());
     }
 
     @Test
@@ -223,13 +297,23 @@ public class FingerprintScriptsTest {
             assertEquals(c[0] + "", c[1], Scripts.run(globals,
                     "local p = paramof(" + c[0] + ") after(hookof('getMemoryClass'), p) return p.result").arg1().toint());
         Varargs result = Scripts.run(globals,
-                "local big = paramof(603979776) after(hookof('maxMemory'), big)\n" +
+                "total = 0\n" +
+                        "luajava.bindClass = function(name) return { getRuntime = function(self)\n" +
+                        "  return { totalMemory = function(self) return total end } end } end\n" +
+                        "local big = paramof(603979776) after(hookof('maxMemory'), big)\n" +
                         "local exact = paramof(268435456)\n" +
                         "local unlimited = paramof(9223372036854775807)\n" +
                         "return big.result, after(hookof('maxMemory'), exact), after(hookof('maxMemory'), unlimited)");
         assertEquals(536870912L, result.arg1().tolong());
         assertFalse(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
+        // Never below the heap in use (550 of 576 MB): the real maximum, the next step being above it
+        result = Scripts.run(globals,
+                "total = 576716800\n" +
+                        "local used = paramof(603979776)\n" +
+                        "return after(hookof('maxMemory'), used), used.result");
+        assertFalse(result.arg1().toboolean());
+        assertEquals(603979776L, result.arg(2).tolong());
 
         Globals properties = load("systemproperties_get");
         String[][] heaps = {{"384m", "384m"}, {"576m", "512m"}, {"300m", "256m"}, {"1g", "512m"},
@@ -326,6 +410,19 @@ public class FingerprintScriptsTest {
         // A configuration of an app's own is not of the system; partitions of device makers are
         assertFalse(result.arg(8).toboolean());
         assertTrue(result.arg(9).toboolean());
+
+        // Also by other paths: /./, //, the root of /proc and links, like /etc to /system/etc
+        result = Scripts.run(globals,
+                "local function path(p) return { getArgument = function(self) return p end } end\n" +
+                        "local plain = { config(path('/system/./etc/fonts.xml')), config(path('/system//etc/./././fonts.xml')),\n" +
+                        "  config(path('/proc/self/root/system/etc/fonts.xml')), config(path('system/etc/fonts.xml')) }\n" +
+                        "luajava.newInstance = function(name, p) return { getCanonicalPath = function(self)\n" +
+                        "  return (p == '/etc/fonts.xml' and '/system/etc/fonts.xml' or p) end } end\n" +
+                        "return plain[1], plain[2], plain[3], plain[4], config(path('/etc/fonts.xml')),\n" +
+                        "  config(path('/data/user/0/app/./etc/fonts.xml'))");
+        for (int i = 1; i <= 5; i++)
+            assertTrue("path " + i, result.arg(i).toboolean());
+        assertFalse(result.arg(6).toboolean());
     }
 
     @Test
@@ -365,38 +462,46 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(10).isnil());
         assertFalse(result.arg(11).toboolean());
 
-        // The location columns of MediaStore are null, the others stay; other providers stay
+        // The location columns of MediaStore are null, the others, the notification URI and the cursor stay;
+        // other providers stay
         result = Scripts.run(globals,
-                "luajava.newInstance = function(name, columns)\n" +
-                        "  local rows = {}\n" +
-                        "  return { rows = rows, newRow = function(self)\n" +
-                        "      local row = {} rows[#rows + 1] = row\n" +
-                        "      return { add = function(self, v) row[#row + 1] = (v == nil and 'NULL' or v) end } end,\n" +
-                        "    moveToPosition = function(self, p) end }\n" +
-                        "end\n" +
+                "luajava.createProxy = function(interface, methods) return methods end\n" +
                         "local function uri(authority) return { getAuthority = function(self) return authority end } end\n" +
                         "local function cursor()\n" +
-                        "  local data = { { '1', 52.5, 13.4, '1700000000000' } }\n" +
+                        "  local data = { { '1', 52.5, 13.4, 1700000000000 } }\n" +
                         "  local names = { 'title', 'latitude', 'longitude', 'datetaken' }\n" +
-                        "  local position = -1\n" +
-                        "  return { getColumnIndex = function(self, n) for i, c in ipairs(names) do if c == n then return i - 1 end end return -1 end,\n" +
-                        "    getColumnNames = function(self) return { length = 4 } end, getPosition = function(self) return position end,\n" +
-                        "    moveToPosition = function(self, p) position = p end,\n" +
-                        "    moveToNext = function(self) position = position + 1 return position < #data end,\n" +
+                        "  local position = 0\n" +
+                        "  return { closed = false,\n" +
+                        "    getColumnIndex = function(self, n) for i, c in ipairs(names) do if c == n then return i - 1 end end return -1 end,\n" +
                         "    getType = function(self, i) return (i == 0 and 3) or (i == 3 and 1) or 2 end,\n" +
-                        "    getString = function(self, i) return data[position + 1][i + 1] end,\n" +
-                        // A long as a Lua number, which would come back as a double
-                        "    getLong = function(self, i) return 1.7e12 end,\n" +
-                        "    getDouble = function(self, i) return data[position + 1][i + 1] end, close = function(self) end }\n" +
+                        "    isNull = function(self, i) return false end,\n" +
+                        "    getString = function(self, i) return tostring(data[position + 1][i + 1]) end,\n" +
+                        "    getLong = function(self, i) return data[position + 1][i + 1] end,\n" +
+                        "    getDouble = function(self, i) return data[position + 1][i + 1] end,\n" +
+                        "    getNotificationUri = function(self) return 'content://media/external' end,\n" +
+                        "    close = function(self) self.closed = true end }\n" +
                         "end\n" +
-                        "local media = paramof(cursor(), { [0] = uri('media') })\n" +
+                        "local real = cursor()\n" +
+                        "local media = paramof(real, { [0] = uri('media') })\n" +
                         "local restricted = after(hookof('query'), media)\n" +
-                        "return restricted, table.concat(media.result.rows[1], ','),\n" +
+                        "local c = media.result\n" +
+                        "return restricted, c.getDouble(1), c.getString(2), c.getType(1), c.isNull(2), c.getString(0),\n" +
+                        "  c.getLong(3), c.getType(3), c.getNotificationUri(), c.equals, real.closed,\n" +
                         "  after(hookof('query'), paramof(cursor(), { [0] = uri('com.android.contacts') }))");
         assertTrue(result.arg1().toboolean());
-        // Whole numbers keep their exact digits, like a date in milliseconds
-        assertEquals("1,NULL,NULL,1700000000000", result.arg(2).tojstring());
-        assertFalse(result.arg(3).toboolean());
+        assertEquals(0, result.arg(2).todouble(), 0);
+        assertTrue(result.arg(3).isnil());
+        assertEquals(0, result.arg(4).toint()); // Cursor.FIELD_TYPE_NULL
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("1", result.arg(6).tojstring());
+        // Whole numbers keep their exact digits and type, like a date in milliseconds
+        assertEquals(1700000000000L, result.arg(7).tolong());
+        assertEquals(1, result.arg(8).toint());
+        assertEquals("content://media/external", result.arg(9).tojstring());
+        // equals and hashCode of the proxy itself
+        assertTrue(result.arg(10).isnil());
+        assertFalse(result.arg(11).toboolean());
+        assertFalse(result.arg(12).toboolean());
     }
 
     @Test

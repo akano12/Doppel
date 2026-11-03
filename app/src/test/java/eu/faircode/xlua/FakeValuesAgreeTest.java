@@ -412,9 +412,11 @@ public class FakeValuesAgreeTest {
                 "/system/etc/permissions", "/vendor/etc/permissions/android.hardware.bluetooth.xml",
                 "/product/etc/permissions/carrierwifi.xml", "/system/etc/sysconfig/google.xml",
                 "/system/etc/permissions/privapp-permissions-meta.xml",
-                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/devices/system/cpu"};
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/devices/system/cpu/cpu3/topology/core_id",
+                "/sys/devices/system/cpu/modalias"};
         String[] stay = {
-                "/sys/devices/system/cpux/online", "/sys/class/sec/tspx",
+                "/sys/devices/system/cpux/online", "/sys/devices/system/cpu", "/sys/devices/system/cpu/cpu0",
+                "/sys/class/sec/tspx",
                 "/sys/bus/mmc/devices/mmc0:0001/cidx", "/sys/class/fingerprint/fingerprintx",
                 "/sys/devices/system/chip-idx/unique_id", "/sys/class/scsi_host/host0/unique_id",
                 "/sys/devices/platform/13100000.ufs/string_descriptors/product_revision",

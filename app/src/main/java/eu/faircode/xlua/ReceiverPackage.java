@@ -99,9 +99,10 @@ public class ReceiverPackage extends BroadcastReceiver {
     }
 
     // Initialize a new app; false for an app which was removed with its data kept, like an archived app on
-    // Android 15, which is added again with its restrictions, since a removal deletes them, see AssignTest
+    // Android 15, which is added again with its restrictions, since a removal deletes them, see AssignTest;
+    // all rows count, also of hooks which did not load or are not available, which clearApp would delete
     static boolean added(Context context, String packageName, int uid) {
-        if (!Data.getAssignedHooks(context, packageName, uid).isEmpty()) {
+        if (Data.hasAssignments(context, packageName, uid)) {
             Log.i(TAG, "Kept restrictions pkg=" + packageName + " uid=" + uid);
             return false;
         }

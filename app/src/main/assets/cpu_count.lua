@@ -19,12 +19,45 @@
 -- do not exist for the app (see hardware_files). It becomes 8, which most phones have: apps size their threads
 -- by it, which more or fewer threads than processors do not break. Runtime.availableProcessors asks
 -- Os.sysconf(_SC_NPROCESSORS_CONF), which compiled code of the framework can call without the hook, so it is
--- hooked too. The processors of /proc/cpuinfo stay (see cpuinfo). Not covered is native code (sysconf, nproc).
+-- hooked too, and the processors possible, present and online of /sys/devices/system/cpu are 0-7, also by other
+-- paths (see XParam.opens). The processors of /proc/cpuinfo are 8 too (see cpuinfo). Not covered are native code
+-- (sysconf, nproc) and the folders of the processors (cpu0 and on), which stay as they are.
 local COUNT = 8
+local RANGE = '0-7\n'
+local RANGES = { 'possible', 'present', 'online' }
+
+function filter(hook)
+    if hook:getMethodName() == 'open' then
+        return { '*system/cpu/*' }
+    end
+    return nil
+end
+
+-- The files of the processors possible, present and online, as the range of 8
+function ranges(param)
+    if param:getResult() == nil then
+        return false
+    end
+    local path = tostring(param:getArgument(0))
+    for _, name in ipairs(RANGES) do
+        if string.sub(path, -string.len(name) - 1) == '/' .. name and param:opens('/sys/devices/system/cpu/' .. name) then
+            local text = param:getFileText()
+            if text == RANGE then
+                return false
+            end
+            param:setFileText(RANGE)
+            return true, (string.gsub(text, '\n', '')), '0-7'
+        end
+    end
+    return false
+end
 
 function after(hook, param)
     if param:getException() ~= nil then
         return false
+    end
+    if hook:getMethodName() == 'open' then
+        return ranges(param)
     end
     if hook:getMethodName() == 'sysconf' then
         local constants = luajava.bindClass('android.system.OsConstants')

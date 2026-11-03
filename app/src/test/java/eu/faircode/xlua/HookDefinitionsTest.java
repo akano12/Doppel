@@ -297,10 +297,23 @@ public class HookDefinitionsTest {
     }
 
     // A hook of a library in the app which does not use the result must not require a return type: R8 makes methods
-    // whose result the app does not use return void, which XResolver refuses, like OkHttp's Headers.Builder in LinkedIn
+    // whose result the app does not use return void, which XResolver refuses, like OkHttp's Headers.Builder in LinkedIn.
+    // Per hook, because a script shared by several methods, like webview_constructor, can read the result of one only.
+    private static final Set<String> APP_HOOKS_WITH_RESULT = new HashSet<>(Arrays.asList(
+            "ActivityRecognitionResult.extractResult", "ActivityTransitionResult.extractResult",
+            "SleepSegmentEvent.extractEvents", "SleepClassifyEvent.extractEvents",
+            "AdvertisingIdClient$Info.getId", "HuaweiAdvertisingIdClient$Info.getId", "AppSetIdInfo.getId",
+            "AdvertisingIdClient$Info.isLimitAdTrackingEnabled", "HuaweiAdvertisingIdClient$Info.isLimitAdTrackingEnabled",
+            "Amplitude.getOptOut", "AmplitudeClient.isOptedOut", "Branch.isTrackingDisabled",
+            "Branch.isTrackingDisabled/context", "Singular.isAllTrackingStopped",
+            "FirebaseAnalytics.getInstance", "GoogleAnalytics.getInstance/optout", "AdRegistration.getInstance",
+            "FirebaseCrashlytics.getInstance", "AppsFlyerLib.getInstance", "SegmentAnalytics.build",
+            "GL10.glGetString", "EGL10.eglQueryString", "RadarJobScheduler.onStartJob"));
+
     @Test
     public void appLibraryHooksWithoutResultHaveNoReturnType() throws Exception {
         List<String> errors = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
         // The built-in definitions and those of Downloads, which have their script inline
         List<JSONObject> all = new ArrayList<>(hooks);
         all.addAll(repository().values());
@@ -312,11 +325,18 @@ public class HookDefinitionsTest {
             if (returnType.equals("void") || methodName.startsWith("#") ||
                     className.matches("^(android|androidx|java|javax|com\\.android|libcore|dalvik|sun)\\..*"))
                 continue;
+            String name = hook.getString("name");
+            seen.add(name);
             String source = (script.startsWith("@") ? read(new File(ASSETS, script.substring(1) + ".lua")) : script);
-            if (!source.contains("setResult(") && !source.contains("getResult("))
-                errors.add(hook.getString("name"));
+            // Listed hooks are those whose result the script uses, checked when they were listed
+            if (!APP_HOOKS_WITH_RESULT.contains(name) ||
+                    (!source.contains("setResult(") && !source.contains("getResult(")))
+                errors.add(name);
         }
-        assertTrue("Return type without result: " + errors, errors.isEmpty());
+        assertTrue("Return type without result (or not listed): " + errors, errors.isEmpty());
+        Set<String> stale = new TreeSet<>(APP_HOOKS_WITH_RESULT);
+        stale.removeAll(seen);
+        assertTrue("Listed hooks without a return type: " + stale, stale.isEmpty());
     }
 
     // Runs a script like the hook engine does to define its functions (see XCore.LuaLocals):
@@ -1100,5 +1120,8 @@ public class HookDefinitionsTest {
                 "@nsdmanager_listener 33- optional");
         assertEquals("android.content.SyncAdapterType[]", hook("ContentResolver.getSyncAdapterTypes").getString("returnType"));
         assertEquals("android.net.NetworkRequest$Builder", hook("NetworkRequest.Builder.addTransportType").getString("returnType"));
+        // A request for VPN networks is one for LoWPAN (see vpn_request); NetworkCapabilities.Builder, and
+        // NetworkRequest.Builder(NetworkCapabilities), are system APIs, which apps cannot use
+        check("NetworkRequest.Builder.addTransportType", "android.net.NetworkRequest$Builder addTransportType(int) @vpn_request 27-");
     }
 }

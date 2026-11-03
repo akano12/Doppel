@@ -454,7 +454,15 @@ public class DebugLib extends TwoArgFunction {
 		return callstack(globals.running);
 	}
 
+	// Doppel: the stack of the main thread of a runtime is per Java thread, since dynamic hooks call its functions
+	// on other threads; without coroutines there are no other Lua threads
+	private final ThreadLocal<CallStack> stacks = new ThreadLocal<CallStack>() {
+		protected CallStack initialValue() { return new CallStack(); }
+	};
+
 	CallStack callstack(LuaThread t) {
+		if (t == globals.running)
+			return stacks.get();
 		if (t.callstack == null)
 			t.callstack = new CallStack();
 		return (CallStack) t.callstack;

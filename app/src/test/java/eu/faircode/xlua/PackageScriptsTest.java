@@ -302,37 +302,68 @@ public class PackageScriptsTest {
         assertTrue(hidden.arg(2).isnil());
     }
 
-    // An intent any app may handle, like a link, of which a hidden app is the default, gives the chooser of Android,
-    // so a check whether an app can open it does not fail; an intent for a hidden app itself gives nothing
+    // An intent any app may handle, like a link, resolves like on a device without the hidden apps, so it agrees with
+    // queryIntentActivities: nothing when only a hidden app handles it, the only visible app, or the chooser of
+    // Android when several visible apps can and the hidden one was the default; an intent for a hidden app gives nothing
     @Test
-    public void linksOfHiddenDefaultsGiveTheChooser() throws Exception {
+    public void linksResolveLikeWithoutHiddenApps() throws Exception {
         Globals globals = load("package_resolve");
         // The Android classes are stand-ins, like the rest of the stubs
         String setup = "local base = luajava.newInstance\n" +
                 "luajava.newInstance = function(name, ...)\n" +
-                "  if name == 'android.content.pm.ActivityInfo' or name == 'android.content.pm.ResolveInfo' then\n" +
-                "    return { class = name } end\n" +
+                "  if name == 'android.content.Intent' then\n" +
+                "    return { setClassName = function(self, p, c) self.target = p .. '/' .. c return self end } end\n" +
                 "  return base(name, ...) end\n" +
-                "local pm = { getApplicationInfo = function(self, name, flags) return { packageName = name } end }\n" +
-                "local context = { getPackageManager = function(self) return pm end }\n" +
+                "local function infoof(name, web) return { priority = 0, preferredOrder = 0, isDefault = true,\n" +
+                "  handleAllWebDataURI = web, activityInfo = { packageName = name, name = name .. '.Main' } } end\n" +
+                "local candidates\n" +
+                "local pm = { queryIntentActivities = function(self, intent, flags)\n" +
+                "    assert(flags == 65536) return listof(candidates) end,\n" +
+                "  resolveActivity = function(self, intent, flags)\n" +
+                "    assert(intent.target == 'android/com.android.internal.app.ResolverActivity')\n" +
+                "    return { activityInfo = { packageName = 'android', name = 'com.android.internal.app.ResolverActivity'," +
+                " processName = 'system:ui' } } end }\n" +
                 "local function intentof(package) return { getComponent = function(self) return nil end,\n" +
                 "  getPackage = function(self) return package end } end\n" +
-                "local function resolve(intent)\n" +
-                "  local param = paramof({ [0] = intent }, {}, context)\n" +
+                "local function resolve(intent, result, names)\n" +
+                "  candidates = {}\n" +
+                "  for _, name in ipairs(names) do candidates[#candidates + 1] = infoof(name, true) end\n" +
+                "  local param = paramof({ [0] = intent, [1] = 65536 }, { ['org.mozilla.firefox'] = true," +
+                " ['com.android.chrome'] = true })\n" +
                 "  param.unhooked = function(self, fn) return fn() end\n" +
-                "  param.result = { activityInfo = { packageName = 'org.mozilla.firefox' } }\n" +
+                "  param.getThis = function(self) return pm end\n" +
+                "  param.result = infoof(result)\n" +
+                "  if result == 'android' then param.result.activityInfo.name = 'com.android.internal.app.ResolverActivity' end\n" +
                 "  local restricted = after(hookof('PackageManager.resolveActivity', 'resolveActivity'), param)\n" +
                 "  return restricted, param.result\n" +
                 "end\n";
-        Varargs link = Scripts.run(globals, setup +
-                "local restricted, result = resolve(intentof(nil))\n" +
-                "return restricted, result.activityInfo.packageName, result.activityInfo.name");
-        assertTrue(link.arg(1).toboolean());
-        assertEquals("android", link.arg(2).tojstring());
-        assertEquals("com.android.internal.app.ResolverActivity", link.arg(3).tojstring());
+        Varargs only = Scripts.run(globals, setup +
+                "return resolve(intentof(nil), 'com.whatsapp', { 'com.whatsapp' })");
+        assertTrue(only.arg(1).toboolean());
+        assertTrue(only.arg(2).isnil());
+        Varargs several = Scripts.run(globals, setup +
+                "local restricted, result = resolve(intentof(nil), 'com.hidden.browser'," +
+                " { 'com.hidden.browser', 'org.mozilla.firefox', 'com.android.chrome' })\n" +
+                "return restricted, result.activityInfo.name, result.activityInfo.processName, result.handleAllWebDataURI");
+        assertTrue(several.arg(1).toboolean());
+        assertEquals("com.android.internal.app.ResolverActivity", several.arg(2).tojstring());
+        assertEquals("system:ui", several.arg(3).tojstring());
+        assertTrue(several.arg(4).toboolean());
+        Varargs one = Scripts.run(globals, setup +
+                "local restricted, result = resolve(intentof(nil), 'com.hidden.browser'," +
+                " { 'com.hidden.browser', 'org.mozilla.firefox' })\n" +
+                "return restricted, result.activityInfo.packageName");
+        assertTrue(one.arg(1).toboolean());
+        assertEquals("org.mozilla.firefox", one.arg(2).tojstring());
+        // The chooser for a hidden and a visible app is that app, like without the hidden one
+        Varargs chooser = Scripts.run(globals, setup +
+                "local restricted, result = resolve(intentof(nil), 'android'," +
+                " { 'com.hidden.browser', 'org.mozilla.firefox' })\n" +
+                "return restricted, result.activityInfo.packageName");
+        assertTrue(chooser.arg(1).toboolean());
+        assertEquals("org.mozilla.firefox", chooser.arg(2).tojstring());
         Varargs app = Scripts.run(globals, setup +
-                "local restricted, result = resolve(intentof('org.mozilla.firefox'))\n" +
-                "return restricted, result");
+                "return resolve(intentof('com.whatsapp'), 'com.whatsapp', { 'com.whatsapp' })");
         assertTrue(app.arg(1).toboolean());
         assertTrue(app.arg(2).isnil());
     }

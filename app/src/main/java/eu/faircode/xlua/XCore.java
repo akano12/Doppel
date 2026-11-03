@@ -559,14 +559,9 @@ class XCore {
                             luaHook,
                             CoerceJavaToLua.coerce(new XParam(context, call, settings))
                     };
-                    Varargs result;
-                    if (BuildConfig.DEBUG)
-                        // The call stack of DebugLib is of the thread, which its dynamic hooks use too, see LuaHook
-                        synchronized (libraries.get()) {
-                            result = func.invoke(args);
-                        }
-                    else
-                        result = func.invoke(args);
+                    // Not locked, also in debug builds: the call stacks of DebugLib are per Java thread, and a lock
+                    // held for the whole script deadlocks with a dynamic hook of this runtime on a thread it waits on
+                    Varargs result = func.invoke(args);
                     reportUse(context, hook, function, result);
                 } catch (Throwable ex) {
                     threadGlobals.remove();
@@ -898,7 +893,7 @@ class XCore {
                         values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
                         values.addAll(xargs);
                         // The function is of the Lua runtime of the thread which installed the hook,
-                        // which is not thread safe; in debug builds that thread locks it too, see installMethod
+                        // which is not thread safe for other dynamic hooks of it
                         synchronized (runtime) {
                             fun.invoke(values.toArray(new LuaValue[0]));
                         }

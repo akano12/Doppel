@@ -17,8 +17,8 @@
 
 -- The strings of the OpenGL driver name the graphics chip, like Adreno (TM) 740, which narrows down the model of
 -- the device, like Build.MODEL: the renderer and the vendor become unknown, also the family, like Adreno or Mali,
--- which games use for workarounds of drivers, and the vendor of EGL; the version keeps its number, like
--- OpenGL ES 3.2, which they parse, the build of the driver goes.
+-- which games use for workarounds of drivers; the version keeps its number, like OpenGL ES 3.2, which they parse,
+-- the build of the driver goes. The vendor of EGL stays: the EGL loader of Android gives Android on every device.
 -- Not covered is native code, which calls the driver itself, like most games and Vulkan.
 -- The extensions of vendors, like GL_QCOM_tiled_rendering, GL_ARM_shader_framebuffer_fetch and EGL_IMG_context_priority,
 -- name the chip and the driver too; the extensions of Khronos and Android (OES, EXT, KHR, ANDROID, OVR) stay, which
@@ -29,7 +29,6 @@ local RENDERER = 7937 -- GL_RENDERER
 local VERSION = 7938 -- GL_VERSION
 local EXTENSIONS = 7939 -- GL_EXTENSIONS
 local EGL_EXTENSIONS = 12373 -- EGL_EXTENSIONS
-local EGL_VENDOR = 12371 -- EGL_VENDOR
 local KEPT = { 'GL_OES_', 'GL_EXT_', 'GL_KHR_', 'GL_ANDROID_', 'GL_OVR_', 'EGL_KHR_', 'EGL_EXT_', 'EGL_ANDROID_' }
 
 -- The extensions of a list separated by spaces which are not of a vendor, as a table
@@ -46,13 +45,23 @@ function kept(list)
     return result
 end
 
--- The extensions of the current context without those of vendors, from the real list
+-- The extensions of the current context without those of vendors, from the real list, kept per context, since
+-- apps ask for each index in turn (the script runs per thread, like a context is current per thread)
+local CONTEXT = nil
+local CONTEXTKEPT = nil
+
 function contextkept(param)
+    local context = luajava.bindClass('android.opengl.EGL14'):eglGetCurrentContext():getNativeHandle()
+    if CONTEXTKEPT ~= nil and context == CONTEXT then
+        return CONTEXTKEPT
+    end
     local list
     param:unhooked(function()
         list = luajava.bindClass('android.opengl.GLES20'):glGetString(EXTENSIONS)
     end)
-    return (list ~= nil and kept(list) or nil)
+    CONTEXT = context
+    CONTEXTKEPT = (list ~= nil and kept(list) or nil)
+    return CONTEXTKEPT
 end
 
 -- glGetStringi(GL_EXTENSIONS, index): the extension of the index of the kept ones
@@ -102,10 +111,7 @@ function after(hook, param)
             fake = fake .. ' '
         end
     elseif method == 'eglQueryString' then
-        if name ~= EGL_VENDOR then
-            return false
-        end
-        fake = 'unknown'
+        return false
     elseif name == RENDERER or name == VENDOR then
         fake = 'unknown'
     elseif name == VERSION then

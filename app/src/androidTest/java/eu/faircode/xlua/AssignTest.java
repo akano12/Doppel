@@ -98,6 +98,16 @@ public class AssignTest {
             Data.clearApp(context, PACKAGE, ai.uid, false);
         }
 
+        // Like a custom definition which failed to load at boot: the service has no such hook, the row is kept
+        ArrayList<String> unloaded = new ArrayList<>(Arrays.asList("Test.AssignTest.unloaded"));
+        try {
+            assertEquals(1, Data.assignHooks(context, unloaded, PACKAGE, ai.uid, false, false, false));
+            assertFalse(ReceiverPackage.added(context, PACKAGE, ai.uid));
+            assertTrue(Data.hasAssignments(context, PACKAGE, ai.uid));
+        } finally {
+            Data.clearApp(context, PACKAGE, ai.uid, false);
+        }
+
         try {
             assertTrue(ReceiverPackage.added(context, PACKAGE, ai.uid));
             boolean restrict = Data.getSettingBoolean(context, Util.getUserId(ai.uid), "global", "restrict_new_apps");

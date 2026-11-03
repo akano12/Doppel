@@ -292,7 +292,7 @@ class XProvider {
     static final Set<String> USER_CALLS = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList("getSetting", "putSetting", "clearData")));
     static final Set<String> UID_CALLS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            "assignHooks", "initApp", "clearApp", "forceStop", "getAssignedHooks2", "getSettings", "getBootValues")));
+            "assignHooks", "initApp", "clearApp", "forceStop", "getAssignedHooks2", "getAssignments", "getSettings", "getBootValues")));
 
     // The app of a secondary user or a work profile acts for its own user only, else it could read, change and clear
     // the data of the owner, or put scripts into the apps of the owner; system server, like ReceiverPackage, acts for
@@ -327,7 +327,7 @@ class XProvider {
                 case "getAssignedHooks2":
                     return getAssignedHooks(context, selection, permitted);
                 case "getAssignments":
-                    return getAssignments();
+                    return getAssignments(context, selection, permitted);
                 case "getSettings":
                     return getSettings(context, selection, permitted);
                 case "getBootValues":
@@ -1013,8 +1013,14 @@ class XProvider {
         return sb.toString();
     }
 
-    // All assignments of the apps of the user of the caller, also of hooks which are not available, for backups
-    private static Cursor getAssignments() throws Throwable {
+    // All assignments of the apps of the user of the caller, also of hooks which are not available, for backups,
+    // or those of one app, see ReceiverPackage.added
+    private static Cursor getAssignments(Context context, String[] selection, boolean permitted) throws Throwable {
+        if (selection != null) {
+            final String[] where = {selection[0], Integer.toString(ownUid(context, "getAssignments", selection, permitted, null))};
+            return db.read(d -> copy(d.query("assignment", new String[]{"package", "uid", "hook"},
+                    WHERE_APP, where, null, null, "hook")));
+        }
         final String[] range = getUidRange(Util.getUserId(Binder.getCallingUid()));
         return db.read(d -> copy(d.query("assignment", new String[]{"package", "uid", "hook"},
                 WHERE_USER, range, null, null, "package, hook")));

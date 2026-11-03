@@ -124,17 +124,8 @@ function withnotvpn(names)
     return table.concat(list, '&')
 end
 
--- A request for VPN networks, like NetworkRequest.Builder().addTransportType(TRANSPORT_VPN) for a callback when a VPN
--- connects, which Android matches itself: for LoWPAN instead, which phones do not have, so it finds no network
+-- LoWPAN, which phones do not have, is what a request for VPN networks asks for instead (see vpn_request)
 local TRANSPORT_LOWPAN = 6
-
-function before(hook, param)
-    if hook:getMethodName() == 'addTransportType' and param:getArgument(0) == TRANSPORT_VPN then
-        param:setArgument(0, TRANSPORT_LOWPAN)
-        return true, tostring(TRANSPORT_VPN), tostring(TRANSPORT_LOWPAN)
-    end
-    return false
-end
 
 function after(hook, param)
     if nested.running then
@@ -146,14 +137,25 @@ function after(hook, param)
     return restricted, old, new
 end
 
--- Called by LinkProperties itself, not counting the frame of the hooked method: it checks, compares, copies
--- and parcels its interface, routes and addresses through the getters, which must agree with its fields there
-function linkproperties(method)
+-- Called by LinkProperties itself where it copies, parcels or compares itself: it reads its interface, routes and
+-- addresses through the getters there, which must agree with its fields. Not where an app adds a route it got:
+-- addRoute checks the interface of the route against the one the app set, which is the fake one then.
+-- Only the frames of LinkProperties right below the hook count, the frames further down are of its caller.
+function linkproperties()
     local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
+    local inside = false
     for index = 1, frames['length'] do
         local frame = frames[index]
-        if frame:getClassName() == 'android.net.LinkProperties' and frame:getMethodName() ~= method then
-            return true
+        local class = frame:getClassName()
+        if class == 'android.net.LinkProperties' or class == 'android.net.LinkProperties$1' then
+            inside = true
+            local method = frame:getMethodName()
+            if method == '<init>' or method == 'createFromParcel' or method == 'writeToParcel' or
+                    method == 'equals' or string.find(method, '^isIdentical') or string.find(method, '^compare') then
+                return true
+            end
+        elseif inside then
+            return false
         end
     end
     return false
@@ -164,7 +166,8 @@ function restrict(hook, param)
     local result = param:getResult()
 
     if method == 'hasTransport' then
-        if result and param:getArgument(0) == TRANSPORT_VPN then
+        local transport = param:getArgument(0)
+        if result and (transport == TRANSPORT_VPN or transport == TRANSPORT_LOWPAN) then
             param:setResult(false)
             return true, 'true', 'false'
         end
@@ -233,7 +236,9 @@ function restrict(hook, param)
     elseif method == 'toString' then
         -- Apps search the text for VPN, like the name of the VpnTransportInfo
         if result ~= nil then
+            -- A request of the app for VPN networks, of which vpn_request made one for LoWPAN, is one for VPN again
             local fake = string.gsub(result, ' TransportInfo: <VpnTransportInfo{[^}]*}>', '')
+            fake = string.gsub(fake, 'LOWPAN', 'VPN')
             if string.find(fake, 'VPN', 1, true) then
                 fake = string.gsub(fake, '|VPN', '')
                 fake = string.gsub(fake, 'VPN|', '')
@@ -317,7 +322,7 @@ function restrict(hook, param)
         -- LinkProperties of the active network, like tun0, and its routes (RouteInfo.getInterface);
         -- LinkProperties checks the routes against its own interface when it reads a parcel or copies (addRoute),
         -- which throws for a faked interface, so it gets the real ones
-        if isvpninterface(result) and not linkproperties(method) then
+        if isvpninterface(result) and not linkproperties() then
             local fake = underlyinginterface(param)
             param:setResult(fake)
             return true, result, fake

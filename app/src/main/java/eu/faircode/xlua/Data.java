@@ -308,6 +308,13 @@ final class Data {
         return result;
     }
 
+    // Whether an app has assignments, also of hooks which are not loaded or not available
+    static boolean hasAssignments(Context context, String packageName, int uid) {
+        try (Cursor cursor = query(context, "getAssignments", new String[]{packageName, Integer.toString(uid)})) {
+            return cursor.getCount() > 0;
+        }
+    }
+
     // Settings of the current user
 
     static String getSetting(Context context, String category, String name) {

@@ -364,12 +364,25 @@ public class NetworkScriptsTest {
                         "local copy = call('getInterfaceName', 'android.net.LinkProperties')\n" +
                         "stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.getInterfaceName', 'com.example.App.run' }\n" +
                         "local own = call('getInterfaceName', 'android.net.LinkProperties')\n" +
+                        "stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.addRoute', 'android.net.LinkProperties.<init>' }\n" +
+                        "local copied = call('getInterface', 'android.net.RouteInfo')\n" +
+                        // An app rebuilding LinkProperties: setInterfaceName(lp.getInterfaceName()), the fake one, then
+                        // addRoute(r) for each of lp.getRoutes(), which checks that the route has the same interface
+                        "stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.addRoute', 'com.example.App.run'," +
+                        " 'android.net.LinkProperties.<init>' }\n" +
+                        "local added = call('getInterface', 'android.net.RouteInfo')\n" +
+                        "stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.getInterfaceName'," +
+                        " 'android.net.LinkProperties.getAllInterfaceNames', 'com.example.App.run' }\n" +
+                        "local names = call('getInterfaceName', 'android.net.LinkProperties')\n" +
                         "stack = { 'java.lang.Thread.getStackTrace', 'com.example.App.run' }\n" +
-                        "return route, copy, own, call('getInterface', 'android.net.RouteInfo')");
+                        "return route, copy, own, call('getInterface', 'android.net.RouteInfo'), copied, added, names");
         assertEquals("tun0", result.arg(1).tojstring());
         assertEquals("tun0", result.arg(2).tojstring());
         assertEquals("rmnet_data0", result.arg(3).tojstring());
         assertEquals("rmnet_data0", result.arg(4).tojstring());
+        assertEquals("tun0", result.arg(5).tojstring());
+        assertEquals(result.arg(3).tojstring(), result.arg(6).tojstring());
+        assertEquals("rmnet_data0", result.arg(7).tojstring());
     }
 
     // LinkProperties compares and copies its routes, addresses and DNS servers through the getters (equals, the copy
@@ -394,10 +407,10 @@ public class NetworkScriptsTest {
         assertEquals("true", result.arg(4).tojstring());
     }
 
-    // A request for VPN networks, which Android matches itself, asks for LoWPAN networks instead; others stay
+    // A request for VPN networks, which Android matches itself, asks for LoWPAN networks instead; others stay. The request of the app does not show LoWPAN then, it hides it like VPN.
     @Test
     public void vpnRequestsFindNothing() throws Exception {
-        Globals globals = load("vpn");
+        Globals globals = load("vpn_request");
         Varargs result = Scripts.run(globals,
                 "local function request(transport)\n" +
                         "  local param = { args = { [0] = transport },\n" +
@@ -413,6 +426,19 @@ public class NetworkScriptsTest {
         assertEquals(6, result.arg(2).toint());
         assertFalse(result.arg(3).toboolean());
         assertEquals(1, result.arg(4).toint());
+
+        // The other hooks of Read.VPN do not run a before function for it
+        Globals vpn = load("vpn");
+        assertTrue(vpn.get("before").isnil());
+        Scripts.run(vpn, NETWORKS);
+        Varargs shown = Scripts.run(vpn,
+                "local has = paramof(true, { [0] = 6 }, nil, context)\n" +
+                        "after(hookof('hasTransport', 'android.net.NetworkCapabilities'), has)\n" +
+                        "local text = paramof('[ Transports: LOWPAN Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED ]', {}, nil, context)\n" +
+                        "after(hookof('toString', 'android.net.NetworkCapabilities'), text)\n" +
+                        "return has.result, text.result");
+        assertFalse(shown.arg(1).toboolean());
+        assertFalse(shown.arg(2).tojstring(), shown.arg(2).tojstring().contains("LOWPAN"));
     }
 
     // NOT_VPN in its place in bit order, like a real network has it: after TRUSTED (14), before VALIDATED (16)

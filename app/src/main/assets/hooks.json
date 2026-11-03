@@ -12073,7 +12073,7 @@
     ],
     "returnType": "android.net.NetworkRequest$Builder",
     "minSdk": 27,
-    "luaScript": "@vpn"
+    "luaScript": "@vpn_request"
   },
   {
     "collection": "Privacy",
@@ -16031,6 +16031,39 @@
     "excludePackages": "android",
     "luaScript": "@media_codecs"
   },
+  // The codec the list picks for a format, by its name, which the framework may read without getName
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaCodecList.findDecoderForFormat",
+    "author": "akano12",
+    "className": "android.media.MediaCodecList",
+    "methodName": "findDecoderForFormat",
+    "parameterTypes": [
+      "android.media.MediaFormat"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@media_codecs"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaCodecList.findEncoderForFormat",
+    "author": "akano12",
+    "className": "android.media.MediaCodecList",
+    "methodName": "findEncoderForFormat",
+    "parameterTypes": [
+      "android.media.MediaFormat"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@media_codecs"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -16184,6 +16217,43 @@
       "int"
     ],
     "returnType": "long",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@cpu_count"
+  },
+  // The processors possible, present and online of /sys/devices/system/cpu (cpu_count)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.open/cpu_count",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@cpu_count"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.open/cpu_count",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
     "minSdk": 27,
     "usage": false,
     "excludePackages": "android",

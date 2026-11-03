@@ -36,6 +36,7 @@ import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 // A restore of a backup file, which users can edit, against the service of the device: what cannot be read is left out
@@ -49,6 +50,9 @@ public class BackupRestoreTest {
     public void leavesOutWhatItCannotRead() throws Throwable {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         assumeTrue("Module not running", Data.isAvailable(context));
+        // The test deletes the custom definition it restores, which would delete one of the user
+        for (XHook hook : Data.getAllHooks(context, null))
+            assumeFalse("Custom definition " + REPLACED, REPLACED.equals(hook.getId()) && !hook.isBuiltin());
 
         String definition = "{\"collection\": \"%s\", \"group\": \"Read.Network\", \"name\": \"%s\", \"author\": \"Test\"," +
                 " \"className\": \"android.system.Os\", \"methodName\": \"getsockname\"," +

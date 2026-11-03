@@ -22,6 +22,8 @@
 -- framework looks them up in the app process.
 
 local SIGNATURE_UNKNOWN_PACKAGE = -4 -- PackageManager
+-- The chooser of Android, which resolveActivity gives when several apps can and none is the default
+local RESOLVER = 'com.android.internal.app.ResolverActivity'
 
 function after(hook, param)
     local result = param:getResult()
@@ -114,18 +116,25 @@ function after(hook, param)
         packageName = info.packageName
     end
 
+    -- An intent any app may handle, like a link, of which a hidden app is the default or one of several: what
+    -- Android resolves without the hidden apps, so the result agrees with queryIntentActivities (see best)
+    if (method == 'resolveActivity' or method == 'resolveActivityAsUser') and implicit(param:getArgument(0)) then
+        local chooser = (packageName == 'android' and result.activityInfo.name == RESOLVER)
+        if chooser or not param:isPackageVisible(packageName) then
+            local ok, fake = pcall(best, param, chooser and result)
+            if not ok then
+                fake = (chooser and result or nil)
+            end
+            if fake == result then
+                return false
+            end
+            param:setResult(fake)
+            return true, packageName, (fake ~= nil and fake.activityInfo.packageName or nil)
+        end
+    end
+
     if param:isPackageVisible(packageName) then
         return false
-    end
-    -- An intent any app may handle, like a link, of which a hidden app is the default, like a browser: the chooser
-    -- of Android, which Android itself gives when several apps can and none is the default, so a check whether an app
-    -- can open it does not fail; the hidden app still opens it then, like Android does without the check
-    if (method == 'resolveActivity' or method == 'resolveActivityAsUser') and implicit(param:getArgument(0)) then
-        local chooser = resolver(param)
-        if chooser ~= nil then
-            param:setResult(chooser)
-            return true, packageName, 'android'
-        end
     end
     param:setResult(nil)
     return true, packageName
@@ -136,24 +145,46 @@ function implicit(intent)
     return intent ~= nil and intent:getComponent() == nil and intent:getPackage() == nil
 end
 
--- The ResolveInfo of the chooser of Android, of the system app android, nil when it cannot be made
-function resolver(param)
-    local ok, result = pcall(function()
-        return param:unhooked(function()
-            local info = luajava.newInstance('android.content.pm.ActivityInfo')
-            info.packageName = 'android'
-            info.name = 'com.android.internal.app.ResolverActivity'
-            info.exported = true
-            info.applicationInfo = param:getApplicationContext():getPackageManager():getApplicationInfo('android', 0)
-            local ri = luajava.newInstance('android.content.pm.ResolveInfo')
-            ri.activityInfo = info
-            return ri
-        end)
+-- What Android resolves without the hidden apps (chooseBestActivity of the package manager): nothing, the only app,
+-- the first one when it has a higher priority, else the chooser, because no app left is the default: the default
+-- was hidden or there was none. chooser is the result when it was the chooser already.
+-- shortcut: resolveActivityAsUser queries the apps of the own user, which is the user of nearly every call
+function best(param, chooser)
+    local pm = param:getThis()
+    local intent = param:getArgument(0)
+    local flags = param:getArgument(1)
+    local all = param:unhooked(function()
+        return pm:queryIntentActivities(intent, flags)
     end)
-    if ok then
-        return result
+    local visible = {}
+    for index = 0, all:size() - 1 do
+        local info = all:get(index)
+        if param:isPackageVisible(info.activityInfo.packageName) then
+            visible[#visible + 1] = info
+        end
     end
-    return nil
+    local first, second = visible[1], visible[2]
+    if second == nil or first.priority ~= second.priority or first.preferredOrder ~= second.preferredOrder or
+            first.isDefault ~= second.isDefault then
+        return first
+    end
+    if chooser then
+        return chooser
+    end
+    -- The real chooser of the system, like resolving it by name gives, with the title of the action and marked
+    -- as a browser when all apps are, like Android does
+    chooser = param:unhooked(function()
+        return pm:resolveActivity(luajava.newInstance('android.content.Intent'):setClassName('android', RESOLVER), 0)
+    end)
+    local browsers = true
+    for index = 1, #visible do
+        browsers = browsers and visible[index].handleAllWebDataURI
+    end
+    chooser.handleAllWebDataURI = browsers
+    pcall(function()
+        chooser.activityInfo.labelRes = luajava.bindClass(RESOLVER):getLabelRes(intent:getAction())
+    end)
+    return chooser
 end
 
 -- The package of a sync adapter: its own (Android 10), else the one of its provider, nil when unknown

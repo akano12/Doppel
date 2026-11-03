@@ -24,9 +24,11 @@
 -- photos themselves.
 local METADATA_KEY_LOCATION = 23
 local COLUMNS = { 'latitude', 'longitude' }
+local NULL = {}
 
--- A query of the media provider with the location columns: the rows without the location, null like for a photo
--- without it
+-- A query of the media provider with the location columns: the cursor of the provider behind a proxy, which gives
+-- the location columns like for a photo without a location (null) and the rest, like the notification URI, the
+-- types and the moving, as it is
 function query(param)
     local uri = param:getArgument(0)
     local result = param:getResult()
@@ -45,33 +47,36 @@ function query(param)
     if not any then
         return false
     end
-    local columns = result:getColumnNames()
-    local fake = luajava.newInstance('android.database.MatrixCursor', columns)
-    local position = result:getPosition()
-    result:moveToPosition(-1)
-    while result:moveToNext() do
-        local row = fake:newRow()
-        for index = 0, columns['length'] - 1 do
-            local kind = result:getType(index)
-            local value = nil
-            if hidden[index] or kind == 0 then
-                value = nil
-            elseif kind == 1 then
-                -- The exact digits: a Lua number above 2^31 would come back as a double, like 1.7E12 for a date
-                value = result:getString(index)
-            elseif kind == 2 then
-                value = result:getDouble(index)
-            elseif kind == 4 then
-                value = result:getBlob(index)
-            else
-                value = result:getString(index)
+    -- The functions of the proxy get the arguments of the method only; the others call the method of the cursor.
+    -- shortcut: a long passes Lua as a double, exact up to 2^53, like dates and ids of media; upgrade for larger ones
+    local methods = {}
+    for method, value in pairs({ getString = NULL, getBlob = NULL, getDouble = 0, getFloat = 0, getLong = 0,
+                                 getInt = 0, getShort = 0, getType = 0, isNull = true }) do
+        methods[method] = function(index, ...)
+            if hidden[index] then
+                return (value ~= NULL and value or nil)
             end
-            row:add(value)
+            return result[method](result, index, ...)
         end
     end
-    result:close()
-    fake:moveToPosition(position)
-    param:setResult(fake)
+    -- CharArrayBuffer of a hidden column: empty, like for null
+    methods.copyStringToBuffer = function(index, buffer)
+        if hidden[index] then
+            buffer.sizeCopied = 0
+            return
+        end
+        result:copyStringToBuffer(index, buffer)
+    end
+    setmetatable(methods, { __index = function(_, method)
+        -- The proxy itself for equals and hashCode, like any object
+        if method == 'equals' or method == 'hashCode' then
+            return nil
+        end
+        return function(...)
+            return result[method](result, ...)
+        end
+    end })
+    param:setResult(luajava.createProxy('android.database.Cursor', methods))
     return true
 end
 

@@ -66,9 +66,27 @@ function filtered(text)
     return result, count
 end
 
--- Whether the hooked method opened one of the files in a etc folder of a partition
+-- Whether the hooked method opened one of the files in a etc folder of a partition, also by another path, like
+-- XParam.opens: with /./ or //, by the links of /proc to the root and by other links, like /etc to /system/etc
+-- (opens takes a single file, the partitions of makers are many)
 function config(param)
-    local path = tostring(param:getArgument(0))
+    local path = '/' .. tostring(param:getArgument(0))
+    while string.find(path, '/./', 1, true) do
+        path = string.gsub(path, '/%./', '/')
+    end
+    path = string.gsub(path, '//+', '/')
+    path = string.gsub(path, '^/proc/[%w_-]+/root/', '/')
+    if configpath(path) then
+        return true
+    end
+    local ok, resolved = pcall(function()
+        return luajava.newInstance('java.io.File', path):getCanonicalPath()
+    end)
+    return ok and resolved ~= nil and resolved ~= path and configpath(resolved)
+end
+
+-- Whether a plain path is of one of the files in a etc folder of a partition
+function configpath(path)
     -- Of the system only, not a configuration an app keeps itself
     local partition = string.match(path, '^/([^/]+)/')
     if partition == nil or not (partition == 'system' or partition == 'product' or partition == 'system_ext' or

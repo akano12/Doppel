@@ -49,8 +49,18 @@ local FILES = {
         '/block/sd%a+/device/model$', '/block/sd%a+/device/vendor$', '/block/sd%a+/device/rev$',
         '/%d+:%d+:%d+:%d+/model$', '/%d+:%d+:%d+:%d+/vendor$', '/%d+:%d+:%d+:%d+/rev$',
         '/sensors/light_sensor/light_cal$', '/sec/tsp$', '/sec/tsp/', '/class/camera/', '/virtual/camera/',
-        -- The processors, their speeds and their layout, like cpu7/cpufreq/cpuinfo_max_freq (see cpu_count)
-        '/devices/system/cpu$', '/devices/system/cpu/',
+        -- The speeds, layout, caches and idle states of the processors, like cpu7/cpufreq/cpuinfo_max_freq, and the
+        -- features and flaws of their cores; the folder and the numbers of the processors stay (see cpu_count)
+        '/devices/system/cpu/cpufreq$', '/devices/system/cpu/cpufreq/', '/devices/system/cpu/cpuidle$',
+        '/devices/system/cpu/cpuidle/', '/devices/system/cpu/vulnerabilities$', '/devices/system/cpu/vulnerabilities/',
+        '/devices/system/cpu/modalias$', '/devices/system/cpu/cpu%d+/cpufreq$', '/devices/system/cpu/cpu%d+/cpufreq/',
+        '/devices/system/cpu/cpu%d+/topology$', '/devices/system/cpu/cpu%d+/topology/',
+        '/devices/system/cpu/cpu%d+/cpuidle$', '/devices/system/cpu/cpu%d+/cpuidle/',
+        '/devices/system/cpu/cpu%d+/cache$', '/devices/system/cpu/cpu%d+/cache/',
+        '/devices/system/cpu/cpu%d+/cpu_capacity$', '/devices/system/cpu/cpu%d+/regs$',
+        '/devices/system/cpu/cpu%d+/regs/',
+        -- The codecs of the chip by name (see media_codecs), like /vendor/etc/media_codecs_sm8550_vendor.xml
+        '/etc/media_codecs[^/]*%.xml$',
         '/proc/scsi/', '/proc/bus/input/devices$' },
     ['Read.Biometrics'] = {
         '/fingerprint/fingerprint$', '/fingerprint/fingerprint/', '/sec/tsp/fod_info$', '/sec/tsp/fod_pos$' },
@@ -81,9 +91,10 @@ local FILES = {
 
 -- The paths the script runs for, of the groups with files outside /sys (see filter); paths with /./ or // run it
 -- too, since the filter compares the path as the app gives it, like /system/./xbin/su, which are rare. The folders
--- of su are there for listing them, like File.list of /system/xbin.
+-- of su and of the codec files are there for listing them, like File.list of /system/xbin.
 local FILTERS = {
-    ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*/./*', '*//*' },
+    ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*', '*/./*',
+                         '*//*', '/system/etc', '/vendor/etc', '/odm/etc' },
     ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
     ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',

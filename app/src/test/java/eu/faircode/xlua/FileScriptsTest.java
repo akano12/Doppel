@@ -500,6 +500,44 @@ public class FileScriptsTest {
             assertTrue(String.valueOf(i), result.arg(i).toboolean());
     }
 
+    // The details of the processors go, their folder and numbers stay (code counts the files of the folder); the
+    // codec files name the chip, also in listings of their folders
+    @Test
+    public void hardwareProcessorsAndCodecs() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        String[] hidden = {"/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", "/sys/devices/system/cpu/cpu7/cpufreq",
+                "/sys/devices/system/cpu/cpufreq/policy4/scaling_available_frequencies",
+                "/sys/devices/system/cpu/cpu3/topology/cluster_id", "/sys/devices/system/cpu/cpu0/cache/index2/size",
+                "/sys/devices/system/cpu/cpu0/cpuidle/state1/name", "/sys/devices/system/cpu/cpu5/cpu_capacity",
+                "/sys/devices/system/cpu/cpu0/regs/identification/midr_el1", "/sys/devices/system/cpu/modalias",
+                "/sys/devices/system/cpu/vulnerabilities/spectre_v2", "/sys/devices/system/cpu/cpuidle/current_driver",
+                "/vendor/etc/media_codecs.xml", "/vendor/etc/media_codecs_sm8550_vendor.xml",
+                "/odm/etc/media_codecs_performance.xml", "/apex/com.android.media.swcodec/etc/media_codecs.xml"};
+        String[] stay = {"/sys/devices/system/cpu", "/sys/devices/system/cpu/cpu0", "/sys/devices/system/cpu/possible",
+                "/sys/devices/system/cpu/present", "/sys/devices/system/cpu/online", "/sys/devices/system/cpu/cpu0/online",
+                "/vendor/etc/media_profiles_V1_0.xml", "/vendor/etc"};
+        for (String path : hidden)
+            assertTrue(path, Scripts.run(globals, "return hidden(hookof('Use.Tracking'), '" + path + "')").arg1().toboolean());
+        for (String path : stay)
+            assertFalse(path, Scripts.run(globals, "return hidden(hookof('Use.Tracking'), '" + path + "')").arg1().toboolean());
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]')\n" +
+                        "local cpu = paramof('/sys/devices/system/cpu', namesof('cpu0', 'cpufreq', 'possible', 'modalias'))\n" +
+                        "after(hook, cpu)\n" +
+                        "local etc = paramof('/vendor/etc', namesof('media_codecs.xml', 'audio_policy.conf'))\n" +
+                        "after(hook, etc)\n" +
+                        "return cpu.result.length, cpu.result[1], cpu.result[2], etc.result.length, etc.result[1]");
+        assertEquals(2, result.arg1().toint());
+        assertEquals("cpu0", result.arg(2).tojstring());
+        assertEquals("possible", result.arg(3).tojstring());
+        assertEquals(1, result.arg(4).toint());
+        assertEquals("audio_policy.conf", result.arg(5).tojstring());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking'))").arg1().checktable().unpack());
+        for (String path : new String[]{"/vendor/etc/media_codecs.xml", "/apex/com.android.media.swcodec/etc/media_codecs.xml",
+                "/vendor/etc", "/system/etc"})
+            assertTrue(path, filterMatches(filter, path));
+    }
+
     // Resolving, reading the link of and making a hidden file fail like for a file which does not exist;
     // making one fails like in /sys, or like in a folder which does not exist when the group hides the folder
     @Test

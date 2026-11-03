@@ -33,13 +33,25 @@ function isvpninterface(name)
     return false
 end
 
--- Called by LinkProperties itself, not counting the frame of the hooked method, like network_address
-function linkproperties(method)
+-- Called by LinkProperties itself where it copies, parcels or compares itself: it reads its interface, routes and
+-- addresses through the getters there, which must agree with its fields. Not where an app adds a route it got:
+-- addRoute checks the interface of the route against the one the app set, which is the fake one then.
+-- Only the frames of LinkProperties right below the hook count, the frames further down are of its caller.
+function linkproperties()
     local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
+    local inside = false
     for index = 1, frames['length'] do
         local frame = frames[index]
-        if frame:getClassName() == 'android.net.LinkProperties' and frame:getMethodName() ~= method then
-            return true
+        local class = frame:getClassName()
+        if class == 'android.net.LinkProperties' or class == 'android.net.LinkProperties$1' then
+            inside = true
+            local method = frame:getMethodName()
+            if method == '<init>' or method == 'createFromParcel' or method == 'writeToParcel' or
+                    method == 'equals' or string.find(method, '^isIdentical') or string.find(method, '^compare') then
+                return true
+            end
+        elseif inside then
+            return false
         end
     end
     return false
@@ -55,7 +67,7 @@ function after(hook, param)
     local name = param:unhooked(function()
         return properties:getInterfaceName()
     end)
-    if not isvpninterface(name) or linkproperties(hook:getMethodName()) then
+    if not isvpninterface(name) or linkproperties() then
         return false
     end
     param:setResult(luajava.newInstance('java.util.ArrayList'))

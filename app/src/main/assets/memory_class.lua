@@ -16,7 +16,8 @@
 -- Copyright 2026 akano12
 
 -- The memory an app may use (the heap of dalvik.vm.heapgrowthlimit and heapsize, which Android sets per model, like
--- 256 and 512 MB) is rounded down to a common step: an app plans for less memory than it may use, never for more.
+-- 256 and 512 MB) is rounded down to a common step: an app plans for less memory than it may use, never for more;
+-- Runtime.maxMemory never below the heap the app already uses (totalMemory).
 -- ActivityManager.getMemoryClass and getLargeMemoryClass give megabytes, Runtime.maxMemory bytes; the properties
 -- are like systemproperties_get (/resources), which a test compares.
 local STEPS = { 128, 192, 256, 384, 512 }
@@ -45,7 +46,9 @@ function after(hook, param)
             return false
         end
         fake = step(mb) * 1048576
-        if fake >= result then
+        -- Never below the heap in use, of which apps subtract it (LruCache sizes): the real value then, since the
+        -- next step up is above it
+        if fake >= result or fake < luajava.bindClass('java.lang.Runtime'):getRuntime():totalMemory() then
             return false
         end
     else

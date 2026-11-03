@@ -67,15 +67,17 @@ public class DeviceValuesScriptTest {
                 "ro.product.marketname", "ro.product.vendor.marketname", "ro.config.marketing_name",
                 "ro.vendor.product.model", "ro.odm.product.manufacturer", "persist.sys.exif.model", "ro.vendor.soc.model",
                 "ro.vendor.soc.model.part_name", "ro.hardware.chipname", "ro.chipname", "ro.vendor.qti.soc_model",
-                "ro.mediatek.platform"})
+                "ro.mediatek.platform", "ro.hardware.egl", "ro.hardware.vulkan"})
             assertEquals(key, "unknown", Scripts.run(globals, "return fakedevice('" + key + "', 'x')").arg1().tojstring());
         // Not all properties of the hardware, WallpaperManager reads ro.boot.hardware.color
         assertTrue(Scripts.run(globals, "return fakedevice('ro.boot.hardware.color', 'x')").arg1().isnil());
         assertTrue(Scripts.run(globals, "return fakedevice('ro.product.first_api_level', '34')").arg1().isnil());
-        // Nor the ABIs and the drivers apps load code with, nor the launch level, which TelephonyManager reads too
-        for (String key : new String[]{"ro.vendor.product.cpu.abilist", "ro.hardware.egl", "ro.hardware.vulkan",
-                "ro.vendor.api_level", "ro.vendor.qti.soc_id"})
+        // Nor the ABIs apps load code with, nor the launch level, which TelephonyManager reads too
+        for (String key : new String[]{"ro.vendor.product.cpu.abilist", "ro.vendor.api_level", "ro.vendor.qti.soc_id"})
             assertTrue(key, Scripts.run(globals, "return fakedevice('" + key + "', 'x')").arg1().isnil());
+        // The GPU family is faked: the EGL and Vulkan loaders read the properties natively, which the hooks do not
+        // change; ANGLE as the driver of the system stays, which GraphicsEnvironment checks in Java to set it up
+        assertTrue(Scripts.run(globals, "return fakedevice('ro.hardware.egl', 'angle')").arg1().isnil());
         // A property of the device not starting with ro. is faked by get too
         assertEquals("unknown", Scripts.run(globals, "return run(hookof('SystemProperties.get/device', 'get'), " +
                 "paramof('SM-S918B', { [0] = 'persist.sys.exif.model' }))").arg(2).tojstring());

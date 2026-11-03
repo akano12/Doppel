@@ -756,8 +756,13 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     Data.putSetting(context, category, entry.getKey(), entry.getValue());
             } catch (Throwable ex) {
                 // The values saved before the error apply too, so the form shows what was saved and the app is
-                // stopped; stopping fails too when the service is gone, which must not hide the error of the save
-                postUnlessGone(this::load);
+                // stopped; stopping fails too when the service is gone, which must not hide the error of the save.
+                // The values not saved are entered again, like after a recreation
+                postUnlessGone(() -> {
+                    if (restored == null)
+                        restored = getChanges();
+                    load();
+                });
                 if (stop)
                     try {
                         Data.forceStop(context, app);
