@@ -77,17 +77,21 @@ local FILES = {
     ['Get.Applications'] = { '/etc/permissions/privapp%-permissions%-[^/]*$' },
 }
 
--- The paths the script runs for, of the groups with files outside /sys (see filter)
+-- The paths the script runs for, of the groups with files outside /sys (see filter); paths with /./ or // run it
+-- too, since the filter compares the path as the app gives it, like /system/./xbin/su, which are rare. The folders
+-- of su are there for listing them, like File.list of /system/xbin.
 local FILTERS = {
-    ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*' },
-    ['Read.Network'] = { '*net/*' },
-    ['Read.VPN'] = { '*net/*' },
+    ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/./*', '*//*' },
+    ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
+    ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',
                            '/sbin/*', '/su*', '/data/local/*', '/cache/su', '/dev/su', '/vendor/bin/*',
                            '/vendor/xbin/*', '/product/bin/*', '/system_ext/bin/*', '/odm/bin/*', '/debug_ramdisk*',
-                           '/data/adb*', '*bin/su*', '*magisk*', '*debug_ramdisk*' },
-    ['Read.Features'] = { '*etc/permissions*', '*etc/sysconfig*' },
-    ['Get.Applications'] = { '*etc/permissions/privapp-permissions-*' },
+                           '/data/adb*', '*bin/su*', '*magisk*', '*debug_ramdisk*', '*/./*', '*//*',
+                           '/system/bin', '/system/xbin', '/sbin', '/data/local', '/cache', '/dev', '/vendor/bin',
+                           '/vendor/xbin', '/product/bin', '/system_ext/bin', '/odm/bin', '/system/app' },
+    ['Read.Features'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
+    ['Get.Applications'] = { '*etc/permissions/privapp-permissions-*', '*/./*', '*//*' },
 }
 
 -- Whether a network interface is of a VPN, like vpn and interface_entries, which a test compares
@@ -111,7 +115,7 @@ local ENOENT = 2
 -- or sys/... relative to /, the folder apps run in; see XCore.getFilter. Not covered are links of apps themselves
 -- to the files, which have paths without sys/.
 function filter(hook)
-    return FILTERS[hook:getGroup()] or { '*sys/*' }
+    return FILTERS[hook:getGroup()] or { '*sys/*', '*/./*', '*//*' }
 end
 
 -- Whether paths are hidden for a group, per thread, since a script runs once per thread (see docs/DEFINE.md): files
@@ -156,8 +160,7 @@ end
 -- Whether a file is one of the group of the hook: its path or the path it leads to matches a pattern
 function hidden(hook, path)
     local group = about(hook).group
-    local patterns = FILES[group]
-    if patterns == nil then
+    if FILES[group] == nil then
         return false
     end
     local key = group .. '|' .. path
@@ -165,7 +168,19 @@ function hidden(hook, path)
     if known ~= nil then
         return known
     end
+    local found = matched(group, path)
+    if cached >= 1000 then
+        HIDDEN = {}
+        cached = 0
+    end
+    HIDDEN[key] = found
+    cached = cached + 1
+    return found
+end
 
+-- Whether a file is one of a group, without the cache, so other threads can ask too (see listing)
+function matched(group, path)
+    local patterns = FILES[group]
     -- The patterns of Read.VPN capture the name of the interface
     local function matches(text, pattern)
         if group == 'Read.VPN' then
@@ -190,13 +205,6 @@ function hidden(hook, path)
             end
         end
     end
-
-    if cached >= 1000 then
-        HIDDEN = {}
-        cached = 0
-    end
-    HIDDEN[key] = found
-    cached = cached + 1
     return found
 end
 
@@ -207,15 +215,17 @@ end
 
 -- Files.newDirectoryStream, list and walk: the names of hidden files are left out by a filter in front of
 -- the one of the app; a hidden folder is not opened at all (see the hooks of UnixNativeDispatcher.opendir). Listing a folder of /sys is not
--- reported, since nothing is hidden in most of them.
+-- reported, since nothing is hidden in most of them. The filter can run on another thread, which must not change
+-- the tables of this one, so it does not use the cache.
 function listing(hook, param, folder)
     if hidden(hook, folder) then
         return false
     end
+    local group = about(hook).group
     local original = param:getArgument(1)
     param:setArgument(1, luajava.createProxy('java.nio.file.DirectoryStream$Filter', {
         accept = function(entry)
-            if hidden(hook, tostring(entry)) then
+            if matched(group, tostring(entry)) then
                 return false
             end
             return original == nil or original:accept(entry)
@@ -236,7 +246,7 @@ function before(hook, param)
 
     local method = about(hook).method
     if class == 'libcore.io.BlockGuardOs' or class == 'android.system.Os' then
-        -- Os.open, stat, lstat, access and readlink, which FileInputStream and File.length use; Os.access and
+        -- Os.open, stat, lstat, access and readlink, which FileInputStream uses; Os.access and
         -- Os.readlink of apps are hooked themselves, since the hooks of BlockGuardOs do not run for them (Android 14)
         param:setResult(luajava.newInstance('android.system.ErrnoException', method, ENOENT))
     elseif class == 'java.io.UnixFileSystem' then
@@ -256,7 +266,9 @@ function before(hook, param)
             -- File.lastModified, 0 like of a file which does not exist
             param:setResult(0)
         else
-            -- File.isFile and isDirectory: no attributes, like of a file which does not exist
+            -- File.isFile and isDirectory: no attributes; File.length, getTotalSpace, getFreeSpace and
+            -- getUsableSpace (getLength and getSpace, which call stat and statvfs natively): 0, like of a file
+            -- which does not exist
             param:setResult(0)
         end
     else

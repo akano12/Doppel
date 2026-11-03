@@ -292,6 +292,7 @@ function fakesetting(param, name, key, result)
     if name == 'android_id' and key == 'android_id' then
         local fake = param:getSetting('value.android_id')
         if fake == nil then
+            -- Only if the boot values could not be read: value.android_id comes from Fake values (new each boot)
             fake = '0000000000000000'
         end
         -- Settings.Secure.getString calls the hooked getStringForUser

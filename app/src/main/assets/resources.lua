@@ -94,8 +94,10 @@ function meminfo(param)
             else
                 fake = freesize(size)
             end
-            -- The name in 16 characters, the size in 8, like the kernel; LuaJ pads numbers, not texts (%s)
-            local faked = name .. string.rep(' ', 16 - #name) .. string.format('%8d', math.floor(fake / 1024)) .. ' kB\n'
+            -- The name in 16 characters, the size in 8, like the kernel; padded by hand, LuaJ pads no texts (%s)
+            -- and its %d wraps at 2^31
+            local kb = tostring(math.floor(fake / 1024))
+            local faked = name .. string.rep(' ', 16 - #name) .. string.rep(' ', math.max(0, 8 - #kb)) .. kb .. ' kB\n'
             changed = changed or faked ~= line
             line = faked
             -- Like the log of ActivityManager.getMemoryInfo: total and available memory

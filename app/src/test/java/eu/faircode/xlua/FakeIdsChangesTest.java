@@ -32,11 +32,10 @@ public class FakeIdsChangesTest {
     private static final String KEY = FakeIds.IMEI;
     private static final String MODE = KEY + FakeIds.MODE;
 
-    // Like ActivityValues.getSavedMode
+    // Like ActivityValues.getChanges
     private static Map<String, String> changes(boolean global, String chosen, String value, Map<String, String> values) {
-        String saved = (global ? FakeIds.getMode(KEY, values, null) : FakeIds.getOwnMode(KEY, values));
         Map<String, String> changed = new HashMap<>();
-        FakeIds.putChanges(changed, KEY, chosen, saved == null ? FakeIds.INHERIT : saved, value, values);
+        FakeIds.putChanges(changed, KEY, chosen, FakeIds.getSavedMode(KEY, values, global), value, values);
         return changed;
     }
 

@@ -31,13 +31,23 @@ function after(hook, param)
     end
 
     -- Advance to the next bucket of a visible uid, or to the end, calling the real method so this hook does not
-    -- recurse. shortcut: getNextBucket leaves the bucket as it is when it returns false, so an app which ignores
-    -- the returned boolean and reads the bucket after the last (hidden) one reads its stale data once; a cleaner
-    -- fix needs the private state of NetworkStats, upgrade if that iteration pattern is seen in the wild.
+    -- recurse
     local stats = param:getThis()
     local more = true
     while more and not param:isUidVisible(bucket:getUid()) do
         more = param:unhooked(function() return stats:getNextBucket(bucket) end) == true
+    end
+    if not more then
+        -- getNextBucket leaves the bucket as it is when it returns false, and apps looping on hasNextBucket read it
+        -- anyway: the last hidden bucket becomes one of removed apps (UID_REMOVED) without traffic. Its private
+        -- fields are the same on all versions; skipping hidden entries in hasNextBucket would need the private
+        -- state of NetworkStats, which differs between versions.
+        pcall(function()
+            for _, field in ipairs({ 'mRxBytes', 'mRxPackets', 'mTxBytes', 'mTxPackets', 'mTag' }) do
+                bucket[field] = 0
+            end
+            bucket.mUid = -4
+        end)
     end
     param:setResult(more)
     return true

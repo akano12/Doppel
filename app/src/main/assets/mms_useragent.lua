@@ -23,12 +23,14 @@ local GENERIC = {
     getMmsUAProfUrl = 'http://www.google.com/oha/rdf/ua-profile-kila.xml',
 }
 
--- The keys of the carrier configuration of MMS with the same values (SmsManager.getCarrierConfigValues)
+-- The keys of the carrier configuration of MMS with the same values (SmsManager.getCarrierConfigValues and
+-- CarrierConfigManager.getConfig and getConfigForSubId, KEY_MMS_USER_AGENT_STRING and KEY_MMS_UA_PROF_URL_STRING)
 local KEYS = { userAgent = 'getMmsUserAgent', uaProfUrl = 'getMmsUAProfUrl' }
 
 function after(hook, param)
     local result = param:getResult()
-    if hook:getMethodName() == 'getCarrierConfigValues' then
+    local method = hook:getMethodName()
+    if method == 'getCarrierConfigValues' or string.find(method, '^getConfig') then
         -- A copy for the app, of which the values are replaced like those of the getters
         if result == nil then
             return false

@@ -255,15 +255,18 @@ public class HookDefinitionsTest {
     @Test
     public void appLibraryHooksWithoutResultHaveNoReturnType() throws Exception {
         List<String> errors = new ArrayList<>();
-        for (JSONObject hook : hooks) {
+        // The built-in definitions and those of Downloads, which have their script inline
+        List<JSONObject> all = new ArrayList<>(hooks);
+        all.addAll(repository().values());
+        for (JSONObject hook : all) {
             String className = hook.getString("className");
             String script = hook.getString("luaScript");
             String methodName = hook.optString("methodName", "");
             String returnType = hook.optString("returnType", "void");
-            if (returnType.equals("void") || methodName.startsWith("#") || !script.startsWith("@") ||
+            if (returnType.equals("void") || methodName.startsWith("#") ||
                     className.matches("^(android|androidx|java|javax|com\\.android|libcore|dalvik|sun)\\..*"))
                 continue;
-            String source = read(new File(ASSETS, script.substring(1) + ".lua"));
+            String source = (script.startsWith("@") ? read(new File(ASSETS, script.substring(1) + ".lua")) : script);
             if (!source.contains("setResult(") && !source.contains("getResult("))
                 errors.add(hook.getString("name"));
         }
@@ -973,5 +976,83 @@ public class HookDefinitionsTest {
                 "@generic_filter_by_uid 33- optional");
         check("PackageManager.isPackageAvailable", "android.content.pm.PackageManager isPackageAvailable(" + s +
                 ") @package_probe 27- optional");
+    }
+
+    // Settings, intents, accounts and the default account of contacts restricted for Android would change what
+    // system server itself reads and stores, like adb_enabled or the accounts apps add, so Android is excluded
+    @Test
+    public void systemServerKeepsItsOwnValues() throws Exception {
+        List<String> errors = new ArrayList<>();
+        for (JSONObject hook : hooks) {
+            String script = hook.getString("luaScript");
+            boolean settings = script.equals("@locale") && hook.getString("className").startsWith("android.provider.Settings");
+            if ((settings || script.equals("@settingssecure_getstring") || script.equals("@intent_createfromparcel") ||
+                    script.equals("@account_createfromparcel") || script.equals("@contacts_default_account")) &&
+                    !Arrays.asList(hook.optString("excludePackages", "").split(",")).contains("android"))
+                errors.add(hook.getString("name"));
+        }
+        assertTrue("Not excluding android: " + errors, errors.isEmpty());
+    }
+
+    // The ways around the hooks which audits found: file sizes and listings, sticky broadcasts, app ops, the kernel
+    // in /proc, cameras, speech, HDR, partitions, GNSS status, VPN addresses and the MMS user agent of the carrier
+    @Test
+    public void otherWaysOfAudits() throws Exception {
+        String s = "java.lang.String", f = "java.io.File", i = "android.content.Intent";
+        for (String suffix : new String[]{"hardware_ids", "hardware_model", "fingerprint_sensor", "feature_files",
+                "privapp_files", "vpn_interfaces", "root"}) {
+            check("UnixFileSystem.getLength/" + suffix, "java.io.UnixFileSystem getLength(" + f + ") @hardware_files 27-");
+            check("UnixFileSystem.getSpace/" + suffix, "java.io.UnixFileSystem getSpace(" + f + ",int) @hardware_files 27-");
+        }
+        check("UnixFileSystem.list0/root", "java.io.UnixFileSystem list0(" + f + ") @hardware_files 27-");
+        check("UnixFileSystem.getLastModifiedTime/root", "java.io.UnixFileSystem getLastModifiedTime(" + f + ") @hardware_files 27-");
+        check("UnixNativeDispatcher.opendir/root", "sun.nio.fs.UnixNativeDispatcher opendir(sun.nio.fs.UnixPath) @hardware_files 27-");
+        check("Os.readlink/root", "android.system.Os readlink(" + s + ") @hardware_files 27-");
+        check("Context.sendStickyBroadcast/hidden", "android.app.ContextImpl sendStickyBroadcast(" + i + ") @component_hidden 27-");
+        check("Context.sendStickyBroadcast.options/hidden", "android.app.ContextImpl sendStickyBroadcast(" + i +
+                ",android.os.Bundle) @component_hidden 31-");
+        check("Context.sendStickyBroadcastAsUser/hidden", "android.app.ContextImpl sendStickyBroadcastAsUser(" + i +
+                ",android.os.UserHandle) @component_hidden 27-");
+        check("AppOpsManager.checkPackage", "android.app.AppOpsManager checkPackage(int," + s + ") @package_probe 27-");
+        check("AppOpsManager.checkOpNoThrow", "android.app.AppOpsManager checkOpNoThrow(" + s + ",int," + s + ") @package_probe 27-");
+        check("AppOpsManager.unsafeCheckOpNoThrow", "android.app.AppOpsManager unsafeCheckOpNoThrow(" + s + ",int," + s +
+                ") @package_probe 29-");
+        check("BlockGuardOs.open/kernel", "libcore.io.BlockGuardOs open(" + s + ",int,int) @kernel_version 27-");
+        check("CameraManager2.getCameraCharacteristics", "android.hardware.camera2.CameraManager getCameraCharacteristics(" + s +
+                ") @camera2_open 27-");
+        check("CameraManager2.getConcurrentCameraIds", "android.hardware.camera2.CameraManager getConcurrentCameraIds() @generic_empty 30-");
+        check("CameraManager2.registerAvailabilityCallback/executor", "android.hardware.camera2.CameraManager " +
+                "registerAvailabilityCallback(java.util.concurrent.Executor,android.hardware.camera2.CameraManager$AvailabilityCallback) " +
+                "@generic_block 28-");
+        check("SpeechRecognizer.setRecognitionListener", "android.speech.SpeechRecognizer setRecognitionListener(" +
+                "android.speech.RecognitionListener) @speech_recognizer 27-");
+        check("SpeechRecognizer.startListening", "android.speech.SpeechRecognizer startListening(" + i + ") @speech_recognizer 27-");
+        check("Display.getHdrCapabilities", "android.view.Display getHdrCapabilities() @display_panel 27-");
+        check("Display.getDeviceProductInfo", "android.view.Display getDeviceProductInfo() @display_panel 31-");
+        check("Build.getFingerprintedPartitions", "android.os.Build getFingerprintedPartitions() @generic_empty 29-");
+        check("LocationManager.registerGnssStatusCallback30", "android.location.LocationManager registerGnssStatusCallback(" +
+                "java.util.concurrent.Executor,android.location.GnssStatus$Callback) @generic_block 30-");
+        check("LinkProperties.getLinkAddresses/vpn", "android.net.LinkProperties getLinkAddresses() @vpn_addresses 27-");
+        check("LinkProperties.getDnsServers/vpn", "android.net.LinkProperties getDnsServers() @vpn_addresses 27-");
+        check("CarrierConfigManager.getConfigForSubId", "android.telephony.CarrierConfigManager getConfigForSubId(int) @mms_useragent 27-");
+        check("UsageStatsManager.queryUsageStats", "android.app.usage.UsageStatsManager queryUsageStats(int,long,long) " +
+                "@usageevents_query 27-");
+        // R8 can make Clarity.initialize return void
+        check("Clarity.initialize/context", "com.microsoft.clarity.Clarity initialize(android.content.Context," +
+                "com.microsoft.clarity.ClarityConfig) @generic_block_untyped 27- optional");
+        assertFalse(hook("Clarity.initialize/context").has("returnType"));
+        // The default account of contacts is answered from Android 16
+        check("ContentResolver.call/defaultaccount", "android.content.ContentResolver call(" + s + "," + s + "," + s +
+                ",android.os.Bundle) @contacts_default_account 36-");
+        // The NSD module of Android 13 can have these, like registerServiceInfoCallback/discovery
+        check("NsdManager.stopServiceResolution", "android.net.nsd.NsdManager stopServiceResolution(" +
+                "android.net.nsd.NsdManager$ResolveListener) @nsdmanager_listener 33- optional");
+        check("NsdManager.unregisterServiceInfoCallback", "android.net.nsd.NsdManager unregisterServiceInfoCallback(" +
+                "android.net.nsd.NsdManager$ServiceInfoCallback) @nsdmanager_listener 33- optional");
+        check("NsdManager.registerServiceInfoCallback", "android.net.nsd.NsdManager registerServiceInfoCallback(" +
+                "android.net.nsd.NsdServiceInfo,java.util.concurrent.Executor,android.net.nsd.NsdManager$ServiceInfoCallback) " +
+                "@nsdmanager_listener 33- optional");
+        assertEquals("android.content.SyncAdapterType[]", hook("ContentResolver.getSyncAdapterTypes").getString("returnType"));
+        assertEquals("android.net.NetworkRequest$Builder", hook("NetworkRequest.Builder.addTransportType").getString("returnType"));
     }
 }

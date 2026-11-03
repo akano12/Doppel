@@ -328,19 +328,25 @@
     <string name="title_value_arrow" translatable="false">→</string>
     <string name="title_show_values">Show in full</string>
     <string name="title_hide_values">Show less</string>
+    <!-- For screen readers, which do not tell the struck through real value from the fake value on its pill -->
+    <string name="title_real_value">Real value: %1$s</string>
+    <string name="title_fake_value">Fake value: %1$s</string>
     <string name="title_stat_errors">Errors</string>
+    <string name="title_show_errors">Show the errors</string>
+    <!-- A bar of the Activity tab for screen readers: its hour or day and its count -->
+    <string name="title_bar">%1$s: %2$s</string>
     <string name="title_today">Today</string>
     <string name="title_yesterday">Yesterday</string>
     <string name="title_hook_failed">Hook failed: %1$s</string>
     <string name="title_search_log">App, group or hook</string>
     <string name="title_search_log_app">Group or hook</string>
     <plurals name="title_calls_today">
-        <item quantity="one">restricted call today</item>
-        <item quantity="other">restricted calls today</item>
+        <item quantity="one">hook restricted today</item>
+        <item quantity="other">hooks restricted today</item>
     </plurals>
     <plurals name="title_calls_all">
-        <item quantity="one">restricted call</item>
-        <item quantity="other">restricted calls</item>
+        <item quantity="one">hook which restricted</item>
+        <item quantity="other">hooks which restricted</item>
     </plurals>
     <plurals name="title_failed_hooks">
         <item quantity="one">failed hook</item>
@@ -354,8 +360,9 @@
         <item quantity="one">%1$d error</item>
         <item quantity="other">%1$d errors</item>
     </plurals>
-    <string name="title_calls_by_hour">Restricted calls of today by hour</string>
-    <string name="title_calls_by_day">Restricted calls of the last 7 days by day</string>
+    <!-- The log keeps the last restriction of each hook of an app, not each call -->
+    <string name="title_calls_by_hour">Last restriction of each hook today, by hour</string>
+    <string name="title_calls_by_day">Last restriction of each hook in the last 7 days, by day</string>
     <string name="title_errors_by_day">Failed hooks of the last 7 days by day</string>
     <string name="title_log_empty">No restrictions applied yet</string>
     <string name="title_log_no_errors">No hooks failed</string>

@@ -550,7 +550,9 @@ public class ShellCommandsScriptTest {
     }
 
     // cat of the files of /sys which do not exist for the variants fails like for a missing file, also through
-    // a link, the other files are read; the variants hide the files of their groups only
+    // a link, the other files are read; the variants hide the files of their groups only. The patterns of the shell
+    // hide a little more than those of hardware_files, since * also matches /, like */soc[0-9]* /soc1abc/x, which
+    // leaks nothing (see FakeValuesAgreeTest.hardwareFiles)
     @Test
     public void hardwareFilesAreMissing() throws Exception {
         tools();
@@ -723,18 +725,11 @@ public class ShellCommandsScriptTest {
     // and /data/app, like for a folder the app cannot read; other files and ls without times stay
     @Test
     public void storageTimesAreNotPrinted() throws Exception {
-        tools();
-        for (String name : new String[]{"stat", "ls", "find"}) {
-            File link = new File(bin, name);
-            File program = locate(null, name);
-            need(null, "No " + name, program != null);
-            if (!link.exists())
-                Files.createSymbolicLink(link.toPath(), program.getAbsoluteFile().toPath());
-        }
+        link("stat", "ls", "find");
         for (String[] args : new String[][]{{"stat", "-c", "%Y", "/sdcard/Download"}, {"ls", "-l", "/sdcard"},
                 {"ls", "--full-time", "/storage/emulated/0/DCIM/"}, {"find", "/sdcard", "-newermt", "2020-01-01"},
                 {"stat", "/data/app/~~a==/com.bank-b==/base.apk"}}) {
-            assertTrue(String.join(" ", args), script(start(args, "tracking")).contains("__xlua_times " + args[0]));
+            assertTrue(String.join(" ", args), script(start(args, "tracking")).contains("__xlua_check __xlua_timed " + args[0]));
             Result result = run(start(args, "tracking"));
             assertEquals(String.join(" ", args), "", result.out);
             assertEquals(String.join(" ", args), 1, result.status);
@@ -834,6 +829,227 @@ public class ShellCommandsScriptTest {
             String script = script(start("sh", "-c", text));
             assertTrue(script, script.endsWith("\n" + text));
         }
+    }
+
+    // The shell removes quotes before it runs a command: words quoted in parts are found too
+    @Test
+    public void quotedWordsAreFaked() throws Exception {
+        assertTrue(script(start("sh", "-c", "g''etprop ro.serialno")).contains("\ngetprop() {"));
+        assertTrue(script(start("sh", "-c", "cat /proc/sys/kernel/random/boot\"_id\"")).contains(
+                "  /proc/sys/kernel/random/boot_id) "));
+        assertTrue(script(start("sh", "-c", "cat /sys/devices/system/chip-id/\"unique_id\"")).contains("__xlua_files"));
+        // Paths of commands quoted in parts keep their quotes after the name
+        assertTrue(script(start("sh", "-c", "/system/bin/get\"prop\" ro.serialno")).endsWith("\ngetprop\"\" ro.serialno"));
+
+        tools().properties("[ro.product.model]: [Pixel 9]\n[ro.serialno]: [ABC123]\n");
+        assertEquals("SERIAL1\n", run(start("sh", "-c", "g''etprop ro.serialno")).out);
+        assertEquals("unknown\n", run(start("sh", "-c", "/system/bin/get\"prop\" ro.product.model")).out);
+        assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n",
+                run(start("sh", "-c", "cat /proc/sys/kernel/random/boot\"_id\"")).out);
+        assertEquals("MemTotal:        3145728 kB\nMemFree:          146484 kB\n",
+                run(start("sh", "-c", "cat /proc/mem''info")).out);
+        File root = Files.createTempDirectory("xlua-sys").toFile();
+        try {
+            File device = new File(root, "sys/devices/mmc0:0001");
+            assertTrue(device.mkdirs());
+            Files.write(new File(device, "cid").toPath(), "1501\n".getBytes(StandardCharsets.UTF_8));
+            Result result = run(start("sh", "-c", "cat " + device.getAbsolutePath() + "/\"cid\""));
+            assertEquals("", result.out);
+            assertEquals(1, result.status);
+        } finally {
+            delete(root);
+        }
+    }
+
+    // Each faked file of a command is faked, the others on a descriptor of their own
+    @Test
+    public void everyFakedFileIsFaked() throws Exception {
+        tools();
+        String boot = "0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c";
+        String[] lines = run(start("sh", "-c", "grep . /proc/sys/kernel/random/boot_id /proc/sys/kernel/random/boot_id"))
+                .out.split("\n");
+        assertEquals(2, lines.length);
+        for (String line : lines)
+            assertTrue(line, line.endsWith(":" + boot));
+        assertEquals("MemTotal:        3145728 kB\nMemFree:          146484 kB\n" + boot + "\n",
+                run(start("cat", "-v", "/proc/meminfo", "/proc/sys/kernel/random/boot_id")).out);
+    }
+
+    // The kernel in /proc/sys/kernel and of sysctl like uname, and boot_id of sysctl like cat
+    @Test
+    public void kernelFilesAndSysctlAreFaked() throws Exception {
+        tools();
+        stand("sysctl", "#!/bin/sh\nfor k; do case $k in\n" +
+                " -n) n=1 ;;\n" +
+                " kernel.random.boot_id) v=$(cat /proc/sys/kernel/random/boot_id) ;;\n" +
+                " kernel.osrelease) v=6.6.50-android15-8-g8adecb593e9b ;;\n" +
+                " kernel.hostname) v=realhost ;;\n" +
+                " *) exit 1 ;;\n" +
+                "esac; [ $k = -n ] && continue; if [ -n \"$n\" ]; then echo \"$v\"; else echo \"$k = $v\"; fi; done\n");
+        assertEquals("0c9e2b41-5f7d-4a8e-9b1c-3d6f8a2e4b7c\n", run(start("sysctl", "-n", "kernel.random.boot_id")).out);
+        assertEquals("kernel.osrelease = 6.6.50\nkernel.hostname = localhost\n",
+                run(start("sh", "-c", "sysctl kernel.osrelease kernel.hostname")).out);
+        assertEquals(1, run(start("sysctl", "-n", "kernel.x")).status);
+        // Files which cannot be read keep their error, like with SELinux on Android 11
+        if (!new File("/proc/sys/kernel/osrelease").canRead())
+            return;
+        assertEquals("6.6.50\n", run(start("cat", "/proc/sys/kernel/osrelease")).out);
+        assertEquals("#1 SMP PREEMPT\n", run(start("sh", "-c", "cd /proc/sys/kernel && cat version")).out);
+    }
+
+    // Programs which run a command of their arguments, which would not have the functions, run them in the shell;
+    // xargs with options making other arguments fails
+    @Test
+    public void programsRunningCommandsRunTheFunctions() throws Exception {
+        assertTrue(script(start("sh", "-c", "exec /system/bin/getprop ro.product.model")).endsWith(
+                "\n__xlua_exec /system/bin/getprop ro.product.model"));
+        // Not exec of redirections or an option
+        assertTrue(script(start("sh", "-c", "exec 2>&1; getprop x; exec -a y getprop z")).endsWith(
+                "\nexec 2>&1; getprop x; exec -a y getprop z"));
+
+        link("xargs", "nohup", "nice", "timeout");
+        tools().properties("[ro.product.model]: [Pixel 9]\n");
+        for (String text : new String[]{"nohup getprop ro.product.model", "nice -n 5 getprop ro.product.model",
+                "timeout -s KILL 5 /system/bin/getprop ro.product.model", "echo ro.product.model | xargs getprop",
+                "exec /system/bin/getprop ro.product.model", "sh -c 'getprop ro.product.model' x; exit 1"})
+            assertEquals(text, "unknown\n", run(start("sh", "-c", text)).out);
+        File root = Files.createTempDirectory("xlua-sys").toFile();
+        try {
+            File device = new File(root, "sys/devices/mmc0:0001");
+            assertTrue(device.mkdirs());
+            Files.write(new File(device, "cid").toPath(), "1501\n".getBytes(StandardCharsets.UTF_8));
+            String cid = new File(device, "cid").getAbsolutePath();
+            for (String text : new String[]{"echo " + cid + " | xargs cat", "nohup cat " + cid, "nice cat " + cid,
+                    "timeout 5 cat " + cid, "exec cat " + cid, "sh -c 'cat " + cid + "'", "env A=1 cat " + cid}) {
+                Result result = run(start("sh", "-c", text + " 2>/dev/null"));
+                assertEquals(text, "", result.out);
+                assertEquals(text, 1, result.status);
+            }
+            Result refused = run(start("sh", "-c", "echo " + cid + " | xargs -0 cat 2>/dev/null"));
+            assertEquals("", refused.out);
+            assertEquals(126, refused.status);
+        } finally {
+            delete(root);
+        }
+    }
+
+    // Recursive reads fail for the folders above hidden files, like grep -R; others run
+    @Test
+    public void recursiveReadsAboveHiddenFilesFail() throws Exception {
+        assertTrue(script(start("sh", "-c", "grep -R . /sys/class/scsi_host/host0")).contains(
+                "__xlua_check __xlua_near grep"));
+        link("ls", "find", "cp", "tar");
+        File root = Files.createTempDirectory("xlua-sys").toFile();
+        try {
+            File host = new File(root, "sys/class/scsi_host/host0");
+            assertTrue(host.mkdirs());
+            Files.write(new File(host, "unique_number").toPath(), "SN123\n".getBytes(StandardCharsets.UTF_8));
+            String dir = host.getAbsolutePath();
+            String parent = host.getParentFile().getAbsolutePath();
+            for (String text : new String[]{"grep -R . " + dir, "grep -r SN " + parent, "ls -R " + parent,
+                    "find " + parent + " -name unique_number -exec cat {} +", "cp -r " + dir + " " + root + "/copy",
+                    "tar -cf - " + dir, "cd " + dir + " && grep -r . ."}) {
+                Result result = run(start("sh", "-c", text + " 2>/dev/null"));
+                assertFalse(text, result.out.contains("SN123") || result.out.contains("unique_number"));
+                assertEquals(text, 1, result.status);
+            }
+            assertFalse(new File(root, "copy").exists());
+            // Other folders, and without recursion
+            File own = new File(root, "own");
+            assertTrue(own.mkdirs());
+            Files.write(new File(own, "x").toPath(), "SN1\n".getBytes(StandardCharsets.UTF_8));
+            assertEquals(own.getAbsolutePath() + "/x:SN1\n", run(start("sh", "-c", "grep -r SN " + own.getAbsolutePath() +
+                    "; ls " + parent + " >/dev/null")).out);
+        } finally {
+            delete(root);
+        }
+    }
+
+    // After a hidden file only commands reading each file apart go on, others fail like for a missing file
+    @Test
+    public void commandsOfAHiddenFileFailLikeTheRealCommand() throws Exception {
+        link("cp", "egrep");
+        File root = Files.createTempDirectory("xlua-sys").toFile();
+        try {
+            File device = new File(root, "sys/devices/mmc0:0001");
+            assertTrue(device.mkdirs());
+            Files.write(new File(device, "cid").toPath(), "1501\n".getBytes(StandardCharsets.UTF_8));
+            File type = new File(device, "type");
+            Files.write(type.toPath(), "SD\n".getBytes(StandardCharsets.UTF_8));
+            String cid = new File(device, "cid").getAbsolutePath();
+            File own = new File(root, "own");
+            Files.write(own.toPath(), "own\n".getBytes(StandardCharsets.UTF_8));
+            assertEquals(1, run(start("dd", "if=" + cid, "of=" + own.getAbsolutePath())).status);
+            assertEquals("own\n", new String(Files.readAllBytes(own.toPath()), StandardCharsets.UTF_8));
+            Result grep = run(start("grep", "-f", cid, type.getAbsolutePath()));
+            assertEquals("", grep.out);
+            assertEquals(2, grep.status);
+            assertEquals(1, run(start("cp", cid, root.getAbsolutePath() + "/copy")).status);
+            assertFalse(new File(root, "copy").exists());
+            // egrep of the readers missing before
+            Result egrep = run(start("sh", "-c", "egrep . " + cid + " " + type.getAbsolutePath() + " 2>/dev/null"));
+            assertTrue(egrep.out, egrep.out.endsWith("SD\n") && !egrep.out.contains("1501"));
+            assertEquals(2, egrep.status);
+        } finally {
+            delete(root);
+        }
+    }
+
+    // date -r, touch -r, cp -p and tar fail for the folders of storage_times too, in any case and with // or ./
+    @Test
+    public void otherTimesOfStorageFoldersFail() throws Exception {
+        assertTrue(script(start(new String[]{"date", "-r", "/sdcard/Download"}, "tracking")).contains(
+                "__xlua_check __xlua_timed date"));
+        link("stat", "ls", "date", "touch", "cp", "tar");
+        File own = Files.createTempDirectory("files").toFile();
+        try {
+            String to = own.getAbsolutePath() + "/x";
+            for (String text : new String[]{"date -r /sdcard/Download", "touch -r /sdcard/DCIM " + to,
+                    "cp -p /sdcard/Music " + to, "cp -a /sdcard/Music " + to, "tar -cf - /sdcard/Movies",
+                    "stat /sdcard/download", "stat -c %Y /sdcard//Download", "stat /sdcard/./DCIM/.",
+                    "ls -l /storage/emulated/0/dcim"}) {
+                Result result = run(start(new String[]{"sh", "-c", text + " 2>/dev/null"}, "tracking"));
+                assertEquals(text, "", result.out);
+                assertEquals(text, 1, result.status);
+            }
+            assertFalse(new File(to).exists());
+            assertTrue(run(start(new String[]{"date", "-r", own.getAbsolutePath(), "+%s"}, "tracking")).out
+                    .matches("\\d+\n"));
+        } finally {
+            delete(own);
+        }
+    }
+
+    // The queries keep the system apps, like queryIntentActivities
+    @Test
+    public void queriesKeepSystemApps() throws Exception {
+        tools();
+        String home = run(start("cmd", "package", "query-activities", "-a", "android.intent.action.MAIN", "-c",
+                "android.intent.category.HOME")).out;
+        assertTrue(home, home.contains("packageName=com.android.settings\n"));
+    }
+
+    // The permissions of hidden apps fit in one argument of a program (128 KB), with each name once; 400 took 116 KB
+    @Test
+    public void permissionFilterFitsInAnArgument() {
+        String filter = globals.load(String.join("\n",
+                "INSTALLED = {}",
+                "for i = 1, 400 do",
+                "  INSTALLED[i] = { packageName = 'com.hidden' .. i, permissions = { length = 1,",
+                "    { name = 'com.hidden' .. i .. '.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION' } } }",
+                "end",
+                "local param = paramof({}, {}, nil, {})",
+                "param.isPackageVisible = function(self, name) return false end",
+                "return permissionfilter(param)")).call().tojstring();
+        assertTrue(String.valueOf(filter.length()), filter.length() < 32 * 1024);
+        assertEquals(400,filter.split("DYNAMIC_RECEIVER", -1).length - 1);
+    }
+
+    // The files of the features of the system do not exist for Read.Features in the shell either
+    @Test
+    public void featureFilesAreMissing() {
+        assertTrue(script(start(new String[]{"cat", "/system/etc/permissions/platform.xml"}, "features"))
+                .contains("__xlua_files"));
     }
 
     // date prints the time zone of its environment, which the builder gets for the start only
@@ -1084,6 +1300,7 @@ public class ShellCommandsScriptTest {
             "   *com.example.LONG*) cat $d/long-own.txt ;;",
             "   *com.bank.LONG*) cat $d/long-other.txt ;;",
             "   *'-p com.example'*) printf '%s' '" + dump("com.example") + "' ;;",
+            "   *category.HOME*) printf '%s' '" + dump("com.android.settings") + "' ;;",
             "   *--brief*) printf '2 activities found:\\n  Activity #0:\\n    priority=0\\n    com.bank/.Main\\n" +
                     "  Activity #1:\\n    priority=0\\n    com.example/.Main\\n' ;;",
             "   *) printf '%s' '" + dump("com.bank", "com.example") + "' ;;",
@@ -1112,6 +1329,19 @@ public class ShellCommandsScriptTest {
                 return file;
         }
         return null;
+    }
+
+    // Tools of this computer which some tests need, linked into the directory of the tools
+    private static void link(String... names) throws Exception {
+        String dir = System.getenv("XLUA_TEST_BIN");
+        tools();
+        for (String name : names) {
+            File link = new File(bin, name);
+            File program = locate(dir, name);
+            need(dir, "No " + name, program != null);
+            if (!link.exists())
+                Files.createSymbolicLink(link.toPath(), program.getAbsoluteFile().toPath());
+        }
     }
 
     private static void stand(String name, String script) throws Exception {

@@ -40,7 +40,7 @@ How it works
   <img src="docs/images/how-it-works-light.svg" width="100%" alt="An app asks Android for your IMEI, Doppel catches the call inside the app, and the app gets a fake IMEI and carries on">
 </picture>
 
-Your real data never reaches the app. Each restricted call shows up under *Activity*, with the real and the fake value.
+Your real data never reaches the app. Each hook that restricted an app shows up under *Activity*, with the time of its last restriction and the real and the fake value.
 
 What an app sees
 ----------------
@@ -53,7 +53,8 @@ What an app sees
 
 | The app asks for             | Without Doppel     | With Doppel              |
 |------------------------------|--------------------|--------------------------|
-| IMEI, serial, Android ID     | the real ones      | fakes, new each boot     |
+| IMEI, Android ID             | the real ones      | fakes, new each boot     |
+| Serial number                | the real one       | unknown                  |
 | Location                     | where you are      | a place you choose       |
 | Contacts, calendar, call log | all of them        | hidden                   |
 | Other apps                   | all of them        | hidden                   |
@@ -70,7 +71,7 @@ Features
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/features-dark.svg">
-  <img src="docs/images/features-light.svg" width="100%" alt="Restrict any app: user and system apps, by group or by single hook, and new apps as soon as they are installed. Fake values: IMEI, Android ID, location, time zone and more, new each boot and different per app. Activity: every restricted call of each app, with the real and the fake value. Your own hooks: edit, import and export hook definitions, or write your own in Lua. Downloads: extra definitions that come with Doppel, like more analytics SDKs and a domain firewall. Settings: backup and restore, themes, accent colors and app icons; multi-user, free and open source.">
+  <img src="docs/images/features-light.svg" width="100%" alt="Restrict any app: user and system apps, by group or by single hook, and new apps as soon as they are installed. Fake values: IMEI, Android ID and more, new each boot and different per app, and the location and time zone you choose. Activity: the hooks which restricted each app, with the real and the fake value. Your own hooks: edit, import and export hook definitions, or write your own in Lua. Downloads: extra definitions that come with Doppel, like more analytics SDKs and a domain firewall. Settings: backup and restore, themes, accent colors and app icons; multi-user, free and open source.">
 </picture>
 
 Screenshots
@@ -78,7 +79,7 @@ Screenshots
 
 <table>
   <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="140" alt="Apps, with the actions of an app swiped open"><br><sub>App list</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="140" alt="The screen of an app"><br><sub>Per-app restrictions</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="140" alt="Fake values"><br><sub>Fake values</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="140" alt="Activity"><br><sub>Restriction activity</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="140" alt="Hooks"><br><sub>Hooks</sub></td></tr>
-  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="140" alt="Downloads"><br><sub>Downloads</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="140" alt="Settings"><br><sub>Settings</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="140" alt="Restricting the groups of an app quickly from the app list"><br><sub>Quick restrict</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/9.png" width="140" alt="The log of an app, with the real and the fake value of each restricted call"><br><sub>App log</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/10.png" width="140" alt="The script of a hook in the hook editor"><br><sub>Hook editor</sub></td></tr>
+  <tr><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="140" alt="Downloads"><br><sub>Downloads</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="140" alt="Settings"><br><sub>Settings</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="140" alt="Restricting the groups of an app quickly from the app list"><br><sub>Quick restrict</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/9.png" width="140" alt="The log of an app, with the real and the fake value of each hook which restricted it"><br><sub>App log</sub></td><td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/10.png" width="140" alt="The script of a hook in the hook editor"><br><sub>Hook editor</sub></td></tr>
 </table>
 
 Installation
@@ -156,10 +157,10 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Your device and apps</b> · 8 groups</summary>
 
 * **Get applications**: hide other apps, their components, widgets, install sessions and usage statistics, keyboards
-  and accessibility services; hidden apps cannot be reached
+  and accessibility services, also in the permission files of system apps; hidden apps cannot be reached
 * **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
 * **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable
-* **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers
+* **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers; the feature and permission files of the system do not exist
 * **Read device settings**: the values of a new device, like the animation scale and the screen timeout
 * **Read memory and storage**: sizes rounded like devices are sold, free space rounded down
 * **Read network data**: hide cells, Wi-Fi networks, Bluetooth devices (also in broadcasts) and local network discovery,
@@ -265,6 +266,7 @@ Attribution
 * [LuaJ](https://sourceforge.net/projects/luaj/). Copyright 2007-2013 LuaJ. All rights reserved. See [license](https://luaj.sourceforge.net/license.txt).
 * [Glide](https://bumptech.github.io/glide/). Copyright 2014 Google, Inc. All rights reserved. See [license](https://raw.githubusercontent.com/bumptech/glide/master/LICENSE).
 * [AndroidX](https://developer.android.com/jetpack/androidx). Copyright (C) 2011 The Android Open Source Project. See [license](https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt).
+* [Material Components for Android](https://github.com/material-components/material-components-android). Copyright Google LLC. See [license](https://www.apache.org/licenses/LICENSE-2.0) (Apache License 2.0).
 * [libxposed service](https://github.com/libxposed/service). See [license](https://github.com/libxposed/service/blob/master/LICENSE) (Apache License 2.0).
 * [IBM Plex](https://github.com/IBM/plex) fonts, also in the images of this page. Copyright © 2017 IBM Corp. with Reserved Font Name "Plex". See [license](LICENSE-FONTS.txt) (SIL Open Font License 1.1).
 * [Material Symbols](https://github.com/google/material-design-icons) icons, also in the images of this page. Copyright Google LLC. See [license](https://www.apache.org/licenses/LICENSE-2.0) (Apache License 2.0).

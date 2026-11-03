@@ -32,6 +32,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 // Assigning hooks an app has already changes nothing, like adding a group to all apps from a list which is not up to
@@ -57,6 +59,7 @@ public class AssignTest {
         assumeTrue("Has restrictions: " + PACKAGE, app != null && app.assignments.isEmpty());
 
         ArrayList<String> ids = new ArrayList<>(Arrays.asList("Privacy.WifiInfo.getSSID", "Privacy.Os.getsockname"));
+        int deleted;
         try {
             assertEquals(2, Data.assignHooks(context, ids, PACKAGE, ai.uid, false, false, false));
             assertEquals(0, Data.assignHooks(context, ids, PACKAGE, ai.uid, false, false, false));
@@ -64,7 +67,43 @@ public class AssignTest {
             ids.add("Privacy.WifiInfo.getBSSID");
             assertEquals(1, Data.assignHooks(context, ids, PACKAGE, ai.uid, false, false, false));
         } finally {
-            assertEquals(3, Data.assignHooks(context, ids, PACKAGE, ai.uid, true, false, false));
+            // No assert here, it would hide the failure of the test
+            deleted = Data.assignHooks(context, ids, PACKAGE, ai.uid, true, false, false);
+        }
+        assertEquals(3, deleted);
+    }
+
+    // An app added again with its data kept, like an archived app on Android 15, keeps its restrictions;
+    // a new app starts like before, with all hooks when new apps are restricted
+    @Test
+    public void addedAppKeepsRestrictions() throws Throwable {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        assumeTrue("Module not running", Data.isAvailable(context));
+        ApplicationInfo ai;
+        try {
+            ai = context.getPackageManager().getApplicationInfo(PACKAGE, 0);
+        } catch (Throwable ex) {
+            assumeTrue("Not installed: " + PACKAGE, false);
+            return;
+        }
+        XApp app = Data.getApp(context, PACKAGE, ai.uid);
+        assumeTrue("Has restrictions: " + PACKAGE, app != null && app.assignments.isEmpty());
+
+        ArrayList<String> ids = new ArrayList<>(Arrays.asList("Privacy.WifiInfo.getSSID"));
+        try {
+            assertEquals(1, Data.assignHooks(context, ids, PACKAGE, ai.uid, false, false, false));
+            assertFalse(ReceiverPackage.added(context, PACKAGE, ai.uid));
+            assertEquals(1, Data.getApp(context, PACKAGE, ai.uid).assignments.size());
+        } finally {
+            Data.clearApp(context, PACKAGE, ai.uid, false);
+        }
+
+        try {
+            assertTrue(ReceiverPackage.added(context, PACKAGE, ai.uid));
+            boolean restrict = Data.getSettingBoolean(context, Util.getUserId(ai.uid), "global", "restrict_new_apps");
+            assertEquals(restrict, !Data.getApp(context, PACKAGE, ai.uid).assignments.isEmpty());
+        } finally {
+            Data.clearApp(context, PACKAGE, ai.uid, false);
         }
     }
 }

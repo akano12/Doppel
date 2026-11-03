@@ -695,11 +695,17 @@ public class NetworkScriptsTest {
                         "  return { getMessage = function() return message end } end }\n" +
                         "local info = paramof()\n" +
                         "local open = paramof()\n" +
+                        "local default = paramof()\n" +
                         "before(hookof('getCameraInfo'), info)\n" +
-                        "before(hookof('open'), open)\n" +
-                        "return info.result:getMessage(), open.result:getMessage()");
+                        "before(hookof('open', nil, nil, { length = 1 }), open)\n" +
+                        "local restricted = before(hookof('open', nil, nil, { length = 0 }), default)\n" +
+                        "return info.result:getMessage(), open.result:getMessage(), restricted, default.set, default.result");
         assertEquals("Fail to get camera info", result.arg(1).tojstring());
         assertEquals("Fail to connect to camera service", result.arg(2).tojstring());
+        // Camera.open() finds no camera facing back without cameras, like Android
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).isnil());
     }
 
     @Test

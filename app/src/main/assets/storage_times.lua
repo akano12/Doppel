@@ -35,21 +35,62 @@ local FOLDERS = { 'Alarms', 'Android', 'Android/data', 'Android/media', 'Android
                   'Documents', 'Download', 'Movies', 'Music', 'Notifications', 'Pictures', 'Podcasts', 'Recordings',
                   'Ringtones' }
 
--- The paths of the folders, with the paths of the shared storage of the user, see XCore.getFilter
-function filter(hook)
+-- The paths of the shared storage of the user
+function tops()
     local root = luajava.bindClass('android.os.Environment'):getExternalStorageDirectory():getPath()
-    local paths = { '/storage/emulated', '/storage/emulated/' }
-    for _, top in ipairs({ root, '/sdcard', '/storage/self/primary' }) do
+    return { root, '/sdcard', '/storage/self/primary' }
+end
+
+-- The paths of the folders, with the paths of the shared storage of the user, see XCore.getFilter. The shared
+-- storage finds names in any case, so the folders in lower and upper case too, like /sdcard/download; paths with
+-- /./, // or /../ run the script too, which compares them resolved (see after). Not covered are other mixes of
+-- case, like /sdcard/DownLoad: the script would have to run for every file of the storage.
+function filter(hook)
+    local paths = { '/storage/emulated', '/storage/emulated/', '*/./*', '*//*', '*/../*' }
+    for _, top in ipairs(tops()) do
         table.insert(paths, top)
         table.insert(paths, top .. '/')
         for _, folder in ipairs(FOLDERS) do
-            table.insert(paths, top .. '/' .. folder)
-            table.insert(paths, top .. '/' .. folder .. '/')
+            for _, name in ipairs({ folder, string.lower(folder), string.upper(folder) }) do
+                table.insert(paths, top .. '/' .. name)
+                table.insert(paths, top .. '/' .. name .. '/')
+                table.insert(paths, top .. '/' .. name .. '/.')
+            end
         end
     end
     table.insert(paths, '/data/app')
     table.insert(paths, '/data/app/*')
     return paths
+end
+
+-- A path without ., .. and double slashes, like /sdcard/Android/../Download/. is /sdcard/Download
+function normal(path)
+    local parts = {}
+    for part in string.gmatch(path, '[^/]+') do
+        if part == '..' then
+            table.remove(parts)
+        elseif part ~= '.' then
+            table.insert(parts, part)
+        end
+    end
+    return '/' .. table.concat(parts, '/')
+end
+
+-- The folders of the shared storage in lower case, for paths in any case
+local STORAGE = nil
+
+function storage(path)
+    if STORAGE == nil then
+        local known = { ['/storage/emulated'] = true }
+        for _, top in ipairs(tops()) do
+            known[string.lower(top)] = true
+            for _, folder in ipairs(FOLDERS) do
+                known[string.lower(top .. '/' .. folder)] = true
+            end
+        end
+        STORAGE = known
+    end
+    return STORAGE[string.lower(path)] == true
 end
 
 -- The time of a path of /data/app, in milliseconds, by the package in it (/data/app/~~...==/com.example-...==/
@@ -100,13 +141,16 @@ function after(hook, param)
     if param:getException() ~= nil then
         return false
     end
-    local path = tostring(param:getArgument(0))
+    local path = normal(tostring(param:getArgument(0)))
     local time = FAKE * 1000
     if path == '/data/app' or string.sub(path, 1, 10) == '/data/app/' then
         time = apptime(param, path)
         if time == nil then
             return false
         end
+    elseif not storage(path) then
+        -- Other paths with /./, // or /../
+        return false
     end
     local seconds = math.floor(time / 1000)
     local nanos = (time % 1000) * 1000000

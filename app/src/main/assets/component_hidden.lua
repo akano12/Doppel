@@ -22,7 +22,8 @@
 -- is not sent and an ordered one reaches no receiver. Intents which name no package or component are resolved by
 -- Android, so they stay.
 
--- The package an intent names, by its component or its package, nil when it names none
+-- The package an intent names, by its component or its package, nil when it names none; Android resolves an
+-- intent which names none by its selector, if it has one
 function packageof(intent)
     if intent == nil then
         return nil
@@ -31,7 +32,11 @@ function packageof(intent)
     if component ~= nil then
         return component:getPackageName()
     end
-    return intent:getPackage()
+    local packageName = intent:getPackage()
+    if packageName == nil and intent:getSelector() ~= nil then
+        return packageof(intent:getSelector())
+    end
+    return packageName
 end
 
 -- Whether an intent names a package which is hidden
@@ -95,12 +100,11 @@ function before(hook, param)
         param:setResult(nil)
     elseif method == 'execStartActivity' or method == 'startActivity' or method == 'startActivityIfNeeded' then
         param:setResult(notfound(intent))
+    elseif string.find(method, '^sendSticky') and intent:getComponent() ~= nil then
+        -- Android throws itself for a sticky broadcast to a component, also of an app which is not installed
+        return false
     elseif string.find(method, 'OrderedBroadcast') then
         -- sendOrderedBroadcast, sendStickyOrderedBroadcast and their AsUser variants;
-        -- Android throws itself for a sticky broadcast to a component, also of an app which is not installed
-        if string.find(method, '^sendSticky') and intent:getComponent() ~= nil then
-            return false
-        end
         -- Sent to a package which cannot exist, a name with a colon, so a result receiver gets the answer of Android
         -- without receivers, like for an app which is not installed; the intent of the app stays as it is
         local copy = intent:clone()
@@ -108,7 +112,7 @@ function before(hook, param)
         copy:setPackage(packageName .. ':hidden')
         param:setArgument(0, copy)
     else
-        -- sendBroadcast and its variants: nothing is sent, like without receivers
+        -- sendBroadcast, sendStickyBroadcast and their variants: nothing is sent, like without receivers
         param:setResult(nil)
     end
     return true, packageName

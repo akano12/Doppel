@@ -25,6 +25,7 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 // Buckets of hidden uids are skipped when an app iterates a NetworkStats (assets/network_stats_filter.lua);
 // stand-ins play the role of NetworkStats and its Bucket, which are Android classes
@@ -116,12 +117,25 @@ public class NetworkStatsScriptTest {
                 "return seen({ 10300, 10200 }, VISIBLE, true)").arg1().tojstring());
     }
 
-    // The known limit (a shortcut in the script): when the last buckets are all hidden, getNextBucket returns
-    // false but leaves its stale uid in the bucket, which an app ignoring the boolean would read once
+    // When the last buckets are all hidden, getNextBucket returns false and leaves the last one in the bucket, which
+    // apps looping on hasNextBucket read anyway: it becomes a bucket of removed apps (UID_REMOVED) without traffic
     @Test
-    public void staleTailKnownLimit() {
-        Varargs result = Scripts.run(globals, "return tail({ 10300 }, VISIBLE)");
-        assertEquals("false", result.arg1().tojstring());
-        assertEquals("10300", result.arg(2).tojstring());
+    public void hiddenTailIsCleared() {
+        Varargs result = Scripts.run(globals,
+                "local stats = statsof({ 10300 })\n" +
+                        "local bucket = bucketof()\n" +
+                        "bucket.mRxBytes, bucket.mTxBytes, bucket.mRxPackets, bucket.mTxPackets, bucket.mTag = 5, 6, 7, 8, 9\n" +
+                        "local param = paramof(stats, bucket, VISIBLE, false)\n" +
+                        "param.result = stats:getNextBucket(bucket)\n" +
+                        "after({}, param)\n" +
+                        "return param.result, bucket.mUid, bucket.mRxBytes + bucket.mTxBytes + bucket.mRxPackets +\n" +
+                        "  bucket.mTxPackets + bucket.mTag");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals(-4, result.arg(2).toint());
+        assertEquals(0, result.arg(3).toint());
+        // A visible bucket at the end stays
+        Varargs visible = Scripts.run(globals, "return tail({ 10200 }, VISIBLE)");
+        assertEquals("true", visible.arg1().tojstring());
+        assertEquals("10200", visible.arg(2).tojstring());
     }
 }

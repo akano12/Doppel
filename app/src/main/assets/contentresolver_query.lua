@@ -26,10 +26,12 @@ function authorityof(uri)
 end
 
 -- Whether the selection of an app stays within its own parentheses, so the starred filter around it applies:
--- like 1) OR (1 would undo it; quoted text and identifiers are skipped, comments and more statements refused
+-- like 1) OR (1 would undo it; quoted text and identifiers are skipped, comments and more statements refused,
+-- and subqueries too, which could count the contacts which are not starred
 function contained(where)
     local depth = 0
     local quote = nil
+    local plain = {}
     for index = 1, string.len(where) do
         local c = string.sub(where, index, index)
         local next = string.sub(where, index + 1, index + 1)
@@ -37,10 +39,13 @@ function contained(where)
             if c == quote then
                 quote = nil
             end
+            c = ' '
         elseif c == "'" or c == '"' or c == '`' then
             quote = c
+            c = ' '
         elseif c == '[' then
             quote = ']'
+            c = ' '
         elseif c == '(' then
             depth = depth + 1
         elseif c == ')' then
@@ -51,6 +56,10 @@ function contained(where)
         elseif c == ';' or (c == '-' and next == '-') or (c == '/' and next == '*') then
             return false
         end
+        table.insert(plain, c)
+    end
+    if string.find(' ' .. string.lower(table.concat(plain)) .. ' ', '[^%w_]select[^%w_]') then
+        return false
     end
     return (depth == 0 and quote == nil)
 end
@@ -99,10 +108,16 @@ function before(hook, param)
     end
     param:setArgument(2, bundle)
     local where = bundle:getString('android:query-arg-sql-selection')
+    local order = bundle:getString('android:query-arg-sql-sort-order')
 
-    -- A selection which could undo the filter selects nothing, its arguments are left out with it
+    -- A selection which could undo the filter selects nothing, its arguments are left out with it;
+    -- likewise for a sort order with a subquery, which is left out too
     local unsafe = false
-    if where == nil or where == '' then
+    if order ~= nil and not contained(order) then
+        bundle:remove('android:query-arg-sql-sort-order')
+        where = '0'
+        unsafe = true
+    elseif where == nil or where == '' then
         where = '(starred = ' .. starred .. ')'
     elseif contained(where) then
         where = '(starred = ' .. starred .. ') AND (' .. where .. ')'

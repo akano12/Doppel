@@ -61,10 +61,14 @@ public class SystemPropertiesFilterTest {
         int start = script.indexOf("local DEVICE = {");
         String device = script.substring(start, script.indexOf("\n}\n", start));
         Matcher m = Pattern.compile("'([a-z]+\\.[A-Za-z0-9_.*-]+)'").matcher(device);
+        int keys = 0;
         while (m.find()) {
             String key = m.group(1).replace("*", "vendor");
             assertTrue(key, (Boolean) matches.invoke(filter, key));
+            keys++;
         }
+        // Else a changed format of the table would check nothing
+        assertTrue("Keys=" + keys, keys > 50);
         // Properties the framework reads often do not run the script
         for (String key : new String[]{"debug.hwui.renderer", "persist.sys.locale", "log.tag.Foo"})
             assertFalse(key, (Boolean) matches.invoke(filter, key));

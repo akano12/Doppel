@@ -370,24 +370,29 @@ public class XHook {
     }
 
     public void validate() {
-        if (TextUtils.isEmpty(this.collection))
+        if (isEmpty(this.collection))
             throw new IllegalArgumentException("collection missing");
-        if (TextUtils.isEmpty(this.group))
+        if (isEmpty(this.group))
             throw new IllegalArgumentException("group missing");
-        if (TextUtils.isEmpty(this.name))
+        if (isEmpty(this.name))
             throw new IllegalArgumentException("name missing");
-        if (TextUtils.isEmpty(this.author))
+        if (isEmpty(this.author))
             throw new IllegalArgumentException("author missing");
-        if (TextUtils.isEmpty(this.className))
+        if (isEmpty(this.className))
             throw new IllegalArgumentException("class name missing");
         if (parameterTypes == null)
             throw new IllegalArgumentException("parameter types missing");
-        if (TextUtils.isEmpty(this.luaScript))
+        if (isEmpty(this.luaScript))
             throw new IllegalArgumentException("Lua script missing");
         // An invalid expression would fail each lookup of available hooks, see isAvailable
         if (this.excludePackages != null)
             for (String regex : this.excludePackages)
                 Pattern.compile(regex);
+    }
+
+    // Plain Java, so the checks work in unit tests too, where TextUtils is a stub, see HookCheckTest
+    private static boolean isEmpty(String s) {
+        return (s == null || s.isEmpty());
     }
 
     @Override

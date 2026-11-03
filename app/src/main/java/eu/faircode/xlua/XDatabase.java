@@ -247,12 +247,12 @@ class XDatabase {
 
         XDatabase database = open(file);
 
-        // Owner and group (system): rwx, world: ---
+        // Owner and group (system): rwx for the folder, rw for the files, world: ---
         Util.setPermissions(dir.getAbsolutePath(), 0770, Process.SYSTEM_UID, Process.SYSTEM_UID);
         File[] files = dir.listFiles();
         if (files != null)
             for (File f : files)
-                Util.setPermissions(f.getAbsolutePath(), 0770, Process.SYSTEM_UID, Process.SYSTEM_UID);
+                Util.setPermissions(f.getAbsolutePath(), 0660, Process.SYSTEM_UID, Process.SYSTEM_UID);
         return database;
     }
 
@@ -309,6 +309,11 @@ class XDatabase {
                     db.update("assignment", cv, "installed IS NOT -1 OR exception IS NOT NULL", null));
             return null;
         });
+    }
+
+    // For the test of the migrations, see XDatabaseTest
+    void close() {
+        db.close();
     }
 
     // Reads do not need a transaction; returned cursors should be filled before returning

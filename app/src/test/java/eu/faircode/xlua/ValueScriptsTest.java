@@ -233,16 +233,32 @@ public class ValueScriptsTest {
     @Test
     public void usageEventsAreRead() throws Exception {
         Globals globals = load("usageevents_query");
-        Scripts.run(globals, "luajava = { newInstance = function(name) assert(name == 'android.app.usage.UsageEvents$Event', name) return {} end }\n" +
+        Scripts.run(globals, "luajava = { newInstance = function(name) return { class = name, isEmpty = function() return true end } end }\n" +
+                "system = false\n" +
+                "local plain = paramof\n" +
+                "function paramof(...) local param = plain(...) param.isSystem = function() return system end return param end\n" +
                 "function eventsof(count)\n" +
                 "  return { count = count, hasNextEvent = function(self) return self.count > 0 end,\n" +
                 "    getNextEvent = function(self, event) assert(event) self.count = self.count - 1 return true end }\n" +
                 "end");
-        Varargs result = Scripts.run(globals, "local events = eventsof(3)\nreturn after(nil, paramof(events)), events.count");
+        Varargs result = Scripts.run(globals, "local events = eventsof(3)\nreturn after(hookof('queryEvents'), paramof(events)), events.count");
         assertTrue(result.arg1().toboolean());
         assertEquals(0, result.arg(2).toint());
-        assertFalse(Scripts.run(globals, "return after(nil, paramof(eventsof(0)))").arg1().toboolean());
-        assertFalse(Scripts.run(globals, "return after(nil, paramof(nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return after(hookof('queryEvents'), paramof(eventsof(0)))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return after(hookof('queryEvents'), paramof(nil))").arg1().toboolean());
+
+        // The statistics per app are empty; processes of the system see all apps, like the other app lists
+        Varargs stats = Scripts.run(globals,
+                "local list = { isEmpty = function() return false end }\n" +
+                        "local param = paramof(list)\n" +
+                        "return after(hookof('queryUsageStats'), param), param.result.class");
+        assertTrue(stats.arg(1).toboolean());
+        assertEquals("java.util.ArrayList", stats.arg(2).tojstring());
+        Varargs system = Scripts.run(globals, "system = true\n" +
+                "local events = eventsof(3)\n" +
+                "return after(hookof('queryEvents'), paramof(events)), events.count");
+        assertFalse(system.arg(1).toboolean());
+        assertEquals(3, system.arg(2).toint());
     }
 
     // Accounts of other apps get the fake name, the accounts of the app itself keep theirs; the types are read once

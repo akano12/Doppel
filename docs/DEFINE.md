@@ -90,6 +90,8 @@ Parameter and return types are Java class names, like *java.lang.String*, *andro
 nested classes with a $ sign, like *android.content.pm.PackageManager$NameNotFoundException*,
 and arrays with [] after the type, like *int[]* or *java.lang.String[]*.
 The *returnType* has to be the return type of the method, or a subclass of it (the type of the field for a field).
+Leave *returnType* out to skip this check, like for a method of a library in the app whose result the script does not use:
+R8 can make such a method return void when the app does not use the result. *optional* does not silence a wrong return type.
 
 The Lua script from the above definition without the JSON escapes looks like this:
 
@@ -154,7 +156,8 @@ You can hook into a constructor by omitting the method name.
 A hook of a system service class, *ContentResolver* or *PackageManager* hooks the class of the actual service object,
 which can be a subclass; *hook:getClassName()* still returns the class of the definition.
 
-You can modify field values in an *after* function by prefixing the method name with a # character, for example:
+You can modify the value of a static field by prefixing the method name with a # character;
+the *after* function runs once, when the hook is installed, for example:
 
 ```JSON
   "methodName": "#SERIAL"

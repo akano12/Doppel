@@ -249,7 +249,11 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         final String category = this.category;
         final boolean global = GLOBAL.equals(category);
         final Context context = getApplicationContext();
-        run(TAG, () -> {
+        // Until there is a form, like at the start and on a retry; a switch of the scope shows the old form meanwhile
+        View pbLoading = findViewById(R.id.pbLoading);
+        if (((LinearLayout) findViewById(R.id.llValues)).getChildCount() == 0)
+            pbLoading.setVisibility(View.VISIBLE);
+        Ui.submit(executor, () -> {
             final Map<String, String> v = Data.getSettings(context, category);
             final Map<String, String> g = (global ? new HashMap<>() : Data.getSettings(context, GLOBAL));
             final List<XHook> hooks = Data.getHooks(context);
@@ -323,6 +327,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                         form.add(new Field(name, 0, Type.TEXT, null));
                 }
                 buildForm();
+                pbLoading.setVisibility(View.GONE);
 
                 // Values entered for this scope before a recreation
                 if (restored != null) {
@@ -332,7 +337,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 }
                 updateBar();
             });
-        }, this::load);
+        }, ex -> {
+            postUnlessGone(() -> pbLoading.setVisibility(View.GONE));
+            Ui.error(this, TAG, ex, this::load);
+        });
     }
 
     private void buildForm() {
@@ -440,7 +448,11 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             } else
                 rows.addView(til);
             inputs.put(field.key, til);
-            Ui.onTextChanged(input, text -> updateBar());
+            // An error is of the text it was given for
+            Ui.onTextChanged(input, text -> {
+                til.setError(null);
+                updateBar();
+            });
 
             // The groups which read the value, under it
             List<String> groups = readers.get(field.key);
@@ -586,10 +598,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
     // The mode saved for the scope, of all apps with their default, else of the app, INHERIT for none
     private String getSavedMode(String key) {
-        if (GLOBAL.equals(category))
-            return FakeIds.getMode(key, values, null);
-        String own = FakeIds.getOwnMode(key, values);
-        return (own == null ? INHERIT : own);
+        return FakeIds.getSavedMode(key, values, GLOBAL.equals(category));
     }
 
     private void initMode(Mode mode) {

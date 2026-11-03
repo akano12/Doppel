@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Light palette: the default color theme Ocean (see palettes.xml) on cool neutrals, the dark palette is in values-night;
-         the primary and tertiary containers are the same in both themes, like in the other color themes -->
+         the primary and tertiary containers are the same in both themes, like in the other color themes except Teal -->
     <color name="c_primary">#006497</color>
     <color name="c_on_primary">#FFFFFF</color>
     <color name="c_primary_container">#4FAEF2</color>

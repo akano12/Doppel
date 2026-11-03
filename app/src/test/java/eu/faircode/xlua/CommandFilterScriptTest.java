@@ -46,11 +46,15 @@ public class CommandFilterScriptTest {
             "  for index = 1, #items do array[index] = items[index] end",
             "  return array",
             "end",
-            // The regular expressions of Java (see javamatches) and exceptions with their message
+            // The regular expressions of Java (see javamatches), exceptions with their message and the environment of
+            // the process of the app (Os.getenv), the one of SYSTEM unless a test sets another
             "luajava = {",
             "  bindClass = function(name)",
             "    if name == 'java.util.regex.Pattern' then",
             "      return { matches = function(self, regex, text) return javamatches(regex, text) end }",
+            "    end",
+            "    if name == 'android.system.Os' then",
+            "      return { getenv = function(self, key) return (process or SYSTEM)[key] end }",
             "    end",
             "    assert(name == 'java.io.IOException', name)",
             "    return name",
@@ -120,6 +124,10 @@ public class CommandFilterScriptTest {
                 {"env", "LD_PRELOAD=" + files + "/x.so", "getprop"},
                 {"sh", "-c", "PATH=" + files + " getprop"},
                 {"sh", "-c", "export PATH=" + files + "; getprop"},
+                // Variables quoted in parts, which the shell sets without the quotes
+                {"sh", "-c", "export \"PA\"\"TH=" + files + "\"; getprop"},
+                {"sh", "-c", "export PA\\TH=" + files + "; getprop"},
+                {"sh", "-c", "export 'LD''_PRELOAD=" + files + "/x.so'; getprop"},
                 {"sh", "-c", "cd " + files + "; ./getprop"},
                 {"sh", "-c", files + "/getprop"}})
             assertTrue(String.join(" ", words), refused(words));
@@ -135,6 +143,14 @@ public class CommandFilterScriptTest {
         assertTrue("folder of the app by ..", refused("getprop"));
         globals.load("environment = nil").call();
         assertFalse("environment of the app", refused("getprop"));
+        // PATH of the process, which finds the program, also when the builder has another
+        globals.load("process = { PATH = '/data/user/0/com.example/files:/system/bin' }").call();
+        assertTrue("PATH of the process", refused("getprop"));
+        globals.load("process = nil").call();
+        // /sbin is in PATH up to Android 9
+        globals.load("environment = { PATH = '/sbin:/system/sbin:/system/bin:/system/xbin:/vendor/bin' }").call();
+        assertFalse("PATH of Android 9", refused("getprop"));
+        globals.load("environment = nil").call();
         assertFalse("program of the system", refused("/system/bin/getprop"));
     }
 

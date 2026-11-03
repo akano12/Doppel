@@ -43,6 +43,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(AndroidJUnit4.class)
 public class XDatabaseTest {
     private File file;
+    private XDatabase db;
 
     @Before
     public void setUp() {
@@ -52,6 +53,9 @@ public class XDatabaseTest {
 
     @After
     public void tearDown() {
+        // Its files are deleted while it is open else
+        if (db != null)
+            db.close();
         SQLiteDatabase.deleteDatabase(file);
     }
 
@@ -70,7 +74,7 @@ public class XDatabaseTest {
         old.setVersion(1);
         old.close();
 
-        XDatabase db = XDatabase.open(file);
+        db = XDatabase.open(file);
         db.read(d -> {
             assertEquals(8, d.getVersion());
             assertTrue(names(d, "table").containsAll(set("assignment", "setting", "hook", "group")));
@@ -100,7 +104,7 @@ public class XDatabaseTest {
     // A new database, like at the first start, gets the same tables as an upgraded one
     @Test
     public void createsANewDatabase() throws Throwable {
-        XDatabase db = XDatabase.open(file);
+        db = XDatabase.open(file);
         db.read(d -> {
             assertEquals(8, d.getVersion());
             assertTrue(names(d, "table").containsAll(set("assignment", "setting", "hook", "group")));

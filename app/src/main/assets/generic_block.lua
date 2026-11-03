@@ -18,7 +18,8 @@
 
 -- The method is skipped, with the result of its return type (see the definition): false for a boolean method,
 -- like a registration, 0 for a method returning a result code, of which 0 means success, nothing for a void method.
--- A Boolean is false too, because callers which unbox it would fail on null, like Clarity.initialize.
+-- A Boolean is false too, because callers which unbox it would fail on null; see generic_block_untyped for methods
+-- of libraries in the app, of which R8 can change the return type.
 
 function before(hook, param)
     local returnType = hook:getReturnType()

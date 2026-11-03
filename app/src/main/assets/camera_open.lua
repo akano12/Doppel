@@ -18,6 +18,11 @@
 
 -- The errors of Android when the camera service refuses the camera, like when it is disabled
 function before(hook, param)
+    -- Without cameras (see getNumberOfCameras) Camera.open finds no camera facing back and returns null
+    if hook:getMethodName() == 'open' and hook:getParameterTypes()['length'] == 0 then
+        param:setResult(nil)
+        return true
+    end
     local message = 'Fail to connect to camera service'
     if hook:getMethodName() == 'getCameraInfo' then
         message = 'Fail to get camera info'

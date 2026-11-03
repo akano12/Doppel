@@ -889,4 +889,145 @@ public class DeviceValuesScriptTest {
                 "return run(hookof('BiometricManager.Strings.getButtonLabel', 'getButtonLabel'), biometricparamof('Use PIN', 0, strings))")
                 .arg1().toboolean());
     }
+
+    // The answers of a device without biometric hardware; the script runs only for the names of biometrics
+    @Test
+    public void biometricHardwareIsAbsent() throws Exception {
+        Globals globals = load("biometrics");
+        Varargs result = Scripts.run(globals, "local function names(method)\n" +
+                "  local list = filter(hookof('x', method))\n" +
+                "  if list == nil then return nil end\n" +
+                "  table.sort(list) return table.concat(list, ',')\n" +
+                "end\n" +
+                "return names('getSystemService'), names('hasSystemFeature'), names('getSystemAvailableFeatures')");
+        assertEquals("face,fingerprint,iris", result.arg(1).tojstring());
+        assertEquals("android.hardware.biometrics.face,android.hardware.biometrics.iris,android.hardware.fingerprint",
+                result.arg(2).tojstring());
+        assertTrue(result.arg(3).isnil());
+
+        // No manager for apps targeting Android 8 or later, before only no iris manager
+        String service = "return run(hookof('Context.getSystemService/biometrics', 'getSystemService'), paramof('manager', { [0] = '%s' }))";
+        Scripts.run(globals, "target = 26");
+        result = Scripts.run(globals, String.format(service, "fingerprint"));
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertFalse(Scripts.run(globals, String.format(service, "window")).arg1().toboolean());
+        Scripts.run(globals, "target = 25");
+        assertFalse(Scripts.run(globals, String.format(service, "fingerprint")).arg1().toboolean());
+        assertTrue(Scripts.run(globals, String.format(service, "iris")).arg1().toboolean());
+
+        // Biometrics only are no hardware, with the screen lock the answer stays
+        String authenticate = "return run(hookof('BiometricManager.canAuthenticate%s', 'canAuthenticate'), paramof(%d, { [0] = %d }))";
+        result = Scripts.run(globals, String.format(authenticate, "/authenticators", 0, 15));
+        assertTrue(result.arg1().toboolean());
+        assertEquals(12, result.arg(2).toint());
+        assertFalse(Scripts.run(globals, String.format(authenticate, "/authenticators", 0, 32783)).arg1().toboolean());
+        assertEquals(12, Scripts.run(globals, String.format(authenticate, "", 0, 0)).arg(2).toint());
+        assertFalse(Scripts.run(globals, String.format(authenticate, "", 12, 0)).arg1().toboolean());
+
+        // No sensors, no fingerprint hardware
+        result = Scripts.run(globals, "local strengths = { isEmpty = function(self) return false end, toString = function(self) return '{0=15}' end }\n" +
+                "return run(hookof('BiometricManager.getBiometricSensorStrengths', 'getBiometricSensorStrengths'), paramof(strengths, {}))");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).checkuserdata(java.util.Map.class) instanceof java.util.HashMap);
+        for (String method : new String[]{"isHardwareDetected", "hasEnrolledFingerprints"}) {
+            result = Scripts.run(globals, "return run(hookof('FingerprintManager." + method + "', '" + method + "'), paramof(true, {}))");
+            assertTrue(method, result.arg1().toboolean());
+            assertFalse(method, result.arg(2).toboolean());
+            assertFalse(method, Scripts.run(globals, "return run(hookof('FingerprintManager." + method + "', '" + method + "'), " +
+                    "paramof(false, {}))").arg1().toboolean());
+        }
+
+        // The list of features without the biometric ones, as a new array
+        result = Scripts.run(globals, Scripts.ARRAYOF + "\n" +
+                "luajava = { newInstance = function(name)\n" +
+                "    local list = {}\n" +
+                "    return { add = function(self, value) list[#list + 1] = value end, size = function(self) return #list end,\n" +
+                "      toArray = function(self, array) array.list = list return array end }\n" +
+                "  end,\n" +
+                "  bindClass = function(name) return { newInstance = function(self, type, size) return {} end } end }\n" +
+                "local wifi = { name = 'android.hardware.wifi' }\n" +
+                "local param = paramof(arrayof({ name = 'android.hardware.fingerprint' }, wifi, { name = 'android.hardware.biometrics.face' }), {})\n" +
+                "local restricted, old, new = after(hookof('PackageManager.getSystemAvailableFeatures/biometrics', 'getSystemAvailableFeatures'), param)\n" +
+                "return restricted, old, new, #param.result.list, param.result.list[1] == wifi");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("3", result.arg(2).tojstring());
+        assertEquals("1", result.arg(3).tojstring());
+        assertEquals(1, result.arg(4).toint());
+        assertTrue(result.arg(5).toboolean());
+    }
+
+    // TimeZone.setDefault keeps the fake zone, also when the default is reset with null; the ICU zone is one of ICU
+    @Test
+    public void timeZoneStaysFake() throws Exception {
+        Globals globals = load("timezone");
+        Varargs result = Scripts.run(globals, "local param = paramof(nil, {})\n" +
+                "param.setArgument = function(self, index, value) self.zone = value end\n" +
+                "local restricted, old, new = before(hookof('TimeZone.setDefault', 'setDefault'), param)\n" +
+                "return restricted, old, new, param.zone:getID()");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertEquals("UTC", result.arg(3).tojstring());
+        assertEquals("UTC", result.arg(4).tojstring());
+        assertFalse(Scripts.run(globals, "return before(hookof('TimeZone.setDefault', 'setDefault'), " +
+                "paramof(nil, { [0] = luajava.bindClass('java.util.TimeZone'):getTimeZone('UTC') }))").arg1().toboolean());
+
+        result = Scripts.run(globals, "luajava = { bindClass = function(name)\n" +
+                "  assert(name == 'android.icu.util.TimeZone', name)\n" +
+                "  return { getTimeZone = function(self, id) return 'icu ' .. id end } end }\n" +
+                "local param = paramof({ getID = function(self) return 'Europe/Berlin' end }, {})\n" +
+                "param.getSetting = function(self, name) assert(name == 'value.timezone') return 'Europe/Amsterdam' end\n" +
+                "local restricted, old, new = after(hookof('TimeZone.getDefault', 'getDefault', 'android.icu.util.TimeZone'), param)\n" +
+                "return restricted, old, new, param.result");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("Europe/Berlin", result.arg(2).tojstring());
+        assertEquals("Europe/Amsterdam", result.arg(3).tojstring());
+        assertEquals("icu Europe/Amsterdam", result.arg(4).tojstring());
+    }
+
+    // The Java system properties lose the build of the kernel and the model and build in http.agent
+    @Test
+    public void systemPropertiesAreReduced() throws Exception {
+        Globals globals = load("system_properties");
+        Varargs result = Scripts.run(globals, "local values = { ['os.version'] = '6.1.75-android14-11-g8b1f2a9',\n" +
+                "  ['http.agent'] = 'Dalvik/2.1.0 (Linux; U; Android 15; Pixel 9 Build/AP4A.250105.002)' }\n" +
+                "local props = { get = function(self, key) return values[key] end,\n" +
+                "  put = function(self, key, value) values[key] = value end }\n" +
+                "local restricted, old, new = after(hookof('System.props', '#props'), paramof(props, {}))\n" +
+                "return restricted, values['os.version'], values['http.agent'], new");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("6.1.75", result.arg(2).tojstring());
+        assertEquals("Dalvik/2.1.0 (Linux; U; Android 15)", result.arg(3).tojstring());
+        assertEquals("6.1.75 Dalvik/2.1.0 (Linux; U; Android 15)", result.arg(4).tojstring());
+        assertFalse(Scripts.run(globals, "local props = { get = function(self, key) return key == 'http.agent' and 'okhttp/4.12.0' or nil end }\n" +
+                "return after(hookof('System.props', '#props'), paramof(props, {}))").arg1().toboolean());
+    }
+
+    // The serial is the one set, else unknown
+    @Test
+    public void serialIsFaked() throws Exception {
+        Globals globals = load("value_serial");
+        Varargs result = Scripts.run(globals, "return run(hookof('Build.getSerial', 'getSerial'), paramof('R58N123ABC', {}))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("unknown", result.arg(2).tojstring());
+        assertEquals("ABC123", Scripts.run(globals, "local param = paramof('R58N123ABC', {})\n" +
+                "param.getSetting = function(self, name) assert(name == 'value.serial') return 'ABC123' end\n" +
+                "return run(hookof('Build.getSerial', 'getSerial'), param)").arg(2).tojstring());
+        assertFalse(Scripts.run(globals, "return run(hookof('Build.getSerial', 'getSerial'), paramof(nil, {}))").arg1().toboolean());
+    }
+
+    // Sizes of /proc/meminfo of 2 TB and more, which string.format('%d') of LuaJ wraps, stay whole
+    @Test
+    public void largeMeminfoSizesDoNotWrap() throws Exception {
+        Globals globals = load("resources");
+        Varargs result = Scripts.run(globals, "local param = paramof('fd', {})\n" +
+                "param.text = 'MemTotal:       3221225472 kB\\nMemFree:          147624 kB\\n'\n" +
+                "param.opens = function(self, file) return true end\n" +
+                "param.getFileText = function(self) return self.text end\n" +
+                "param.setFileText = function(self, value) self.text = value end\n" +
+                "local restricted = after(hookof('open', 'open'), param)\n" +
+                "return restricted, param.text");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("MemTotal:       3221225472 kB\nMemFree:          146484 kB\n", result.arg(2).tojstring());
+    }
 }

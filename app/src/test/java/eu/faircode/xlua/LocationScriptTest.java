@@ -40,7 +40,9 @@ public class LocationScriptTest {
             "    getLongitude = function(self) return self.longitude end,",
             "    setLatitude = function(self, value) self.latitude = value end,",
             "    setLongitude = function(self, value) self.longitude = value end,",
-            "    hasAccuracy = function(self) return false end,",
+            "    hasAccuracy = function(self) return self.accuracy ~= nil end,",
+            "    getAccuracy = function(self) return self.accuracy end,",
+            "    setAccuracy = function(self, value) self.accuracy = value end,",
             "    removeAltitude = function(self) self.altitude = nil end,",
             "    setExtras = function(self, extras) self.extras = extras end,",
             "    toString = function(self) return self.latitude .. ',' .. self.longitude end }",
@@ -183,6 +185,25 @@ public class LocationScriptTest {
                 assertTrue(longitude + " " + clongitude,
                         Math.min(distance, 360 - distance) <= lonstep / 2 + 1e-9);
             }
+    }
+
+    // A coarse location is not more accurate than its grid, like the coarse locations of Android; a set location
+    // keeps its accuracy
+    @Test
+    public void coarseAccuracyIsTheGrid() {
+        Varargs result = Scripts.run(globals,
+                "local precise = location(52.1, 4.3)\n" +
+                        "precise.accuracy = 4\n" +
+                        "after(nil, paramof(precise, { ['location.type'] = 'coarse', ['location.accuracy'] = '2000' }))\n" +
+                        "local none = location(52.1, 4.3)\n" +
+                        "after(nil, paramof(none, { ['location.type'] = 'coarse' }))\n" +
+                        "local set = location(52.1, 4.3)\n" +
+                        "set.accuracy = 4\n" +
+                        "after(nil, paramof(set, { ['location.type'] = 'set', ['location.latitude'] = '1', ['location.longitude'] = '2' }))\n" +
+                        "return precise.accuracy, none.accuracy, set.accuracy");
+        assertEquals(2000, result.arg(1).todouble(), 0);
+        assertEquals(10000, result.arg(2).todouble(), 0);
+        assertEquals(4, result.arg(3).todouble(), 0);
     }
 
     @Test

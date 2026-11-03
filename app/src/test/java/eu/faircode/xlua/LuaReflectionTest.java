@@ -21,6 +21,7 @@ package eu.faircode.xlua;
 
 import org.junit.Test;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.JsePlatform;
@@ -130,6 +131,58 @@ public class LuaReflectionTest {
         assertEquals(true, checker.equals(checker));
         assertEquals(false, checker.equals(new Object()));
         assertEquals(true, checker.toString().startsWith("Proxy@"));
+    }
+
+    public interface Reader {
+        String read() throws java.io.IOException;
+    }
+
+    public static String raise(String what) throws Exception {
+        if ("io".equals(what))
+            throw new java.io.IOException("io");
+        if ("state".equals(what))
+            throw new IllegalStateException("state");
+        throw new Exception("checked");
+    }
+
+    private static Reader reader(String what) {
+        return (Reader) JsePlatform.standardGlobals().load(
+                "local test = luajava.bindClass('" + LuaReflectionTest.class.getName() + "')" +
+                        " return luajava.createProxy('" + Reader.class.getName() + "'," +
+                        " {read = function() " + (what == null ? "error('lua')" : "return test:raise('" + what + "')") + " end})")
+                .call().touserdata();
+    }
+
+    // A Java exception thrown within a function of a proxy reaches the caller as itself, like a RemoteException of
+    // a binder, which apps catch, when the interface method declares it or it is unchecked; else and for errors of
+    // the script itself it stays a LuaError
+    @Test
+    public void proxyThrowsJavaExceptions() {
+        try {
+            reader("io").read();
+            fail("No exception");
+        } catch (java.io.IOException ex) {
+            assertEquals("io", ex.getMessage());
+        }
+        try {
+            reader("state").read();
+            fail("No exception");
+        } catch (Exception ex) {
+            assertEquals(IllegalStateException.class, ex.getClass());
+        }
+        try {
+            reader("checked").read();
+            fail("No exception");
+        } catch (Exception ex) {
+            assertEquals(LuaError.class, ex.getClass());
+        }
+        try {
+            reader(null).read();
+            fail("No exception");
+        } catch (Exception ex) {
+            assertEquals(LuaError.class, ex.getClass());
+            assertEquals(null, ex.getCause());
+        }
     }
 
     // Scripts get no io, coroutine, package or file loading, and of os only the times

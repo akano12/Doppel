@@ -31,6 +31,7 @@ import android.database.MatrixCursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Process;
 import android.os.RemoteException;
@@ -114,6 +115,7 @@ class XProvider {
                 assignNewBuiltins();
                 assignMovedBuiltins();
                 removeObsoleteAssignments();
+                removeRemovedApps(context);
             } catch (Throwable ex) {
                 Log.e(TAG, Log.getStackTraceString(ex));
             }
@@ -135,6 +137,74 @@ class XProvider {
             }
             return null;
         });
+    }
+
+    // Restrictions of apps removed while ReceiverPackage was not registered, like with the module off or before
+    // the boot finished, which backups would else keep; per user, as system user
+    private static void removeRemovedApps(Context context) throws Throwable {
+        final List<String[]> apps = db.read(d -> {
+            List<String[]> result = new ArrayList<>();
+            try (Cursor cursor = d.query(true, "assignment", new String[]{"package", "uid"},
+                    null, null, null, null, null, null)) {
+                while (cursor.moveToNext())
+                    result.add(new String[]{cursor.getString(0), cursor.getString(1)});
+            }
+            return result;
+        });
+
+        final List<String[]> removed;
+        final Map<Integer, PackageManager> pms = new HashMap<>();
+        long ident = Binder.clearCallingIdentity();
+        try {
+            removed = removedApps(apps, (packageName, userid) -> {
+                PackageManager pm = pms.get(userid);
+                if (pm == null) {
+                    pm = Util.createContextForUser(context, userid).getPackageManager();
+                    pms.put(userid, pm);
+                }
+                return Util.getApplicationInfo(pm, packageName, KNOWN_PACKAGES).uid;
+            });
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
+        if (removed.isEmpty())
+            return;
+
+        db.write(d -> {
+            for (String[] app : removed) {
+                d.delete("`group`", WHERE_APP, app);
+                Log.i(TAG, "Removed assignments of removed app pkg=" + app[0] + " uid=" + app[1] +
+                        " rows=" + d.delete("assignment", WHERE_APP, app));
+            }
+            return null;
+        });
+    }
+
+    // Also the apps removed with their data kept, like archived apps on Android 15, which keep their
+    // restrictions, see ReceiverPackage.added
+    private static final long KNOWN_PACKAGES = PackageManager.MATCH_UNINSTALLED_PACKAGES |
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
+                    ? PackageManager.MATCH_ARCHIVED_PACKAGES : 0);
+
+    interface InstalledUid {
+        int get(String packageName, int userid) throws Throwable;
+    }
+
+    // The apps (package name, uid) which are not known to the package manager, or with another uid now;
+    // an app which cannot be looked up is kept, see XProviderTest
+    static List<String[]> removedApps(List<String[]> apps, InstalledUid installed) {
+        List<String[]> result = new ArrayList<>();
+        for (String[] app : apps)
+            try {
+                int uid = Integer.parseInt(app[1]);
+                if (installed.get(app[0], Util.getUserId(uid)) != uid)
+                    result.add(app);
+            } catch (PackageManager.NameNotFoundException ignored) {
+                result.add(app);
+            } catch (Throwable ex) {
+                Log.w(TAG, "Kept assignments pkg=" + app[0] + " uid=" + app[1] + ": " + ex);
+            }
+        return result;
     }
 
     // The groups of the definitions which are loaded, built-in and custom, see XNotify.cancelApp
@@ -1201,10 +1271,6 @@ class XProvider {
 
     // Permissions
 
-    private static boolean isPackageOf(Context context, String packageName, int uid) {
-        return mayRead(packageName, false, getPackagesForUid(context, uid));
-    }
-
     // Whether a hooked app may read the data of a category without the permission of the app: of its own packages,
     // the packages of its uid, and with global also the settings for all apps; else it could read the fake values
     // of other apps, see XProviderTest
@@ -1232,11 +1298,12 @@ class XProvider {
         loadData(context);
         int cuid = Binder.getCallingUid();
         try {
-            // System server and the app first: system server has the assignments of Android too
-            if (hasPermission(context))
+            // System server and the app first: system server has the assignments of Android too;
+            // the packages of the caller are looked up once for both
+            String[] packages = getPackagesForUid(context, cuid);
+            if (permitted(cuid, packages))
                 return CALLER_PERMITTED;
 
-            String[] packages = getPackagesForUid(context, cuid);
             if (packages != null && packages.length > 0) {
                 final List<String> args = new ArrayList<>();
                 args.add(Integer.toString(cuid));
@@ -1295,9 +1362,13 @@ class XProvider {
     // Apps signed with the same key are not let in: there is no companion app anymore.
     private static void enforcePermission(Context context) throws SecurityException {
         int callingUid = Binder.getCallingUid();
-        if (Util.getAppId(callingUid) == Process.SYSTEM_UID ||
-                isPackageOf(context, BuildConfig.APPLICATION_ID, callingUid))
-            return;
-        throw new SecurityException("Permission error cuid=" + callingUid);
+        if (!permitted(callingUid, getPackagesForUid(context, callingUid)))
+            throw new SecurityException("Permission error cuid=" + callingUid);
+    }
+
+    // Whether a caller with the packages of its uid is system server or the app, see XProviderTest
+    static boolean permitted(int callingUid, String[] packages) {
+        return (Util.getAppId(callingUid) == Process.SYSTEM_UID ||
+                mayRead(BuildConfig.APPLICATION_ID, false, packages));
     }
 }

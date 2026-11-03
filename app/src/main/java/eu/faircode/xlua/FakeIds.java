@@ -79,6 +79,14 @@ final class FakeIds {
         return false;
     }
 
+    // The mode saved for all apps, with its default, or saved for an app, INHERIT for none, see ActivityValues
+    static String getSavedMode(String key, Map<String, String> values, boolean global) {
+        if (global)
+            return getMode(key, values, null);
+        String own = getOwnMode(key, values);
+        return (own == null ? INHERIT : own);
+    }
+
     // The mode of an app, else of all apps; a value set without a mode is fixed, like before there were modes.
     // Without either the serial is fixed, its default is unknown like Build.getSerial, the others are new each boot.
     static String getMode(String key, Map<String, String> global, Map<String, String> app) {

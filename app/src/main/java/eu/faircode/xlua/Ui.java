@@ -24,7 +24,6 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
-import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -45,6 +44,7 @@ import android.widget.TextView;
 
 import androidx.annotation.StringRes;
 import androidx.appcompat.content.res.AppCompatResources;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.core.graphics.ColorUtils;
 import java.util.function.Consumer;
 
@@ -312,7 +312,7 @@ final class Ui {
         View view = LayoutInflater.from(context).inflate(R.layout.dialog_text, null, false);
         TextView tvText = view.findViewById(R.id.tvText);
         tvText.setText(text);
-        tvText.setTypeface(Typeface.MONOSPACE);
+        tvText.setTypeface(ResourcesCompat.getFont(context, R.font.plex_mono));
         new MaterialAlertDialogBuilder(context)
                 .setTitle(title)
                 .setView(view)

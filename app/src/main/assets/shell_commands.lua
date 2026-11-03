@@ -17,13 +17,17 @@
 
 -- Apps run commands to read what the other hooks fake, like FingerprintJS runs getprop:
 -- getprop reads the system properties behind the fields of android.os.Build, the serial, the operator
--- the time zone and the language, uname and /proc/version the kernel build of Os.uname, pm the installed packages
--- and the features of the device, date the time zone, cat the files of which apps read another text, like
--- /proc/meminfo and boot_id, and cat, head, dd and other commands reading files fail for the files of /sys which
--- do not exist for the app (see hardware_files), named in the command or the script, also by a link, or relative
--- to the working directory of the builder; not covered are redirections of the shell, like read x < file, and
--- commands which show that these files exist without reading them, like ls, stat, find and test (or [ -e file ]).
--- stat, ls -l and find with times fail for the folders of which storage_times fakes the times (see timesfunctions).
+-- the time zone and the language, uname, /proc/version, /proc/sys/kernel/osrelease and version the kernel build of
+-- Os.uname, sysctl the same and boot_id, pm the installed packages and the features of the device, date the time
+-- zone, cat the files of which apps read another text, like /proc/meminfo and boot_id, and cat, head, dd and other
+-- commands reading files fail for the files of /sys which do not exist for the app (see hardware_files), named in
+-- the command or the script, also by a link, or relative to the working directory of the builder; recursive reads,
+-- like grep -R, ls -R, find -exec, cp -r and tar, fail for the folders above these files (see nearpatterns).
+-- Not covered are redirections of the shell, like read x < file, and commands which show that these files exist
+-- without reading them, like ls, stat, find and test (or [ -e file ]), and recursive reads of other folders
+-- between /sys and these files, like /sys/devices/platform/<device>.
+-- stat, ls -l, find with times, date -r, touch -r, cp -p and tar fail for the folders of which storage_times fakes
+-- the times, in any case (see timesfunctions).
 -- Not covered either are df and free, which print the exact sizes that Read.Resources rounds (see resources).
 -- For Read.Network ip, ifconfig, netstat, ss and arp fail and the files of /proc/net do not exist (see NETWORK).
 -- For Read.Debugging su is not there, and which and the commands reading files do not find it or Magisk.
@@ -31,10 +35,13 @@
 -- in a shell with functions of the same names in front, which run the real command and replace the values,
 -- so the output keeps its format; date gets the fake time zone in its environment (TZ).
 -- The functions cover commands run directly, also with their path, with toybox, toolbox, env, nohup, nice or
--- timeout in front, the pm script run with sh, and scripts of sh -c naming the commands, also with toybox or toolbox.
+-- timeout in front, the pm script run with sh, and scripts of sh -c naming the commands, also quoted in parts,
+-- like g''etprop, with toybox, toolbox, env, nohup, nice, timeout, setsid, xargs or exec in front, and in scripts of
+-- sh -c in the script (see routefunctions).
 -- Not covered are shells reading commands from their input (filtering their input could break apps
--- which wait for output), script files, command and env in scripts, names and paths made while the script runs
--- (like "$dir"/bin/getprop) and native code. Runtime.exec starts processes with ProcessBuilder.start.
+-- which wait for output), script files, command in scripts, programs run by other programs, like find -exec in
+-- other folders and xargs with -0, -d or -I, names and paths made while the script runs (like "$dir"/bin/getprop)
+-- and native code. Runtime.exec starts processes with ProcessBuilder.start.
 -- The variant commands (Run.Commands) fakes nothing: it refuses commands running a program which is not allowed,
 -- see refuse.
 -- Each other variant fakes the values of its group. The hooks of all variants run for the same command:
@@ -152,12 +159,30 @@ local NETWORK = { 'ip', 'ifconfig', 'netstat', 'ss', 'arp' }
 
 -- The commands which read files and get the error of a missing file for these files; dd takes if=file
 local READERS = { 'cat', 'head', 'tail', 'dd', 'od', 'xxd', 'hexdump', 'strings', 'base64', 'md5sum', 'sha1sum',
-                  'sha224sum', 'sha256sum', 'sha384sum', 'sha512sum', 'cksum', 'wc', 'grep', 'cut', 'sed', 'awk',
-                  'cp', 'cmp', 'diff', 'sort', 'tac', 'nl', 'rev', 'uniq', 'paste', 'fold', 'comm', 'expand' }
+                  'sha224sum', 'sha256sum', 'sha384sum', 'sha512sum', 'cksum', 'wc', 'grep', 'egrep', 'fgrep', 'cut',
+                  'sed', 'awk', 'cp', 'cmp', 'diff', 'sort', 'tac', 'nl', 'rev', 'uniq', 'paste', 'fold', 'comm',
+                  'expand', 'more', 'zcat', 'gzip', 'tar', 'cpio', 'iconv', 'uuencode', 'install', 'split' }
 local READER = {}
 for _, name in ipairs(READERS) do
     READER[name] = true
 end
+-- The commands reading each file apart, which go on with the other files after a missing one, like cat; the others,
+-- like dd, cp and cmp, fail without doing anything, and grep, sed and awk with -f too, whose file is no input
+local GOESON = { 'cat', 'head', 'tail', 'od', 'xxd', 'hexdump', 'strings', 'md5sum', 'sha1sum', 'sha224sum',
+                 'sha256sum', 'sha384sum', 'sha512sum', 'cksum', 'wc', 'grep', 'egrep', 'fgrep', 'cut', 'sed', 'awk',
+                 'sort', 'tac', 'nl', 'rev', 'fold', 'expand', 'more', 'zcat', 'gzip', 'iconv' }
+
+-- Commands reading folders recursively, with their long and short options doing so, true for always, which fail
+-- for the folders above hidden files (see nearpatterns); find runs other programs on the files with -exec, which do
+-- not have the functions
+local DEEP = { grep = { '--recursive|--dereference-recursive', '-*[rR]*' }, egrep = { '--recursive', '-*[rR]*' },
+               fgrep = { '--recursive', '-*[rR]*' }, ls = { '--recursive', '-*R*' },
+               find = { '-exec|-execdir|-ok|-okdir' }, cp = { '--recursive|--archive', '-*[rRa]*' }, tar = true }
+-- The folders of /sys above the folders of the patterns of HIDDEN for /sys, like /sys/devices/system of chip-id
+local SYSFOLDERS = { '/sys', '/sys/devices', '/sys/devices/system', '/sys/devices/platform', '/sys/devices/virtual',
+                     '/sys/bus', '/sys/bus/mmc', '/sys/bus/mmc/devices', '/sys/bus/soc', '/sys/bus/soc/devices',
+                     '/sys/bus/scsi', '/sys/bus/scsi/devices', '/sys/class/mmc_host', '/sys/class/mmc_host/mmc[0-9]*',
+                     '/proc', '/proc/self', '/proc/thread-self', '/proc/[0-9]*' }
 
 -- The biometric sensors, like biometrics (FEATURES)
 local BIOMETRIC = { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
@@ -173,7 +198,7 @@ local MULTIPLEXERS = { toybox = true, toolbox = true, busybox = true }
 -- Programs running the rest of the command, which stay in front of the shell of the functions, with their
 -- options taking a value
 local RUNNERS = { env = { ['-u'] = true, ['-C'] = true }, nohup = {}, nice = { ['-n'] = true },
-                  timeout = { ['-s'] = true, ['-k'] = true } }
+                  timeout = { ['-s'] = true, ['-k'] = true }, setsid = {} }
 local SHELLS = { sh = true, mksh = true, bash = true }
 
 -- Reserved words of the shell which a command follows, like if /system/bin/getprop ... or do /system/bin/getprop,
@@ -195,7 +220,7 @@ local BUILTINS = { echo = true, printf = true, cd = true, test = true, ['['] = t
 
 -- Programs and builtins running the program of their arguments, after their options
 local WRAPPERS = { toybox = true, toolbox = true, busybox = true, env = true, exec = true, command = true,
-                   nohup = true, nice = true, timeout = true, xargs = true }
+                   nohup = true, nice = true, timeout = true, xargs = true, setsid = true }
 
 -- The id of the fake time zone, like fakeid of timezone
 function fakeid(param)
@@ -384,6 +409,32 @@ function kernelfunctions()
     }, '\n')
 end
 
+-- sysctl reads the files of /proc/sys: kernel.osrelease and kernel.version are the kernel like uname, by their
+-- values, also with -n or -a, and kernel.random.boot_id the id of boot_id per app; the status stays the one of sysctl
+function sysctlfunction(param)
+    local boot = string.match(param:readFile('/proc/sys/kernel/random/boot_id') or '', '^%s*([%w%-]+)%s*$')
+    local seds = ' -e "s|$(__xlua_regex "$(/system/bin/uname -v)")|#1 SMP PREEMPT|"' ..
+            ' -e "s|$(__xlua_regex "$__xlua_release")|$__xlua_short|"' ..
+            " -e 's|^kernel\\.hostname = .*$|kernel.hostname = localhost|'"
+    local lines = { 'sysctl() {', ' __xlua_kernel' }
+    if boot ~= nil then
+        lines[#lines + 1] = ' __xlua_boot=$(/system/bin/cat /proc/sys/kernel/random/boot_id 2>/dev/null)'
+        lines[#lines + 1] = ' [ -n "$__xlua_boot" ] || __xlua_boot=__xlua_none'
+        seds = seds .. ' -e "s|$(__xlua_regex "$__xlua_boot")|' .. boot .. '|"'
+    end
+    -- The shell writes the output itself, print of mksh, the shell of Android, has no limit of 128 KB like printf
+    lines[#lines + 1] = ' __xlua_out=$(/system/bin/sysctl "$@")'
+    lines[#lines + 1] = ' __xlua_rc=$?'
+    lines[#lines + 1] = ' if [ -n "$__xlua_out" ]; then'
+    lines[#lines + 1] = '  if [ -n "${KSH_VERSION-}" ]; then print -r -- "$__xlua_out"; else printf \'%s\\n\' "$__xlua_out"; fi |'
+    lines[#lines + 1] = '   /system/bin/sed' .. seds
+    lines[#lines + 1] = ' fi'
+    lines[#lines + 1] = ' return $__xlua_rc'
+    lines[#lines + 1] = '}'
+    lines[#lines + 1] = ''
+    return table.concat(lines, '\n')
+end
+
 -- The patterns of the shell of the files of /sys which do not exist for the variants
 function hiddenpatterns(variants)
     local patterns = {}
@@ -491,7 +542,8 @@ function hiddenin(text, variants)
     return false
 end
 
--- The commands reading files in the text, when it names a file which does not exist for the variant
+-- The commands reading files in the text, when it names a file which does not exist for the variant, and the
+-- commands reading folders recursively, when it can name a folder above such a file (see guardfunctions)
 function readers(text, variant, names)
     if hiddenin(text, { [variant] = true }) then
         for _, name in ipairs(READERS) do
@@ -500,11 +552,18 @@ function readers(text, variant, names)
             end
         end
     end
+    if special(text) then
+        for _, name in ipairs({ 'grep', 'egrep', 'fgrep', 'ls', 'find', 'cp', 'tar' }) do
+            if hasword(text, name) then
+                names[#names + 1] = name
+            end
+        end
+    end
 end
 
 -- The functions of the commands reading files: files which do not exist for the variants get the error
--- of a missing file, the others are read; after leaving out a file a command does not read its input,
--- like cat and head would without files
+-- of a missing file, the others are read by the commands going on after a missing file (GOESON), which do not
+-- read their input then, like cat and head would without files; the other commands fail like for the missing file
 function hidingfunctions(variants, names)
     local result = {
         '__xlua_hidden() {',
@@ -528,7 +587,7 @@ function hidingfunctions(variants, names)
         '  if __xlua_hidden "$__xlua_file"; then',
         "   /system/bin/printf '%s: %s: No such file or directory\\n' \"$__xlua_program\" \"$__xlua_file\" >&2",
         -- The status of a missing file: 2 for grep, cmp and diff, 1 for the others
-        '   case $__xlua_program in grep|cmp|diff) __xlua_rc=2 ;; *) __xlua_rc=1 ;; esac',
+        '   case $__xlua_program in grep|egrep|fgrep|cmp|diff) __xlua_rc=2 ;; *) __xlua_rc=1 ;; esac',
         '  else',
         '   set -- "$@" "$__xlua_arg"',
         '  fi',
@@ -537,6 +596,13 @@ function hidingfunctions(variants, names)
         '  "/system/bin/$__xlua_program" "$@"',
         '  return',
         ' fi',
+        ' case $__xlua_program in',
+        '  grep|egrep|fgrep|sed|awk) for __xlua_arg in "$@"; do',
+        '    case "$__xlua_arg" in -f*|--file*) return $__xlua_rc ;; esac',
+        '   done ;;',
+        '  ' .. table.concat(GOESON, '|') .. ') ;;',
+        '  *) return $__xlua_rc ;;',
+        ' esac',
         ' if [ $# -gt 0 ]; then "/system/bin/$__xlua_program" "$@" </dev/null; fi',
         ' return $__xlua_rc',
         '}',
@@ -578,8 +644,12 @@ end
 local FOLDERS = { 'Alarms', 'Android', 'Android/data', 'Android/media', 'Android/obb', 'Audiobooks', 'DCIM',
                   'Documents', 'Download', 'Movies', 'Music', 'Notifications', 'Pictures', 'Podcasts', 'Recordings',
                   'Ringtones' }
--- The commands which print the times of files, with the options which make ls and find print or compare them
-local TIMERS = { 'stat', 'ls', 'find' }
+-- The commands which print or copy the times of files, with their long and short options doing so, true for always
+local TIMES = { stat = true, ls = { '--full-time|--time-style*', '-*[lnoge]*' },
+                find = { '-printf|-fprintf|-ls|-fls|-newer*|-[acm]time|-[acm]min|-exec|-execdir|-ok|-okdir' },
+                date = { '--reference*', '-*r*' }, touch = { '--reference*', '-*r*' },
+                cp = { '--preserve*|--archive', '-*[pa]*' }, tar = true }
+local TIMERS = { 'stat', 'ls', 'find', 'date', 'touch', 'cp', 'tar' }
 
 -- Whether a text can name the shared storage or /data/app
 function timedin(text)
@@ -587,82 +657,176 @@ function timedin(text)
             string.find(text, 'data/app', 1, true) ~= nil
 end
 
+-- A shell pattern of a name in any case, since the shared storage finds Download also as download
+function anycase(name)
+    return (string.gsub(name, '%a', function(char)
+        return '[' .. string.upper(char) .. string.lower(char) .. ']'
+    end))
+end
+
 -- Shell patterns of the folders of storage_times and of /data/app, by the paths of the storage, /sdcard and the
--- folders of users (/storage/emulated/0, which readlink -f gives)
+-- folders of users (/storage/emulated/0, which readlink -f gives); the folders in any case
 function timedpatterns()
     local patterns = { '/storage/emulated', '/data/app', '/data/app/*' }
     for _, top in ipairs({ '/sdcard', '/storage/self/primary', '/storage/emulated/[0-9]',
                            '/storage/emulated/[0-9][0-9]', '/storage/emulated/[0-9][0-9][0-9]' }) do
         patterns[#patterns + 1] = top
         for _, folder in ipairs(FOLDERS) do
-            patterns[#patterns + 1] = top .. '/' .. folder
+            patterns[#patterns + 1] = top .. '/' .. anycase(folder)
         end
     end
     return patterns
 end
 
--- stat, ls with options of times and find comparing or printing times fail for the folders storage_times fakes and
--- /data/app, like for a folder the app cannot read, since they would print the real times; ls without such
--- options, and other files, stay
-function timesfunctions(seen)
-    local result = {
+-- Shell patterns of the folders above the files of HIDDEN for the variants, where recursive reads would find them:
+-- the folders of the patterns, like */scsi_host/host[0-9]* and /system/xbin, /, the folders of SYSFOLDERS for the
+-- files of /sys and /proc and the partitions for those of */etc
+function nearpatterns(variants)
+    local result = {}
+    local seen = {}
+    local function add(pattern)
+        if not seen[pattern] then
+            seen[pattern] = true
+            result[#result + 1] = pattern
+        end
+    end
+    add('/')
+    for _, variant in ipairs(HIDING) do
+        if variants[variant] then
+            for _, pattern in ipairs(HIDDEN[variant]) do
+                local dir = string.match(pattern, '^(.+)/[^/]*$')
+                while dir ~= nil and dir ~= '*' do
+                    add(dir)
+                    dir = string.match(dir, '^(.+)/[^/]*$')
+                end
+            end
+            if variant == 'features' or variant == 'packages' then
+                for _, partition in ipairs({ '/system', '/system_ext', '/product', '/vendor', '/odm' }) do
+                    add(partition)
+                end
+            elseif variant ~= 'debugging' then
+                for _, folder in ipairs(SYSFOLDERS) do
+                    add(folder)
+                end
+            end
+        end
+    end
+    return result
+end
+
+-- The checks of the functions of the commands of TIMES and DEEP (see guardfunctions): __xlua_timed is true for the
+-- folders storage_times fakes and /data/app, whose real times the commands would print or copy, __xlua_near for
+-- the folders above the files which do not exist for the variants, both by the path, also with // and ./, and by
+-- the path it leads to; __xlua_check fails like for a folder the app cannot read when an argument is such a folder
+function checkfunctions(variants)
+    local near = {}
+    for _, pattern in ipairs(nearpatterns(variants)) do
+        near[#near + 1] = (pattern == '/' and pattern or pattern .. '/')
+    end
+    return table.concat({
+        '__xlua_clean() {',
+        ' __xlua_clean=$1',
+        ' while :; do',
+        '  case "$__xlua_clean" in',
+        '   *//*) __xlua_clean="${__xlua_clean%%//*}/${__xlua_clean#*//}" ;;',
+        '   */./*) __xlua_clean="${__xlua_clean%%/./*}/${__xlua_clean#*/./}" ;;',
+        '   */.) __xlua_clean=${__xlua_clean%/.} ;;',
+        '   *) return 0 ;;',
+        '  esac',
+        ' done',
+        '}',
         '__xlua_timed() {',
-        ' for __xlua_path in "$1" "$(/system/bin/readlink -f -- "$1" 2>/dev/null)"; do',
+        ' __xlua_clean "$1"',
+        ' for __xlua_path in "$__xlua_clean" "$(/system/bin/readlink -f -- "$1" 2>/dev/null)"; do',
         '  case "${__xlua_path%/}" in',
         '   ' .. table.concat(timedpatterns(), '|') .. ') return 0 ;;',
         '  esac',
         ' done',
         ' return 1',
         '}',
-        '__xlua_times() {',
-        ' __xlua_program=$1',
-        ' shift',
+        '__xlua_near() {',
+        ' __xlua_clean "$1"',
+        ' for __xlua_path in "$__xlua_clean" "$(/system/bin/readlink -f -- "$1" 2>/dev/null)"; do',
+        '  [ -n "$__xlua_path" ] || continue',
+        '  case "${__xlua_path%/}/" in',
+        '   ' .. table.concat(near, '|') .. ') return 0 ;;',
+        '  esac',
+        ' done',
+        ' return 1',
+        '}',
+        '__xlua_check() {',
+        ' __xlua_test=$1',
+        ' __xlua_program=$2',
+        ' shift 2',
         ' for __xlua_arg in "$@"; do',
         '  case "$__xlua_arg" in -*) continue ;; esac',
-        '  if __xlua_timed "$__xlua_arg"; then',
+        '  if $__xlua_test "$__xlua_arg"; then',
         "   /system/bin/printf '%s: %s: Permission denied\\n' \"$__xlua_program\" \"$__xlua_arg\" >&2",
         '   return 1',
         '  fi',
         ' done',
-        ' "/system/bin/$__xlua_program" "$@"',
+        ' return 0',
         '}',
-    }
-    if seen['stat'] then
-        result[#result + 1] = 'stat() {\n __xlua_times stat "$@"\n}'
+        ''
+    }, '\n')
+end
+
+-- Lines setting the variable to 1 when an argument is one of the long or short options, or always for true
+function optioncases(options, variable)
+    if options == true then
+        return { ' ' .. variable .. '=1' }
     end
-    if seen['ls'] then
-        result[#result + 1] = table.concat({
-            'ls() {',
-            ' for __xlua_arg in "$@"; do',
-            '  case "$__xlua_arg" in',
-            '   --full-time|--time-style*) __xlua_times ls "$@"; return ;;',
-            '   --*) ;;',
-            '   -*[lnoge]*) __xlua_times ls "$@"; return ;;',
-            '  esac',
-            ' done',
-            ' /system/bin/ls "$@"',
-            '}' }, '\n')
+    local result = { ' ' .. variable .. '=0', ' for __xlua_arg in "$@"; do', '  case "$__xlua_arg" in',
+                     '   ' .. options[1] .. ') ' .. variable .. '=1 ;;', '   --*) ;;' }
+    if options[2] ~= nil then
+        result[#result + 1] = '   ' .. options[2] .. ') ' .. variable .. '=1 ;;'
     end
-    if seen['find'] then
-        result[#result + 1] = table.concat({
-            'find() {',
-            ' for __xlua_arg in "$@"; do',
-            '  case "$__xlua_arg" in',
-            '   -printf|-fprintf|-ls|-fls|-newer*|-[acm]time|-[acm]min) __xlua_times find "$@"; return ;;',
-            '  esac',
-            ' done',
-            ' /system/bin/find "$@"',
-            '}' }, '\n')
+    result[#result + 1] = '  esac'
+    result[#result + 1] = ' done'
+    return result
+end
+
+-- The commands of TIMES fail for the folders of storage_times with the options printing or copying times, for
+-- Use.Tracking, and those of DEEP for the folders above hidden files with the options reading recursively; else
+-- they run like without these checks (runs: the functions reading files of hidingfunctions and catfunction)
+function guardfunctions(names, runs, variants)
+    local times = (variants['tracking'] ~= nil)
+    local deep = (#hiddenpatterns(variants) > 0)
+    local result = {}
+    for _, name in ipairs(names) do
+        local timing = (times and TIMES[name])
+        local deeply = (deep and DEEP[name])
+        if timing or deeply then
+            result[#result + 1] = name .. '() {'
+            if timing then
+                for _, line in ipairs(optioncases(timing, '__xlua_t')) do
+                    result[#result + 1] = line
+                end
+                result[#result + 1] = ' if [ $__xlua_t = 1 ]; then __xlua_check __xlua_timed ' .. name ..
+                        ' "$@" || return; fi'
+            end
+            if deeply then
+                for _, line in ipairs(optioncases(deeply, '__xlua_d')) do
+                    result[#result + 1] = line
+                end
+                result[#result + 1] = ' if [ $__xlua_d = 1 ]; then __xlua_check __xlua_near ' .. name ..
+                        ' "$@" || return; fi'
+            end
+            result[#result + 1] = ' ' .. (runs[name] or '/system/bin/' .. name) .. ' "$@"'
+            result[#result + 1] = '}'
+        end
     end
-    result[#result + 1] = ''
-    return table.concat(result, '\n')
+    if #result == 0 then
+        return ''
+    end
+    return checkfunctions(variants) .. table.concat(result, '\n') .. '\n'
 end
 
 -- Whether cat of the file prints another text, with the functions of the variants; also by another path, like
 -- //proc/meminfo or /proc/self/root/proc/meminfo
 function catfile(file, variants)
     file = resolve(file)
-    if file == '/proc/version' then
+    if file == '/proc/version' or file == '/proc/sys/kernel/osrelease' or file == '/proc/sys/kernel/version' then
         return variants['tracking'] ~= nil
     end
     for variant, files in pairs(FILES) do
@@ -678,17 +842,22 @@ function catfile(file, variants)
 end
 
 -- cat of files prints the text the app reads itself, with the hooks opening files, at the start of the command,
--- for each file by the path it leads to, like //proc/meminfo or /proc/self/root/proc/meminfo; /proc/version the
--- kernel like uname (see kernelfunctions). Files the app cannot read keep their error. Files of /sys which do not
--- exist for the variants get the error of a missing file (see hidingfunctions). The other commands reading files,
--- and cat with options, read that text from their input in place of the file, like grep MemTotal - (see
--- __xlua_fakeread), for the first such file of a command; dd reads its input in place of if=.
+-- for each file by the path it leads to, like //proc/meminfo or /proc/self/root/proc/meminfo; /proc/version and
+-- /proc/sys/kernel/osrelease and version the kernel like uname (see kernelfunctions). Files the app cannot read keep
+-- their error. Files of /sys which do not exist for the variants get the error of a missing file (see
+-- hidingfunctions). The other commands reading files, and cat with options, read that text from their input in
+-- place of the first such file, like grep MemTotal -, and from a descriptor of its own in place of the others, like
+-- /proc/self/fd/3 (see __xlua_fakeread); dd reads its input in place of if=.
 function catfunction(param, text, variants, kernel, hiding, names)
     local cases = {}
     if kernel then
         -- Apps cannot read /proc/version on recent versions
         cases[#cases + 1] = '  /proc/version) if /system/bin/cat /proc/version >/dev/null 2>&1; then __xlua_kernel;' ..
                 " /system/bin/printf 'Linux version %s #1 SMP PREEMPT\\n' \"$__xlua_short\"; return 0; fi ;;"
+        cases[#cases + 1] = '  /proc/sys/kernel/osrelease) if /system/bin/cat /proc/sys/kernel/osrelease >/dev/null 2>&1;' ..
+                " then __xlua_kernel; /system/bin/printf '%s\\n' \"$__xlua_short\"; return 0; fi ;;"
+        cases[#cases + 1] = '  /proc/sys/kernel/version) if /system/bin/cat /proc/sys/kernel/version >/dev/null 2>&1;' ..
+                " then /system/bin/printf '#1 SMP PREEMPT\\n'; return 0; fi ;;"
     end
     for variant, files in pairs(FILES) do
         if variants[variant] then
@@ -713,20 +882,37 @@ function catfunction(param, text, variants, kernel, hiding, names)
         ' __xlua_reader=$1',
         ' shift',
         ' __xlua_source=',
+        ' __xlua_fd=2',
         ' __xlua_n=$#',
         ' while [ $__xlua_n -gt 0 ]; do',
         '  __xlua_arg=$1',
         '  shift',
         '  __xlua_n=$((__xlua_n - 1))',
-        '  if [ -z "$__xlua_source" ] && __xlua_faked "${__xlua_arg#if=}" >/dev/null; then',
+        '  if ! __xlua_faked "${__xlua_arg#if=}" >/dev/null; then',
+        '   set -- "$@" "$__xlua_arg"',
+        '  elif [ -z "$__xlua_source" ]; then',
         '   __xlua_source=${__xlua_arg#if=}',
         '   case "$__xlua_arg" in if=*) ;; *) set -- "$@" - ;; esac',
+        -- shortcut: the descriptors go up to 8, more faked files in one command are read as they are
+        '  elif [ $__xlua_fd -lt 8 ]; then',
+        '   __xlua_fd=$((__xlua_fd + 1))',
+        '   eval "__xlua_source$__xlua_fd=\\$__xlua_arg"',
+        '   set -- "$@" "/proc/self/fd/$__xlua_fd"',
         '  else',
         '   set -- "$@" "$__xlua_arg"',
         '  fi',
         ' done',
         ' if [ -z "$__xlua_source" ]; then ' .. run .. ' "$@"; return; fi',
-        ' __xlua_faked "$__xlua_source" | ' .. run .. ' "$@"',
+        ' __xlua_faked "$__xlua_source" | __xlua_feed 3 "$@"',
+        '}',
+        -- The text of each further file on its own descriptor, from 3, while the input stays the text of the first
+        -- one, which 9 keeps meanwhile
+        '__xlua_feed() {',
+        ' __xlua_at=$1',
+        ' shift',
+        ' if [ $__xlua_at -gt $__xlua_fd ]; then ' .. run .. ' "$@"; return; fi',
+        ' eval "{ __xlua_faked \\"\\$__xlua_source$__xlua_at\\" | { __xlua_feed $((__xlua_at + 1)) \\"\\$@\\"' ..
+                ' $__xlua_at<&0 0<&9 9<&-; }; } 9<&0"',
         '}',
         'cat() {',
         ' case "$*" in',
@@ -772,6 +958,7 @@ end
 -- the permission every app for Android 13 or later gets for its receivers, <package>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION,
 -- in each format: names (permission:, group:, permission group:), the blocks of -f, the groups of -g with their
 -- permissions up to the empty line, and the summary of -s by the labels of the groups; nil when nothing is hidden.
+-- The names of all hidden apps go in one expression each, a script of sh -c is one argument of at most 128 KB.
 -- shortcut: the labels of permissions of hidden apps in groups of the system stay in the summary, -s is rare.
 function permissionfilter(param)
     local pm = param:getApplicationContext():getPackageManager()
@@ -779,32 +966,40 @@ function permissionfilter(param)
     local installed = param:unhooked(function()
         return pm:getInstalledPackages(4096)
     end):toArray()
-    -- Extended expressions: the end of a block of -f is a header ("+ " also indented), a line of the list
-    -- itself (not indented, like ungrouped:) or the empty line after a group, which stay
-    local next = '^( *\\+ |[^ ]|$)'
-    local expressions = {}
+    local permissions = {}
+    local groups = {}
+    local labels = {}
     for index = 1, installed['length'] do
         local info = installed[index]
         if not param:isPackageVisible(info.packageName) then
-            local permissions = info.permissions
-            for at = 1, (permissions == nil and 0 or permissions['length']) do
-                local name = extendedregex(permissions[at].name)
-                expressions[#expressions + 1] = '-e ' .. quote('/^ *permission:' .. name .. '$/d')
-                expressions[#expressions + 1] = '-e ' .. quote('/^ *\\+ permission:' .. name .. '$/,/' .. next .. '/{' ..
-                        '/^ *\\+ permission:' .. name .. '$/d;/' .. next .. '/!d;}')
+            local defined = info.permissions
+            for at = 1, (defined == nil and 0 or defined['length']) do
+                permissions[#permissions + 1] = extendedregex(defined[at].name)
             end
-            local groups = info.permissionGroups
-            for at = 1, (groups == nil and 0 or groups['length']) do
-                local name = extendedregex(groups[at].name)
-                expressions[#expressions + 1] = '-e ' .. quote('/^permission group:' .. name .. '$/d')
-                expressions[#expressions + 1] = '-e ' .. quote('/^(\\+ )?group:' .. name .. '$/,/^$/d')
-                local label = extendedregex(tostring(groups[at]:loadLabel(pm)))
-                expressions[#expressions + 1] = '-e ' .. quote('/^' .. label .. ': /,/^$/d')
+            local grouped = info.permissionGroups
+            for at = 1, (grouped == nil and 0 or grouped['length']) do
+                groups[#groups + 1] = extendedregex(grouped[at].name)
+                labels[#labels + 1] = extendedregex(tostring(grouped[at]:loadLabel(pm)))
             end
         end
     end
-    if #expressions == 0 then
+    if #permissions == 0 and #groups == 0 then
         return nil
+    end
+    -- Extended expressions. A block of -f ends at a header ("+ " also indented), a line of the list itself (not
+    -- indented, like ungrouped:) or the empty line after a group, which stay: the hold space is x in a block to
+    -- leave out, else empty
+    local expressions = { "-e '/^( *\\+ |[^ ]|$)/{x;s/.*//;x;}'" }
+    if #permissions > 0 then
+        expressions[#expressions + 1] = '-e ' .. quote('/^ *(\\+ )?permission:(' .. table.concat(permissions, '|') ..
+                ')$/{/^ *\\+ /{x;s/.*/x/;x;};d;}')
+    end
+    expressions[#expressions + 1] = "-e x -e '/^x$/{x;d;}' -e x"
+    if #groups > 0 then
+        local names = table.concat(groups, '|')
+        expressions[#expressions + 1] = '-e ' .. quote('/^permission group:(' .. names .. ')$/d')
+        expressions[#expressions + 1] = '-e ' .. quote('/^(\\+ )?group:(' .. names .. ')$/,/^$/d')
+        expressions[#expressions + 1] = '-e ' .. quote('/^(' .. table.concat(labels, '|') .. '): /,/^$/d')
     end
     return '/system/bin/sed -r ' .. table.concat(expressions, ' ')
 end
@@ -845,8 +1040,8 @@ end
 -- The functions of Get.Applications for pm and cmd package and the cases of __xlua_pm they add:
 -- the package lists list the packages of the app only, like the package lists of Get.Applications, path finds
 -- the packages which an app can look up (see package_probe): its own and system packages; the queries of
--- activities, services and receivers find nothing when they find other apps, like the queries of PackageManager,
--- resolve-activity finds nothing for other apps than these (see package_resolve). The arguments are parsed
+-- activities, services and receivers and resolve-activity find nothing when they find other apps than these, like
+-- the queries of PackageManager, which keep the system apps too (see package_resolve). The arguments are parsed
 -- like PackageManagerShellCommand does, with the short forms -l, -lf and -p of former versions.
 function applicationfunctions(param, lists, cases, text)
     -- Lines like package:com.example or package:/data/app/.../base.apk=com.example versionCode:1, and
@@ -874,9 +1069,9 @@ function applicationfunctions(param, lists, cases, text)
     cases[#cases + 1] = '  -[lL]|-[lL][fF]) if [ $# -eq 1 ]; then __xlua_package "$@" | __xlua_packages;' ..
             ' else __xlua_package "$@"; fi ;;'
     cases[#cases + 1] = '  -[pP]) if [ $# -eq 2 ] && ! __xlua_visible "$2"; then return 1; fi; __xlua_package "$@" ;;'
-    cases[#cases + 1] = '  query-activities) __xlua_query __xlua_own \'No activities found\' "$@" ;;'
-    cases[#cases + 1] = '  query-services) __xlua_query __xlua_own \'No services found\' "$@" ;;'
-    cases[#cases + 1] = '  query-receivers) __xlua_query __xlua_own \'No receivers found\' "$@" ;;'
+    cases[#cases + 1] = '  query-activities) __xlua_query __xlua_visible \'No activities found\' "$@" ;;'
+    cases[#cases + 1] = '  query-services) __xlua_query __xlua_visible \'No services found\' "$@" ;;'
+    cases[#cases + 1] = '  query-receivers) __xlua_query __xlua_visible \'No receivers found\' "$@" ;;'
     cases[#cases + 1] = '  resolve-activity) __xlua_query __xlua_visible \'No activity found\' "$@" ;;'
 
     return table.concat({
@@ -1076,6 +1271,111 @@ function multiplexerfunctions(text, names)
     return result, multiplexers
 end
 
+-- Programs running a program of their arguments, with their options taking a value; xargs runs it with the words
+-- of its input, not with the options which make other arguments of them
+local ROUTERS = { { 'nohup' }, { 'nice', '-n' }, { 'timeout', '-s|-k' }, { 'setsid' }, { 'env', '-u|-C' },
+                  { 'xargs', '-n|-L|-s|-P' } }
+
+-- Scripts can run the commands with the programs of ROUTERS in front, with exec in front (see unexec) or in a
+-- script of sh -c, which would skip the functions: these run the functions in this shell, without the priority,
+-- session, time limit or environment the program would give; xargs with the other options fails like a program
+-- which cannot be run, and other programs run as they are
+function routefunctions(text, names)
+    local result = {}
+    local routers = {}
+    local known = {}
+    for _, name in ipairs(names) do
+        known[#known + 1] = name
+    end
+    if hasword(text, 'sh') then
+        routers[#routers + 1] = 'sh'
+        known[#known + 1] = 'sh'
+        result[#result + 1] = table.concat({
+            'sh() {',
+            ' if [ "${1-}" != -c ]; then /system/bin/sh "$@"; return; fi',
+            ' if [ $# -ge 2 ]; then __xlua_script=$2; shift 2; else __xlua_script=; shift; fi',
+            -- The first argument after the script is $0
+            ' [ $# -eq 0 ] || shift',
+            ' ( eval "$__xlua_script" )',
+            '}' }, '\n')
+    end
+    if hasword(text, 'exec') then
+        result[#result + 1] = table.concat({
+            '__xlua_exec() {',
+            ' __xlua_name=$1',
+            ' case "$1" in /system/bin/*|/bin/*) __xlua_name=${1##*/} ;; esac',
+            ' shift',
+            ' "$__xlua_name" "$@"',
+            ' exit',
+            '}' }, '\n')
+    end
+    for _, router in ipairs(ROUTERS) do
+        local name = router[1]
+        if hasword(text, name) then
+            routers[#routers + 1] = name
+            local lines = { name .. '() {', ' __xlua_i=0', ' __xlua_skip=0', ' __xlua_refuse=0',
+                            ' for __xlua_word in "$@"; do', '  if [ $__xlua_skip = 1 ]; then', '   __xlua_skip=0',
+                            '  else', '   case "$__xlua_word" in' }
+            if router[2] ~= nil then
+                lines[#lines + 1] = '    ' .. router[2] .. ') __xlua_skip=1 ;;'
+            end
+            if name == 'xargs' then
+                lines[#lines + 1] = '    -0|-d*|-I*|-i*|-a*|-E*|-e*|--null|--delimiter*|--arg-file*|--replace*)' ..
+                        ' __xlua_refuse=1 ;;'
+            end
+            for _, line in ipairs({
+                '    -*|*=*|[0-9]*) ;;',
+                '    *)',
+                '     __xlua_name=$__xlua_word',
+                '     case "$__xlua_word" in /system/bin/*|/bin/*) __xlua_name=${__xlua_word##*/} ;; esac',
+                '     case "$__xlua_name" in',
+                '      ' .. table.concat(known, '|') .. ')' }) do
+                lines[#lines + 1] = line
+            end
+            if name == 'xargs' then
+                lines[#lines + 1] = '       if [ $__xlua_refuse = 1 ]; then'
+                lines[#lines + 1] = "        /system/bin/printf 'xargs: %s: Permission denied\\n' \"$__xlua_word\" >&2"
+                lines[#lines + 1] = '        return 126'
+                lines[#lines + 1] = '       fi'
+            end
+            lines[#lines + 1] = '       shift $((__xlua_i + 1))'
+            lines[#lines + 1] = (name == 'xargs' and '       ( set -f; "$__xlua_name" "$@" $(/system/bin/cat) )' or
+                    '       "$__xlua_name" "$@"')
+            for _, line in ipairs({ '       return ;;', '     esac', '     break ;;', '   esac', '  fi',
+                                    '  __xlua_i=$((__xlua_i + 1))', ' done', ' /system/bin/' .. name .. ' "$@"',
+                                    '}' }) do
+                lines[#lines + 1] = line
+            end
+            result[#result + 1] = table.concat(lines, '\n')
+        end
+    end
+    result[#result + 1] = ''
+    return table.concat(result, '\n'), routers
+end
+
+-- exec in front of a command of the functions, which would skip them, runs the function and exits, like exec;
+-- only in the place of a command and not exec with options, like exec -a name
+function unexec(script, names)
+    local known = {}
+    for _, name in ipairs(names) do
+        known[name] = true
+    end
+    local parts = {}
+    local from = 1
+    for at, after, word in string.gmatch(script, '()exec[ \t]+()([^%s;&|)`<>]+)') do
+        local program = unquote(word)
+        if string.find(program, '^/system/bin/[^/]*$') or string.find(program, '^/bin/[^/]*$') then
+            program = basename(program)
+        end
+        if known[program] and commandplace(script, at) then
+            parts[#parts + 1] = string.sub(script, from, at - 1) .. '__xlua_exec '
+            from = after
+        end
+    end
+    parts[#parts + 1] = string.sub(script, from)
+    return table.concat(parts)
+end
+
 -- Whether the text contains the word, like a command in a script
 function hasword(text, word)
     return string.find(' ' .. text .. ' ', '[^%w_.-]' .. word .. '[^%w_.-]') ~= nil
@@ -1095,9 +1395,14 @@ function commands(text, variant)
             names[#names + 1] = 'getprop'
         end
         local wantscat = false
-        if string.find(text, 'uname', 1, true) or string.find(text, '/proc/version', 1, true) then
+        -- Also /proc/sys/kernel/osrelease and version, and version in /proc
+        if string.find(text, 'uname', 1, true) or (string.find(text, 'proc', 1, true) and
+                (hasword(text, 'version') or hasword(text, 'osrelease'))) then
             names[#names + 1] = 'uname'
             wantscat = true
+        end
+        if hasword(text, 'sysctl') then
+            names[#names + 1] = 'sysctl'
         end
         for _, file in ipairs(FILES[variant]) do
             if namesfile(text, file) then
@@ -1162,9 +1467,7 @@ function commands(text, variant)
             names[#names + 1] = 'pm'
             names[#names + 1] = 'cmd'
         end
-        if variant == 'biometrics' then
-            readers(text, variant, names)
-        end
+        readers(text, variant, names)
         if #names > 0 then
             return names
         end
@@ -1172,8 +1475,8 @@ function commands(text, variant)
     return nil
 end
 
--- The shell functions of the variants and the names of the commands; scripts get functions for toybox and
--- toolbox too
+-- The shell functions of the variants and the names of the commands; scripts get functions for toybox, toolbox
+-- and the programs running others too (see routefunctions)
 function functions(param, text, variants, script)
     local result = ''
     local names = {}
@@ -1198,8 +1501,11 @@ function functions(param, text, variants, script)
         end
         result = result .. getpropfunction(all)
     end
-    if seen['uname'] then
+    if seen['uname'] or seen['sysctl'] then
         result = result .. kernelfunctions()
+    end
+    if seen['sysctl'] then
+        result = result .. sysctlfunction(param)
     end
     for _, name in ipairs(NETWORK) do
         if seen[name] then
@@ -1215,9 +1521,6 @@ function functions(param, text, variants, script)
     if seen['which'] then
         result = result .. whichfunction()
     end
-    if seen['stat'] or seen['ls'] or seen['find'] then
-        result = result .. timesfunctions(seen)
-    end
     local reading = {}
     for _, name in ipairs(READERS) do
         if seen[name] then
@@ -1231,6 +1534,12 @@ function functions(param, text, variants, script)
     if seen['cat'] then
         result = result .. catfunction(param, text, variants, seen['uname'], hiding, reading)
     end
+    -- The commands checking times or recursive reads first, which run the functions reading files after that
+    local runs = {}
+    for _, name in ipairs(reading) do
+        runs[name] = (seen['cat'] and '__xlua_fakeread ' .. name or hiding and '__xlua_files ' .. name or nil)
+    end
+    result = result .. guardfunctions(names, runs, variants)
     if seen['pm'] then
         result = result .. packagefunctions(param, variants, text)
     end
@@ -1238,6 +1547,11 @@ function functions(param, text, variants, script)
         local multiplexers, more = multiplexerfunctions(text, names)
         result = result .. multiplexers
         for _, name in ipairs(more) do
+            names[#names + 1] = name
+        end
+        local routes, routers = routefunctions(text, names)
+        result = result .. routes
+        for _, name in ipairs(routers) do
             names[#names + 1] = name
         end
     end
@@ -1393,29 +1707,23 @@ function commandplace(text, at)
 end
 
 -- Scripts can run the commands with their path, which would skip the functions; only paths in the place of
--- a command are replaced, also when quoted, others are arguments like [ -x /system/bin/getprop ], which stay.
--- Also paths with repeated slashes or ./, like /system/bin//getprop or /system/./bin/getprop.
+-- a command are replaced, also when quoted, also in parts, others are arguments like [ -x /system/bin/getprop ],
+-- which stay. Also paths with repeated slashes or ./, like /system/bin//getprop or /system/./bin/getprop.
 function unpath(script, name)
     local parts = {}
     local from = 1
-    for at, path, after in string.gmatch(script, '()(/[^%s;&|)`<>"\']*)()') do
-        local clean = path
+    for at, path, after in string.gmatch(script, '()(/[^%s;&|)`<>]*)()') do
+        local clean = unquote(path)
         repeat
             local last = clean
             clean = string.gsub(string.gsub(clean, '/%./', '/'), '//+', '/')
         until clean == last
-        if clean == '/system/bin/' .. name or clean == '/bin/' .. name then
-            local first = at
-            local next = after
-            local quote = string.sub(script, at - 1, at - 1)
-            if (quote == '"' or quote == "'") and string.sub(script, after, after) == quote then
-                first = at - 1
-                next = after + 1
-            end
-            if string.find(string.sub(script, next, next), '^[%s;&|)`<>]?$') and commandplace(script, first) then
-                parts[#parts + 1] = string.sub(script, from, at - 1) .. name
-                from = after
-            end
+        if (clean == '/system/bin/' .. name or clean == '/bin/' .. name) and
+                string.find(string.sub(script, after, after), '^[%s;&|)`<>]?$') and commandplace(script, at) then
+            -- The quotes of the path stay after the name, so quoted parts still end: /system/bin/"getprop" becomes
+            -- getprop"" and "/system/bin/getprop" becomes "getprop"
+            parts[#parts + 1] = string.sub(script, from, at - 1) .. name .. string.gsub(path, '[^"\']', '')
+            from = after
         end
     end
     parts[#parts + 1] = string.sub(script, from)
@@ -1471,7 +1779,8 @@ end
 
 -- Whether a path is of a partition of the system, which the app cannot write, without . or .. to leave it
 function systempath(path)
-    for _, dir in ipairs({ '/system/', '/system_ext/', '/product/', '/vendor/', '/odm/', '/apex/', '/bin/' }) do
+    -- /sbin is in PATH up to Android 9, on the root file system
+    for _, dir in ipairs({ '/system/', '/system_ext/', '/product/', '/vendor/', '/odm/', '/apex/', '/bin/', '/sbin/' }) do
         if string.sub(path .. '/', 1, #dir) == dir then
             return not string.find(path .. '/', '/%.%.?/')
         end
@@ -1486,15 +1795,18 @@ function systemprogram(word)
 end
 
 -- Whether the app chose where programs are found or which code they load, so it could run its own files by an
--- allowed name: PATH or LD_ variables in the command, like PATH=files getprop, or in the environment of the builder,
--- which the app can change, also for its own process; an empty folder of PATH is the working directory
+-- allowed name: PATH or LD_ variables in the command, also quoted in parts, like PATH=files getprop or
+-- export "PA""TH=files", or in the environment of the builder, which the app can change, also for its own process,
+-- or PATH of the process, which finds the program (Os.setenv); an empty folder of PATH is the working directory
 function loaders(builder, line)
-    if hasword(line, 'PATH') or string.find(' ' .. line, '[^%w_]LD_[%w_]') then
+    local plain = unquote(line)
+    if hasword(plain, 'PATH') or string.find(' ' .. plain, '[^%w_]LD_[%w_]') then
         return true
     end
-    local environment = builder:environment()
-    local path = environment:get('PATH')
-    if path ~= nil then
+    local function foreign(path)
+        if path == nil then
+            return false
+        end
         if string.find(':' .. path .. ':', '::', 1, true) then
             return true
         end
@@ -1503,8 +1815,14 @@ function loaders(builder, line)
                 return true
             end
         end
+        return false
     end
-    return environment:get('LD_PRELOAD') ~= nil or environment:get('LD_LIBRARY_PATH') ~= nil
+    local environment = builder:environment()
+    local ok, own = pcall(function()
+        return luajava.bindClass('android.system.Os'):getenv('PATH')
+    end)
+    return foreign(environment:get('PATH')) or (ok and foreign(own)) or
+            environment:get('LD_PRELOAD') ~= nil or environment:get('LD_LIBRARY_PATH') ~= nil
 end
 
 -- The programs a script runs: the words in the place of a command (see commandplace) with the words of their
@@ -1642,8 +1960,12 @@ function before(hook, param)
         return ((dir and string.sub(word, 1, 1) ~= '/') and dir:getPath() .. '/' .. word or word)
     end
 
-    local zone = (variant == 'timezone' and hasword(line, 'date') and settimezone(param, builder))
-    local names = commands(text, variant)
+    -- The commands and files are found in the text without quotes, which the shell removes before it runs them,
+    -- like g''etprop or boot"_id"
+    local plain = unquote(text)
+
+    local zone = (variant == 'timezone' and hasword(plain, 'date') and settimezone(param, builder))
+    local names = commands(plain, variant)
     if names == nil then
         return zone, line
     end
@@ -1672,7 +1994,7 @@ function before(hook, param)
         local own = { [variant] = true }
         for _, name in ipairs(names) do
             if program == name then
-                if READER[name] then
+                if READER[name] and not TIMES[name] and not DEEP[name] then
                     -- Commands reading files which exist run as they are
                     for index = at + 1, #words do
                         if catfile(file(words[index]), own) or hiddenfile(file(words[index]), own) then
@@ -1699,13 +2021,14 @@ function before(hook, param)
     end
     variants[variant] = true
 
-    local prelude, functionnames = functions(param, text, variants, script ~= nil)
+    local prelude, functionnames = functions(param, plain, variants, script ~= nil)
     local fake = luajava.newInstance('java.util.ArrayList')
     if script ~= nil then
         local text = words[script]
         for _, name in ipairs(functionnames) do
             text = unpath(text, name)
         end
+        text = unexec(text, functionnames)
         for index = 1, #words do
             fake:add(index == script and (prelude .. text) or words[index])
         end

@@ -225,7 +225,21 @@ public class LuajavaLib extends VarArgFunction {
 				for ( int i=0; i<n; i++ )
 					v[i] = CoerceJavaToLua.coerce(args[i]);
 			}
-			LuaValue result = func.invoke(v).arg1();
+			LuaValue result;
+			try {
+				result = func.invoke(v).arg1();
+			} catch ( LuaError e ) {
+				// A Java method the function called threw: its exception, like a RemoteException, reaches the
+				// caller of the interface method as it would without the proxy, when the method may throw it
+				Throwable cause = e.getCause();
+				if ( cause instanceof RuntimeException || cause instanceof Error )
+					throw cause;
+				if ( cause != null )
+					for ( Class<?> type : method.getExceptionTypes() )
+						if ( type.isInstance(cause) )
+							throw cause;
+				throw e;
+			}
 			return CoerceLuaToJava.coerce(result, method.getReturnType());
 		}
 	}

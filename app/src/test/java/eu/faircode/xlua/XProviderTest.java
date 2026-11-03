@@ -80,6 +80,54 @@ public class XProviderTest {
         assertFalse(XProvider.mayRead(null, true, own));
     }
 
+    // Only system server, of any user, and the app get the answers which need the permission; a hooked app
+    // only those of APP_CALLS and APP_QUERIES, see XProvider.call and query
+    @Test
+    public void permittedCallers() {
+        String[] app = {BuildConfig.APPLICATION_ID};
+        String[] other = {"other.app", "shared.app"};
+        assertTrue(XProvider.permitted(android.os.Process.SYSTEM_UID, null));
+        assertTrue(XProvider.permitted(Util.getUserUid(10, android.os.Process.SYSTEM_UID), null));
+        assertTrue(XProvider.permitted(10123, app));
+        assertTrue(XProvider.permitted(Util.getUserUid(10, 10123), new String[]{"shared.app", BuildConfig.APPLICATION_ID}));
+        assertFalse(XProvider.permitted(10124, other));
+        assertFalse(XProvider.permitted(10124, null));
+        assertFalse(XProvider.permitted(10124, new String[0]));
+        // Root and the shell are not system server
+        assertFalse(XProvider.permitted(0, null));
+        assertFalse(XProvider.permitted(2000, other));
+    }
+
+    // Assignments of apps which are not known anymore, or of a uid another app has now, are removed at boot;
+    // an app removed with its data kept is known still, and an app which cannot be looked up keeps them
+    @Test
+    public void removedAppsAtBoot() {
+        int secondary = Util.getUserUid(10, 10125);
+        List<String[]> apps = Arrays.asList(
+                new String[]{"installed.app", "10123"},
+                new String[]{"removed.app", "10124"},
+                new String[]{"reinstalled.app", "10125"},
+                new String[]{"locked.app", Integer.toString(secondary)});
+        List<String[]> removed = XProvider.removedApps(apps, (packageName, userid) -> {
+            switch (packageName) {
+                case "installed.app":
+                    assertEquals(0, userid);
+                    return 10123;
+                case "reinstalled.app":
+                    return 10126;
+                case "locked.app":
+                    assertEquals(10, userid);
+                    throw new IllegalStateException("No context");
+                default:
+                    throw new android.content.pm.PackageManager.NameNotFoundException();
+            }
+        });
+        List<String> names = new java.util.ArrayList<>();
+        for (String[] app : removed)
+            names.add(app[0]);
+        assertEquals(Arrays.asList("removed.app", "reinstalled.app"), names);
+    }
+
     // The scripts are sent of the definitions which need them only, see getHooks
     @Test
     public void scriptsOfTheDefinitionsAskedFor() throws Exception {

@@ -37,6 +37,8 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -168,8 +170,10 @@ public class FragmentLog extends FragmentBase {
             show();
         });
         tvStats.setOnClickListener(v -> cgFilter.check(R.id.chipErrors));
+        ViewCompat.replaceAccessibilityAction(tvStats, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
+                getString(R.string.title_show_errors), null);
 
-        // While the header is scrolled away: the calls of today by hour as small bars, and the filter
+        // While the header is scrolled away: the restrictions of today by hour as small bars, and the filter
         compact = (only == null
                 ? new CompactBar(view, R.string.nav_activity, cgFilter, tilSearch, ibSearch)
                 : new CompactBar(view, label, cgFilter, tilSearch, ibSearch));
@@ -319,8 +323,20 @@ public class FragmentLog extends FragmentBase {
         tvStats.setTextColor(Ui.color(context, errors.isEmpty()
                 ? com.google.android.material.R.attr.colorOnSurfaceVariant : R.attr.colorWarning));
         vBars.setValues(bars);
-        vBars.setContentDescription(getString(filter == Filter.ERRORS ? R.string.title_errors_by_day
-                : byHour ? R.string.title_calls_by_hour : R.string.title_calls_by_day));
+        // Screen readers get the bars which are not empty, with their hour or day
+        String described = getString(filter == Filter.ERRORS ? R.string.title_errors_by_day
+                : byHour ? R.string.title_calls_by_hour : R.string.title_calls_by_day);
+        for (int i = 0; i < bars.length; i++)
+            if (bars[i] > 0) {
+                Calendar at = Calendar.getInstance();
+                at.setTimeInMillis(byHour ? today : addDays(today, i + 1 - bars.length));
+                if (byHour)
+                    at.set(Calendar.HOUR_OF_DAY, i);
+                String when = DateUtils.formatDateTime(context, at.getTimeInMillis(),
+                        byHour ? DateUtils.FORMAT_SHOW_TIME : DateUtils.FORMAT_SHOW_WEEKDAY);
+                described = getString(R.string.title_pair, described, getString(R.string.title_bar, when, nf.format(bars[i])));
+            }
+        vBars.setContentDescription(described);
         // Under the bars: the hours in the digits of the language, or the first and the last day
         for (int i = 0; i < llAxis.getChildCount(); i++) {
             String label = null;
@@ -551,6 +567,13 @@ public class FragmentLog extends FragmentBase {
                 h.tvNew.setText(newValue);
                 h.tvOldFull.setText(oldValue);
                 h.tvNewFull.setText(newValue);
+                // Screen readers do not tell the struck through real value from the fake one
+                String real = context.getString(R.string.title_real_value, oldValue);
+                String fake = context.getString(R.string.title_fake_value, newValue);
+                h.tvOld.setContentDescription(real);
+                h.tvOldFull.setContentDescription(real);
+                h.tvNew.setContentDescription(fake);
+                h.tvNewFull.setContentDescription(fake);
             }
         }
     }

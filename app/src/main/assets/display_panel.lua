@@ -22,6 +22,9 @@
 -- The metrics of Resources stay too: Android converts sizes in pt, mm and in with their xdpi, so faking it would
 -- change layouts; up to Android 11 Resources gets its metrics from Display.getMetrics, which is why the
 -- framework gets the real metrics there.
+-- The luminance of HDR panels, like 1000, 500 and 0.0005 nits, becomes unknown (-1, INVALID_LUMINANCE), like of
+-- displays which do not tell it, the HDR types stay, since apps choose the videos to play by them; the maker and
+-- product of the panel (DeviceProductInfo, of its EDID) are not known, like for displays without EDID.
 
 -- Resources and their manager on the stack, see above
 function framework()
@@ -33,6 +36,37 @@ function framework()
         end
     end
     return false
+end
+
+-- HdrCapabilities without the luminance; it has no public constructor, so it is read from a parcel, written like
+-- HdrCapabilities writes itself; should the parcel differ, which the luminance read back shows, it stays
+function hdr(param)
+    local result = param:getResult()
+    local invalid = -1
+    if result == nil or (result:getDesiredMaxLuminance() == invalid and
+            result:getDesiredMaxAverageLuminance() == invalid and result:getDesiredMinLuminance() == invalid) then
+        return false
+    end
+    local ok, fake = pcall(function()
+        local types = result:getSupportedHdrTypes()
+        local parcel = luajava.bindClass('android.os.Parcel'):obtain()
+        parcel:writeInt(types['length'])
+        for index = 1, types['length'] do
+            parcel:writeInt(types[index])
+        end
+        for _ = 1, 3 do
+            parcel:writeFloat(invalid)
+        end
+        parcel:setDataPosition(0)
+        local made = luajava.bindClass('android.view.Display$HdrCapabilities').CREATOR:createFromParcel(parcel)
+        parcel:recycle()
+        return made
+    end)
+    if not ok or fake == nil or fake:getDesiredMaxLuminance() ~= invalid or fake:getDesiredMinLuminance() ~= invalid then
+        return false
+    end
+    param:setResult(fake)
+    return true, tostring(result:getDesiredMaxLuminance()), tostring(invalid)
 end
 
 -- A Java array of the class with the values
@@ -63,6 +97,16 @@ function after(hook, param)
         metrics.xdpi = dpi
         metrics.ydpi = dpi
         return true, real, tostring(dpi)
+    end
+
+    if method == 'getDeviceProductInfo' then
+        if param:getResult() == nil then
+            return false
+        end
+        param:setResult(nil)
+        return true
+    elseif method == 'getHdrCapabilities' then
+        return hdr(param)
     end
 
     local result = param:getResult()

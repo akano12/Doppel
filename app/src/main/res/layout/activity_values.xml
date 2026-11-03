@@ -10,68 +10,77 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize" />
 
-    <!-- The toolbar names the scope while the chips and the hint are scrolled away, see ToolbarSummary -->
-    <androidx.core.widget.NestedScrollView
-        android:id="@+id/svValues"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <LinearLayout
+        <!-- The toolbar names the scope while the chips and the hint are scrolled away, see ToolbarSummary -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/svValues"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="24dp">
-
-            <!-- Values of an app replace the values for all apps; checked from the saved scope in onCreate -->
-            <HorizontalScrollView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:scrollbars="none">
-
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/cgScope"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:visibility="gone"
-                    app:selectionRequired="true"
-                    app:singleLine="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipScopeApp"
-                        style="@style/XLua.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:saveEnabled="false" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipScopeGlobal"
-                        style="@style/XLua.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:saveEnabled="false"
-                        android:text="@string/title_all_apps" />
-                </com.google.android.material.chip.ChipGroup>
-            </HorizontalScrollView>
-
-            <TextView
-                android:id="@+id/tvHint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:layout_marginTop="8dp"
-                android:textAppearance="@style/XLua.Text.Meta" />
+            android:layout_height="match_parent">
 
             <LinearLayout
-                android:id="@+id/llValues"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical" />
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="24dp">
+
+                <!-- Values of an app replace the values for all apps; checked from the saved scope in onCreate -->
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none">
+
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/cgScope"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        app:selectionRequired="true"
+                        app:singleLine="true"
+                        app:singleSelection="true">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipScopeApp"
+                            style="@style/XLua.Chip.Filter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:saveEnabled="false" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipScopeGlobal"
+                            style="@style/XLua.Chip.Filter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:saveEnabled="false"
+                            android:text="@string/title_all_apps" />
+                    </com.google.android.material.chip.ChipGroup>
+                </HorizontalScrollView>
+
+                <TextView
+                    android:id="@+id/tvHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="@style/XLua.Text.Meta" />
+
+                <LinearLayout
+                    android:id="@+id/llValues"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/pbLoading"
+            style="@style/XLua.Loading" />
+    </FrameLayout>
 
     <!-- The changes not saved yet, with their actions, only while there are some -->
     <LinearLayout

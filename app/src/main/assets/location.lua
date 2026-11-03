@@ -30,6 +30,7 @@ function after(hook, param)
     local latitude = 0
     local longitude = 0
     local type = param:getSetting('location.type')
+    local grid = nil
     if type == 'set' then
         -- Settings are text, Location.setLatitude needs a number
         latitude = tonumber(param:getSetting('location.latitude'))
@@ -47,6 +48,7 @@ function after(hook, param)
         -- The center of a cell of a grid of this size, like Android snaps locations for apps with coarse location:
         -- the same for all hooks, processes and starts of the app, so averaging does not reveal the location
         latitude, longitude = snaptogrid(result:getLatitude(), result:getLongitude(), accuracy)
+        grid = accuracy
     end
 
     if result:hasAccuracy() then
@@ -58,6 +60,11 @@ function after(hook, param)
 
     result:setLatitude(latitude)
     result:setLongitude(longitude)
+    -- A coarse location is not more accurate than its grid, like the coarse locations of Android, after the offset,
+    -- so the grid result stays the same
+    if grid ~= nil then
+        result:setAccuracy(math.max(result:hasAccuracy() and result:getAccuracy() or 0, grid))
+    end
 
     -- The altitude, the movement and the extras, like the number of satellites, belong to the real location;
     -- the methods of newer versions are only there from that version

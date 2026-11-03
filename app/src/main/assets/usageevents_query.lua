@@ -17,9 +17,23 @@
 -- Copyright 2026 akano12
 
 -- The usage events of the device tell which apps were used when, like the usage statistics.
--- The events are read from the result, so the app gets them as already read, like when there are none.
+-- The events are read from the result, so the app gets them as already read, like when there are none;
+-- the statistics per app of queryUsageStats are an empty list.
 
 function after(hook, param)
+    -- Processes of the system see all apps
+    if param:isSystem() then
+        return false
+    end
+    if hook:getMethodName() == 'queryUsageStats' then
+        local stats = param:getResult()
+        if stats == nil or stats:isEmpty() then
+            return false
+        end
+        param:setResult(luajava.newInstance('java.util.ArrayList'))
+        return true
+    end
+
     local events = param:getResult()
     if events == nil or not events:hasNextEvent() then
         return false

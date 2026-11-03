@@ -112,6 +112,40 @@ public class ContentResolverScriptTest {
         assertFalse(contained("a = 1; DROP TABLE x"));
         assertFalse(contained("a = 1 --"));
         assertFalse(contained("a = 1 /* x */"));
+
+        // Subqueries, which could tell the contacts which are not starred, also in another case; quoted text and
+        // names which contain the word stay
+        assertFalse(contained("(SELECT count(*) FROM raw_contacts WHERE starred=0) > 3"));
+        assertFalse(contained("a IN (select _id FROM x)"));
+        assertFalse(contained("a=(\tSeLeCt\n1)"));
+        assertTrue(contained("name = 'select' AND \"select\" = 1"));
+        assertTrue(contained("selected = 1 AND unselect_time > 0"));
+    }
+
+    // A sort order with a subquery selects nothing and is left out, like such a selection
+    @Test
+    public void sortOrderWithSubquery() {
+        Varargs result = Scripts.run(globals,
+                "local param = paramof(urlof('com.android.contacts', '/contacts'), 'display_name = ?', 'args', " +
+                        "{ ['contacts.starred'] = '1' })\n" +
+                        "param.arguments[2].values['android:query-arg-sql-sort-order'] = " +
+                        "'(SELECT count(*) FROM raw_contacts WHERE starred=0)'\n" +
+                        "local safe = paramof(urlof('com.android.contacts', '/contacts'), nil, nil, " +
+                        "{ ['contacts.starred'] = '1' })\n" +
+                        "safe.arguments[2].values['android:query-arg-sql-sort-order'] = 'display_name COLLATE LOCALIZED ASC'\n" +
+                        "local hook = hookof('ContentResolver.query26/contacts')\n" +
+                        "before(hook, param)\n" +
+                        "before(hook, safe)\n" +
+                        "local values = param.arguments[2].values\n" +
+                        "return values['android:query-arg-sql-selection'], values['android:query-arg-sql-sort-order'],\n" +
+                        "  values['android:query-arg-sql-selection-args'],\n" +
+                        "  safe.arguments[2].values['android:query-arg-sql-sort-order'],\n" +
+                        "  safe.arguments[2].values['android:query-arg-sql-selection']");
+        assertEquals("0", result.arg(1).tojstring());
+        assertTrue(result.arg(2).isnil());
+        assertTrue(result.arg(3).isnil());
+        assertEquals("display_name COLLATE LOCALIZED ASC", result.arg(4).tojstring());
+        assertEquals("(starred = 1)", result.arg(5).tojstring());
     }
 
     @Test

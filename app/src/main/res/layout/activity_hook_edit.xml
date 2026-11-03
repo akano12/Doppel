@@ -78,6 +78,7 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etClass"
                                 style="@style/XLua.Field.Edit"
+                                android:textDirection="ltr"
                                 android:fontFamily="@font/plex_mono"
                                 android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
@@ -91,6 +92,7 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etMethod"
                                 style="@style/XLua.Field.Edit"
+                                android:textDirection="ltr"
                                 android:fontFamily="@font/plex_mono"
                                 android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
@@ -104,6 +106,7 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etParams"
                                 style="@style/XLua.Field.Edit"
+                                android:textDirection="ltr"
                                 android:fontFamily="@font/plex_mono"
                                 android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
@@ -116,6 +119,7 @@
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etReturn"
                                 style="@style/XLua.Field.Edit"
+                                android:textDirection="ltr"
                                 android:fontFamily="@font/plex_mono"
                                 android:inputType="text|textNoSuggestions" />
                         </com.google.android.material.textfield.TextInputLayout>
@@ -527,6 +531,7 @@
                     android:textColor="@color/c_code_text"
                     android:textColorHint="@color/c_code_comment"
                     android:textCursorDrawable="@null"
+                    android:textDirection="ltr"
                     android:textSize="13sp" />
             </LinearLayout>
 
@@ -538,5 +543,10 @@
                 android:textAppearance="@style/XLua.Text.Mono"
                 android:textIsSelectable="true" />
         </LinearLayout>
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/pbLoading"
+            style="@style/XLua.Loading"
+            android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

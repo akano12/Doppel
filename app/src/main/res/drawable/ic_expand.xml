@@ -6,7 +6,10 @@
     android:tint="?attr/colorOnSurface"
     android:viewportWidth="960"
     android:viewportHeight="960">
-    <group android:translateY="960">
+    <!-- Optically centered: a chevron looks centered when the center of its outline is, which is 35 above the
+         middle of its box (y 336 to 598 of 960), as it is wide at the top and a point at the bottom; turned around
+         when expanded, it moves toward its point again (FragmentLog, the groups), see ExpandIconTest -->
+    <group android:translateY="1008">
         <path
             android:fillColor="#FF000000"
             android:pathData="M480-362q-8 0-15-2.5t-13-8.5L268-557q-11-11-11-28t11-28q11-11 28-11t28 11l156 156 156-156q11-11 28-11t28 11q11 11 11 28t-11 28L508-373q-6 6-13 8.5t-15 2.5Z" />

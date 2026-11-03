@@ -219,16 +219,36 @@ public class FileScriptsTest {
         assertTrue(result.arg(7).isnil());
     }
 
+    // The shared storage finds names in any case: the folders in lower and upper case, and paths with /./, // or
+    // /../, which are compared resolved; other paths with them keep their times
+    @Test
+    public void storageOtherPaths() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local found = {}\n" +
+                        "for _, path in ipairs(filter(nil)) do found[path] = true end\n" +
+                        "local function faked(path) return after(hookof('stat'), paramof(statof(1791913509), { path })) end\n" +
+                        "return found['/sdcard/download'], found['/storage/emulated/10/DCIM/.'], found['/sdcard/ANDROID/DATA'],\n" +
+                        "  found['*/./*'], found['*//*'], found['*/../*'],\n" +
+                        "  faked('/sdcard/DOWNLOAD'), faked('/storage/emulated/10/dcim/'), faked('/sdcard/Download/.'),\n" +
+                        "  faked('/sdcard//Download'), faked('/sdcard/Android/../Download'), faked('/storage/self/primary/android/data'),\n" +
+                        "  faked('/sdcard/./Download/x.jpg'), faked('/data/user/0/test.app//files'), faked('/sdcard/DownLoadx')");
+        for (int i = 1; i <= 12; i++)
+            assertTrue(String.valueOf(i), result.arg(i).toboolean());
+        for (int i = 13; i <= 15; i++)
+            assertFalse(String.valueOf(i), result.arg(i).toboolean());
+    }
+
     // Os.stat with the times of reproducible builds, in nanoseconds, the rest as it is
     @Test
     public void storageStat() throws Exception {
         Globals globals = Scripts.load("storage_times", TIMES_STUBS);
         Varargs result = Scripts.run(globals,
-                "local param = paramof(statof(1791913509))\n" +
+                "local param = paramof(statof(1791913509), { '/sdcard/Download' })\n" +
                         "local restricted, old, new = after(hookof('stat'), param)\n" +
                         "local args = param.result.args\n" +
                         "local time = args[9]\n" +
-                        "local faked = paramof(statof(1230768000))\n" +
+                        "local faked = paramof(statof(1230768000), { '/sdcard/Download' })\n" +
                         "return restricted, old, new, param.result.class, #args, args[2], args[8], time.class,\n" +
                         "  time.args[1], time.args[2], args[10] == time and args[11] == time,\n" +
                         "  after(hookof('stat'), faked)");
@@ -254,17 +274,17 @@ public class FileScriptsTest {
         Globals globals = Scripts.load("storage_times", TIMES_STUBS);
         Varargs result = Scripts.run(globals,
                 "local function nio(method) return hookof(method, 'sun.nio.fs.UnixNativeDispatcher') end\n" +
-                        "local param = paramof(1791913509227)\n" +
-                        "local missing = paramof(0)\n" +
+                        "local param = paramof(1791913509227, { '/storage/emulated/10/DCIM' })\n" +
+                        "local missing = paramof(0, { '/storage/emulated/10/DCIM' })\n" +
                         "local attributes = objectof({ st_atime_sec = 1, st_atime_nsec = 2, st_mtime_sec = 3,\n" +
                         "  st_mtime_nsec = 4, st_ctime_sec = 5, st_ctime_nsec = 6, st_birthtime_sec = 7 }, true)\n" +
                         "local older = objectof({ st_atime_sec = 1, st_atime_nsec = 2, st_mtime_sec = 3,\n" +
                         "  st_mtime_nsec = 4, st_ctime_sec = 5, st_ctime_nsec = 6 }, false)\n" +
                         "return after(hookof('getLastModifiedTime'), param), param.result,\n" +
                         "  after(hookof('getLastModifiedTime'), missing), missing.result,\n" +
-                        "  after(nio('stat'), paramof(nil, { 'path', attributes })), attributes.st_mtime_sec,\n" +
+                        "  after(nio('stat'), paramof(nil, { '/sdcard/Music', attributes })), attributes.st_mtime_sec,\n" +
                         "  attributes.st_ctime_nsec,\n" +
-                        "  attributes.st_birthtime_sec, after(nio('lstat'), paramof(nil, { 'path', older })), older.st_atime_sec,\n" +
+                        "  attributes.st_birthtime_sec, after(nio('lstat'), paramof(nil, { '/sdcard/Music', older })), older.st_atime_sec,\n" +
                         "  older.st_birthtime_sec");
         assertTrue(result.arg(1).toboolean());
         assertEquals(1230768000000L, result.arg(2).tolong());
@@ -412,7 +432,8 @@ public class FileScriptsTest {
                         "  hidden(hookof('Read.Network'), '/proc/sys/net/ipv4/ip_forward'),\n" +
                         "  hidden(hookof('Read.Network'), '/proc/thread-self/net/tcp')");
         assertEquals("*sys/*", result.arg(1).tojstring());
-        assertEquals(1, result.arg(2).toint());
+        // With paths with /./ and //, see hardwareFilterOfOtherPaths
+        assertEquals(3, result.arg(2).toint());
         boolean[] expected = {true, true, true, true, false, false, false, false,
                 true, true, true, true, true, false, false, false,
                 true, true, true, false, false};
@@ -639,6 +660,83 @@ public class FileScriptsTest {
         assertFalse(result.arg(9).toboolean());
         assertTrue(result.arg(10).toboolean());
         assertFalse(result.arg(11).toboolean());
+    }
+
+    // The filter of the hooks (XCore.Filter, which compares the path as the app gives it) lets the script run for
+    // paths with /./ or //, which the script resolves, and for the folders of su, of which File.list leaves su out
+    @Test
+    public void hardwareFilterOfOtherPaths() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        String[][] cases = {
+                {"Read.Debugging", "/system/./bin/./su", "/./sbin/./su", "/system//xbin/su", "/system/xbin", "/sbin"},
+                {"Use.Tracking", "/proc//scsi/scsi", "/proc/bus/./input/devices", "/sys/devices/system/chip-id"},
+                {"Read.Identifiers", "/sys/./devices/system/chip-id/unique_id", "/.//sys/block/mmcblk0/device/cid"},
+                {"Read.Network", "/proc/./net/arp"}};
+        for (String[] group : cases) {
+            Varargs values = Scripts.run(globals, "return filter(hookof('" + group[0] + "'))").arg1().checktable().unpack();
+            Object filter = xcoreFilter(values);
+            for (int i = 1; i < group.length; i++)
+                assertTrue(group[0] + " " + group[i], filterMatches(filter, group[i]));
+            assertFalse(group[0], filterMatches(filter, "/data/user/0/test.app/files/x"));
+        }
+    }
+
+    private static Object xcoreFilter(Varargs values) throws Exception {
+        Class<?> type = Class.forName("eu.faircode.xlua.XCore$Filter");
+        java.lang.reflect.Constructor<?> constructor = type.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        Object filter = constructor.newInstance();
+        java.lang.reflect.Method add = type.getDeclaredMethod("add", String.class);
+        add.setAccessible(true);
+        for (int i = 1; i <= values.narg(); i++)
+            add.invoke(filter, values.arg(i).tojstring());
+        return filter;
+    }
+
+    private static boolean filterMatches(Object filter, String path) throws Exception {
+        java.lang.reflect.Method matches = filter.getClass().getDeclaredMethod("matches", String.class);
+        matches.setAccessible(true);
+        return (Boolean) matches.invoke(filter, path);
+    }
+
+    // File.length and the space of a hidden file are 0, like of a file which does not exist
+    @Test
+    public void hardwareSizes() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local length = paramof('/sys/devices/system/chip-id/unique_id', 4096)\n" +
+                        "before(hookof('Read.Identifiers', 'java.io.UnixFileSystem', 'getLength', 'long'), length)\n" +
+                        "local space = paramof('/system/xbin/su', 4096, 0)\n" +
+                        "before(hookof('Read.Debugging', 'java.io.UnixFileSystem', 'getSpace', 'long'), space)\n" +
+                        "local list = paramof('/system/xbin', namesof('su', 'sh'))\n" +
+                        "after(hookof('Read.Debugging', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "return length.early, length.result, space.early, space.result, list.result.length, list.result[1]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(0, result.arg(2).toint());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(0, result.arg(4).toint());
+        assertEquals(1, result.arg(5).toint());
+        assertEquals("sh", result.arg(6).tojstring());
+    }
+
+    // The filter of a listing may run on another thread: it does not change the cache of the thread of the hook
+    @Test
+    public void hardwareListingWithoutCache() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('Read.Identifiers', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream')\n" +
+                        "local chip = paramof('/sys/devices/system/chip-id', nil, nil)\n" +
+                        "before(hook, chip)\n" +
+                        "local cached = 0\n" +
+                        "local original = matched\n" +
+                        "matched = function(group, path) cached = cached + 1 return original(group, path) end\n" +
+                        "local filter = chip.argument.value\n" +
+                        "local first = filter.accept('/sys/devices/system/chip-id/unique_id')\n" +
+                        "filter.accept('/sys/devices/system/chip-id/unique_id')\n" +
+                        "return first, cached");
+        assertFalse(result.arg(1).toboolean());
+        // Asked again each time, nothing is kept
+        assertEquals(2, result.arg(2).toint());
     }
 
     // Like an id of the kernel: version 4, the same for the same seed, different for another one

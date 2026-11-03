@@ -422,8 +422,10 @@ class XCore {
         List<XHook> hooks;
         try {
             hooks = Data.getAssignedHooks(context, packageName, uid);
-        } catch (IllegalArgumentException ignored) {
-            // The settings provider refuses the query of an app without assignments, see XProvider.answers
+        } catch (IllegalArgumentException ex) {
+            // The settings provider refuses the query of an app without assignments, see XProvider.answers;
+            // logged, since an illegal argument of the service would else leave the app without hooks silently
+            Log.i(TAG, "No assigned hooks: " + ex.getMessage());
             return;
         }
         if (hooks.isEmpty())
@@ -553,10 +555,18 @@ class XCore {
                     if (func.isnil())
                         return;
 
-                    Varargs result = func.invoke(new LuaValue[]{
+                    LuaValue[] args = new LuaValue[]{
                             luaHook,
                             CoerceJavaToLua.coerce(new XParam(context, call, settings))
-                    });
+                    };
+                    Varargs result;
+                    if (BuildConfig.DEBUG)
+                        // The call stack of DebugLib is of the thread, which its dynamic hooks use too, see LuaHook
+                        synchronized (libraries.get()) {
+                            result = func.invoke(args);
+                        }
+                    else
+                        result = func.invoke(args);
                     reportUse(context, hook, function, result);
                 } catch (Throwable ex) {
                     threadGlobals.remove();
@@ -828,6 +838,8 @@ class XCore {
         private final Context context;
         private final String hookId;
         private final Map<String, String> settings;
+        // The libraries of the installing thread, see execute
+        private final Globals runtime = libraries.get();
 
         LuaHook(Context context, String hookId, Map<String, String> settings) {
             this.context = context;
@@ -886,8 +898,8 @@ class XCore {
                         values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
                         values.addAll(xargs);
                         // The function is of the Lua runtime of the thread which installed the hook,
-                        // which is not thread safe, see installMethod
-                        synchronized (fun) {
+                        // which is not thread safe; in debug builds that thread locks it too, see installMethod
+                        synchronized (runtime) {
                             fun.invoke(values.toArray(new LuaValue[0]));
                         }
                     } catch (Throwable ex) {

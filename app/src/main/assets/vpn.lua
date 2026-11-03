@@ -126,7 +126,6 @@ end
 
 -- A request for VPN networks, like NetworkRequest.Builder().addTransportType(TRANSPORT_VPN) for a callback when a VPN
 -- connects, which Android matches itself: for LoWPAN instead, which phones do not have, so it finds no network
-local TRANSPORT_VPN = 4
 local TRANSPORT_LOWPAN = 6
 
 function before(hook, param)

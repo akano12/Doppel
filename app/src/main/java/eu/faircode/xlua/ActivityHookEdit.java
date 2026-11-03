@@ -174,6 +174,12 @@ public class ActivityHookEdit extends ActivityBase {
             if (llDefinition.getChildAt(i) instanceof TextView)
                 ViewCompat.setAccessibilityHeading(llDefinition.getChildAt(i), true);
 
+        // An error is of the text it was given for
+        for (int id : new int[]{R.id.tilVersion, R.id.tilMinSdk, R.id.tilMaxSdk, R.id.tilMinApk, R.id.tilMaxApk}) {
+            TextInputLayout til = findViewById(id);
+            Ui.onTextChanged(til.getEditText(), text -> til.setError(null));
+        }
+
         final View svDefinition = findViewById(R.id.svDefinition);
         final View llScript = findViewById(R.id.llScript);
         tabs = findViewById(R.id.tabs);
@@ -248,7 +254,12 @@ public class ActivityHookEdit extends ActivityBase {
     // An existing definition cannot be saved until it is loaded (see updateMenu), so a failed load is retried.
     private void load(final String id, final boolean fill) {
         final Context context = getApplicationContext();
-        run(TAG, () -> {
+        // Until the fields show the definition the first time, also on a retry; a later load, see delete, runs in the
+        // background and leaves the spinner alone
+        View pbLoading = findViewById(R.id.pbLoading);
+        if (loading && id != null)
+            pbLoading.setVisibility(View.VISIBLE);
+        Ui.submit(executor, () -> {
             // Only an existing definition needs its script, the others none
             List<XHook> hooks = Data.getAllHooks(context, id);
             Set<String> ids = Data.getBuiltinIds(context);
@@ -270,9 +281,13 @@ public class ActivityHookEdit extends ActivityBase {
                 }
                 loading = false;
                 refill = false;
+                pbLoading.setVisibility(View.GONE);
                 updateMenu();
             });
-        }, () -> load(id, fill));
+        }, ex -> {
+            postUnlessGone(() -> pbLoading.setVisibility(View.GONE));
+            Ui.error(this, TAG, ex, () -> load(id, fill));
+        });
     }
 
     // The number fields hold plain digits, see number, not numbers in the format of the language

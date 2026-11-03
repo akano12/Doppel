@@ -71,6 +71,7 @@ public class HiddenAppsScriptTest {
             "function intentof(component, pkg)",
             "  return { component = component, pkg = pkg,",
             "    getComponent = function(self) return self.component end, getPackage = function(self) return self.pkg end,",
+            "    getSelector = function(self) return self.selector end,",
             "    setComponent = function(self, value) self.component = value end,",
             "    setPackage = function(self, value) self.pkg = value end,",
             "    clone = function(self) return intentof(self.component, self.pkg) end,",
@@ -276,5 +277,37 @@ public class HiddenAppsScriptTest {
                 "intentof(componentof('com.other.hidden', '.Receiver'), nil)", "sendStickyOrderedBroadcast"));
         assertFalse(sticky.arg(1).toboolean());
         assertTrue(sticky.arg(3).isnil());
+    }
+
+    // A sticky broadcast to a hidden package is not sent, one to a component Android refuses itself
+    @Test
+    public void stickyBroadcastsReachNoReceiver() throws Exception {
+        Globals globals = Scripts.load("component_hidden", STUBS);
+        for (String method : new String[]{"sendStickyBroadcast", "sendStickyBroadcastAsUser"}) {
+            Varargs result = component(globals, method, "{ [0] = intentof(nil, 'com.other.hidden') }");
+            assertTrue(method, result.arg(1).toboolean());
+            assertTrue(method, result.arg(2).toboolean());
+            assertTrue(method, result.arg(3).isnil());
+            result = component(globals, method, "{ [0] = intentof(componentof('com.other.hidden', '.Receiver'), nil) }");
+            assertFalse(method, result.arg(1).toboolean());
+            assertFalse(method, result.arg(2).toboolean());
+        }
+    }
+
+    // An intent which names no package is resolved by its selector, which can name a hidden app
+    @Test
+    public void selectorOfHiddenApp() throws Exception {
+        Globals globals = Scripts.load("component_hidden", STUBS);
+        Varargs result = Scripts.run(globals,
+                "local intent = intentof(nil, nil)\n" +
+                        "intent.selector = intentof(nil, 'com.other.hidden')\n" +
+                        "local param = paramof({ [4] = intent })\n" +
+                        "local restricted, pkg = before(hookof('execStartActivity'), param)\n" +
+                        "local own = intentof(nil, nil)\n" +
+                        "own.selector = intentof(nil, 'com.android.settings')\n" +
+                        "return restricted, pkg, before(hookof('execStartActivity'), paramof({ [4] = own }))");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.other.hidden", result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
     }
 }

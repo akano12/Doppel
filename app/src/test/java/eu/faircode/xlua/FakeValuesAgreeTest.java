@@ -77,19 +77,30 @@ public class FakeValuesAgreeTest {
         Globals properties = load("system_properties");
         assertEquals("6.6.50", run(properties, "(function()\n" +
                 "  local values = { ['os.version'] = '" + real + "' }\n" +
-                "  fakeof('System.initUnchangeableSystemProperties', 'x', {\n" +
+                "  fakeof('System.unchangeableProps', '#unchangeableProps', {\n" +
                 "    get = function(self, key) return values[key] end,\n" +
                 "    put = function(self, key, value) values[key] = value end })\n" +
                 "  return values['os.version']\n" +
                 "end)()"));
     }
 
-    // UTC without a time zone set, else the one set, for the default time zone, its property and the shell
+    // UTC without a time zone set, else the one set, for the default time zone, its property, the shell and the
+    // broadcast of a time zone change
     @Test
     public void timeZone() throws Exception {
         Globals timezone = load("timezone");
         Globals properties = load("systemproperties_get");
         Globals shell = load("shell_commands");
+        Globals intent = load("intent_createfromparcel");
+        Scripts.run(intent, "function intentof(zone)\n" +
+                "  local values = { ['time-zone'] = zone }\n" +
+                "  local bundle = { containsKey = function(self, key) return values[key] ~= nil end,\n" +
+                "    getString = function(self, key) return values[key] end,\n" +
+                "    putString = function(self, key, value) values[key] = value end }\n" +
+                "  return { getAction = function(self) return 'android.intent.action.TIMEZONE_CHANGED' end,\n" +
+                "    getExtras = function(self) return bundle end, replaceExtras = function(self, extras) end,\n" +
+                "    zone = function(self) return values['time-zone'] end }\n" +
+                "end");
         for (String setting : new String[]{"nil", "''", "'Asia/Tokyo'"}) {
             String settings = "{ ['value.timezone'] = " + setting + " }";
             String expected = (setting.equals("'Asia/Tokyo'") ? "Asia/Tokyo" : "UTC");
@@ -97,6 +108,8 @@ public class FakeValuesAgreeTest {
             assertEquals(setting, expected, run(shell, "fakeid(paramof(nil, {}, " + settings + "))"));
             assertEquals(setting, expected, run(properties, "fakeof('SystemProperties.get/timezone', 'get', " +
                     "'Europe/Berlin', { 'persist.sys.timezone' }, " + settings + ")"));
+            assertEquals(setting, expected, run(intent, "fakeof('Intent.createFromParcel/timezone', nil, " +
+                    "intentof('Europe/Berlin'), {}, " + settings + "):zone()"));
         }
     }
 
@@ -349,6 +362,8 @@ public class FakeValuesAgreeTest {
     @Test
     public void vpnInterfacesAreTheSame() throws Exception {
         assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("hardware_files", "isvpninterface"));
+        assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("vpn_addresses", "isvpninterface"));
+        assertEquals(Scripts.function("vpn", "linkproperties"), Scripts.function("vpn_addresses", "linkproperties"));
     }
 
     // The files of /sys which do not exist for each group: the hooks of opening files (hardware_files,

@@ -29,7 +29,10 @@ local arguments = {
     canPackageQuery = { 0, 1 }, -- source, target or targets
     getProperty = { 1 }, -- property, package or component
     isPermissionRevokedByPolicy = { 1 }, -- permission, package
-    queryStatsForPackage = { 1 } -- volume, package, user
+    queryStatsForPackage = { 1 }, -- volume, package, user
+    checkPackage = { 1 }, -- uid, package
+    checkOpNoThrow = { 2 }, -- operation, uid, package
+    unsafeCheckOpNoThrow = { 2 }
 }
 
 -- The substitutes of the calls in progress on this thread, for after, which comes in reverse order
@@ -163,12 +166,22 @@ function after(hook, param)
         return false
     end
 
-    -- The same class, stack trace and cause, like a remote stack trace
-    local fake = luajava.new(ex:getClass(), message)
-    fake:setStackTrace(ex:getStackTrace())
-    if ex:getCause() ~= nil then
-        fake:initCause(ex:getCause())
+    -- The same class, stack trace and cause, like a remote stack trace; an exception without a constructor with
+    -- a message, or with its cause set already, gets the message itself
+    local ok, fake = pcall(function()
+        local made = luajava.new(ex:getClass(), message)
+        made:setStackTrace(ex:getStackTrace())
+        if ex:getCause() ~= nil then
+            made:initCause(ex:getCause())
+        end
+        return made
+    end)
+    if ok then
+        param:setResult(fake)
+    else
+        pcall(function()
+            ex.detailMessage = message
+        end)
     end
-    param:setResult(fake)
     return false
 end

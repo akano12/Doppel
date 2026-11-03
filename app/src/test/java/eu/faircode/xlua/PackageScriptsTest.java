@@ -158,6 +158,47 @@ public class PackageScriptsTest {
         assertSame(genuine.getCause(), fake.getCause());
     }
 
+    // An exception without a constructor with a message: the app gets it as it is, without an error of the script
+    public static class SilentException extends Exception {
+        public SilentException() {
+            super("silent");
+        }
+    }
+
+    @Test
+    public void exceptionWithoutMessageConstructor() throws Exception {
+        Globals globals = load("package_probe");
+        String substitute = Scripts.run(globals,
+                "hook = hookof('PackageManager.getPackageInfo', 'getPackageInfo')\n" +
+                        "param = paramof({ [0] = 'com.example.bank', [1] = 0 }, {})\n" +
+                        "before(hook, param)\n" +
+                        "return param.args[0]").arg1().tojstring();
+        assertTrue(substitute.startsWith("com.example.bank.x"));
+        globals.set("genuine", CoerceJavaToLua.coerce(new SilentException()));
+        Varargs result = Scripts.run(globals, "param.exception = genuine\nreturn after(hook, param), param.result");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).isnil());
+    }
+
+    // AppOpsManager answers differently for a package of the uid: the package is the third argument of the
+    // checks of operations, the second of checkPackage
+    @Test
+    public void appOpsPackages() throws Exception {
+        Globals globals = load("package_probe");
+        Varargs result = Scripts.run(globals,
+                "local op = paramof({ [0] = 'android:coarse_location', [1] = 10123, [2] = 'com.example.bank' }, {})\n" +
+                        "before(hookof('AppOpsManager.checkOpNoThrow', 'checkOpNoThrow'), op)\n" +
+                        "local unsafe = paramof({ [0] = 'android:coarse_location', [1] = 10123, [2] = 'com.example.bank' }, {})\n" +
+                        "before(hookof('AppOpsManager.unsafeCheckOpNoThrow', 'unsafeCheckOpNoThrow'), unsafe)\n" +
+                        "local check = paramof({ [0] = 10123, [1] = 'com.example.bank' }, {})\n" +
+                        "before(hookof('AppOpsManager.checkPackage', 'checkPackage'), check)\n" +
+                        "return op.args[0], op.args[2], unsafe.args[2], check.args[0], check.args[1]");
+        assertEquals("android:coarse_location", result.arg(1).tojstring());
+        for (int i : new int[]{2, 3, 5})
+            assertTrue(String.valueOf(i), result.arg(i).tojstring().startsWith("com.example.bank.x"));
+        assertEquals(10123, result.arg(4).toint());
+    }
+
     // The package is the second argument of checkPermission, checkSignatures checks both
     @Test
     public void packageArguments() throws Exception {

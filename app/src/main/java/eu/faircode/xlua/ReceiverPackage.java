@@ -80,15 +80,10 @@ public class ReceiverPackage extends BroadcastReceiver {
             Context ctx = Util.createContextForUser(context, userid);
 
             if (Intent.ACTION_PACKAGE_ADDED.equals(intent.getAction())) {
-                if (!replacing && !BuildConfig.APPLICATION_ID.equals(packageName)) {
-                    // Initialize app
-                    Data.clearApp(context, packageName, uid, false);
-                    if (Data.getSettingBoolean(context, userid, "global", "restrict_new_apps"))
-                        Data.initApp(context, packageName, uid);
-
-                    if (Data.getSettingBoolean(context, userid, "global", "notify_new_apps"))
-                        XNotify.notifyNewApp(ctx, userid, uid, packageName);
-                }
+                if (!replacing && !BuildConfig.APPLICATION_ID.equals(packageName) &&
+                        added(context, packageName, uid) &&
+                        Data.getSettingBoolean(context, userid, "global", "notify_new_apps"))
+                    XNotify.notifyNewApp(ctx, userid, uid, packageName);
             } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
                 if (BuildConfig.APPLICATION_ID.equals(packageName))
                     // Removed by the last user that had the app: the data of all users, like the custom definitions
@@ -101,6 +96,19 @@ public class ReceiverPackage extends BroadcastReceiver {
         } catch (Throwable ex) {
             XCore.log(ex);
         }
+    }
+
+    // Initialize a new app; false for an app which was removed with its data kept, like an archived app on
+    // Android 15, which is added again with its restrictions, since a removal deletes them, see AssignTest
+    static boolean added(Context context, String packageName, int uid) {
+        if (!Data.getAssignedHooks(context, packageName, uid).isEmpty()) {
+            Log.i(TAG, "Kept restrictions pkg=" + packageName + " uid=" + uid);
+            return false;
+        }
+        Data.clearApp(context, packageName, uid, false);
+        if (Data.getSettingBoolean(context, Util.getUserId(uid), "global", "restrict_new_apps"))
+            Data.initApp(context, packageName, uid);
+        return true;
     }
 
     // Hidden PackageManager.MATCH_ANY_USER: installed for any user, which system server may ask

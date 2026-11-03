@@ -80,6 +80,7 @@ function after(h, param)
         return false
     end
     hook(settings, 'setUserAgentString', setUserAgentString)
+    nomodel(settings, param)
 
     local ua = settings:getUserAgentString()
     if ua == nil then
@@ -93,6 +94,22 @@ function after(h, param)
     return true, ua, fake
 end
 
+-- Pages can also read the model by User-Agent Client Hints (navigator.userAgentData, Sec-CH-UA-Model).
+-- WebView is believed to send none for a user agent without the default one in it, like the reduced one;
+-- with androidx.webkit in the app the model is also set empty, like Chrome does. Apps without it,
+-- or with its classes renamed by R8, are left as they are.
+function nomodel(settings, param)
+    pcall(function()
+        if not param:findClass('androidx.webkit.WebViewFeature'):isFeatureSupported('USER_AGENT_METADATA') then
+            return
+        end
+        local compat = param:findClass('androidx.webkit.WebSettingsCompat')
+        local builder = luajava.new(param:findClass('androidx.webkit.UserAgentMetadata$Builder'),
+            compat:getUserAgentMetadata(settings))
+        compat:setUserAgentMetadata(settings, builder:setModel(''):build())
+    end)
+end
+
 function setUserAgentString(when, param)
     if when ~= 'before' then
         return
@@ -100,7 +117,8 @@ function setUserAgentString(when, param)
     local ua = param:getArgument(0)
     if ua == nil or ua == '' then
         local webSettings = luajava.bindClass('android.webkit.WebSettings')
-        ua = webSettings:getDefaultUserAgent(param:getApplicationContext())
+        -- Not the hooked call, which the app did not make
+        ua = param:unhooked(function() return webSettings:getDefaultUserAgent(param:getApplicationContext()) end)
         if ua == nil then
             return
         end

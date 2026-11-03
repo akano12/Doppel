@@ -30,12 +30,26 @@ local DEVICE_CREDENTIAL = 32768
 -- The managers of the services, which are there with the hardware only
 local SERVICES = { fingerprint = true, face = true, iris = true }
 
+-- Context.getSystemService and hasSystemFeature are called very often, so the script runs for these names only
+function filter(hook)
+    local method = hook:getMethodName()
+    local names = (method == 'getSystemService' and SERVICES) or (method == 'hasSystemFeature' and FEATURES)
+    if not names then
+        return nil
+    end
+    local list = {}
+    for name in pairs(names) do
+        list[#list + 1] = name
+    end
+    return list
+end
+
 function after(hook, param)
     local method = hook:getMethodName()
 
     if method == 'getSystemService' then
         -- Context.getSystemService gives apps targeting Android 8 or later no manager without the service,
-        -- and never the iris manager; it is called for all services, so check the name first
+        -- and never the iris manager
         local name = param:getArgument(0)
         if not SERVICES[name] or param:getResult() == nil then
             return false

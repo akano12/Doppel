@@ -16,6 +16,11 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
+-- Real clips have the time they were copied, made clips none; the setter is hidden, which can be refused
+function stamp(fake, real)
+    pcall(function() fake:setTimestamp(real:getTimestamp()) end)
+end
+
 function after(hook, param)
     local result = param:getResult()
     -- The description of the clip, like from getPrimaryClipDescription: the one of the clip apps get instead,
@@ -25,6 +30,7 @@ function after(hook, param)
             return false
         end
         local fake = luajava.bindClass('android.content.ClipData'):newPlainText('text', 'Private'):getDescription()
+        stamp(fake, result)
         param:setResult(fake)
         -- Not the label, which can name what was copied, like a password; the log keeps what it gets
         return true
@@ -36,6 +42,7 @@ function after(hook, param)
 
     -- A plain label, which does not tell apps that a privacy module is installed
     local fake = result:newPlainText('text', 'Private')
+    pcall(function() stamp(fake:getDescription(), result:getDescription()) end)
     param:setResult(fake)
     return true
 end

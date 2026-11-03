@@ -82,7 +82,7 @@
                         android:src="@drawable/ic_search" />
                 </LinearLayout>
 
-                <!-- The restricted calls of today, by hour, with the apps and the errors; the errors open the errors -->
+                <!-- The hooks restricted today, by hour, with the apps and the errors; the errors open the errors -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cvOverview"
                     android:layout_width="match_parent"
@@ -125,7 +125,7 @@
                                 android:ellipsize="end"
                                 android:maxLines="1"
                                 android:textAppearance="?attr/textAppearanceTitleMedium"
-                                tools:text="restricted calls today" />
+                                tools:text="hooks restricted today" />
 
                             <TextView
                                 android:id="@+id/tvStats"
