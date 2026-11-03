@@ -71,6 +71,21 @@ function filter(hook)
     return nil
 end
 
+-- The lines of /proc/meminfo of the Linux kernel (fs/proc/meminfo.c of 4.4 to 6.x, the hugetlb pages and DirectMap
+-- of x86); the lines makers add, like RbinTotal, ZeroedFree and HugepagePool of Samsung or ION and GPU memory, name
+-- the maker and are left out
+local MEMINFO = {}
+for name in string.gmatch('MemTotal MemFree MemAvailable Buffers Cached SwapCached Active Inactive Active(anon) ' ..
+        'Inactive(anon) Active(file) Inactive(file) Unevictable Mlocked HighTotal HighFree LowTotal LowFree MmapCopy ' ..
+        'SwapTotal SwapFree Zswap Zswapped Dirty Writeback AnonPages Mapped Shmem KReclaimable Slab SReclaimable ' ..
+        'SUnreclaim KernelStack ShadowCallStack PageTables SecPageTables Quicklists NFS_Unstable Bounce WritebackTmp ' ..
+        'CommitLimit Committed_AS VmallocTotal VmallocUsed VmallocChunk Percpu HardwareCorrupted AnonHugePages ' ..
+        'ShmemHugePages ShmemPmdMapped FileHugePages FilePmdMapped CmaTotal CmaFree Unaccepted Balloon GPUActive ' ..
+        'GPUReclaim HugePages_Total HugePages_Free HugePages_Rsvd HugePages_Surp Hugepagesize Hugetlb DirectMap4k ' ..
+        'DirectMap2M DirectMap4M DirectMap1G', '%S+') do
+    MEMINFO[name .. ':'] = true
+end
+
 -- The sizes of /proc/meminfo like the ones of ActivityManager.getMemoryInfo, which come from this file:
 -- the total memory rounded up, the free and available memory down, in the format of the kernel
 function meminfo(param)
@@ -79,6 +94,10 @@ function meminfo(param)
     local lines = {}
     local scale = 1 -- Of the total, which is the first line
     for line in string.gmatch(param:getFileText(), '[^\n]*\n') do
+        if not MEMINFO[string.match(line, '^[^:]*:')] then
+            changed = true
+            line = ''
+        end
         local name, value = string.match(line, '^(%w+:)%s*(%d+) kB\n$')
         -- SwapTotal, a share of the memory with zram, and CommitLimit, half of it plus SwapTotal, tell the total,
         -- so they grow with it, like on a device with the faked total

@@ -155,8 +155,8 @@ public class DeviceValuesScriptTest {
                 "paramof('GL_OES_EGL_image', { [0] = 7939 }))").arg1().toboolean());
     }
 
-    // The panel of the display: the exact density becomes the logical one, for the app only, and of the modes and
-    // refresh rates only the active one stays
+    // The panel of the display: the exact density becomes the logical one, also in the metrics of Resources, and of
+    // the modes and refresh rates only the active one stays
     @Test
     public void displayPanelIsGeneric() throws Exception {
         Globals globals = load("display_panel");
@@ -175,27 +175,44 @@ public class DeviceValuesScriptTest {
                 "local same = { densityDpi = 480, xdpi = 480, ydpi = 480 }",
                 "local restricted = call('getRealMetrics', nil, { [0] = metrics })",
                 "local restricted2 = call('getMetrics', nil, { [0] = same })",
-                "framework = function() return true end",
-                "local restricted3 = call('getMetrics', nil, { [0] = metrics2 })",
+                // The metrics of Resources: of ResourcesImpl when it fills them, and when the hooks are installed,
+                // of the system and of the app; without a hook of Resources.getDisplayMetrics
+                "local function resources(m) return { getDisplayMetrics = function(self) return m end } end",
+                "local param3 = paramof(nil, {})",
+                "param3.getThis = function(self) return resources(metrics2) end",
+                "local restricted3 = after(hookof('ResourcesImpl', 'updateConfigurationImpl'), param3)",
+                "local system = { densityDpi = 420, xdpi = 429.0, ydpi = 423.0 }",
+                "local app = { densityDpi = 420, xdpi = 429.0, ydpi = 423.0 }",
+                "local install = paramof(resources(system), {})",
+                "install.getApplicationContext = function(self) return { getResources = function() return resources(app) end } end",
+                "local installed = after(hookof('Resources.mSystem', '#mSystem'), install)",
+                "local again = after(hookof('Resources.mSystem', '#mSystem'), install)",
+                "local again2 = after(hookof('ResourcesImpl', 'updateConfiguration'), param3)",
                 "local _, modes = call('getSupportedModes', { 'a', 'active', 'b', length = 3 })",
                 "local _, rates = call('getSupportedRefreshRates', { 60, 90, 120, length = 3 })",
                 "local _, alternative = call('getAlternativeRefreshRates', { 60, 90, length = 2 })",
                 "local single = call('getSupportedModes', { 'active', length = 1 })",
                 "return restricted, metrics.xdpi, metrics.ydpi, restricted2, restricted3, metrics2.xdpi,",
-                "  modes.length, modes[1], rates.length, rates[1], alternative.length, single"));
+                "  modes.length, modes[1], rates.length, rates[1], alternative.length, single,",
+                "  installed, system.xdpi, system.ydpi, app.xdpi, app.ydpi, app.densityDpi, again, again2"));
         assertTrue(result.arg(1).toboolean());
         assertEquals(480, result.arg(2).todouble(), 0);
         assertEquals(480, result.arg(3).todouble(), 0);
         assertFalse("already generic", result.arg(4).toboolean());
-        // Up to Android 11 Resources get their metrics from Display.getMetrics, layouts convert pt, mm and in with them
-        assertFalse("framework", result.arg(5).toboolean());
-        assertEquals(403.411, result.arg(6).todouble(), 0.0001);
+        assertTrue("resources", result.arg(5).toboolean());
+        assertEquals(480, result.arg(6).todouble(), 0);
         assertEquals(1, result.arg(7).toint());
         assertEquals("active", result.arg(8).tojstring());
         assertEquals(1, result.arg(9).toint());
         assertEquals(120, result.arg(10).toint());
         assertEquals(0, result.arg(11).toint());
         assertFalse(result.arg(12).toboolean());
+        assertTrue("installed", result.arg(13).toboolean());
+        for (int i = 14; i <= 17; i++)
+            assertEquals(String.valueOf(i), 420, result.arg(i).todouble(), 0);
+        assertEquals(420, result.arg(18).toint());
+        assertFalse("once", result.arg(19).toboolean());
+        assertFalse("once", result.arg(20).toboolean());
     }
 
     // The version of the DRM plugin without the build of the firmware; other properties stay

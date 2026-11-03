@@ -9069,7 +9069,7 @@
     "usage": false,
     "luaScript": "@gles_getstring"
   },
-  // The exact density of the display panel and the refresh rates it supports (see display_panel); the strings of
+  // The exact density of the display panel, also of Resources, and the refresh rates it supports (see display_panel); the strings of
   // EGL are the same on all devices (Android and 1.4 or 1.5 Android META-EGL of the EGL loader)
   {
     "collection": "Privacy",
@@ -9098,6 +9098,60 @@
     ],
     "returnType": "void",
     "minSdk": 27,
+    "usage": false,
+    "luaScript": "@display_panel"
+  },
+  // The metrics of Resources, where Android fills them: when made (from Android 15 by updateConfigurationImpl)
+  // and on configuration changes, and once when the hooks are installed for the ones made before
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ResourcesImpl.updateConfiguration",
+    "author": "akano12",
+    "className": "android.content.res.ResourcesImpl",
+    "methodName": "updateConfiguration",
+    "parameterTypes": [
+      "android.content.res.Configuration",
+      "android.util.DisplayMetrics",
+      "android.content.res.CompatibilityInfo"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 34,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@display_panel"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ResourcesImpl.updateConfigurationImpl",
+    "author": "akano12",
+    "className": "android.content.res.ResourcesImpl",
+    "methodName": "updateConfigurationImpl",
+    "parameterTypes": [
+      "android.content.res.Configuration",
+      "android.util.DisplayMetrics",
+      "android.content.res.CompatibilityInfo",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 35,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@display_panel"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Resources.mSystem",
+    "author": "akano12",
+    "className": "android.content.res.Resources",
+    "methodName": "#mSystem",
+    "parameterTypes": [],
+    "returnType": "android.content.res.Resources",
+    "minSdk": 27,
+    "optional": true,
     "usage": false,
     "luaScript": "@display_panel"
   },

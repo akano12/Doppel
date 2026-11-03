@@ -19,23 +19,25 @@
 -- rates it supports, like 60, 90 and 120 Hz. The density becomes the logical density (densityDpi), the value of
 -- displays without calibration, like of emulators, and only the active mode is supported. The sizes, the
 -- densities layouts use and the active refresh rate, which apps use to pace frames, stay.
--- The metrics of Resources stay too: Android converts sizes in pt, mm and in with their xdpi, so faking it would
--- change layouts; up to Android 11 Resources gets its metrics from Display.getMetrics, which is why the
--- framework gets the real metrics there.
+-- The metrics of Resources (getDisplayMetrics, which is not hooked, it is called very often) get the same density
+-- where Android fills them: ResourcesImpl.updateConfiguration(Impl), when made and on configuration changes like
+-- rotation, and once when the hooks are installed (the field Resources.mSystem) for the ones made before, of the
+-- app and of Resources.getSystem(). Sizes in pt, mm and in (TypedValue) follow xdpi, so they change by the ratio,
+-- about 1 to 2%; sizes in dp and sp, the ones layouts use, stay.
 -- The luminance of HDR panels, like 1000, 500 and 0.0005 nits, becomes unknown (-1, INVALID_LUMINANCE), like of
 -- displays which do not tell it, the HDR types stay, since apps choose the videos to play by them; the maker and
 -- product of the panel (DeviceProductInfo, of its EDID) are not known, like for displays without EDID.
 
--- Resources and their manager on the stack, see above
-function framework()
-    local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
-    for index = 1, frames['length'] do
-        local class = frames[index]:getClassName()
-        if class == 'android.app.ResourcesManager' or string.find(class, 'android.content.res.', 1, true) == 1 then
-            return true
-        end
+-- The metrics with the logical density as the exact one; the old ones, or nil when they are already
+function generic(metrics)
+    local dpi = metrics.densityDpi
+    if metrics.xdpi == dpi and metrics.ydpi == dpi then
+        return nil
     end
-    return false
+    local real = metrics.xdpi .. ' ' .. metrics.ydpi
+    metrics.xdpi = dpi
+    metrics.ydpi = dpi
+    return real
 end
 
 -- HdrCapabilities without the luminance; it has no public constructor, so it is read from a parcel, written like
@@ -84,19 +86,31 @@ function after(hook, param)
     end
     local method = hook:getMethodName()
 
-    -- Display.getMetrics and getRealMetrics fill the metrics of the caller
+    -- Display.getMetrics and getRealMetrics fill the metrics of the caller, ResourcesImpl its own
+    local metrics
     if method == 'getMetrics' or method == 'getRealMetrics' then
-        local metrics = param:getArgument(0)
-        local dpi = metrics.densityDpi
-        -- Resources are filled through getMetrics on Android 8.1 to 11 only, so only there the stack is checked
-        if (metrics.xdpi == dpi and metrics.ydpi == dpi) or
-                (luajava.bindClass('android.os.Build$VERSION').SDK_INT < 31 and framework()) then
+        metrics = param:getArgument(0)
+    elseif method == 'updateConfiguration' or method == 'updateConfigurationImpl' then
+        metrics = param:getThis():getDisplayMetrics()
+    elseif method == '#mSystem' then
+        -- When the hooks are installed: the resources of the system and of the app are made already
+        local system = param:getResult()
+        metrics = param:getApplicationContext():getResources():getDisplayMetrics()
+        local real = generic(metrics)
+        if system ~= nil then
+            real = generic(system:getDisplayMetrics()) or real
+        end
+        if real == nil then
             return false
         end
-        local real = metrics.xdpi .. ' ' .. metrics.ydpi
-        metrics.xdpi = dpi
-        metrics.ydpi = dpi
-        return true, real, tostring(dpi)
+        return true, real, tostring(metrics.densityDpi)
+    end
+    if metrics ~= nil then
+        local real = generic(metrics)
+        if real == nil then
+            return false
+        end
+        return true, real, tostring(metrics.densityDpi)
     end
 
     if method == 'getDeviceProductInfo' then

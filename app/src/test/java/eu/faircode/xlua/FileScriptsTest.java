@@ -97,6 +97,40 @@ public class FileScriptsTest {
         assertEquals("3221225472", result.arg(4).tojstring());
     }
 
+    // The lines makers add, like the ones of Samsung, are left out; the lines of the kernel stay, also those with
+    // other characters in the name and without kB
+    @Test
+    public void meminfoVendorLines() throws Exception {
+        Globals globals = Scripts.load("resources", STUBS);
+        Varargs result = Scripts.run(globals,
+                "local param = paramof([[" + String.join("\n",
+                        "MemTotal:        3145728 kB",
+                        "Active(anon):     812340 kB",
+                        "Committed_AS:   45123456 kB",
+                        "RbinTotal:        409600 kB",
+                        "RbinAlloced:           0 kB",
+                        "RbinPool:              0 kB",
+                        "RbinFree:              0 kB",
+                        "RbinCached:            0 kB",
+                        "ZeroedFree:        12345 kB",
+                        "HugepagePool:          0 kB",
+                        "IonTotalCache:     65536 kB",
+                        "HugePages_Total:       0",
+                        "Hugepagesize:       2048 kB",
+                        "DirectMap4k:       12345 kB",
+                        "") + "]])\n" +
+                        "return after(hookof('open'), param), param.text");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(String.join("\n",
+                "MemTotal:        3145728 kB",
+                "Active(anon):     812340 kB",
+                "Committed_AS:   45123456 kB",
+                "HugePages_Total:       0",
+                "Hugepagesize:       2048 kB",
+                "DirectMap4k:       12345 kB",
+                ""), result.arg(2).tojstring());
+    }
+
     // Only /proc/meminfo, also by other paths (see XParam.opens), the other hooks of the script have no filter;
     // another file with meminfo in its path keeps its text
     @Test
@@ -451,6 +485,29 @@ public class FileScriptsTest {
         assertFalse(result.arg(26).toboolean());
         // By the link of the thread, which the pattern matches without resolving it
         assertTrue(result.arg(27).toboolean());
+    }
+
+    // The model, clocks and load of the GPU of Samsung, Adreno (by the links of kgsl into the device) and Mali;
+    // other files of /sys/kernel and /sys/class stay
+    @Test
+    public void gpuFiles() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/sys/class/kgsl/kgsl-3d0/gpubusy'] = '/sys/devices/platform/soc/3d00000.qcom,kgsl-3d0/kgsl/kgsl-3d0/gpubusy'\n" +
+                        "LINKS['/sys/class/devfreq/3d00000.qcom,kgsl-3d0/cur_freq'] = '/sys/devices/platform/soc/3d00000.qcom,kgsl-3d0/devfreq/3d00000.qcom,kgsl-3d0/cur_freq'\n" +
+                        "LINKS['/sys/class/misc/mali0/device/utilization'] = '/sys/devices/platform/18500000.mali/utilization'\n" +
+                        "LINKS['/sys/class/devfreq/gpufreq/cur_freq'] = '/sys/devices/platform/13000000.mali/devfreq/gpufreq/cur_freq'\n" +
+                        "local results = {}\n" +
+                        "for _, path in ipairs({ '/sys/kernel/gpu/gpu_clock', '/sys/kernel/gpu/gpu_model', '/sys/kernel/gpu',\n" +
+                        "  '/sys/class/kgsl/kgsl-3d0/gpubusy', '/sys/class/devfreq/3d00000.qcom,kgsl-3d0/cur_freq',\n" +
+                        "  '/sys/class/kgsl', '/sys/class/misc/mali0/device/utilization', '/sys/devices/platform/18500000.mali',\n" +
+                        "  '/sys/class/devfreq/gpufreq/cur_freq',\n" +
+                        "  '/sys/kernel/mm/transparent_hugepage/enabled', '/sys/class/devfreq', '/sys/class/misc/uinput' }) do\n" +
+                        "  results[#results + 1] = hidden(hookof('Use.Tracking'), path) and 'T' or 'F'\n" +
+                        "end\n" +
+                        "return table.concat(results), hidden(hookof('Read.Identifiers'), '/sys/kernel/gpu/gpu_model')");
+        assertEquals("TTTTTTTTT" + "FFF", result.arg(1).tojstring());
+        assertFalse(result.arg(2).toboolean());
     }
 
     // The chip of the bus of systems on a chip, SCSI storage by its link to the device, input devices and storage
