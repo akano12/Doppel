@@ -13104,7 +13104,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   // Memory and storage sizes, rounded to the sizes devices are sold with, free space to two digits
   {
@@ -13766,8 +13766,8 @@
     "minSdk": 27,
     "luaScript": "@biometrics"
   },
-  // Commands like getprop and uname read the system properties and kernel build behind faked values,
-  // pm the installed packages and the features; each variant fakes the values of its group
+  // Commands like getprop, uname and pm read the system properties, kernel build, packages and features behind
+  // faked values, so each group refuses every command, except programs in the native library folder of the app
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -13778,7 +13778,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   {
     "collection": "Privacy",
@@ -13791,7 +13791,7 @@
     "returnType": "java.lang.Process",
     "minSdk": 27,
     "excludePackages": "android",
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   {
     "collection": "Privacy",
@@ -13803,12 +13803,8 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "settings": [
-      "value.timezone"
-    ],
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
-  // The properties of the language, like the hooks of SystemProperties.get of Read.Locale
   {
     "collection": "Privacy",
     "group": "Read.Locale",
@@ -13819,10 +13815,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "settings": [
-      "value.locale"
-    ],
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   {
     "collection": "Privacy",
@@ -13834,10 +13827,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "settings": [
-      "features.keep"
-    ],
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   {
     "collection": "Privacy",
@@ -13849,7 +13839,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   {
     "collection": "Privacy",
@@ -13861,10 +13851,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "settings": [
-      "value.serial"
-    ],
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   {
     "collection": "Privacy",
@@ -13876,7 +13863,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   {
     "collection": "Privacy",
@@ -13888,7 +13875,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   {
     "collection": "Privacy",
@@ -13900,11 +13887,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
-    "settings": [
-      "commands.allowed",
-      "commands.regex"
-    ],
-    "luaScript": "@shell_commands"
+    "luaScript": "@commands_blocked"
   },
   // The text of network objects contains the values their getters hide
   {

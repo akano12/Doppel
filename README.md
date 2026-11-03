@@ -60,7 +60,7 @@ What an app sees
 | Other apps                   | all of them        | hidden                   |
 | Battery                      | 84%, charging      | 80%, no charging details |
 | Clipboard                    | what you copied    | a fake paste             |
-| `getprop`, `pm`, `cat`       | the real values    | the same fakes           |
+| `getprop`, `pm`, `cat`       | the real values    | refused                  |
 
 In the demo, AIDA64 joins Doppel's LSPosed scope from its own screen: approve the request, and *Restrict all* applies every group. Each call it makes then gets the fake values.
 
@@ -119,7 +119,10 @@ Restrictions
 ------------
 
 A restriction hides data (an empty list) or fakes it (an empty or fake value).
-The faked values are the same for the shell commands apps run, like getprop, pm and cat.
+A restricted app cannot run system programs or shells, like getprop, pm, cat or sh: each command fails like a
+program the app may not run (`IOException`, error=13, Permission denied), so the values cannot be read past the
+fakes. Programs which come in the app's own native library folder still run: they are native code of the app,
+which Doppel does not cover anyway.
 The details are in [hooks.json](app/src/main/assets/hooks.json).
 
 <details>
@@ -150,8 +153,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   Do not restrict it for camera, gallery and photo editing apps whose photos should keep their location: what such
   an app saves, like an edited copy, is saved without it
 * **Get sensors**: hide them
-* **Read languages**: fake languages, *Languages* in *Fake values*, default en-US, also in system properties,
-  getprop and the settings; no region of sale (Samsung, Xiaomi). The app keeps the language chosen for it and its
+* **Read languages**: fake languages, *Languages* in *Fake values*, default en-US, also in system properties
+  and the settings; no region of sale (Samsung, Xiaomi). The app keeps the language chosen for it and its
   texts; the language of its configuration stays real
 * **Read time zone**: fake time zone, *Time zone* in *Fake values*, default UTC
 
@@ -199,8 +202,10 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <details>
 <summary><b>Actions and analytics</b> · 3 groups</summary>
 
-* **Run commands**: commands fail, except the programs in *Allowed commands* (like `getprop, uname`)
-  and the command lines matching *Allowed command lines*, both in *Fake values*
+* **Run commands**: commands fail, like `su`, `id` or `getprop`, except programs in the app's own native library
+  folder. *Read biometric sensors*, *Read identifiers*, *Use tracking*, *Read languages*, *Read time zone*,
+  *Get applications*, *Read debugging state*, *Read device features*, *Read memory and storage* and *Read network
+  data* refuse commands the same way, since commands could read their values
 * **Send messages**: prevent sending SMS, MMS and data messages
 * **Use analytics**: Adjust, AppsFlyer, Facebook app events, Firebase Analytics (without consent, so no app
   instance id) and Crashlytics, Google Analytics v4, Mixpanel, Segment, Amplitude, Branch, Microsoft Clarity,
@@ -215,9 +220,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary>What Doppel cannot do</summary>
 
 * Xposed cannot hook native code: audio recorded with OpenSL ES, like WhatsApp does, and files read natively
-  are not restricted; shell commands the app starts are, but redirections, and ls, stat and test without times,
-  still show that hidden files exist. Native code also sees the real codecs, GPU, processors and fonts, and so does
-  nproc in the shell. Apps reading the bytes of photos themselves still find their location.
+  are not restricted. Native code also sees the real codecs, GPU, processors and fonts, and can start processes
+  itself, which are not refused. Apps reading the bytes of photos themselves still find their location.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
   The Firebase, Segment, Amazon and Facebook SDKs store the opt-outs and consents *Use analytics* sets, so collection
@@ -266,7 +270,6 @@ With [Android Studio](https://developer.android.com/studio), or from the command
 ./gradlew assembleDebugAndroidTest  # the tests on a device: the database upgrades, and a restore with Doppel active
 adb install -r -t app/build/outputs/apk/androidTest/debug/*.apk    # with the debug build installed, then:
 adb shell am instrument -w sk.akano12.doppel.test/androidx.test.runner.AndroidJUnitRunner
-scripts/test-on-device.sh      # on a device or emulator: the tests of shell commands, which Windows skips
 scripts/check-service.sh       # on a rooted device or emulator with Doppel: whom the service answers
 ```
 

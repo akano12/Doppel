@@ -53,8 +53,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 // Fake values read by the hook scripts (param:getSetting), for all apps or for a single app;
 // each value tells which group reads it and whether that group is restricted
@@ -120,8 +118,6 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             new Field("value.locale", R.string.title_value_locale, Type.TEXT, "en-US"),
             new Field("features.keep", R.string.title_value_features, Type.TEXT, null),
             new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, null),
-            new Field("commands.allowed", R.string.title_value_commands, Type.TEXT, null),
-            new Field("commands.regex", R.string.title_value_commands_regex, Type.TEXT, null),
     };
 
     // Built-in fields and the settings of custom definitions, see load
@@ -819,14 +815,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     return Math.abs(Double.parseDouble(value)) <= 180;
                 case "location.accuracy":
                     return Double.parseDouble(value) > 0;
-                case "commands.regex":
-                    // An expression which does not compile would allow no command at all (see shell_commands)
-                    Pattern.compile(value);
-                    return true;
                 default:
                     return true;
             }
-        } catch (NumberFormatException | PatternSyntaxException ignored) {
+        } catch (NumberFormatException ignored) {
             return false;
         }
     }

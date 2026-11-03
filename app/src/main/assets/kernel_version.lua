@@ -17,7 +17,7 @@
 
 -- The kernel release and version identify the exact firmware build, like 6.6.50-android15-8-g8adecb593e9b,
 -- also in /proc/sys/kernel/osrelease and version and /proc/version, which apps can read on some versions:
--- they become the release and version of Os.uname (see uname) and of the shell (see shell_commands).
+-- they become the release and version of Os.uname (see uname).
 -- Also by other paths, like /proc/self/root/proc/..., see XParam.opens. Not covered is native code.
 function filter(hook)
     return { '*kernel/osrelease*', '*kernel/version*', '*proc/version*' }

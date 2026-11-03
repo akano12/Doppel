@@ -98,7 +98,7 @@ class LuaHighlighter {
         highlight(0, editText.getText().length());
     }
 
-    // Recoloring all of a long script, like shell_commands, after each pause in typing takes about a second
+    // Recoloring all of a long script after each pause in typing takes too long
     private void highlightChanged() {
         if (changedStart < 0)
             return;

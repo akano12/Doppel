@@ -20,8 +20,8 @@
 -- which apps can still parse and compare, where 'unknown' would make them fail; also Build.VERSION.SECURITY_PATCH
 local QUARTER = {}
 
--- Properties behind the fields of android.os.Build with their fake values, the same as getprop
--- prints (see shell_commands); a * matches the partition, like ro.vendor.build.id
+-- Properties behind the fields of android.os.Build with their fake values; a * matches the partition,
+-- like ro.vendor.build.id
 local DEVICE = {
     { 'unknown', { 'ro.product.model', 'ro.product.*.model', 'ro.product.brand', 'ro.product.*.brand',
                    'ro.product.manufacturer', 'ro.product.*.manufacturer', 'ro.product.device',
@@ -53,7 +53,7 @@ local DEVICE = {
 }
 
 -- The properties of the serial, like Build.SERIAL, and of the operator, like TelephonyManager.getNetworkOperator
--- (see test_network), with their fake values, the same as getprop prints (see shell_commands)
+-- (see test_network), with their fake values
 local SERIAL = { 'ro.serialno', 'ro.boot.serialno', 'ril.serialnumber', 'ro.boot.ap_serial', 'sys.serialnumber',
                  'ro.ril.oem.sno', 'ro.ril.oem.psno', 'gsm.serial',
                  -- Serial numbers of manufacturers, which some ROMs set, like Samsung (em.did) and OnePlus
@@ -65,7 +65,7 @@ end
 
 -- The serial number of the SIM card (ICC ID), which properties of vendors hold, like ril.iccid.sim1 of Samsung,
 -- gsm.sim.preiccid_0 of MediaTek and persist.sys.tctPowerIccid of TCL: empty, like getSimSerialNumber of Android 10
--- and later, for each name containing iccid (variant serial, like getprop of the identifiers, see shell_commands)
+-- and later, for each name containing iccid (variant serial)
 local ICCID = { '*iccid*', '*Iccid*', '*ICCID*' }
 
 function iccid(key)
@@ -78,9 +78,9 @@ local OPERATOR = {
     ['gsm.operator.iso-country'] = 'xx', ['gsm.sim.operator.iso-country'] = 'xx',
 }
 
--- The properties of USB debugging, which agree with adb_enabled 0 of Read.Debugging (see settingssecure_getstring),
--- the same as getprop prints (see shell_commands): adbd stopped, adb left out of the USB functions; a build which is
--- not debuggable, like a user build; the log buffer sizes of the developer options, which LSPosed sets too, not set
+-- The properties of USB debugging, which agree with adb_enabled 0 of Read.Debugging (see settingssecure_getstring):
+-- adbd stopped, adb left out of the USB functions; a build which is not debuggable, like a user build;
+-- the log buffer sizes of the developer options, which LSPosed sets too, not set
 local NOADB = {}
 local DEBUGGING = {
     ['init.svc.adbd'] = 'stopped',
@@ -90,8 +90,7 @@ local DEBUGGING = {
 }
 
 -- The heap of apps, which Android sets per model, like 256m and 512m: rounded down to a step like memory_class
--- (STEPS, which a test compares), in megabytes; the other settings of the heap the values of a common configuration,
--- like getprop of the shell (see shell_commands)
+-- (STEPS, which a test compares), in megabytes; the other settings of the heap the values of a common configuration
 local HEAP = { ['dalvik.vm.heapgrowthlimit'] = true, ['dalvik.vm.heapsize'] = true }
 local STEPS = { 128, 192, 256, 384, 512 }
 local OTHERHEAP = { ['dalvik.vm.heapstartsize'] = '16m', ['dalvik.vm.heapminfree'] = '8m',

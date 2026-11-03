@@ -181,13 +181,13 @@ and apps can look for LSPosed itself, so add only the apps you restrict to the s
 <a name="faq22"></a>
 **(22) Why can an app not run commands anymore?**
 
-The group *Run commands* lets the commands an app runs, like *su*, *id* or *logcat*, fail,
-except the programs you allow in *Fake values* with *Allowed commands*, like `getprop, uname`,
-and the command lines matching *Allowed command lines* (a regular expression).
-*Restrict all* restricts this group too, so if an app stops working after restricting all groups,
-allow the commands it needs, or switch *Run commands* off for that app.
+Restricted apps cannot run system programs or shells, like *su*, *id*, *logcat* or *getprop*:
+each command fails like a program the app may not run (error=13, Permission denied).
+Programs in the app's own native library folder still run.
+Commands are refused by *Run commands* and by every group whose values commands could read,
+like *Read identifiers*, *Use tracking* or *Get applications* (see the README),
+so an app which must run commands to work needs all of these groups switched off for it.
 The commands an app tried are shown on the *Activity* tab.
-Allowed commands still get the fake values of the other groups, like getprop.
 
 <br>
 

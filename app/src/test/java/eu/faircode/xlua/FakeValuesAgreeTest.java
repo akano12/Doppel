@@ -22,8 +22,6 @@ package eu.faircode.xlua;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,7 +31,7 @@ import static org.junit.Assert.assertTrue;
 // Scripts which fake the same value each have it, since scripts cannot share code: the fake time zone,
 // the operator of the test network and the Wi-Fi network, in the getters, the system properties and the texts;
 // the serial number, the security patch level, the MAC address, the user agent of WebView, the authority
-// of a content URI, the files of /sys which do not exist and the lists the shell copies
+// of a content URI and the files of /sys which do not exist
 public class FakeValuesAgreeTest {
     // A hook with a name and a method, a param with a result, arguments and settings; fakeof runs after()
     // and returns the result then
@@ -64,8 +62,7 @@ public class FakeValuesAgreeTest {
         return Scripts.run(globals, "return " + lua).arg1().tojstring();
     }
 
-    // The kernel release without the build, for Os.uname, the property os.version and the shell, whose
-    // uname -r and /proc/version ShellCommandsScriptTest.kernelIsFaked checks for the same release
+    // The kernel release without the build, for Os.uname and the property os.version
     @Test
     public void kernel() throws Exception {
         String real = "6.6.50-android15-8-g8adecb593e9b";
@@ -84,13 +81,12 @@ public class FakeValuesAgreeTest {
                 "end)()"));
     }
 
-    // UTC without a time zone set, else the one set, for the default time zone, its property, the shell and the
+    // UTC without a time zone set, else the one set, for the default time zone, its property and the
     // broadcast of a time zone change
     @Test
     public void timeZone() throws Exception {
         Globals timezone = load("timezone");
         Globals properties = load("systemproperties_get");
-        Globals shell = load("shell_commands");
         Globals intent = load("intent_createfromparcel");
         Scripts.run(intent, "function intentof(zone)\n" +
                 "  local values = { ['time-zone'] = zone }\n" +
@@ -105,7 +101,6 @@ public class FakeValuesAgreeTest {
             String settings = "{ ['value.timezone'] = " + setting + " }";
             String expected = (setting.equals("'Asia/Tokyo'") ? "Asia/Tokyo" : "UTC");
             assertEquals(setting, expected, run(timezone, "fakeid(paramof(nil, {}, " + settings + "))"));
-            assertEquals(setting, expected, run(shell, "fakeid(paramof(nil, {}, " + settings + "))"));
             assertEquals(setting, expected, run(properties, "fakeof('SystemProperties.get/timezone', 'get', " +
                     "'Europe/Berlin', { 'persist.sys.timezone' }, " + settings + ")"));
             assertEquals(setting, expected, run(intent, "fakeof('Intent.createFromParcel/timezone', nil, " +
@@ -197,41 +192,36 @@ public class FakeValuesAgreeTest {
                 " 'android.provider.Settings$Secure')"));
     }
 
-    // unknown without a serial number set, else the one set, for Build.getSerial, the properties and getprop
+    // unknown without a serial number set, else the one set, for Build.getSerial and the properties
     @Test
     public void serial() throws Exception {
         Globals getter = load("value_serial");
         Globals properties = load("systemproperties_get");
-        Globals shell = load("shell_commands");
         for (String setting : new String[]{"nil", "'ABC123'"}) {
             String settings = "{ ['value.serial'] = " + setting + " }";
             String expected = run(getter, "fakeof(nil, 'getSerial', 'R58M1234', {}, " + settings + ")");
             assertEquals(setting, setting.equals("nil") ? "unknown" : "ABC123", expected);
             assertEquals(setting, expected, run(properties, "fakeof('SystemProperties.get/serial', 'get'," +
                     " 'R58M1234', { 'ro.serialno' }, " + settings + ")"));
-            assertEquals(setting, expected, run(shell, "rules(paramof(nil, {}, " + settings + "), 'identifiers')[1][1]"));
         }
     }
 
     // Serial numbers of manufacturers in properties, which some ROMs set, are the serial of Build.getSerial; the serial
     // number of the SIM card (ICC ID) in properties of vendors is empty, like getSimSerialNumber, in each case of its
-    // name; both in the properties and getprop
+    // name
     @Test
     public void serialsOfManufacturers() throws Exception {
         Globals properties = load("systemproperties_get");
-        Globals shell = load("shell_commands");
         String settings = "{ ['value.serial'] = 'ABC123' }";
         for (String key : new String[]{"ro.boot.em.did", "persist.sys.lite.uid", "persist.radio.serialno",
                 "persist.sys.oneplus.serialno"}) {
             assertEquals(key, "ABC123", run(properties, "fakeof('SystemProperties.get/serial', 'get', 'R58M1234', { '" +
                     key + "' }, " + settings + ")"));
-            assertEquals(key, "ABC123", shellValue(shell, key, settings));
         }
         for (String key : new String[]{"ril.iccid.sim1", "ril.iccid.sim2", "gsm.sim.preiccid_0", "persist.sys.tctPowerIccid",
                 "persist.vendor.radio.cfu.iccid.1", "vendor.ril.ICCID"}) {
             assertEquals(key, "", run(properties, "fakeof('SystemProperties.get/serial', 'get', '8949012345678901234', { '" +
                     key + "' }, " + settings + ")"));
-            assertEquals(key, "", shellValue(shell, key, settings));
         }
         // Not of other variants, and other properties stay
         assertEquals("8949012345678901234", run(properties, "fakeof('SystemProperties.get/device', 'get', " +
@@ -241,18 +231,6 @@ public class FakeValuesAgreeTest {
         // The digest of the key verifying the boot partitions, like the digest of vbmeta, names the manufacturer
         assertEquals("unknown", run(properties, "fakeof('SystemProperties.get/device', 'get', 'a1b2c3', " +
                 "{ 'ro.boot.vbmeta.public_key_digest' })"));
-    }
-
-    // The value of the rules of getprop for the identifiers, nil when no rule matches the property
-    private static String shellValue(Globals shell, String key, String settings) throws Exception {
-        return run(shell, "(function()\n" +
-                "  for _, rule in ipairs(rules(paramof(nil, {}, " + settings + "), 'identifiers')) do\n" +
-                "    for _, pattern in ipairs(rule[2]) do\n" +
-                "      local lua = string.gsub(pattern, '[%.%*%-]', { ['.'] = '%.', ['*'] = '.+', ['-'] = '%-' })\n" +
-                "      if string.match('" + key + "', '^' .. lua .. '$') then return rule[1] end\n" +
-                "    end\n" +
-                "  end\n" +
-                "end)()");
     }
 
     // The first day of the quarter, for Build.VERSION.SECURITY_PATCH and its property; other texts stay
@@ -310,52 +288,20 @@ public class FakeValuesAgreeTest {
         assertEquals("com.android.contacts", run(open, "authorityof(uriof('10@com.android.contacts'))"));
     }
 
-    // The languages and the properties of the language are the same for the hooks (locale), getprop (shell_commands)
-    // and the settings provider (settingssecure_getstring), for each setting, also of tags without a region
+    // The languages are the same for the hooks (locale) and the settings provider (settingssecure_getstring), for each setting, also of tags without a region
     @Test
     public void localeIsTheSame() throws Exception {
-        for (String script : new String[]{"shell_commands", "settingssecure_getstring"})
+        for (String script : new String[]{"settingssecure_getstring"})
             for (String function : new String[]{"fakes", "split"})
                 assertEquals(script + " " + function, Scripts.function("locale", function), Scripts.function(script, function));
         Globals locale = load("locale");
-        Globals shell = load("shell_commands");
         Globals settings = load("settingssecure_getstring");
         for (String setting : new String[]{"{}", "{ ['value.locale'] = 'de-DE,fr' }", "{ ['value.locale'] = 'ja' }",
                 "{ ['value.locale'] = 'zh-Hant-TW' }"}) {
-            for (String key : new String[]{"persist.sys.locale", "ro.product.locale", "persist.sys.language",
-                    "ro.product.locale.language", "persist.sys.country", "ro.product.locale.region", "ro.csc.sales_code",
-                    "ro.miui.region", "ro.omc.region"}) {
-                String expected = run(locale, "fakeof('SystemProperties.get/locale', 'get', 'real', { '" + key + "' }, " +
-                        setting + ", 'android.os.SystemProperties')");
-                assertEquals(setting + " " + key, expected, run(shell, "(function()\n" +
-                        "  for _, rule in ipairs(rules(paramof(nil, {}, " + setting + "), 'locale')) do\n" +
-                        "    for _, pattern in ipairs(rule[2]) do\n" +
-                        "      if pattern == '" + key + "' then return rule[1] end\n" +
-                        "    end\n" +
-                        "  end\n" +
-                        "end)()"));
-            }
             assertEquals(setting, run(locale, "fakeof('Settings.System.getStringForUser/locale', 'getStringForUser', " +
                             "'real', { nil, 'system_locales' }, " + setting + ")"),
                     run(settings, "select(2, fakesetting(paramof(nil, {}, " + setting + "), 'locale', 'system_locales', 'real'))"));
         }
-    }
-
-    // The hooks of opening files and cat run by the app follow links to /sys the same way
-    @Test
-    public void resolveIsTheSame() throws Exception {
-        assertEquals(Scripts.function("hardware_files", "resolve"), Scripts.function("shell_commands", "resolve"));
-    }
-
-    // The folders of the shared storage whose times are faked (storage_times) are the ones stat and ls fail for
-    @Test
-    public void storageFoldersAreTheSame() throws Exception {
-        Pattern folders = Pattern.compile("\nlocal FOLDERS = \\{[^}]*\\}");
-        Matcher times = folders.matcher(Scripts.read("storage_times").replace("\r\n", "\n"));
-        Matcher shell = folders.matcher(Scripts.read("shell_commands").replace("\r\n", "\n"));
-        assertTrue(times.find());
-        assertTrue(shell.find());
-        assertEquals(times.group(), shell.group());
     }
 
     // The folders of VPN interfaces which do not exist (hardware_files) are of the interfaces vpn leaves out
@@ -366,8 +312,7 @@ public class FakeValuesAgreeTest {
         assertEquals(Scripts.function("vpn", "linkproperties"), Scripts.function("vpn_addresses", "linkproperties"));
     }
 
-    // The files of /sys which do not exist for each group: the hooks of opening files (hardware_files,
-    // Lua patterns) and cat run by the app (shell_commands, patterns of the shell) hide the same ones
+    // The files of /sys which do not exist for some group (hardware_files), the others for none
     @Test
     public void hardwareFiles() throws Exception {
         Globals files = Scripts.load("hardware_files", STUBS + "\n" +
@@ -377,7 +322,6 @@ public class FakeValuesAgreeTest {
                 "    getMethodName = function(self) return 'open' end,\n" +
                 "    getReturnType = function(self) return nil end }\n" +
                 "end");
-        Globals shell = load("shell_commands");
         String[][] variants = {{"Read.Identifiers", "identifiers"}, {"Use.Tracking", "tracking"},
                 {"Read.Biometrics", "biometrics"}, {"Read.Network", "network"}, {"Read.Debugging", "debugging"},
                 {"Read.Features", "features"}, {"Get.Applications", "packages"}};
@@ -425,33 +369,14 @@ public class FakeValuesAgreeTest {
                 "/proc/bus/input/handlers", "/proc/cpuinfo", "/system/bin/sh", "/system/bin/sudo", "/sdcard/su",
                 "/data/user/0/com.termux/files/usr/bin/su", "/system/xbin/sum", "/system/etc/hosts",
                 "/system/etc/permissionsx"};
-        // Paths of the devices themselves, which both only have to agree on
-        String[] devices = {
-                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid",
-                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/serial",
-                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/date",
-                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/manfid",
-                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/oemid",
-                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/name",
-                "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/type",
-                "/sys/devices/virtual/sec/sdinfo/data", "/sys/devices/virtual/sec/tsp",
-                "/sys/devices/virtual/sec/tsp/raw_check", "/sys/devices/virtual/sec/tsp/fod_pos",
-                "/sys/devices/virtual/sec/tsp/fod_info", "/sys/devices/virtual/sensors/light_sensor/light_cal",
-                "/sys/devices/virtual/sensors/proximity_sensor/prox_cal",
-                "/sys/devices/virtual/fingerprint/fingerprint", "/sys/devices/virtual/fingerprint/fingerprint/name",
-                "/sys/devices/system/cpu/possible", "/sys/kernel/gpu/gpu_model"};
         // Each file of a sample which does not exist is hidden for a group at least, the others for none
-        for (String[] paths : new String[][]{hidden, stay, devices})
+        for (String[] paths : new String[][]{hidden, stay})
             for (String path : paths) {
                 boolean any = false;
                 for (String[] variant : variants) {
-                    String expected = run(files, "tostring(hidden(grouphook('" + variant[0] + "'), '" + path + "'))");
-                    assertEquals(variant[1] + " " + path, expected,
-                            run(shell, "tostring(hiddenfile('" + path + "', { " + variant[1] + " = true }))"));
-                    any |= "true".equals(expected);
+                    any |= "true".equals(run(files, "tostring(hidden(grouphook('" + variant[0] + "'), '" + path + "'))"));
                 }
-                if (paths != devices)
-                    assertEquals(path, paths == hidden, any);
+                assertEquals(path, paths == hidden, any);
             }
     }
 
@@ -500,24 +425,5 @@ public class FakeValuesAgreeTest {
         Matcher constant = Pattern.compile("\nlocal " + name + " = ('[^']*'|\\d+)\n").matcher(Scripts.read(script).replace("\r\n", "\n"));
         assertTrue(script + " " + name, constant.find());
         return constant.group(1);
-    }
-
-    // The texts in the table of a local of a script, like local NAME = { 'a', ['b'] = true }
-    private static Set<String> listOf(String script, String name) throws Exception {
-        Matcher table = Pattern.compile("local " + name + " = \\{([^}]*)\\}").matcher(Scripts.read(script));
-        assertTrue(script + " " + name, table.find());
-        Set<String> values = new TreeSet<>();
-        Matcher value = Pattern.compile("'([^']*)'").matcher(table.group(1));
-        while (value.find())
-            values.add(value.group(1));
-        return values;
-    }
-
-    // The biometric features and the libraries of the platform, for pm of the shell and the getters
-    @Test
-    public void shellLists() throws Exception {
-        assertEquals(listOf("biometrics", "FEATURES"), listOf("shell_commands", "BIOMETRIC"));
-        assertEquals(listOf("features", "PLATFORM"), listOf("shell_commands", "LIBRARIES"));
-        assertEquals(listOf("features", "GOOGLE"), listOf("shell_commands", "GOOGLE"));
     }
 }

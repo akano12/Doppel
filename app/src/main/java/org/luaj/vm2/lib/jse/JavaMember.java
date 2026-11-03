@@ -57,6 +57,10 @@ class JavaMember extends VarArgFunction {
 	int score(Varargs args) {
 		int n = args.narg();
 		int s = n>fixedargs.length? CoerceLuaToJava.SCORE_WRONG_TYPE * (n-fixedargs.length): 0;
+		// Like Java, a method without varargs wins a tie, like ProcessBuilder.command() over command(String...),
+		// whatever order the class lists them in
+		if ( varargs != null )
+			s += 1;
 		for ( int j=0; j<fixedargs.length; j++ )
 			s += fixedargs[j].score( args.arg(j+1) );
 		if ( varargs != null )

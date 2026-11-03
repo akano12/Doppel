@@ -25,8 +25,7 @@
 -- interfaces and su and Magisk (Read.Debugging). For restricted apps the files do not exist: they cannot be opened,
 -- read, listed or found, with java.io, android.system.Os and java.nio.file. The paths are resolved first,
 -- so the links of /sys do not lead to the files either, like /sys/bus/mmc/devices/mmc0:0001/cid.
--- Each variant hides the files of its group; cat, head and other commands run by the app fail for them too
--- (see shell_commands), and folders listed with java.nio.file leave the names of hidden files out.
+-- Each variant hides the files of its group, and folders listed with java.nio.file leave the names of hidden files out.
 -- Not covered are native code and the entries of a listed folder opened by a SecureDirectoryStream of java.nio
 -- (Files.newDirectoryStream gives one, of which newByteChannel and getFileAttributeView use openat and fstatat
 -- with a name relative to the folder), like a hidden file of a folder which is not hidden itself.
@@ -151,7 +150,7 @@ function about(hook)
 end
 
 -- The path without a link to the root folder in front, like /proc/self/root/system/xbin/su, also where the
--- links cannot be resolved (like shell_commands)
+-- links cannot be resolved
 function unrooted(path)
     for _, prefix in ipairs({ '^/proc/self/root/', '^/proc/thread%-self/root/', '^/proc/%d+/root/' }) do
         path = string.gsub(path, prefix, '/')

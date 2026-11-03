@@ -101,4 +101,25 @@ public class LuaJavaMembersTest {
         globals.set("object", CoerceJavaToLua.coerce(bottom.getDeclaredConstructor().newInstance()));
         assertEquals("middle", globals.load("return object.middle").call().tojstring());
     }
+
+    public static class Overloads {
+        public String run(String... words) {
+            return "varargs";
+        }
+
+        public String run() {
+            return "fixed";
+        }
+    }
+
+    // A call without arguments runs the method without varargs, which a varargs method ties with, in either order
+    // of the methods of the class, like ProcessBuilder.command() and command(String...)
+    @Test
+    public void methodWithoutVarargsWinsATie() {
+        Globals globals = JsePlatform.standardGlobals();
+        globals.set("object", CoerceJavaToLua.coerce(new Overloads()));
+        globals.set("builder", CoerceJavaToLua.coerce(new ProcessBuilder("getprop")));
+        assertEquals("fixed", globals.load("return object:run()").call().tojstring());
+        assertEquals("getprop", globals.load("return builder:command():get(0)").call().tojstring());
+    }
 }

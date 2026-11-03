@@ -333,53 +333,9 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(4).toboolean());
     }
 
-    // getprop of the shell rounds the heap like systemproperties_get: each size of 1 to 9999 megabytes matches the
-    // command of its step only, and the other settings have the same values
-    @Test
-    public void shellHeapLikeProperties() throws Exception {
-        assertEquals(list("systemproperties_get", "STEPS"), list("shell_commands", "STEPS"));
-        Matcher other = Pattern.compile("local OTHERHEAP = \\{(.*?)\\}\\s*\\n\\s*local", Pattern.DOTALL)
-                .matcher(Scripts.read("systemproperties_get"));
-        assertTrue(other.find());
-        for (String[] c : new String[][]{{"dalvik.vm.heapstartsize", "16m"}, {"dalvik.vm.heapminfree", "8m"},
-                {"dalvik.vm.heapmaxfree", "32m"}, {"dalvik.vm.heaptargetutilization", "0.5"}}) {
-            assertTrue(c[0], other.group(1).contains("['" + c[0] + "'] = '" + c[1] + "'"));
-            assertTrue(c[0], Scripts.read("shell_commands").contains("{ '" + c[1] + "', { '" + c[0] + "' } }"));
-        }
-        Globals shell = Scripts.load("shell_commands", null);
-        Varargs commands = Scripts.run(shell, "return table.concat(heapcommands('dalvik.vm.heapsize'), '\\n')");
-        java.util.List<Pattern> patterns = new java.util.ArrayList<>();
-        java.util.List<String> steps = new java.util.ArrayList<>();
-        for (String command : commands.arg1().tojstring().split("\n")) {
-            Matcher m = Pattern.compile("^s/(.*)/\\[\\\\1\\]: \\[(.*)\\]/$").matcher(command);
-            assertTrue(command, m.matches());
-            patterns.add(Pattern.compile(m.group(1).replace("\\(", "(").replace("\\)", ")")));
-            steps.add(m.group(2));
-        }
-        int[] limits = {128, 192, 256, 384, 512};
-        for (int n = 1; n <= 9999; n++) {
-            String line = "[dalvik.vm.heapsize]: [" + n + "m]";
-            String expected = null;
-            for (int limit : limits)
-                if (n >= limit)
-                    expected = limit + "m";
-            int matches = 0;
-            String got = null;
-            for (int i = 0; i < patterns.size(); i++)
-                if (patterns.get(i).matcher(line).matches()) {
-                    matches++;
-                    got = steps.get(i);
-                }
-            assertEquals(line, expected == null ? 0 : 1, matches);
-            assertEquals(line, expected, got);
-        }
-        assertTrue(patterns.get(patterns.size() - 1).matcher("[dalvik.vm.heapsize]: [2g]").matches());
-    }
-
     @Test
     public void fontConfigWithoutMakers() throws Exception {
         assertEquals(list("hardware_files", "FONTS"), list("font_config", "FONTS"));
-        assertEquals(list("hardware_files", "FONTS"), list("shell_commands", "FONTS"));
         Globals globals = load("font_config");
         String xml = "<familyset>\n" +
                 "    <family name=\"sans-serif\">\n        <font weight=\"400\" style=\"normal\">Roboto-Regular.ttf</font>\n    </family>\n" +

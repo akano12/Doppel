@@ -305,7 +305,7 @@ public class DeviceValuesScriptTest {
         assertTrue(other.arg(2).toboolean());
     }
 
-    // The operator of the test network, like TelephonyManager, and the same as getprop prints (see shell_commands);
+    // The operator of the test network, like TelephonyManager;
     // properties which are not set stay empty
     @Test
     public void propertiesOfTheOperatorAreFaked() throws Exception {

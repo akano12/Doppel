@@ -26,7 +26,7 @@
 -- The times are read with Os.stat and Os.lstat, File.lastModified and java.nio.file.Files (also the time
 -- the folder was made); not covered are the times of files in the folders, Os.fstat, the attributes of entries
 -- of a SecureDirectoryStream of java.nio (fstatat, like Files.newDirectoryStream of the storage gives) and native
--- code; stat, ls -l and find with times fail for these paths (see shell_commands).
+-- code.
 local FAKE = 1230768000
 local FLAG_SYSTEM = 1
 
