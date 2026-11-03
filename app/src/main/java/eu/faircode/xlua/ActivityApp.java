@@ -26,7 +26,6 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -252,11 +251,14 @@ public class ActivityApp extends ActivityBase {
                     if (!OPTIONS.contains(name))
                         own.add(FakeIds.baseKey(name));
                 final int values = own.size();
+                // Most system apps cannot be opened
+                boolean launchable = (context.getPackageManager().getLaunchIntentForPackage(app.packageName) != null);
+                String version = getVersionName(context, app.packageName);
                 postUnlessGone(() -> {
                     // Changed while loading, which was sent after the data was read, on the same background thread;
                     // loading again shows the change, else the switches would go back
                     if (changes == started)
-                        show(app, hooks, notify, values);
+                        show(app, hooks, notify, values, launchable, version);
                     else
                         load();
                 });
@@ -269,6 +271,14 @@ public class ActivityApp extends ActivityBase {
                 });
             }
         });
+    }
+
+    private static String getVersionName(Context context, String packageName) {
+        try {
+            return Util.getPackageInfo(context.getPackageManager(), packageName, 0).versionName;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return null;
+        }
     }
 
     private static boolean isInstalled(Context context, String packageName, int uid) {
@@ -284,15 +294,13 @@ public class ActivityApp extends ActivityBase {
         return (app == null ? packageName : app.getLabel());
     }
 
-    private void show(XApp app, List<XHook> hooks, boolean notify, int values) {
+    private void show(XApp app, List<XHook> hooks, boolean notify, int values, boolean launchable, String version) {
         this.app = app;
         uid = app.uid;
 
         if (!searching)
             toolbar.setTitle(getLabel());
-        // Most system apps cannot be opened
-        toolbar.getMenu().findItem(R.id.menu_launch)
-                .setVisible(getPackageManager().getLaunchIntentForPackage(app.packageName) != null);
+        toolbar.getMenu().findItem(R.id.menu_launch).setVisible(launchable);
 
         Ui.loadIcon(findViewById(R.id.ivIcon), app.packageName, app.icon);
         ((TextView) findViewById(R.id.tvPackage)).setText(app.packageName);
@@ -300,12 +308,8 @@ public class ActivityApp extends ActivityBase {
         llBadges.removeAllViews();
         Ui.addBadge(llBadges, getString(app.system ? R.string.title_filter_system : R.string.title_filter_user), Ui.Badge.NEUTRAL);
         Ui.addBadge(llBadges, getString(R.string.title_uid, app.uid), Ui.Badge.NEUTRAL);
-        try {
-            PackageInfo pi = Util.getPackageInfo(getPackageManager(), app.packageName, 0);
-            if (pi.versionName != null)
-                Ui.addBadge(llBadges, pi.versionName, Ui.Badge.NEUTRAL);
-        } catch (PackageManager.NameNotFoundException ignored) {
-        }
+        if (version != null)
+            Ui.addBadge(llBadges, version, Ui.Badge.NEUTRAL);
         findViewById(R.id.llAndroid).setVisibility(app.isSystemServer() ? View.VISIBLE : View.GONE);
 
         cbForceStop.setOnCheckedChangeListener(null);
@@ -724,7 +728,14 @@ public class ActivityApp extends ActivityBase {
 
         final Context context = getApplicationContext();
         final XApp app = this.app;
-        run(TAG, () -> Data.assign(context, app, hooks, assign));
+        run(TAG, () -> {
+            try {
+                Data.assign(context, app, hooks, assign);
+            } finally {
+                // Also after an error, else the switches show the change which was not stored
+                postUnlessGone(this::load);
+            }
+        });
     }
 
     // The LSPosed scope toggle: shown only when a framework with the libxposed service is connected, and never for

@@ -840,6 +840,26 @@ public class FileScriptsTest {
         assertEquals(2, result.arg(2).toint());
     }
 
+    // A font file of every Android is resolved once, for the fonts of makers and for the patterns, also in a listing
+    @Test
+    public void fontResolvedOnce() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local resolved = 0\n" +
+                        "local original = resolve\n" +
+                        "resolve = function(path) resolved = resolved + 1 return original(path) end\n" +
+                        "local hook = hookof('Use.Tracking', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream')\n" +
+                        "local fonts = paramof('/system/fonts', nil, nil)\n" +
+                        "before(hook, fonts)\n" +
+                        "local start = resolved\n" +
+                        "local roboto = fonts.argument.value.accept('/system/fonts/Roboto-Regular.ttf')\n" +
+                        "return roboto, resolved - start, " +
+                        "matched('Use.Tracking', '/system/fonts/SamsungOne-400.ttf')");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertTrue(result.arg(3).toboolean());
+    }
+
     // Like an id of the kernel: version 4, the same for the same seed, different for another one
     @Test
     public void uuid() throws Throwable {

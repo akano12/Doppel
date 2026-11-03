@@ -128,6 +128,15 @@ function fakeproperty(param, key)
     return (kind == 'language' and locale:getLanguage() or locale:getCountry())
 end
 
+-- What get gives for a property which is not set or empty: the default of get(key, default) (the variants with
+-- .default/), else ''. Like systemproperties_get, which a test compares.
+function unset(hook, param)
+    if string.find(hook:getName(), '.default/', 1, true) then
+        return param:getArgument(1)
+    end
+    return ''
+end
+
 -- Only the properties run the script of the property hooks (see XCore.getFilter)
 function filter(hook)
     if hook:getClassName() ~= 'android.os.SystemProperties' then
@@ -216,10 +225,18 @@ function after(hook, param)
         param:setResult(fake)
         return true, result, fake
     elseif method == 'get' then
-        -- Properties which are not set stay empty, a fake value would tell they are faked
+        -- Properties which are not set stay empty, or the default of get(key, default), a fake value would tell they
+        -- are faked; an empty fake is what get gives for a property which is not set
         local result = param:getResult()
+        local empty = unset(hook, param)
         local fake = fakeproperty(param, param:getArgument(0))
-        if fake == nil or result == nil or result == '' or fake == result then
+        if fake == nil or result == nil or result == '' or result == empty then
+            return false
+        end
+        if fake == '' then
+            fake = empty
+        end
+        if fake == result then
             return false
         end
         param:setResult(fake)

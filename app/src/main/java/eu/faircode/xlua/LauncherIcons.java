@@ -58,15 +58,15 @@ final class LauncherIcons {
         return new ComponentName(context, code.substring(0, code.lastIndexOf('.') + 1) + ALIASES[index]);
     }
 
-    // The chosen icon, also when it is not switched to yet
-    static int getSelected(Context context) {
+    // The chosen icon, also when it is not switched to yet; enabled: see getEnabled
+    static int getSelected(Context context, int enabled) {
         int chosen = ApplicationEx.getPreferences(context).getInt(PREF_CHOSEN, -1);
-        return (chosen < 0 ? getEnabled(context) : chosen);
+        return (chosen < 0 ? enabled : chosen);
     }
 
     // True when the icon is switched to later, false for the icon of the launcher, which cancels a choice made before
-    static boolean choose(Context context, int index) {
-        boolean pending = (index != getEnabled(context));
+    static boolean choose(Context context, int index, int enabled) {
+        boolean pending = (index != enabled);
         SharedPreferences.Editor editor = ApplicationEx.getPreferences(context).edit();
         if (pending)
             editor.putInt(PREF_CHOSEN, index);
@@ -76,7 +76,8 @@ final class LauncherIcons {
         return pending;
     }
 
-    private static int getEnabled(Context context) {
+    // The icon of the launcher; a call of the package manager per icon, so not on the main thread
+    static int getEnabled(Context context) {
         PackageManager pm = context.getPackageManager();
         for (int i = 0; i < ALIASES.length; i++)
             if (pm.getComponentEnabledSetting(getComponent(context, i)) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED)

@@ -57,6 +57,9 @@ public class AuditScriptsTest {
             "posted = {}",
             "luajava = {",
             "  newInstance = function(name, ...)",
+            "    if name == 'java.lang.ref.WeakReference' then",
+            "      return { referent = ..., get = function(self) return self.referent end }",
+            "    end",
             "    if name == 'android.os.Handler' then",
             "      return { post = function(self, runnable) table.insert(posted, runnable) end }",
             "    end",
@@ -117,7 +120,12 @@ public class AuditScriptsTest {
                         "posted[1].run()\n" +
                         "local other = paramof(nil, { [0] = 'intent' }, {})\n" +
                         "before(hookof('startListening'), other)\n" +
-                        "return kept, set.set, restricted, start.set, count, errors[1], #posted, other.set");
+                        // Kept weakly, not the listener itself; once collected nothing is posted
+                        "local reference = values['speech.listener'].value\n" +
+                        "local weak = reference ~= listener and reference:get() == listener\n" +
+                        "reference.referent = nil\n" +
+                        "before(hookof('startListening'), paramof(nil, { [0] = 'intent' }, recognizer))\n" +
+                        "return kept, set.set, restricted, start.set, count, errors[1], #posted, other.set, weak");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
@@ -128,6 +136,7 @@ public class AuditScriptsTest {
         // Without a listener nothing is posted, listening still does not start
         assertEquals(1, result.arg(7).toint());
         assertTrue(result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
     }
 
     // The addresses and DNS servers of a VPN are left out, by its real interface; other networks and the calls of

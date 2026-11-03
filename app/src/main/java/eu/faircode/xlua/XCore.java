@@ -181,8 +181,9 @@ class XCore {
                     log("System ready");
                     Context context = findContext(call.thisObject);
 
-                    // Store current module version
-                    PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), BuildConfig.APPLICATION_ID, 0);
+                    // Store current module version, also when the module is removed for the owner but kept for a profile
+                    PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), BuildConfig.APPLICATION_ID,
+                            ReceiverPackage.MATCH_ANY_USER);
                     version = (int) PackageInfoCompat.getLongVersionCode(pi);
                     Log.i(TAG, "Module version " + version);
 
@@ -431,10 +432,7 @@ class XCore {
         if (hooks.isEmpty())
             return;
 
-        // App settings replace global settings, the identifiers new each boot both (see FakeIds)
-        final Map<String, String> settings = new HashMap<>(Data.getSettings(context, "global"));
-        settings.putAll(Data.getSettings(context, packageName));
-        settings.putAll(Data.getBootValues(context, packageName, uid));
+        final Map<String, String> settings = getSettings(context, packageName, uid);
 
         // Hooks with the same script share the compiled script
         Map<String, Prototype> scripts = new HashMap<>();
@@ -464,6 +462,20 @@ class XCore {
                     report(context, hook.getId(), null, "install", data);
                 }
             }
+    }
+
+    // App settings replace global settings, the identifiers new each boot both (see FakeIds); the settings read
+    // until an error of the service, logged, since without them the app would run without any hook
+    static Map<String, String> getSettings(Context context, String packageName, int uid) {
+        Map<String, String> settings = new HashMap<>();
+        try {
+            settings.putAll(Data.getSettings(context, "global"));
+            settings.putAll(Data.getSettings(context, packageName));
+            settings.putAll(Data.getBootValues(context, packageName, uid));
+        } catch (Throwable ex) {
+            log(new IllegalStateException("Settings of " + packageName + ":" + uid, ex));
+        }
+        return settings;
     }
 
     private static Prototype compile(XHook hook, Map<String, Prototype> scripts) throws Throwable {
@@ -564,7 +576,11 @@ class XCore {
                     Varargs result = func.invoke(args);
                     reportUse(context, hook, function, result);
                 } catch (Throwable ex) {
-                    threadGlobals.remove();
+                    // An error of the script leaves its runtime usable (the call stacks of DebugLib unwind in finally),
+                    // so a hook which always fails does not make and run the runtime again for every call; only
+                    // an error of the VM, like running out of memory, may have left it half way
+                    if (ex instanceof VirtualMachineError)
+                        threadGlobals.remove();
                     // Describing the call runs code of the app (toString), which must not fail the call of the app,
                     // nor run the scripts of hooked methods as if the app called them
                     enterService();
@@ -604,8 +620,9 @@ class XCore {
     // so hooks of methods which are called very often cost (almost) nothing else; null without the function.
     // A value ending in * stands for all values starting with the text before it, like /sys/* for the files
     // of /sys, and a value starting with * too for all values containing the text between, like *sys/* for
-    // the files of /sys also by other paths, like /proc/self/root/sys/..., for a script which tells the paths
-    // apart itself. Files and paths of java.nio are compared by their path, see filterValue.
+    // the files of /sys also by relative paths or with .., for a script which tells the paths apart itself.
+    // Absolute paths also match as plain paths, without // and /./ and links of /proc to the root, see
+    // XParam.plainPath. Files and paths of java.nio are compared by their path, see filterValue.
     private static Filter getFilter(Globals globals, XHook hook) {
         LuaValue func = globals.get("filter");
         if (func.isnil())
@@ -633,9 +650,19 @@ class XCore {
                 this.values.add(value);
         }
 
+        // Paths also by another form, like /proc/sys/kernel/./osrelease, which the file system reads the same
         boolean matches(String value) {
             if (value == null)
                 return false;
+            if (value.startsWith("/")) {
+                String plain = XParam.plainPath(value);
+                if (!plain.equals(value) && matchesText(plain))
+                    return true;
+            }
+            return matchesText(value);
+        }
+
+        private boolean matchesText(String value) {
             if (this.values.contains(value))
                 return true;
             for (String prefix : this.prefixes)
@@ -741,10 +768,13 @@ class XCore {
         }
     }
 
+    // shortcut: a count, not a size; 20 stack traces of a few KB each fit, measure the parcel when traces grow
+    private static final int REPORTS_PER_CALL = 20;
+
     private void flush(Context context, String packageName, int uid) {
         Log.i(TAG, "Processing event queue package=" + packageName + ":" + uid);
 
-        List<Bundle> work = new ArrayList<>();
+        ArrayList<Bundle> work = new ArrayList<>();
         synchronized (queue) {
             for (Map<String, Bundle> reports : queue.values())
                 work.addAll(reports.values());
@@ -755,9 +785,11 @@ class XCore {
         // The hooks of the app do not apply to its reports, see installMethod
         enterService();
         try {
-            for (Bundle args : work)
+            // Few calls, each one transaction of the service; in parts, since errors have stack traces and a call
+            // is limited in size (1 MB for all calls of the app at once)
+            for (int i = 0; i < work.size(); i += REPORTS_PER_CALL)
                 try {
-                    Data.report(context, args);
+                    Data.reports(context, new ArrayList<>(work.subList(i, Math.min(work.size(), i + REPORTS_PER_CALL))));
                 } catch (Throwable ex) {
                     // One line: the service logged its error already, or refused an app whose restrictions were
                     // all removed while it runs, which would else log a stack trace each second

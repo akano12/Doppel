@@ -139,6 +139,57 @@ public class XCoreTest {
         assertFalse(range.isAvailable(1L << 32));
     }
 
+    // Excluded packages by their patterns, compiled on first use, also of a copy, by threads at once
+    @Test
+    public void excludedPackages() throws Throwable {
+        XHook hook = XHook.fromJSON(XHook.fromJSON("{\"collection\": \"Test\", \"group\": \"Test.Group\"," +
+                " \"name\": \"excluded\", \"author\": \"Test\", \"className\": \"java.lang.Object\"," +
+                " \"parameterTypes\": [], \"minSdk\": 0, \"excludePackages\": \"com\\\\.google\\\\..*, android\"," +
+                " \"luaScript\": \"\"}").toJSON());
+        List<String> collection = java.util.Collections.singletonList("Test");
+        Thread[] threads = new Thread[8];
+        final Throwable[] failed = new Throwable[1];
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    assertFalse(hook.isAvailable("com.google.android.gms", collection));
+                    assertFalse(hook.isAvailable("android", collection));
+                    assertTrue(hook.isAvailable("com.example", collection));
+                } catch (Throwable ex) {
+                    failed[0] = ex;
+                }
+            });
+            threads[i].start();
+        }
+        for (Thread thread : threads)
+            thread.join();
+        if (failed[0] != null)
+            throw failed[0];
+    }
+
+    // A script which fails keeps its runtime, which is not made, and so run, again for each call
+    @Test
+    public void failingScriptKeepsRuntime() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        install("failingScriptKeepsRuntime",
+                "local calls = 0\n" +
+                        "function before(hook, param)\n" +
+                        "  calls = calls + 1\n" +
+                        "  if calls == 1 then error('fails') end\n" +
+                        "  param:setResult(tostring(calls))\n" +
+                        "  return true\n" +
+                        "end", get);
+
+        XCall failed = new XCall(get, new Target(), new Object[0]);
+        callbacks.get(0).before(failed);
+        assertFalse(failed.isReturnEarly());
+
+        // A new runtime would fail again
+        XCall call = new XCall(get, new Target(), new Object[0]);
+        callbacks.get(0).before(call);
+        assertEquals("2", call.getResult());
+    }
+
     @Test
     public void scriptRuns() throws Throwable {
         Method get = Target.class.getMethod("get");
@@ -187,6 +238,14 @@ public class XCoreTest {
         callbacks.get(0).before(filtered);
         assertEquals("fake", filtered.getResult());
 
+        // Other forms of the path, which the file system reads the same
+        for (String path : new String[]{"/proc/./meminfo", "/proc//meminfo", "//proc/meminfo",
+                "/proc/self/root/proc/meminfo", "/proc/meminfo/."}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            assertEquals(path, "fake", call.getResult());
+        }
+
         // A null path is no value of the filter
         XCall none = new XCall(open, new Target(), new Object[]{null});
         callbacks.get(0).before(none);
@@ -201,7 +260,8 @@ public class XCoreTest {
                 "function filter(hook) return { '/sys/*', '/proc/meminfo' } end\n" +
                         "function before(hook, param) param:setResult('fake') return true end", open);
 
-        for (String path : new String[]{"/sys/devices/system/chip-id/unique_id", "/sys/", "/proc/meminfo"}) {
+        for (String path : new String[]{"/sys/devices/system/chip-id/unique_id", "/sys/", "/proc/meminfo",
+                "/sys/devices/system/./cpu/possible", "/proc/self/root/sys/devices"}) {
             XCall call = new XCall(open, new Target(), new Object[]{path});
             callbacks.get(0).before(call);
             assertEquals(path, "fake", call.getResult());
@@ -232,6 +292,31 @@ public class XCoreTest {
             callbacks.get(0).before(call);
             assertFalse(path, call.isReturnEarly());
         }
+    }
+
+    // Like the scripts of the kernel version and the font configuration, of which /./ is in the middle
+    @Test
+    public void containsFilterOtherPaths() throws Throwable {
+        Method open = Target.class.getMethod("open", String.class);
+        install("containsFilterOtherPaths",
+                "function filter(hook) return { '*kernel/osrelease*', '/system/etc/fonts.xml' } end\n" +
+                        "function before(hook, param) param:setResult('fake') return true end", open);
+
+        for (String path : new String[]{"/proc/sys/kernel/./osrelease", "/proc/sys/kernel//osrelease",
+                "/system/etc/./fonts.xml", "/system//etc/fonts.xml", "/system/etc/fonts.xml"}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            assertEquals(path, "fake", call.getResult());
+        }
+        XCall other = new XCall(open, new Target(), new Object[]{"/system/etc/./fonts.xml2"});
+        callbacks.get(0).before(other);
+        assertFalse(other.isReturnEarly());
+    }
+
+    // Without the settings of the service the hooks are installed still, with the settings read
+    @Test
+    public void settingsFail() {
+        assertTrue(XCore.getSettings(context, "test.app", 10123).isEmpty());
     }
 
     // Files are compared by their path, other objects not at all

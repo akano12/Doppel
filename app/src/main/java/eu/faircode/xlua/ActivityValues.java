@@ -688,7 +688,13 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             return dropdownValues(field)[index];
         }
         String value = input.getText().toString().trim();
-        return (TextUtils.isEmpty(value) ? null : value);
+        return (TextUtils.isEmpty(value) ? null : field.type == Type.NUMBER ? decimal(value) : value);
+    }
+
+    // Keyboards of languages like German and French type a decimal comma, which Java and the scripts (tonumber)
+    // do not read, so numbers are saved with a decimal point, see ActivityValuesTest
+    static String decimal(String value) {
+        return value.replace(',', '.');
     }
 
     // Until the form of the scope is built, the values entered are the ones kept for it

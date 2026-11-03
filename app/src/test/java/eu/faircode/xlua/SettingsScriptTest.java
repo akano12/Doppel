@@ -295,7 +295,8 @@ public class SettingsScriptTest {
 
     @Test
     public void settingsWithFrameworkValuesAreNotFaked() {
-        for (String key : new String[]{"font_scale", "animator_duration_scale", "accessibility_enabled", "touch_exploration_enabled"})
+        for (String key : new String[]{"font_scale", "animator_duration_scale", "accessibility_enabled", "touch_exploration_enabled",
+                "http_proxy"})
             assertFalse(key, run("return hooked('" + key + "')").arg1().toboolean());
         assertTrue(run("return hooked('screen_off_timeout')").arg1().toboolean());
         assertFalse(run("return hooked(nil)").arg1().toboolean());

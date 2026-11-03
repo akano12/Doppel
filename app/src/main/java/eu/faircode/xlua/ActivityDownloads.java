@@ -450,9 +450,13 @@ public class ActivityDownloads extends ActivityBase {
         Ui.areYouSure(this, getResources().getQuantityString(R.plurals.msg_update_all, count, count), R.string.title_update, () -> {
             final Context context = getApplicationContext();
             run(TAG, () -> {
-                for (Entry entry : entries)
-                    Data.putCustom(context, readDefinition(context, entry));
-                showInstalled(context);
+                try {
+                    for (Entry entry : entries)
+                        Data.putCustom(context, readDefinition(context, entry));
+                } finally {
+                    // Also after an error, which can come after some were updated
+                    showInstalled(context);
+                }
                 Ui.message(this, getResources().getQuantityString(R.plurals.msg_updated, count, count));
             });
         });
@@ -465,8 +469,12 @@ public class ActivityDownloads extends ActivityBase {
         Ui.areYouSure(this, message, R.string.title_remove, () -> {
             final Context context = getApplicationContext();
             run(TAG, () -> {
-                Data.putHook(context, entry.getId(), null);
-                showInstalled(context);
+                try {
+                    Data.putHook(context, entry.getId(), null);
+                } finally {
+                    // Also after an error, like a failed call of which the service removed the definition
+                    showInstalled(context);
+                }
                 Ui.message(this, getString(R.string.msg_removed, entry.name));
             });
         });

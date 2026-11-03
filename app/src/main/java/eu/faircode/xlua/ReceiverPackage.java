@@ -112,8 +112,9 @@ public class ReceiverPackage extends BroadcastReceiver {
         return true;
     }
 
-    // Hidden PackageManager.MATCH_ANY_USER: installed for any user, which system server may ask
-    private static final int MATCH_ANY_USER = 0x00400000;
+    // Hidden PackageManager.MATCH_ANY_USER (Android 8 and later): installed for any user, which system server may ask;
+    // also see XProvider.loadHooks and XCore
+    static final int MATCH_ANY_USER = 0x00400000;
 
     private static boolean installedForAnyUser(Context context) {
         try {

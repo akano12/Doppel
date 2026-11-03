@@ -310,6 +310,26 @@ public class FakeValuesAgreeTest {
         assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("hardware_files", "isvpninterface"));
         assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("vpn_addresses", "isvpninterface"));
         assertEquals(Scripts.function("vpn", "linkproperties"), Scripts.function("vpn_addresses", "linkproperties"));
+        assertEquals(Scripts.function("vpn", "linkproperties"), Scripts.function("network_address", "linkproperties"));
+    }
+
+    // 8 processors in /proc/cpuinfo (cpuinfo) and for Runtime.availableProcessors and the ranges of /sys (cpu_count)
+    @Test
+    public void processorsAreTheSame() throws Exception {
+        String count = constantOf("cpu_count", "COUNT");
+        assertEquals(count, constantOf("cpuinfo", "COUNT"));
+        assertEquals("'0-" + (Integer.parseInt(count) - 1) + "\\n'", constantOf("cpu_count", "RANGE"));
+    }
+
+    // The partitions of the system whose fonts (hardware_files) and font configuration (font_config) are filtered
+    @Test
+    public void fontPartitionsAreTheSame() throws Exception {
+        Globals files = load("hardware_files");
+        Globals config = load("font_config");
+        for (String partition : new String[]{"system", "product", "system_ext", "vendor", "odm", "oem", "my_bigball",
+                "data", "apex", "mnt", "sdcard", "my"})
+            assertEquals(partition, run(files, "tostring(brandfont('/" + partition + "/fonts/SamsungOne.ttf'))"),
+                    run(config, "tostring(configpath('/" + partition + "/etc/fonts.xml'))"));
     }
 
     // The files of /sys which do not exist for some group (hardware_files), the others for none

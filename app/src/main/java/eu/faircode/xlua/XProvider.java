@@ -36,6 +36,8 @@ import android.os.Bundle;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.StrictMode;
+import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
@@ -139,8 +141,8 @@ class XProvider {
         });
     }
 
-    // Restrictions of apps removed while ReceiverPackage was not registered, like with the module off or before
-    // the boot finished, which backups would else keep; per user, as system user
+    // Restrictions and settings of apps and users removed while ReceiverPackage was not registered, like with the
+    // module off or before the boot finished, which backups would else keep; per user, as system user
     private static void removeRemovedApps(Context context) throws Throwable {
         final List<String[]> apps = db.read(d -> {
             List<String[]> result = new ArrayList<>();
@@ -151,8 +153,19 @@ class XProvider {
             }
             return result;
         });
+        // The owner is never removed; the built-in hooks known to the service (user -1) are no user
+        final List<Integer> users = db.read(d -> {
+            List<Integer> result = new ArrayList<>();
+            try (Cursor cursor = d.query(true, "setting", new String[]{"user"},
+                    "user > 0", null, null, null, null, null)) {
+                while (cursor.moveToNext())
+                    result.add(cursor.getInt(0));
+            }
+            return result;
+        });
 
         final List<String[]> removed;
+        final List<Integer> removedUsers = new ArrayList<>();
         final Map<Integer, PackageManager> pms = new HashMap<>();
         long ident = Binder.clearCallingIdentity();
         try {
@@ -164,20 +177,44 @@ class XProvider {
                 }
                 return Util.getApplicationInfo(pm, packageName, KNOWN_PACKAGES).uid;
             });
+            // No serial number is no such user; a user which cannot be looked up keeps its settings
+            UserManager um = context.getSystemService(UserManager.class);
+            for (int user : users)
+                try {
+                    if (um.getSerialNumberForUser(UserHandle.getUserHandleForUid(Util.getUserUid(user, 0))) < 0)
+                        removedUsers.add(user);
+                } catch (Throwable ex) {
+                    Log.w(TAG, "Kept settings user=" + user + ": " + ex);
+                }
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
-        if (removed.isEmpty())
+        if (removed.isEmpty() && removedUsers.isEmpty())
             return;
 
         db.write(d -> {
-            for (String[] app : removed) {
-                d.delete("`group`", WHERE_APP, app);
-                Log.i(TAG, "Removed assignments of removed app pkg=" + app[0] + " uid=" + app[1] +
-                        " rows=" + d.delete("assignment", WHERE_APP, app));
-            }
+            removeData(d, removed, removedUsers);
             return null;
         });
+    }
+
+    // Like clearApp with its settings for each app (package name, uid) and like clearData for each user, see
+    // removeRemovedApps and XDatabaseTest
+    static void removeData(SQLiteDatabase d, List<String[]> apps, List<Integer> users) {
+        for (String[] app : apps) {
+            d.delete("`group`", WHERE_APP, app);
+            Log.i(TAG, "Removed assignments of removed app pkg=" + app[0] + " uid=" + app[1] +
+                    " rows=" + d.delete("assignment", WHERE_APP, app) +
+                    " settings=" + d.delete("setting", WHERE_CATEGORY, new String[]{
+                    Integer.toString(Util.getUserId(Integer.parseInt(app[1]))), app[0]}));
+        }
+        for (int user : users) {
+            String[] range = getUidRange(user);
+            d.delete("assignment", WHERE_USER, range);
+            d.delete("`group`", WHERE_USER, range);
+            Log.i(TAG, "Removed data of removed user=" + user +
+                    " settings=" + d.delete("setting", WHERE_SETTINGS, new String[]{Integer.toString(user)}));
+        }
     }
 
     // Also the apps removed with their data kept, like archived apps on Android 15, which keep their
@@ -243,7 +280,7 @@ class XProvider {
     // What apps with assignments may call and query, for themselves only, which each method checks: their usage,
     // their hooks, their settings and their values new each boot. Anything else would let a hooked app read or change
     // the data of other apps, see XProviderTest.
-    static final Set<String> APP_CALLS = Collections.singleton("report");
+    static final Set<String> APP_CALLS = Collections.singleton("reports");
     static final Set<String> APP_QUERIES = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList("getAssignedHooks2", "getSettings", "getBootValues")));
 
@@ -267,8 +304,8 @@ class XProvider {
                     return assignHooks(context, extras);
                 case "assignRestricting":
                     return assignRestricting(extras);
-                case "report":
-                    return report(context, extras);
+                case "reports":
+                    return reports(context, extras);
                 case "getSetting":
                     return getSetting(extras);
                 case "putSetting":
@@ -468,9 +505,16 @@ class XProvider {
         final Map<String, XHook> hooks = new HashMap<>();
         final Map<String, XHook> builtins = new HashMap<>();
 
-        // Built-in definitions
+        // Built-in definitions, of the app also when it is removed for the owner but kept for a profile;
+        // looking up any user needs the permission of system server instead of the one of a hooked app calling
         PackageManager pm = context.getPackageManager();
-        ApplicationInfo ai = Util.getApplicationInfo(pm, BuildConfig.APPLICATION_ID, 0);
+        ApplicationInfo ai;
+        long ident = Binder.clearCallingIdentity();
+        try {
+            ai = Util.getApplicationInfo(pm, BuildConfig.APPLICATION_ID, ReceiverPackage.MATCH_ANY_USER);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
         for (XHook builtin : XHook.readHooks(ai.publicSourceDir)) {
             builtin.resolveClassName(context);
             builtins.put(builtin.getId(), builtin);
@@ -594,8 +638,8 @@ class XProvider {
     // Assigns hooks to the apps which restrict a hook of the same group, of all users or of one user,
     // optionally also when the collection of a hook is not enabled (yet). Existing assignments are kept,
     // replacing one would reset its usage data. Returns the number of assignments and apps.
-    private static int[] assignToRestricting(SQLiteDatabase d, Map<String, XHook> hooks, List<XHook> targets,
-                                             Integer user, boolean anyCollection) throws Throwable {
+    static int[] assignToRestricting(SQLiteDatabase d, Map<String, XHook> hooks, List<XHook> targets,
+                                     Integer user, boolean anyCollection) throws Throwable {
         // Groups restricted per app
         Map<String, Set<String>> restricted = new HashMap<>();
         Set<String> assigned = new HashSet<>();
@@ -899,44 +943,89 @@ class XProvider {
         return result;
     }
 
-    // Usage and errors reported by the hooks of an app
-    private static Bundle report(Context context, Bundle extras) throws Throwable {
-        final String hookid = extras.getString("hook");
-        final String packageName = extras.getString("packageName");
-        final int uid = extras.getInt("uid");
-        int userid = Util.getUserId(uid);
-        String event = extras.getString("event");
-        final long time = extras.getLong("time");
-        final Bundle data = extras.getBundle("data");
+    // Usage and errors reported by the hooks of an app, collected for a second, in one transaction, see XCore.flush;
+    // all are refused when one is not of the caller or invalid
+    @SuppressWarnings("deprecation") // getParcelableArrayList: Bundles of the framework
+    private static Bundle reports(Context context, Bundle extras) throws Throwable {
+        ArrayList<Bundle> list = extras.getParcelableArrayList("reports");
+        if (list == null)
+            throw new IllegalArgumentException("reports missing");
+        final List<Report> reports = Report.all(list, Binder.getCallingUid(), hooks);
 
-        if (uid != Binder.getCallingUid())
-            throw new SecurityException();
-        // Any app can call, see call
-        if (hookid == null || packageName == null || event == null || data == null)
-            throw new IllegalArgumentException("report invalid");
-        final int restricted = data.getInt("restricted", 0);
+        db.write(d -> {
+            for (Report report : reports)
+                report.write(d);
+            return null;
+        });
 
-        // The data has the real values, like an IMEI, which release builds do not write to the system log
-        Log.i(TAG, "Hook " + hookid + " pkg=" + packageName + ":" + uid + " event=" + event +
-                (BuildConfig.DEBUG ? toString(data) : ""));
+        // Stored already, so a failed notification does not keep the others
+        for (Report report : reports)
+            try {
+                report.notifyUser(context);
+            } catch (Throwable ex) {
+                Log.e(TAG, Log.getStackTraceString(ex));
+            }
+        return new Bundle();
+    }
 
-        final XHook hook = hooks.get(hookid);
+    // A report of a hook of an app, see reports
+    static final class Report {
+        final String hookid;
+        final String packageName;
+        final int uid;
+        final String event;
+        final long time;
+        final Bundle data;
+        final XHook hook;
+        final int restricted;
 
-        // A failing hook can fail on each call, so only its first error since the start is notified
-        final boolean[] firstError = new boolean[]{false};
+        // See write
+        boolean notify = false;
+        boolean restrictedUse = false;
+        boolean firstError = false;
+        Long used = null;
 
-        boolean notify = Boolean.parseBoolean(getSettingValue(userid, packageName, "notify"));
-        final boolean use = "use".equals(event);
-        final boolean restrictedUse = (hook != null && use && restricted == 1);
-        final boolean countGroup = (restrictedUse && notify);
+        // All checked before any is stored, see reports
+        static List<Report> all(List<Bundle> list, int callingUid, Map<String, XHook> hooks) {
+            List<Report> reports = new ArrayList<>();
+            for (Bundle report : list)
+                reports.add(new Report(report, callingUid, hooks));
+            return reports;
+        }
 
-        // Last use of the group before this use, -1 for the first use,
-        // null when the app has no such assignment, like for a package of another app
+        Report(Bundle extras, int callingUid, Map<String, XHook> hooks) {
+            hookid = extras.getString("hook");
+            packageName = extras.getString("packageName");
+            uid = extras.getInt("uid");
+            event = extras.getString("event");
+            time = extras.getLong("time");
+            data = extras.getBundle("data");
+
+            if (uid != callingUid)
+                throw new SecurityException();
+            // Any app can call, see call
+            if (hookid == null || packageName == null || event == null || data == null)
+                throw new IllegalArgumentException("report invalid");
+            restricted = data.getInt("restricted", 0);
+            hook = hooks.get(hookid);
+
+            // The data has the real values, like an IMEI, which release builds do not write to the system log
+            Log.i(TAG, "Hook " + hookid + " pkg=" + packageName + ":" + uid + " event=" + event +
+                    (BuildConfig.DEBUG ? XProvider.toString(data) : ""));
+        }
+
+        // Stores the report in the assignment, with the last use of its group before this use in used: -1 for the
+        // first use, null when the app has no such assignment, like for a package of another app.
         // An error keeps the last restriction of the hook, so the log keeps showing it:
-        // the time of an error is stored as installed, which is the time of the last error
-        final boolean error = data.containsKey("exception");
-        final String[] where = new String[]{packageName, Integer.toString(uid), hookid};
-        Long used = db.write(d -> {
+        // the time of an error is stored as installed, which is the time of the last error.
+        // A failing hook can fail on each call, so only its first error since the start is notified.
+        void write(SQLiteDatabase d) throws Throwable {
+            notify = Boolean.parseBoolean(readSetting(d, Util.getUserId(uid), packageName, "notify"));
+            boolean use = "use".equals(event);
+            restrictedUse = (hook != null && use && restricted == 1);
+            boolean error = data.containsKey("exception");
+            String[] where = new String[]{packageName, Integer.toString(uid), hookid};
+
             ContentValues cv = new ContentValues();
             if ("install".equals(event) || (use && error))
                 cv.put("installed", time);
@@ -950,17 +1039,20 @@ class XProvider {
             if (error)
                 try (Cursor cursor = d.query("assignment", new String[]{"exception"},
                         WHERE_ASSIGNMENT, where, null, null, null)) {
-                    firstError[0] = (cursor.moveToNext() && cursor.isNull(0));
+                    firstError = (cursor.moveToNext() && cursor.isNull(0));
                 }
-            if (cv.size() == 0 || d.update("assignment", cv, WHERE_ASSIGNMENT, where) != 1)
-                return null;
+            if (cv.size() == 0 || d.update("assignment", cv, WHERE_ASSIGNMENT, where) != 1) {
+                firstError = false;
+                Log.w(TAG, "No assignment " + packageName + ":" + uid + "/" + hookid);
+                return;
+            }
 
-            long last = -1;
-            if (countGroup) {
+            used = -1L;
+            if (restrictedUse && notify) {
                 try (Cursor cursor = d.query("`group`", new String[]{"used"}, WHERE_GROUP,
                         new String[]{packageName, Integer.toString(uid), hook.getGroup()}, null, null, null)) {
                     if (cursor.moveToNext())
-                        last = cursor.getLong(0);
+                        used = cursor.getLong(0);
                 }
 
                 cv.clear();
@@ -971,30 +1063,29 @@ class XProvider {
                 if (d.insertWithOnConflict("`group`", null, cv, SQLiteDatabase.CONFLICT_REPLACE) < 0)
                     throw new Throwable("Error inserting group");
             }
-            return last;
-        });
-
-        if (used == null) {
-            Log.w(TAG, "No assignment " + packageName + ":" + uid + "/" + hookid);
-            return new Bundle();
         }
 
         // The first use of a group, or each use for hooks which notify; most reports notify nothing
-        boolean notifyUse = (restrictedUse && (hook.doNotify() || (notify && used < 0)));
-        if (notifyUse || firstError[0]) {
+        boolean notifiesUse() {
+            return (used != null && restrictedUse && (hook.doNotify() || (notify && used < 0)));
+        }
+
+        void notifyUser(Context context) throws Throwable {
+            boolean notifyUse = notifiesUse();
+            if (!notifyUse && !firstError)
+                return;
+            int userid = Util.getUserId(uid);
             long ident = Binder.clearCallingIdentity();
             try {
                 Context ctx = Util.createContextForUser(context, userid);
                 if (notifyUse)
                     XNotify.notifyUsage(ctx, userid, uid, packageName, hook.getGroup(), hookid);
-                if (firstError[0])
+                if (firstError)
                     XNotify.notifyException(ctx, userid, uid, packageName, hookid);
             } finally {
                 Binder.restoreCallingIdentity(ident);
             }
         }
-
-        return new Bundle();
     }
 
     // Any app can report for itself, so the text stored in the database of system server is limited

@@ -82,6 +82,7 @@ public class FragmentSettings extends FragmentBase {
 
     private List<String> collections = new ArrayList<>(); // Known collections
     private List<String> enabled = new ArrayList<>(); // Enabled collections
+    private int launcherIcon = -1; // The icon of the launcher, see load and LauncherIcons.getEnabled
 
     private final ActivityResultLauncher<String> backupLauncher = registerForActivityResult(
             new ActivityResultContracts.CreateDocument("application/json"), uri -> {
@@ -174,6 +175,7 @@ public class FragmentSettings extends FragmentBase {
             boolean restrictNew = Data.getSettingBoolean(context, "global", "restrict_new_apps");
             boolean notifyNew = Data.getSettingBoolean(context, "global", "notify_new_apps");
             ApplicationEx.Colors colors = ApplicationEx.Colors.get(context);
+            int icon = LauncherIcons.getEnabled(context);
 
             post(() -> {
                 // Restoring a backup or clearing data can change the colors and the theme
@@ -186,6 +188,8 @@ public class FragmentSettings extends FragmentBase {
                     restored = null;
                 }
                 showPalettes(ApplicationEx.getPalette(context));
+                launcherIcon = icon;
+                showIcons();
                 swBlack.setOnCheckedChangeListener(null);
                 swBlack.setChecked(colors.black);
                 swBlack.setOnCheckedChangeListener((button, checked) -> selectBlack(checked));
@@ -281,7 +285,7 @@ public class FragmentSettings extends FragmentBase {
         Context context = requireContext();
         llIcons.removeAllViews();
         LayoutInflater inflater = LayoutInflater.from(context);
-        int selected = LauncherIcons.getSelected(context);
+        int selected = LauncherIcons.getSelected(context, launcherIcon);
         for (int i = 0; i < LauncherIcons.ALIASES.length; i++) {
             final int index = i;
             View view = inflater.inflate(R.layout.item_launcher_icon, llIcons, false);
@@ -295,9 +299,10 @@ public class FragmentSettings extends FragmentBase {
 
     private void selectIcon(int index) {
         Context context = requireContext();
-        if (index == LauncherIcons.getSelected(context))
+        // Until the icon of the launcher is loaded
+        if (launcherIcon < 0 || index == LauncherIcons.getSelected(context, launcherIcon))
             return;
-        boolean pending = LauncherIcons.choose(context, index);
+        boolean pending = LauncherIcons.choose(context, index, launcherIcon);
         showIcons();
         // Going back to the icon of the launcher changes nothing
         if (pending)

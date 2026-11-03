@@ -37,7 +37,7 @@ public class XProviderTest {
     // set for each app: it must check the caller itself, like the ones listed do
     @Test
     public void hookedAppsAskForThemselvesOnly() {
-        assertEquals(Collections.singleton("report"), XProvider.APP_CALLS);
+        assertEquals(Collections.singleton("reports"), XProvider.APP_CALLS);
         assertEquals(new HashSet<>(Arrays.asList("getAssignedHooks2", "getSettings", "getBootValues")),
                 XProvider.APP_QUERIES);
     }

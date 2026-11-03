@@ -112,6 +112,33 @@ public class XDatabaseTest {
         });
     }
 
+    // Settings no script reads anymore are removed on each start, of all users and apps; others are kept
+    @Test
+    public void removesObsoleteSettings() throws Throwable {
+        db = XDatabase.open(file);
+        db.write(d -> {
+            d.execSQL("INSERT INTO setting VALUES (0, 'com.example', 'commands.allowed', 'getprop')");
+            d.execSQL("INSERT INTO setting VALUES (10, 'global', 'commands.regex', '.*')");
+            d.execSQL("INSERT INTO setting VALUES (0, 'com.example', 'value.email', 'a')");
+            return null;
+        });
+        db.close();
+        // Twice: nothing left to remove the second time
+        for (int i = 0; i < 2; i++) {
+            db = XDatabase.open(file);
+            db.read(d -> {
+                try (Cursor c = d.rawQuery("SELECT name FROM setting", null)) {
+                    assertEquals(1, c.getCount());
+                    c.moveToFirst();
+                    assertEquals("value.email", c.getString(0));
+                }
+                return null;
+            });
+            db.close();
+        }
+        db = null;
+    }
+
     // Set.of is of Android 11 and later
     private static Set<String> set(String... names) {
         return new HashSet<>(Arrays.asList(names));

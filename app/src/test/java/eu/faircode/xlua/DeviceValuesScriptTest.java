@@ -133,6 +133,35 @@ public class DeviceValuesScriptTest {
                     "'get'), paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))").arg1().toboolean());
     }
 
+    // get(key, default) gives the default for a property which is not set or empty, so it stays, like on a device
+    // without the property; an empty fake becomes the default, also null; get(key) is unchanged
+    @Test
+    public void propertiesWithDefault() throws Exception {
+        Globals globals = load("systemproperties_get");
+        String[][] cases = {
+                // variant, key, result, default, restricted, expected
+                {"device", "ro.zz.soc.x", "'d'", "'d'", "false", "d"},
+                {"device", "ro.hardware.chipname", "'exynos'", "'d'", "true", "unknown"},
+                {"serial", "ril.serialnumber", "'d'", "'d'", "false", "d"},
+                {"serial", "ril.serialnumber", "'R58M'", "'d'", "true", "unknown"},
+                {"serial", "ril.iccid.sim1", "'8949'", "'d'", "true", "d"},
+                {"serial", "ril.iccid.sim1", "'8949'", "nil", "true", null},
+                {"timezone", "persist.sys.timezone", "'d'", "'d'", "false", "d"},
+                {"timezone", "persist.sys.timezone", "'Europe/Berlin'", "'d'", "true", "UTC"},
+                {"debugging", "persist.logd.size", "'d'", "'d'", "false", "d"},
+                {"debugging", "persist.logd.size", "'16M'", "nil", "true", null}};
+        for (String[] c : cases) {
+            Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get.default/" + c[0] +
+                    "', 'get'), paramof(" + c[2] + ", { [0] = '" + c[1] + "', [1] = " + c[3] + " }))");
+            String name = c[0] + " " + c[1] + " " + c[2] + " " + c[3];
+            assertEquals(name, Boolean.parseBoolean(c[4]), result.arg1().toboolean());
+            assertEquals(name, c[5], result.arg(2).isnil() ? null : result.arg(2).tojstring());
+        }
+        // Without a default: an empty fake is empty
+        assertEquals("", Scripts.run(globals, "return run(hookof('SystemProperties.get/serial', 'get'), " +
+                "paramof('8949', { [0] = 'ril.iccid.sim1' }))").arg(2).tojstring());
+    }
+
     // The OpenGL strings without the chip, its family and the build of the driver; the version stays
     @Test
     public void graphicsStringsNameNoChip() throws Exception {
@@ -227,11 +256,9 @@ public class DeviceValuesScriptTest {
                 "'getPropertyString'), paramof('16.1.0', { [0] = 'version' }))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
                 "'getPropertyString'), paramof('Google@x', { [0] = 'vendor' }))").arg1().toboolean());
-        // The id of the system of Widevine names the make and the family of the model
-        Varargs systemId = Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
-                "'getPropertyString'), paramof('18615', { [0] = 'systemId' }))");
-        assertTrue(systemId.arg1().toboolean());
-        assertEquals("", systemId.arg(2).tojstring());
+        // The id of the system of Widevine stays: DRM apps like Netflix verify the device by it
+        assertFalse(Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
+                "'getPropertyString'), paramof('18615', { [0] = 'systemId' }))").arg1().toboolean());
     }
 
     // Values of MMS other than the generic ones of Android become those; generic and empty ones stay

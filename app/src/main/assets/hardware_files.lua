@@ -221,9 +221,17 @@ end
 
 -- Whether a file is one of a group, without the cache, so other threads can ask too (see listing)
 function matched(group, path)
-    if group == 'Use.Tracking' and string.find(path, 'fonts', 1, true) and
-            (brandfont(unrooted(path)) or brandfont(resolve(unrooted(path)))) then
-        return true
+    local plain = unrooted(path)
+    -- Resolved once, when needed: getCanonicalPath reads the file system
+    local resolved
+    if group == 'Use.Tracking' and string.find(path, 'fonts', 1, true) then
+        if brandfont(plain) then
+            return true
+        end
+        resolved = resolve(plain)
+        if brandfont(resolved) then
+            return true
+        end
     end
     local patterns = FILES[group]
     -- The patterns of Read.VPN capture the name of the interface
@@ -234,7 +242,6 @@ function matched(group, path)
         return string.find(text, pattern) ~= nil
     end
     local found = false
-    local plain = unrooted(path)
     for _, pattern in ipairs(patterns) do
         if matches(plain, pattern) then
             found = true
@@ -242,7 +249,7 @@ function matched(group, path)
         end
     end
     if not found then
-        local resolved = resolve(plain)
+        resolved = resolved or resolve(plain)
         for _, pattern in ipairs(patterns) do
             if matches(resolved, pattern) then
                 found = true

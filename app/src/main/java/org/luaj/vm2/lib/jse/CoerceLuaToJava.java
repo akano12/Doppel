@@ -22,9 +22,8 @@
 package org.luaj.vm2.lib.jse;
 
 import java.lang.reflect.Array;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.luaj.vm2.LuaString;
 import org.luaj.vm2.LuaTable;
@@ -78,7 +77,7 @@ public class CoerceLuaToJava {
 		return getCoercion(clazz).coerce(value);
 	}
 	
-	static final Map COERCIONS = Collections.synchronizedMap(new HashMap());
+	static final Map COERCIONS = new ConcurrentHashMap();
 	
 	static final class BoolCoercion implements Coercion {
 		public String toString() {

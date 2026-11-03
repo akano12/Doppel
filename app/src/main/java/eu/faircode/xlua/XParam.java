@@ -324,15 +324,24 @@ public class XParam {
     }
 
     static boolean isPath(String path, String file) {
-        String plain = ("/" + path).replaceAll("/(\\./)+", "/").replaceAll("//+", "/")
-                .replaceFirst("^/proc/[\\w-]+/root/", "/");
-        if (plain.equals(file))
+        if (plainPath("/" + path).equals(file))
             return true;
         try {
             return new File(path).getCanonicalPath().equals(file);
         } catch (IOException ignored) {
             return false;
         }
+    }
+
+    // An absolute path without // and /./, also at the end, and without a link of /proc to the root, like the file
+    // system reads it, see isPath and the filters of XCore; the path itself without any of them, checked first, since
+    // the filters run for every call
+    static String plainPath(String path) {
+        if (!path.contains("/.") && !path.contains("//") && !path.contains("/root/"))
+            return path;
+        String plain = path.replaceAll("/(\\./)+", "/").replaceAll("//+", "/").replaceFirst("/\\.$", "")
+                .replaceFirst("^/proc/[\\w-]+/root/", "/");
+        return (plain.isEmpty() ? "/" : plain);
     }
 
     // The text of the file the hooked method opened, like a file of /proc, of which it returned the descriptor
@@ -357,8 +366,8 @@ public class XParam {
         return text.toString(StandardCharsets.UTF_8.name());
     }
 
-    // The app reads the text instead of the file the hooked method opened, without a file being written:
-    // the method returns a file in memory, or a pipe before Android 11, of which the app cannot tell
+    // The app reads the text instead of the file the hooked method opened, without a file being kept:
+    // the method returns a file in memory, or a pipe or a removed file before Android 11, of which the app cannot tell
     // the contents of the file apart; the file which was opened is closed. java.nio gets the number of a descriptor.
     @SuppressWarnings("unused")
     public void setFileText(String text) throws Throwable {
@@ -375,22 +384,8 @@ public class XParam {
                 Os.close(fake);
                 throw ex;
             }
-        } else {
-            // A pipe holds at least a page, without a reader; the texts of files of /proc are small
-            if (bytes.length > 4096)
-                throw new IllegalArgumentException("Text of " + bytes.length + " bytes too long");
-            FileDescriptor[] pipe = Os.pipe();
-            fake = pipe[0];
-            try {
-                for (int at = 0; at < bytes.length; )
-                    at += Os.write(pipe[1], bytes, at, bytes.length - at);
-            } catch (Throwable ex) {
-                Os.close(fake);
-                throw ex;
-            } finally {
-                Os.close(pipe[1]);
-            }
-        }
+        } else
+            fake = oldFile(this.context.getCacheDir(), bytes);
         if (opened instanceof Integer) {
             this.param.setResult(ParcelFileDescriptor.dup(fake).detachFd());
             Os.close(fake);
@@ -398,6 +393,41 @@ public class XParam {
         } else {
             this.param.setResult(fake);
             Os.close((FileDescriptor) opened);
+        }
+    }
+
+    // Before Android 11, without files in memory: a pipe, which holds at least a page without a reader, like for
+    // the small files of /proc; a larger text, like the font configuration of tens of kB, in a file of the app
+    // which is removed right away, opened read-only like the file it replaces
+    static FileDescriptor oldFile(File folder, byte[] bytes) throws Throwable {
+        if (bytes.length <= 4096) {
+            FileDescriptor[] pipe = Os.pipe();
+            try {
+                for (int at = 0; at < bytes.length; )
+                    at += Os.write(pipe[1], bytes, at, bytes.length - at);
+            } catch (Throwable ex) {
+                Os.close(pipe[0]);
+                throw ex;
+            } finally {
+                Os.close(pipe[1]);
+            }
+            return pipe[0];
+        }
+        if (folder == null)
+            throw new IllegalArgumentException("Text of " + bytes.length + " bytes without a cache folder");
+        File file = File.createTempFile("file", null, folder);
+        try {
+            FileDescriptor write = Os.open(file.getPath(), OsConstants.O_WRONLY | OsConstants.O_CLOEXEC, 0);
+            try {
+                for (int at = 0; at < bytes.length; )
+                    at += Os.write(write, bytes, at, bytes.length - at);
+            } finally {
+                Os.close(write);
+            }
+            return Os.open(file.getPath(), OsConstants.O_RDONLY | OsConstants.O_CLOEXEC, 0);
+        } finally {
+            //noinspection ResultOfMethodCallIgnored
+            file.delete();
         }
     }
 

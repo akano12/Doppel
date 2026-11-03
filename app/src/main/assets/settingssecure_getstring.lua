@@ -22,10 +22,11 @@
 -- the animator duration scale and whether accessibility or touch exploration is on: the framework
 -- gives the real values too (Configuration.fontScale, ValueAnimator.getDurationScale, AccessibilityManager),
 -- which cannot be faked without changing how the app works, and fake settings next to them would stand out.
+-- Nor is the proxy (http_proxy): the app process sets the proxy its connections use from
+-- ConnectivityManager.getDefaultProxy (ActivityThread), so hiding it there would break proxied networking.
 local NONE = {}
 local PERSONAL = {
     -- Global
-    http_proxy = NONE,
     transition_animation_scale = '1.0',
     window_animation_scale = '1.0',
     data_roaming = '0',

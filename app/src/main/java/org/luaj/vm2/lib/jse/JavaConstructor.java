@@ -23,9 +23,8 @@ package org.luaj.vm2.lib.jse;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -46,7 +45,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  */
 class JavaConstructor extends JavaMember {
 
-	static final Map constructors = Collections.synchronizedMap(new HashMap());
+	static final Map constructors = new ConcurrentHashMap();
 	
 	static JavaConstructor forConstructor(Constructor c) {
 		JavaConstructor j = (JavaConstructor) constructors.get(c);

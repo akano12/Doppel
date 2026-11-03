@@ -231,6 +231,12 @@ class XDatabase {
             "SensorManager.getDefaultSensor", "SensorManager.getDefaultSensor/wakeup"
     };
 
+    // Settings of all users and apps which no script reads anymore, removed on each start, see upgrade
+    static final String[] REMOVED_SETTINGS = new String[]{
+            // Restricted apps run no commands anymore, so there are no allowed ones, see commands_blocked.lua
+            "commands.allowed", "commands.regex"
+    };
+
     private final SQLiteDatabase db;
     // Reads do not wait for each other, writes are serialized
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
@@ -298,6 +304,11 @@ class XDatabase {
                 long removed = db.delete("assignment", "hook = ?", from);
                 if (rows > 0 || removed > 0)
                     Log.i(TAG, "Renamed hook " + from[0] + " into " + cv.get("hook") + " rows=" + rows + " removed=" + removed);
+            }
+            for (String name : REMOVED_SETTINGS) {
+                int rows = db.delete("setting", "name = ?", new String[]{name});
+                if (rows > 0)
+                    Log.i(TAG, "Removed setting " + name + " rows=" + rows);
             }
 
             // Hooks are installed again and errors reported again after a restart; only the rows which changed

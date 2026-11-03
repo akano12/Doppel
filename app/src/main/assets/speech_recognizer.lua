@@ -18,16 +18,20 @@
 -- Speech recognition records the microphone, so listening does not start. Android always answers through the
 -- listener of the recognizer, like with ERROR_INSUFFICIENT_PERMISSIONS (9) without the permission, so apps waiting
 -- for the answer, like a button which shows it is listening, get this error, on the main thread like the answers
--- of Android. The listener the app sets is kept for this; setting it is not restricted.
+-- of Android. The listener the app sets is kept for this, weakly: the value of the recognizer would else keep the
+-- recognizer, the listener and its activity forever; the recognizer holds the listener itself. Setting it is not
+-- restricted.
 function before(hook, param)
     local recognizer = param:getThis()
     if hook:getMethodName() == 'setRecognitionListener' then
-        param:putValue('speech.listener', param:getArgument(0), recognizer)
+        param:putValue('speech.listener',
+                luajava.newInstance('java.lang.ref.WeakReference', param:getArgument(0)), recognizer)
         return false
     end
 
     param:setResult(nil)
-    local listener = param:getValue('speech.listener', recognizer)
+    local reference = param:getValue('speech.listener', recognizer)
+    local listener = (reference ~= nil and reference:get() or nil)
     if listener ~= nil then
         local runnable = luajava.createProxy('java.lang.Runnable', {
             run = function()

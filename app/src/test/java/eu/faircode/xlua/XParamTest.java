@@ -73,6 +73,24 @@ public class XParamTest {
             assertFalse(path, XParam.isPath(path, file));
     }
 
+    // The plain path for the filters of XCore, the path itself when plain already
+    @Test
+    public void plainPaths() {
+        assertEquals("/sys/devices/system/cpu/possible", XParam.plainPath("/sys/devices/system/./cpu/possible"));
+        assertEquals("/sys/devices/system/cpu", XParam.plainPath("/sys/devices/system/cpu/./."));
+        assertEquals("/proc/sys/kernel/osrelease", XParam.plainPath("/proc/self/root/proc/sys/kernel//osrelease"));
+        assertEquals("/", XParam.plainPath("/."));
+        assertEquals("/data/.hidden", XParam.plainPath("/data/.hidden"));
+        String plain = "/proc/meminfo";
+        assertTrue(plain == XParam.plainPath(plain));
+    }
+
+    // Before Android 11 a text larger than a pipe holds needs a file of the app, else it fails, which the hook reports
+    @Test(expected = IllegalArgumentException.class)
+    public void largeTextWithoutFolder() throws Throwable {
+        XParam.oldFile(null, new byte[4097]);
+    }
+
     @Test
     public void wholeNumbers() {
         assertEquals(5000000000L, XParam.coerceValue(long.class, lua(5000000000d)));

@@ -22,15 +22,7 @@ function after(hook, param)
     if result == nil then
         return false
     end
-    -- The id of the system of Widevine, like 18615, names the make and the family of the model; it is not used to play
-    -- content, the DRM itself uses its own
-    if param:getArgument(0) == 'systemId' then
-        if result == '' then
-            return false
-        end
-        param:setResult('')
-        return true, result, ''
-    end
+    -- The id of the system of Widevine (systemId) stays: DRM apps verify the device by it, Netflix fails without it
     if param:getArgument(0) ~= 'version' then
         return false
     end

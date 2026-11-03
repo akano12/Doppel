@@ -278,6 +278,15 @@ function filter(hook)
     return nil
 end
 
+-- What get gives for a property which is not set or empty: the default of get(key, default) (the variants with
+-- .default/), else ''. Like locale, which a test compares.
+function unset(hook, param)
+    if string.find(hook:getName(), '.default/', 1, true) then
+        return param:getArgument(1)
+    end
+    return ''
+end
+
 function after(hook, param)
     -- The field Build.VERSION.SECURITY_PATCH of the property, without an argument; not set it stays empty
     if hook:getMethodName() == '#SECURITY_PATCH' then
@@ -304,8 +313,10 @@ function after(hook, param)
         return typed(hook, param, key, result, method)
     end
 
-    -- Properties which are not set stay empty, a fake value would tell they are faked
-    if result == nil or result == '' then
+    -- Properties which are not set stay empty, or the default of get(key, default), a fake value would tell they
+    -- are faked; an empty fake is what get gives for a property which is not set
+    local empty = unset(hook, param)
+    if result == nil or result == '' or result == empty then
         return false
     end
 
@@ -313,12 +324,14 @@ function after(hook, param)
     local name = string.match(hook:getName(), '/(.*)$')
 
     if name == 'serial' and iccid(key) then
-        param:setResult('')
-        return true, result, ''
+        param:setResult(empty)
+        return true, result, empty
     elseif name == 'serial' and SERIALS[key] ~= nil then
         local fake = param:getSetting('value.serial')
         if fake == nil then
             fake = 'unknown'
+        elseif fake == '' then
+            fake = empty
         end
         param:setResult(fake)
         return true, result, fake
@@ -333,9 +346,8 @@ function after(hook, param)
         local fake = DEBUGGING[key]
         if fake == NOADB then
             fake = noadb(result)
-        elseif fake == '' and string.find(hook:getName(), '.default/', 1, true) then
-            -- Like a property which is not set: the default of get(key, default)
-            fake = param:getArgument(1)
+        elseif fake == '' then
+            fake = empty
         end
         if fake == result then
             return false

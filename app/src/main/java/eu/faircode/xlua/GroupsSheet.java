@@ -66,6 +66,7 @@ final class GroupsSheet {
     private final Map<String, List<XHook>> groups = new LinkedHashMap<>();
     private final Set<String> assigned = new HashSet<>();
     private final Set<String> before;
+    private int changes = 0; // See assign
 
     private final Map<String, View> rows = new HashMap<>();
     private final List<Runnable> sections = new ArrayList<>();
@@ -323,6 +324,23 @@ final class GroupsSheet {
         if (changed.isEmpty())
             return;
         final Context context = activity.getApplicationContext();
-        host.background(() -> Data.assign(context, app, changed, assign));
+        final int started = ++changes;
+        host.background(() -> {
+            try {
+                Data.assign(context, app, changed, assign);
+            } finally {
+                // Also after an error, else the switches show the change which was not stored; a later change
+                // reloads after itself
+                XApp now = Data.getApp(context, app.packageName, app.uid);
+                activity.runOnUiThread(() -> {
+                    if (now != null && changes == started) {
+                        assigned.clear();
+                        for (XAssignment assignment : now.assignments)
+                            assigned.add(assignment.id);
+                        update();
+                    }
+                });
+            }
+        });
     }
 }

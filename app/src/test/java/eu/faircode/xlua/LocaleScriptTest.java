@@ -32,8 +32,9 @@ import org.luaj.vm2.Varargs;
 // is a stand-in (a stub in unit tests), java.util.Locale is the real one
 public class LocaleScriptTest {
     private static final String STUBS = String.join("\n",
-            "function hookof(class, method, count)",
-            "  return { getClassName = function(self) return class end,",
+            "function hookof(class, method, count, name)",
+            "  return { getName = function(self) return name or 'Hook/locale' end,",
+            "    getClassName = function(self) return class end,",
             "    getMethodName = function(self) return method end,",
             "    getParameterTypes = function(self) return { length = count or 1 } end }",
             "end",
@@ -141,6 +142,34 @@ public class LocaleScriptTest {
         assertTrue(keys.arg(2).toboolean());
         assertTrue(keys.arg(3).isnil());
         assertTrue(keys.arg(4).isnil());
+    }
+
+    // get(key, default) gives the default for a property which is not set or empty: that stays, and an empty fake
+    // becomes the default, also null
+    @Test
+    public void propertiesWithDefault() throws Exception {
+        Globals globals = load();
+        Varargs result = Scripts.run(globals,
+                "local function prop(key, value, default)\n" +
+                        "  local param = paramof(value, { [0] = key, [1] = default })\n" +
+                        "  local restricted = after(hookof('android.os.SystemProperties', 'get', 2, " +
+                        "'SystemProperties.get.default/locale'), param)\n" +
+                        "  return restricted, param.result\n" +
+                        "end\n" +
+                        "local a, b = prop('persist.sys.locale', 'd', 'd')\n" +
+                        "local c, d = prop('ro.csc.sales_code', 'XEF', 'd')\n" +
+                        "local e, f = prop('ro.csc.sales_code', 'XEF', nil)\n" +
+                        "local g, h = prop('persist.sys.locale', 'de-DE', 'd')\n" +
+                        "return a, b, c, d, e, f, g, h");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals("d", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("d", result.arg(4).tojstring());
+        assertTrue(result.arg(5).toboolean());
+        assertTrue(result.arg(6).isnil());
+        assertEquals("en-US", result.arg(8).tojstring());
+        // The same rule as systemproperties_get
+        assertEquals(Scripts.function("systemproperties_get", "unset"), Scripts.function("locale", "unset"));
     }
 
     // Once when installed: the defaults by LocaleList.setDefault, and user.locale

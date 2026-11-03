@@ -79,9 +79,11 @@ final class Data {
         return result;
     }
 
-    // The usage of hooks collected by the engine, see XCore.flush
-    static void report(Context context, Bundle args) {
-        call(context, "report", args);
+    // The usage of hooks collected by the engine, in one call, see XCore.flush
+    static void reports(Context context, ArrayList<Bundle> reports) {
+        Bundle args = new Bundle();
+        args.putParcelableArrayList("reports", reports);
+        call(context, "reports", args);
     }
 
     // No rows is an answer; no cursor is a failed or refused query, which must not look like empty data, see call
