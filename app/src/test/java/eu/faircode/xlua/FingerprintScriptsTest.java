@@ -309,7 +309,8 @@ public class FingerprintScriptsTest {
                 "local function path(p) return { getArgument = function(self) return p end } end\n" +
                 "return text, count, config(path('/system/etc/fonts.xml')), config(path('/product/etc/fonts_customization.xml')),\n" +
                 "  config(path('/system/etc/font_fallback.xml')), config(path('/data/user/0/app/files/fonts.xml')),\n" +
-                "  config(path('/system/etc/hosts'))");
+                "  config(path('/system/etc/hosts')), config(path('/data/user/0/app/etc/fonts.xml')),\n" +
+                "  config(path('/my_product/etc/fonts_customization.xml'))");
         String text = result.arg1().tojstring();
         assertEquals(1, result.arg(2).toint());
         assertTrue(text.contains("Roboto-Regular.ttf"));
@@ -322,6 +323,9 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(5).toboolean());
         assertFalse(result.arg(6).toboolean());
         assertFalse(result.arg(7).toboolean());
+        // A configuration of an app's own is not of the system; partitions of device makers are
+        assertFalse(result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
     }
 
     @Test
@@ -372,15 +376,17 @@ public class FingerprintScriptsTest {
                         "end\n" +
                         "local function uri(authority) return { getAuthority = function(self) return authority end } end\n" +
                         "local function cursor()\n" +
-                        "  local data = { { '1', 52.5, 13.4 } }\n" +
-                        "  local names = { 'title', 'latitude', 'longitude' }\n" +
+                        "  local data = { { '1', 52.5, 13.4, '1700000000000' } }\n" +
+                        "  local names = { 'title', 'latitude', 'longitude', 'datetaken' }\n" +
                         "  local position = -1\n" +
                         "  return { getColumnIndex = function(self, n) for i, c in ipairs(names) do if c == n then return i - 1 end end return -1 end,\n" +
-                        "    getColumnNames = function(self) return { length = 3 } end, getPosition = function(self) return position end,\n" +
+                        "    getColumnNames = function(self) return { length = 4 } end, getPosition = function(self) return position end,\n" +
                         "    moveToPosition = function(self, p) position = p end,\n" +
                         "    moveToNext = function(self) position = position + 1 return position < #data end,\n" +
-                        "    getType = function(self, i) return i == 0 and 3 or 2 end,\n" +
+                        "    getType = function(self, i) return (i == 0 and 3) or (i == 3 and 1) or 2 end,\n" +
                         "    getString = function(self, i) return data[position + 1][i + 1] end,\n" +
+                        // A long as a Lua number, which would come back as a double
+                        "    getLong = function(self, i) return 1.7e12 end,\n" +
                         "    getDouble = function(self, i) return data[position + 1][i + 1] end, close = function(self) end }\n" +
                         "end\n" +
                         "local media = paramof(cursor(), { [0] = uri('media') })\n" +
@@ -388,7 +394,8 @@ public class FingerprintScriptsTest {
                         "return restricted, table.concat(media.result.rows[1], ','),\n" +
                         "  after(hookof('query'), paramof(cursor(), { [0] = uri('com.android.contacts') }))");
         assertTrue(result.arg1().toboolean());
-        assertEquals("1,NULL,NULL", result.arg(2).tojstring());
+        // Whole numbers keep their exact digits, like a date in milliseconds
+        assertEquals("1,NULL,NULL,1700000000000", result.arg(2).tojstring());
         assertFalse(result.arg(3).toboolean());
     }
 

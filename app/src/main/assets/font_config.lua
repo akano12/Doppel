@@ -69,6 +69,12 @@ end
 -- Whether the hooked method opened one of the files in a etc folder of a partition
 function config(param)
     local path = tostring(param:getArgument(0))
+    -- Of the system only, not a configuration an app keeps itself
+    local partition = string.match(path, '^/([^/]+)/')
+    if partition == nil or not (partition == 'system' or partition == 'product' or partition == 'system_ext' or
+            partition == 'vendor' or partition == 'odm' or partition == 'oem' or string.find(partition, '^my_')) then
+        return false
+    end
     for _, file in ipairs(FILES) do
         if string.sub(path, -string.len(file) - 5) == '/etc/' .. file or
                 string.match(path, '/etc/fonts/' .. string.gsub(file, '%.', '%%.') .. '$') then

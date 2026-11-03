@@ -57,7 +57,8 @@ function query(param)
             if hidden[index] or kind == 0 then
                 value = nil
             elseif kind == 1 then
-                value = result:getLong(index)
+                -- The exact digits: a Lua number above 2^31 would come back as a double, like 1.7E12 for a date
+                value = result:getString(index)
             elseif kind == 2 then
                 value = result:getDouble(index)
             elseif kind == 4 then
