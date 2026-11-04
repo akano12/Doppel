@@ -611,12 +611,17 @@ public class FileScriptsTest {
                         "  run('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', 'readlink', id),\n" +
                         "  run('Read.Identifiers', 'android.system.Os', 'readlink', id),\n" +
                         "  run('Read.Identifiers', 'java.io.UnixFileSystem', 'createFileExclusively', id),\n" +
-                        "  run('Use.Tracking', 'java.io.UnixFileSystem', 'createFileExclusively', '/sys/devices/system/chip-id/product_id')");
+                        "  run('Use.Tracking', 'java.io.UnixFileSystem', 'createFileExclusively', '/sys/devices/system/chip-id/product_id'),\n" +
+                        "  run('Read.Debugging', 'java.io.UnixFileSystem', 'createFileExclusively', '/system/xbin/su'),\n" +
+                        "  run('Read.Debugging', 'java.io.UnixFileSystem', 'createFileExclusively', '/data/local/su')");
         assertEquals("sun.nio.fs.UnixException:2", result.arg(1).tojstring());
         assertEquals("sun.nio.fs.UnixException:2", result.arg(2).tojstring());
         assertEquals("android.system.ErrnoException:readlink", result.arg(3).tojstring());
         assertEquals("java.io.IOException:Permission denied", result.arg(4).tojstring());
         assertEquals("java.io.IOException:No such file or directory", result.arg(5).tojstring());
+        // On a read-only partition the kernel answers EROFS before the permissions
+        assertEquals("java.io.IOException:Read-only file system", result.arg(6).tojstring());
+        assertEquals("java.io.IOException:Permission denied", result.arg(7).tojstring());
     }
 
     // The hooks see a file which does not exist: an error of the kernel, no attributes or no names
@@ -764,12 +769,14 @@ public class FileScriptsTest {
     }
 
     // The filter of the hooks (XCore.Filter, which compares the path as the app gives it) lets the script run for
-    // paths with /./ or //, which the script resolves, and for the folders of su, of which File.list leaves su out
+    // paths with /./, // or (to su and Magisk) /../, which the script resolves, and for the folders of su, of which
+    // File.list leaves su out
     @Test
     public void hardwareFilterOfOtherPaths() throws Exception {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
         String[][] cases = {
-                {"Read.Debugging", "/system/./bin/./su", "/./sbin/./su", "/system//xbin/su", "/system/xbin", "/sbin"},
+                {"Read.Debugging", "/system/./bin/./su", "/./sbin/./su", "/system//xbin/su", "/system/xbin", "/sbin",
+                        "/vendor/../data/adb", "/vendor/../system/app/Superuser.apk"},
                 {"Use.Tracking", "/proc//scsi/scsi", "/proc/bus/./input/devices", "/sys/devices/system/chip-id"},
                 {"Read.Identifiers", "/sys/./devices/system/chip-id/unique_id", "/.//sys/block/mmcblk0/device/cid"},
                 {"Read.Network", "/proc/./net/arp"}};

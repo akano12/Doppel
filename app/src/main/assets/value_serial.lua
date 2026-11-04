@@ -25,6 +25,9 @@ function after(hook, param)
     if fake == nil then
         fake = 'unknown'
     end
+    if result == fake then
+        return false
+    end
 
     param:setResult(fake)
     return true, result, fake

@@ -86,7 +86,7 @@ Installation
 ------------
 
 Doppel needs Android 8.1 or later and a rooted device with an Xposed framework.
-It uses the [modern Xposed API](https://github.com/libxposed/api) when the framework has it, else the legacy API.
+It uses the [modern Xposed API](https://github.com/libxposed/api) (version 101 or later) when the framework has it, else the legacy API.
 
 1. Root the device, like with [Magisk](https://topjohnwu.github.io/Magisk/install.html)
 2. Install and activate an Xposed framework: [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork
@@ -180,7 +180,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Get applications**: hide other apps, their components, widgets, install sessions and usage statistics, keyboards
   and accessibility services, also in the permission files of system apps; hidden apps cannot be reached
 * **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
-* **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable
+* **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable; the files of su and Magisk do not exist
 * **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers; the feature and permission files of the system do not exist
 * **Read device settings**: the values of a new device, like the animation scale and the screen timeout
 * **Read memory and storage**: sizes rounded like devices are sold, free space rounded down, and the memory apps may
@@ -266,12 +266,29 @@ With [Android Studio](https://developer.android.com/studio), or from the command
 ```
 ./gradlew assembleDebug        # debug build
 ./gradlew assembleRelease      # release build, signed when keystore.properties exists
-./gradlew testDebugUnitTest    # checks the hook definitions and scripts
-./gradlew assembleDebugAndroidTest  # the tests on a device: the database upgrades, and a restore with Doppel active
+./gradlew testDebugUnitTest    # the hook definitions, the scripts, the service and the backup, on the JVM
+./gradlew assembleDebugAndroidTest  # the tests on a device: database upgrades, service writes and fake files;
+                               # assignments and a restore need Doppel active, else they are skipped
 adb install -r -t app/build/outputs/apk/androidTest/debug/*.apk    # with the debug build installed, then:
 adb shell am instrument -w sk.akano12.doppel.test/androidx.test.runner.AndroidJUnitRunner
 scripts/check-service.sh       # on a rooted device or emulator with Doppel: whom the service answers
 ```
+
+How the code fits together (package `eu.faircode.xlua`, kept from XPrivacyLua):
+
+* Entry points: `XLuaModule` for the modern API (*META-INF/xposed/java_init.list*), `XLua` for the legacy API
+  (*assets/xposed_init*); both hand over to `XCore`, through `ModernBackend` or `LegacyBackend`.
+* The service runs in system server: `XCore.hookSettings` hooks `call` and `query` of the settings provider, which
+  `XProvider` answers, with its database (`XDatabase`) in */data/system/xlua*. `XProvider.answers` decides who gets
+  answers: system server, Doppel itself and restricted apps for their own data; other apps get the answers of a
+  device without Doppel. `scripts/check-service.sh` checks this on a device.
+* In each app in the scope, `XCore` asks the service (`Data`) for the hooks assigned to the app and installs them
+  before the app's own code runs. A hook is a definition of [hooks.json](app/src/main/assets/hooks.json) with a Lua
+  script of *app/src/main/assets*, run by the LuaJ copy in *org.luaj* with `XHook` and `XParam`, see
+  [DEFINE.md](docs/DEFINE.md). The definitions of Downloads (*repo*) are packaged as *assets/repo*.
+* The screens (`Activity*`, `Fragment*`) use the service through `Data` too.
+* The unit tests run the scripts with Lua stand-ins for Android objects (`Scripts`) and check every definition
+  against the SDK (`HookDefinitionsTest`); a new or changed hook needs a test there.
 
 Not `./gradlew connectedDebugAndroidTest`: it uninstalls Doppel afterwards, which removes its restrictions, settings and LSPosed scope.
 

@@ -36,6 +36,9 @@ check "shell cannot read the settings of apps" \
     "$(shell content query --uri $URI --projection xlua.getSettings --where x)" "IllegalArgumentException"
 check "shell cannot put a setting" "$(shell content call --uri $URI --method xlua --arg putSetting \
     --extra user:i:0 --extra category:s:$CATEGORY --extra name:s:check --extra value:s:written)" "Result: null"
+# The one call apps may make without the permission of the app, for usage reports, only with assignments
+check "shell cannot report usage" "$(shell content call --uri $URI --method xlua --arg reports \
+    --extra user:i:0)" "Result: null"
 settings=$(shell "su 1000 -c 'content query --uri $URI --projection xlua.getAllSettings'")
 # Only a read which worked tells: its rows, or none on a device without settings
 if ! printf '%s' "$settings" | grep -q "^Row: \|^No result found"; then

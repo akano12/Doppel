@@ -45,6 +45,10 @@ function filter(hook)
 end
 
 function after(hook, param)
+    -- What throws, like canAuthenticate without the permission USE_BIOMETRIC, throws on a device without the hardware too
+    if param:getException() ~= nil then
+        return false
+    end
     local method = hook:getMethodName()
 
     if method == 'getSystemService' then

@@ -137,6 +137,16 @@ function unset(hook, param)
     return ''
 end
 
+-- Whether a property is set: the getters with a default give it for a property which is not set, but also when the
+-- property has that value, so an app could confirm a guess, like of the model or ro.debuggable, by passing it as the
+-- default. get(key) without the hooks gives '' when it is not set. An error counts as set, which fakes the value.
+function isset(param, key)
+    local ok, value = pcall(param.unhooked, param, function()
+        return luajava.bindClass('android.os.SystemProperties'):get(key)
+    end)
+    return not ok or value ~= ''
+end
+
 -- Only the properties run the script of the property hooks (see XCore.getFilter)
 function filter(hook)
     if hook:getClassName() ~= 'android.os.SystemProperties' then
@@ -230,7 +240,7 @@ function after(hook, param)
         local result = param:getResult()
         local empty = unset(hook, param)
         local fake = fakeproperty(param, param:getArgument(0))
-        if fake == nil or result == nil or result == '' or result == empty then
+        if fake == nil or result == nil or result == '' or (result == empty and not isset(param, param:getArgument(0))) then
             return false
         end
         if fake == '' then

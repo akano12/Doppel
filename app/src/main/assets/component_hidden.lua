@@ -18,9 +18,9 @@
 -- Apps talk to each other through services, screens and broadcasts they name, like an app binding the service
 -- of another app for the account signed in. The components of the apps which Get.Applications hides (see
 -- package_probe and provider_hidden) cannot be reached, like for an app which is not installed: binding a service
--- fails, starting one finds none, starting a screen throws ActivityNotFoundException, a broadcast to the package
--- is not sent and an ordered one reaches no receiver. Intents which name no package or component are resolved by
--- Android, so they stay.
+-- fails, starting one finds none, stopping one stops none, starting a screen throws ActivityNotFoundException,
+-- a broadcast to the package is not sent and an ordered one reaches no receiver. Intents which name no package or
+-- component are resolved by Android, so they stay.
 
 -- The package an intent names, by its component or its package, nil when it names none; Android resolves an
 -- intent which names none by its selector, if it has one
@@ -45,13 +45,19 @@ function hidden(param, intent)
     return packageName ~= nil and not param:isPackageVisible(packageName), packageName
 end
 
--- The error of Android for a screen which is not found
+-- The error of Android for a screen which is not found (Instrumentation.checkStartActivityResult),
+-- of which the hint about the intent filter came with Android 13
 function notfound(intent)
     local component = intent:getComponent()
     local message
     if component ~= nil then
         message = 'Unable to find explicit activity class ' .. component:toShortString() ..
-                '; have you declared this activity in your AndroidManifest.xml, or does your intent not match its declared <intent-filter>?'
+                '; have you declared this activity in your AndroidManifest.xml'
+        if luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 33 then
+            message = message .. ', or does your intent not match its declared <intent-filter>?'
+        else
+            message = message .. '?'
+        end
     else
         message = 'No Activity found to handle ' .. intent:toString()
     end
@@ -92,8 +98,9 @@ function before(hook, param)
         return false
     end
 
-    -- bindService, bindIsolatedService and bindServiceAsUser
-    if string.find(method, '^bind') then
+    -- bindService, bindIsolatedService and bindServiceAsUser; stopService and stopServiceAsUser, of which Android
+    -- would stop a running service of the app or refuse one which is not exported, but finds none of a missing app
+    if string.find(method, '^bind') or string.find(method, '^stop') then
         param:setResult(false)
     elseif string.find(method, '^start%a*Service') then
         -- startService, startForegroundService and their AsUser variants

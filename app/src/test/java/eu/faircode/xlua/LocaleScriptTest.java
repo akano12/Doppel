@@ -150,7 +150,9 @@ public class LocaleScriptTest {
     public void propertiesWithDefault() throws Exception {
         Globals globals = load();
         Varargs result = Scripts.run(globals,
-                "local function prop(key, value, default)\n" +
+                "local props = {}\n" +
+                        "isset = function(param, key) return props[key] ~= nil end\n" +
+                        "local function prop(key, value, default)\n" +
                         "  local param = paramof(value, { [0] = key, [1] = default })\n" +
                         "  local restricted = after(hookof('android.os.SystemProperties', 'get', 2, " +
                         "'SystemProperties.get.default/locale'), param)\n" +
@@ -160,7 +162,10 @@ public class LocaleScriptTest {
                         "local c, d = prop('ro.csc.sales_code', 'XEF', 'd')\n" +
                         "local e, f = prop('ro.csc.sales_code', 'XEF', nil)\n" +
                         "local g, h = prop('persist.sys.locale', 'de-DE', 'd')\n" +
-                        "return a, b, c, d, e, f, g, h");
+                        // Set to the guessed default: still faked, else the default would confirm the guess
+                        "props['persist.sys.locale'] = 'd'\n" +
+                        "local i, j = prop('persist.sys.locale', 'd', 'd')\n" +
+                        "return a, b, c, d, e, f, g, h, i, j");
         assertFalse(result.arg(1).toboolean());
         assertEquals("d", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
@@ -168,8 +173,11 @@ public class LocaleScriptTest {
         assertTrue(result.arg(5).toboolean());
         assertTrue(result.arg(6).isnil());
         assertEquals("en-US", result.arg(8).tojstring());
+        assertTrue(result.arg(9).toboolean());
+        assertEquals("en-US", result.arg(10).tojstring());
         // The same rule as systemproperties_get
         assertEquals(Scripts.function("systemproperties_get", "unset"), Scripts.function("locale", "unset"));
+        assertEquals(Scripts.function("systemproperties_get", "isset"), Scripts.function("locale", "isset"));
     }
 
     // Once when installed: the defaults by LocaleList.setDefault, and user.locale

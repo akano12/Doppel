@@ -30,7 +30,7 @@ local TRANSPORTS = { [0] = 'CELLULAR', [1] = 'WIFI', [7] = 'BLUETOOTH', [9] = 'E
 local nested = {}
 
 function isvpninterface(name)
-    if name == nil then
+    if type(name) ~= 'string' then
         return false
     end
     for _, prefix in ipairs({ 'tun', 'ppp', 'tap', 'ipsec', 'wg', 'utun', 'l2tp', 'pptp', 'vpn' }) do
@@ -132,8 +132,12 @@ function after(hook, param)
         return false
     end
     nested.running = true
-    local restricted, old, new = restrict(hook, param)
+    -- The runtime stays after an error (see XCore), which must not leave the guard set
+    local ok, restricted, old, new = pcall(restrict, hook, param)
     nested.running = nil
+    if not ok then
+        error(restricted, 0)
+    end
     return restricted, old, new
 end
 
@@ -219,15 +223,23 @@ function restrict(hook, param)
     elseif method == 'toString' and (hook:getClassName() == 'android.net.LinkProperties' or
             hook:getClassName() == 'android.net.RouteInfo') then
         -- The interface name of a VPN, also in the routes, like getInterfaceName;
-        -- the name is a word, like in "-> 0.0.0.0 tun0 mtu"
+        -- the name is a word, like in "-> 0.0.0.0 tun0 mtu", and ends the text of a route before Android 11
         if result ~= nil then
-            local name = string.match(result, 'InterfaceName: (%S+)') or string.match(result, ' (%S+) mtu ')
+            local name = string.match(result, 'InterfaceName: (%S+)') or string.match(result, ' (%S+) mtu ') or
+                    (hook:getClassName() == 'android.net.RouteInfo' and string.match(result, ' (%S+)$'))
             if isvpninterface(name) then
                 local other = underlyinginterface(param)
-                local fake = string.gsub(result, '([^%w])' .. string.gsub(name, '%p', '%%%0') .. '([^%w])',
+                -- A space after the text makes a name at its end a word too
+                local fake = string.gsub(result .. ' ', '([^%w])' .. string.gsub(name, '%p', '%%%0') .. '([^%w])',
                         function(before, after)
                             return before .. other .. after
                         end)
+                fake = string.sub(fake, 1, -2)
+                -- The addresses and DNS servers of the tunnel are empty, like their getters (see vpn_addresses);
+                -- the text of Android 10 and later has spaces inside the brackets
+                for _, label in ipairs({ 'LinkAddresses', 'DnsAddresses' }) do
+                    fake = string.gsub(fake, '([^%w]' .. label .. ': %[)( ?)[^%]]*%]', '%1%2]')
+                end
                 param:setResult(fake)
                 return true, result, fake
             end

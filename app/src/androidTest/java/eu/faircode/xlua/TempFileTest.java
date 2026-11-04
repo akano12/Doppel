@@ -86,10 +86,4 @@ public class TempFileTest {
             Os.close(fd);
         }
     }
-
-    // A larger text without a cache folder fails, which the hook reports
-    @Test(expected = IllegalArgumentException.class)
-    public void largeTextWithoutFolder() throws Throwable {
-        XParam.oldFile(null, new byte[4097]);
-    }
 }

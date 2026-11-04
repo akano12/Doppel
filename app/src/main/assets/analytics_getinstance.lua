@@ -21,7 +21,12 @@
 -- a method missing in a version fails the call and the SDK stays as it is.
 local METHODS = {
     ['com.appsflyer.AppsFlyerLib'] = function(param, sdk)
-        sdk:stop(true, param:getApplicationContext())
+        -- stopTracking before version 6
+        if type(sdk.stop) == 'function' then
+            sdk:stop(true, param:getApplicationContext())
+        else
+            sdk:stopTracking(true, param:getApplicationContext())
+        end
     end,
     ['com.google.firebase.analytics.FirebaseAnalytics'] = function(param, sdk)
         sdk:setAnalyticsCollectionEnabled(false)
@@ -60,7 +65,7 @@ function declined(param)
 end
 
 -- Consent the app gives is replaced by none, like setAnalyticsCollectionEnabled: FirebaseAnalytics.setConsent,
--- and AdRegistration.setConsentStatus and Aps.setConsentStatus of Amazon
+-- and AdRegistration.setConsentStatus of Amazon (Aps has no consent setter of its own)
 local CONSENT = { setConsent = denied, setConsentStatus = declined }
 
 function before(hook, param)

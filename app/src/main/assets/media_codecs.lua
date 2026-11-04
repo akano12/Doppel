@@ -127,7 +127,12 @@ function after(hook, param)
     if result == nil or fakename(result) == result then
         return false
     end
-    local fakes = codecs(param)
+    local fakes, reals = codecs(param)
+    -- Already fake, like the name findDecoderForFormat and MediaCodec.getName get from the hooked getName and
+    -- getCanonicalName they call: a numbered one (hw2) would else become the fake name of another codec
+    if reals[result] ~= nil then
+        return false
+    end
     local fake = fakes[result] or fakename(result)
     param:setResult(fake)
     return true, result, fake

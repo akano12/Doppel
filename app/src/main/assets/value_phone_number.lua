@@ -22,6 +22,11 @@ function after(hook, param)
     end
 
     local fake = param:getSetting('value.phone_number')
+    -- Also the fake of the overload this one calls, like getLine1Number() calls getLine1Number(subId), which
+    -- reported it already
+    if result == fake then
+        return false
+    end
     param:setResult(fake)
     return true, result, fake
 end

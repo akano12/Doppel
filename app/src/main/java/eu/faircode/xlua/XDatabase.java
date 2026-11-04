@@ -228,7 +228,9 @@ class XDatabase {
             "WebView.constructor.15", "WebView.constructor.1a", "WebView.constructor.1b", "WebView.constructor.1c",
             "WebView.constructor.21", "WebView.constructor.23", "WebView.constructor.5",
             // getDefaultSensor picks from getSensorList, which is hooked
-            "SensorManager.getDefaultSensor", "SensorManager.getDefaultSensor/wakeup"
+            "SensorManager.getDefaultSensor", "SensorManager.getDefaultSensor/wakeup",
+            // Not in any version of the APS SDK; AdRegistration.setConsentStatus is hooked
+            "Aps.setConsentStatus"
     };
 
     // Settings of all users and apps which no script reads anymore, removed on each start, see upgrade

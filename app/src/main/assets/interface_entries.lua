@@ -25,7 +25,7 @@
 
 -- The interfaces of VPNs, the same as vpn, which a unit test checks
 function isvpninterface(name)
-    if name == nil then
+    if type(name) ~= 'string' then
         return false
     end
     for _, prefix in ipairs({ 'tun', 'ppp', 'tap', 'ipsec', 'wg', 'utun', 'l2tp', 'pptp', 'vpn' }) do

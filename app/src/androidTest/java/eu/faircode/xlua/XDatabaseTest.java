@@ -19,6 +19,7 @@
 
 package eu.faircode.xlua;
 
+import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
@@ -137,6 +138,142 @@ public class XDatabaseTest {
             db.close();
         }
         db = null;
+    }
+
+    // The schema of each former version, as its migrations made it, see XDatabase.MIGRATIONS
+    private static final String[][] SCHEMAS = new String[][]{
+            {"CREATE TABLE assignment (package TEXT NOT NULL, uid INTEGER NOT NULL, hook TEXT NOT NULL," +
+                    " installed INTEGER, used INTEGER, restricted INTEGER, exception TEXT)",
+                    "CREATE UNIQUE INDEX idx_assignment ON assignment(package, uid, hook)",
+                    "CREATE TABLE setting (user INTEGER, category TEXT NOT NULL, name TEXT NOT NULL, value TEXT)",
+                    "CREATE UNIQUE INDEX idx_setting ON setting(user, category, name)"},
+            {"CREATE TABLE hook (id TEXT NOT NULL, definition TEXT NOT NULL)",
+                    "CREATE UNIQUE INDEX idx_hook ON hook(id, definition)"},
+            {"ALTER TABLE assignment ADD COLUMN old TEXT",
+                    "ALTER TABLE assignment ADD COLUMN new TEXT",
+                    "CREATE INDEX idx_assignment_used ON assignment(used)"},
+            {"DROP INDEX idx_hook", "CREATE UNIQUE INDEX idx_hook ON hook(id)"},
+            {"CREATE TABLE `group` (package TEXT NOT NULL, uid INTEGER NOT NULL, name TEXT NOT NULL, used INTEGER)",
+                    "CREATE UNIQUE INDEX idx_group ON `group`(package, uid, name)"},
+            {"ALTER TABLE assignment ADD COLUMN assigned INTEGER"},
+            {"CREATE INDEX idx_assignment_uid ON assignment(uid)"}
+    };
+
+    // A database of each former version keeps its restrictions and settings and gets exactly the tables and
+    // indexes of a new one
+    @Test
+    public void upgradesEveryVersion() throws Throwable {
+        db = XDatabase.open(file);
+        String expected = db.read(XDatabaseTest::schema);
+        db.close();
+        db = null;
+        assertTrue(expected, expected.contains("idx_assignment_hook"));
+
+        for (int version = 1; version <= SCHEMAS.length; version++) {
+            SQLiteDatabase.deleteDatabase(file);
+            SQLiteDatabase old = SQLiteDatabase.openOrCreateDatabase(file, null);
+            for (int i = 0; i < version; i++)
+                for (String sql : SCHEMAS[i])
+                    old.execSQL(sql);
+            old.execSQL("INSERT INTO assignment (package, uid, hook, installed, used, restricted)" +
+                    " VALUES ('com.example', 10123, 'Privacy.Test.kept', 5, 6, 1)");
+            old.execSQL("INSERT INTO setting VALUES (0, 'com.example', 'value.email', 'a')");
+            old.setVersion(version);
+            old.close();
+
+            final int from = version;
+            db = XDatabase.open(file);
+            db.read(d -> {
+                assertEquals("From " + from, 8, d.getVersion());
+                assertEquals("From " + from, expected, schema(d));
+                try (Cursor c = d.rawQuery("SELECT hook, used FROM assignment", null)) {
+                    assertEquals("From " + from, 1, c.getCount());
+                    c.moveToFirst();
+                    assertEquals("Privacy.Test.kept", c.getString(0));
+                    assertEquals(6, c.getLong(1));
+                }
+                try (Cursor c = d.rawQuery("SELECT value FROM setting WHERE name = 'value.email'", null)) {
+                    assertTrue("From " + from, c.moveToFirst());
+                    assertEquals("a", c.getString(0));
+                }
+                return null;
+            });
+            db.close();
+            db = null;
+        }
+    }
+
+    // Version 3 could have a custom definition more than once, with different texts, and texts which cannot be
+    // read; the upgrade keeps one of each id and leaves out the others, else the database could never be opened
+    @Test
+    public void upgradeKeepsOneDefinitionOfEachId() throws Throwable {
+        SQLiteDatabase old = SQLiteDatabase.openOrCreateDatabase(file, null);
+        for (int i = 0; i < 3; i++)
+            for (String sql : SCHEMAS[i])
+                old.execSQL(sql);
+        String definition = "{\"collection\": \"Test\", \"group\": \"G\", \"name\": \"twice\", \"author\": \"%s\"," +
+                " \"className\": \"android.location.Location\", \"parameterTypes\": [], \"minSdk\": 26, \"luaScript\": \"\"}";
+        for (String sql : new String[]{String.format(definition, "One"), String.format(definition, "Two"), "{"}) {
+            ContentValues cv = new ContentValues();
+            cv.put("id", sql.equals("{") ? "Test.broken" : "Test.twice");
+            cv.put("definition", sql);
+            old.insertOrThrow("hook", null, cv);
+        }
+        old.setVersion(3);
+        old.close();
+
+        db = XDatabase.open(file);
+        db.read(d -> {
+            assertEquals(8, d.getVersion());
+            try (Cursor c = d.rawQuery("SELECT id, definition FROM hook", null)) {
+                assertEquals(1, c.getCount());
+                c.moveToFirst();
+                assertEquals("Test.twice", c.getString(0));
+                assertEquals("Test.twice", XHook.fromJSON(c.getString(1)).getId());
+            }
+            return null;
+        });
+    }
+
+    // The restriction of a renamed hook moves to the new name; an app which has the new one already keeps that one
+    @Test
+    public void renamedHooksKeepTheNewRestriction() throws Throwable {
+        String from = XHook.builtinId(XDatabase.RENAMED[0][0]);
+        String to = XHook.builtinId(XDatabase.RENAMED[0][1]);
+        db = XDatabase.open(file);
+        db.write(d -> {
+            d.execSQL("INSERT INTO assignment (package, uid, hook, used) VALUES ('com.moved', 10123, ?, 1)", new Object[]{from});
+            d.execSQL("INSERT INTO assignment (package, uid, hook, used) VALUES ('com.both', 10124, ?, 2)", new Object[]{from});
+            d.execSQL("INSERT INTO assignment (package, uid, hook, used) VALUES ('com.both', 10124, ?, 3)", new Object[]{to});
+            return null;
+        });
+        db.close();
+        db = XDatabase.open(file);
+        db.read(d -> {
+            try (Cursor c = d.rawQuery("SELECT package, hook, used FROM assignment ORDER BY package", null)) {
+                assertEquals(2, c.getCount());
+                c.moveToFirst();
+                assertEquals("com.both", c.getString(0));
+                assertEquals(to, c.getString(1));
+                assertEquals(3, c.getLong(2));
+                c.moveToNext();
+                assertEquals("com.moved", c.getString(0));
+                assertEquals(to, c.getString(1));
+                assertEquals(1, c.getLong(2));
+            }
+            return null;
+        });
+    }
+
+    // The tables and indexes with their definitions, without those of SQLite and Android
+    private static String schema(SQLiteDatabase d) {
+        StringBuilder sb = new StringBuilder();
+        try (Cursor c = d.rawQuery("SELECT type, name, sql FROM sqlite_master" +
+                " WHERE name NOT LIKE 'sqlite_%' AND name != 'android_metadata' ORDER BY type, name", null)) {
+            while (c.moveToNext())
+                sb.append(c.getString(0)).append(' ').append(c.getString(1)).append(": ").append(c.getString(2)).append('\n');
+        }
+        return sb.toString();
     }
 
     // Set.of is of Android 11 and later

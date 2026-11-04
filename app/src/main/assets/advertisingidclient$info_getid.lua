@@ -22,6 +22,10 @@ function after(hook, param)
     end
 
     local fake = '00000000-0000-0000-0000-000000000000'
+    -- Like after the user deleted the id, or limited ad tracking for AdId
+    if result == fake then
+        return false
+    end
     param:setResult(fake)
     return true, result, fake
 end

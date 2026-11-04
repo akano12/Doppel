@@ -339,8 +339,10 @@ public class XParam {
     static String plainPath(String path) {
         if (!path.contains("/.") && !path.contains("//") && !path.contains("/root/"))
             return path;
-        String plain = path.replaceAll("/(\\./)+", "/").replaceAll("//+", "/").replaceFirst("/\\.$", "")
-                .replaceFirst("^/proc/[\\w-]+/root/", "/");
+        String plain = path.replaceAll("/(\\./)+", "/").replaceAll("//+", "/").replaceFirst("/\\.$", "");
+        // Also the link of a thread (/proc/self/task/123/root/) and links after each other, which lead to the root too
+        for (String rooted = null; !plain.equals(rooted); )
+            plain = (rooted = plain).replaceFirst("^/proc/[\\w-]+/(task/\\d+/)?root/", "/");
         return (plain.isEmpty() ? "/" : plain);
     }
 

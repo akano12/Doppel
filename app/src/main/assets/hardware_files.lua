@@ -93,9 +93,10 @@ local FILES = {
     ['Get.Applications'] = { '/etc/permissions/privapp%-permissions%-[^/]*$' },
 }
 
--- The paths the script runs for, of the groups with files outside /sys (see filter); paths with /./ or // run it
--- too, since the filter compares the path as the app gives it, like /system/./xbin/su, which are rare. The folders
--- of su and of the codec files are there for listing them, like File.list of /system/xbin.
+-- The paths the script runs for, of the groups with files outside /sys (see filter); the filter also compares
+-- absolute paths without /./, // and the links of /proc to the root (XCore.getFilter), relative paths with them run
+-- it too, and so do paths with /../ to su and Magisk, like /vendor/../data/adb, which the prefixes do not match.
+-- The folders of su and of the codec files are there for listing them, like File.list of /system/xbin.
 local FILTERS = {
     ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*', '*/./*',
                          '*//*', '/system/etc', '/vendor/etc', '/odm/etc' },
@@ -104,7 +105,7 @@ local FILTERS = {
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',
                            '/sbin/*', '/su*', '/data/local/*', '/cache/su', '/dev/su', '/vendor/bin/*',
                            '/vendor/xbin/*', '/product/bin/*', '/system_ext/bin/*', '/odm/bin/*', '/debug_ramdisk*',
-                           '/data/adb*', '*bin/su*', '*magisk*', '*debug_ramdisk*', '*/./*', '*//*',
+                           '/data/adb*', '*bin/su*', '*magisk*', '*debug_ramdisk*', '*/./*', '*//*', '*/../*',
                            '/system/bin', '/system/xbin', '/sbin', '/data/local', '/cache', '/dev', '/vendor/bin',
                            '/vendor/xbin', '/product/bin', '/system_ext/bin', '/odm/bin', '/system/app' },
     ['Read.Features'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
@@ -113,7 +114,7 @@ local FILTERS = {
 
 -- Whether a network interface is of a VPN, like vpn and interface_entries, which a test compares
 function isvpninterface(name)
-    if name == nil then
+    if type(name) ~= 'string' then
         return false
     end
     for _, prefix in ipairs({ 'tun', 'ppp', 'tap', 'ipsec', 'wg', 'utun', 'l2tp', 'pptp', 'vpn' }) do
@@ -126,6 +127,9 @@ end
 
 -- The error of a file which does not exist, OsConstants.ENOENT, the same on every Linux
 local ENOENT = 2
+
+-- The partitions which are mounted read-only, like /system/xbin of su
+local READONLY = { system = true, vendor = true, product = true, system_ext = true, odm = true }
 
 -- The script runs for the files of /sys only (with net/ in the path for Read.Network and Read.VPN, see FILTERS for
 -- the others), also by other paths, like /proc/self/root/sys/..., /data/../sys/...
@@ -303,9 +307,16 @@ function before(hook, param)
         param:setResult(luajava.newInstance('android.system.ErrnoException', method, ENOENT))
     elseif class == 'java.io.UnixFileSystem' then
         if method == 'createFileExclusively' then
-            -- File.createNewFile: apps cannot make files in /sys, and not at all in a folder which does not exist
+            -- File.createNewFile: apps cannot make files in /sys, and not at all in a folder which does not exist;
+            -- the partitions of the system are mounted read-only, which the kernel checks first (EROFS)
             local folder = luajava.newInstance('java.io.File', path):getParent()
-            local reason = ((folder ~= nil and hidden(hook, folder)) and 'No such file or directory' or 'Permission denied')
+            local partition = string.match(unrooted(path), '^/([^/]+)/')
+            local reason = 'Permission denied'
+            if folder ~= nil and hidden(hook, folder) then
+                reason = 'No such file or directory'
+            elseif READONLY[partition] then
+                reason = 'Read-only file system'
+            end
             param:setResult(luajava.newInstance('java.io.IOException', reason))
         elseif method == 'list0' then
             -- File.list of a hidden folder: like of a folder which does not exist

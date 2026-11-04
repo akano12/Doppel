@@ -20,11 +20,14 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.net.Uri;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -32,10 +35,14 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -90,5 +97,72 @@ public class BackupRestoreTest {
             file.delete();
         }
         assertNull(Data.getSetting(context, "global", SETTING));
+    }
+
+    // An app every device has, like in AssignTest; it has no restrictions, else the test is skipped
+    private static final String PACKAGE = "com.android.settings";
+
+    // A backup restores what it saved: a setting and the restrictions of an app, removed after the backup.
+    // Only these are restored, from a copy of the backup without the rest, which are the data of the user.
+    @Test
+    public void restoresWhatItSaved() throws Throwable {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        assumeTrue("Module not running", Data.isAvailable(context));
+        ApplicationInfo ai;
+        try {
+            ai = context.getPackageManager().getApplicationInfo(PACKAGE, 0);
+        } catch (Throwable ex) {
+            assumeTrue("Not installed: " + PACKAGE, false);
+            return;
+        }
+        XApp app = Data.getApp(context, PACKAGE, ai.uid);
+        assumeTrue("Has restrictions: " + PACKAGE, app != null && app.assignments.isEmpty());
+
+        ArrayList<String> ids = new ArrayList<>(Arrays.asList("Privacy.WifiInfo.getSSID", "Privacy.WifiInfo.getBSSID"));
+        File file = new File(context.getCacheDir(), "roundtrip-test.json");
+        Uri uri = Uri.fromFile(file);
+        try {
+            Data.putSetting(context, "global", SETTING, "2");
+            assertEquals(2, Data.assignHooks(context, ids, PACKAGE, ai.uid, false, false, false));
+            Backup.save(context, uri);
+            Data.putSetting(context, "global", SETTING, null);
+            Data.clearApp(context, PACKAGE, ai.uid, false);
+
+            JSONObject saved = new JSONObject(Util.readText(context, uri));
+            JSONObject copy = new JSONObject();
+            copy.put("format", saved.getInt("format"));
+            copy.put("version", saved.getInt("version"));
+            assertTrue(saved.getJSONArray("builtins").length() > 0);
+            copy.put("builtins", saved.getJSONArray("builtins"));
+            copy.put("settings", new JSONArray());
+            JSONArray settings = saved.getJSONArray("settings");
+            for (int i = 0; i < settings.length(); i++)
+                if (SETTING.equals(settings.getJSONObject(i).getString("name")))
+                    copy.getJSONArray("settings").put(settings.getJSONObject(i));
+            copy.put("restrictions", new JSONArray());
+            JSONArray restrictions = saved.getJSONArray("restrictions");
+            for (int i = 0; i < restrictions.length(); i++)
+                if (PACKAGE.equals(restrictions.getJSONObject(i).getString("package")))
+                    copy.getJSONArray("restrictions").put(restrictions.getJSONObject(i));
+            assertEquals(1, copy.getJSONArray("settings").length());
+            assertEquals(1, copy.getJSONArray("restrictions").length());
+            Util.writeJson(context, uri, copy.toString());
+
+            Backup.Result result = Backup.restore(context, uri);
+            assertEquals(1, result.settings);
+            assertEquals(1, result.apps);
+            assertEquals(2, result.added);
+            assertEquals(0, result.failed + result.removed + result.renamed + result.completed);
+            assertEquals("2", Data.getSetting(context, "global", SETTING));
+            HashSet<String> restored = new HashSet<>();
+            for (XAssignment assignment : Data.getApp(context, PACKAGE, ai.uid).assignments)
+                restored.add(assignment.id);
+            assertEquals(new HashSet<>(ids), restored);
+        } finally {
+            Data.putSetting(context, "global", SETTING, null);
+            Data.clearApp(context, PACKAGE, ai.uid, false);
+            //noinspection ResultOfMethodCallIgnored
+            file.delete();
+        }
     }
 }

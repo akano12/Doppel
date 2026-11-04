@@ -160,6 +160,9 @@ public class ActivityHookEdit extends ActivityBase {
         swOptional = findViewById(R.id.swOptional);
         swUsage = findViewById(R.id.swUsage);
         swNotify = findViewById(R.id.swNotify);
+        // Tapping a row switches it, like the rows of Settings and of the screen of an app
+        for (MaterialSwitch sw : new MaterialSwitch[]{swEnabled, swOptional, swUsage, swNotify})
+            ((View) sw.getParent()).setOnClickListener(view -> sw.toggle());
         etScript = findViewById(R.id.etScript);
         tvCheck = findViewById(R.id.tvCheck);
         tvScriptInfo = findViewById(R.id.tvScriptInfo);

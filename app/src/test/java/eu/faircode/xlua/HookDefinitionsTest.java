@@ -56,6 +56,7 @@ import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -308,6 +309,7 @@ public class HookDefinitionsTest {
             "Branch.isTrackingDisabled/context", "Singular.isAllTrackingStopped",
             "FirebaseAnalytics.getInstance", "GoogleAnalytics.getInstance/optout", "AdRegistration.getInstance",
             "FirebaseCrashlytics.getInstance", "AppsFlyerLib.getInstance", "SegmentAnalytics.build",
+            "MixpanelAPI.hasOptedOutTracking",
             "GL10.glGetString", "EGL10.eglQueryString", "RadarJobScheduler.onStartJob"));
 
     @Test
@@ -570,15 +572,17 @@ public class HookDefinitionsTest {
             assertEquals("Settings of " + script, read.get(script), declared.get(script));
     }
 
-    // Framework hooks must exist in the SDK the app is compiled against,
-    // unless they are optional, hidden or limited to older versions
+    // Framework hooks must exist in the SDK the app is compiled against, unless they are optional or hidden;
+    // hooks of java, sun and libcore are of ART, which the JVM of the tests does not have
     @Test
     public void frameworkMembersExist() throws Exception {
         int sdk = compileSdk();
         int checked = 0;
         List<String> errors = new ArrayList<>();
         for (JSONObject hook : hooks)
-            if (isFramework(hook, sdk)) {
+            // Also the hooks of older versions only: the SDK keeps methods it deprecates, so one removed from it
+            // would need to be optional
+            if (isFramework(hook, sdk) || (hook.optInt("maxSdk", 999) < sdk && isFramework(hook, hook.getInt("maxSdk")))) {
                 checked++;
                 resolve(hook, errors);
             }
@@ -619,9 +623,17 @@ public class HookDefinitionsTest {
                 Field field = XResolver.resolveField(cls, methodName.substring(1), null);
                 if (returnType != null && !field.getType().equals(returnType))
                     errors.add(name + ": field type " + field.getType().getName() + " not " + returnName);
-            } else if (methodName.contains(":"))
-                XResolver.resolveField(cls, methodName.split(":")[0], null);
-            else {
+            } else if (methodName.contains(":")) {
+                // Like XResolver.resolveTarget: the method of the object in a static field, like CREATOR:createFromParcel;
+                // the stubs have no such objects, so the method of the type of the field
+                String[] m = methodName.split(":");
+                Field field = cls.getField(m[0]);
+                if (!java.lang.reflect.Modifier.isStatic(field.getModifiers()))
+                    errors.add(name + ": field " + m[0] + " not static");
+                Method method = findMethod(field.getType(), m[1], params);
+                if (returnType != null && !method.getReturnType().isAssignableFrom(returnType))
+                    errors.add(name + ": return type " + method.getReturnType().getName() + " not " + returnName);
+            } else {
                 Method method = findMethod(cls, methodName, params);
                 if (returnType != null && !method.getReturnType().isAssignableFrom(returnType))
                     errors.add(name + ": return type " + method.getReturnType().getName() + " not " + returnName);
@@ -884,6 +896,39 @@ public class HookDefinitionsTest {
                 "@generic_false_argument 27- optional");
     }
 
+    // Mixpanel by its opt-out, which also stops what the track hooks do not; stored crash reports are not sent;
+    // Aps of Amazon has no setConsentStatus in any version (9.10 to 12), only AdRegistration has
+    @Test
+    public void analyticsByEveryWayToSend() throws Exception {
+        check("MixpanelAPI.hasOptedOutTracking", "com.mixpanel.android.mpmetrics.MixpanelAPI hasOptedOutTracking() " +
+                "@generic_true_value 27- optional");
+        check("FirebaseCrashlytics.sendUnsentReports", "com.google.firebase.crashlytics.FirebaseCrashlytics " +
+                "sendUnsentReports() @generic_block 27- optional");
+        assertNull(hook("Aps.setConsentStatus"));
+    }
+
+    // The satellites of the deprecated GpsStatus listener, like those of GnssStatus
+    @Test
+    public void satellitesByEveryListener() throws Exception {
+        check("LocationManager.addGpsStatusListener", "android.location.LocationManager " +
+                "addGpsStatusListener(android.location.GpsStatus$Listener) @generic_block 27-");
+    }
+
+    // getLatLong, getAltitude and getGpsDateTime of ExifInterface read the GPS tags with the readers of tags,
+    // whose hooks hide them first, so these must report or the location of photos is never in the log
+    @Test
+    public void photoLocationIsReported() throws Exception {
+        int readers = 0;
+        for (JSONObject hook : hooks)
+            if ("@photo_location".equals(hook.getString("luaScript")) &&
+                    hook.optString("methodName").startsWith("getAttribute")) {
+                readers++;
+                assertTrue(hook.getString("name"), hook.optBoolean("usage", true));
+            }
+        assertEquals(11, readers);
+        assertTrue(hook("MediaMetadataRetriever.extractMetadata").optBoolean("usage", true));
+    }
+
     // The entries of getifaddrs, which NetworkInterface reads, for each group of its hooks (see interface_entries)
     @Test
     public void interfaceEntriesForEachGroup() throws Exception {
@@ -899,8 +944,11 @@ public class HookDefinitionsTest {
         String t = "android.telecom.TelecomManager ";
         // The id of a SIM account is its serial number (ICC ID) until Android 13
         check("TelecomManager.getCallCapablePhoneAccounts", t + "getCallCapablePhoneAccounts() @generic_empty 27-32");
+        // Hidden, which apps for Android 9 and before can call; getUserSelectedOutgoingPhoneAccount without a permission
+        check("TelecomManager.getCallCapablePhoneAccounts/disabled", t + "getCallCapablePhoneAccounts(boolean) @generic_empty 27-32 optional");
+        check("TelecomManager.getSimCallManager/user", t + "getSimCallManager(int) @generic_null_value 27-32 optional");
         check("TelecomManager.getDefaultOutgoingPhoneAccount", t + "getDefaultOutgoingPhoneAccount(java.lang.String) @generic_null_value 27-32");
-        check("TelecomManager.getUserSelectedOutgoingPhoneAccount", t + "getUserSelectedOutgoingPhoneAccount() @generic_null_value 29-32");
+        check("TelecomManager.getUserSelectedOutgoingPhoneAccount", t + "getUserSelectedOutgoingPhoneAccount() @generic_null_value 27-32");
         check("TelecomManager.getSimCallManager", t + "getSimCallManager() @generic_null_value 27-32");
         check("TelephonyManager.getPhoneAccountHandle", "android.telephony.TelephonyManager getPhoneAccountHandle() @generic_null_value 31-32");
         // The number of a SIM is the address of its phone account
@@ -911,8 +959,10 @@ public class HookDefinitionsTest {
         // The name of the own device of Wi-Fi Direct
         check("WifiP2pDevice.createFromParcel", "android.net.wifi.p2p.WifiP2pDevice CREATOR:createFromParcel(android.os.Parcel) " +
                 "@wifip2pdevice_name 27-");
-        // The network access identifier, which only Android 9 gives to apps with the phone state permission
-        check("TelephonyManager.getNai", "android.telephony.TelephonyManager getNai() @generic_null_value 28-28");
+        // The network access identifier, which Android 9 and before give to apps with the phone state permission, also
+        // by the hidden methods
+        check("TelephonyManager.getNai", "android.telephony.TelephonyManager getNai() @generic_null_value 27-28");
+        check("TelephonyManager.getNai/slot", "android.telephony.TelephonyManager getNai(int) @generic_null_value 27-28 optional");
         // Media sessions of other apps, which notification listeners get
         String m = "android.media.session.MediaSessionManager ";
         check("MediaSessionManager.getActiveSessions", m + "getActiveSessions(android.content.ComponentName) @generic_empty 27-");
@@ -933,9 +983,9 @@ public class HookDefinitionsTest {
                 "android.content.ComponentName," + l + ") @generic_block 37-");
         // Install sessions and package changes name other apps
         String i = "android.content.pm.PackageInstaller ";
-        check("PackageInstaller.getAllSessions", i + "getAllSessions() @generic_empty 27-");
+        check("PackageInstaller.getAllSessions", i + "getAllSessions() @install_sessions 27-");
         check("PackageInstaller.getStagedSessions", i + "getStagedSessions() @generic_empty 29-");
-        check("PackageInstaller.getSessionInfo", i + "getSessionInfo(int) @generic_null_value 27-");
+        check("PackageInstaller.getSessionInfo", i + "getSessionInfo(int) @install_sessions 27-");
         check("PackageInstaller.registerSessionCallback", i + "registerSessionCallback(" +
                 "android.content.pm.PackageInstaller$SessionCallback) @generic_block 27-");
         check("PackageInstaller.registerSessionCallback/handler", i + "registerSessionCallback(" +
@@ -1002,6 +1052,16 @@ public class HookDefinitionsTest {
                 "@generic_empty 27- optional");
     }
 
+    // From Android 14 QPR2, still SDK 34, the recognizer of apps is a SpeechRecognizerProxy which calls a
+    // SpeechRecognizerImpl; the methods of SpeechRecognizer itself only throw then
+    @Test
+    public void speechRecognizerImplFromAndroid14() throws Exception {
+        check("SpeechRecognizerImpl.startListening", "android.speech.SpeechRecognizerImpl startListening(" +
+                "android.content.Intent) @speech_recognizer 34- optional");
+        check("SpeechRecognizerImpl.setRecognitionListener", "android.speech.SpeechRecognizerImpl setRecognitionListener(" +
+                "android.speech.RecognitionListener) @speech_recognizer 34- optional");
+    }
+
     // The clipboard of the app is read by the clipboard manager; data of a parcel is also of drag and drop and of
     // intents, like the app's own drags, which are not the clipboard
     @Test
@@ -1042,6 +1102,19 @@ public class HookDefinitionsTest {
                 "@generic_filter_by_uid 33- optional");
         check("PackageManager.isPackageAvailable", "android.content.pm.PackageManager isPackageAvailable(" + s +
                 ") @package_probe 27- optional");
+        // Key sets, which Android throws for when the package is not installed, and stopping a service
+        check("PackageManager.getKeySetByAlias", "android.content.pm.PackageManager getKeySetByAlias(" + s + "," + s +
+                ") @package_probe 27- optional");
+        check("PackageManager.getSigningKeySet", "android.content.pm.PackageManager getSigningKeySet(" + s +
+                ") @package_probe 27- optional");
+        check("PackageManager.isSignedBy", "android.content.pm.PackageManager isSignedBy(" + s +
+                ",android.content.pm.KeySet) @package_probe 27- optional");
+        check("PackageManager.isSignedByExactly", "android.content.pm.PackageManager isSignedByExactly(" + s +
+                ",android.content.pm.KeySet) @package_probe 27- optional");
+        check("Context.stopService/hidden", "android.app.ContextImpl stopService(android.content.Intent) " +
+                "@component_hidden 27-");
+        check("Context.stopServiceAsUser/hidden", "android.app.ContextImpl stopServiceAsUser(android.content.Intent," +
+                "android.os.UserHandle) @component_hidden 27-");
     }
 
     // Settings, intents, accounts and the default account of contacts restricted for Android would change what
@@ -1074,6 +1147,10 @@ public class HookDefinitionsTest {
         check("UnixFileSystem.getLastModifiedTime/root", "java.io.UnixFileSystem getLastModifiedTime(" + f + ") @hardware_files 27-");
         check("UnixNativeDispatcher.opendir/root", "sun.nio.fs.UnixNativeDispatcher opendir(sun.nio.fs.UnixPath) @hardware_files 27-");
         check("Os.readlink/root", "android.system.Os readlink(" + s + ") @hardware_files 27-");
+        // Opening su tells it exists, like for the other groups of hidden files
+        check("BlockGuardOs.open/root", "libcore.io.BlockGuardOs open(" + s + ",int,int) @hardware_files 27-");
+        check("UnixNativeDispatcher.open/root", "sun.nio.fs.UnixNativeDispatcher open(sun.nio.fs.UnixPath,int,int) @hardware_files 27-");
+        check("UnixFileSystem.createFileExclusively/root", "java.io.UnixFileSystem createFileExclusively(" + s + ") @hardware_files 27-");
         check("Context.sendStickyBroadcast/hidden", "android.app.ContextImpl sendStickyBroadcast(" + i + ") @component_hidden 27-");
         check("Context.sendStickyBroadcast.options/hidden", "android.app.ContextImpl sendStickyBroadcast(" + i +
                 ",android.os.Bundle) @component_hidden 31-");

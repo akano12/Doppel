@@ -26,12 +26,13 @@ import android.widget.ImageButton;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.LifecycleOwner;
+
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 // The search of a screen: the field replaces the title while it is shown, the button opens and closes it,
 // Back closes it first; a search restored with the view is shown again, without the keyboard

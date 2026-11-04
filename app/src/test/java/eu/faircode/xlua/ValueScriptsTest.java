@@ -155,6 +155,8 @@ public class ValueScriptsTest {
         check(globals, "return after_(nil, paramof(nil))", false, false, null);
         Scripts.run(globals, "settings['value.phone_number'] = '+3100000'");
         check(globals, "return after_(nil, paramof('+3161234'))", true, true, "+3100000");
+        // The fake already, like getLine1Number() calling the hooked getLine1Number(subId): not reported twice
+        check(globals, "return after_(nil, paramof('+3100000'))", false, false, "+3100000");
 
         globals = load("value_phone_number_nonnull");
         check(globals, "return after_(nil, paramof('+3161234'))", true, true, "");
@@ -352,7 +354,10 @@ public class ValueScriptsTest {
                 {"generic_empty_text", "nil", "false", null},
                 {"advertisingidclient$info_getid", "'38400000-8cf0-11bd-b23e-10b96e40000d'", "true",
                         "00000000-0000-0000-0000-000000000000"},
-                {"advertisingidclient$info_getid", "nil", "false", null}};
+                {"advertisingidclient$info_getid", "nil", "false", null},
+                // Deleted by the user already: no restriction
+                {"advertisingidclient$info_getid", "'00000000-0000-0000-0000-000000000000'", "false",
+                        "00000000-0000-0000-0000-000000000000"}};
         for (String[] c : cases) {
             boolean restricted = Boolean.parseBoolean(c[2]);
             check(load(c[0]), "return after_(nil, paramof(" + c[1] + "))", restricted, restricted, c[3]);
@@ -431,6 +436,14 @@ public class ValueScriptsTest {
         assertEquals(1, result.arg(3).toint());
         assertEquals("true context", result.arg(4).tojstring());
         assertFalse(result.arg(5).toboolean());
+
+        // AppsFlyer before version 6 stops by stopTracking
+        result = Scripts.run(globals, "local stops = {}\n" +
+                "local sdk = { stopTracking = function(self, stop, context) stops[#stops + 1] = tostring(stop) .. ' ' .. context end }\n" +
+                "return after(hookof('getInstance', 'com.appsflyer.AppsFlyerLib'), paramof(sdk)), #stops, stops[1]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertEquals("true context", result.arg(3).tojstring());
 
         for (String[] c : new String[][]{{"com.google.firebase.analytics.FirebaseAnalytics", "setAnalyticsCollectionEnabled", "false"},
                 {"com.google.firebase.crashlytics.FirebaseCrashlytics", "setCrashlyticsCollectionEnabled", "false"},

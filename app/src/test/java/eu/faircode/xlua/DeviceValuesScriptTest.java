@@ -47,7 +47,15 @@ public class DeviceValuesScriptTest {
             // The app is made for the version of Android in target, see batteryCapacityIsRounded
             "  param.getApplicationContext = function(self)",
             "    return { getApplicationInfo = function(self) return { targetSdkVersion = target } end } end",
+            "  param.unhooked = function(self, fn) return fn() end",
             "  return param",
+            "end",
+            // The system properties which are set, for SystemProperties.get(key) of isset
+            "PROPERTIES = {}",
+            "local bind = luajava.bindClass",
+            "luajava.bindClass = function(name)",
+            "  if name ~= 'android.os.SystemProperties' then return bind(name) end",
+            "  return { get = function(self, key) return PROPERTIES[key] or '' end }",
             "end",
             // Runs after() and returns whether restricted and the result
             "function run(hook, param)",
@@ -160,6 +168,29 @@ public class DeviceValuesScriptTest {
         // Without a default: an empty fake is empty
         assertEquals("", Scripts.run(globals, "return run(hookof('SystemProperties.get/serial', 'get'), " +
                 "paramof('8949', { [0] = 'ril.iccid.sim1' }))").arg(2).tojstring());
+    }
+
+    // A property which is set to the default is faked too, else an app could confirm a guess of the real value by
+    // passing it as the default; without SystemProperties it counts as set
+    @Test
+    public void propertiesSetToTheDefault() throws Exception {
+        Globals globals = load("systemproperties_get");
+        Scripts.run(globals, "PROPERTIES = { ['ro.product.model'] = 'Pixel 7', ['ro.debuggable'] = '1', " +
+                "['ro.build.date.utc'] = '5' }");
+        assertEquals("unknown", Scripts.run(globals, "return run(hookof('SystemProperties.get.default/device', 'get'), " +
+                "paramof('Pixel 7', { [0] = 'ro.product.model', [1] = 'Pixel 7' }))").arg(2).tojstring());
+        Varargs flag = Scripts.run(globals, "return run(hookof('SystemProperties.getBoolean/debugging', 'getBoolean'), " +
+                "paramof(true, { [0] = 'ro.debuggable', [1] = true }))");
+        assertTrue(flag.arg1().toboolean());
+        assertFalse(flag.arg(2).toboolean());
+        assertEquals(0, typed(globals, "getLong", "ro.build.date.utc", "5", "5").arg(2).toint());
+        // Not set, the default stays
+        assertEquals("Pixel 7", Scripts.run(globals, "return run(hookof('SystemProperties.get.default/device', 'get'), " +
+                "paramof('Pixel 7', { [0] = 'ro.product.name', [1] = 'Pixel 7' }))").arg(2).tojstring());
+
+        Scripts.run(globals, "luajava.bindClass = function(name) error('hidden') end");
+        assertEquals("unknown", Scripts.run(globals, "return run(hookof('SystemProperties.get.default/device', 'get'), " +
+                "paramof('Pixel 7', { [0] = 'ro.product.name', [1] = 'Pixel 7' }))").arg(2).tojstring());
     }
 
     // The OpenGL strings without the chip, its family and the build of the driver; the version stays
@@ -969,6 +1000,10 @@ public class DeviceValuesScriptTest {
         assertFalse(Scripts.run(globals, String.format(authenticate, "/authenticators", 0, 32783)).arg1().toboolean());
         assertEquals(12, Scripts.run(globals, String.format(authenticate, "", 0, 0)).arg(2).toint());
         assertFalse(Scripts.run(globals, String.format(authenticate, "", 12, 0)).arg1().toboolean());
+        // Without the permission USE_BIOMETRIC the SecurityException stays, like on a device without the hardware
+        assertFalse(Scripts.run(globals, "local param = paramof(nil, { [0] = 15 })\n" +
+                "param.getException = function(self) return 'SecurityException' end\n" +
+                "return run(hookof('BiometricManager.canAuthenticate/authenticators', 'canAuthenticate'), param)").arg1().toboolean());
 
         // No sensors, no fingerprint hardware
         result = Scripts.run(globals, "local strengths = { isEmpty = function(self) return false end, toString = function(self) return '{0=15}' end }\n" +
@@ -1059,6 +1094,8 @@ public class DeviceValuesScriptTest {
                 "param.getSetting = function(self, name) assert(name == 'value.serial') return 'ABC123' end\n" +
                 "return run(hookof('Build.getSerial', 'getSerial'), param)").arg(2).tojstring());
         assertFalse(Scripts.run(globals, "return run(hookof('Build.getSerial', 'getSerial'), paramof(nil, {}))").arg1().toboolean());
+        // Build.SERIAL of apps targeting Android 8 or later is unknown already, which is no restriction
+        assertFalse(Scripts.run(globals, "return run(hookof('Build.SERIAL', 'SERIAL'), paramof('unknown', {}))").arg1().toboolean());
     }
 
     // Sizes of /proc/meminfo of 2 TB and more, which string.format('%d') of LuaJ wraps, stay whole

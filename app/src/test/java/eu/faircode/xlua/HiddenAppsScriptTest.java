@@ -255,6 +255,13 @@ public class HiddenAppsScriptTest {
             assertTrue(method, result.arg(2).toboolean());
             assertTrue(method, result.arg(3).isnil());
         }
+
+        // Stopping a service of a hidden app stops none, like of an app which is not installed
+        for (String method : new String[]{"stopService", "stopServiceAsUser"}) {
+            result = component(globals, method, hidden);
+            assertTrue(method, result.arg(1).toboolean());
+            assertEquals(method, LuaValue.FALSE, result.arg(3));
+        }
     }
 
     // Each ordered broadcast goes to a package which cannot exist, so its result receiver is called
@@ -292,6 +299,23 @@ public class HiddenAppsScriptTest {
             assertFalse(method, result.arg(1).toboolean());
             assertFalse(method, result.arg(2).toboolean());
         }
+    }
+
+    // The message of Android for a screen which is not found, of which Android 13 added the hint about the filter
+    @Test
+    public void screenNotFoundLikeTheVersion() throws Exception {
+        Globals globals = Scripts.load("component_hidden", STUBS);
+        String run = "luajava = { bindClass = function(name) return { SDK_INT = %d } end,\n" +
+                "  newInstance = function(name, message) return { name = name, message = message } end }\n" +
+                "return notfound(intentof(componentof('com.other.hidden', '.Main'), nil)).message, " +
+                "notfound(intentof(nil, 'com.other.hidden')).message";
+        String explicit = "Unable to find explicit activity class {com.other.hidden/.Main}; " +
+                "have you declared this activity in your AndroidManifest.xml";
+        Varargs result = Scripts.run(globals, String.format(run, 32));
+        assertEquals(explicit + "?", result.arg(1).tojstring());
+        assertEquals("No Activity found to handle Intent { pkg=com.other.hidden }", result.arg(2).tojstring());
+        assertEquals(explicit + ", or does your intent not match its declared <intent-filter>?",
+                Scripts.run(globals, String.format(run, 33)).arg(1).tojstring());
     }
 
     // An intent which names no package is resolved by its selector, which can name a hidden app

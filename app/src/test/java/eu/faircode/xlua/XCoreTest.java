@@ -261,12 +261,14 @@ public class XCoreTest {
                         "function before(hook, param) param:setResult('fake') return true end", open);
 
         for (String path : new String[]{"/sys/devices/system/chip-id/unique_id", "/sys/", "/proc/meminfo",
-                "/sys/devices/system/./cpu/possible", "/proc/self/root/sys/devices"}) {
+                "/sys/devices/system/./cpu/possible", "/proc/self/root/sys/devices",
+                "/proc/self/task/1234/root/proc/self/root/sys/devices", "sys/devices", "proc/meminfo",
+                "proc/./meminfo"}) {
             XCall call = new XCall(open, new Target(), new Object[]{path});
             callbacks.get(0).before(call);
             assertEquals(path, "fake", call.getResult());
         }
-        for (String path : new String[]{"/system/build.prop", "/sys", "/proc/meminfo2", "/data/sys/"}) {
+        for (String path : new String[]{"/system/build.prop", "/sys", "/proc/meminfo2", "/data/sys/", "proc/meminfo2"}) {
             XCall call = new XCall(open, new Target(), new Object[]{path});
             callbacks.get(0).before(call);
             assertFalse(path, call.isReturnEarly());

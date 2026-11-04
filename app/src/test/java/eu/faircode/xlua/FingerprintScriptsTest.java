@@ -147,6 +147,20 @@ public class FingerprintScriptsTest {
                         "return p.result, open.args[0]");
         assertEquals("OMX.hw2.avc.dec", result.arg1().tojstring());
         assertEquals("OMX.Exynos.avc.dec", result.arg(2).tojstring());
+
+        // findDecoderForFormat gets the fake name of the hooked getName it calls: a numbered one stays
+        result = Scripts.run(load("media_codecs"),
+                "luajava.newInstance = function(name, kind)\n" +
+                        "  local names = { 'OMX.SEC.avc.dec', 'OMX.Exynos.avc.dec' }\n" +
+                        "  return { getCodecInfos = function(self)\n" +
+                        "    local infos = { length = #names }\n" +
+                        "    for i, n in ipairs(names) do infos[i] = { getName = function(self) return n end } end\n" +
+                        "    return infos end }\n" +
+                        "end\n" +
+                        "local p = paramof('OMX.hw2.avc.dec')\n" +
+                        "return after(hookof('findDecoderForFormat'), p), p.result");
+        assertFalse(result.arg1().toboolean());
+        assertEquals("OMX.hw2.avc.dec", result.arg(2).tojstring());
     }
 
     @Test
@@ -522,6 +536,16 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(10).toboolean());
         assertEquals("user:*", result.arg(11).tojstring());
         assertTrue(result.arg(12).isnil());
+
+        // Arrays which are unknown or not supported already are not reported, like for the same inherited method
+        // which SystemVibrator and Vibrator both hook
+        result = Scripts.run(globals,
+                "return after(hookof('areEffectsSupported'), paramof({ length = 2, 0, 0 })),\n" +
+                        "  after(hookof('arePrimitivesSupported'), paramof({ length = 1, false })),\n" +
+                        "  after(hookof('getPrimitiveDurations'), paramof({ length = 0 }))");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
 
         // The screen lock is set; the details of the vibrator are empty, by the constant or else built
         result = Scripts.run(globals,

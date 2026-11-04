@@ -621,8 +621,8 @@ class XCore {
     // A value ending in * stands for all values starting with the text before it, like /sys/* for the files
     // of /sys, and a value starting with * too for all values containing the text between, like *sys/* for
     // the files of /sys also by relative paths or with .., for a script which tells the paths apart itself.
-    // Absolute paths also match as plain paths, without // and /./ and links of /proc to the root, see
-    // XParam.plainPath. Files and paths of java.nio are compared by their path, see filterValue.
+    // Paths also match as plain absolute paths: relative to the root, without // and /./ and without links of /proc
+    // to the root, see XParam.plainPath. Files and paths of java.nio are compared by their path, see filterValue.
     private static Filter getFilter(Globals globals, XHook hook) {
         LuaValue func = globals.get("filter");
         if (func.isnil())
@@ -658,7 +658,9 @@ class XCore {
                 String plain = XParam.plainPath(value);
                 if (!plain.equals(value) && matchesText(plain))
                     return true;
-            }
+            } else if (matchesText(XParam.plainPath("/" + value)))
+                // Relative to the root, which apps run in, like data/adb, see XParam.isPath
+                return true;
             return matchesText(value);
         }
 

@@ -537,6 +537,24 @@ public class PackageScriptsTest {
         assertTrue(list.arg(1).toboolean());
         assertEquals(1, list.arg(2).toint());
         assertEquals("android", list.arg(3).tojstring());
+
+        // The permissions of a group of a hidden app: the group is not found, like getPermissionGroupInfo;
+        // those of a group of Android stay
+        String byGroup = "local param = paramof({ [0] = '%s', [1] = 0 }, { android = true })\n" +
+                "param.result = listof({ { packageName = 'android' } })\n" +
+                "function param:unhooked(fn) return fn() end\n" +
+                "function param:getThis() return { getPermissionGroupInfo = function(self, name, flags)\n" +
+                "  return { packageName = (name == 'android.permission-group.CAMERA' and 'android' or 'com.example.bank') } end } end\n" +
+                "local restricted, old = after(hookof('PackageManager.queryPermissionsByGroup', 'queryPermissionsByGroup'), param)\n" +
+                "return restricted, old, param.result.exception, param.result.message";
+        Varargs hidden = Scripts.run(globals, String.format(byGroup, "com.example.bank.permission-group.API"));
+        assertTrue(hidden.arg(1).toboolean());
+        assertEquals("com.example.bank", hidden.arg(2).tojstring());
+        assertEquals("android.content.pm.PackageManager$NameNotFoundException", hidden.arg(3).tojstring());
+        assertEquals("com.example.bank.permission-group.API", hidden.arg(4).tojstring());
+        Varargs camera = Scripts.run(globals, String.format(byGroup, "android.permission-group.CAMERA"));
+        assertFalse(camera.arg(1).toboolean());
+        assertTrue(camera.arg(3).isnil());
     }
 
     // Permission groups name the app which defines them too, like getAllPermissionGroups an app's own group

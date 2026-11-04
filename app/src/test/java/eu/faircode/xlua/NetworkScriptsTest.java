@@ -321,13 +321,46 @@ public class NetworkScriptsTest {
                         "  after(hookof('getByInetAddress'), tun), tun.result, route.result, iface.result");
         assertEquals("[ Transports: WIFI Capabilities: INTERNET&TRUSTED&NOT_VPN&VALIDATED UnderlyingNetworks: null]",
                 result.arg(1).tojstring());
-        assertEquals("{InterfaceName: rmnet_data0 LinkAddresses: [ 10.8.0.2/32 ]" +
+        // The addresses of the tunnel are empty, like getLinkAddresses (see vpn_addresses)
+        assertEquals("{InterfaceName: rmnet_data0 LinkAddresses: [ ]" +
                 " Routes: [ 0.0.0.0/0 -> 0.0.0.0 rmnet_data0 mtu 0 ]}", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
         assertTrue(result.arg(4).isnil());
         // The routes of the VPN network, which LinkProperties.getRoutes gives
         assertEquals("0.0.0.0/0 -> 10.8.0.1 rmnet_data0 mtu 1500", result.arg(5).tojstring());
         assertEquals("rmnet_data0", result.arg(6).tojstring());
+
+        // Before Android 11 a route has no MTU, so the interface ends its text; other last words stay
+        // (wlan0 without the connectivity manager)
+        assertEquals("0.0.0.0/0 -> 10.8.0.1 wlan0",
+                tostring(globals, "android.net.RouteInfo", "0.0.0.0/0 -> 10.8.0.1 tun0"));
+        assertEquals("0.0.0.0/0 -> 10.8.0.1", tostring(globals, "android.net.RouteInfo", "0.0.0.0/0 -> 10.8.0.1"));
+        assertEquals("::/0 unreachable", tostring(globals, "android.net.RouteInfo", "::/0 unreachable"));
+        // The text of Android 9 and before, without spaces inside the brackets
+        assertEquals("{InterfaceName: wlan0 LinkAddresses: []  Routes: [0.0.0.0/0 -> 0.0.0.0 wlan0,]" +
+                " DnsAddresses: [] Domains: null MTU: 0}", tostring(globals, "android.net.LinkProperties",
+                "{InterfaceName: tun0 LinkAddresses: [10.8.0.2/32,]  Routes: [0.0.0.0/0 -> 0.0.0.0 tun0,]" +
+                        " DnsAddresses: [10.8.0.1,] Domains: null MTU: 0}"));
+        // Without an interface, like a new LinkProperties, there is nothing to hide
+        String empty = "{LinkAddresses: [ ] DnsAddresses: [ ] Domains: null MTU: 0 Routes: [ ]}";
+        assertEquals(empty, tostring(globals, "android.net.LinkProperties", empty));
+    }
+
+    // The runtime of a script stays after an error (see XCore), so an error must not leave the guard of nested calls set
+    @Test
+    public void vpnHooksWorkAfterAnError() throws Exception {
+        Globals globals = load("vpn");
+        Scripts.run(globals, NETWORKS);
+        globals.set("lp", LuaValue.valueOf("{InterfaceName: tun0 LinkAddresses: [ ] Routes: [ ]}"));
+        Varargs result = Scripts.run(globals,
+                "local failing = paramof(nil, {}, nil, context)\n" +
+                        "failing.getResult = function() error('failed') end\n" +
+                        "local ok = pcall(after, hookof('toString', 'android.net.LinkProperties'), failing)\n" +
+                        "local text = paramof(lp, {}, nil, context)\n" +
+                        "after(hookof('toString', 'android.net.LinkProperties'), text)\n" +
+                        "return ok, text.result");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals("{InterfaceName: rmnet_data0 LinkAddresses: [ ] Routes: [ ]}", result.arg(2).tojstring());
     }
 
     // A stack of class.method frames for the scripts which look at who calls (see linkproperties)

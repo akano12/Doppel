@@ -86,7 +86,7 @@
             android:contentDescription="@string/title_show_error"
             android:src="@drawable/ic_error"
             android:visibility="gone"
-            app:tint="?attr/colorWarning" />
+            app:tint="?attr/colorError" />
 
         <ImageView
             android:id="@+id/ivExpand"

@@ -47,6 +47,7 @@ public class ContentResolverScriptTest {
             "    ['android:query-arg-sql-selection-args'] = args }",
             "  return { values = values,",
             "    getString = function(self, key) return values[key] end,",
+            "    getStringArray = function(self, key) return values[key] end,",
             "    putString = function(self, key, value) values[key] = value end,",
             "    remove = function(self, key) values[key] = nil end }",
             "end",
@@ -146,6 +147,42 @@ public class ContentResolverScriptTest {
         assertTrue(result.arg(3).isnil());
         assertEquals("display_name COLLATE LOCALIZED ASC", result.arg(4).tojstring());
         assertEquals("(starred = 1)", result.arg(5).tojstring());
+    }
+
+    // Likewise for the sort columns, of which the provider makes the sort order when there is none
+    @Test
+    public void sortColumnsWithSubquery() {
+        Varargs result = Scripts.run(globals,
+                "local param = paramof(urlof('com.android.contacts', '/contacts'), nil, nil, { ['contacts.starred'] = '1' })\n" +
+                        "param.arguments[2].values['android:query-arg-sort-columns'] = " +
+                        "{ 'display_name', '(SELECT count(*) FROM raw_contacts WHERE starred=0)', length = 2 }\n" +
+                        "local safe = paramof(urlof('com.android.contacts', '/contacts'), nil, nil, { ['contacts.starred'] = '1' })\n" +
+                        "safe.arguments[2].values['android:query-arg-sort-columns'] = { 'display_name', '_id', length = 2 }\n" +
+                        "local hook = hookof('ContentResolver.query26/contacts')\n" +
+                        "before(hook, param)\n" +
+                        "before(hook, safe)\n" +
+                        "return param.arguments[2].values['android:query-arg-sql-selection'],\n" +
+                        "  param.arguments[2].values['android:query-arg-sort-columns'],\n" +
+                        "  safe.arguments[2].values['android:query-arg-sql-selection'],\n" +
+                        "  safe.arguments[2].values['android:query-arg-sort-columns'] ~= nil");
+        assertEquals("0", result.arg(1).tojstring());
+        assertTrue(result.arg(2).isnil());
+        assertEquals("(starred = 1)", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+    }
+
+    // Another value of the setting filters nothing, like in contentresolver_open: the contacts are empty
+    @Test
+    public void starredSettingOtherValue() {
+        Varargs result = query("ContentResolver.query26/contacts", "com.android.contacts", "/contacts",
+                "{ ['contacts.starred'] = 'yes' }");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(Scripts.run(globals, "local param = paramof(urlof('com.android.contacts', '/contacts'), nil, nil, " +
+                "{ ['contacts.starred'] = 'yes' })\nbefore(hookof('ContentResolver.query26/contacts'), param)\n" +
+                "return param.arguments[2].values['android:query-arg-sql-selection']").arg1().isnil());
     }
 
     @Test

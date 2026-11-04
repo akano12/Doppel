@@ -195,9 +195,6 @@ end
 -- else the default, like for 'unknown'. Properties which are not set or not a number give the default, which stays.
 function typed(hook, param, key, result, method)
     local default = param:getArgument(1)
-    if result == default then
-        return false
-    end
     local fake
     local name = string.match(hook:getName(), '/(.*)$')
     if name == 'device' then
@@ -205,7 +202,8 @@ function typed(hook, param, key, result, method)
     elseif name == 'debugging' and type(DEBUGGING[key]) == 'string' then
         fake = DEBUGGING[key]
     end
-    if fake == nil then
+    -- Checked for the faked properties only, the variant device runs for all of ro.
+    if fake == nil or (result == default and not isset(param, key)) then
         return false
     end
     if method == 'getBoolean' then
@@ -287,6 +285,16 @@ function unset(hook, param)
     return ''
 end
 
+-- Whether a property is set: the getters with a default give it for a property which is not set, but also when the
+-- property has that value, so an app could confirm a guess, like of the model or ro.debuggable, by passing it as the
+-- default. get(key) without the hooks gives '' when it is not set. An error counts as set, which fakes the value.
+function isset(param, key)
+    local ok, value = pcall(param.unhooked, param, function()
+        return luajava.bindClass('android.os.SystemProperties'):get(key)
+    end)
+    return not ok or value ~= ''
+end
+
 function after(hook, param)
     -- The field Build.VERSION.SECURITY_PATCH of the property, without an argument; not set it stays empty
     if hook:getMethodName() == '#SECURITY_PATCH' then
@@ -315,13 +323,17 @@ function after(hook, param)
 
     -- Properties which are not set stay empty, or the default of get(key, default), a fake value would tell they
     -- are faked; an empty fake is what get gives for a property which is not set
-    local empty = unset(hook, param)
-    if result == nil or result == '' or result == empty then
-        return false
-    end
-
     -- Hook names are like Function/variant
     local name = string.match(hook:getName(), '/(.*)$')
+    local empty = unset(hook, param)
+    if result == nil or result == '' then
+        return false
+    end
+    -- The default, of a property which is not set or set to it (see isset); the variant device runs for all of ro.,
+    -- so only its faked properties are checked
+    if result == empty and ((name == 'device' and fakedevice(key, result) == nil) or not isset(param, key)) then
+        return false
+    end
 
     if name == 'serial' and iccid(key) then
         param:setResult(empty)

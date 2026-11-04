@@ -43,8 +43,17 @@ function filter(hook)
     return nil
 end
 
--- A Java array of the length of another one, of a type, with one value
-function filled(type, length, value)
+-- A Java array of the length of another one, of a type, with one value; nil when the other one has only that value,
+-- like when SystemVibrator and Vibrator hook the same inherited method
+function filled(type, other, value)
+    local length = other['length']
+    local same = true
+    for index = 1, length do
+        same = same and other[index] == value
+    end
+    if same then
+        return nil
+    end
     local array = luajava.bindClass('java.lang.reflect.Array'):newInstance(type, length)
     for index = 1, length do
         array[index] = value
@@ -83,16 +92,18 @@ function after(hook, param)
         fake = false
     elseif method == 'areEffectsSupported' or method == 'getPrimitiveDurations' then
         -- Of the effects asked for: unknown (0), of primitives: no duration (0)
-        if result == nil then
+        fake = (result ~= nil and filled(luajava.bindClass('java.lang.Integer').TYPE, result, 0) or nil)
+        if fake == nil then
             return false
         end
-        param:setResult(filled(luajava.bindClass('java.lang.Integer').TYPE, result['length'], 0))
+        param:setResult(fake)
         return true
     elseif method == 'arePrimitivesSupported' then
-        if result == nil then
+        fake = (result ~= nil and filled(luajava.bindClass('java.lang.Boolean').TYPE, result, false) or nil)
+        if fake == nil then
             return false
         end
-        param:setResult(filled(luajava.bindClass('java.lang.Boolean').TYPE, result['length'], false))
+        param:setResult(fake)
         return true
     elseif method == 'aliases' then
         -- The aliases of the certificates, without those of the user

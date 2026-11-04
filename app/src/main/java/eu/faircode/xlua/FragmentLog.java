@@ -321,7 +321,7 @@ public class FragmentLog extends FragmentBase {
         tvStats.setText(only != null ? errorCount : getString(R.string.title_pair,
                 getResources().getQuantityString(R.plurals.title_stat_apps, packages.size(), packages.size()), errorCount));
         tvStats.setTextColor(Ui.color(context, errors.isEmpty()
-                ? com.google.android.material.R.attr.colorOnSurfaceVariant : R.attr.colorWarning));
+                ? com.google.android.material.R.attr.colorOnSurfaceVariant : androidx.appcompat.R.attr.colorError));
         vBars.setValues(bars);
         // Screen readers get the bars which are not empty, with their hour or day
         String described = getString(filter == Filter.ERRORS ? R.string.title_errors_by_day

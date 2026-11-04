@@ -74,12 +74,16 @@ function prefixof(uri)
 end
 
 -- The setting of the queries of contacts which are filtered for (not) starred contacts, else nil:
--- before filters them and after keeps the filtered result, which would else be replaced
+-- before filters them and after keeps the filtered result, which would else be replaced. Only 0 and 1, like
+-- contentresolver_open: another value, like of a restored backup, would be SQL in the selection.
 function starredof(name, uri, param)
     if name == 'contacts' and authorityof(uri) == 'com.android.contacts' then
         local prefix = prefixof(uri)
         if prefix == 'contacts' or prefix == 'raw_contacts' or prefix == 'data' then
-            return param:getSetting('contacts.starred')
+            local starred = param:getSetting('contacts.starred')
+            if starred == '0' or starred == '1' then
+                return starred
+            end
         end
     end
     return nil
@@ -109,12 +113,22 @@ function before(hook, param)
     param:setArgument(2, bundle)
     local where = bundle:getString('android:query-arg-sql-selection')
     local order = bundle:getString('android:query-arg-sql-sort-order')
+    -- Without it the provider sorts by the sort columns, joined like this (ContentResolver.createSqlSortClause)
+    local columns = bundle:getStringArray('android:query-arg-sort-columns')
+    if order == nil and columns ~= nil then
+        local names = {}
+        for index = 1, columns['length'] do
+            names[index] = tostring(columns[index])
+        end
+        order = table.concat(names, ', ')
+    end
 
     -- A selection which could undo the filter selects nothing, its arguments are left out with it;
     -- likewise for a sort order with a subquery, which is left out too
     local unsafe = false
     if order ~= nil and not contained(order) then
         bundle:remove('android:query-arg-sql-sort-order')
+        bundle:remove('android:query-arg-sort-columns')
         where = '0'
         unsafe = true
     elseif where == nil or where == '' then

@@ -99,6 +99,12 @@ android {
         buildConfig = true
     }
 
+    // No dependency list encrypted for Google Play in the signing block of the APK: only Play can read it
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -461,9 +461,12 @@ public class ActivityApp extends ActivityBase {
         animator.start();
     }
 
-    // Colors of a group: text, icon background and icon
+    // Colors of a group: text, icon background and icon; a failed hook has the error colors, like in the Apps and
+    // Activity tabs
     private static final int[] COLORS_ERROR = {
-            R.attr.colorWarning, R.attr.colorWarningContainer, R.attr.colorOnWarningContainer};
+            androidx.appcompat.R.attr.colorError,
+            com.google.android.material.R.attr.colorErrorContainer,
+            com.google.android.material.R.attr.colorOnErrorContainer};
     private static final int[] COLORS_RESTRICTED = {
             androidx.appcompat.R.attr.colorPrimary,
             com.google.android.material.R.attr.colorSecondaryContainer,
@@ -549,7 +552,7 @@ public class ActivityApp extends ActivityBase {
                 dot = com.google.android.material.R.attr.colorOutline;
                 status = getString(R.string.title_not_restricted);
             } else if (assignment.exception != null) {
-                color = dot = R.attr.colorWarning;
+                color = dot = androidx.appcompat.R.attr.colorError;
                 status = getString(R.string.title_hook_state_failed);
             } else if (assignment.restricted && assignment.used > 0) {
                 color = dot = androidx.appcompat.R.attr.colorPrimary;

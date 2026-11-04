@@ -103,6 +103,19 @@ function after(hook, param)
                 filtered = true
             end
         end
+        -- The permissions of a group which a hidden app defines: the group is missing, which Android throws for
+        local group = (method == 'queryPermissionsByGroup' and param:getArgument(0) or nil)
+        if group ~= nil then
+            local ok, owner = pcall(function()
+                return param:unhooked(function()
+                    return param:getThis():getPermissionGroupInfo(group, 0).packageName
+                end)
+            end)
+            if ok and owner ~= nil and not param:isPackageVisible(owner) then
+                param:setResult(luajava.newInstance('android.content.pm.PackageManager$NameNotFoundException', group))
+                return true, owner
+            end
+        end
         return filtered
     else
         -- ResolveInfo of an activity or a service
