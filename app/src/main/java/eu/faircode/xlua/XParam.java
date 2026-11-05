@@ -331,7 +331,27 @@ public class XParam {
             // Reading a field cannot throw
             throw new IllegalArgumentException("Expected field " + this.returnType + " got " + result.getClass());
         else
-            this.field.set(null, result);
+            try {
+                this.field.set(null, result);
+            } catch (IllegalAccessException ignored) {
+                setFinalField(this.field, result);
+            }
+    }
+
+    // Android 17 refuses reflection on static final fields for apps targeting it, their memory stays writable
+    static void setFinalField(Field field, Object value) throws Exception {
+        // Initializing the class later would overwrite the value
+        field.get(null);
+        Class<?> type = field.getType();
+        String put = "put" + (type.isPrimitive()
+                ? Character.toUpperCase(type.getName().charAt(0)) + type.getName().substring(1)
+                : "Object");
+        Class<?> unsafe = Class.forName("sun.misc.Unsafe");
+        Field instance = unsafe.getDeclaredField("theUnsafe");
+        instance.setAccessible(true);
+        int offset = (int) Field.class.getMethod("getOffset").invoke(field);
+        unsafe.getMethod(put, Object.class, long.class, type.isPrimitive() ? type : Object.class)
+                .invoke(instance.get(null), field.getDeclaringClass(), (long) offset, value);
     }
 
     // Whether the file the hooked method opens, its first argument, is a file, also by another path: relative to the

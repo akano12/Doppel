@@ -4874,6 +4874,25 @@
     ],
     "returnType": "void",
     "minSdk": 27,
+    "maxSdk": 36,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ServiceDispatcher.doConnected/identifiers/session",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ServiceDispatcher",
+    "methodName": "doConnected",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "android.os.IBinder",
+      "android.app.IBinderSession",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 37,
     "excludePackages": "android",
     "luaScript": "@identifier_services"
   },
@@ -5008,6 +5027,25 @@
     ],
     "returnType": "void",
     "minSdk": 27,
+    "maxSdk": 36,
+    "usage": false,
+    "luaScript": "@adid_service"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ServiceDispatcher.doConnected/adid/session",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ServiceDispatcher",
+    "methodName": "doConnected",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "android.os.IBinder",
+      "android.app.IBinderSession",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 37,
     "usage": false,
     "luaScript": "@adid_service"
   },

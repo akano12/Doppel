@@ -123,7 +123,7 @@ function before(hook, param)
         param:setResult(nil)
         return true, param:getArgument(0)
     elseif method == 'doConnected' then
-        -- ServiceDispatcher.doConnected(name, service, dead): the binder of any service with an interface of
+        -- ServiceDispatcher.doConnected(name, service, [session,] dead): the binder of any service with an interface of
         -- DESCRIPTORS, but not of the services of the app itself, which answer without a call to another process
         local name = param:getArgument(0)
         local service = param:getArgument(1)
