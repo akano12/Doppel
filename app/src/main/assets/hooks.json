@@ -10524,6 +10524,21 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  // Files.exists of Android 17 asks the provider, where the boot image has UnixNativeDispatcher.exists inlined
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixFileSystemProvider.exists/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
+    "luaScript": "@hardware_files"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -10858,6 +10873,20 @@
     ],
     "returnType": "java.nio.file.DirectoryStream",
     "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystemProvider.exists/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
     "luaScript": "@hardware_files"
   },
   {
@@ -11199,6 +11228,20 @@
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",
+    "name": "UnixFileSystemProvider.exists/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
     "name": "UnixNativeDispatcher.realpath/fingerprint_sensor",
     "author": "akano12",
     "className": "sun.nio.fs.UnixNativeDispatcher",
@@ -11535,6 +11578,20 @@
   {
     "collection": "Privacy",
     "group": "Read.Features",
+    "name": "UnixFileSystemProvider.exists/feature_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
     "name": "UnixNativeDispatcher.realpath/feature_files",
     "author": "akano12",
     "className": "sun.nio.fs.UnixNativeDispatcher",
@@ -11866,6 +11923,20 @@
     ],
     "returnType": "java.nio.file.DirectoryStream",
     "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixFileSystemProvider.exists/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
     "luaScript": "@hardware_files"
   },
   {
@@ -15354,6 +15425,20 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixFileSystemProvider.exists/vpn_interfaces",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
+    "luaScript": "@hardware_files"
+  },
   // su and the files of Magisk do not exist (see hardware_files), for java.io, android.system.Os and java.nio.file
   {
     "collection": "Privacy",
@@ -15647,6 +15732,20 @@
     ],
     "returnType": "java.nio.file.DirectoryStream",
     "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixFileSystemProvider.exists/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
     "luaScript": "@hardware_files"
   },
   {

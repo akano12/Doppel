@@ -751,6 +751,22 @@ public class FileScriptsTest {
         assertFalse(result.arg(12).toboolean());
     }
 
+    // Files.exists of Android 17 asks the provider, not the list of a folder
+    @Test
+    public void hardwareProviderExists() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('Read.Identifiers', 'sun.nio.fs.UnixFileSystemProvider', 'exists', 'boolean')\n" +
+                        "local hidden = paramof('/sys/devices/system/chip-id/unique_id')\n" +
+                        "local restricted = before(hook, hidden)\n" +
+                        "local other = paramof('/sys/devices/system/chip-id/product_id')\n" +
+                        "return restricted, hidden.result == false, before(hook, other), other.early");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+    }
+
     // Files.newDirectoryStream: a filter in front of the one of the app leaves out the names of hidden files,
     // for a hidden folder nothing is done (opendir fails)
     @Test

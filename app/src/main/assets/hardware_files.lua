@@ -300,7 +300,7 @@ end
 function before(hook, param)
     local path = pathof(param)
     local class = about(hook).class
-    if class == 'sun.nio.fs.UnixFileSystemProvider' then
+    if class == 'sun.nio.fs.UnixFileSystemProvider' and about(hook).method == 'newDirectoryStream' then
         return listing(hook, param, path)
     end
     if not hidden(hook, path) then
