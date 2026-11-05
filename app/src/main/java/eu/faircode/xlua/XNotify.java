@@ -55,6 +55,7 @@ final class XNotify {
     private static final String TAG_EXCEPTION = TAG_PREFIX + "exception";
     private static final String TAG_USAGE = TAG_PREFIX + "use_"; // + group
     private static final String TAG_DATA_LOST = TAG_PREFIX + "data_lost";
+    private static final String TAG_DATA_FAILED = TAG_PREFIX + "data_failed";
 
     private static final String APP_NAME = "Doppel"; // Like app_name, which is not translated
 
@@ -102,19 +103,20 @@ final class XNotify {
         notifyAsUser(context, TAG_EXCEPTION, uid, builder.build(), userid);
     }
 
-    // The database was corrupt and is gone, so no app is restricted anymore, which looks like a fresh install
-    static void notifyDataLost(Context context, int userid) throws Throwable {
+    // The database was corrupt and is gone (lost), so no app is restricted anymore, which looks like a fresh install;
+    // or the service could not load its data, so the restricted apps which start meanwhile run without hooks
+    static void notifyData(Context context, int userid, boolean lost) throws Throwable {
         Resources resources = getResources(context);
         Notification.Builder builder = getBuilder(context, true);
         builder.setSmallIcon(android.R.drawable.ic_dialog_alert);
-        builder.setContentTitle(resources.getString(R.string.msg_data_lost));
-        builder.setContentText(resources.getString(R.string.msg_data_lost_hint));
+        builder.setContentTitle(resources.getString(lost ? R.string.msg_data_lost : R.string.msg_data_failed));
+        builder.setContentText(resources.getString(lost ? R.string.msg_data_lost_hint : R.string.msg_data_failed_hint));
         Intent main = new Intent()
                 .setClassName(BuildConfig.APPLICATION_ID, ActivityMain.class.getName())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         builder.setContentIntent(PendingIntent.getActivity(context, 0, main,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
-        notifyAsUser(context, TAG_DATA_LOST, 0, builder.build(), userid);
+        notifyAsUser(context, lost ? TAG_DATA_LOST : TAG_DATA_FAILED, 0, builder.build(), userid);
     }
 
     // An app was installed

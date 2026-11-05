@@ -80,6 +80,7 @@ class XProvider {
     private static volatile Map<String, XHook> hooks = null;
     private static volatile Map<String, XHook> builtins = null;
     private static byte[] bootSecret = null; // See getBootSecret
+    private static volatile boolean failureNotified = false; // See loadData
 
     // Callers the service answers, see answers
     static final int CALLER_NONE = 0;
@@ -111,11 +112,20 @@ class XProvider {
                 }
             }
         } catch (Throwable ex) {
+            // Restricted apps get no hooks and start without them (see XCore.hookPackage), which the user has to hear
+            // about, once: every call fails the same way
+            if (!failureNotified) {
+                failureNotified = true;
+                failureNotified = notifyData(context, false);
+            }
             throw failed(ex);
         }
 
-        if (XDatabase.lost)
-            notifyDataLost(context);
+        // Cleared first: calls of several threads find a corrupt database at the same time
+        if (XDatabase.lost) {
+            XDatabase.lost = false;
+            XDatabase.lost = !notifyData(context, true);
+        }
 
         // Without holding the lock; restrictions keep working without the new assignments
         if (loaded)
@@ -129,17 +139,16 @@ class XProvider {
             }
     }
 
-    // To the owner, who manages the data of all users; tried again on the next call while it fails, like early in a
-    // boot, when the system cannot show notifications yet
-    private static void notifyDataLost(Context context) {
+    // To the owner, who manages the data of all users; false when it could not be shown, like early in a boot, when
+    // the system cannot show notifications yet, so the next call tries again
+    private static boolean notifyData(Context context, boolean lost) {
         long ident = Binder.clearCallingIdentity();
-        // Cleared first: calls of several threads find a corrupt database at the same time
-        XDatabase.lost = false;
         try {
-            XNotify.notifyDataLost(Util.createContextForUser(context, 0), 0);
+            XNotify.notifyData(Util.createContextForUser(context, 0), 0, lost);
+            return true;
         } catch (Throwable ex) {
-            XDatabase.lost = true;
-            Log.w(TAG, "Data lost notification: " + ex);
+            Log.w(TAG, "Data notification lost=" + lost + ": " + ex);
+            return false;
         } finally {
             Binder.restoreCallingIdentity(ident);
         }

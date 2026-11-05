@@ -191,6 +191,24 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(7).toboolean());
         assertFalse(result.arg(8).toboolean());
         assertFalse(result.arg(9).toboolean());
+
+        // The metrics of a player name the codecs it decoded with: the one of the chip is faked, the one of Android stays
+        result = Scripts.run(load("media_codecs"),
+                "local video, audio = 'android.media.mediaplayer.video.codec', 'android.media.mediaplayer.audio.codec'\n" +
+                        "local values = { [video] = 'OMX.qcom.video.decoder.avc', [audio] = 'c2.android.aac.decoder' }\n" +
+                        "local bundle = { getString = function(self, name) return values[name] end,\n" +
+                        "  putString = function(self, name, value) values[name] = value end }\n" +
+                        "luajava.newInstance = function(name, kind)\n" +
+                        "  return { getCodecInfos = function(self)\n" +
+                        "    return { length = 1, { getName = function(self) return 'OMX.qcom.video.decoder.avc' end } } end }\n" +
+                        "end\n" +
+                        "local restricted, old, new = after(hookof('getMetrics'), paramof(bundle))\n" +
+                        "return restricted, old, new, values[video], values[audio]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("OMX.qcom.video.decoder.avc", result.arg(2).tojstring());
+        assertEquals("OMX.hw.video.decoder.avc", result.arg(3).tojstring());
+        assertEquals("OMX.hw.video.decoder.avc", result.arg(4).tojstring());
+        assertEquals("c2.android.aac.decoder", result.arg(5).tojstring());
     }
 
     @Test
@@ -628,8 +646,11 @@ public class FingerprintScriptsTest {
                         "  for index = 1, count do p.args[index - 1] = args[index] end\n" +
                         "  p.set = false\n" +
                         "  p.setResult = function(self, value) self.set = true end\n" +
-                        "  p.getValue = function(self, name, scope) return values[scope] end\n" +
-                        "  p.putValue = function(self, name, value, scope) values[scope] = value end\n" +
+                        "  p.getValue = function(self, name, scope) return values[name] and values[name][scope] end\n" +
+                        "  p.putValue = function(self, name, value, scope)\n" +
+                        "    values[name] = values[name] or {}\n" +
+                        "    values[name][scope] = value\n" +
+                        "  end\n" +
                         "  local restricted = before(hook(method, count), p)\n" +
                         "  return restricted, p.set\n" +
                         "end\n" +
@@ -681,6 +702,19 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(1).toboolean());
         assertEquals("true true 0 empty", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
+
+        // One object listening to both is removed from both: Android would throw for the second one too
+        result = Scripts.run(globals,
+                "call('addThermalStatusListener', listener)\n" +
+                        "call('addThermalHeadroomListener', listener)\n" +
+                        "local _, status = call('removeThermalStatusListener', listener)\n" +
+                        "local _, headroom = call('removeThermalHeadroomListener', listener)\n" +
+                        "local _, again = call('removeThermalHeadroomListener', listener)\n" +
+                        "posted = {}\n" +
+                        "return status, headroom, again");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
 
         // Android throws for null itself, the other hooks of the script do nothing before the call
         result = Scripts.run(globals,

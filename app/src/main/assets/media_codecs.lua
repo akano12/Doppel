@@ -27,8 +27,10 @@
 -- are not there (generic hooks). Not covered is native code (NDK AMediaCodec).
 local KEPT = { android = true, google = true, ffmpeg = true, hw = true }
 
--- MediaCodec.MetricsConstants.CODEC
-local METRICS_CODEC = 'android.media.mediacodec.codec'
+-- MediaCodec.MetricsConstants.CODEC, and MediaPlayer.MetricsConstants.CODEC_VIDEO and CODEC_AUDIO of the codecs
+-- a player decoded with
+local METRICS_CODECS = { 'android.media.mediacodec.codec', 'android.media.mediaplayer.video.codec',
+                         'android.media.mediaplayer.audio.codec' }
 
 -- Whether ExoPlayer and Media3 take a codec of a vendor for software by its name (MediaCodecUtil.isSoftwareOnly)
 function software(name)
@@ -128,25 +130,44 @@ function after(hook, param)
         return false
     end
     local result = param:getResult()
-    -- MediaCodec.getMetrics, a new bundle per call, has the name among its values
-    local metrics = (hook:getMethodName() == 'getMetrics' and result or nil)
-    if metrics ~= nil then
-        result = metrics:getString(METRICS_CODEC)
-    end
-    if result == nil or fakename(result) == result then
+    if result == nil then
         return false
+    end
+    -- MediaCodec.getMetrics and MediaPlayer.getMetrics, a new bundle per call, have the names among their values
+    if hook:getMethodName() == 'getMetrics' then
+        local old, new
+        for _, key in ipairs(METRICS_CODECS) do
+            local name = result:getString(key)
+            local fake = (name ~= nil and fakeof(param, name) or nil)
+            if fake ~= nil then
+                result:putString(key, fake)
+                old = old or name
+                new = new or fake
+            end
+        end
+        if old == nil then
+            return false
+        end
+        return true, old, new
+    end
+    local fake = fakeof(param, result)
+    if fake == nil then
+        return false
+    end
+    param:setResult(fake)
+    return true, result, fake
+end
+
+-- The fake name of a codec, nil for a name which stays
+function fakeof(param, name)
+    if fakename(name) == name then
+        return nil
     end
     local fakes, reals = codecs(param)
     -- Already fake, like the name findDecoderForFormat and MediaCodec.getName get from the hooked getName and
     -- getCanonicalName they call: a numbered one (hw2) would else become the fake name of another codec
-    if reals[result] ~= nil then
-        return false
+    if reals[name] ~= nil then
+        return nil
     end
-    local fake = fakes[result] or fakename(result)
-    if metrics ~= nil then
-        metrics:putString(METRICS_CODEC, fake)
-    else
-        param:setResult(fake)
-    end
-    return true, result, fake
+    return fakes[name] or fakename(name)
 end

@@ -53,6 +53,7 @@ import java.lang.reflect.Member;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -85,6 +86,7 @@ public class ActivityHookEdit extends ActivityBase {
     private XHook hook = null; // null for a new definition
     private String hookId = null; // Also while loading, null for a new definition which is not saved yet
     private Set<String> builtinIds = null;
+    private final Set<String> knownIds = new HashSet<>(); // The definitions a save under another id would replace
     private String unchanged = null; // What was entered when loaded or saved, see getEntered
     private boolean loading = true; // Until the definition is loaded, saving cannot tell whether it is new
     private boolean refill = false; // The fields are replaced by the definition loading, see delete
@@ -281,6 +283,9 @@ public class ActivityHookEdit extends ActivityBase {
             final JSONObject jhook = (hook == null ? null : Data.toEditable(hook));
             runOnUiThread(() -> {
                 builtinIds = ids;
+                knownIds.clear();
+                for (XHook h : hooks)
+                    knownIds.add(h.getId());
                 etGroup.setSimpleItems(groups.toArray(new String[0]));
                 if (jhook != null) {
                     this.hook = hook;
@@ -434,7 +439,7 @@ public class ActivityHookEdit extends ActivityBase {
         else if (id == R.id.menu_delete)
             delete();
         else if (id == R.id.menu_export)
-            exportLauncher.launch(text(etName).replaceAll("[^A-Za-z0-9._-]", "_") + ".json");
+            Ui.pick(this, exportLauncher, text(etName).replaceAll("[^A-Za-z0-9._-]", "_") + ".json");
         return true;
     }
 
@@ -499,10 +504,11 @@ public class ActivityHookEdit extends ActivityBase {
         final Context context = getApplicationContext();
         // A new definition, also one saved with another name, is not assigned to apps yet
         final String before = (hook == null ? null : hook.getId());
-        run(TAG, () -> {
+        final Runnable store = () -> run(TAG, () -> {
             check(jhook);
             final XHook saved = Data.putCustom(context, jhook);
             runOnUiThread(() -> {
+                knownIds.add(saved.getId());
                 hook = saved;
                 hookId = saved.getId();
                 unchanged = entered;
@@ -518,6 +524,15 @@ public class ActivityHookEdit extends ActivityBase {
                         () -> run(TAG, () -> Ui.message(this,
                                 Data.restrictForGroups(context, Collections.singletonList(saved)))));
         });
+        // Another definition with the id entered would be gone: a custom one with its script, a built-in one in
+        // all apps which have it, which import, Downloads and a restore ask about too
+        final String id = XHook.id(jhook.optString("collection"), jhook.optString("name"));
+        if (id.equals(before) || !knownIds.contains(id))
+            store.run();
+        else
+            Ui.areYouSure(this, builtinIds != null && builtinIds.contains(id)
+                    ? getString(R.string.msg_import_replaces, "\n• " + id)
+                    : getString(R.string.msg_hook_replaces, id), R.string.menu_save, store);
     }
 
     // Like Data.putCustom stores it, with a script which compiles, which would else only fail in the apps; the error

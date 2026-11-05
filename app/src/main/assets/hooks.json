@@ -2989,7 +2989,7 @@
     "returnType": "java.util.List",
     "minSdk": 29,
     "excludePackages": "android",
-    "luaScript": "@generic_empty"
+    "luaScript": "@install_sessions"
   },
   {
     "collection": "Privacy",
@@ -3009,33 +3009,80 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
-    "name": "PackageInstaller.registerSessionCallback",
+    "name": "PackageInstaller.SessionCallbackDelegate.onSessionCreated",
     "author": "akano12",
-    "className": "android.content.pm.PackageInstaller",
-    "methodName": "registerSessionCallback",
+    "className": "android.content.pm.PackageInstaller$SessionCallbackDelegate",
+    "methodName": "onSessionCreated",
     "parameterTypes": [
-      "android.content.pm.PackageInstaller$SessionCallback"
+      "int"
     ],
     "returnType": "void",
     "minSdk": 27,
     "excludePackages": "android",
-    "luaScript": "@generic_block"
+    "luaScript": "@install_sessions"
   },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
-    "name": "PackageInstaller.registerSessionCallback/handler",
+    "name": "PackageInstaller.SessionCallbackDelegate.onSessionBadgingChanged",
     "author": "akano12",
-    "className": "android.content.pm.PackageInstaller",
-    "methodName": "registerSessionCallback",
+    "className": "android.content.pm.PackageInstaller$SessionCallbackDelegate",
+    "methodName": "onSessionBadgingChanged",
     "parameterTypes": [
-      "android.content.pm.PackageInstaller$SessionCallback",
-      "android.os.Handler"
+      "int"
     ],
     "returnType": "void",
     "minSdk": 27,
     "excludePackages": "android",
-    "luaScript": "@generic_block"
+    "luaScript": "@install_sessions"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.SessionCallbackDelegate.onSessionActiveChanged",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller$SessionCallbackDelegate",
+    "methodName": "onSessionActiveChanged",
+    "parameterTypes": [
+      "int",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@install_sessions"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.SessionCallbackDelegate.onSessionProgressChanged",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller$SessionCallbackDelegate",
+    "methodName": "onSessionProgressChanged",
+    "parameterTypes": [
+      "int",
+      "float"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@install_sessions"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.SessionCallbackDelegate.onSessionFinished",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller$SessionCallbackDelegate",
+    "methodName": "onSessionFinished",
+    "parameterTypes": [
+      "int",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@install_sessions"
   },
   {
     "collection": "Privacy",
@@ -10335,6 +10382,36 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
+    "name": "UnixFileSystem.canonicalize0/hardware_ids",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixFileSystem.canonicalize0/native/hardware_ids",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
     "name": "UnixFileSystem.checkAccess/hardware_ids",
     "author": "akano12",
     "className": "java.io.UnixFileSystem",
@@ -10681,6 +10758,36 @@
     ],
     "returnType": "int",
     "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.canonicalize0/hardware_model",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.canonicalize0/native/hardware_model",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
     "luaScript": "@hardware_files"
   },
   {
@@ -11036,6 +11143,36 @@
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",
+    "name": "UnixFileSystem.canonicalize0/fingerprint_sensor",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixFileSystem.canonicalize0/native/fingerprint_sensor",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
     "name": "UnixFileSystem.checkAccess/fingerprint_sensor",
     "author": "akano12",
     "className": "java.io.UnixFileSystem",
@@ -11386,6 +11523,36 @@
   {
     "collection": "Privacy",
     "group": "Read.Features",
+    "name": "UnixFileSystem.canonicalize0/feature_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "UnixFileSystem.canonicalize0/native/feature_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
     "name": "UnixFileSystem.checkAccess/feature_files",
     "author": "akano12",
     "className": "java.io.UnixFileSystem",
@@ -11731,6 +11898,36 @@
     ],
     "returnType": "int",
     "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixFileSystem.canonicalize0/privapp_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixFileSystem.canonicalize0/native/privapp_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
     "luaScript": "@hardware_files"
   },
   {
@@ -15339,6 +15536,36 @@
   {
     "collection": "Privacy",
     "group": "Read.VPN",
+    "name": "UnixFileSystem.canonicalize0/vpn_interfaces",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixFileSystem.canonicalize0/native/vpn_interfaces",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
     "name": "UnixFileSystem.checkAccess/vpn_interfaces",
     "author": "akano12",
     "className": "java.io.UnixFileSystem",
@@ -15556,6 +15783,36 @@
     ],
     "returnType": "int",
     "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixFileSystem.canonicalize0/root",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixFileSystem.canonicalize0/native/root",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
     "luaScript": "@hardware_files"
   },
   {
@@ -17248,6 +17505,21 @@
     "name": "MediaCodec.getMetrics",
     "author": "akano12",
     "className": "android.media.MediaCodec",
+    "methodName": "getMetrics",
+    "parameterTypes": [],
+    "returnType": "android.os.PersistableBundle",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@media_codecs"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaPlayer.getMetrics",
+    "author": "akano12",
+    "className": "android.media.MediaPlayer",
     "methodName": "getMetrics",
     "parameterTypes": [],
     "returnType": "android.os.PersistableBundle",

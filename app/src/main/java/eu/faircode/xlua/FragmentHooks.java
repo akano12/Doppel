@@ -177,9 +177,9 @@ public class FragmentHooks extends FragmentBase {
         popup.inflate(R.menu.hooks);
         popup.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.menu_import)
-                importLauncher.launch(Ui.MIME_JSON);
+                Ui.pick(requireActivity(), importLauncher, Ui.MIME_JSON);
             else if (item.getItemId() == R.id.menu_export)
-                exportLauncher.launch(Ui.datedFileName("hooks"));
+                Ui.pick(requireActivity(), exportLauncher, Ui.datedFileName("hooks"));
             return true;
         });
         popup.show();

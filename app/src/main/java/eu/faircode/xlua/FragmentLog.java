@@ -376,16 +376,23 @@ public class FragmentLog extends FragmentBase {
         }
         if (filter != Filter.ERRORS) {
             Map<String, List<Entry>> days = new LinkedHashMap<>();
+            // The name of a day is made once for its entries, which follow each other, not for each entry:
+            // this runs for every letter of a search, and formatting thousands of dates takes long
+            String name = null;
+            long from = 0, until = 0;
             for (Entry entry : counted) {
-                String day;
-                if (entry.time >= today)
-                    day = getString(R.string.title_today);
-                else if (entry.time >= yesterday)
-                    day = getString(R.string.title_yesterday);
-                else
-                    day = DateUtils.formatDateTime(context, entry.time,
-                            DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_ABBREV_ALL);
-                days.computeIfAbsent(day, k -> new ArrayList<>()).add(entry);
+                if (name == null || entry.time < from || entry.time >= until) {
+                    from = Ui.startOfDay(entry.time);
+                    until = addDays(from, 1);
+                    if (entry.time >= today)
+                        name = getString(R.string.title_today);
+                    else if (entry.time >= yesterday)
+                        name = getString(R.string.title_yesterday);
+                    else
+                        name = DateUtils.formatDateTime(context, entry.time,
+                                DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_ABBREV_ALL);
+                }
+                days.computeIfAbsent(name, k -> new ArrayList<>()).add(entry);
             }
             for (Map.Entry<String, List<Entry>> day : days.entrySet()) {
                 items.add(getString(R.string.title_count, day.getKey(), day.getValue().size()));

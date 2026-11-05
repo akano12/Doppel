@@ -69,6 +69,9 @@ public class CommandsExecScriptTest {
             "  local hook = { getMethodName = function(self) return method end }",
             "  local restricted, line = before(hook, param)",
             "  return restricted, thrown, line",
+            "end",
+            "function finish(builder)",
+            "  return after({}, { getThis = function(self) return builder end })",
             "end");
 
     // A list which shows the script other words than ProcessBuilder.start reads from it
@@ -149,6 +152,20 @@ public class CommandsExecScriptTest {
         ProcessBuilder builder = new ProcessBuilder(new Shown(Arrays.asList("/system/bin/sh", "-c", "id"), LIB + "/libtool.so"));
         assertFalse(start(builder).arg1().toboolean());
         assertEquals(Arrays.asList(LIB + "/libtool.so"), words(builder));
+    }
+
+    // After the start the builder has the list of the app again, so a change of it counts for the next start
+    @Test
+    public void appKeepsItsList() {
+        List<String> command = new ArrayList<>(Arrays.asList(LIB + "/libtool.so", "-a"));
+        ProcessBuilder builder = new ProcessBuilder(command);
+        assertFalse(start(builder).arg1().toboolean());
+        assertFalse(globals.get("finish").call(CoerceJavaToLua.coerce(builder)).toboolean());
+        command.set(1, "-b");
+        assertEquals(Arrays.asList(LIB + "/libtool.so", "-b"), words(builder));
+        // Os.execv and execve have no builder
+        assertFalse(exec("execv", "/system/bin/sh").isnil(1));
+        assertFalse(globals.get("finish").call(LuaValue.NIL).toboolean());
     }
 
     @Test

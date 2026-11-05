@@ -245,7 +245,9 @@ class XDatabase {
             // Vibrator is hooked as SystemVibrator, see XHook.resolveClassName, like the hooks of that name
             "Vibrator.areEffectsSupported", "Vibrator.areAllEffectsSupported", "Vibrator.arePrimitivesSupported",
             "Vibrator.areAllPrimitivesSupported", "Vibrator.getPrimitiveDurations", "Vibrator.getResonantFrequency",
-            "Vibrator.getQFactor", "Vibrator.getInfo"
+            "Vibrator.getQFactor", "Vibrator.getInfo",
+            // The callbacks of install sessions are told about the sessions of the app itself, see install_sessions.lua
+            "PackageInstaller.registerSessionCallback", "PackageInstaller.registerSessionCallback/handler"
     };
 
     // Settings of all users and apps which no script reads anymore, removed on each start, see upgrade

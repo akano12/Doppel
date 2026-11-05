@@ -366,10 +366,14 @@ public class XParam {
     static boolean isPath(String path, String file) {
         if (plainPath("/" + path).equals(file))
             return true;
+        // Without the hooks of the app, which give the canonical path of a hidden file as of one which does not exist
+        XCore.enterService();
         try {
             return new File(path).getCanonicalPath().equals(file);
         } catch (IOException ignored) {
             return false;
+        } finally {
+            XCore.leaveService();
         }
     }
 

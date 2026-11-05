@@ -170,10 +170,13 @@ function unrooted(path)
     return path
 end
 
--- The path a path leads to, by the links of /sys, or the path as it is
-function resolve(path)
+-- The path a path leads to, by the links of /sys, or the path as it is; without the hooks of the app, which give
+-- the canonical path of a hidden file as of one which does not exist and would ask for this path again, see before
+function resolve(path, param)
     local ok, resolved = pcall(function()
-        return luajava.newInstance('java.io.File', path):getCanonicalPath()
+        return param:unhooked(function()
+            return luajava.newInstance('java.io.File', path):getCanonicalPath()
+        end)
     end)
     if ok and resolved ~= nil then
         return resolved
@@ -182,7 +185,7 @@ function resolve(path)
 end
 
 -- Whether a file is one of the group of the hook: its path or the path it leads to matches a pattern
-function hidden(hook, path)
+function hidden(hook, path, param)
     local group = about(hook).group
     if FILES[group] == nil then
         return false
@@ -192,7 +195,7 @@ function hidden(hook, path)
     if known ~= nil then
         return known
     end
-    local found = matched(group, path)
+    local found = matched(group, path, param)
     if cached >= 1000 then
         HIDDEN = {}
         cached = 0
@@ -227,11 +230,11 @@ function brandfont(path)
 end
 
 -- Whether a file is one of a group, without the cache, so other threads can ask too (see listing)
-function matched(group, path)
+function matched(group, path, param)
     local plain = unrooted(path)
     -- Only the file it leads to counts: the filter passes all paths with /../, like ones through a folder of the app
     if string.find(plain, '/../', 1, true) then
-        plain = resolve(plain)
+        plain = resolve(plain, param)
     end
     -- Resolved once, when needed: getCanonicalPath reads the file system
     local resolved
@@ -239,7 +242,7 @@ function matched(group, path)
         if brandfont(plain) then
             return true
         end
-        resolved = resolve(plain)
+        resolved = resolve(plain, param)
         if brandfont(resolved) then
             return true
         end
@@ -260,7 +263,7 @@ function matched(group, path)
         end
     end
     if not found then
-        resolved = resolved or resolve(plain)
+        resolved = resolved or resolve(plain, param)
         for _, pattern in ipairs(patterns) do
             if matches(resolved, pattern) then
                 found = true
@@ -269,6 +272,21 @@ function matched(group, path)
         end
     end
     return found
+end
+
+-- The canonical path of a hidden file, like of a file which does not exist: its name in its folder, not the file
+-- a link leads to, like /system/bin/magisk of su; the folder by its links, unless it is hidden too
+function missing(hook, path, param)
+    local folder, name = string.match(path, '^(.*)/([^/]+)$')
+    if folder == nil or folder == '' then
+        return path
+    end
+    if hidden(hook, folder, param) then
+        folder = missing(hook, folder, param)
+    else
+        folder = resolve(folder, param)
+    end
+    return (folder == '/' and '' or folder) .. '/' .. name
 end
 
 -- The path of the first argument: a text, a java.io.File or a path of java.nio, which print their path
@@ -281,14 +299,14 @@ end
 -- reported, since nothing is hidden in most of them. The filter can run on another thread, which must not change
 -- the tables of this one, so it does not use the cache.
 function listing(hook, param, folder)
-    if hidden(hook, folder) then
+    if hidden(hook, folder, param) then
         return false
     end
     local group = about(hook).group
     local original = param:getArgument(1)
     param:setArgument(1, luajava.createProxy('java.nio.file.DirectoryStream$Filter', {
         accept = function(entry)
-            if matched(group, tostring(entry)) then
+            if matched(group, tostring(entry), param) then
                 return false
             end
             return original == nil or original:accept(entry)
@@ -303,7 +321,7 @@ function before(hook, param)
     if class == 'sun.nio.fs.UnixFileSystemProvider' and about(hook).method == 'newDirectoryStream' then
         return listing(hook, param, path)
     end
-    if not hidden(hook, path) then
+    if not hidden(hook, path, param) then
         return false
     end
 
@@ -313,13 +331,20 @@ function before(hook, param)
         -- Os.readlink of apps are hooked themselves, since the hooks of BlockGuardOs do not run for them (Android 14)
         param:setResult(luajava.newInstance('android.system.ErrnoException', method, ENOENT))
     elseif class == 'java.io.UnixFileSystem' then
-        if method == 'createFileExclusively' then
+        if method == 'canonicalize0' then
+            -- File.getCanonicalPath and getCanonicalFile, which follow links: . and .. name another folder
+            local name = string.match(path, '([^/]+)$')
+            if name == nil or name == '.' or name == '..' then
+                return false
+            end
+            param:setResult(missing(hook, path, param))
+        elseif method == 'createFileExclusively' then
             -- File.createNewFile: apps cannot make files in /sys, and not at all in a folder which does not exist;
             -- the partitions of the system are mounted read-only, which the kernel checks first (EROFS)
             local folder = luajava.newInstance('java.io.File', path):getParent()
             local partition = string.match(unrooted(path), '^/([^/]+)/')
             local reason = 'Permission denied'
-            if folder ~= nil and hidden(hook, folder) then
+            if folder ~= nil and hidden(hook, folder, param) then
                 reason = 'No such file or directory'
             elseif READONLY[partition] then
                 reason = 'Read-only file system'
@@ -367,7 +392,7 @@ function after(hook, param)
     local folder = pathof(param)
     local kept = {}
     for index = 1, names['length'] do
-        if not hidden(hook, folder .. '/' .. names[index]) then
+        if not hidden(hook, folder .. '/' .. names[index], param) then
             table.insert(kept, names[index])
         end
     end

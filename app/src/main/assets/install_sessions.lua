@@ -21,6 +21,37 @@ function mine(param, info)
     return info ~= nil and info:getInstallerPackageName() == param:getPackageName()
 end
 
+-- The callbacks of sessions (PackageInstaller.SessionCallbackDelegate): Android tells a callback about every session
+-- of the device, the app hears only of the ones it installs itself, like the progress of updating itself. A session
+-- which finished has no info anymore, so whose a session is is remembered from its events before, like the one of
+-- making it, until it finished; the progress of an install has many events.
+function before(hook, param)
+    local method = hook:getMethodName()
+    if string.sub(method, 1, 9) ~= 'onSession' then
+        return false
+    end
+    local id = param:getArgument(0)
+    local context = param:getApplicationContext()
+    local key = 'install_sessions.' .. tostring(id)
+    local own = param:getValue(key, context)
+    if own == nil then
+        -- The lookup of the script itself, without the hooks of the app
+        own = mine(param, param:unhooked(function()
+            return context:getPackageManager():getPackageInstaller():getSessionInfo(id)
+        end))
+        if method ~= 'onSessionFinished' then
+            param:putValue(key, own, context)
+        end
+    elseif method == 'onSessionFinished' then
+        param:putValue(key, nil, context)
+    end
+    if own then
+        return false
+    end
+    param:setResult(nil)
+    return true
+end
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
@@ -34,7 +65,7 @@ function after(hook, param)
         param:setResult(nil)
         return true
     end
-    -- PackageInstaller.getAllSessions
+    -- PackageInstaller.getAllSessions and getStagedSessions
     local count = result:size()
     local kept = luajava.newInstance('java.util.ArrayList')
     for index = 0, count - 1 do

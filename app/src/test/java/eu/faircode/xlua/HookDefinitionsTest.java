@@ -70,7 +70,7 @@ public class HookDefinitionsTest {
     // Hidden framework classes, which are not part of the SDK, and a class of which the hooked members are hidden
     private static final Set<String> HIDDEN = new HashSet<>(Arrays.asList(
             "android.os.SystemProperties", "android.app.ContextImpl", "android.app.Instrumentation",
-            "android.app.LoadedApk$ServiceDispatcher"));
+            "android.app.LoadedApk$ServiceDispatcher", "android.content.pm.PackageInstaller$SessionCallbackDelegate"));
 
     // The defaults XHook.fromJSONObject uses for missing attributes, see docs/DEFINE.md
     private static final Map<String, Object> DEFAULTS = new HashMap<>();
@@ -996,12 +996,16 @@ public class HookDefinitionsTest {
         // Install sessions and package changes name other apps
         String i = "android.content.pm.PackageInstaller ";
         check("PackageInstaller.getAllSessions", i + "getAllSessions() @install_sessions 27-");
-        check("PackageInstaller.getStagedSessions", i + "getStagedSessions() @generic_empty 29-");
+        check("PackageInstaller.getStagedSessions", i + "getStagedSessions() @install_sessions 29-");
         check("PackageInstaller.getSessionInfo", i + "getSessionInfo(int) @install_sessions 27-");
-        check("PackageInstaller.registerSessionCallback", i + "registerSessionCallback(" +
-                "android.content.pm.PackageInstaller$SessionCallback) @generic_block 27-");
-        check("PackageInstaller.registerSessionCallback/handler", i + "registerSessionCallback(" +
-                "android.content.pm.PackageInstaller$SessionCallback,android.os.Handler) @generic_block 27-");
+        // A callback is told about every session of the device, by this object of Android
+        String d = "android.content.pm.PackageInstaller$SessionCallbackDelegate ";
+        String n = "PackageInstaller.SessionCallbackDelegate.";
+        check(n + "onSessionCreated", d + "onSessionCreated(int) @install_sessions 27-");
+        check(n + "onSessionBadgingChanged", d + "onSessionBadgingChanged(int) @install_sessions 27-");
+        check(n + "onSessionActiveChanged", d + "onSessionActiveChanged(int,boolean) @install_sessions 27-");
+        check(n + "onSessionProgressChanged", d + "onSessionProgressChanged(int,float) @install_sessions 27-");
+        check(n + "onSessionFinished", d + "onSessionFinished(int,boolean) @install_sessions 27-");
         String a = "android.content.pm.LauncherApps ";
         check("LauncherApps.getAllPackageInstallerSessions", a + "getAllPackageInstallerSessions() @generic_empty 29-");
         check("LauncherApps.registerPackageInstallerSessionCallback", a + "registerPackageInstallerSessionCallback(" +
@@ -1162,6 +1166,11 @@ public class HookDefinitionsTest {
                 "privapp_files", "vpn_interfaces", "root"}) {
             check("UnixFileSystem.getLength/" + suffix, "java.io.UnixFileSystem getLength(" + f + ") @hardware_files 27-");
             check("UnixFileSystem.getSpace/" + suffix, "java.io.UnixFileSystem getSpace(" + f + ",int) @hardware_files 27-");
+            // File.getCanonicalPath follows links, like the one of su to Magisk; the native method has the path
+            // alone, or with a flag in newer versions of the runtime, which Android 12 and later update
+            check("UnixFileSystem.canonicalize0/" + suffix, "java.io.UnixFileSystem canonicalize0(" + s + ") @hardware_files 27-");
+            check("UnixFileSystem.canonicalize0/native/" + suffix, "java.io.UnixFileSystem canonicalize0(" + s +
+                    ",boolean) @hardware_files 31- optional");
         }
         check("UnixFileSystem.list0/root", "java.io.UnixFileSystem list0(" + f + ") @hardware_files 27-");
         check("UnixFileSystem.getLastModifiedTime/root", "java.io.UnixFileSystem getLastModifiedTime(" + f + ") @hardware_files 27-");
@@ -1257,6 +1266,7 @@ public class HookDefinitionsTest {
                 "android.content.res.Configuration,android.util.DisplayMetrics,android.content.res.CompatibilityInfo,boolean) " +
                 "@display_panel 34- optional");
         check("MediaCodec.getMetrics", "android.media.MediaCodec getMetrics() @media_codecs 27- optional");
+        check("MediaPlayer.getMetrics", "android.media.MediaPlayer getMetrics() @media_codecs 27- optional");
         check("MediaCodec.getSupportedVendorParameters", "android.media.MediaCodec getSupportedVendorParameters() " +
                 "@generic_empty 31- optional");
         check("MediaCodec.getParameterDescriptor", "android.media.MediaCodec getParameterDescriptor(" + s +

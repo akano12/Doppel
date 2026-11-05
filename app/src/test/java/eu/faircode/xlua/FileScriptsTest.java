@@ -751,6 +751,36 @@ public class FileScriptsTest {
         assertFalse(result.arg(12).toboolean());
     }
 
+    // File.getCanonicalPath of a hidden file: its name in its folder, like of a file which does not exist, not the
+    // file a link leads to; the folder by its links, unless it is hidden too
+    @Test
+    public void hardwareCanonicalPath() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/system/bin/su'] = '/system/bin/magisk'\n" +
+                        "LINKS['/sys/block/mmcblk0/device'] = '/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001'\n" +
+                        "local function run(group, path)\n" +
+                        "  local param = paramof(path)\n" +
+                        "  local hook = hookof(group, 'java.io.UnixFileSystem', 'canonicalize0', 'java.lang.String')\n" +
+                        "  return tostring(before(hook, param)) .. ' ' .. tostring(param.result)\n" +
+                        "end\n" +
+                        "return run('Read.Debugging', '/system/bin/su'), run('Read.Debugging', '/su'),\n" +
+                        "  run('Read.Identifiers', '/sys/block/mmcblk0/device/cid'),\n" +
+                        "  run('Use.Tracking', '/sys/class/sec/tsp/raw_check'),\n" +
+                        "  run('Read.Identifiers', '/sys/devices/system/cpu/present'),\n" +
+                        "  run('Read.Debugging', '/data/adb/..'), run('Read.Debugging', '/system/bin/sh')");
+        assertEquals("true /system/bin/su", result.arg(1).tojstring());
+        assertEquals("true /su", result.arg(2).tojstring());
+        // The folder is not hidden, so its link is followed like for a file which is not there
+        assertEquals("true /sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid", result.arg(3).tojstring());
+        // The folder is hidden too, so its link is not followed either
+        assertEquals("true /sys/class/sec/tsp/raw_check", result.arg(4).tojstring());
+        assertEquals("false nil", result.arg(5).tojstring());
+        // Another folder, which Android resolves itself
+        assertEquals("false nil", result.arg(6).tojstring());
+        assertEquals("false nil", result.arg(7).tojstring());
+    }
+
     // Files.exists of Android 17 asks the provider, not the list of a folder
     @Test
     public void hardwareProviderExists() throws Exception {

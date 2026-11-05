@@ -50,15 +50,17 @@ end
 
 -- The listeners of the heat: Android answers a new listener at once with the real values, so it is not added and gets
 -- the values of the getters once, on the executor of the call, else on the main thread. Android throws for removing a
--- listener which was not added, which would crash the app, so removing one of these does nothing as well.
+-- listener which was not added, which would crash the app, so removing one of these does nothing as well. One object
+-- can listen to both the status and the headroom, so it is remembered for each.
 function before(hook, param)
     local method = hook:getMethodName()
+    local blocked = 'thermal.blocked.' .. (string.find(method, 'Headroom', 1, true) and 'headroom' or 'status')
     if method == 'removeThermalStatusListener' or method == 'removeThermalHeadroomListener' then
         local listener = param:getArgument(0)
-        if listener == nil or not param:getValue('thermal.blocked', listener) then
+        if listener == nil or not param:getValue(blocked, listener) then
             return false
         end
-        param:putValue('thermal.blocked', nil, listener)
+        param:putValue(blocked, nil, listener)
         param:setResult(nil)
         return false
     elseif method ~= 'addThermalStatusListener' and method ~= 'addThermalHeadroomListener' then
@@ -73,7 +75,7 @@ function before(hook, param)
         return false
     end
     param:setResult(nil)
-    param:putValue('thermal.blocked', true, listener)
+    param:putValue(blocked, true, listener)
 
     local runnable = luajava.createProxy('java.lang.Runnable', { run = function()
         if method == 'addThermalStatusListener' then

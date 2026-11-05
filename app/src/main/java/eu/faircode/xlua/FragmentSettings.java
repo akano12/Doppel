@@ -83,6 +83,7 @@ public class FragmentSettings extends FragmentBase {
     private List<String> collections = new ArrayList<>(); // Known collections
     private List<String> enabled = new ArrayList<>(); // Enabled collections
     private int launcherIcon = -1; // The icon of the launcher, see load and LauncherIcons.getEnabled
+    private int changes = 0; // The settings tapped, see put
 
     private final ActivityResultLauncher<String> backupLauncher = registerForActivityResult(
             new ActivityResultContracts.CreateDocument("application/json"), uri -> {
@@ -146,9 +147,9 @@ public class FragmentSettings extends FragmentBase {
         view.findViewById(R.id.llValues).setOnClickListener(v ->
                 startActivity(ActivityValues.getIntent(activity, null, null)));
         view.findViewById(R.id.llBackup).setOnClickListener(v ->
-                backupLauncher.launch(Ui.datedFileName("backup")));
+                Ui.pick(activity, backupLauncher, Ui.datedFileName("backup")));
         view.findViewById(R.id.llRestore).setOnClickListener(v ->
-                restoreLauncher.launch(Ui.MIME_JSON));
+                Ui.pick(activity, restoreLauncher, Ui.MIME_JSON));
         view.findViewById(R.id.llClear).setOnClickListener(v ->
                 Ui.areYouSure(activity, getString(R.string.msg_clear_sure), R.string.title_reset, this::clear));
         view.findViewById(R.id.llDocs).setOnClickListener(v -> Ui.browse(activity, Ui.URL_README));
@@ -163,6 +164,8 @@ public class FragmentSettings extends FragmentBase {
     @Override
     protected void load() {
         final Context context = requireContext().getApplicationContext();
+        // A switch or theme tapped while this loads is stored after it, so what was read is older than what is shown
+        final int before = changes;
         Ui.submit(executor, () -> {
             int version = Data.getVersion(context);
             boolean available = Data.isAvailable(version);
@@ -201,8 +204,10 @@ public class FragmentSettings extends FragmentBase {
                     restored = null;
                 }
                 showPalettes(ApplicationEx.getPalette(context));
+                boolean current = (before == changes);
                 swBlack.setOnCheckedChangeListener(null);
-                swBlack.setChecked(colors.black);
+                if (current)
+                    swBlack.setChecked(colors.black);
                 swBlack.setOnCheckedChangeListener((button, checked) -> selectBlack(checked));
 
                 this.collections = new ArrayList<>(known);
@@ -219,11 +224,13 @@ public class FragmentSettings extends FragmentBase {
                 tvCollections.setText(TextUtils.join(", ", enabled));
 
                 swRestrictNew.setOnCheckedChangeListener(null);
-                swRestrictNew.setChecked(restrictNew);
+                if (current)
+                    swRestrictNew.setChecked(restrictNew);
                 swRestrictNew.setOnCheckedChangeListener((button, checked) ->
                         put("restrict_new_apps", Boolean.toString(checked)));
                 swNotifyNew.setOnCheckedChangeListener(null);
-                swNotifyNew.setChecked(notifyNew);
+                if (current)
+                    swNotifyNew.setChecked(notifyNew);
                 swNotifyNew.setOnCheckedChangeListener((button, checked) ->
                         put("notify_new_apps", Boolean.toString(checked)));
                 for (View v : new View[]{llRestrictNew, swRestrictNew, llNotifyNew, swNotifyNew})
@@ -231,20 +238,19 @@ public class FragmentSettings extends FragmentBase {
                 Ui.enable(cgTheme, true);
 
                 // Selecting the chip of the theme loaded should not store it again
-                cgTheme.setOnCheckedStateChangeListener(null);
                 String theme = (ApplicationEx.THEME_DARK.equals(colors.theme) ? ApplicationEx.THEME_DARK
                         : ApplicationEx.THEME_LIGHT.equals(colors.theme) ? ApplicationEx.THEME_LIGHT
                         : ApplicationEx.THEME_SYSTEM);
-                Ui.chips(cgTheme, THEME_CHIPS, THEMES, theme, selected -> run(TAG, () -> {
-                    Data.putSetting(context, "global", "theme", selected);
+                if (current) {
+                    cgTheme.setOnCheckedStateChangeListener(null);
                     // From light to dark or back the screen fades, else nothing is recreated to replace a snapshot
-                    post(() -> {
+                    Ui.chips(cgTheme, THEME_CHIPS, THEMES, theme, selected -> put("theme", selected, () -> {
                         if (getActivity() instanceof ActivityBase && ApplicationEx.changesNight(getActivity(), selected))
                             ((ActivityBase) getActivity()).recreateSmoothly(() -> ApplicationEx.setTheme(context, selected));
                         else
                             ApplicationEx.setTheme(context, selected);
-                    });
-                }));
+                    }));
+                }
                 // Only the dark theme has a black background, also when the system theme is dark;
                 // choosing a theme or a change of the system theme recreates the screen
                 boolean dark = ((getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
@@ -327,16 +333,9 @@ public class FragmentSettings extends FragmentBase {
     // Black instead of dark grey backgrounds in the dark theme, with any palette; off is no setting
     private void selectBlack(boolean black) {
         final Context context = requireContext().getApplicationContext();
-        run(TAG, () -> {
-            try {
-                Data.putSetting(context, "global", "black", black ? Boolean.toString(true) : null);
-            } catch (Throwable ex) {
-                // Else the switch shows the change which was not stored
-                post(this::load);
-                throw ex;
-            }
+        put("black", black ? Boolean.toString(true) : null, () -> {
             if (ApplicationEx.setBlack(context, black))
-                post(() -> ((ActivityBase) requireActivity()).recreateSmoothly());
+                ((ActivityBase) requireActivity()).recreateSmoothly();
         });
     }
 
@@ -351,15 +350,24 @@ public class FragmentSettings extends FragmentBase {
     }
 
     private void put(String name, String value) {
+        put(name, value, null);
+    }
+
+    // Stores a setting of all apps which was tapped, then runs what applies it, on the main thread
+    private void put(String name, String value, Runnable stored) {
         final Context context = requireContext().getApplicationContext();
+        // A load which runs shows what it read before this, see load
+        changes++;
         run(TAG, () -> {
             try {
                 Data.putSetting(context, "global", name, value);
             } catch (Throwable ex) {
-                // Else the switch shows the change which was not stored
+                // Else the switch or chip shows the change which was not stored
                 post(this::load);
                 throw ex;
             }
+            if (stored != null)
+                post(stored);
         });
     }
 

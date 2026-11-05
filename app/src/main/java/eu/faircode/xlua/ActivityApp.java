@@ -88,7 +88,8 @@ public class ActivityApp extends ActivityBase {
     private final Map<String, List<XHook>> available = new HashMap<>();
     private final Map<String, GroupView> views = new HashMap<>();
     private final Set<String> expanded = new HashSet<>(); // Groups which show their hooks
-    private boolean dirty = false; // Changed restrictions which do not apply yet
+    // Changed restrictions which do not apply yet; an app which is stopped automatically has them when it starts
+    private boolean dirty = false;
     private int changes = 0; // Changes made here, which a reload started before does not show yet
     private int scopeRequests = 0; // Scope requests made here, a newer one supersedes the ones before
     private String reveal = null; // The id of a hook tapped in the log, shown when the restrictions are
@@ -741,7 +742,7 @@ public class ActivityApp extends ActivityBase {
         if (hooks.isEmpty())
             return;
 
-        dirty = true;
+        dirty |= !app.stopsAutomatically();
         changes++;
         updateRestart();
 
@@ -803,7 +804,7 @@ public class ActivityApp extends ActivityBase {
                             return;
                         setScope(pkg, nowInScope);
                         if (nowInScope) {
-                            dirty = true;
+                            dirty |= !app.stopsAutomatically();
                             updateRestart();
                         } else if (error != null)
                             Ui.message(this, getString(R.string.msg_scope_failed, error));
@@ -817,7 +818,7 @@ public class ActivityApp extends ActivityBase {
     // A scope change applies when the app's process next starts, like a restriction: the app is stopped after the
     // change when it is stopped automatically, else the restart hint shows
     private void scopeChanged(Ui.Task change) {
-        dirty = true;
+        dirty |= !app.stopsAutomatically();
         updateRestart();
         final Context context = getApplicationContext();
         final XApp app = this.app;

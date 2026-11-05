@@ -46,6 +46,9 @@ function nativeprogram(param, builder, program)
     return (resolved and string.sub(paths[1], 1, #paths[2]) == paths[2])
 end
 
+-- The list of the app while its builder starts with a copy, see before and after
+local original
+
 function before(hook, param)
     local builder = param:getThis()
     -- Os.execv and execve, static, with the exception of the exec; Java throws for a null program itself
@@ -64,6 +67,7 @@ function before(hook, param)
     end
     -- The list can be one of the app, which shows other words here than start reads from it, so both read a copy
     local copy = luajava.newInstance('java.util.ArrayList', command)
+    original = command
     builder:command(copy)
     -- Java throws for an empty command or a null word itself
     local args = copy:toArray()
@@ -85,4 +89,13 @@ function before(hook, param)
     param:setResult(luajava.new(exception, 'Cannot run program "' .. words[1] .. '"' ..
             (dir and ' (in directory "' .. dir:getPath() .. '")' or '') .. ': ' .. cause:getMessage(), cause))
     return true, table.concat(words, ' ')
+end
+
+-- The builder has the list of the app again: used once more, it starts with the words the list has then
+function after(hook, param)
+    if original ~= nil then
+        param:getThis():command(original)
+        original = nil
+    end
+    return false
 end

@@ -44,7 +44,21 @@ public class InstallSessionsScriptTest {
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value self.set = true end }",
             "end",
-            "function hookof(method) return { getMethodName = function(self) return method end } end");
+            "function hookof(method) return { getMethodName = function(self) return method end } end",
+            // An event of a session for the callback of the app: whether it is dropped
+            "sessions, values = {}, {}",
+            "function event(method, id)",
+            "  local installer = { getSessionInfo = function(self, session) return sessions[session] end }",
+            "  local context = { getPackageManager = function(self)",
+            "    return { getPackageInstaller = function(self) return installer end } end }",
+            "  local p = paramof(nil)",
+            "  p.getArgument = function(self, index) return id end",
+            "  p.getApplicationContext = function(self) return context end",
+            "  p.getValue = function(self, name, scope) return values[name] end",
+            "  p.putValue = function(self, name, value, scope) values[name] = value end",
+            "  p.unhooked = function(self, lookup) return lookup() end",
+            "  return before(hookof(method), p), p.set",
+            "end");
 
     private Globals globals;
 
@@ -67,6 +81,37 @@ public class InstallSessionsScriptTest {
                 "return after(hookof('getSessionInfo'), p), p.result == nil");
         assertTrue(result.arg1().toboolean());
         assertTrue(result.arg(2).toboolean());
+    }
+
+    // The callback of the app hears of its own sessions, also that they finished, when they have no info anymore
+    @Test
+    public void callbackHearsOfOwnSessionsOnly() {
+        Varargs result = Scripts.run(globals,
+                "sessions[1] = infoof('com.app') sessions[2] = infoof('com.android.vending')\n" +
+                        "local own, ownSet = event('onSessionCreated', 1)\n" +
+                        "local other, otherSet = event('onSessionProgressChanged', 2)\n" +
+                        "local remembered = (values['install_sessions.1'] == true and values['install_sessions.2'] == false)\n" +
+                        "sessions[1] = nil sessions[2] = nil\n" +
+                        "local finished, finishedSet = event('onSessionFinished', 1)\n" +
+                        "local again = event('onSessionFinished', 1)\n" +
+                        "local otherFinished = event('onSessionFinished', 2)\n" +
+                        "return own, ownSet, other, otherSet, finished, finishedSet, again, otherFinished, next(values) == nil,\n" +
+                        "  remembered");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        // Forgotten when they finished, the session of another app too
+        assertTrue(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
+        assertTrue(result.arg(10).toboolean());
+        // The hooks of the lists and of the info do nothing before the call
+        result = Scripts.run(globals, "local p = paramof(nil) return before(hookof('getSessionInfo'), p), p.set");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
     }
 
     @Test

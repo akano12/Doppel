@@ -42,6 +42,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.StringRes;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.content.res.ResourcesCompat;
@@ -312,6 +313,15 @@ final class Ui {
             } catch (ActivityNotFoundException | SecurityException ignored) {
                 message(activity, activity.getString(R.string.msg_cannot_open, label));
             }
+    }
+
+    // The file picker of Android, which a ROM can have left out: a message instead of a crash
+    static <I> void pick(Activity activity, ActivityResultLauncher<I> launcher, I input) {
+        try {
+            launcher.launch(input);
+        } catch (ActivityNotFoundException ignored) {
+            message(activity, activity.getString(R.string.msg_no_picker));
+        }
     }
 
     static void browse(Activity activity, String url) {
