@@ -234,7 +234,7 @@ function after(hook, param)
         end
         param:setResult(fake)
         return true, result, fake
-    elseif method == 'get' then
+    elseif method == 'get' or method == 'native_get' then
         -- Properties which are not set stay empty, or the default of get(key, default), a fake value would tell they
         -- are faked; an empty fake is what get gives for a property which is not set
         local result = param:getResult()

@@ -48,6 +48,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:importantForAccessibility="no"
+                app:trackColor="?attr/colorSurfaceContainerHigh"
                 app:trackCornerRadius="3dp"
                 app:trackThickness="6dp" />
         </LinearLayout>

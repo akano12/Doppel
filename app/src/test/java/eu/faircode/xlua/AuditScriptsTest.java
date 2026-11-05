@@ -80,7 +80,7 @@ public class AuditScriptsTest {
         return Scripts.load(script, STUBS);
     }
 
-    // The kernel release and version of /proc like those of Os.uname and the shell, other files stay
+    // The kernel release and version of /proc like those of Os.uname, other files stay
     @Test
     public void kernelInProc() throws Exception {
         Globals globals = load("kernel_version");

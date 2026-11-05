@@ -63,7 +63,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
 
         // Checking the service is a call into system server, so not on the main thread
         final Context context = getApplicationContext();
-        run(TAG, () -> {
+        Ui.submit(executor, () -> {
             boolean available = Data.isAvailable(context);
             // The local copies of the colors do not exist yet after an update
             ApplicationEx.Colors colors = (available ? ApplicationEx.Colors.get(context) : null);
@@ -85,7 +85,11 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
                 else
                     show.run();
             });
-        }, this::recreate); // Without the retry a failed check would leave the screen blank
+        }, ex -> {
+            // A failed check would else leave the screen blank; this screen has a button to try again
+            postUnlessGone(this::showUnavailable);
+            error(TAG, ex);
+        });
     }
 
     @Override

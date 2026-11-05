@@ -77,10 +77,11 @@ public class ContactsDefaultAccountScriptTest {
 
     @Test
     public void defaultEmailWhenUnset() {
-        Varargs result = run("'0@com.android.contacts', 'queryDefaultAccountForNewContacts', " +
-                "'me@gmail.com', 'com.google'");
-        assertTrue(result.arg1().toboolean());
-        assertEquals("private@example.com", result.arg(4).tojstring());
+        for (String authority : new String[]{"'0@com.android.contacts'", "'+0@com.android.contacts'"}) {
+            Varargs result = run(authority + ", 'queryDefaultAccountForNewContacts', 'me@gmail.com', 'com.google'");
+            assertTrue(result.arg1().toboolean());
+            assertEquals("private@example.com", result.arg(4).tojstring());
+        }
     }
 
     @Test

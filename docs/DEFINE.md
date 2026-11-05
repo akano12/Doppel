@@ -230,7 +230,9 @@ To use such classes, load them with *param:findClass*:
 
 A script can define a *filter* function, which returns the values of the first argument of the hooked method the script is for,
 or *nil* for all calls. The other calls do not run the script, so a method which is called very often can be hooked,
-like opening files. Files and paths of java.nio are compared by their path:
+like opening files, except a value containing `/../`, which always runs it, so the script must check such a value itself.
+Only texts, files and paths of java.nio are compared, the last two by their path;
+with any other first argument, or none, the script never runs:
 
 ```Lua
 function filter(hook)
@@ -246,11 +248,12 @@ likewise a value like *\*meminfo\** starting and ending in \* stands for all val
 
 For a hooked method which opens a file and returns its file descriptor, like *libcore.io.BlockGuardOs.open*,
 or the number of one, like *sun.nio.fs.UnixNativeDispatcher.open* for java.nio,
-*param:getFileText()* reads the file, and *param:setFileText(text)* lets the app read the text instead,
-without a file being written. *param:opens(path)* tells whether the file opened, the first argument, is the file of
-the path, also by another path, like *//proc/meminfo*, *proc/meminfo* or */proc/self/root/proc/meminfo*: apps
-can open a file by such a path to get around a filter of its path, so a filter like *\*meminfo\** with *opens* catches
-them. *param:readFile(path)* reads a file like the app does, with its hooks,
+*param:getFileText()* reads the file, and *param:setFileText(text)* lets the app read the text instead, from memory;
+before Android 11 a text above 4096 bytes goes to a temporary file, which is removed right away.
+A filter value like */proc/meminfo* also matches other forms of the path, like *//proc/meminfo*, *proc/meminfo* or
+*/proc/self/root/proc/meminfo*, and a path containing *..* always goes to the script. *param:opens(path)* tells whether
+the file opened, the first argument, is the file of the path, by any of these forms and also by a link.
+*param:readFile(path)* reads a file like the app does, with its hooks,
 and *param:uuidOf(seed)* gives a random looking UUID, which is the same for the same seed.
 
 A script is executed once per thread to define its functions, so a script must not assign globals other than functions;

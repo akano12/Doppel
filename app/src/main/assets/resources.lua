@@ -174,7 +174,24 @@ function after(hook, param)
     end
 
     local fake
-    if method == 'statvfs' or method == 'fstatvfs' then
+    if method == 'sysconf' then
+        -- Os.sysconf, the pages of memory: the sizes of getMemoryInfo in pages of the device. Only these names are
+        -- rounded; the free pages are rounded up to a page, or the second hook of one call, of Os and ForwardingOs,
+        -- would round them down once more
+        local constants = luajava.bindClass('android.system.OsConstants')
+        local name = param:getArgument(0)
+        if name ~= constants._SC_PHYS_PAGES and name ~= constants._SC_AVPHYS_PAGES then
+            return false
+        end
+        local size = param:unhooked(function()
+            return luajava.bindClass('android.system.Os'):sysconf(constants._SC_PAGESIZE)
+        end)
+        if name == constants._SC_PHYS_PAGES then
+            fake = math.floor(memorysize(result * size) / size)
+        else
+            fake = math.ceil(freesize(result * size) / size)
+        end
+    elseif method == 'statvfs' or method == 'fstatvfs' then
         -- Sizes in fragments, like StatFs uses them
         local unit = result.f_frsize
         if unit <= 0 or result.f_blocks * unit < GB then

@@ -510,6 +510,24 @@ public class FileScriptsTest {
         assertFalse(result.arg(2).toboolean());
     }
 
+    // A path with /../ counts by the file it leads to, which XCore lets through for every group, not by the folders it
+    // passes, like one of the app with the name of a folder of /sys
+    @Test
+    public void parentFoldersCountByTheFile() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/data/user/0/app/files/soc1/../note'] = '/data/user/0/app/files/note'\n" +
+                        "LINKS['/data/../sys/devices/soc0/soc_id'] = '/sys/devices/soc0/soc_id'\n" +
+                        "local model = hookof('Use.Tracking')\n" +
+                        "return hidden(model, '/data/user/0/app/files/soc1/../note'),\n" +
+                        "  hidden(model, '/data/user/0/app/files/soc1/note'),\n" +
+                        "  hidden(model, '/data/../sys/devices/soc0/soc_id')");
+        assertFalse(result.arg(1).toboolean());
+        // Without /../ the text of a path is all the script has
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+    }
+
     // The chip of the bus of systems on a chip, SCSI storage by its link to the device, input devices and storage
     // of /proc, the folders of VPN interfaces (by the names of vpn) and su and Magisk; only their files
     @Test
@@ -646,7 +664,7 @@ public class FileScriptsTest {
                         "before(hookof(ids, nio, 'stat', 'void'), stat)\n" +
                         "local other = paramof('/sys/devices/system/chip-id/product_id')\n" +
                         "return restricted, old, open.result.class, open.result.args[1], open.result.args[2],\n" +
-                        "  attributes.result, list.early, list.result == nil, exists.result, mode.result,\n" +
+                        "  attributes.result, list.early, list.result == nil, exists.result == false, mode.result == 0,\n" +
                         "  stat.result.class, stat.result.args[1], before(hookof(ids), other), other.early");
         assertTrue(result.arg(1).toboolean());
         assertEquals("/sys/devices/system/chip-id/unique_id", result.arg(2).tojstring());
@@ -656,8 +674,8 @@ public class FileScriptsTest {
         assertEquals(0, result.arg(6).toint());
         assertTrue(result.arg(7).toboolean());
         assertTrue(result.arg(8).toboolean());
-        assertFalse(result.arg(9).toboolean());
-        assertEquals(0, result.arg(10).toint());
+        assertTrue(result.arg(9).toboolean());
+        assertTrue(result.arg(10).toboolean());
         assertEquals("sun.nio.fs.UnixException", result.arg(11).tojstring());
         assertEquals(2, result.arg(12).toint());
         assertFalse(result.arg(13).toboolean());
@@ -789,7 +807,7 @@ public class FileScriptsTest {
         }
     }
 
-    private static Object xcoreFilter(Varargs values) throws Exception {
+    static Object xcoreFilter(Varargs values) throws Exception {
         Class<?> type = Class.forName("eu.faircode.xlua.XCore$Filter");
         java.lang.reflect.Constructor<?> constructor = type.getDeclaredConstructor();
         constructor.setAccessible(true);
@@ -801,7 +819,7 @@ public class FileScriptsTest {
         return filter;
     }
 
-    private static boolean filterMatches(Object filter, String path) throws Exception {
+    static boolean filterMatches(Object filter, String path) throws Exception {
         java.lang.reflect.Method matches = filter.getClass().getDeclaredMethod("matches", String.class);
         matches.setAccessible(true);
         return (Boolean) matches.invoke(filter, path);

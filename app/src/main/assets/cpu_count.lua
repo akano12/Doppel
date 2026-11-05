@@ -20,8 +20,9 @@
 -- by it, which more or fewer threads than processors do not break. Runtime.availableProcessors asks
 -- Os.sysconf(_SC_NPROCESSORS_CONF), which compiled code of the framework can call without the hook, so it is
 -- hooked too, and the processors possible, present and online of /sys/devices/system/cpu are 0-7, also by other
--- paths (see XParam.opens). The processors of /proc/cpuinfo are 8 too (see cpuinfo). Not covered are native code
--- (sysconf, nproc) and the folders of the processors (cpu0 and on), which stay as they are.
+-- paths (see XParam.opens). The processors of /proc/cpuinfo are 8 too (see cpuinfo), and the folders of the processors
+-- after cpu7 do not exist (see hardware_files). Not covered are native code (sysconf, nproc) and devices with fewer
+-- than 8 processors, which keep their folders: there are no folders to show for the others.
 local COUNT = 8
 local RANGE = '0-7\n'
 local RANGES = { 'possible', 'present', 'online' }

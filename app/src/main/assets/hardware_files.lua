@@ -49,7 +49,10 @@ local FILES = {
         '/%d+:%d+:%d+:%d+/model$', '/%d+:%d+:%d+:%d+/vendor$', '/%d+:%d+:%d+:%d+/rev$',
         '/sensors/light_sensor/light_cal$', '/sec/tsp$', '/sec/tsp/', '/class/camera/', '/virtual/camera/',
         -- The speeds, layout, caches and idle states of the processors, like cpu7/cpufreq/cpuinfo_max_freq, and the
-        -- features and flaws of their cores; the folder and the numbers of the processors stay (see cpu_count)
+        -- features and flaws of their cores; of the folders of the processors cpu0 to cpu7 stay (see cpu_count), and
+        -- a device with fewer processors keeps the ones it has, since folders cannot be made up
+        '/devices/system/cpu/cpu[89]$', '/devices/system/cpu/cpu[89]/', '/devices/system/cpu/cpu%d%d+$',
+        '/devices/system/cpu/cpu%d%d+/',
         '/devices/system/cpu/cpufreq$', '/devices/system/cpu/cpufreq/', '/devices/system/cpu/cpuidle$',
         '/devices/system/cpu/cpuidle/', '/devices/system/cpu/vulnerabilities$', '/devices/system/cpu/vulnerabilities/',
         '/devices/system/cpu/modalias$', '/devices/system/cpu/cpu%d+/cpufreq$', '/devices/system/cpu/cpu%d+/cpufreq/',
@@ -226,6 +229,10 @@ end
 -- Whether a file is one of a group, without the cache, so other threads can ask too (see listing)
 function matched(group, path)
     local plain = unrooted(path)
+    -- Only the file it leads to counts: the filter passes all paths with /../, like ones through a folder of the app
+    if string.find(plain, '/../', 1, true) then
+        plain = resolve(plain)
+    end
     -- Resolved once, when needed: getCanonicalPath reads the file system
     local resolved
     if group == 'Use.Tracking' and string.find(path, 'fonts', 1, true) then

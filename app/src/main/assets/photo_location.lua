@@ -32,7 +32,9 @@ local NULL = {}
 function query(param)
     local uri = param:getArgument(0)
     local result = param:getResult()
-    if uri == nil or result == nil or uri:getAuthority() ~= 'media' then
+    local authority = (uri ~= nil and uri:getAuthority() or nil)
+    -- Without the user, like 0@media (see contentresolver_query)
+    if authority == nil or result == nil or string.gsub(authority, '^.*@', '') ~= 'media' then
         return false
     end
     local hidden = {}

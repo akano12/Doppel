@@ -67,7 +67,8 @@ public class XParamTest {
         String file = "/proc/meminfo";
         for (String path : new String[]{"/proc/meminfo", "//proc/meminfo", "/proc//meminfo", "/proc/./meminfo",
                 "proc/meminfo", "/proc/self/root/proc/meminfo", "/proc/1234/root/proc/meminfo",
-                "/proc/thread-self/root//proc/meminfo", "/proc/self/task/1234/root/proc/meminfo"})
+                "/proc/thread-self/root//proc/meminfo", "/proc/self/task/1234/root/proc/meminfo",
+                "/proc/self/cwd/proc/meminfo", "/proc/self/task/1234/cwd/proc/meminfo"})
             assertTrue(path, XParam.isPath(path, file));
         for (String path : new String[]{"/proc/meminfo2", "/data/proc/meminfo", "/proc/self/meminfo", "/proc/vmstat"})
             assertFalse(path, XParam.isPath(path, file));
@@ -85,6 +86,12 @@ public class XParamTest {
         assertEquals("/data/adb", XParam.plainPath("/proc/self/task/1234/root/data/adb"));
         assertEquals("/data/adb", XParam.plainPath("/proc/self/root/proc/thread-self/root/data/adb"));
         assertEquals("/proc/self/task/1234/stat", XParam.plainPath("/proc/self/task/1234/stat"));
+        // The working directory of an app is the root; other folders of that name stay
+        assertEquals("/dev/su", XParam.plainPath("/proc/self/cwd/dev/su"));
+        assertEquals("/data/adb", XParam.plainPath("/proc/self/root/proc/self/cwd/data/adb"));
+        assertEquals("/data/cwd/file", XParam.plainPath("/data/cwd/file"));
+        // Only the file system can resolve /../, see the filters of XCore
+        assertEquals("/vendor/etc/init/../media_codecs.xml", XParam.plainPath("/vendor/etc/init/../media_codecs.xml"));
         String plain = "/proc/meminfo";
         assertTrue(plain == XParam.plainPath(plain));
     }

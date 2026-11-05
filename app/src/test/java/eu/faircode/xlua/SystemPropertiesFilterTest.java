@@ -73,4 +73,24 @@ public class SystemPropertiesFilterTest {
         for (String key : new String[]{"debug.hwui.renderer", "persist.sys.locale", "log.tag.Foo"})
             assertFalse(key, (Boolean) matches.invoke(filter, key));
     }
+
+    // USB debugging and the heap of apps: the script runs for the properties of the variant, not for those of the other
+    @Test
+    public void debuggingAndHeapPropertiesAreFiltered() throws Exception {
+        Globals globals = Scripts.load("systemproperties_get", STUBS);
+        Object debugging = FileScriptsTest.xcoreFilter(
+                Scripts.run(globals, "return filter(hookof('SystemProperties.get/debugging'))").arg1().checktable().unpack());
+        Object resources = FileScriptsTest.xcoreFilter(
+                Scripts.run(globals, "return filter(hookof('SystemProperties.get/resources'))").arg1().checktable().unpack());
+        for (String key : new String[]{"init.svc.adbd", "sys.usb.config", "sys.usb.state", "persist.sys.usb.config",
+                "ro.debuggable", "ro.secure", "persist.logd.size", "persist.logd.size.main", "persist.logd.size.crash"}) {
+            assertTrue(key, FileScriptsTest.filterMatches(debugging, key));
+            assertFalse(key, FileScriptsTest.filterMatches(resources, key));
+        }
+        for (String key : new String[]{"dalvik.vm.heapgrowthlimit", "dalvik.vm.heapsize", "dalvik.vm.heapstartsize",
+                "dalvik.vm.heapminfree", "dalvik.vm.heapmaxfree", "dalvik.vm.heaptargetutilization"}) {
+            assertTrue(key, FileScriptsTest.filterMatches(resources, key));
+            assertFalse(key, FileScriptsTest.filterMatches(debugging, key));
+        }
+    }
 }

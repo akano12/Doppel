@@ -238,6 +238,49 @@ public class NetworkScriptsTest {
         assertTrue(result.arg(3).toboolean());
     }
 
+    // The addresses of a network interface, which is how apps read the IP address of the device: only loopback stays.
+    // The enumeration is consumed, so the result is a new one also when nothing is left out
+    @Test
+    public void addressesOfInterfacesKeepLoopback() throws Exception {
+        Globals globals = load("network_address");
+        Varargs result = Scripts.run(globals,
+                "local inet = luajava.bindClass('java.net.InetAddress')\n" +
+                        "local collections = luajava.bindClass('java.util.Collections')\n" +
+                        "local function listof(...)\n" +
+                        "  local list = luajava.newInstance('java.util.ArrayList')\n" +
+                        "  for _, item in ipairs({ ... }) do list:add(item) end\n" +
+                        "  return list\n" +
+                        "end\n" +
+                        "local function bound(host)\n" +
+                        "  return { getAddress = function(self) return host and inet:getByName(host) end }\n" +
+                        "end\n" +
+                        "local loopback = inet:getByName('127.0.0.1')\n" +
+                        "local device = paramof(collections:enumeration(listof(loopback, inet:getByName('192.168.1.5'),\n" +
+                        "  inet:getByName('fe80::1'))))\n" +
+                        "local plain = paramof(collections:enumeration(listof(loopback)))\n" +
+                        "local bindings = paramof(listof(bound('192.168.1.5'), bound('127.0.0.1'), bound(nil)))\n" +
+                        "local plainbindings = paramof(listof(bound('127.0.0.1')))\n" +
+                        "local removed = after(hookof('getInetAddresses'), device)\n" +
+                        "local kept = collections:list(device.result)\n" +
+                        "local unchanged = after(hookof('getInetAddresses'), plain)\n" +
+                        "return removed, kept:size(), kept:get(0):getHostAddress(),\n" +
+                        "  unchanged, plain.set, collections:list(plain.result):size(),\n" +
+                        "  after(hookof('getInterfaceAddresses'), bindings), bindings.result:size(),\n" +
+                        "  bindings.result:get(0):getAddress():getHostAddress(),\n" +
+                        "  after(hookof('getInterfaceAddresses'), plainbindings), plainbindings.result:size()");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertEquals("127.0.0.1", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals(1, result.arg(6).toint());
+        assertTrue(result.arg(7).toboolean());
+        assertEquals(1, result.arg(8).toint());
+        assertEquals("127.0.0.1", result.arg(9).tojstring());
+        assertFalse(result.arg(10).toboolean());
+        assertEquals(1, result.arg(11).toint());
+    }
+
     // A VPN over mobile data, the networks of the connectivity manager as Lua sees them
     private static final String NETWORKS = String.join("\n",
             "function infoof(type, name) return { type = type, name = name,",
@@ -344,6 +387,22 @@ public class NetworkScriptsTest {
         // Without an interface, like a new LinkProperties, there is nothing to hide
         String empty = "{LinkAddresses: [ ] DnsAddresses: [ ] Domains: null MTU: 0 Routes: [ ]}";
         assertEquals(empty, tostring(globals, "android.net.LinkProperties", empty));
+
+        // The reason of a connecting VPN before Android 12, in the text as a NetworkInfo without a reason prints it;
+        // other reasons stay
+        String info = "[type: MOBILE[LTE], state: CONNECTED/CONNECTED, reason: %s, extra: (none), failover: false]";
+        assertEquals(String.format(info, "(unspecified)"),
+                tostring(globals, "android.net.NetworkInfo", String.format(info, "agentConnect")));
+        assertEquals(String.format(info, "connected"),
+                tostring(globals, "android.net.NetworkInfo", String.format(info, "connected")));
+        Varargs reason = Scripts.run(globals,
+                "local vpn = paramof('agentConnect')\n" +
+                        "local other = paramof('connected')\n" +
+                        "return after(hookof('getReason'), vpn), vpn.result, after(hookof('getReason'), other), other.result");
+        assertTrue(reason.arg(1).toboolean());
+        assertTrue(reason.arg(2).isnil());
+        assertFalse(reason.arg(3).toboolean());
+        assertEquals("connected", reason.arg(4).tojstring());
     }
 
     // The runtime of a script stays after an error (see XCore), so an error must not leave the guard of nested calls set
@@ -438,6 +497,19 @@ public class NetworkScriptsTest {
         assertEquals("false", result.arg(2).tojstring());
         assertEquals("true", result.arg(3).tojstring());
         assertEquals("true", result.arg(4).tojstring());
+
+        // The hidden getters, which apps reach by reflection, and with which LinkProperties compares itself
+        for (String method : new String[]{"getAllAddresses", "getAddresses", "getAllLinkAddresses", "getAllRoutes",
+                "getAllInterfaceNames"}) {
+            result = Scripts.run(globals,
+                    "local param = paramof({ isEmpty = function() return false end })\n" +
+                            "stack = { 'android.net.LinkProperties." + method + "', 'com.example.App.run' }\n" +
+                            "local app = after(hookof('" + method + "'), param)\n" +
+                            "stack = { 'android.net.LinkProperties." + method + "', 'android.net.LinkProperties.isIdenticalAddresses' }\n" +
+                            "return app, after(hookof('" + method + "'), paramof({ isEmpty = function() return false end }))");
+            assertTrue(method, result.arg(1).toboolean());
+            assertFalse(method, result.arg(2).toboolean());
+        }
     }
 
     // A request for VPN networks, which Android matches itself, asks for LoWPAN networks instead; others stay. The request of the app does not show LoWPAN then, it hides it like VPN.
@@ -497,6 +569,78 @@ public class NetworkScriptsTest {
                 "[ Transports: VPN Capabilities: VALIDATED UnderlyingNetworks: null]").replaceAll(".*Capabilities: (\\S*).*", "$1"));
         assertEquals("INTERNET&NOT_VPN", tostring(globals, "android.net.NetworkCapabilities",
                 "[ Transports: VPN Capabilities: INTERNET UnderlyingNetworks: null]").replaceAll(".*Capabilities: (\\S*).*", "$1"));
+    }
+
+    // A VPN network lacks NOT_VPN, which it has here; other capabilities stay
+    @Test
+    public void vpnHasNotVpn() throws Exception {
+        Varargs result = Scripts.run(load("vpn"),
+                "local vpn = paramof(false, { [0] = 15 })\n" +
+                        "local other = paramof(false, { [0] = 12 })\n" +
+                        "local real = paramof(true, { [0] = 15 })\n" +
+                        "return after(hookof('hasCapability'), vpn), vpn.result, after(hookof('hasCapability'), other),\n" +
+                        "  other.set, after(hookof('hasCapability'), real), real.set");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+    }
+
+    // The network info of the type VPN is not there, by its type or in the list of all networks; others stay
+    @Test
+    public void vpnNetworkInfoIsLeftOut() throws Exception {
+        Globals globals = load("vpn");
+        Scripts.run(globals, NETWORKS);
+        Scripts.run(globals, Scripts.ARRAYOF + "\n" +
+                "luajava = { bindClass = function(name)\n" +
+                "  if name == 'android.net.NetworkInfo' then return 'NetworkInfo' end\n" +
+                "  assert(name == 'java.lang.reflect.Array', name)\n" +
+                "  return { newInstance = function(self, type, length) return { type = type, length = length } end }\n" +
+                "end }");
+        Varargs result = Scripts.run(globals,
+                "local vpn = paramof(vpninfo, { [0] = 17 })\n" +
+                        "local mobile = paramof(mobileinfo, { [0] = 0 })\n" +
+                        "local all = paramof(arrayof(vpninfo, mobileinfo))\n" +
+                        "local plain = paramof(arrayof(mobileinfo))\n" +
+                        "return after(hookof('getNetworkInfo'), vpn), vpn.result, after(hookof('getNetworkInfo'), mobile),\n" +
+                        "  mobile.set, after(hookof('getAllNetworkInfo'), all), all.result.type, all.result.length,\n" +
+                        "  all.result[1] == mobileinfo, after(hookof('getAllNetworkInfo'), plain), plain.set");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("NetworkInfo", result.arg(6).tojstring());
+        assertEquals(1, result.arg(7).toint());
+        assertTrue(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
+        assertFalse(result.arg(10).toboolean());
+    }
+
+    // The interfaces of a VPN are not listed. The enumeration is consumed, so the result is a new one also without them
+    @Test
+    public void vpnInterfacesAreNotListed() throws Exception {
+        Varargs result = Scripts.run(load("vpn"),
+                "local collections = luajava.bindClass('java.util.Collections')\n" +
+                        "local function interfaces(...)\n" +
+                        "  local list = luajava.newInstance('java.util.ArrayList')\n" +
+                        "  for _, name in ipairs({ ... }) do list:add({ getName = function(self) return name end }) end\n" +
+                        "  return collections:enumeration(list)\n" +
+                        "end\n" +
+                        "local vpn = paramof(interfaces('tun0', 'wlan0', 'ppp0'))\n" +
+                        "local plain = paramof(interfaces('lo', 'wlan0'))\n" +
+                        "local removed = after(hookof('getNetworkInterfaces'), vpn)\n" +
+                        "local kept = collections:list(vpn.result)\n" +
+                        "return removed, kept:size(), kept:get(0):getName(), after(hookof('getNetworkInterfaces'), plain),\n" +
+                        "  plain.set, collections:list(plain.result):size()");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertEquals("wlan0", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals(2, result.arg(6).toint());
     }
 
     // The transport info is a Java object, which the script checks with XParam, because Lua sees a Class

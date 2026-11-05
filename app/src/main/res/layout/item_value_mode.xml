@@ -29,6 +29,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="@string/title_mode_inherit" />
 
         <Button
@@ -37,6 +39,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="@string/title_mode_fixed" />
 
         <Button
@@ -45,6 +49,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:text="@string/title_mode_boot" />
     </com.google.android.material.button.MaterialButtonToggleGroup>
 
@@ -74,6 +80,7 @@
             android:layout_marginTop="2dp"
             android:fontFamily="@font/plex_mono"
             android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textDirection="ltr"
             android:textIsSelectable="true" />
 
         <com.google.android.material.checkbox.MaterialCheckBox

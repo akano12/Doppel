@@ -29,7 +29,7 @@ function authorityof(value)
     if value == nil then
         return nil
     end
-    return (string.gsub(value, '^%d+@', ''))
+    return (string.gsub(value, '^.*@', ''))
 end
 
 function after(hook, param)

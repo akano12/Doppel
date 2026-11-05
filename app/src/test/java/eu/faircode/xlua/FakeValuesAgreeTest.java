@@ -277,7 +277,8 @@ public class FakeValuesAgreeTest {
         Globals query = Scripts.load("contentresolver_query", STUBS + "\n" + uri);
         Globals hidden = Scripts.load("provider_hidden", STUBS + "\n" + uri);
         Globals identifiers = Scripts.load("identifier_services", STUBS + "\n" + uri);
-        for (String authority : new String[]{"'com.android.contacts'", "'10@com.android.contacts'", "nil"}) {
+        for (String authority : new String[]{"'com.android.contacts'", "'10@com.android.contacts'",
+                "'+0@com.android.contacts'", "nil"}) {
             String expected = run(open, "tostring(authorityof(uriof(" + authority + ")))");
             assertEquals(authority, expected, run(query, "tostring(authorityof(uriof(" + authority + ")))"));
             assertEquals(authority, expected, run(hidden, "tostring(authorityof(uriof(" + authority + ")))"));
@@ -286,14 +287,15 @@ public class FakeValuesAgreeTest {
         // Names too, like ContentResolver.call(authority, ...), also of another user, like 0@cn.nubia.identity
         assertEquals("cn.nubia.identity", run(identifiers, "authorityof('0@cn.nubia.identity')"));
         assertEquals("com.android.contacts", run(open, "authorityof(uriof('10@com.android.contacts'))"));
+        // Android parses everything before the last @ as a number, like Integer.parseInt, which takes a sign
+        assertEquals("com.android.contacts", run(open, "authorityof(uriof('+0@com.android.contacts'))"));
     }
 
     // The languages are the same for the hooks (locale) and the settings provider (settingssecure_getstring), for each setting, also of tags without a region
     @Test
     public void localeIsTheSame() throws Exception {
-        for (String script : new String[]{"settingssecure_getstring"})
-            for (String function : new String[]{"fakes", "split"})
-                assertEquals(script + " " + function, Scripts.function("locale", function), Scripts.function(script, function));
+        for (String function : new String[]{"fakes", "split"})
+            assertEquals(function, Scripts.function("locale", function), Scripts.function("settingssecure_getstring", function));
         Globals locale = load("locale");
         Globals settings = load("settingssecure_getstring");
         for (String setting : new String[]{"{}", "{ ['value.locale'] = 'de-DE,fr' }", "{ ['value.locale'] = 'ja' }",
@@ -342,9 +344,8 @@ public class FakeValuesAgreeTest {
                 "    getMethodName = function(self) return 'open' end,\n" +
                 "    getReturnType = function(self) return nil end }\n" +
                 "end");
-        String[][] variants = {{"Read.Identifiers", "identifiers"}, {"Use.Tracking", "tracking"},
-                {"Read.Biometrics", "biometrics"}, {"Read.Network", "network"}, {"Read.Debugging", "debugging"},
-                {"Read.Features", "features"}, {"Get.Applications", "packages"}};
+        String[] groups = {"Read.Identifiers", "Use.Tracking", "Read.Biometrics", "Read.Network", "Read.Debugging",
+                "Read.Features", "Get.Applications"};
         String[] hidden = {
                 "/sys/devices/system/chip-id/unique_id", "/sys/devices/system/chip-id/lot_id",
                 "/sys/devices/system/chip-id/lot_id2", "/sys/devices/system/chip-id",
@@ -377,9 +378,11 @@ public class FakeValuesAgreeTest {
                 "/product/etc/permissions/carrierwifi.xml", "/system/etc/sysconfig/google.xml",
                 "/system/etc/permissions/privapp-permissions-meta.xml",
                 "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/devices/system/cpu/cpu3/topology/core_id",
-                "/sys/devices/system/cpu/modalias"};
+                "/sys/devices/system/cpu/modalias", "/sys/devices/system/cpu/cpu8", "/sys/devices/system/cpu/cpu9/online",
+                "/sys/devices/system/cpu/cpu10", "/sys/devices/system/cpu/cpu127/online"};
         String[] stay = {
                 "/sys/devices/system/cpux/online", "/sys/devices/system/cpu", "/sys/devices/system/cpu/cpu0",
+                "/sys/devices/system/cpu/cpu7", "/sys/devices/system/cpu/cpu7/online",
                 "/sys/class/sec/tspx",
                 "/sys/bus/mmc/devices/mmc0:0001/cidx", "/sys/class/fingerprint/fingerprintx",
                 "/sys/devices/system/chip-idx/unique_id", "/sys/class/scsi_host/host0/unique_id",
@@ -393,8 +396,8 @@ public class FakeValuesAgreeTest {
         for (String[] paths : new String[][]{hidden, stay})
             for (String path : paths) {
                 boolean any = false;
-                for (String[] variant : variants) {
-                    any |= "true".equals(run(files, "tostring(hidden(grouphook('" + variant[0] + "'), '" + path + "'))"));
+                for (String group : groups) {
+                    any |= "true".equals(run(files, "tostring(hidden(grouphook('" + group + "'), '" + path + "'))"));
                 }
                 assertEquals(path, paths == hidden, any);
             }

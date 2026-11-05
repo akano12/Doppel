@@ -39,7 +39,7 @@ function authorityof(target)
     if authority == nil then
         return nil
     end
-    return (string.gsub(authority, '^%d+@', ''))
+    return (string.gsub(authority, '^.*@', ''))
 end
 
 -- The package of the provider of an authority, nil when Android finds none, then it answers itself;
@@ -63,12 +63,28 @@ function packageof(param, authority)
     return packageName
 end
 
--- Whether the sender of a uri granted the app access to it; an authority alone has no grant
-function granted(param, target)
-    if type(target) == 'string' then
-        return false
-    end
+-- Whether the sender of a uri granted the app access to it. An authority alone has no grant, but DocumentsContract
+-- goes by the authority of a document the user picked: from Android 10 with call and the uri in the extras, on
+-- Android 8.1 and 9 with a client of the authority, without the uri.
+-- shortcut: a client needs a persisted grant, Android lists no others, upgrade when apps lose a document on Android 9
+function granted(param, method, target, authority)
     local context = param:getApplicationContext()
+    if type(target) == 'string' then
+        if method == 'acquireUnstableContentProviderClient' then
+            local permissions = context:getContentResolver():getPersistedUriPermissions()
+            for index = 0, permissions:size() - 1 do
+                if authorityof(permissions:get(index):getUri()) == authority then
+                    return true
+                end
+            end
+            return false
+        end
+        local extras = (method == 'call' and param:getArgument(3) or nil)
+        target = (extras ~= nil and extras:getParcelable('uri') or nil) -- DocumentsContract.EXTRA_URI
+        if not param:isInstance(target, 'android.net.Uri') or authorityof(target) ~= authority then
+            return false
+        end
+    end
     local process = luajava.bindClass('android.os.Process')
     local pid, uid = process:myPid(), process:myUid()
     return context:checkUriPermission(target, pid, uid, FLAG_GRANT_READ_URI_PERMISSION) == PERMISSION_GRANTED or
@@ -85,12 +101,12 @@ function before(hook, param)
         return false
     end
     local packageName = packageof(param, authority)
-    if packageName == nil or param:isPackageVisible(packageName) or granted(param, target) then
+    local method = hook:getMethodName()
+    if packageName == nil or param:isPackageVisible(packageName) or granted(param, method, target, authority) then
         return false
     end
 
     -- The answers of ContentResolver without a provider, of which update says URI and the others URL
-    local method = hook:getMethodName()
     if method == 'insert' or method == 'bulkInsert' or method == 'delete' or method == 'update' then
         local what = (method == 'update' and 'Unknown URI ' or 'Unknown URL ')
         param:setResult(luajava.newInstance('java.lang.IllegalArgumentException', what .. target:toString()))

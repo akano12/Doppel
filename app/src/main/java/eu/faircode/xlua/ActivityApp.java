@@ -321,16 +321,32 @@ public class ActivityApp extends ActivityBase {
         cbForceStop.setOnCheckedChangeListener((button, checked) -> {
             app.forceStop = checked;
             changes++;
-            run(TAG, () -> Data.putSettingBoolean(context, app.packageName, "forcestop", checked));
+            run(TAG, () -> {
+                try {
+                    Data.putSettingBoolean(context, app.packageName, "forcestop", checked);
+                } catch (Throwable ex) {
+                    // Else the checkbox shows the change which was not stored
+                    postUnlessGone(this::load);
+                    throw ex;
+                }
+            });
             updateRestart();
         });
 
-        // Read by the service when a hook restricts something, see XProvider.report
+        // Read by the service when a hook restricts something, see XProvider.Report.write
         cbNotify.setOnCheckedChangeListener(null);
         cbNotify.setChecked(notify);
         cbNotify.setOnCheckedChangeListener((button, checked) -> {
             changes++;
-            run(TAG, () -> Data.putSettingBoolean(context, app.packageName, "notify", checked));
+            run(TAG, () -> {
+                try {
+                    Data.putSettingBoolean(context, app.packageName, "notify", checked);
+                } catch (Throwable ex) {
+                    // Else the checkbox shows the change which was not stored
+                    postUnlessGone(this::load);
+                    throw ex;
+                }
+            });
         });
 
         refreshScope();
@@ -734,9 +750,11 @@ public class ActivityApp extends ActivityBase {
         run(TAG, () -> {
             try {
                 Data.assign(context, app, hooks, assign);
-            } finally {
-                // Also after an error, else the switches show the change which was not stored
+            } catch (Throwable ex) {
+                // Else the switches show the change which was not stored; only then, since a reload builds all
+                // groups again, which can cancel a press on the next switch
                 postUnlessGone(this::load);
+                throw ex;
             }
         });
     }
@@ -770,16 +788,27 @@ public class ActivityApp extends ActivityBase {
             if (checked) {
                 Ui.message(this, getString(R.string.msg_scope_requested));
                 final int request = ++scopeRequests;
-                run(TAG, () -> Scope.add(pkg, (nowInScope, error) -> postUnlessGone(() -> {
-                    // The framework fails a request still open when a newer one comes, which reports for itself
-                    if (!nowInScope && request != scopeRequests)
-                        return;
-                    setScope(pkg, nowInScope);
-                    if (nowInScope)
-                        scopeChanged(null);
-                    else if (error != null)
-                        Ui.message(this, getString(R.string.msg_scope_failed, error));
-                })));
+                run(TAG, () -> Scope.add(pkg, (nowInScope, error) -> {
+                    // Also when the screen is gone, since the user can approve in a notification after leaving it:
+                    // the app should not keep running without its hooks
+                    if (nowInScope && app.stopsAutomatically())
+                        try {
+                            Data.forceStop(getApplicationContext(), app);
+                        } catch (Throwable ex) {
+                            error(TAG, ex);
+                        }
+                    postUnlessGone(() -> {
+                        // The framework fails a request still open when a newer one comes, which reports for itself
+                        if (!nowInScope && request != scopeRequests)
+                            return;
+                        setScope(pkg, nowInScope);
+                        if (nowInScope) {
+                            dirty = true;
+                            updateRestart();
+                        } else if (error != null)
+                            Ui.message(this, getString(R.string.msg_scope_failed, error));
+                    });
+                }));
             } else
                 scopeChanged(() -> Scope.remove(pkg));
         });
@@ -793,8 +822,7 @@ public class ActivityApp extends ActivityBase {
         final Context context = getApplicationContext();
         final XApp app = this.app;
         run(TAG, () -> {
-            if (change != null)
-                change.run();
+            change.run();
             if (app.stopsAutomatically())
                 Data.forceStop(context, app);
         });
@@ -826,10 +854,15 @@ public class ActivityApp extends ActivityBase {
     private void forceStop() {
         final Context context = getApplicationContext();
         final XApp app = this.app;
-        dirty = false;
-        updateRestart();
+        final int started = changes;
         run(TAG, () -> {
             Data.forceStop(context, app);
+            // Not before, a failed stop needs the hint; a change made meanwhile needs another restart
+            postUnlessGone(() -> {
+                if (changes == started)
+                    dirty = false;
+                updateRestart();
+            });
             Ui.message(this, getString(R.string.msg_stopped, getLabel()));
         });
     }

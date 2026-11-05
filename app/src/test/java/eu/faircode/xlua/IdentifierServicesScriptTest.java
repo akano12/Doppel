@@ -33,9 +33,23 @@ public class IdentifierServicesScriptTest {
             "function componentof(pkg, cls)",
             "  return { getPackageName = function(self) return pkg end, getClassName = function(self) return cls end }",
             "end",
+            "luajava.newInstance = function(name, pkg, cls)",
+            "  assert(name == 'android.content.ComponentName', name)",
+            "  return componentof(pkg, cls)",
+            "end",
             "function intentof(component, pkg, action)",
-            "  return { getComponent = function(self) return component end,",
-            "    getPackage = function(self) return pkg end, getAction = function(self) return action end }",
+            "  return { component = component, pkg = pkg,",
+            "    getComponent = function(self) return self.component end,",
+            "    getPackage = function(self) return self.pkg end, getAction = function(self) return action end,",
+            "    setSelector = function(self, value) self.selector = value end,",
+            "    setComponent = function(self, value) self.component = value end,",
+            "    setPackage = function(self, value)", // Throws like Android
+            "      assert(value == nil or self.selector == nil, 'Cannot set package name when selector is already set')",
+            "      self.pkg = value end,",
+            "    clone = function(self)",
+            "      local copy = intentof(self.component, self.pkg, action)",
+            "      copy.selector = self.selector",
+            "      return copy end }",
             "end",
             "function uriof(authority)",
             "  return { getAuthority = function(self) return authority end }",
@@ -48,15 +62,18 @@ public class IdentifierServicesScriptTest {
             "      return { getApplicationInfo = function(self) return { targetSdkVersion = target } end }",
             "    end,",
             "    getArgument = function(self, i) return arg end,",
+            "    setArgument = function(self, i, v) self.sent = v end,",
             "    setResult = function(self, v) self.result = v; self.set = true end }",
             "end",
             "function hookof(method)",
             "  return { getMethodName = function(self) return method end }",
             "end",
+            // Restricted, the result, the reported package, the package of the intent Android gets and of its component
             "function bind(intent, method)",
             "  local param = paramof(intent)",
             "  local restricted, old = before(hookof(method or 'bindService'), param)",
-            "  return restricted, param.result, old",
+            "  local name = param.sent and param.sent:getComponent()",
+            "  return restricted, param.result, old, param.sent and param.sent:getPackage(), name and name:getPackageName()",
             "end",
             "function acquire(arg, method)",
             "  local param = paramof(arg)",
@@ -69,7 +86,8 @@ public class IdentifierServicesScriptTest {
         return Scripts.run(globals, lua);
     }
 
-    // Each way the OAID SDKs bind the services, like gzu-liyujiang/Android_CN_OAID and the SDKs of Huawei and Honor
+    // Each way the OAID SDKs bind the services, like gzu-liyujiang/Android_CN_OAID and the SDKs of Huawei and Honor;
+    // Android fails the binding itself, with the connection registered, so unbindService does not throw
     @Test
     public void servicesOfManufacturersAreNotFound() throws Exception {
         String[][] intents = {
@@ -91,7 +109,13 @@ public class IdentifierServicesScriptTest {
             for (String[] intent : intents) {
                 Varargs result = run("return bind(intentof(" + String.join(", ", intent) + "), '" + method + "')");
                 assertTrue(method + " " + String.join(" ", intent), result.arg(1).toboolean());
-                assertFalse(result.arg(2).toboolean());
+                assertEquals("real", result.arg(2).tojstring());
+                assertEquals(result.arg(3).tojstring() + ":hidden", result.arg(4).tojstring());
+                // An isolated service needs a component, else Android throws for the instance
+                if (method.equals("bindIsolatedService") && !intent[0].equals("nil"))
+                    assertEquals(result.arg(4).tojstring(), result.arg(5).tojstring());
+                else
+                    assertFalse(result.arg(5).toboolean());
             }
     }
 
@@ -106,9 +130,20 @@ public class IdentifierServicesScriptTest {
         assertEquals("real", current.arg(2).tojstring());
         Varargs old = run("target = 19\nreturn bind(" + intent + ")");
         assertTrue(old.arg(1).toboolean());
-        assertFalse(old.arg(2).toboolean());
+        assertEquals("com.huawei.hwid:hidden", old.arg(4).tojstring());
         assertTrue(run("target = 20\nreturn bind(" + intent + ")").arg(1).toboolean());
         assertFalse(run("target = 21\nreturn bind(" + intent + ")").arg(1).toboolean());
+    }
+
+    // An intent with a selector, which Android refuses next to a package
+    @Test
+    public void intentWithSelector() throws Exception {
+        Varargs result = run("local intent = intentof(nil, nil, 'com.uodis.opendevice.OPENIDS_SERVICE')\n" +
+                "intent.selector = intentof(nil, 'com.example.app')\n" +
+                "target = 19\n" +
+                "return bind(intent)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.huawei.hwid:hidden", result.arg(4).tojstring());
     }
 
     // Other services of the same packages stay, like the push service of ColorOS and the account of Honor

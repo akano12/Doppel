@@ -3,6 +3,7 @@
     <!-- Dark palette, see values/colors.xml; the primary and tertiary containers are the same in both -->
     <color name="c_primary">#92CCFF</color>
     <color name="c_on_primary">#003351</color>
+    <color name="c_primary_inverse">#006497</color>
     <color name="c_secondary">#ABCAE8</color>
     <color name="c_on_secondary">#11334B</color>
     <color name="c_secondary_container">#2A4A63</color>
@@ -18,6 +19,8 @@
     <color name="c_surface_container">#1F2029</color>
     <color name="c_surface_high">#292A34</color>
     <color name="c_surface_highest">#34353F</color>
+    <color name="c_surface_inverse">#E3E3ED</color>
+    <color name="c_on_surface_inverse">#191A24</color>
     <color name="c_outline">#8F90A3</color>
     <color name="c_outline_variant">#33343F</color>
 

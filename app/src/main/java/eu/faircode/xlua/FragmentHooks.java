@@ -29,7 +29,6 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.text.TextUtils;
 
@@ -37,6 +36,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.PopupMenu;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -129,6 +129,8 @@ public class FragmentHooks extends FragmentBase {
         cgFilter = view.findViewById(R.id.cgFilter);
 
         adapter = new Adapter();
+        // The list loads in the background, its position is restored once there is data
+        adapter.setStateRestorationPolicy(RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY);
         RecyclerView rvHooks = view.findViewById(R.id.rvHooks);
         rvHooks.setLayoutManager(new LinearLayoutManager(context));
         rvHooks.setAdapter(adapter);

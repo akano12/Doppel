@@ -123,7 +123,7 @@
                                 android:layout_marginBottom="5dp"
                                 android:layout_weight="1"
                                 android:ellipsize="end"
-                                android:maxLines="1"
+                                android:maxLines="2"
                                 android:textAppearance="?attr/textAppearanceTitleMedium"
                                 tools:text="hooks restricted today" />
 

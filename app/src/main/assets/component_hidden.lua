@@ -39,10 +39,12 @@ function packageof(intent)
     return packageName
 end
 
--- Whether an intent names a package which is hidden
+-- Whether an intent names a package which is hidden; a name ending in :hidden is the copy of identifier_services for
+-- the same call, which hooks bindService too (see before), not a package of an app
 function hidden(param, intent)
     local packageName = packageof(intent)
-    return packageName ~= nil and not param:isPackageVisible(packageName), packageName
+    return packageName ~= nil and string.sub(packageName, -7) ~= ':hidden' and
+            not param:isPackageVisible(packageName), packageName
 end
 
 -- The error of Android for a screen which is not found (Instrumentation.checkStartActivityResult),
@@ -98,9 +100,9 @@ function before(hook, param)
         return false
     end
 
-    -- bindService, bindIsolatedService and bindServiceAsUser; stopService and stopServiceAsUser, of which Android
-    -- would stop a running service of the app or refuse one which is not exported, but finds none of a missing app
-    if string.find(method, '^bind') or string.find(method, '^stop') then
+    -- stopService and stopServiceAsUser, of which Android would stop a running service of the app or refuse one which
+    -- is not exported, but finds none of a missing app
+    if string.find(method, '^stop') then
         param:setResult(false)
     elseif string.find(method, '^start%a*Service') then
         -- startService, startForegroundService and their AsUser variants
@@ -110,13 +112,21 @@ function before(hook, param)
     elseif string.find(method, '^sendSticky') and intent:getComponent() ~= nil then
         -- Android throws itself for a sticky broadcast to a component, also of an app which is not installed
         return false
-    elseif string.find(method, 'OrderedBroadcast') then
-        -- sendOrderedBroadcast, sendStickyOrderedBroadcast and their AsUser variants;
-        -- Sent to a package which cannot exist, a name with a colon, so a result receiver gets the answer of Android
-        -- without receivers, like for an app which is not installed; the intent of the app stays as it is
+    elseif string.find(method, '^bind') or string.find(method, 'OrderedBroadcast') then
+        -- bindService, bindIsolatedService, bindServiceAsUser, sendOrderedBroadcast, sendStickyOrderedBroadcast and
+        -- their AsUser variants;
+        -- Sent to a package which cannot exist, a name with a colon, so Android itself finds nothing, like for an app
+        -- which is not installed: a result receiver gets its answer without receivers, and a binding fails with the
+        -- connection registered, else unbindService, which apps always call, throws; the intent of the app stays
         local copy = intent:clone()
+        copy:setSelector(nil) -- Android refuses a package next to a selector
         copy:setComponent(nil)
         copy:setPackage(packageName .. ':hidden')
+        -- Without a component Android throws for the instance of an isolated service, also of a missing app
+        if string.find(method, '^bindIsolated') and intent:getComponent() ~= nil then
+            copy:setComponent(luajava.newInstance('android.content.ComponentName', packageName .. ':hidden',
+                    intent:getComponent():getClassName()))
+        end
         param:setArgument(0, copy)
     else
         -- sendBroadcast, sendStickyBroadcast and their variants: nothing is sent, like without receivers

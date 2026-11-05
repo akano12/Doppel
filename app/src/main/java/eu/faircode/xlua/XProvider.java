@@ -36,7 +36,6 @@ import android.os.Bundle;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.StrictMode;
-import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.text.TextUtils;
@@ -100,8 +99,12 @@ class XProvider {
         boolean loaded = false;
         try {
             synchronized (lock) {
-                if (db == null)
+                // Open again after Android deleted a corrupt database, else every call fails until a reboot;
+                // the custom definitions are gone with it
+                if (db == null || !db.isOpen()) {
                     db = XDatabase.open();
+                    hooks = null;
+                }
                 if (hooks == null) {
                     loadHooks(context);
                     loaded = true;
@@ -110,6 +113,9 @@ class XProvider {
         } catch (Throwable ex) {
             throw failed(ex);
         }
+
+        if (XDatabase.lost)
+            notifyDataLost(context);
 
         // Without holding the lock; restrictions keep working without the new assignments
         if (loaded)
@@ -121,6 +127,20 @@ class XProvider {
             } catch (Throwable ex) {
                 Log.e(TAG, Log.getStackTraceString(ex));
             }
+    }
+
+    // To the owner, who manages the data of all users; tried again on the next call while it fails, like early in a
+    // boot, when the system cannot show notifications yet
+    private static void notifyDataLost(Context context) {
+        long ident = Binder.clearCallingIdentity();
+        try {
+            XNotify.notifyDataLost(Util.createContextForUser(context, 0), 0);
+            XDatabase.lost = false;
+        } catch (Throwable ex) {
+            Log.w(TAG, "Data lost notification: " + ex);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     // Assignments of removed built-in definitions are dead rows, which getApps only reports as missing;
@@ -181,7 +201,7 @@ class XProvider {
             UserManager um = context.getSystemService(UserManager.class);
             for (int user : users)
                 try {
-                    if (um.getSerialNumberForUser(UserHandle.getUserHandleForUid(Util.getUserUid(user, 0))) < 0)
+                    if (um.getSerialNumberForUser(Util.getUserHandle(user)) < 0)
                         removedUsers.add(user);
                 } catch (Throwable ex) {
                     Log.w(TAG, "Kept settings user=" + user + ": " + ex);

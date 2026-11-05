@@ -63,7 +63,9 @@ function after(hook, param)
         param:setResult(luajava.newInstance('android.net.DhcpInfo'))
         return true
 
-    elseif method == 'getLinkAddresses' or method == 'getDnsServers' or method == 'getRoutes' then
+    elseif method == 'getLinkAddresses' or method == 'getDnsServers' or method == 'getRoutes' or
+            method == 'getAllAddresses' or method == 'getAddresses' or method == 'getAllLinkAddresses' or
+            method == 'getAllRoutes' or method == 'getAllInterfaceNames' then
         if result:isEmpty() or linkproperties() then
             return false
         end

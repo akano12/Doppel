@@ -135,6 +135,9 @@ public class ActivityDownloads extends ActivityBase {
         });
         emptyAdapter = new HeaderAdapter(R.layout.item_downloads_empty, false, view -> ((TextView) view).setText(emptyText));
         adapter = new Adapter();
+        // The list loads in the background, its position is restored once there is data; of the definitions, since a
+        // ConcatAdapter has no policy of its own and the notice is there from the start
+        adapter.setStateRestorationPolicy(RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY);
         RecyclerView rvDownloads = findViewById(R.id.rvDownloads);
         rvDownloads.setLayoutManager(new LinearLayoutManager(this));
         // What the list is empty for goes below the notice and the updates: over the list it would cover them on a short screen
@@ -152,8 +155,6 @@ public class ActivityDownloads extends ActivityBase {
         compact = new CompactBar(findViewById(android.R.id.content), R.string.title_downloads, cgFilter,
                 findViewById(R.id.tilSearch), findViewById(R.id.ibSearch));
         compact.setBack(view -> getOnBackPressedDispatcher().onBackPressed());
-
-        load();
     }
 
     // A search restored with the views is shown again
@@ -163,12 +164,14 @@ public class ActivityDownloads extends ActivityBase {
         search.restore();
     }
 
-    // The editor can change or delete an installed definition
+    // The first load, and again after it failed; the editor can change or delete an installed definition
     @Override
     protected void onResume() {
         super.onResume();
-        if (!loaded)
+        if (!loaded) {
+            load();
             return;
+        }
         final Context context = getApplicationContext();
         run(TAG, () -> showInstalled(context));
     }
@@ -176,7 +179,8 @@ public class ActivityDownloads extends ActivityBase {
     // An error offers a retry, since the screen shows nothing without the list
     private void load() {
         final Context context = getApplicationContext();
-        run(TAG, () -> {
+        pbLoading.setVisibility(View.VISIBLE);
+        Ui.submit(executor, () -> {
             // The list has the time of the update, the definition files, as installed, the rest
             List<Entry> entries = new ArrayList<>();
             JSONArray jlist = new JSONObject(readAsset(context, REPO + "list.json")).getJSONArray("list");
@@ -221,7 +225,10 @@ public class ActivityDownloads extends ActivityBase {
                 pbLoading.setVisibility(View.GONE);
                 show();
             });
-        }, this::load);
+        }, ex -> {
+            postUnlessGone(() -> pbLoading.setVisibility(View.GONE));
+            Ui.error(this, TAG, ex, this::load);
+        });
     }
 
     // All definitions by id, built-in and custom
@@ -418,14 +425,16 @@ public class ActivityDownloads extends ActivityBase {
         final boolean enabled = collection.contains(entry.collection);
         run(TAG, () -> {
             JSONObject jhook = readDefinition(context, entry);
-            XHook hook = Data.putCustom(context, jhook);
-            int apps = (restrict
-                    ? Data.assignRestricting(context, new ArrayList<>(Collections.singletonList(hook.getId())))
-                    : 0);
-            runOnUiThread(() -> {
-                installed.put(hook.getId(), hook);
-                show();
-            });
+            int apps;
+            try {
+                XHook hook = Data.putCustom(context, jhook);
+                apps = (restrict
+                        ? Data.assignRestricting(context, new ArrayList<>(Collections.singletonList(hook.getId())))
+                        : 0);
+            } finally {
+                // Also after an error, which can come after the definition was stored
+                showInstalled(context);
+            }
 
             // Hooks of disabled collections are not applied, also not when they are assigned already
             if (!enabled)

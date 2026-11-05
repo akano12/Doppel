@@ -43,7 +43,7 @@
                 android:maxLines="1"
                 android:textAppearance="?attr/textAppearanceBodyMedium" />
 
-            <!-- The group leads, in the text color, then the author, version, date and downloads; a long author wraps -->
+            <!-- The group leads, in the text color, then the author, version and date; a long author wraps -->
             <TextView
                 android:id="@+id/tvMeta"
                 android:layout_width="match_parent"

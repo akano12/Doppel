@@ -93,7 +93,7 @@ public class FragmentSettings extends FragmentBase {
     private final ActivityResultLauncher<String[]> restoreLauncher = registerForActivityResult(
             new ActivityResultContracts.OpenDocument(), uri -> {
                 if (uri != null)
-                    Ui.areYouSure(requireContext(), getString(R.string.msg_restore_sure), R.string.title_restore, () -> restore(uri));
+                    confirmRestore(uri);
             });
 
     @Override
@@ -166,6 +166,20 @@ public class FragmentSettings extends FragmentBase {
         Ui.submit(executor, () -> {
             int version = Data.getVersion(context);
             boolean available = Data.isAvailable(version);
+            int icon = LauncherIcons.getEnabled(context);
+            // Before the calls below, which fail without the service: the status tells that, the icons need no service
+            post(() -> {
+                launcherIcon = icon;
+                showIcons();
+                tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
+                compact.setSubtitle(getString(R.string.title_pair, tvStatus.getText(), tvVersion.getText()));
+                ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
+                // The shield of an active module has the accent color, see the palettes
+                ivStatus.setBackgroundTintList(Ui.tint(requireContext(), available
+                        ? com.google.android.material.R.attr.colorPrimaryContainer : R.attr.colorWarningContainer));
+                ivStatus.setImageTintList(Ui.tint(requireContext(), available
+                        ? com.google.android.material.R.attr.colorOnPrimaryContainer : R.attr.colorOnWarningContainer));
+            });
             List<XHook> hooks = Data.getAllHooks(context, null);
             TreeSet<String> known = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
             for (XHook hook : hooks)
@@ -175,7 +189,6 @@ public class FragmentSettings extends FragmentBase {
             boolean restrictNew = Data.getSettingBoolean(context, "global", "restrict_new_apps");
             boolean notifyNew = Data.getSettingBoolean(context, "global", "notify_new_apps");
             ApplicationEx.Colors colors = ApplicationEx.Colors.get(context);
-            int icon = LauncherIcons.getEnabled(context);
 
             post(() -> {
                 // Restoring a backup or clearing data can change the colors and the theme
@@ -188,8 +201,6 @@ public class FragmentSettings extends FragmentBase {
                     restored = null;
                 }
                 showPalettes(ApplicationEx.getPalette(context));
-                launcherIcon = icon;
-                showIcons();
                 swBlack.setOnCheckedChangeListener(null);
                 swBlack.setChecked(colors.black);
                 swBlack.setOnCheckedChangeListener((button, checked) -> selectBlack(checked));
@@ -197,14 +208,6 @@ public class FragmentSettings extends FragmentBase {
                 this.collections = new ArrayList<>(known);
                 this.enabled = enabled;
 
-                tvStatus.setText(available ? R.string.title_module_active : R.string.msg_no_service);
-                compact.setSubtitle(getString(R.string.title_pair, tvStatus.getText(), tvVersion.getText()));
-                ivStatus.setImageResource(available ? R.drawable.ic_shield : R.drawable.ic_shield_off);
-                // The shield of an active module has the accent color, see the palettes
-                ivStatus.setBackgroundTintList(Ui.tint(requireContext(), available
-                        ? com.google.android.material.R.attr.colorPrimaryContainer : R.attr.colorWarningContainer));
-                ivStatus.setImageTintList(Ui.tint(requireContext(), available
-                        ? com.google.android.material.R.attr.colorOnPrimaryContainer : R.attr.colorOnWarningContainer));
                 glStatus.removeAllViews();
                 // Digits of the language, like the counts of the Activity tab
                 NumberFormat nf = NumberFormat.getIntegerInstance();
@@ -325,7 +328,13 @@ public class FragmentSettings extends FragmentBase {
     private void selectBlack(boolean black) {
         final Context context = requireContext().getApplicationContext();
         run(TAG, () -> {
-            Data.putSetting(context, "global", "black", black ? Boolean.toString(true) : null);
+            try {
+                Data.putSetting(context, "global", "black", black ? Boolean.toString(true) : null);
+            } catch (Throwable ex) {
+                // Else the switch shows the change which was not stored
+                post(this::load);
+                throw ex;
+            }
             if (ApplicationEx.setBlack(context, black))
                 post(() -> ((ActivityBase) requireActivity()).recreateSmoothly());
         });
@@ -343,7 +352,15 @@ public class FragmentSettings extends FragmentBase {
 
     private void put(String name, String value) {
         final Context context = requireContext().getApplicationContext();
-        run(TAG, () -> Data.putSetting(context, "global", name, value));
+        run(TAG, () -> {
+            try {
+                Data.putSetting(context, "global", name, value);
+            } catch (Throwable ex) {
+                // Else the switch shows the change which was not stored
+                post(this::load);
+                throw ex;
+            }
+        });
     }
 
     // Hooks of disabled collections are not offered and not applied
@@ -389,6 +406,23 @@ public class FragmentSettings extends FragmentBase {
         run(TAG, () -> {
             int[] counts = Backup.save(activity, uri);
             Ui.message(activity, activity.getString(R.string.msg_backup_done, counts[0], counts[1], counts[2]));
+        });
+    }
+
+    // The question has what the file does beyond setting values, so it is read first
+    private void confirmRestore(Uri uri) {
+        final Activity activity = requireActivity();
+        run(TAG, () -> {
+            Backup.Preview preview = Backup.preview(activity, uri);
+            post(() -> {
+                StringBuilder question = new StringBuilder(getString(R.string.msg_restore_sure));
+                if (!preview.replaced.isEmpty())
+                    question.append("\n\n").append(getString(R.string.msg_import_replaces,
+                            "\n• " + TextUtils.join("\n• ", preview.replaced)));
+                if (preview.android)
+                    question.append("\n\n").append(getString(R.string.msg_restore_android));
+                Ui.areYouSure(requireContext(), question, R.string.title_restore, () -> restore(uri));
+            });
         });
     }
 

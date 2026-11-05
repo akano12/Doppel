@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
+import android.text.method.DigitsKeyListener;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -39,6 +40,7 @@ import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputLayout;
 
@@ -300,6 +302,11 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 if (!category.equals(this.category))
                     return;
 
+                // What is entered stays, like values not saved or typed during a save; a recreation and another
+                // scope have set what to enter already
+                if (restored == null)
+                    restored = getChanges();
+
                 values.clear();
                 values.putAll(v);
                 globals.clear();
@@ -325,17 +332,15 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 buildForm();
                 pbLoading.setVisibility(View.GONE);
 
-                // Values entered for this scope before a recreation
-                if (restored != null) {
-                    for (Map.Entry<String, String> entry : restored.entrySet())
-                        setEntered(entry.getKey(), entry.getValue());
-                    restored = null;
-                }
+                for (Map.Entry<String, String> entry : restored.entrySet())
+                    setEntered(entry.getKey(), entry.getValue());
+                restored = null;
                 updateBar();
             });
         }, ex -> {
             postUnlessGone(() -> pbLoading.setVisibility(View.GONE));
-            Ui.error(this, TAG, ex, this::load);
+            // This screen does not load again by itself
+            Ui.error(this, TAG, ex, this::load, Snackbar.LENGTH_INDEFINITE);
         });
     }
 
@@ -412,9 +417,12 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             } else {
                 if (field.type == Type.TIMEZONE)
                     ((MaterialAutoCompleteTextView) input).setSimpleItems(TimeZone.getAvailableIDs());
-                if (field.type == Type.NUMBER)
-                    input.setInputType(InputType.TYPE_CLASS_NUMBER |
+                if (field.type == Type.NUMBER) {
+                    // The key listener of the number type drops a decimal comma, see decimal: 11,5 would become 115
+                    input.setKeyListener(DigitsKeyListener.getInstance("0123456789+-.,"));
+                    input.setRawInputType(InputType.TYPE_CLASS_NUMBER |
                             InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
+                }
                 input.setText(value);
                 til.setHelperText(getFallbackHint(field));
 
@@ -517,13 +525,15 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         });
     }
 
-    // What applies when the field is empty
+    // What applies when the field is empty; a list of features has no default, so its format, too long for the label
     private String getFallbackHint(Field field) {
         String fallback = globals.get(field.key);
         if (fallback != null)
             return getString(R.string.title_global, fallback);
         else if (field.builtin != null)
             return getString(R.string.title_default, field.builtin);
+        else if ("features.keep".equals(field.key))
+            return getString(R.string.title_value_features_hint);
         else
             return null;
     }
@@ -759,12 +769,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             } catch (Throwable ex) {
                 // The values saved before the error apply too, so the form shows what was saved and the app is
                 // stopped; stopping fails too when the service is gone, which must not hide the error of the save.
-                // The values not saved are entered again, like after a recreation
-                postUnlessGone(() -> {
-                    if (restored == null)
-                        restored = getChanges();
-                    load();
-                });
+                // The values not saved stay entered, see load
+                postUnlessGone(this::load);
                 if (stop)
                     try {
                         Data.forceStop(context, app);

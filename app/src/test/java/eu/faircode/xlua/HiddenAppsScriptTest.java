@@ -36,6 +36,7 @@ public class HiddenAppsScriptTest {
             "providers = { ['com.example.app.provider'] = 'com.example.app', ['settings'] = 'com.android.settings',",
             "  ['com.other.hidden.provider'] = 'com.other.hidden' }",
             "grants = {}",
+            "persisted = {}", // The uris of ContentResolver.getPersistedUriPermissions
             "lookups = 0",
             "values = {}", // Kept per process, like XParam.putValue with the context as scope
             "function uriof(scheme, authority, path)",
@@ -53,11 +54,19 @@ public class HiddenAppsScriptTest {
             "        local pkg = providers[authority]",
             "        return pkg and { packageName = pkg } or nil end }",
             "    end,",
+            "    getContentResolver = function(self)",
+            "      return { getPersistedUriPermissions = function(self)",
+            "        return { size = function(self) return #persisted end, get = function(self, index)",
+            "          return { getUri = function(self) return persisted[index + 1] end } end } end }",
+            "    end,",
             "    checkUriPermission = function(self, uri, pid, uid, mode)",
             "      return grants[uri:toString()] and 0 or -1 end }",
             "  return { args = args, result = nil, set = false, context = context,",
             "    getArgument = function(self, index) return self.args[index] end,",
+            "    setArgument = function(self, index, value) self.args[index] = value end,",
             "    setResult = function(self, value) self.result = value self.set = true end,",
+            "    isInstance = function(self, object, name)",
+            "      return name == 'android.net.Uri' and type(object) == 'table' and object.getAuthority ~= nil end,",
             "    getApplicationContext = function(self) return self.context end,",
             "    isPackageVisible = function(self, name) return visible[name] ~= false end,",
             "    unhooked = function(self, fn) return fn() end,",
@@ -65,16 +74,27 @@ public class HiddenAppsScriptTest {
             "    getValue = function(self, name, scope) return values[name] end }",
             "end",
             "function componentof(pkg, cls)",
-            "  return { getPackageName = function(self) return pkg end,",
+            "  return { getPackageName = function(self) return pkg end, getClassName = function(self) return cls end,",
             "    toShortString = function(self) return '{' .. pkg .. '/' .. cls .. '}' end }",
+            "end",
+            "local newInstance = luajava.newInstance",
+            "luajava.newInstance = function(name, ...)",
+            "  if name == 'android.content.ComponentName' then return componentof(...) end",
+            "  return newInstance(name, ...)",
             "end",
             "function intentof(component, pkg)",
             "  return { component = component, pkg = pkg,",
             "    getComponent = function(self) return self.component end, getPackage = function(self) return self.pkg end,",
             "    getSelector = function(self) return self.selector end,",
+            "    setSelector = function(self, value) self.selector = value end,",
             "    setComponent = function(self, value) self.component = value end,",
-            "    setPackage = function(self, value) self.pkg = value end,",
-            "    clone = function(self) return intentof(self.component, self.pkg) end,",
+            "    setPackage = function(self, value)", // Throws like Android
+            "      assert(value == nil or self.selector == nil, 'Cannot set package name when selector is already set')",
+            "      self.pkg = value end,",
+            "    clone = function(self)",
+            "      local copy = intentof(self.component, self.pkg)",
+            "      copy.selector = self.selector",
+            "      return copy end,",
             "    toString = function(self) return 'Intent { pkg=' .. tostring(self.pkg) .. ' }' end }",
             "end");
 
@@ -148,10 +168,103 @@ public class HiddenAppsScriptTest {
                 "uriof('content', 'com.other.hidden.provider', '/photo/2')").arg(1).toboolean());
     }
 
+    private static Varargs document(Globals globals, String authority, String extras) {
+        return Scripts.run(globals, "local param = paramof({ [0] = " + authority + ", [3] = " + extras + " })\n" +
+                "return before(hookof('call'), param)");
+    }
+
+    // DocumentsContract goes by the authority of a document the user picked: from Android 10 with call and the uri
+    // in the extras, on Android 8.1 and 9 with a client of the authority
+    @Test
+    public void documentsOfHiddenAppsTheUserPicked() throws Exception {
+        Globals globals = Scripts.load("provider_hidden", STUBS);
+        Scripts.run(globals, "grants['content://com.other.hidden.provider/document/1'] = true\n" +
+                "grants['content://com.example.app.provider/own'] = true\n" +
+                "function extrasof(uri)\n" +
+                "  return { getParcelable = function(self, key) return key == 'uri' and uri or nil end }\n" +
+                "end");
+        String authority = "'com.other.hidden.provider'";
+        String picked = "extrasof(uriof('content', 'com.other.hidden.provider', '/document/1'))";
+        assertFalse(document(globals, authority, picked).arg(1).toboolean());
+        assertFalse(document(globals, "'0@com.other.hidden.provider'", picked).arg(1).toboolean());
+
+        // Not granted, of another provider, no uri: the provider of the hidden app is not found
+        for (String extras : new String[]{"extrasof(uriof('content', 'com.other.hidden.provider', '/document/2'))",
+                "extrasof(uriof('content', 'com.example.app.provider', '/own'))", "extrasof('text')", "extrasof(nil)", "nil"})
+            assertTrue(extras, document(globals, authority, extras).arg(1).toboolean());
+
+        // Only the client DocumentsContract asks for, with a grant which was kept
+        assertTrue(provider(globals, "acquireUnstableContentProviderClient", authority).arg(1).toboolean());
+        Scripts.run(globals, "persisted[1] = uriof('content', 'com.example.app.provider', '/own')");
+        assertTrue(provider(globals, "acquireUnstableContentProviderClient", authority).arg(1).toboolean());
+        Scripts.run(globals, "persisted[2] = uriof('content', 'com.other.hidden.provider', '/tree/1')");
+        assertFalse(provider(globals, "acquireUnstableContentProviderClient", authority).arg(1).toboolean());
+        assertTrue(provider(globals, "acquireContentProviderClient", authority).arg(1).toboolean());
+    }
+
     private static Varargs component(Globals globals, String method, String args) {
         return Scripts.run(globals, "local param = paramof(" + args + ")\n" +
                 "local restricted, pkg = before(hookof('" + method + "'), param)\n" +
                 "return restricted, param.set, param.result, pkg");
+    }
+
+    // Binding, with the intent the script gives Android: restricted, skipped, the reported package, whether the intent
+    // of the app stayed, and the package, the component package and the class of the intent Android gets
+    private static Varargs bind(Globals globals, String method, String intent) {
+        return Scripts.run(globals, "local intent = " + intent + "\n" +
+                "local package, component = intent:getPackage(), intent:getComponent()\n" +
+                "local param = paramof({ [0] = intent })\n" +
+                "local restricted, pkg = before(hookof('" + method + "'), param)\n" +
+                "local sent = param.args[0]\n" +
+                "local name = sent:getComponent()\n" +
+                "return restricted, param.set, pkg, sent ~= intent and intent:getPackage() == package and " +
+                "intent:getComponent() == component, sent:getPackage(), name and name:getPackageName() or nil, " +
+                "name and name:getClassName() or nil, sent:getSelector() == nil");
+    }
+
+    // Android fails a binding itself, with the connection registered, so unbindService does not throw
+    @Test
+    public void bindingsOfHiddenAppsFail() throws Exception {
+        Globals globals = Scripts.load("component_hidden", STUBS);
+        String hidden = "intentof(componentof('com.other.hidden', '.Service'), nil)";
+        String hiddenPackage = "intentof(nil, 'com.other.hidden')";
+        for (String method : new String[]{"bindService", "bindServiceAsUser"})
+            for (String intent : new String[]{hidden, hiddenPackage}) {
+                Varargs result = bind(globals, method, intent);
+                assertTrue(method, result.arg(1).toboolean());
+                assertFalse(method, result.arg(2).toboolean());
+                assertEquals(method, "com.other.hidden", result.arg(3).tojstring());
+                assertTrue(method, result.arg(4).toboolean());
+                assertEquals(method, "com.other.hidden:hidden", result.arg(5).tojstring());
+                assertTrue(method, result.arg(6).isnil());
+            }
+
+        // An isolated service needs a component, else Android throws for the instance, also of a missing app
+        Varargs isolated = bind(globals, "bindIsolatedService", hidden);
+        assertTrue(isolated.arg(1).toboolean());
+        assertFalse(isolated.arg(2).toboolean());
+        assertTrue(isolated.arg(4).toboolean());
+        assertEquals("com.other.hidden:hidden", isolated.arg(5).tojstring());
+        assertEquals("com.other.hidden:hidden", isolated.arg(6).tojstring());
+        assertEquals(".Service", isolated.arg(7).tojstring());
+        assertTrue(bind(globals, "bindIsolatedService", hiddenPackage).arg(6).isnil());
+
+        // A selector, which Android refuses next to a package
+        Scripts.run(globals, "function selected(intent, selector)\n" +
+                "  intent.selector = selector\n" +
+                "  return intent\n" +
+                "end");
+        for (String intent : new String[]{"selected(intentof(nil, nil), intentof(nil, 'com.other.hidden'))",
+                "selected(" + hidden + ", intentof(nil, 'com.example.app'))"}) {
+            Varargs result = bind(globals, "bindService", intent);
+            assertTrue(intent, result.arg(1).toboolean());
+            assertEquals(intent, "com.other.hidden:hidden", result.arg(5).tojstring());
+            assertTrue(intent, result.arg(8).toboolean());
+        }
+
+        // The copy of identifier_services, which hooks the same call, is left to Android
+        Scripts.run(globals, "visible['com.android.creator:hidden'] = false");
+        assertFalse(bind(globals, "bindService", "intentof(nil, 'com.android.creator:hidden')").arg(1).toboolean());
     }
 
     @Test
@@ -161,17 +274,8 @@ public class HiddenAppsScriptTest {
         String hiddenPackage = "intentof(nil, 'com.other.hidden')";
 
         for (String intent : new String[]{hidden, hiddenPackage}) {
-            Varargs result = component(globals, "bindService", "{ [0] = " + intent + " }");
-            assertTrue(intent, result.arg(1).toboolean());
-            assertFalse(intent, result.arg(3).toboolean());
-            assertEquals("com.other.hidden", result.arg(4).tojstring());
-            // Binding an isolated service fails the same, else Android names the service of the app
-            result = component(globals, "bindIsolatedService", "{ [0] = " + intent + " }");
-            assertTrue(intent, result.arg(1).toboolean());
-            assertTrue(intent, result.arg(2).toboolean());
-            assertFalse(intent, result.arg(3).toboolean());
             for (String method : new String[]{"startService", "startForegroundService", "sendBroadcast"}) {
-                result = component(globals, method, "{ [0] = " + intent + " }");
+                Varargs result = component(globals, method, "{ [0] = " + intent + " }");
                 assertTrue(method, result.arg(1).toboolean());
                 assertTrue(method, result.arg(2).toboolean());
                 assertTrue(method, result.arg(3).isnil());
@@ -229,9 +333,7 @@ public class HiddenAppsScriptTest {
         Globals globals = Scripts.load("component_hidden", STUBS);
         String hidden = "{ [0] = intentof(componentof('com.other.hidden', '.Service'), nil) }";
 
-        Varargs result = component(globals, "bindServiceAsUser", hidden);
-        assertTrue(result.arg(1).toboolean());
-        assertEquals(LuaValue.FALSE, result.arg(3));
+        Varargs result;
         for (String method : new String[]{"sendBroadcastAsUser", "sendBroadcastWithMultiplePermissions"}) {
             result = component(globals, method, hidden);
             assertTrue(method, result.arg(2).toboolean());
@@ -279,6 +381,14 @@ public class HiddenAppsScriptTest {
             assertFalse(method, result.arg(2).toboolean());
             assertEquals(method, "com.other.hidden:hidden", result.arg(3).tojstring());
         }
+        // A selector, which Android refuses next to a package, else the script fails and the broadcast is sent
+        Varargs selected = Scripts.run(globals, String.format(run, "(function()\n" +
+                "  local intent = intentof(componentof('com.other.hidden', '.Receiver'), nil)\n" +
+                "  intent.selector = intentof(nil, 'com.example.app')\n" +
+                "  return intent\n" +
+                "end)()", "sendOrderedBroadcast"));
+        assertTrue(selected.arg(1).toboolean());
+        assertEquals("com.other.hidden:hidden", selected.arg(3).tojstring());
         // Android refuses a sticky broadcast to a component itself, also of an app which is not installed
         Varargs sticky = Scripts.run(globals, String.format(run,
                 "intentof(componentof('com.other.hidden', '.Receiver'), nil)", "sendStickyOrderedBroadcast"));

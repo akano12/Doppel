@@ -17,9 +17,12 @@
 
 -- Apps run programs like getprop, uname, pm, cat and su to read what the other hooks fake, so a restricted app
 -- runs no program: the command fails like a program which may not run, before it starts. Runtime.exec starts
--- processes with ProcessBuilder.start. Programs in the native library folder of the app still run: they come
--- with its APK like its native libraries, which Doppel cannot hook either; they are found by their canonical
--- path, so a link to them runs too, but a copy elsewhere does not.
+-- processes with ProcessBuilder.start, and Os.execv and execve replace the process with a program. Programs in the
+-- native library folder of the app still run: they come with its APK like its native libraries, which Doppel cannot
+-- hook either; they are found by their canonical path, so a link to them runs too, but a copy elsewhere does not.
+
+-- The error of a program which may not run, OsConstants.EACCES, the same on every Linux
+local EACCES = 13
 
 -- Whether the program, a path with a /, is in the native library folder of the app; relative paths are files of the
 -- working directory of the builder, else of the process
@@ -27,7 +30,7 @@ function nativeprogram(param, builder, program)
     if not string.find(program, '/', 1, true) then
         return false
     end
-    local dir = builder:directory()
+    local dir = (builder ~= nil and builder:directory() or nil)
     local folder = param:getApplicationContext():getApplicationInfo().nativeLibraryDir
     if folder == nil then
         return false
@@ -45,12 +48,25 @@ end
 
 function before(hook, param)
     local builder = param:getThis()
+    -- Os.execv and execve, static, with the exception of the exec; Java throws for a null program itself
+    if builder == nil then
+        local program = param:getArgument(0)
+        if program == nil or nativeprogram(param, nil, program) then
+            return false
+        end
+        param:setResult(luajava.newInstance('android.system.ErrnoException', hook:getMethodName(), EACCES))
+        return true, program
+    end
+
     local command = builder:command()
     if command == nil then
         return false
     end
+    -- The list can be one of the app, which shows other words here than start reads from it, so both read a copy
+    local copy = luajava.newInstance('java.util.ArrayList', command)
+    builder:command(copy)
     -- Java throws for an empty command or a null word itself
-    local args = command:toArray()
+    local args = copy:toArray()
     local words = {}
     for index = 1, args['length'] do
         if args[index] == nil then

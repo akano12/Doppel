@@ -163,11 +163,6 @@ public class ActivityBase extends AppCompatActivity {
         Ui.submit(executor, task, ex -> error(tag, ex));
     }
 
-    // Run on the background thread, an error is shown with a retry: for loads the screen cannot do without
-    protected void run(String tag, Ui.Task task, Runnable retry) {
-        Ui.submit(executor, task, ex -> Ui.error(this, tag, ex, retry));
-    }
-
     // Run on the background thread a task which handles its errors itself, like a load; not anymore when the screen
     // is gone, since the executor refuses tasks then
     protected void submit(Runnable task) {

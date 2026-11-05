@@ -345,6 +345,10 @@ function after(hook, param)
         elseif fake == '' then
             fake = empty
         end
+        -- Already fake: get(key) calls the hooked native_get(key)
+        if fake == result then
+            return false
+        end
         param:setResult(fake)
         return true, result, fake
     elseif name == 'operator' and OPERATOR[key] ~= nil then

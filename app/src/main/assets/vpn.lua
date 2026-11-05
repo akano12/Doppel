@@ -26,7 +26,7 @@ local TYPE_WIFI = 1
 local TRANSPORTS = { [0] = 'CELLULAR', [1] = 'WIFI', [7] = 'BLUETOOTH', [9] = 'ETHERNET' }
 
 -- The fake values of a hook can call the same hook, see underlying; the Lua runtime of a hook is per thread
--- and is discarded after an error (see XCore), so this tells that the call is nested
+-- and stays after an error (see XCore), so this tells that the call is nested
 local nested = {}
 
 function isvpninterface(name)
@@ -251,6 +251,8 @@ function restrict(hook, param)
             -- A request of the app for VPN networks, of which vpn_request made one for LoWPAN, is one for VPN again
             local fake = string.gsub(result, ' TransportInfo: <VpnTransportInfo{[^}]*}>', '')
             fake = string.gsub(fake, 'LOWPAN', 'VPN')
+            -- Like getReason, what NetworkInfo prints without a reason
+            fake = string.gsub(fake, ', reason: agentConnect,', ', reason: (unspecified),')
             if string.find(fake, 'VPN', 1, true) then
                 fake = string.gsub(fake, '|VPN', '')
                 fake = string.gsub(fake, 'VPN|', '')
@@ -309,6 +311,13 @@ function restrict(hook, param)
             local _, fake = underlyingtype(param)
             param:setResult(fake)
             return true, result, fake
+        end
+
+    elseif method == 'getReason' then
+        -- Android 8.1 to 11 keep the reason of the connecting VPN in its NetworkInfo; other reasons tell no VPN
+        if result == 'agentConnect' then
+            param:setResult(nil)
+            return true, result, nil
         end
 
     elseif method == 'getNetworkInterfaces' then

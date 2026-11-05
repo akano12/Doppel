@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -42,9 +43,9 @@ public class FingerprintScriptsTest {
             "    getReturnType = function(self) return returnType end }",
             "end",
             "function paramof(result, arguments)",
-            "  local param = { result = result, args = arguments or {} }",
+            "  local param = { result = result, args = arguments or {}, set = false }",
             "  param.getResult = function(self) return self.result end",
-            "  param.setResult = function(self, value) self.result = value end",
+            "  param.setResult = function(self, value) self.result = value self.set = true end",
             "  param.getArgument = function(self, index) return self.args[index] end",
             "  param.setArgument = function(self, index, value) self.args[index] = value end",
             "  param.getException = function(self) return nil end",
@@ -161,6 +162,35 @@ public class FingerprintScriptsTest {
                         "return after(hookof('findDecoderForFormat'), p), p.result");
         assertFalse(result.arg1().toboolean());
         assertEquals("OMX.hw2.avc.dec", result.arg(2).tojstring());
+    }
+
+    // The metrics of a codec, a new bundle per call, have its name too; other values stay
+    @Test
+    public void codecMetricsHaveTheFakeName() throws Exception {
+        Varargs result = Scripts.run(load("media_codecs"),
+                "local key = 'android.media.mediacodec.codec'\n" +
+                        "local values = { [key] = 'c2.goldfish.h264.decoder', mime = 'video/avc' }\n" +
+                        "local bundle = { getString = function(self, name) return values[name] end,\n" +
+                        "  putString = function(self, name, value) values[name] = value end }\n" +
+                        "luajava.newInstance = function(name, kind)\n" +
+                        "  return { getCodecInfos = function(self)\n" +
+                        "    return { length = 1, { getName = function(self) return 'c2.goldfish.h264.decoder' end } } end }\n" +
+                        "end\n" +
+                        "local p = paramof(bundle)\n" +
+                        "local restricted, old, new = after(hookof('getMetrics'), p)\n" +
+                        "local empty = { getString = function(self, name) return nil end }\n" +
+                        "return restricted, old, new, values[key], values.mime, p.result == bundle,\n" +
+                        "  after(hookof('getMetrics'), p), after(hookof('getMetrics'), paramof(nil)),\n" +
+                        "  after(hookof('getMetrics'), paramof(empty))");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("c2.goldfish.h264.decoder", result.arg(2).tojstring());
+        assertEquals("c2.hw.h264.decoder", result.arg(3).tojstring());
+        assertEquals("c2.hw.h264.decoder", result.arg(4).tojstring());
+        assertEquals("video/avc", result.arg(5).tojstring());
+        assertTrue(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
     }
 
     @Test
@@ -295,11 +325,12 @@ public class FingerprintScriptsTest {
                         "local p = paramof(collection({ font('Roboto-Regular.ttf'), font('SamsungOne-400.ttf'), font(nil),\n" +
                         "  font('NotoSansCJK-Regular.ttc') }))\n" +
                         "local restricted, old, new = after(hookof('getAvailableFonts'), p)\n" +
-                        "return restricted, old, new, after(hookof('getAvailableFonts'), paramof(collection({ font('Roboto-Bold.ttf') })))");
+                        "return restricted, old, new, p.result:size(), after(hookof('getAvailableFonts'), paramof(collection({ font('Roboto-Bold.ttf') })))");
         assertTrue(result.arg1().toboolean());
         assertEquals("4", result.arg(2).tojstring());
         assertEquals("3", result.arg(3).tojstring());
-        assertFalse(result.arg(4).toboolean());
+        assertEquals(3, result.arg(4).toint());
+        assertFalse(result.arg(5).toboolean());
     }
 
     @Test
@@ -381,6 +412,33 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(8).toboolean());
         assertTrue(result.arg(9).toboolean());
 
+        // The app reads the text without the families of makers; nothing changes for a configuration without them,
+        // for another file, a file which was not opened and a failed call
+        result = Scripts.run(globals,
+                "local function fileof(path, text, opened)\n" +
+                        "  local p = paramof(opened, { [0] = path })\n" +
+                        "  p.getFileText = function(self) return text end\n" +
+                        "  p.setFileText = function(self, value) text = value p.set = true end\n" +
+                        "  p.text = function(self) return text end\n" +
+                        "  return p\n" +
+                        "end\n" +
+                        "local xml = [[" + xml + "]]\n" +
+                        "local maker = fileof('/system/etc/fonts.xml', xml, 'fd')\n" +
+                        "local plain = fileof('/system/etc/fonts.xml', '<familyset>\\n</familyset>\\n', 'fd')\n" +
+                        "local other = fileof('/data/user/0/app/files/fonts.xml', xml, 'fd')\n" +
+                        "local missing = fileof('/system/etc/fonts.xml', xml, nil)\n" +
+                        "local failed = fileof('/system/etc/fonts.xml', xml, 'fd')\n" +
+                        "failed.getException = function(self) return 'error' end\n" +
+                        "local restricted, count = after(hookof('open'), maker)\n" +
+                        "return restricted, count, maker:text(), after(hookof('open'), plain), plain.set,\n" +
+                        "  after(hookof('open'), other), other.set, after(hookof('open'), missing), missing.set,\n" +
+                        "  after(hookof('open'), failed), failed.set");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("1", result.arg(2).tojstring());
+        assertEquals(text, result.arg(3).tojstring());
+        for (int i = 4; i <= 11; i++)
+            assertFalse(String.valueOf(i), result.arg(i).toboolean());
+
         // Also by other paths: /./, //, the root of /proc and links, like /etc to /system/etc
         result = Scripts.run(globals,
                 "local function path(p) return { getArgument = function(self) return p end } end\n" +
@@ -432,6 +490,13 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(10).isnil());
         assertFalse(result.arg(11).toboolean());
 
+        // The time of AndroidX is an object, null when there is no GPS time
+        result = Scripts.run(globals, "local time = paramof(1700000000000)\n" +
+                "return after(hookof('getGpsDateTime', 'java.lang.Long'), time), time.result, time.set");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertTrue(result.arg(3).toboolean());
+
         // The location columns of MediaStore are null, the others, the notification URI and the cursor stay;
         // other providers stay
         result = Scripts.run(globals,
@@ -457,7 +522,9 @@ public class FingerprintScriptsTest {
                         "local c = media.result\n" +
                         "return restricted, c.getDouble(1), c.getString(2), c.getType(1), c.isNull(2), c.getString(0),\n" +
                         "  c.getLong(3), c.getType(3), c.getNotificationUri(), c.equals, real.closed,\n" +
-                        "  after(hookof('query'), paramof(cursor(), { [0] = uri('com.android.contacts') }))");
+                        "  after(hookof('query'), paramof(cursor(), { [0] = uri('com.android.contacts') })),\n" +
+                        "  after(hookof('query'), paramof(cursor(), { [0] = uri('0@media') })),\n" +
+                        "  after(hookof('query'), paramof(cursor(), { [0] = uri(nil) }))");
         assertTrue(result.arg1().toboolean());
         assertEquals(0, result.arg(2).todouble(), 0);
         assertTrue(result.arg(3).isnil());
@@ -472,6 +539,9 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(10).isnil());
         assertFalse(result.arg(11).toboolean());
         assertFalse(result.arg(12).toboolean());
+        // The media provider by the user in front too, and an uri without an authority
+        assertTrue(result.arg(13).toboolean());
+        assertFalse(result.arg(14).toboolean());
     }
 
     @Test
@@ -495,6 +565,131 @@ public class FingerprintScriptsTest {
         assertEquals(0, result.arg(5).toint());
         assertEquals(1, result.arg(6).toint());
         assertFalse(result.arg(7).toboolean());
+
+        // The serial numbers of other users are like those of users which do not exist
+        result = Scripts.run(globals,
+                "local function user(id) return { id = id, equals = function(self, other) return self.id == other.id end } end\n" +
+                        "luajava.bindClass = function(name) return { myUserHandle = function(self) return user(0) end } end\n" +
+                        "local other = paramof(user(10), { [0] = 16 })\n" +
+                        "local restricted = after(hookof('getUserForSerialNumber'), other)\n" +
+                        "local own = paramof(user(0), { [0] = 0 })\n" +
+                        "local stays = after(hookof('getUserForSerialNumber'), own)\n" +
+                        "local serial = paramof(16, { [0] = user(10) })\n" +
+                        "local hidden = after(hookof('getSerialNumberForUser'), serial)\n" +
+                        "local mine = paramof(0, { [0] = user(0) })\n" +
+                        "local kept = after(hookof('getSerialNumberForUser'), mine)\n" +
+                        "local missing = paramof(-1, { [0] = user(11) })\n" +
+                        "return restricted, other.result, stays, own.result.id, hidden, serial.result, kept, mine.result,\n" +
+                        "  after(hookof('getSerialNumberForUser'), missing)");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals(0, result.arg(4).toint());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals(-1, result.arg(6).toint());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals(0, result.arg(8).toint());
+        assertFalse(result.arg(9).toboolean());
+    }
+
+    // The filter of aliases passes all values with /../ (see XCore.Filter), of which only those of the user are faked
+    @Test
+    public void onlyAliasesOfTheUserAreHidden() throws Exception {
+        Varargs result = Scripts.run(load("device_details"),
+                "local system = paramof(true, { [0] = 'system:./../cacerts/abc.0' })\n" +
+                        "local certificate = paramof('certificate', { [0] = 'system:./../cacerts/abc.0' })\n" +
+                        "local user = paramof('certificate', { [0] = 'user:./../cacerts-added/abc.0' })\n" +
+                        "return after(hookof('containsAlias'), system), system.result,\n" +
+                        "  after(hookof('getCertificate'), certificate), certificate.result,\n" +
+                        "  after(hookof('getCertificate'), user), user.result");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals("certificate", result.arg(4).tojstring());
+        assertTrue(result.arg(5).toboolean());
+        assertTrue(result.arg(6).isnil());
+    }
+
+    // Android answers a new listener of the heat with the real values, here those of the getters, once, and throws for
+    // removing a listener it does not know, which the blocked ones are to it
+    @Test
+    public void thermalListenersAreAnswered() throws Exception {
+        Globals globals = load("device_details");
+        Scripts.run(globals,
+                "values, posted, answers = {}, {}, {}\n" +
+                        "function hook(method, count)\n" +
+                        "  return { getMethodName = function(self) return method end,\n" +
+                        "    getParameterTypes = function(self) return { length = count } end }\n" +
+                        "end\n" +
+                        "function call(method, ...)\n" +
+                        "  local args = { ... }\n" +
+                        "  local count = select('#', ...)\n" +
+                        "  local p = paramof(nil, {})\n" +
+                        "  for index = 1, count do p.args[index - 1] = args[index] end\n" +
+                        "  p.set = false\n" +
+                        "  p.setResult = function(self, value) self.set = true end\n" +
+                        "  p.getValue = function(self, name, scope) return values[scope] end\n" +
+                        "  p.putValue = function(self, name, value, scope) values[scope] = value end\n" +
+                        "  local restricted = before(hook(method, count), p)\n" +
+                        "  return restricted, p.set\n" +
+                        "end\n" +
+                        "function drain()\n" +
+                        "  for _, runnable in ipairs(posted) do runnable.run() end\n" +
+                        "  posted = {}\n" +
+                        "end\n" +
+                        "luajava.createProxy = function(name, object) assert(name == 'java.lang.Runnable') return object end\n" +
+                        "luajava.bindClass = function(name) assert(name == 'android.os.Looper')\n" +
+                        "  return { getMainLooper = function(self) return 'main' end } end\n" +
+                        "luajava.newInstance = function(name, looper)\n" +
+                        "  if name == 'java.util.HashMap' then return 'empty' end\n" +
+                        "  assert(name == 'android.os.Handler' and looper == 'main')\n" +
+                        "  return { post = function(self, runnable) posted[#posted + 1] = runnable end }\n" +
+                        "end\n" +
+                        "executor = { execute = function(self, runnable) posted[#posted + 1] = runnable end }\n" +
+                        "listener = {\n" +
+                        "  onThermalStatusChanged = function(self, status) answers[#answers + 1] = 'status ' .. status end,\n" +
+                        "  onThermalHeadroomChanged = function(self, headroom, forecast, seconds, thresholds)\n" +
+                        "    answers[#answers + 1] = tostring(headroom ~= headroom) .. ' ' .. tostring(forecast ~= forecast) ..\n" +
+                        "      ' ' .. seconds .. ' ' .. thresholds end }");
+
+        // By the main thread, once, and the blocked listener is removed once; Android throws for the second time
+        Varargs result = Scripts.run(globals,
+                "local added, skipped = call('addThermalStatusListener', listener)\n" +
+                        "local count = #posted\n" +
+                        "drain() drain()\n" +
+                        "local removed, skipped2 = call('removeThermalStatusListener', listener)\n" +
+                        "local _, skipped3 = call('removeThermalStatusListener', listener)\n" +
+                        "return added, skipped, count, table.concat(answers, ','), removed, skipped2, skipped3");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(1, result.arg(3).toint());
+        assertEquals("status 0", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+
+        // By the executor of the call; headroom like the getters: not known, no thresholds
+        result = Scripts.run(globals,
+                "answers = {}\n" +
+                        "local real = luajava.bindClass\n" +
+                        "luajava.bindClass = function(name) error('no main thread') end\n" +
+                        "local added = call('addThermalHeadroomListener', executor, listener)\n" +
+                        "luajava.bindClass = real\n" +
+                        "drain()\n" +
+                        "local _, skipped = call('removeThermalHeadroomListener', listener)\n" +
+                        "return added, table.concat(answers, ','), skipped");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("true true 0 empty", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+
+        // Android throws for null itself, the other hooks of the script do nothing before the call
+        result = Scripts.run(globals,
+                "local a, b = call('addThermalStatusListener', nil)\n" +
+                        "local c, d = call('addThermalStatusListener', nil, listener)\n" +
+                        "local e, f = call('getCurrentThermalStatus')\n" +
+                        "return a, b, c, d, e, f");
+        for (int i = 1; i <= 6; i++)
+            assertFalse("Value " + i, result.arg(i).toboolean());
     }
 
     @Test
@@ -520,7 +715,7 @@ public class FingerprintScriptsTest {
                         "local contains = paramof(true, { [0] = 'user:def.0' })\n" +
                         "after(hookof('containsAlias'), contains)\n" +
                         "return headroom.result ~= headroom.result, status.result, rate.result, frames.result,\n" +
-                        "  amplitude.result, effects.result['length'], effects.result[1], aliases.result:size(),\n" +
+                        "  amplitude.result, effects.set, effects.result, aliases.result:size(),\n" +
                         "  aliases.result:contains('system:abc.0'), contains.result,\n" +
                         "  table.concat(filter(hookof('containsAlias')), ','), filter(hookof('aliases'))");
         assertTrue(result.arg1().toboolean());
@@ -529,16 +724,17 @@ public class FingerprintScriptsTest {
         assertEquals("44100", result.arg(3).tojstring());
         assertEquals("256", result.arg(4).tojstring());
         assertFalse(result.arg(5).toboolean());
-        assertEquals(3, result.arg(6).toint());
-        assertEquals(0, result.arg(7).toint());
+        assertTrue(result.arg(6).toboolean());
+        // A Java array of the length asked for, all unknown
+        assertArrayEquals(new int[3], (int[]) result.arg(7).touserdata());
         assertEquals(1, result.arg(8).toint());
         assertTrue(result.arg(9).toboolean());
         assertFalse(result.arg(10).toboolean());
         assertEquals("user:*", result.arg(11).tojstring());
         assertTrue(result.arg(12).isnil());
 
-        // Arrays which are unknown or not supported already are not reported, like for the same inherited method
-        // which SystemVibrator and Vibrator both hook
+        // Arrays which are unknown or not supported already are not reported, like what Vibrator makes of the details
+        // of the hooked getInfo
         result = Scripts.run(globals,
                 "return after(hookof('areEffectsSupported'), paramof({ length = 2, 0, 0 })),\n" +
                         "  after(hookof('arePrimitivesSupported'), paramof({ length = 1, false })),\n" +
@@ -546,6 +742,43 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg1().toboolean());
         assertFalse(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
+
+        // The primitives asked for are not supported, also a Java array
+        result = Scripts.run(globals, "local primitives = paramof({ length = 2, true, false })\n" +
+                "return after(hookof('arePrimitivesSupported'), primitives), primitives.result");
+        assertTrue(result.arg1().toboolean());
+        assertArrayEquals(new boolean[2], (boolean[]) result.arg(2).touserdata());
+
+        // No thresholds of the heat and no aliases of certificates the user installed; nothing to report without them
+        for (String[] c : new String[][]{{"getThermalHeadroomThresholds", "java.util.HashMap", "put(0.5, 40)"},
+                {"userAliases", "java.util.HashSet", "add('user:def.0')"}}) {
+            result = Scripts.run(globals, "local values = luajava.newInstance('" + c[1] + "')\n" +
+                    "local none = paramof(values)\n" +
+                    "local reported = after(hookof('" + c[0] + "'), none)\n" +
+                    "values:" + c[2] + "\n" +
+                    "local some = paramof(values)\n" +
+                    "local restricted, old, new = after(hookof('" + c[0] + "'), some)\n" +
+                    "return reported, none.set, restricted, old, new, some.result:isEmpty()");
+            assertFalse(c[0], result.arg1().toboolean());
+            assertFalse(c[0], result.arg(2).toboolean());
+            assertTrue(c[0], result.arg(3).toboolean());
+            assertEquals(c[0], "1", result.arg(4).tojstring());
+            assertEquals(c[0], "0", result.arg(5).tojstring());
+            assertTrue(c[0], result.arg(6).toboolean());
+        }
+
+        // The certificate of a user alias, like of one which is not there, runs by the filter of containsAlias
+        result = Scripts.run(globals,
+                "local certificate = paramof('certificate', { [0] = 'user:def.0' })\n" +
+                        "local none = paramof(nil, { [0] = 'user:def.0' })\n" +
+                        "return after(hookof('getCertificate'), certificate), certificate.result, certificate.set,\n" +
+                        "  after(hookof('getCertificate'), none), none.set, filter(hookof('getCertificate'))[1]");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertTrue(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals("user:*", result.arg(6).tojstring());
 
         // The screen lock is set; the details of the vibrator are empty, by the constant or else built
         result = Scripts.run(globals,

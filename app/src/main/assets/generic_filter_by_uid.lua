@@ -20,6 +20,39 @@
 -- and of properties also keep system apps, like the lookups of single packages (see package_probe), because the
 -- Android framework uses them in the app process, like for launch intents, text to speech and speech recognition.
 
+local MATCH_ALL = 0x20000 -- PackageManager
+
+-- Flags with MATCH_ALL, an int or from Android 13 ResolveInfoFlags, of which a long has more bits than bit32
+function matchall(flags)
+    local value = (type(flags) == 'number' and flags or flags:getValue())
+    if math.floor(value / MATCH_ALL) % 2 == 0 then
+        value = value + MATCH_ALL
+    end
+    if type(flags) == 'number' then
+        return value
+    end
+    return luajava.bindClass('android.content.pm.PackageManager$ResolveInfoFlags'):of(value)
+end
+
+-- PackageManager.getPreferredActivities fills two lists of the app, an activity and its filter at the same index, and
+-- returns their number, which is 0 whatever it found on Android itself: the hidden apps are left out of both
+function preferred(param, count)
+    local filters, activities = param:getArgument(0), param:getArgument(1)
+    local removed = 0
+    for index = activities:size() - 1, 0, -1 do
+        if not param:isPackageVisible(activities:get(index):getPackageName()) then
+            filters:remove(index)
+            activities:remove(index)
+            removed = removed + 1
+        end
+    end
+    if removed == 0 then
+        return false
+    end
+    param:setResult(math.max(count - removed, 0))
+    return true
+end
+
 function after(hook, param)
     -- Processes of the system manage the packages of all apps
     if param:isSystem() then
@@ -34,6 +67,9 @@ function after(hook, param)
     local filtered = false
     local name = string.gsub(hook:getName(), '%.%d+$', '')
     name = string.gsub(name, 'AsUser$', '') -- Hidden methods for a user, with the items of their public twin
+    if name == 'PackageManager.getPreferredActivities' then
+        return preferred(param, list)
+    end
     local cuid = param:getUid()
 
     local info = list:toArray()
@@ -86,6 +122,22 @@ function after(hook, param)
         if not visible then
             filtered = true
             list:remove(index - 1)
+        end
+    end
+
+    -- Of a link Android gives only the default browser unless asked for all: when it is hidden the visible apps of
+    -- all, like on a device without it (see package_resolve)
+    -- shortcut: queryIntentActivitiesAsUser asks for the own user, which is the user of nearly every call
+    if filtered and name == 'PackageManager.queryIntentActivities' and list:isEmpty() then
+        local pm, intent, flags = param:getThis(), param:getArgument(0), matchall(param:getArgument(1))
+        local all = param:unhooked(function()
+            return pm:queryIntentActivities(intent, flags)
+        end)
+        for index = 0, all:size() - 1 do
+            local item = all:get(index)
+            if param:isVisible(item.activityInfo.applicationInfo) then
+                list:add(item)
+            end
         end
     end
 

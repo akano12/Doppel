@@ -38,6 +38,7 @@ import androidx.core.view.ViewCompat;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputLayout;
@@ -170,6 +171,10 @@ public class ActivityHookEdit extends ActivityBase {
         etScript.setHorizontallyScrolling(true);
         highlighter = new LuaHighlighter(etScript);
         Ui.onTextChanged(etScript, text -> updateScriptInfo());
+        // With the keyboard open the text of the API could leave no room for the script
+        View tvScriptApi = findViewById(R.id.tvScriptApi);
+        etScript.setOnFocusChangeListener((view, focused) ->
+                tvScriptApi.setVisibility(focused ? View.GONE : View.VISIBLE));
 
         // The captions of the cards are the texts between the cards, headings for screen readers
         LinearLayout llDefinition = findViewById(R.id.llDefinition);
@@ -289,7 +294,8 @@ public class ActivityHookEdit extends ActivityBase {
             });
         }, ex -> {
             postUnlessGone(() -> pbLoading.setVisibility(View.GONE));
-            Ui.error(this, TAG, ex, () -> load(id, fill));
+            // This screen does not load again by itself
+            Ui.error(this, TAG, ex, () -> load(id, fill), Snackbar.LENGTH_INDEFINITE);
         });
     }
 
@@ -533,7 +539,13 @@ public class ActivityHookEdit extends ActivityBase {
                     refill = restores;
                     final Context context = getApplicationContext();
                     run(TAG, () -> {
-                        Data.putHook(context, id, null);
+                        try {
+                            Data.putHook(context, id, null);
+                        } catch (Throwable ex) {
+                            // Nothing replaces the fields, so a recreation keeps what is entered
+                            runOnUiThread(() -> refill = false);
+                            throw ex;
+                        }
                         if (restores) {
                             load(id, true);
                             Ui.message(this, getString(R.string.msg_builtin_restored, id));

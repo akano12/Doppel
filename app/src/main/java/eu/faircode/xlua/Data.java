@@ -399,7 +399,7 @@ final class Data {
         clearData(context, Util.getUserId(Process.myUid()), false);
     }
 
-    // Of one user, or of all users, like when the app is removed by the owner (user 0)
+    // Of one user, or of all users, like when the last user removes the app
     static void clearData(Context context, int user, boolean all) {
         Bundle args = new Bundle();
         args.putInt("user", user);

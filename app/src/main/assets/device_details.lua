@@ -16,7 +16,8 @@
 -- Copyright 2026 akano12
 
 -- Small details of the device which together set it apart, with the values of a plain device:
--- - the heat (PowerManager): no thermal headroom known (NaN, like devices without the HAL), no throttling (0);
+-- - the heat (PowerManager): no thermal headroom known (NaN, like devices without the HAL), no throttling (0), also
+--   for listeners;
 -- - the audio output: 256 frames per buffer, which tells the audio chip; the sample rate stays, which is 48000
 --   or 44100 Hz on nearly all devices and tells little, while the app plays at it;
 -- - the vibrator: no amplitude control, effects and primitives unknown or not supported, no resonance (NaN),
@@ -43,8 +44,51 @@ function filter(hook)
     return nil
 end
 
+-- The listeners of the heat: Android answers a new listener at once with the real values, so it is not added and gets
+-- the values of the getters once, on the executor of the call, else on the main thread. Android throws for removing a
+-- listener which was not added, which would crash the app, so removing one of these does nothing as well.
+function before(hook, param)
+    local method = hook:getMethodName()
+    if method == 'removeThermalStatusListener' or method == 'removeThermalHeadroomListener' then
+        local listener = param:getArgument(0)
+        if listener == nil or not param:getValue('thermal.blocked', listener) then
+            return false
+        end
+        param:putValue('thermal.blocked', nil, listener)
+        param:setResult(nil)
+        return false
+    elseif method ~= 'addThermalStatusListener' and method ~= 'addThermalHeadroomListener' then
+        return false
+    end
+
+    -- The listener is the last argument of both variants; Android throws for a null one or a null executor
+    local count = hook:getParameterTypes()['length']
+    local listener = param:getArgument(count - 1)
+    local executor = (count == 2 and param:getArgument(0) or nil)
+    if listener == nil or (count == 2 and executor == nil) then
+        return false
+    end
+    param:setResult(nil)
+    param:putValue('thermal.blocked', true, listener)
+
+    local runnable = luajava.createProxy('java.lang.Runnable', { run = function()
+        if method == 'addThermalStatusListener' then
+            listener:onThermalStatusChanged(0) -- THERMAL_STATUS_NONE
+        else
+            listener:onThermalHeadroomChanged(0 / 0, 0 / 0, 0, luajava.newInstance('java.util.HashMap'))
+        end
+    end })
+    if executor ~= nil then
+        executor:execute(runnable)
+    else
+        local looper = luajava.bindClass('android.os.Looper'):getMainLooper()
+        luajava.newInstance('android.os.Handler', looper):post(runnable)
+    end
+    return true
+end
+
 -- A Java array of the length of another one, of a type, with one value; nil when the other one has only that value,
--- like when SystemVibrator and Vibrator hook the same inherited method
+-- like the array the hooked getInfo made the method of Vibrator return
 function filled(type, other, value)
     local length = other['length']
     local same = true
@@ -149,10 +193,14 @@ function after(hook, param)
         return true
     elseif method == 'isDeviceSecure' or method == 'isKeyguardSecure' then
         fake = true
-    elseif method == 'containsAlias' then
-        fake = false
-    elseif method == 'getCertificate' then
-        fake = nil
+    elseif method == 'containsAlias' or method == 'getCertificate' then
+        -- The filter also passes all aliases with /../
+        if string.sub(param:getArgument(0), 1, 5) ~= 'user:' then
+            return false
+        end
+        if method == 'containsAlias' then
+            fake = false
+        end
     else
         return false
     end

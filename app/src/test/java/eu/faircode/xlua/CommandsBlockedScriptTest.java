@@ -19,6 +19,7 @@
 
 package eu.faircode.xlua;
 
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -63,10 +64,7 @@ public class CommandsBlockedScriptTest {
     @Before
     public void load() throws Exception {
         globals = Scripts.load("commands_blocked", STUBS);
-        // Android links the native library folder of an app, like /data/app/<package>/lib/arm64
-        File real = temp.newFolder("app", "lib", "arm64");
         lib = new File(temp.getRoot(), "lib");
-        Files.createSymbolicLink(lib.toPath(), real.toPath());
         files = temp.newFolder("files");
     }
 
@@ -108,6 +106,11 @@ public class CommandsBlockedScriptTest {
 
     @Test
     public void programsOfTheAppRun() throws Exception {
+        // The script compares paths with /, which canonical paths of Windows do not have
+        Assume.assumeTrue(File.separatorChar == '/');
+        // Android links the native library folder of an app, like /data/app/<package>/lib/arm64
+        File real = temp.newFolder("app", "lib", "arm64");
+        Files.createSymbolicLink(lib.toPath(), real.toPath());
         File program = new File(lib, "libtool.so");
         assertTrue(program.createNewFile());
         assertNull(refused(null, program.getPath(), "-v"));

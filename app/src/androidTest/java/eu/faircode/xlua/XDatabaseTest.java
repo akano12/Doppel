@@ -32,6 +32,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -138,6 +140,55 @@ public class XDatabaseTest {
             db.close();
         }
         db = null;
+    }
+
+    // A failing write on each start, like on a full disk, leaves nothing half done and the database open, so restricted
+    // apps keep their hooks
+    @Test
+    public void failedMaintenanceKeepsTheDatabase() throws Throwable {
+        db = XDatabase.open(file);
+        db.write(d -> {
+            d.execSQL("INSERT INTO setting VALUES (0, 'com.example', 'commands.allowed', 'getprop')");
+            d.execSQL("INSERT INTO assignment (package, uid, hook, installed) VALUES ('com.example', 10123, 'Privacy.Test.kept', 5)");
+            // Fails the reset of the install data, after the obsolete setting was removed
+            d.execSQL("CREATE TRIGGER fail BEFORE UPDATE ON assignment BEGIN SELECT RAISE(ABORT, 'full'); END");
+            return null;
+        });
+        db.close();
+
+        db = XDatabase.open(file);
+        db.read(d -> {
+            try (Cursor c = d.rawQuery("SELECT name FROM setting", null)) {
+                assertEquals(1, c.getCount());
+            }
+            try (Cursor c = d.rawQuery("SELECT installed FROM assignment", null)) {
+                assertTrue(c.moveToFirst());
+                assertEquals(5, c.getLong(0));
+            }
+            return null;
+        });
+    }
+
+    // Android deletes a corrupt database: a new one opens, and it is known, so the user can be told
+    @Test
+    public void corruptFileStartsEmptyAndIsKnown() throws Throwable {
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            for (int i = 0; i < 1000; i++)
+                out.write("this is not a database".getBytes(StandardCharsets.UTF_8));
+        }
+
+        XDatabase.lost = false;
+        db = XDatabase.open(file);
+        assertTrue(XDatabase.lost);
+        XDatabase.lost = false;
+
+        assertTrue(db.isOpen());
+        db.read(d -> {
+            try (Cursor c = d.rawQuery("SELECT name FROM setting", null)) {
+                assertEquals(0, c.getCount());
+            }
+            return null;
+        });
     }
 
     // The schema of each former version, as its migrations made it, see XDatabase.MIGRATIONS

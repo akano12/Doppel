@@ -22,7 +22,7 @@ function authorityof(uri)
     if authority == nil then
         return nil
     end
-    return (string.gsub(authority, '^%d+@', ''))
+    return (string.gsub(authority, '^.*@', ''))
 end
 
 -- Whether the selection of an app stays within its own parentheses, so the starred filter around it applies:

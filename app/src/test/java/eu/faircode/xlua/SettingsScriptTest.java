@@ -420,6 +420,11 @@ public class SettingsScriptTest {
         assertTrue(result.arg1().toboolean());
         assertEquals("1,android_id,1234abcd1234abcd;2,bluetooth_name,nil;3,adb_enabled,0", result.arg(2).tojstring());
 
+        // Android parses the user like Integer.parseInt, which takes a sign
+        result = query("identifiers", "uriof('+0@settings', 'secure')", "'_id', 'name', 'value'", rows, "nil");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("1,android_id,0000000000000000;2,bluetooth_name,nil;3,adb_enabled,1", result.arg(2).tojstring());
+
         // Nothing to fake: the cursor of the provider stays, not closed
         result = query("battery", "uriof('settings', 'secure')", "'_id', 'name', 'value'", rows, "nil");
         assertFalse(result.arg1().toboolean());

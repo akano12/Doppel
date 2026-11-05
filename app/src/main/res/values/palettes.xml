@@ -8,6 +8,7 @@
 
     <style name="ThemeOverlay.XLua.Berry" parent="">
         <item name="colorPrimary">#943D54</item>
+        <item name="colorPrimaryInverse">#FFB1C1</item>
         <item name="colorOnPrimary">#FFFFFF</item>
         <item name="colorPrimaryContainer">#B2556C</item>
         <item name="colorOnPrimaryContainer">#FFF8F8</item>
@@ -23,6 +24,7 @@
 
     <style name="ThemeOverlay.XLua.Sky" parent="">
         <item name="colorPrimary">#186778</item>
+        <item name="colorPrimaryInverse">#8DD1E4</item>
         <item name="colorOnPrimary">#FFFFFF</item>
         <item name="colorPrimaryContainer">#6FB3C6</item>
         <item name="colorOnPrimaryContainer">#004452</item>
@@ -38,6 +40,7 @@
 
     <style name="ThemeOverlay.XLua.Teal" parent="">
         <item name="colorPrimary">#00685E</item>
+        <item name="colorPrimaryInverse">#66D9C9</item>
         <item name="colorOnPrimary">#FFFFFF</item>
         <item name="colorPrimaryContainer">#008377</item>
         <item name="colorOnPrimaryContainer">#F4FFFB</item>

@@ -23,8 +23,12 @@
 -- of Qualcomm) become google, which they take for software too. What the codecs can do stays, since players choose
 -- codecs by it, and so does the end of a name, like .secure. Media libraries get the fake names too, which turns off
 -- their workarounds of bugs of codecs of vendors by name (ExoPlayer, Media3); a fake name an app opens a codec with
--- is the real one again. Not covered is native code (NDK AMediaCodec).
+-- is the real one again. The metrics of a codec have the fake name too, and vendor parameters, named after the vendor,
+-- are not there (generic hooks). Not covered is native code (NDK AMediaCodec).
 local KEPT = { android = true, google = true, ffmpeg = true, hw = true }
+
+-- MediaCodec.MetricsConstants.CODEC
+local METRICS_CODEC = 'android.media.mediacodec.codec'
 
 -- Whether ExoPlayer and Media3 take a codec of a vendor for software by its name (MediaCodecUtil.isSoftwareOnly)
 function software(name)
@@ -124,6 +128,11 @@ function after(hook, param)
         return false
     end
     local result = param:getResult()
+    -- MediaCodec.getMetrics, a new bundle per call, has the name among its values
+    local metrics = (hook:getMethodName() == 'getMetrics' and result or nil)
+    if metrics ~= nil then
+        result = metrics:getString(METRICS_CODEC)
+    end
     if result == nil or fakename(result) == result then
         return false
     end
@@ -134,6 +143,10 @@ function after(hook, param)
         return false
     end
     local fake = fakes[result] or fakename(result)
-    param:setResult(fake)
+    if metrics ~= nil then
+        metrics:putString(METRICS_CODEC, fake)
+    else
+        param:setResult(fake)
+    end
     return true, result, fake
 end

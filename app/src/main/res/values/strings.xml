@@ -48,9 +48,10 @@
     <string name="title_value_meid">MEID</string>
     <string name="title_value_phone_number">Phone number</string>
     <string name="title_value_email">Account name (email)</string>
-    <string name="title_value_timezone">Time zone (like Europe/Amsterdam)</string>
-    <string name="title_value_locale">Languages (comma separated, like en-US,de-DE)</string>
-    <string name="title_value_features">Shown device features (comma separated, like android.hardware.camera*)</string>
+    <string name="title_value_timezone">Time zone, like Europe/Paris</string>
+    <string name="title_value_locale">Languages, like en-US,de-DE</string>
+    <string name="title_value_features">Shown device features</string>
+    <string name="title_value_features_hint">Comma separated, like android.hardware.camera*</string>
     <string name="title_value_latitude">Latitude</string>
     <string name="title_value_longitude">Longitude</string>
     <string name="title_value_accuracy">Coarse accuracy (meters)</string>
@@ -88,7 +89,7 @@
     <string name="msg_backup_done">Backup saved · settings: %1$d · custom definitions: %2$d · apps: %3$d</string>
     <!-- The summary of a restore, one line each, the lines without anything to say are left out, see FragmentSettings -->
     <string name="title_restore_done">Backup restored</string>
-    <string name="title_restore_version">Made with version build %1$d, this is build %2$d</string>
+    <string name="title_restore_version">Made with build %1$d, this is build %2$d</string>
     <plurals name="msg_groups_restricted">
         <item quantity="one">%1$s: %2$d of %3$d group restricted</item>
         <item quantity="other">%1$s: %2$d of %3$d groups restricted</item>
@@ -140,12 +141,15 @@
     <string name="title_restore_stopped">Stopped to apply the restrictions: %1$s</string>
     <string name="title_restore_reboot">Restart the device to apply the restrictions of: %1$s</string>
     <string name="msg_restore_sure">Restore settings, custom definitions and restrictions from this backup? Existing values with the same names are replaced.</string>
+    <string name="msg_restore_android">This backup restricts Android itself, which can cause a bootloop.</string>
     <string name="msg_error">Error: %1$s</string>
 
     <string name="msg_no_service">Module not running or updated</string>
     <string name="msg_review_settings">Review privacy settings</string>
     <string name="msg_usage">Restricted \'%1$s\'</string>
     <string name="msg_exception">Error in %1$s</string>
+    <string name="msg_data_lost">Doppel\'s data was damaged and deleted</string>
+    <string name="msg_data_lost_hint">Apps are no longer restricted. Restore a backup to get your settings back.</string>
     <string name="msg_no_browser">No browser available to open link</string>
 
     <!-- Navigation -->
@@ -159,7 +163,7 @@
     <string name="msg_no_service_help">Enable Doppel in the Xposed manager (like LSPosed) with System Framework in its scope, and also Settings Storage with the legacy Xposed API (like EdXposed), then restart the device.</string>
 
     <!-- Apps -->
-    <string name="title_search_apps">Search name, package or uid</string>
+    <string name="title_search_apps">Name, package or uid</string>
     <string name="title_filter_user">User</string>
     <string name="title_filter_system">System</string>
     <!-- A title with a count, like a filter chip -->
@@ -361,12 +365,12 @@
     <!-- The log keeps the last restriction of each hook of an app, not each call -->
     <string name="title_calls_by_hour">Last restriction of each hook today, by hour</string>
     <string name="title_calls_by_day">Last restriction of each hook in the last 7 days, by day</string>
-    <string name="title_errors_by_day">Failed hooks of the last 7 days by day</string>
+    <string name="title_errors_by_day">Failed hooks of the last 7 days, by day</string>
     <string name="title_log_empty">No restrictions applied yet</string>
     <string name="title_log_no_errors">No hooks failed</string>
 
     <!-- Hooks -->
-    <string name="title_search_hooks">Class, method or group</string>
+    <string name="title_search_hooks">Class or group</string>
     <plurals name="title_hook_count">
         <item quantity="one">%1$d hook</item>
         <item quantity="other">%1$d hooks</item>
@@ -448,7 +452,7 @@
 
     <!-- Downloads -->
     <string name="title_downloads">Downloads</string>
-    <string name="title_search_downloads">Name, group, author or description</string>
+    <string name="title_search_downloads">Name, group or author</string>
     <string name="title_downloads_notice">Community definitions, as-is and at your own risk</string>
     <string name="title_not_installed">Not installed</string>
     <string name="title_installed">Installed</string>
@@ -531,14 +535,14 @@
     <string name="title_mode_fixed">Fixed</string>
     <string name="title_mode_boot">Each boot</string>
     <string name="title_mode_all">Same for all apps</string>
-    <string name="title_box_boot">New after each restart, a different one for each app</string>
-    <string name="title_box_boot_all">New after each restart, the same for every app</string>
+    <string name="title_box_boot">New after each device restart, a different one for each app</string>
+    <string name="title_box_boot_all">New after each device restart, the same for every app</string>
     <string name="title_box_inherit_fixed">Fixed for all apps</string>
-    <string name="title_box_inherit_boot">Each boot for all apps, one for each app; until the next restart this app gets:</string>
-    <string name="title_box_inherit_boot_all">Each boot, the same for all apps; until the next restart this app gets:</string>
+    <string name="title_box_inherit_boot">Each boot for all apps, one for each app; until the device restarts this app gets:</string>
+    <string name="title_box_inherit_boot_all">Each boot, the same for all apps; until the device restarts this app gets:</string>
     <string name="title_box_inherit_boot_short">Each boot for all apps, one for each app</string>
     <string name="title_box_inherit_boot_all_short">Each boot, the same for all apps</string>
-    <string name="title_box_saved">Until the next restart this app gets:</string>
+    <string name="title_box_saved">Until the device restarts this app gets:</string>
     <string name="title_clear_field">Clear %1$s</string>
     <string name="title_reset">Clear</string>
     <string name="msg_no_changes">No changes</string>
@@ -634,7 +638,7 @@
     <string name="group_desc_get_calendars">Calendars and events</string>
     <string name="group_desc_get_call_log">Calls made and received</string>
     <string name="group_desc_get_contacts">Contacts and their details</string>
-    <string name="group_desc_get_location">Precise and approximate location</string>
+    <string name="group_desc_get_location">Precise and approximate location, also of photos and videos</string>
     <string name="group_desc_get_messages">SMS, MMS and voicemail messages, also incoming ones</string>
     <string name="group_desc_get_sensors">Motion and environment sensors</string>
     <string name="group_desc_read_account">Accounts on the device, like email addresses</string>
@@ -656,7 +660,7 @@
     <string name="group_desc_read_vpn">Whether a VPN is connected</string>
     <string name="group_desc_record_audio">Recording with the microphone</string>
     <string name="group_desc_record_video">Recording video with the media recorder of Android</string>
-    <string name="group_desc_run_commands">Commands like su, id and getprop fail; programs of the app itself still run</string>
+    <string name="group_desc_run_commands">Commands like su, id and getprop fail; programs of the app itself still run; other groups refuse commands too, see the FAQ</string>
     <string name="group_desc_send_messages">Sending SMS and MMS messages</string>
     <string name="group_desc_use_analytics">Analytics and advertising libraries in the app</string>
     <string name="group_desc_use_camera">Using the camera, for pictures and video</string>

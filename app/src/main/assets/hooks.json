@@ -2626,6 +2626,23 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
+    "name": "PackageManager.getPreferredActivities",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPreferredActivities",
+    "parameterTypes": [
+      "java.util.List",
+      "java.util.List",
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
     "name": "PackageManager.queryIntentActivityOptions",
     "author": "M66B",
     "className": "android.content.pm.PackageManager",
@@ -3799,6 +3816,50 @@
     "parameterTypes": [
       "java.util.concurrent.Executor",
       "android.location.GnssStatus$Callback"
+    ],
+    "returnType": "boolean",
+    "minSdk": 30,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationManager.registerGnssNavigationMessageCallback24a",
+    "author": "akano12",
+    "className": "android.location.LocationManager",
+    "methodName": "registerGnssNavigationMessageCallback",
+    "parameterTypes": [
+      "android.location.GnssNavigationMessage$Callback"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationManager.registerGnssNavigationMessageCallback24b",
+    "author": "akano12",
+    "className": "android.location.LocationManager",
+    "methodName": "registerGnssNavigationMessageCallback",
+    "parameterTypes": [
+      "android.location.GnssNavigationMessage$Callback",
+      "android.os.Handler"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationManager.registerGnssNavigationMessageCallback30",
+    "author": "akano12",
+    "className": "android.location.LocationManager",
+    "methodName": "registerGnssNavigationMessageCallback",
+    "parameterTypes": [
+      "java.util.concurrent.Executor",
+      "android.location.GnssNavigationMessage$Callback"
     ],
     "returnType": "boolean",
     "minSdk": 30,
@@ -5034,6 +5095,24 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
+    "name": "SystemProperties.native_get/serial",
+    "author": "M66B",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
     "name": "SystemProperties.get.default/serial",
     "author": "M66B",
     "className": "android.os.SystemProperties",
@@ -5355,6 +5434,76 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 27,
+    "luaScript": "@network_address"
+  },
+  // Hidden getters of the same values, which apps reach by reflection
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getAllAddresses",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAllAddresses",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getAddresses",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAddresses",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getAllLinkAddresses",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAllLinkAddresses",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getAllRoutes",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAllRoutes",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getAllInterfaceNames",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAllInterfaceNames",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
     "luaScript": "@network_address"
   },
   {
@@ -9129,6 +9278,21 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "SystemProperties.native_get/operator",
+    "author": "M66B",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "SystemProperties.get.default/operator",
     "author": "M66B",
     "className": "android.os.SystemProperties",
@@ -9154,6 +9318,22 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 27,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.native_get/device",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
     "usage": false,
     "luaScript": "@systemproperties_get"
   },
@@ -9319,7 +9499,7 @@
       "boolean"
     ],
     "returnType": "void",
-    "minSdk": 35,
+    "minSdk": 34,
     "optional": true,
     "usage": false,
     "luaScript": "@display_panel"
@@ -11859,6 +12039,25 @@
   {
     "collection": "Privacy",
     "group": "Read.Timezone",
+    "name": "SystemProperties.native_get/timezone",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "settings": [
+      "value.timezone"
+    ],
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
     "name": "SystemProperties.get.default/timezone",
     "author": "akano12",
     "className": "android.os.SystemProperties",
@@ -12040,6 +12239,25 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "SystemProperties.native_get/locale",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
     "usage": false,
     "settings": [
       "value.locale"
@@ -12272,6 +12490,75 @@
     "minSdk": 27,
     "luaScript": "@vpn_addresses"
   },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "LinkProperties.getAllAddresses/vpn",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAllAddresses",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@vpn_addresses"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "LinkProperties.getAddresses/vpn",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAddresses",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@vpn_addresses"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "LinkProperties.getAllLinkAddresses/vpn",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAllLinkAddresses",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@vpn_addresses"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "LinkProperties.getAllRoutes/vpn",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAllRoutes",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@vpn_addresses"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "LinkProperties.getAllInterfaceNames/vpn",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getAllInterfaceNames",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@vpn_addresses"
+  },
   // The routes of a VPN network (LinkProperties.getRoutes) are on its interface;
   // NetworkInfo.toString gets its type name from the hooked getTypeName
   {
@@ -12357,6 +12644,30 @@
     "author": "akano12",
     "className": "android.net.NetworkInfo",
     "methodName": "getTypeName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInfo.getReason",
+    "author": "akano12",
+    "className": "android.net.NetworkInfo",
+    "methodName": "getReason",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInfo.toString/vpn",
+    "author": "akano12",
+    "className": "android.net.NetworkInfo",
+    "methodName": "toString",
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 27,
@@ -13285,6 +13596,22 @@
   {
     "collection": "Privacy",
     "group": "Read.Debugging",
+    "name": "SystemProperties.native_get/debugging",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
     "name": "SystemProperties.get.default/debugging",
     "author": "akano12",
     "className": "android.os.SystemProperties",
@@ -13341,6 +13668,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.execv/debugging",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.execve/debugging",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   // Memory and storage sizes, rounded to the sizes devices are sold with, free space to two digits
@@ -13356,6 +13717,39 @@
     ],
     "returnType": "void",
     "minSdk": 27,
+    "luaScript": "@resources"
+  },
+  // The pages of memory, which tell the same sizes (resources)
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Os.sysconf/resources",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "sysconf",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "ForwardingOs.sysconf/resources",
+    "author": "akano12",
+    "className": "libcore.io.ForwardingOs",
+    "methodName": "sysconf",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
     "luaScript": "@resources"
   },
   {
@@ -14015,6 +14409,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.execv",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.execve",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   {
@@ -14032,6 +14460,39 @@
   },
   {
     "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.execv/packages",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.execve/packages",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
     "group": "Read.Timezone",
     "name": "ProcessBuilder.start/timezone",
     "author": "akano12",
@@ -14040,6 +14501,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "Os.execv/timezone",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "Os.execve/timezone",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   {
@@ -14052,6 +14547,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "Os.execv/locale",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "Os.execve/locale",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   {
@@ -14064,6 +14593,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "Os.execv/features",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "Os.execve/features",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   {
@@ -14076,6 +14639,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.execv/biometrics",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.execve/biometrics",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   {
@@ -14088,6 +14685,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.execv/identifiers",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.execve/identifiers",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   {
@@ -14100,6 +14731,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Os.execv/resources",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Os.execve/resources",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   {
@@ -14112,6 +14777,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "Os.execv/network",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "Os.execve/network",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   {
@@ -14124,6 +14823,40 @@
     "parameterTypes": [],
     "returnType": "java.lang.Process",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Run.Commands",
+    "name": "Os.execv/commands",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Run.Commands",
+    "name": "Os.execve/commands",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
   // The text of network objects contains the values their getters hide
@@ -16375,6 +17108,53 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "MediaCodec.getMetrics",
+    "author": "akano12",
+    "className": "android.media.MediaCodec",
+    "methodName": "getMetrics",
+    "parameterTypes": [],
+    "returnType": "android.os.PersistableBundle",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@media_codecs"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaCodec.getSupportedVendorParameters",
+    "author": "akano12",
+    "className": "android.media.MediaCodec",
+    "methodName": "getSupportedVendorParameters",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 31,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "MediaCodec.getParameterDescriptor",
+    "author": "akano12",
+    "className": "android.media.MediaCodec",
+    "methodName": "getParameterDescriptor",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.media.MediaCodec$ParameterDescriptor",
+    "minSdk": 31,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "MediaCodec.createByCodecName",
     "author": "akano12",
     "className": "android.media.MediaCodec",
@@ -16594,6 +17374,23 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "SystemProperties.native_get/resources",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
     "usage": false,
     "excludePackages": "android",
     "luaScript": "@systemproperties_get"
@@ -16990,6 +17787,36 @@
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
+    "name": "UserManager.getUserForSerialNumber",
+    "author": "akano12",
+    "className": "android.os.UserManager",
+    "methodName": "getUserForSerialNumber",
+    "parameterTypes": [
+      "long"
+    ],
+    "returnType": "android.os.UserHandle",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UserManager.getSerialNumberForUser",
+    "author": "akano12",
+    "className": "android.os.UserManager",
+    "methodName": "getSerialNumberForUser",
+    "parameterTypes": [
+      "android.os.UserHandle"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
     "name": "LauncherApps.getProfiles",
     "author": "akano12",
     "className": "android.content.pm.LauncherApps",
@@ -17055,6 +17882,99 @@
     "excludePackages": "android",
     "luaScript": "@device_details"
   },
+  // Android answers new listeners with the real values (device_details)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PowerManager.addThermalStatusListener",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "addThermalStatusListener",
+    "parameterTypes": [
+      "android.os.PowerManager$OnThermalStatusChangedListener"
+    ],
+    "returnType": "void",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PowerManager.addThermalStatusListener/executor",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "addThermalStatusListener",
+    "parameterTypes": [
+      "java.util.concurrent.Executor",
+      "android.os.PowerManager$OnThermalStatusChangedListener"
+    ],
+    "returnType": "void",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PowerManager.removeThermalStatusListener",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "removeThermalStatusListener",
+    "parameterTypes": [
+      "android.os.PowerManager$OnThermalStatusChangedListener"
+    ],
+    "returnType": "void",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PowerManager.addThermalHeadroomListener",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "addThermalHeadroomListener",
+    "parameterTypes": [
+      "android.os.PowerManager$OnThermalHeadroomChangedListener"
+    ],
+    "returnType": "void",
+    "minSdk": 36,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PowerManager.addThermalHeadroomListener/executor",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "addThermalHeadroomListener",
+    "parameterTypes": [
+      "java.util.concurrent.Executor",
+      "android.os.PowerManager$OnThermalHeadroomChangedListener"
+    ],
+    "returnType": "void",
+    "minSdk": 36,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "PowerManager.removeThermalHeadroomListener",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "removeThermalHeadroomListener",
+    "parameterTypes": [
+      "android.os.PowerManager$OnThermalHeadroomChangedListener"
+    ],
+    "returnType": "void",
+    "minSdk": 36,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -17080,114 +18000,6 @@
     "parameterTypes": [],
     "returnType": "boolean",
     "minSdk": 27,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@device_details"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Vibrator.areEffectsSupported",
-    "author": "akano12",
-    "className": "android.os.Vibrator",
-    "methodName": "areEffectsSupported",
-    "parameterTypes": [
-      "int[]"
-    ],
-    "returnType": "int[]",
-    "minSdk": 30,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@device_details"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Vibrator.areAllEffectsSupported",
-    "author": "akano12",
-    "className": "android.os.Vibrator",
-    "methodName": "areAllEffectsSupported",
-    "parameterTypes": [
-      "int[]"
-    ],
-    "returnType": "int",
-    "minSdk": 30,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@device_details"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Vibrator.arePrimitivesSupported",
-    "author": "akano12",
-    "className": "android.os.Vibrator",
-    "methodName": "arePrimitivesSupported",
-    "parameterTypes": [
-      "int[]"
-    ],
-    "returnType": "boolean[]",
-    "minSdk": 30,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@device_details"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Vibrator.areAllPrimitivesSupported",
-    "author": "akano12",
-    "className": "android.os.Vibrator",
-    "methodName": "areAllPrimitivesSupported",
-    "parameterTypes": [
-      "int[]"
-    ],
-    "returnType": "boolean",
-    "minSdk": 30,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@device_details"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Vibrator.getPrimitiveDurations",
-    "author": "akano12",
-    "className": "android.os.Vibrator",
-    "methodName": "getPrimitiveDurations",
-    "parameterTypes": [
-      "int[]"
-    ],
-    "returnType": "int[]",
-    "minSdk": 31,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@device_details"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Vibrator.getResonantFrequency",
-    "author": "akano12",
-    "className": "android.os.Vibrator",
-    "methodName": "getResonantFrequency",
-    "parameterTypes": [],
-    "returnType": "float",
-    "minSdk": 34,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@device_details"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Vibrator.getQFactor",
-    "author": "akano12",
-    "className": "android.os.Vibrator",
-    "methodName": "getQFactor",
-    "parameterTypes": [],
-    "returnType": "float",
-    "minSdk": 34,
     "optional": true,
     "excludePackages": "android",
     "luaScript": "@device_details"
@@ -17413,20 +18225,6 @@
     "luaScript": "@font_config"
   },
   // The details of the vibrator and the screen lock (device_details)
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Vibrator.getInfo",
-    "author": "akano12",
-    "className": "android.os.Vibrator",
-    "methodName": "getInfo",
-    "parameterTypes": [],
-    "returnType": "android.os.VibratorInfo",
-    "minSdk": 31,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@device_details"
-  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",

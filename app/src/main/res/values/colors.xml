@@ -4,6 +4,7 @@
          the primary and tertiary containers are the same in both themes, like in the other color themes except Teal -->
     <color name="c_primary">#006497</color>
     <color name="c_on_primary">#FFFFFF</color>
+    <color name="c_primary_inverse">#92CCFF</color>
     <color name="c_primary_container">#4FAEF2</color>
     <color name="c_on_primary_container">#004062</color>
     <color name="c_secondary">#43617B</color>
@@ -23,6 +24,8 @@
     <color name="c_surface_container">#E9E9F2</color>
     <color name="c_surface_high">#E3E3ED</color>
     <color name="c_surface_highest">#DDDDE8</color>
+    <color name="c_surface_inverse">#34353F</color>
+    <color name="c_on_surface_inverse">#E4E4EF</color>
     <color name="c_outline">#8A8CA0</color>
     <color name="c_outline_variant">#DCDDE8</color>
 

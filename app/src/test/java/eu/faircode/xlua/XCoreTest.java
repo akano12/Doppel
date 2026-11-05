@@ -45,6 +45,40 @@ import static org.junit.Assert.assertTrue;
 
 // Hooks installed by the engine, with a backend which records them
 public class XCoreTest {
+    private static XBackend backend(String name) {
+        return new XBackend() {
+            @Override
+            public String getName() {
+                return name;
+            }
+
+            @Override
+            public void hook(Member member, Callback callback) {
+            }
+
+            @Override
+            public void log(String message) {
+            }
+
+            @Override
+            public void log(Throwable ex) {
+            }
+        };
+    }
+
+    // The claim keeps two entry points from both hooking a process, and is gone before the code of the app runs
+    @Test
+    public void claimIsReleasedBeforeTheAppRuns() {
+        XCore.release();
+        assertTrue(XCore.claim(backend("first")));
+        assertEquals("first", System.getProperty("eu.faircode.xlua.engine"));
+        assertTrue(XCore.claim(backend("first")));
+        assertFalse(XCore.claim(backend("second")));
+
+        XCore.release();
+        assertNull(System.getProperty("eu.faircode.xlua.engine"));
+    }
+
     private final List<Member> members = new ArrayList<>();
     private final List<XBackend.Callback> callbacks = new ArrayList<>();
     private XCore core;
@@ -313,6 +347,29 @@ public class XCoreTest {
         XCall other = new XCall(open, new Target(), new Object[]{"/system/etc/./fonts.xml2"});
         callbacks.get(0).before(other);
         assertFalse(other.isReturnEarly());
+    }
+
+    // Only the file system can resolve /../, so such paths run the script with any filter, and the link of the working
+    // directory of an app leads to the root
+    @Test
+    public void parentFoldersRunTheScript() throws Throwable {
+        Method open = Target.class.getMethod("open", String.class);
+        install("parentFoldersRunTheScript",
+                "function filter(hook) return { '/dev/su', '/vendor/etc/media_codecs.xml', '/sys/*' } end\n" +
+                        "function before(hook, param) param:setResult('fake') return true end", open);
+
+        for (String path : new String[]{"/vendor/etc/init/../media_codecs.xml", "/data/../dev/su", "../dev/su",
+                "data/../dev/su", "/proc/self/cwd/dev/su", "/proc/self/task/1234/cwd/sys/block"}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            assertEquals(path, "fake", call.getResult());
+        }
+        for (String path : new String[]{"/vendor/etc/init/media_codecs.xml", "/proc/self/cwd/dev/su2", "/data/..su",
+                "/data/su.."}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            assertFalse(path, call.isReturnEarly());
+        }
     }
 
     // Without the settings of the service the hooks are installed still, with the settings read

@@ -119,6 +119,8 @@ final class Ui {
     static final String URL_FAQ = "https://github.com/akano12/Doppel/blob/master/FAQ.md";
     // What a definition or backup file may have been saved as, for the picker of an import
     static final String[] MIME_JSON = {"application/json", "text/*", "application/octet-stream"};
+    // Of a message with an action, in milliseconds, see message
+    private static final int ACTION_DURATION = 6000;
 
     private Ui() {
     }
@@ -259,6 +261,10 @@ final class Ui {
     }
 
     static void message(Activity started, CharSequence message, CharSequence action, Runnable onAction) {
+        message(started, message, action, onAction, ACTION_DURATION);
+    }
+
+    private static void message(Activity started, CharSequence message, CharSequence action, Runnable onAction, int duration) {
         started.runOnUiThread(() -> {
             // The screen of the work can be recreated meanwhile, like rotated, then the message goes to the screen in front
             Activity activity = (started.isDestroyed() ? ActivityBase.front() : started);
@@ -271,7 +277,7 @@ final class Ui {
             // started the work, so it is left out when that screen is gone, else tapping it would do nothing
             if (action != null && activity == started) {
                 snackbar.setAction(action, view -> onAction.run());
-                snackbar.setDuration(6000);
+                snackbar.setDuration(duration);
             }
             snackbar.show();
         });
@@ -284,10 +290,15 @@ final class Ui {
 
     // Log an error and show it, with an action to try again
     static void error(Activity activity, String tag, Throwable ex, Runnable retry) {
+        error(activity, tag, ex, retry, ACTION_DURATION);
+    }
+
+    // Screens which do not load again by themselves keep the action until it is used: Snackbar.LENGTH_INDEFINITE
+    static void error(Activity activity, String tag, Throwable ex, Runnable retry, int duration) {
         Log.e(tag, Log.getStackTraceString(ex));
         if (activity != null)
             message(activity, activity.getString(R.string.msg_error, ex.toString()),
-                    retry == null ? null : activity.getString(R.string.title_retry), retry);
+                    retry == null ? null : activity.getString(R.string.title_retry), retry, duration);
     }
 
     // Start an app, else say that it cannot be started, like most system apps
@@ -296,7 +307,11 @@ final class Ui {
         if (launch == null)
             message(activity, activity.getString(R.string.msg_cannot_open, label));
         else
-            activity.startActivity(launch);
+            try {
+                activity.startActivity(launch);
+            } catch (ActivityNotFoundException | SecurityException ignored) {
+                message(activity, activity.getString(R.string.msg_cannot_open, label));
+            }
     }
 
     static void browse(Activity activity, String url) {

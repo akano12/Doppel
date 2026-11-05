@@ -33,11 +33,11 @@ import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
-import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.PopupMenu;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -181,6 +181,8 @@ public class FragmentApps extends FragmentBase {
         DefaultItemAnimator animator = new DefaultItemAnimator();
         animator.setSupportsChangeAnimations(false);
         rvApps.setItemAnimator(animator);
+        // The list loads in the background, its position is restored once there is data
+        adapter.setStateRestorationPolicy(RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY);
         rvApps.setAdapter(adapter);
 
         swipeRefresh.setColorSchemeColors(Ui.color(context, androidx.appcompat.R.attr.colorPrimary));

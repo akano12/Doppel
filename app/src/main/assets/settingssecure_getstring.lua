@@ -472,7 +472,7 @@ function provider(hook, param, group)
     end
     -- Without the user, like 0@settings, which apps can add for their own user
     if authority ~= nil then
-        authority = (string.gsub(authority, '^%d+@', ''))
+        authority = (string.gsub(authority, '^.*@', ''))
     end
     if authority ~= 'settings' then
         return false

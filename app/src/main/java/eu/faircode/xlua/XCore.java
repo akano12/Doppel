@@ -86,7 +86,8 @@ class XCore {
     private final Map<String, Map<String, Bundle>> queue = new HashMap<>();
     private boolean flushing = false;
     private final ScheduledExecutorService reporter = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "XLua.Report");
+        // Without a name of its own: apps can list the threads of their process
+        Thread thread = new Thread(runnable);
         thread.setDaemon(true);
         return thread;
     });
@@ -124,6 +125,14 @@ class XCore {
                 return true;
             }
             return engine.equals(backend.getName());
+        }
+    }
+
+    // Before the code of an app runs, when all entry points have claimed: apps can read the system properties,
+    // also apps without restrictions, which should get the answers of a device without Doppel
+    static void release() {
+        synchronized (System.class) {
+            System.clearProperty(PROP_ENGINE);
         }
     }
 
@@ -404,6 +413,7 @@ class XCore {
                     if (made)
                         return;
                     made = true;
+                    release();
 
                     // Isolated processes (including app zygote) cannot access the provider
                     if (Util.isIsolated(uid)) {
@@ -444,7 +454,7 @@ class XCore {
                 if (!hook.isAvailable(versionCode))
                     continue;
 
-                // Only install errors are reported, see XProvider.report
+                // Only install errors are reported, see XProvider.reports
                 install(context, hook, compile(hook, scripts), settings);
             } catch (Throwable ex) {
                 if (hook.isOptional() &&
@@ -622,7 +632,9 @@ class XCore {
     // of /sys, and a value starting with * too for all values containing the text between, like *sys/* for
     // the files of /sys also by relative paths or with .., for a script which tells the paths apart itself.
     // Paths also match as plain absolute paths: relative to the root, without // and /./ and without links of /proc
-    // to the root, see XParam.plainPath. Files and paths of java.nio are compared by their path, see filterValue.
+    // to the root, see XParam.plainPath. A value with /../ always runs the script, which only the file system can
+    // resolve (see XParam.opens), so scripts check such values themselves. Files and paths of java.nio are compared
+    // by their path, see filterValue.
     private static Filter getFilter(Globals globals, XHook hook) {
         LuaValue func = globals.get("filter");
         if (func.isnil())
@@ -654,6 +666,8 @@ class XCore {
         boolean matches(String value) {
             if (value == null)
                 return false;
+            if (value.contains("/../") || value.startsWith("../"))
+                return true;
             if (value.startsWith("/")) {
                 String plain = XParam.plainPath(value);
                 if (!plain.equals(value) && matchesText(plain))
@@ -706,7 +720,7 @@ class XCore {
     }
 
     // Scripts return whether they restricted something, optionally with the old and new value;
-    // the data is what XProvider.report stores
+    // the data is what XProvider.Report.write stores
     private void reportUse(Context context, XHook hook, String function, Varargs result) {
         boolean restricted = result.arg1().checkboolean();
         if (!restricted || !hook.doUsage())
@@ -732,7 +746,7 @@ class XCore {
                 "\nPackage:\n" + context.getPackageName() + ":" + context.getApplicationInfo().uid + "\n" +
                 details;
         // The details have the real arguments and result, which release builds do not write to the system log,
-        // like the service (see XProvider.report); the report stores them for the app
+        // like the service (see XProvider.Report); the report stores them for the app
         if (BuildConfig.DEBUG)
             Log.e(TAG, message);
         else

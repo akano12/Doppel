@@ -72,6 +72,11 @@ public class PackageScriptsTest {
             "    toArray = function(self) return arrayof(table.unpack(self.items)) end }",
             "end",
             Scripts.ARRAYOF,
+            // PackageManager.ResolveInfoFlags
+            "function flagsof(value)",
+            "  return { getValue = function(self) return value end }",
+            "end",
+            "callingUid = 10001", // Binder.getCallingUid
             "local real = luajava",
             "luajava = { new = real.new,",
             "  newInstance = function(name, ...)",
@@ -86,6 +91,12 @@ public class PackageScriptsTest {
             "  bindClass = function(name)",
             "    if name == 'java.lang.reflect.Array' then",
             "      return { newInstance = function(self, type, length) return { length = length } end }",
+            "    end",
+            "    if name == 'android.os.Binder' then",
+            "      return { getCallingUid = function(self) return callingUid end }",
+            "    end",
+            "    if name == 'android.content.pm.PackageManager$ResolveInfoFlags' then",
+            "      return { of = function(self, value) return flagsof(value) end }",
             "    end",
             "    assert(name == 'java.lang.String', name)",
             "    return {}",
@@ -197,6 +208,32 @@ public class PackageScriptsTest {
         for (int i : new int[]{2, 3, 5})
             assertTrue(String.valueOf(i), result.arg(i).tojstring().startsWith("com.example.bank.x"));
         assertEquals(10123, result.arg(4).toint());
+    }
+
+    // A provider of the app checks the app calling it (ContentProvider.getCallingPackage), which is not a probe,
+    // with an entry for after like any other call, inside a call which was a probe
+    @Test
+    public void checkPackageOfCaller() throws Exception {
+        Globals globals = load("package_probe");
+        String substitute = Scripts.run(globals,
+                "callingUid = 10123\n" +
+                        "hook = hookof('AppOpsManager.checkPackage', 'checkPackage')\n" +
+                        "probe = paramof({ [0] = 10124, [1] = 'com.example.bank' }, {})\n" +
+                        "before(hook, probe)\n" +
+                        "return probe.args[1]").arg1().tojstring();
+        assertTrue(substitute, substitute.startsWith("com.example.bank.x"));
+
+        globals.set("genuine", CoerceJavaToLua.coerce(new ProbeException(substitute)));
+        Varargs result = Scripts.run(globals,
+                "local caller = paramof({ [0] = 10123, [1] = 'com.example.bank' }, {})\n" +
+                        "local restricted = before(hook, caller)\n" +
+                        "after(hook, caller)\n" +
+                        "probe.exception = genuine\n" +
+                        "after(hook, probe)\n" +
+                        "return restricted, caller.args[1], probe.result");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals("com.example.bank", result.arg(2).tojstring());
+        assertEquals("com.example.bank", ((Throwable) result.arg(3).touserdata()).getMessage());
     }
 
     // The package is the second argument of checkPermission, checkSignatures checks both
@@ -316,19 +353,26 @@ public class PackageScriptsTest {
                 "  return base(name, ...) end\n" +
                 "local function infoof(name, web) return { priority = 0, preferredOrder = 0, isDefault = true,\n" +
                 "  handleAllWebDataURI = web, activityInfo = { packageName = name, name = name .. '.Main' } } end\n" +
-                "local candidates\n" +
+                "local candidates, default\n" +
+                "local queries = 0\n" +
+                // Of a link Android gives only the default app, which the hidden one can be, unless asked for all
                 "local pm = { queryIntentActivities = function(self, intent, flags)\n" +
-                "    assert(flags == 65536) return listof(candidates) end,\n" +
+                "    local value = (type(flags) == 'number' and flags or flags:getValue())\n" +
+                "    assert(value == 65536 or value == 196608, value)\n" +
+                "    queries = queries + 1\n" +
+                "    if default ~= nil and value == 65536 then return listof({ infoof(default, true) }) end\n" +
+                "    return listof(candidates) end,\n" +
                 "  resolveActivity = function(self, intent, flags)\n" +
                 "    assert(intent.target == 'android/com.android.internal.app.ResolverActivity')\n" +
                 "    return { activityInfo = { packageName = 'android', name = 'com.android.internal.app.ResolverActivity'," +
                 " processName = 'system:ui' } } end }\n" +
                 "local function intentof(package) return { getComponent = function(self) return nil end,\n" +
                 "  getPackage = function(self) return package end } end\n" +
-                "local function resolve(intent, result, names)\n" +
+                "local function resolve(intent, result, names, flags)\n" +
                 "  candidates = {}\n" +
                 "  for _, name in ipairs(names) do candidates[#candidates + 1] = infoof(name, true) end\n" +
-                "  local param = paramof({ [0] = intent, [1] = 65536 }, { ['org.mozilla.firefox'] = true," +
+                "  default = (result ~= 'android' and result or nil)\n" +
+                "  local param = paramof({ [0] = intent, [1] = flags or 65536 }, { ['org.mozilla.firefox'] = true," +
                 " ['com.android.chrome'] = true })\n" +
                 "  param.unhooked = function(self, fn) return fn() end\n" +
                 "  param.getThis = function(self) return pm end\n" +
@@ -355,17 +399,118 @@ public class PackageScriptsTest {
                 "return restricted, result.activityInfo.packageName");
         assertTrue(one.arg(1).toboolean());
         assertEquals("org.mozilla.firefox", one.arg(2).tojstring());
-        // The chooser for a hidden and a visible app is that app, like without the hidden one
+        // The default browser is hidden: the flags as ResolveInfoFlags of Android 13 and later too
+        Varargs flags = Scripts.run(globals, setup +
+                "local restricted, result = resolve(intentof(nil), 'com.hidden.browser'," +
+                " { 'com.android.chrome', 'com.hidden.browser' }, flagsof(65536))\n" +
+                "return restricted, result.activityInfo.packageName, queries");
+        assertTrue(flags.arg(1).toboolean());
+        assertEquals("com.android.chrome", flags.arg(2).tojstring());
+        assertEquals(2, flags.arg(3).toint());
+        // The chooser for a hidden and a visible app is that app, like without the hidden one, with one query
         Varargs chooser = Scripts.run(globals, setup +
                 "local restricted, result = resolve(intentof(nil), 'android'," +
                 " { 'com.hidden.browser', 'org.mozilla.firefox' })\n" +
-                "return restricted, result.activityInfo.packageName");
+                "return restricted, result.activityInfo.packageName, queries");
         assertTrue(chooser.arg(1).toboolean());
         assertEquals("org.mozilla.firefox", chooser.arg(2).tojstring());
+        assertEquals(1, chooser.arg(3).toint());
         Varargs app = Scripts.run(globals, setup +
                 "return resolve(intentof('com.whatsapp'), 'com.whatsapp', { 'com.whatsapp' })");
         assertTrue(app.arg(1).toboolean());
         assertTrue(app.arg(2).isnil());
+        // The chooser between the screens of a hidden app gives nothing, of a visible app it stays
+        Varargs screens = Scripts.run(globals, setup +
+                "return resolve(intentof('com.whatsapp'), 'android', { 'com.whatsapp', 'com.whatsapp' })");
+        assertTrue(screens.arg(1).toboolean());
+        assertTrue(screens.arg(2).isnil());
+        Varargs own = Scripts.run(globals, setup +
+                "local restricted, result = resolve(intentof('org.mozilla.firefox'), 'android', {})\n" +
+                "return restricted, result.activityInfo.packageName");
+        assertFalse(own.arg(1).toboolean());
+        assertEquals("android", own.arg(2).tojstring());
+    }
+
+    // MATCH_ALL once, also with the bits of a long, which bit32 would lose
+    @Test
+    public void matchAllKeepsFlags() throws Exception {
+        assertEquals(Scripts.function("package_resolve", "matchall"), Scripts.function("generic_filter_by_uid", "matchall"));
+        for (String script : new String[]{"package_resolve", "generic_filter_by_uid"}) {
+            Globals globals = load(script);
+            Varargs result = Scripts.run(globals, "return matchall(65536), matchall(196608), " +
+                    "matchall(flagsof(4294967296 + 65536)):getValue(), matchall(flagsof(131072)):getValue()");
+            assertEquals(script, 196608, result.arg(1).toint());
+            assertEquals(script, 196608, result.arg(2).toint());
+            assertEquals(script, 4295163904L, result.arg(3).tolong());
+            assertEquals(script, 131072, result.arg(4).toint());
+        }
+    }
+
+    // Of a link Android gives only the default browser: when it is hidden the visible apps of all, like on a device
+    // without it, for each way to ask, and only then
+    @Test
+    public void linksOfAHiddenDefaultBrowser() throws Exception {
+        Globals globals = load("generic_filter_by_uid");
+        String run = "local function activity(uid) return { activityInfo = { applicationInfo = { uid = uid," +
+                " system = (uid == 10010) } } } end\n" +
+                "local asked\n" +
+                "local param = paramof({ [0] = 'link', [1] = %s }, {})\n" +
+                "param.result = listof({ activity(10060) })\n" +
+                "function param:unhooked(fn) return fn() end\n" +
+                "function param:getThis() return { queryIntentActivities = function(self, intent, flags)\n" +
+                "  assert(intent == 'link')\n" +
+                "  asked = (type(flags) == 'number' and flags or flags:getValue())\n" +
+                "  return listof({ activity(10010), activity(10060) }) end } end\n" +
+                "local restricted = after(hookof('%s'), param)\n" +
+                "return restricted, param.result:size(), param.result:get(0).activityInfo.applicationInfo.uid, asked";
+        String[][] calls = {{"65536", "PackageManager.queryIntentActivities"},
+                {"flagsof(65536)", "PackageManager.queryIntentActivities.33"},
+                {"65536", "PackageManager.queryIntentActivitiesAsUser"},
+                {"flagsof(65536)", "PackageManager.queryIntentActivitiesAsUser.33"}};
+        for (String[] call : calls) {
+            Varargs result = Scripts.run(globals, String.format(run, call[0], call[1]));
+            assertTrue(call[1], result.arg(1).toboolean());
+            assertEquals(call[1], 1, result.arg(2).toint());
+            assertEquals(call[1], 10010, result.arg(3).toint());
+            assertEquals(call[1], 196608, result.arg(4).toint());
+        }
+
+        // Nothing to find for other lists
+        Varargs services = Scripts.run(globals,
+                "local param = paramof({ [0] = 'link', [1] = 0 }, {})\n" +
+                        "param.result = listof({ { serviceInfo = { applicationInfo = { uid = 10060 } } } })\n" +
+                        "after(hookof('PackageManager.queryIntentServices'), param)\n" +
+                        "return param.result:size()");
+        assertEquals(0, services.arg(1).toint());
+    }
+
+    // The activities of hidden apps are left out of both lists, which are filled by Android and of the app
+    @Test
+    public void preferredActivitiesOfHiddenApps() throws Exception {
+        Globals globals = load("generic_filter_by_uid");
+        String run = "local function activity(name) return { getPackageName = function(self) return name end } end\n" +
+                "local filters = listof({ 'chrome', 'bank', 'mail' })\n" +
+                "local activities = listof({ activity('com.android.chrome'), activity('com.example.bank'), activity('com.example.mail') })\n" +
+                "local param = paramof({ [0] = filters, [1] = activities }, %s)\n" +
+                "param.result = %d\n" +
+                "local restricted = after(hookof('PackageManager.getPreferredActivities', 'getPreferredActivities'), param)\n" +
+                "return restricted, param.result, filters:size(), activities:size(), filters:get(0), activities:get(0):getPackageName()";
+        Varargs result = Scripts.run(globals, String.format(run, "{ ['com.android.chrome'] = true }", 3));
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertEquals(1, result.arg(3).toint());
+        assertEquals(1, result.arg(4).toint());
+        assertEquals("chrome", result.arg(5).tojstring());
+        assertEquals("com.android.chrome", result.arg(6).tojstring());
+
+        // Android itself returns 0, whatever it found
+        assertEquals(0, Scripts.run(globals, String.format(run, "{ ['com.android.chrome'] = true }", 0)).arg(2).toint());
+
+        Varargs all = Scripts.run(globals, String.format(run, "{ ['com.android.chrome'] = true, " +
+                "['com.example.bank'] = true, ['com.example.mail'] = true }", 3));
+        assertFalse(all.arg(1).toboolean());
+        assertEquals(3, all.arg(2).toint());
+        assertEquals(3, all.arg(3).toint());
     }
 
     // The apps which sync, like com.whatsapp, of which the hidden ones are left out
@@ -392,6 +537,46 @@ public class PackageScriptsTest {
                         "return restricted, param.result");
         assertTrue(result.arg(1).toboolean());
         assertEquals(-4, result.arg(2).toint());
+    }
+
+    // A hidden user id has no certificate, also like for a user id which is not in use
+    @Test
+    public void signingCertificateOfHiddenUid() throws Exception {
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local hook = hookof('PackageManager.hasSigningCertificate/uid', 'hasSigningCertificate')\n" +
+                        "local hidden = paramof({ [0] = 10060 }, { [10001] = true })\n" +
+                        "hidden.result = true\n" +
+                        "local visible = paramof({ [0] = 10001 }, { [10001] = true })\n" +
+                        "visible.result = true\n" +
+                        "local none = paramof({ [0] = 10060 }, {})\n" +
+                        "none.result = false\n" +
+                        "return after(hook, hidden), hidden.result, after(hook, visible), visible.result, after(hook, none)");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+    }
+
+    // The packages of a hidden user id are null, like of a user id which is not in use; the first one is reported
+    @Test
+    public void packagesOfHiddenUid() throws Exception {
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local hook = hookof('PackageManager.getPackagesForUid', 'getPackagesForUid')\n" +
+                        "local hidden = paramof({ [0] = 10060 }, { [10001] = true })\n" +
+                        "hidden.result = arrayof('com.whatsapp', 'com.whatsapp.w4b')\n" +
+                        "local visible = paramof({ [0] = 10001 }, { [10001] = true })\n" +
+                        "visible.result = arrayof('com.example')\n" +
+                        "local none = paramof({ [0] = 10060 }, {})\n" +
+                        "none.result = arrayof()\n" +
+                        "local restricted, name = after(hook, hidden)\n" +
+                        "return restricted, name, hidden.result, after(hook, visible), visible.result[1], after(hook, none)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.whatsapp", result.arg(2).tojstring());
+        assertTrue(result.arg(3).isnil());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals("com.example", result.arg(5).tojstring());
+        assertFalse(result.arg(6).toboolean());
     }
 
     // Lists of components keep system apps, which the Android framework uses, lists of packages do not

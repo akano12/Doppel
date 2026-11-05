@@ -19,6 +19,7 @@
 
 package eu.faircode.xlua;
 
+import org.json.JSONObject;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -93,6 +94,23 @@ public class BackupTest {
         List<String> listed = Backup.builtinsForThisSdk(Arrays.asList(now.getId(), newer.getId(), disabled.getId()),
                 Arrays.asList(now, newer, disabled));
         assertEquals(Collections.singletonList(now.getId()), listed);
+    }
+
+    // A backup can come from someone else: what it does beyond setting values is asked before the restore
+    @Test
+    public void previewNamesReplacedDefinitionsAndRestrictionsOfAndroid() throws Exception {
+        Set<String> builtins = Collections.singleton(PREFIX + "Build.MODEL");
+        Backup.Preview preview = Backup.preview(new JSONObject("{\"hooks\": [" +
+                "{\"collection\": \"" + Util.COLLECTION_DEFAULT + "\", \"name\": \"Build.MODEL\"}," +
+                "{\"collection\": \"Custom\", \"name\": \"Build.MODEL\"}, 1]," +
+                "\"restrictions\": [{\"package\": \"com.example\"}, {\"package\": \"android\"}, 2]}"), builtins);
+        assertEquals(Collections.singletonList(PREFIX + "Build.MODEL"), preview.replaced);
+        assertTrue(preview.android);
+
+        preview = Backup.preview(new JSONObject("{\"restrictions\": [{\"package\": \"com.example\"}]}"), builtins);
+        assertTrue(preview.replaced.isEmpty());
+        assertFalse(preview.android);
+        assertTrue(Backup.preview(new JSONObject("{}"), builtins).replaced.isEmpty());
     }
 
     // Unit tests run with an SDK version of 0, see the android.jar stubs, so the definitions are for all versions

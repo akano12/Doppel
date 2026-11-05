@@ -41,6 +41,8 @@ local REGISTRATION = {
 }
 -- The carrier, its names and the country, like the getters in Use.Tracking
 local SUBSCRIPTION = {
+    -- Android 8.1 and 9 print its first digits, which name the country and the operator of the SIM card
+    { ' iccId=', '', { ' simSlotIndex=' } },
     { ' carrierId=', '-1', { ' displayName=' } },
     { ' displayName=', 'unknown', { ' carrierName=' } },
     { ' carrierName=', 'unknown', { ' nameSource=', ' isOpportunistic=' } },

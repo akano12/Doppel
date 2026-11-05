@@ -62,6 +62,12 @@ class Backup {
         }
     }
 
+    // What to ask before a restore, see preview
+    static class Preview {
+        final List<String> replaced = new ArrayList<>(); // Built-in definitions which custom ones would replace
+        boolean android; // Restrictions of system server
+    }
+
     // What a restore did, see restore and FragmentSettings
     static class Result {
         int version; // The version code of the app which made the backup, 0 when unknown
@@ -125,9 +131,7 @@ class Backup {
         return new int[]{jsettings.length(), jhooks.length(), jrestrictions.length()};
     }
 
-    // Values with the same name are replaced, restrictions are added to the ones an app has;
-    // apps of which restrictions were added are stopped when they are stopped automatically
-    static Result restore(Context context, Uri uri) throws Throwable {
+    private static JSONObject read(Context context, Uri uri) throws Throwable {
         JSONObject jroot;
         try {
             jroot = new JSONObject(Util.readText(context, uri));
@@ -138,6 +142,40 @@ class Backup {
             throw new FileException(context.getString(R.string.msg_not_backup), null);
         if (jroot.optInt("format", 0) != FORMAT)
             throw new FileException(context.getString(R.string.msg_backup_format, jroot.optString("format")), null);
+        return jroot;
+    }
+
+    // What a backup does beyond setting values, which is asked before a restore, since a backup can come from someone
+    // else: a definition with the id of a built-in one runs its script in all apps with that hook, like an import,
+    // and restrictions of android apply to all of system server, like restricting it by hand
+    static Preview preview(Context context, Uri uri) throws Throwable {
+        return preview(read(context, uri), Data.getBuiltinIds(context));
+    }
+
+    static Preview preview(JSONObject jroot, Set<String> builtins) {
+        Preview preview = new Preview();
+        JSONArray jhooks = jroot.optJSONArray("hooks");
+        for (int i = 0; jhooks != null && i < jhooks.length(); i++) {
+            JSONObject jhook = jhooks.optJSONObject(i);
+            if (jhook == null)
+                continue;
+            String id = XHook.id(jhook.optString("collection"), jhook.optString("name"));
+            if (builtins.contains(id))
+                preview.replaced.add(id);
+        }
+        JSONArray jrestrictions = jroot.optJSONArray("restrictions");
+        for (int i = 0; jrestrictions != null && i < jrestrictions.length(); i++) {
+            JSONObject jrestriction = jrestrictions.optJSONObject(i);
+            if (jrestriction != null && "android".equals(jrestriction.optString("package")))
+                preview.android = true;
+        }
+        return preview;
+    }
+
+    // Values with the same name are replaced, restrictions are added to the ones an app has;
+    // apps of which restrictions were added are stopped when they are stopped automatically
+    static Result restore(Context context, Uri uri) throws Throwable {
+        JSONObject jroot = read(context, uri);
 
         Result result = new Result();
         result.version = jroot.optInt("version", 0);

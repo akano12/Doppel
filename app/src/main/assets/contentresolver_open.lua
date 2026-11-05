@@ -26,7 +26,7 @@ function authorityof(uri)
     if authority == nil then
         return nil
     end
-    return (string.gsub(authority, '^%d+@', ''))
+    return (string.gsub(authority, '^.*@', ''))
 end
 
 -- Whether a provider has files of the variant of the hook: the authority contacts is of the former contacts API

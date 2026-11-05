@@ -24,6 +24,8 @@
         <item name="colorOnPrimary">@color/c_on_primary</item>
         <item name="colorPrimaryContainer">@color/c_primary_container</item>
         <item name="colorOnPrimaryContainer">@color/c_on_primary_container</item>
+        <!-- The action of snackbars: the primary of the other theme, which each color theme sets too, see palettes.xml -->
+        <item name="colorPrimaryInverse">@color/c_primary_inverse</item>
         <item name="colorSecondary">@color/c_secondary</item>
         <item name="colorOnSecondary">@color/c_on_secondary</item>
         <item name="colorSecondaryContainer">@color/c_secondary_container</item>
@@ -44,6 +46,8 @@
         <item name="colorSurfaceContainerHighest">@color/c_surface_highest</item>
         <item name="colorOutline">@color/c_outline</item>
         <item name="colorOutlineVariant">@color/c_outline_variant</item>
+        <item name="colorSurfaceInverse">@color/c_surface_inverse</item>
+        <item name="colorOnSurfaceInverse">@color/c_on_surface_inverse</item>
 
         <item name="colorError">@color/c_error</item>
         <item name="colorOnError">@color/c_on_error</item>
@@ -75,7 +79,12 @@
         <item name="textAppearanceLabelSmall">@style/XLua.TextAppearance.LabelSmall</item>
 
         <item name="materialCardViewStyle">@style/XLua.Card</item>
-        <item name="toolbarStyle">@style/Widget.Material3.Toolbar.Surface</item>
+        <item name="toolbarStyle">@style/XLua.Toolbar</item>
+    </style>
+
+    <!-- The subtitle has the size of the one of the compact bar, see ToolbarSummary -->
+    <style name="XLua.Toolbar" parent="Widget.Material3.Toolbar.Surface">
+        <item name="subtitleTextAppearance">?attr/textAppearanceBodySmall</item>
     </style>
 
     <!-- Cards: tonal surfaces without hairlines or elevation -->
@@ -198,6 +207,7 @@
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">3dp</item>
+        <item name="android:ellipsize">end</item>
         <item name="android:gravity">center</item>
         <item name="android:maxLines">2</item>
         <item name="android:textSize">12sp</item>
@@ -331,11 +341,19 @@
     <style name="XLua.Field" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense">
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">10dp</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
     </style>
 
     <style name="XLua.Field.Dropdown" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu">
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">10dp</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
     </style>
 
     <style name="XLua.Field.Edit" parent="">

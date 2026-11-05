@@ -23,12 +23,12 @@ import android.view.Menu;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
-import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
+import androidx.appcompat.widget.PopupMenu;
 
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.chip.Chip;
@@ -57,6 +57,9 @@ final class CompactBar {
         this.chips = chips;
         bar = root.findViewById(R.id.llCompact);
         subtitle = bar.findViewById(R.id.tvCompactSubtitle);
+        // With large text both lines do not fit in the fixed height of the bar; the header shows the same facts
+        if (root.getResources().getConfiguration().fontScale > 1.3f)
+            subtitle.setVisibility(View.GONE);
         filter = bar.findViewById(R.id.ibCompactFilter);
         ((TextView) bar.findViewById(R.id.tvCompactTitle)).setText(title);
 

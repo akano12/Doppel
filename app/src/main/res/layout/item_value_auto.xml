@@ -9,5 +9,6 @@
         android:completionThreshold="1"
         android:fontFamily="@font/plex_mono"
         android:inputType="text|textNoSuggestions"
-        android:maxLines="1" />
+        android:maxLines="1"
+        android:textDirection="ltr" />
 </com.google.android.material.textfield.TextInputLayout>

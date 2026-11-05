@@ -25,6 +25,7 @@ import android.database.Cursor;
 import android.graphics.Paint;
 import android.icu.text.RelativeDateTimeFormatter;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -152,11 +153,17 @@ public class FragmentLog extends FragmentBase {
             ibBack.setOnClickListener(v -> requireActivity().getOnBackPressedDispatcher().onBackPressed());
             View llTitle = view.findViewById(R.id.llTitle);
             llTitle.setPaddingRelative(Ui.dp(context, 4), llTitle.getPaddingTop(), llTitle.getPaddingEnd(), 0);
+            // The title of the screens with back, on one line, since the name of an app can be long
+            tvTitle.setTextAppearance(R.style.XLua_TextAppearance_TitleLarge);
+            tvTitle.setMaxLines(1);
+            tvTitle.setEllipsize(TextUtils.TruncateAt.END);
             tvTitle.setText(label);
             etSearch.setHint(R.string.title_search_log_app);
         }
 
         adapter = new Adapter();
+        // The list loads in the background, its position is restored once there is data
+        adapter.setStateRestorationPolicy(RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY);
         RecyclerView rvLog = view.findViewById(R.id.rvLog);
         rvLog.setLayoutManager(new LinearLayoutManager(context));
         rvLog.setAdapter(adapter);
@@ -214,7 +221,7 @@ public class FragmentLog extends FragmentBase {
                             entry.app = app;
                             entry.hook = assignment.id;
                             entry.group = assignment.group;
-                            // The time of the last error, see XProvider.report; a restriction can be later
+                            // The time of the last error, see XProvider.Report.write; a restriction can be later
                             entry.time = assignment.installed;
                             entry.exception = assignment.exception;
                             errors.add(entry);

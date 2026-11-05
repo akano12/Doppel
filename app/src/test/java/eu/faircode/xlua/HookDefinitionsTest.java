@@ -285,6 +285,11 @@ public class HookDefinitionsTest {
                     "getMethodName = function() return H_METHOD end, getReturnType = function() return H_RETURN end })").call();
             if (values.isnil())
                 continue;
+            // XCore.filterValue compares texts, files and java.nio paths, which are of UnixPath; else the script never runs
+            JSONArray types = hook.optJSONArray("parameterTypes");
+            String first = (types == null || types.length() == 0 ? null : types.getString(0));
+            assertTrue(hook.getString("name") + " has a filter, its first parameter is " + first, Arrays.asList(
+                    "java.lang.String", "java.io.File", "java.nio.file.Path", "sun.nio.fs.UnixPath").contains(first));
             for (int i = 1; i <= values.length(); i++) {
                 String value = values.get(i).tojstring();
                 String inner = value.replaceAll("^\\*", "").replaceAll("\\*$", "");
@@ -912,6 +917,13 @@ public class HookDefinitionsTest {
     public void satellitesByEveryListener() throws Exception {
         check("LocationManager.addGpsStatusListener", "android.location.LocationManager " +
                 "addGpsStatusListener(android.location.GpsStatus$Listener) @generic_block 27-");
+        // The messages of the satellites
+        String m = "android.location.LocationManager registerGnssNavigationMessageCallback(";
+        String c = "android.location.GnssNavigationMessage$Callback";
+        check("LocationManager.registerGnssNavigationMessageCallback24a", m + c + ") @generic_block 27-");
+        check("LocationManager.registerGnssNavigationMessageCallback24b", m + c + ",android.os.Handler) @generic_block 27-");
+        check("LocationManager.registerGnssNavigationMessageCallback30", m + "java.util.concurrent.Executor," + c +
+                ") @generic_block 30-");
     }
 
     // getLatLong, getAltitude and getGpsDateTime of ExifInterface read the GPS tags with the readers of tags,
@@ -1115,10 +1127,17 @@ public class HookDefinitionsTest {
                 "@component_hidden 27-");
         check("Context.stopServiceAsUser/hidden", "android.app.ContextImpl stopServiceAsUser(android.content.Intent," +
                 "android.os.UserHandle) @component_hidden 27-");
+        // Lists which the app passes, and the users by their serial numbers
+        check("PackageManager.getPreferredActivities", "android.content.pm.PackageManager getPreferredActivities(" +
+                "java.util.List,java.util.List," + s + ") @generic_filter_by_uid 27-");
+        check("UserManager.getUserForSerialNumber", "android.os.UserManager getUserForSerialNumber(long) @user_profiles 27-");
+        check("UserManager.getSerialNumberForUser", "android.os.UserManager getSerialNumberForUser(android.os.UserHandle) " +
+                "@user_profiles 27-");
     }
 
     // Settings, intents, accounts and the default account of contacts restricted for Android would change what
-    // system server itself reads and stores, like adb_enabled or the accounts apps add, so Android is excluded
+    // system server itself reads and stores, like adb_enabled or the accounts apps add, and refused commands the
+    // logs it collects with them, so Android is excluded
     @Test
     public void systemServerKeepsItsOwnValues() throws Exception {
         List<String> errors = new ArrayList<>();
@@ -1126,7 +1145,8 @@ public class HookDefinitionsTest {
             String script = hook.getString("luaScript");
             boolean settings = script.equals("@locale") && hook.getString("className").startsWith("android.provider.Settings");
             if ((settings || script.equals("@settingssecure_getstring") || script.equals("@intent_createfromparcel") ||
-                    script.equals("@account_createfromparcel") || script.equals("@contacts_default_account")) &&
+                    script.equals("@account_createfromparcel") || script.equals("@contacts_default_account") ||
+                    script.equals("@commands_blocked")) &&
                     !Arrays.asList(hook.optString("excludePackages", "").split(",")).contains("android"))
                 errors.add(hook.getString("name"));
         }
@@ -1200,5 +1220,67 @@ public class HookDefinitionsTest {
         // A request for VPN networks is one for LoWPAN (see vpn_request); NetworkCapabilities.Builder, and
         // NetworkRequest.Builder(NetworkCapabilities), are system APIs, which apps cannot use
         check("NetworkRequest.Builder.addTransportType", "android.net.NetworkRequest$Builder addTransportType(int) @vpn_request 27-");
+    }
+
+    // Commands by Os.execv and execve are refused in every group which refuses ProcessBuilder.start
+    @Test
+    public void programsByEveryWayToRun() throws Exception {
+        String s = "java.lang.String";
+        int groups = 0;
+        for (JSONObject hook : hooks)
+            if (hook.getString("name").startsWith("ProcessBuilder.start")) {
+                groups++;
+                String suffix = hook.getString("name").substring("ProcessBuilder.start".length());
+                check("Os.execv" + suffix, "android.system.Os execv(" + s + "," + s + "[]) @commands_blocked 27-");
+                check("Os.execve" + suffix, "android.system.Os execve(" + s + "," + s + "[]," + s + "[]) @commands_blocked 27-");
+                assertEquals(hook.getString("group"), hook("Os.execv" + suffix).getString("group"));
+                assertEquals(hook.getString("group"), hook("Os.execve" + suffix).getString("group"));
+            }
+        assertEquals(11, groups);
+    }
+
+    // The other ways to the values of fingerprints: the pages of memory, the methods behind SystemProperties.get, the
+    // metrics and parameters of codecs, listeners of the heat; of the vibrator SystemVibrator only, which is
+    // what Vibrator resolves to
+    @Test
+    public void fingerprintsByOtherWays() throws Exception {
+        String s = "java.lang.String", p = "android.os.PowerManager";
+        String status = p + "$OnThermalStatusChangedListener", headroom = p + "$OnThermalHeadroomChangedListener";
+        String e = "java.util.concurrent.Executor,";
+        check("Os.sysconf/resources", "android.system.Os sysconf(int) @resources 27-");
+        check("ForwardingOs.sysconf/resources", "libcore.io.ForwardingOs sysconf(int) @resources 27-");
+        for (String variant : new String[]{"serial", "operator", "device", "timezone", "debugging", "resources"})
+            check("SystemProperties.native_get/" + variant, "android.os.SystemProperties native_get(" + s +
+                    ") @systemproperties_get 27- optional");
+        check("SystemProperties.native_get/locale", "android.os.SystemProperties native_get(" + s + ") @locale 27- optional");
+        check("ResourcesImpl.updateConfigurationImpl", "android.content.res.ResourcesImpl updateConfigurationImpl(" +
+                "android.content.res.Configuration,android.util.DisplayMetrics,android.content.res.CompatibilityInfo,boolean) " +
+                "@display_panel 34- optional");
+        check("MediaCodec.getMetrics", "android.media.MediaCodec getMetrics() @media_codecs 27- optional");
+        check("MediaCodec.getSupportedVendorParameters", "android.media.MediaCodec getSupportedVendorParameters() " +
+                "@generic_empty 31- optional");
+        check("MediaCodec.getParameterDescriptor", "android.media.MediaCodec getParameterDescriptor(" + s +
+                ") @generic_null_value 31- optional");
+        check("PowerManager.addThermalStatusListener", p + " addThermalStatusListener(" + status + ") @device_details 29-");
+        check("PowerManager.addThermalStatusListener/executor", p + " addThermalStatusListener(" + e + status + ") @device_details 29-");
+        check("PowerManager.removeThermalStatusListener", p + " removeThermalStatusListener(" + status + ") @device_details 29-");
+        check("PowerManager.addThermalHeadroomListener", p + " addThermalHeadroomListener(" + headroom + ") @device_details 36-");
+        check("PowerManager.addThermalHeadroomListener/executor", p + " addThermalHeadroomListener(" + e + headroom + ") @device_details 36-");
+        check("PowerManager.removeThermalHeadroomListener", p + " removeThermalHeadroomListener(" + headroom + ") @device_details 36-");
+        check("SystemVibrator.getInfo", "android.os.SystemVibrator getInfo() @device_details 31- optional");
+        assertNull(hook("Vibrator.getInfo"));
+    }
+
+    // The hidden getters of LinkProperties, with the links on top of it; before Android 11 also of its own values
+    @Test
+    public void addressesByHiddenGetters() throws Exception {
+        check("NetworkInfo.getReason", "android.net.NetworkInfo getReason() @vpn 27-");
+        check("NetworkInfo.toString/vpn", "android.net.NetworkInfo toString() @vpn 27-");
+        for (String[] getter : new String[][]{{"getAllAddresses", ""}, {"getAddresses", "29"}, {"getAllLinkAddresses", "29"},
+                {"getAllRoutes", "29"}, {"getAllInterfaceNames", "29"}}) {
+            String name = "LinkProperties." + getter[0];
+            check(name, "android.net.LinkProperties " + getter[0] + "() @network_address 27-" + getter[1] + " optional");
+            check(name + "/vpn", "android.net.LinkProperties " + getter[0] + "() @vpn_addresses 27-" + getter[1] + " optional");
+        }
     }
 }

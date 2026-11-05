@@ -67,6 +67,7 @@ final class GroupsSheet {
     private final Set<String> assigned = new HashSet<>();
     private final Set<String> before;
     private int changes = 0; // See assign
+    private String failure = null; // Of a change, shown when the sheet closes, since messages of the screen are below it
 
     private final Map<String, View> rows = new HashMap<>();
     private final List<Runnable> sections = new ArrayList<>();
@@ -146,6 +147,8 @@ final class GroupsSheet {
         dialog.setOnDismissListener(d -> {
             if (!assigned.equals(before))
                 host.changed(app, before, assigned, available);
+            if (failure != null)
+                Ui.message(activity, failure);
         });
 
         buildSections(inflater);
@@ -328,6 +331,18 @@ final class GroupsSheet {
         host.background(() -> {
             try {
                 Data.assign(context, app, changed, assign);
+            } catch (Throwable ex) {
+                // Not left to the reload, which can fail too: Done would report a change which was not stored
+                activity.runOnUiThread(() -> {
+                    for (XHook hook : changed)
+                        if (assign)
+                            assigned.remove(hook.getId());
+                        else
+                            assigned.add(hook.getId());
+                    update();
+                    failure = activity.getString(R.string.msg_error, ex.toString());
+                });
+                throw ex;
             } finally {
                 // Also after an error, else the switches show the change which was not stored; a later change
                 // reloads after itself

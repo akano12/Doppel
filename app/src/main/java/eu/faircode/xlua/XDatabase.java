@@ -21,6 +21,8 @@ package eu.faircode.xlua;
 
 import android.content.ContentValues;
 import android.database.Cursor;
+import android.database.DatabaseErrorHandler;
+import android.database.DefaultDatabaseErrorHandler;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Environment;
 import android.os.Process;
@@ -35,6 +37,15 @@ import java.io.IOException;
 // Database of the service in system server: hook assignments, settings and custom hook definitions
 class XDatabase {
     private static final String TAG = "XLua.Database";
+
+    // Android deleted a corrupt database, with all restrictions: the user has to hear about it, see XProvider.loadData
+    static volatile boolean lost = false;
+
+    private static final DatabaseErrorHandler ON_CORRUPTION = db -> {
+        Log.e(TAG, "Database corrupt, deleted: " + db.getPath());
+        lost = true;
+        new DefaultDatabaseErrorHandler().onCorruption(db);
+    };
 
     interface Operation<T> {
         T run(SQLiteDatabase db) throws Throwable;
@@ -230,7 +241,11 @@ class XDatabase {
             // getDefaultSensor picks from getSensorList, which is hooked
             "SensorManager.getDefaultSensor", "SensorManager.getDefaultSensor/wakeup",
             // Not in any version of the APS SDK; AdRegistration.setConsentStatus is hooked
-            "Aps.setConsentStatus"
+            "Aps.setConsentStatus",
+            // Vibrator is hooked as SystemVibrator, see XHook.resolveClassName, like the hooks of that name
+            "Vibrator.areEffectsSupported", "Vibrator.areAllEffectsSupported", "Vibrator.arePrimitivesSupported",
+            "Vibrator.areAllPrimitivesSupported", "Vibrator.getPrimitiveDurations", "Vibrator.getResonantFrequency",
+            "Vibrator.getQFactor", "Vibrator.getInfo"
     };
 
     // Settings of all users and apps which no script reads anymore, removed on each start, see upgrade
@@ -266,7 +281,7 @@ class XDatabase {
 
     // A database file upgraded to the current version; also for the test of the migrations, see XDatabaseTest
     static XDatabase open(File file) throws Throwable {
-        SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(file, null);
+        SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(file.getPath(), null, ON_CORRUPTION);
         // Write-ahead logging gives a connection pool, so reads (on every app start) do not wait for each other
         db.enableWriteAheadLogging();
         Log.i(TAG, "Database file=" + file);
@@ -279,6 +294,11 @@ class XDatabase {
             throw ex;
         }
         return database;
+    }
+
+    // A corrupt database is closed by Android when it is found, also while it is in use
+    boolean isOpen() {
+        return db.isOpen();
     }
 
     private void upgrade() throws Throwable {
@@ -296,32 +316,38 @@ class XDatabase {
         }
         Log.i(TAG, "Database version=" + db.getVersion());
 
-        write(db -> {
-            // An assignment with the new id can exist already, then the one with the old id is removed
-            for (String[] renamed : RENAMED) {
-                String[] from = new String[]{XHook.builtinId(renamed[0])};
-                ContentValues cv = new ContentValues();
-                cv.put("hook", XHook.builtinId(renamed[1]));
-                long rows = db.updateWithOnConflict("assignment", cv, "hook = ?", from, SQLiteDatabase.CONFLICT_IGNORE);
-                long removed = db.delete("assignment", "hook = ?", from);
-                if (rows > 0 || removed > 0)
-                    Log.i(TAG, "Renamed hook " + from[0] + " into " + cv.get("hook") + " rows=" + rows + " removed=" + removed);
-            }
-            for (String name : REMOVED_SETTINGS) {
-                int rows = db.delete("setting", "name = ?", new String[]{name});
-                if (rows > 0)
-                    Log.i(TAG, "Removed setting " + name + " rows=" + rows);
-            }
+        // Restrictions work without this, unlike without the migrations: a failure, like of a full disk, rolls back,
+        // where open would close the database and every restricted app would start without hooks
+        try {
+            write(db -> {
+                // An assignment with the new id can exist already, then the one with the old id is removed
+                for (String[] renamed : RENAMED) {
+                    String[] from = new String[]{XHook.builtinId(renamed[0])};
+                    ContentValues cv = new ContentValues();
+                    cv.put("hook", XHook.builtinId(renamed[1]));
+                    long rows = db.updateWithOnConflict("assignment", cv, "hook = ?", from, SQLiteDatabase.CONFLICT_IGNORE);
+                    long removed = db.delete("assignment", "hook = ?", from);
+                    if (rows > 0 || removed > 0)
+                        Log.i(TAG, "Renamed hook " + from[0] + " into " + cv.get("hook") + " rows=" + rows + " removed=" + removed);
+                }
+                for (String name : REMOVED_SETTINGS) {
+                    int rows = db.delete("setting", "name = ?", new String[]{name});
+                    if (rows > 0)
+                        Log.i(TAG, "Removed setting " + name + " rows=" + rows);
+                }
 
-            // Hooks are installed again and errors reported again after a restart; only the rows which changed
-            // are written, else every boot would write all assignments of all apps
-            ContentValues cv = new ContentValues();
-            cv.put("installed", -1);
-            cv.putNull("exception");
-            Log.i(TAG, "Reset assigned hook data count=" +
-                    db.update("assignment", cv, "installed IS NOT -1 OR exception IS NOT NULL", null));
-            return null;
-        });
+                // Hooks are installed again and errors reported again after a restart; only the rows which changed
+                // are written, else every boot would write all assignments of all apps
+                ContentValues cv = new ContentValues();
+                cv.put("installed", -1);
+                cv.putNull("exception");
+                Log.i(TAG, "Reset assigned hook data count=" +
+                        db.update("assignment", cv, "installed IS NOT -1 OR exception IS NOT NULL", null));
+                return null;
+            });
+        } catch (Throwable ex) {
+            Log.e(TAG, Log.getStackTraceString(ex));
+        }
     }
 
     // For the test of the migrations, see XDatabaseTest

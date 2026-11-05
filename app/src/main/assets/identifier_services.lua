@@ -113,7 +113,7 @@ function authorityof(value)
     if authority == nil then
         return nil
     end
-    return (string.gsub(authority, '^%d+@', ''))
+    return (string.gsub(authority, '^.*@', ''))
 end
 
 function before(hook, param)
@@ -139,11 +139,22 @@ function before(hook, param)
     elseif string.find(method, '^bind') then
         -- bindService, bindIsolatedService and bindServiceAsUser: the intent is the first argument
         local target = param:getApplicationContext():getApplicationInfo().targetSdkVersion
-        local service = serviceof(param:getArgument(0), target)
+        local intent = param:getArgument(0)
+        local service = serviceof(intent, target)
         if service == nil then
             return false
         end
-        param:setResult(false)
+        -- A copy to a package which cannot exist, so Android itself fails the binding with the connection registered,
+        -- else unbindService throws; an isolated service needs a component (see component_hidden)
+        local copy = intent:clone()
+        copy:setSelector(nil)
+        copy:setComponent(nil)
+        copy:setPackage(service.package .. ':hidden')
+        if string.find(method, '^bindIsolated') and intent:getComponent() ~= nil then
+            copy:setComponent(luajava.newInstance('android.content.ComponentName', service.package .. ':hidden',
+                    intent:getComponent():getClassName()))
+        end
+        param:setArgument(0, copy)
         return true, service.package
     end
 

@@ -22,6 +22,7 @@
 -- framework looks them up in the app process.
 
 local SIGNATURE_UNKNOWN_PACKAGE = -4 -- PackageManager
+local MATCH_ALL = 0x20000 -- PackageManager
 -- The chooser of Android, which resolveActivity gives when several apps can and none is the default
 local RESOLVER = 'com.android.internal.app.ResolverActivity'
 
@@ -131,8 +132,9 @@ function after(hook, param)
 
     -- An intent any app may handle, like a link, of which a hidden app is the default or one of several: what
     -- Android resolves without the hidden apps, so the result agrees with queryIntentActivities (see best)
-    if (method == 'resolveActivity' or method == 'resolveActivityAsUser') and implicit(param:getArgument(0)) then
-        local chooser = (packageName == 'android' and result.activityInfo.name == RESOLVER)
+    local resolve = (method == 'resolveActivity' or method == 'resolveActivityAsUser')
+    local chooser = (resolve and packageName == 'android' and result.activityInfo.name == RESOLVER)
+    if resolve and implicit(param:getArgument(0)) then
         if chooser or not param:isPackageVisible(packageName) then
             local ok, fake = pcall(best, param, chooser and result)
             if not ok then
@@ -144,6 +146,11 @@ function after(hook, param)
             param:setResult(fake)
             return true, packageName, (fake ~= nil and fake.activityInfo.packageName or nil)
         end
+    end
+
+    -- The chooser between the screens of the app an intent names is of Android, but tells that app is there
+    if chooser then
+        packageName = param:getArgument(0):getPackage()
     end
 
     if param:isPackageVisible(packageName) then
@@ -158,14 +165,8 @@ function implicit(intent)
     return intent ~= nil and intent:getComponent() == nil and intent:getPackage() == nil
 end
 
--- What Android resolves without the hidden apps (chooseBestActivity of the package manager): nothing, the only app,
--- the first one when it has a higher priority, else the chooser, because no app left is the default: the default
--- was hidden or there was none. chooser is the result when it was the chooser already.
--- shortcut: resolveActivityAsUser queries the apps of the own user, which is the user of nearly every call
-function best(param, chooser)
-    local pm = param:getThis()
-    local intent = param:getArgument(0)
-    local flags = param:getArgument(1)
+-- The visible apps of a query
+function visibleof(param, pm, intent, flags)
     local all = param:unhooked(function()
         return pm:queryIntentActivities(intent, flags)
     end)
@@ -175,6 +176,34 @@ function best(param, chooser)
         if param:isPackageVisible(info.activityInfo.packageName) then
             visible[#visible + 1] = info
         end
+    end
+    return visible
+end
+
+-- Flags with MATCH_ALL, an int or from Android 13 ResolveInfoFlags, of which a long has more bits than bit32
+function matchall(flags)
+    local value = (type(flags) == 'number' and flags or flags:getValue())
+    if math.floor(value / MATCH_ALL) % 2 == 0 then
+        value = value + MATCH_ALL
+    end
+    if type(flags) == 'number' then
+        return value
+    end
+    return luajava.bindClass('android.content.pm.PackageManager$ResolveInfoFlags'):of(value)
+end
+
+-- What Android resolves without the hidden apps (chooseBestActivity of the package manager): nothing, the only app,
+-- the first one when it has a higher priority, else the chooser, because no app left is the default: the default
+-- was hidden or there was none. chooser is the result when it was the chooser already.
+-- shortcut: resolveActivityAsUser queries the apps of the own user, which is the user of nearly every call
+function best(param, chooser)
+    local pm = param:getThis()
+    local intent = param:getArgument(0)
+    local flags = param:getArgument(1)
+    local visible = visibleof(param, pm, intent, flags)
+    -- Of a link Android gives only the default browser unless asked for all, which leaves none when it is hidden
+    if #visible == 0 then
+        visible = visibleof(param, pm, intent, matchall(flags))
     end
     local first, second = visible[1], visible[2]
     if second == nil or first.priority ~= second.priority or first.preferredOrder ~= second.preferredOrder or

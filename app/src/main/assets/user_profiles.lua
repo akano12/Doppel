@@ -17,8 +17,9 @@
 
 -- The other users and profiles of the device, like a work profile, a private space or a second user, tell how the
 -- device is used and set it apart: the app sees its own user only, like on a device with one user.
--- UserManager.getUserProfiles and LauncherApps.getProfiles keep the user of the app, getUserCount is 1 and
--- CrossProfileApps.getTargetUserProfiles has no profile to switch to.
+-- UserManager.getUserProfiles and LauncherApps.getProfiles keep the user of the app, getUserCount is 1,
+-- CrossProfileApps.getTargetUserProfiles has no profile to switch to, and the serial numbers of other users, which
+-- getUserForSerialNumber and getSerialNumberForUser convert, are like those of users which do not exist.
 
 function after(hook, param)
     local result = param:getResult()
@@ -34,8 +35,22 @@ function after(hook, param)
         return true, tostring(result), '1'
     end
 
-    -- Lists of UserHandle
     local own = luajava.bindClass('android.os.Process'):myUserHandle()
+    if method == 'getUserForSerialNumber' then
+        if result:equals(own) then
+            return false
+        end
+        param:setResult(nil)
+        return true, tostring(result), nil
+    elseif method == 'getSerialNumberForUser' then
+        if result == -1 or param:getArgument(0):equals(own) then
+            return false
+        end
+        param:setResult(-1)
+        return true, tostring(result), '-1'
+    end
+
+    -- Lists of UserHandle
     local kept = luajava.newInstance('java.util.ArrayList')
     if method ~= 'getTargetUserProfiles' then
         local iterator = result:iterator()

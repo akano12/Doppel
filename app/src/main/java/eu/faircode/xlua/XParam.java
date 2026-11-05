@@ -24,12 +24,14 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.os.Binder;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.system.Os;
 import android.system.OsConstants;
 import android.util.Log;
+import android.webkit.WebView;
 
 import org.luaj.vm2.LuaValue;
 
@@ -66,6 +68,7 @@ public class XParam {
     // See isPackageVisible and isUidVisible
     private static final Map<String, Boolean> visiblePackages = new ConcurrentHashMap<>();
     private static final Map<Integer, Boolean> visibleUids = new ConcurrentHashMap<>();
+    private static volatile String webViewPackage;
 
     // Field param
     public XParam(Context context, Field field, Map<String, String> settings) {
@@ -155,7 +158,22 @@ public class XParam {
                 (ai.flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
     }
 
-    // Whether a package, which a hooked call found, stays visible to the app checking for it, see isVisible
+    // The package of WebView, which can be an app of the user, like WebView Beta, null when unknown
+    private static String getWebViewPackage() {
+        if (webViewPackage == null)
+            try {
+                PackageInfo pi = WebView.getCurrentWebViewPackage();
+                if (pi != null)
+                    webViewPackage = pi.packageName;
+            } catch (RuntimeException ex) {
+                // Like before the app has an application, tried again for the next package
+                Log.w(TAG, "WebView package: " + ex);
+            }
+        return webViewPackage;
+    }
+
+    // Whether a package, which a hooked call found, stays visible to the app checking for it, see isVisible;
+    // also the package of WebView, which the framework looks up in the app process, whichever app it is
     @SuppressWarnings("unused")
     public boolean isPackageVisible(String packageName) {
         if (packageName == null || isSystem() || packageName.equals(this.context.getPackageName()))
@@ -169,7 +187,8 @@ public class XParam {
         // and report a call the app did not make
         XCore.enterService();
         try {
-            visible = isVisible(getPackageInfo(this.context.getPackageManager(), packageName).applicationInfo);
+            visible = isVisible(getPackageInfo(this.context.getPackageManager(), packageName).applicationInfo) ||
+                    packageName.equals(getWebViewPackage());
         } catch (PackageManager.NameNotFoundException ignored) {
             // The hooked call found the package, the lookup, which finds system packages, did not;
             // not kept, the package can be installed while the app runs
@@ -182,11 +201,12 @@ public class XParam {
         return visible;
     }
 
-    // Whether a uid stays visible to the app: its own uid, the uids of the system (app ids below 10000)
-    // and the uids with a visible package, see isVisible
+    // Whether a uid stays visible to the app: its own uid, the uid calling it, the uids of the system (app ids below
+    // 10000) and the uids with a visible package, see isVisible
     @SuppressWarnings("unused")
     public boolean isUidVisible(int uid) {
-        if (isSystem() || uid == getUid() || Util.getAppId(uid) < Process.FIRST_APPLICATION_UID)
+        if (isSystem() || uid == getUid() || uid == Binder.getCallingUid() ||
+                Util.getAppId(uid) < Process.FIRST_APPLICATION_UID)
             return true;
 
         Boolean visible = visibleUids.get(uid);
@@ -333,16 +353,16 @@ public class XParam {
         }
     }
 
-    // An absolute path without // and /./, also at the end, and without a link of /proc to the root, like the file
-    // system reads it, see isPath and the filters of XCore; the path itself without any of them, checked first, since
-    // the filters run for every call
+    // An absolute path without // and /./, also at the end, and without a link of /proc to the root, also of the working
+    // directory, which is the root for apps, like the file system reads it, see isPath and the filters of XCore; the
+    // path itself without any of them, checked first, since the filters run for every call
     static String plainPath(String path) {
-        if (!path.contains("/.") && !path.contains("//") && !path.contains("/root/"))
+        if (!path.contains("/.") && !path.contains("//") && !path.contains("/root/") && !path.contains("/cwd/"))
             return path;
         String plain = path.replaceAll("/(\\./)+", "/").replaceAll("//+", "/").replaceFirst("/\\.$", "");
         // Also the link of a thread (/proc/self/task/123/root/) and links after each other, which lead to the root too
         for (String rooted = null; !plain.equals(rooted); )
-            plain = (rooted = plain).replaceFirst("^/proc/[\\w-]+/(task/\\d+/)?root/", "/");
+            plain = (rooted = plain).replaceFirst("^/proc/[\\w-]+/(task/\\d+/)?(root|cwd)/", "/");
         return (plain.isEmpty() ? "/" : plain);
     }
 

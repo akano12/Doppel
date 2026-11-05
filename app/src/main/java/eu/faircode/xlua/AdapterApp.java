@@ -864,7 +864,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             Ui.addBadge(h.llBadges, context.getString(R.string.badge_persistent), Ui.Badge.NEUTRAL)
                     .setContentDescription(context.getString(R.string.badge_persistent) + ", " +
                             context.getString(R.string.title_apply_reboot));
-        if (app.system)
+        // Both badges would leave little room for the name, and persistent apps are system apps
+        if (app.system && !app.persistent)
             Ui.addBadge(h.llBadges, context.getString(R.string.title_filter_system), Ui.Badge.NEUTRAL);
 
         h.flCoverage.setVisibility(View.GONE);

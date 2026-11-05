@@ -129,6 +129,13 @@ function before(hook, param)
         indexes = { 0 }
     end
 
+    -- A provider of the app checks the app calling it, ContentProvider.getCallingPackage, which is not a probe
+    if hook:getMethodName() == 'checkPackage' and
+            param:getArgument(0) == luajava.bindClass('android.os.Binder'):getCallingUid() then
+        table.insert(calls, false)
+        return false
+    end
+
     local suffix = suffixof(param)
     for _, index in ipairs(indexes) do
         local value = substitute(param, param:getArgument(index), suffix, substitutes)

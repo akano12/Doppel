@@ -180,6 +180,21 @@ public class LocaleScriptTest {
         assertEquals(Scripts.function("systemproperties_get", "isset"), Scripts.function("locale", "isset"));
     }
 
+    // SystemProperties.get(key) calls native_get(key), which apps also reach by reflection: faked once
+    @Test
+    public void nativeGetIsFakedOnce() throws Exception {
+        Varargs result = Scripts.run(load(),
+                "local first = paramof('de-DE', { [0] = 'persist.sys.locale' })\n" +
+                        "local restricted = after(hookof('android.os.SystemProperties', 'native_get', 1, " +
+                        "'SystemProperties.native_get/locale'), first)\n" +
+                        "local second = paramof(first.result, { [0] = 'persist.sys.locale' })\n" +
+                        "return restricted, first.result, after(hookof('android.os.SystemProperties', 'get', 1, " +
+                        "'SystemProperties.get/locale'), second)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("en-US", result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
+    }
+
     // Once when installed: the defaults by LocaleList.setDefault, and user.locale
     @Test
     public void defaultsArePushedOnce() throws Exception {

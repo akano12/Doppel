@@ -17,7 +17,6 @@
         android:description="@string/app_description"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.XLua"
         tools:ignore="DataExtractionRules"
@@ -62,7 +61,6 @@
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
-            android:roundIcon="@mipmap/ic_launcher_round"
             android:targetActivity=".ActivityMain">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -76,7 +74,6 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_split"
-            android:roundIcon="@mipmap/ic_launcher_split_round"
             android:targetActivity=".ActivityMain">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -90,7 +87,6 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_twod"
-            android:roundIcon="@mipmap/ic_launcher_twod_round"
             android:targetActivity=".ActivityMain">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -104,7 +100,6 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_echo"
-            android:roundIcon="@mipmap/ic_launcher_echo_round"
             android:targetActivity=".ActivityMain">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

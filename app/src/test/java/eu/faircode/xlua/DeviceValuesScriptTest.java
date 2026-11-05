@@ -25,7 +25,6 @@ import org.luaj.vm2.Varargs;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 // Scripts which fake values of the device (system properties, the operator, the battery, the security patch,
@@ -871,6 +870,68 @@ public class DeviceValuesScriptTest {
         assertEquals((long) Math.floor(226492416 * (4294967296.0 / 4109369344L)), result.arg(4).tolong());
         assertEquals((long) Math.floor(75497472 * (4294967296.0 / 4109369344L)), result.arg(5).tolong());
         assertTrue(result.arg(6).isnil());
+    }
+
+    // Pages of memory tell the same sizes as getMemoryInfo; Os.sysconf and ForwardingOs.sysconf both run for one call,
+    // which must not round the free pages twice; other names of sysconf stay
+    @Test
+    public void memoryPagesAreRounded() throws Exception {
+        Globals globals = load("resources");
+        Varargs result = Scripts.run(globals,
+                "luajava.bindClass = function(name)\n" +
+                        "  return { _SC_PHYS_PAGES = 85, _SC_AVPHYS_PAGES = 86, _SC_PAGESIZE = 30,\n" +
+                        "    sysconf = function(self, name) assert(name == 30) return 4096 end }\n" +
+                        "end\n" +
+                        "local hook = hookof('Os.sysconf/resources', 'sysconf')\n" +
+                        "local total = paramof(1003486, { [0] = 85 })\n" +
+                        "local free = paramof(300000, { [0] = 86 })\n" +
+                        "local size = paramof(4096, { [0] = 30 })\n" +
+                        "local count = paramof(1234567, { [0] = 96 })\n" +
+                        "local a, b, c = after(hook, total), after(hook, free), after(hook, size)\n" +
+                        "local d = after(hook, count)\n" +
+                        "local rounded = free.result\n" +
+                        "return a, total.result, b, rounded, c, size.result, d, count.result,\n" +
+                        "  after(hook, total), after(hook, free), free.result");
+        assertTrue(result.arg(1).toboolean());
+        // 4110278656 bytes become 4 GiB
+        assertEquals(1048576L, result.arg(2).tolong());
+        assertTrue(result.arg(3).toboolean());
+        // 1228800000 bytes become 1200000000, up to a whole page
+        assertEquals(292969L, result.arg(4).tolong());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals(4096L, result.arg(6).tolong());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals(1234567L, result.arg(8).tolong());
+        // The second hook of the call
+        assertFalse(result.arg(9).toboolean());
+        assertFalse(result.arg(10).toboolean());
+        assertEquals(292969L, result.arg(11).tolong());
+    }
+
+    // SystemProperties.get(key) calls native_get(key), which apps also reach by reflection: the fake value is made once
+    // and the hook of get, which gets it, neither changes nor reports anything
+    @Test
+    public void nativeGetIsFakedOnce() throws Exception {
+        Globals globals = load("systemproperties_get");
+        String[][] cases = {{"device", "ro.product.model", "Pixel 7", "unknown"},
+                {"device", "ro.build.version.security_patch", "2025-05-05", "2025-04-01"},
+                {"serial", "ro.serialno", "R58M", "unknown"}, {"serial", "ril.iccid.sim1", "8949", ""},
+                {"operator", "gsm.operator.alpha", "Carrier", "unknown"},
+                {"timezone", "persist.sys.timezone", "Europe/Berlin", "UTC"},
+                {"debugging", "ro.debuggable", "1", "0"}, {"debugging", "sys.usb.config", "mtp,adb", "mtp"},
+                {"resources", "dalvik.vm.heapsize", "333m", "256m"}};
+        for (String[] c : cases) {
+            Varargs result = Scripts.run(globals, "local hook = hookof('SystemProperties.native_get/" + c[0] + "', 'native_get')\n" +
+                    "local restricted, fake = run(hook, paramof('" + c[2] + "', { [0] = '" + c[1] + "' }))\n" +
+                    "local again, same = run(hookof('SystemProperties.get/" + c[0] + "', 'get'), " +
+                    "paramof(fake, { [0] = '" + c[1] + "' }))\n" +
+                    "return restricted, fake, again, same, #filter(hook) > 0");
+            assertTrue(c[1], result.arg(1).toboolean());
+            assertEquals(c[1], c[3], result.arg(2).tojstring());
+            assertFalse(c[1], result.arg(3).toboolean());
+            assertEquals(c[1], c[3], result.arg(4).tojstring());
+            assertTrue(c[1], result.arg(5).toboolean());
+        }
     }
 
     // Input devices by id and luajava for the lookups, which must not run the hooks (see XParam.unhooked)
