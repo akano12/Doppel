@@ -1261,6 +1261,8 @@ public class HookDefinitionsTest {
                 "@generic_empty 31- optional");
         check("MediaCodec.getParameterDescriptor", "android.media.MediaCodec getParameterDescriptor(" + s +
                 ") @generic_null_value 31- optional");
+        check("BiometricManager.canAuthenticate/lock",
+                "android.hardware.biometrics.BiometricManager canAuthenticate(int) @device_details 30-");
         check("PowerManager.addThermalStatusListener", p + " addThermalStatusListener(" + status + ") @device_details 29-");
         check("PowerManager.addThermalStatusListener/executor", p + " addThermalStatusListener(" + e + status + ") @device_details 29-");
         check("PowerManager.removeThermalStatusListener", p + " removeThermalStatusListener(" + status + ") @device_details 29-");

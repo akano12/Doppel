@@ -119,9 +119,9 @@ Restrictions
 ------------
 
 A restriction hides data (an empty list) or fakes it (an empty or fake value).
-A restricted app cannot run system programs or shells, like getprop, pm, cat or sh: each command fails like a
-program the app may not run (`IOException`, error=13, Permission denied), so the values cannot be read past the
-fakes. Programs which come in the app's own native library folder still run: they are native code of the app,
+An app restricted by *Run commands*, or by a group whose values commands could read, cannot run system programs or
+shells, like getprop, pm, cat or sh: each command fails like a program the app may not run (`IOException`, error=13,
+Permission denied), so the values cannot be read past the fakes. Programs which come in the app's own native library folder still run: they are native code of the app,
 which Doppel does not cover anyway.
 The details are in [hooks.json](app/src/main/assets/hooks.json).
 

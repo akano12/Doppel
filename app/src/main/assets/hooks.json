@@ -18294,6 +18294,21 @@
     "excludePackages": "android",
     "luaScript": "@device_details"
   },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BiometricManager.canAuthenticate/lock",
+    "author": "akano12",
+    "className": "android.hardware.biometrics.BiometricManager",
+    "methodName": "canAuthenticate",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
   // The location columns of MediaStore, which Android 10 and later leave empty (photo_location)
   {
     "collection": "Privacy",

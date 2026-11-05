@@ -133,10 +133,12 @@ class XProvider {
     // boot, when the system cannot show notifications yet
     private static void notifyDataLost(Context context) {
         long ident = Binder.clearCallingIdentity();
+        // Cleared first: calls of several threads find a corrupt database at the same time
+        XDatabase.lost = false;
         try {
             XNotify.notifyDataLost(Util.createContextForUser(context, 0), 0);
-            XDatabase.lost = false;
         } catch (Throwable ex) {
+            XDatabase.lost = true;
             Log.w(TAG, "Data lost notification: " + ex);
         } finally {
             Binder.restoreCallingIdentity(ident);

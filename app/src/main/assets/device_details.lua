@@ -26,8 +26,12 @@
 --   listed; which certificates connections trust stays;
 -- - the details of the vibrator of Android 12 and later (Vibrator.getInfo), which the methods above use: those of a
 --   vibrator without capabilities;
--- - the screen lock: set (KeyguardManager.isDeviceSecure and isKeyguardSecure), like on most devices.
+-- - the screen lock: set (KeyguardManager.isDeviceSecure and isKeyguardSecure), like on most devices, and so a way to
+--   authenticate (BiometricManager.canAuthenticate with DEVICE_CREDENTIAL), else the answers contradict each other on
+--   a device without a lock; an app which then asks for the lock gets the error of Android, like for a removed lock.
 local PROPERTIES = { ['android.media.property.OUTPUT_FRAMES_PER_BUFFER'] = '256' }
+local DEVICE_CREDENTIAL = 32768 -- BiometricManager.Authenticators
+local BIOMETRIC_SUCCESS = 0
 
 -- The audio properties and the user certificates, so the script runs for these only (see XCore.getFilter)
 function filter(hook)
@@ -193,6 +197,12 @@ function after(hook, param)
         return true
     elseif method == 'isDeviceSecure' or method == 'isKeyguardSecure' then
         fake = true
+    elseif method == 'canAuthenticate' then
+        -- Biometrics alone are for Read.Biometrics (see biometrics)
+        if bit32.band(param:getArgument(0), DEVICE_CREDENTIAL) == 0 then
+            return false
+        end
+        fake = BIOMETRIC_SUCCESS
     elseif method == 'containsAlias' or method == 'getCertificate' then
         -- The filter also passes all aliases with /../
         if string.sub(param:getArgument(0), 1, 5) ~= 'user:' then

@@ -796,4 +796,26 @@ public class FingerprintScriptsTest {
         assertEquals("empty", result.arg(2).tojstring());
         assertEquals("built1", result.arg(3).tojstring());
     }
+
+    // The screen lock is set, so it is a way to authenticate, which biometrics alone say nothing about
+    @Test
+    public void screenLockCanAuthenticate() throws Exception {
+        Varargs result = Scripts.run(load("device_details"),
+                "local lock = paramof(11, { [0] = 32768 })\n" +
+                        "local changed = after(hookof('canAuthenticate'), lock)\n" +
+                        "local either = paramof(11, { [0] = 32768 + 15 })\n" +
+                        "after(hookof('canAuthenticate'), either)\n" +
+                        "local biometric = paramof(11, { [0] = 15 })\n" +
+                        "after(hookof('canAuthenticate'), biometric)\n" +
+                        "local real = paramof(0, { [0] = 32768 })\n" +
+                        "local kept = after(hookof('canAuthenticate'), real)\n" +
+                        "return lock.result, either.result, biometric.result, biometric.set, kept, real.set, changed");
+        assertEquals(0, result.arg(1).toint());
+        assertEquals(0, result.arg(2).toint());
+        assertEquals(11, result.arg(3).toint());
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(7).toboolean());
+    }
 }
