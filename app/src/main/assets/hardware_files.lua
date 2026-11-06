@@ -66,9 +66,11 @@ local FILES = {
         -- and of Mali (the device, like /sys/devices/platform/18500000.mali, and /sys/class/misc/mali0)
         '/kernel/gpu$', '/kernel/gpu/', '/class/kgsl$', '/class/kgsl/', '/kgsl/kgsl%-3d0$', '/kgsl/kgsl%-3d0/',
         'qcom,kgsl%-3d0$', 'qcom,kgsl%-3d0/', '%.mali$', '%.mali/', '/misc/mali0$', '/misc/mali0/',
-        -- The codecs of the chip by name (see media_codecs), like /vendor/etc/media_codecs_sm8550_vendor.xml
-        '/etc/media_codecs[^/]*%.xml$',
-        '/proc/scsi/', '/proc/bus/input/devices$' },
+        '/proc/scsi/', '/proc/bus/input/devices$',
+        -- The certificates the user added, like of a VPN or an ad blocker, by name and content; the store of
+        -- certificates of the app reads them too (see truststore)
+        '^/data/misc/user/%d+/cacerts%-added$', '^/data/misc/user/%d+/cacerts%-added/',
+        '^/data/misc/user/%d+/cacerts%-removed$', '^/data/misc/user/%d+/cacerts%-removed/' },
     ['Read.Biometrics'] = {
         '/fingerprint/fingerprint$', '/fingerprint/fingerprint/', '/sec/tsp/fod_info$', '/sec/tsp/fod_pos$' },
     -- The files of /proc/net, a link to /proc/self/net, list the addresses, routes, neighbours and hardware addresses
@@ -91,18 +93,41 @@ local FILES = {
         '^/debug_ramdisk/', '^/data/adb/' },
     -- The files of the features, libraries and system apps of the device (/system/etc/permissions, also of /vendor,
     -- /product and the others, and sysconfig), like com.samsung.feature.*, which apps can read
-    ['Read.Features'] = { '/etc/permissions$', '/etc/permissions/', '/etc/sysconfig$', '/etc/sysconfig/' },
-    -- The permissions of the system apps, a file per app, like privapp-permissions-com.samsung.android.dialer.xml
-    ['Get.Applications'] = { '/etc/permissions/privapp%-permissions%-[^/]*$' },
+    ['Read.Features'] = {},
+    ['Get.Applications'] = {},
 }
+
+-- The folders etc of the system, so a copy of a Linux system an app unpacks in its own folder keeps its files:
+-- of the root, of each partition, like /vendor/etc, also /system/product/etc, and of APEX modules
+local ETC = { '^/etc/', '^/[%w_]+/etc/', '^/system/[%w_]+/etc/', '^/apex/[^/]+/etc/' }
+
+for group, names in pairs({
+    -- The codecs of the chip by name (see media_codecs), like /vendor/etc/media_codecs_sm8550_vendor.xml, the
+    -- properties of the partitions, of which those of /product and /system_ext can be read and name the device, and
+    -- the file systems of the device, named after its hardware, like fstab.qcom
+    ['Use.Tracking'] = { 'media_codecs[^/]*%.xml$', 'build%.prop$', 'fstab%.[^/]*$' },
+    ['Read.Features'] = { 'permissions$', 'permissions/', 'sysconfig$', 'sysconfig/' },
+    -- The permissions of the system apps, a file per app, like privapp-permissions-com.samsung.android.dialer.xml
+    ['Get.Applications'] = { 'permissions/privapp%-permissions%-[^/]*$' } }) do
+    for _, name in ipairs(names) do
+        for _, etc in ipairs(ETC) do
+            table.insert(FILES[group], etc .. name)
+        end
+    end
+end
+
+-- The folders of the apps of the system, of which only the names are left out for Get.Applications: the files stay,
+-- since the system loads apps from them, like WebView
+local APPS = { '^/[%w_]+/app/?$', '^/[%w_]+/priv%-app/?$', '^/system/[%w_]+/app/?$', '^/system/[%w_]+/priv%-app/?$' }
 
 -- The paths the script runs for, of the groups with files outside /sys (see filter); the filter also compares
 -- absolute paths without /./, // and the links of /proc to the root (XCore.getFilter), relative paths with them run
 -- it too, and so do paths with /../ to su and Magisk, like /vendor/../data/adb, which the prefixes do not match.
 -- The folders of su and of the codec files are there for listing them, like File.list of /system/xbin.
 local FILTERS = {
-    ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*', '*/./*',
-                         '*//*', '/system/etc', '/vendor/etc', '/odm/etc' },
+    ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*',
+                         '*etc/build.prop*', '*etc/fstab.*', '*misc/user/*', '*/./*', '*//*', '/system/etc',
+                         '/vendor/etc', '/odm/etc', '/product/etc', '/system_ext/etc' },
     ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
     ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',
@@ -112,7 +137,9 @@ local FILTERS = {
                            '/system/bin', '/system/xbin', '/sbin', '/data/local', '/cache', '/dev', '/vendor/bin',
                            '/vendor/xbin', '/product/bin', '/system_ext/bin', '/odm/bin', '/system/app' },
     ['Read.Features'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
-    ['Get.Applications'] = { '*etc/permissions/privapp-permissions-*', '*/./*', '*//*' },
+    ['Get.Applications'] = { '*etc/permissions*', '*/./*', '*//*', '/system/app', '/system/priv-app', '/product/app',
+                             '/product/priv-app', '/system_ext/app', '/system_ext/priv-app', '/vendor/app',
+                             '/vendor/priv-app', '/odm/app', '/odm/priv-app' },
 }
 
 -- Whether a network interface is of a VPN, like vpn and interface_entries, which a test compares
@@ -184,7 +211,25 @@ function resolve(path, param)
     return path
 end
 
--- Whether a file is one of the group of the hook: its path or the path it leads to matches a pattern
+-- Whether the app could reach a file: else the real call answers, since SELinux denies many paths whatever their
+-- name (EACCES), like all of /sys/class/net, and a fake answer for only the hidden names would tell the hook is there,
+-- and nothing is hidden for a file which does not exist, like su on a phone without root
+-- Read.Network only hides opening its files (see FILES): of /proc/net apps can tell they exist, but not read them
+function reachable(group, path, param)
+    local ok, exists = pcall(function()
+        return param:unhooked(function()
+            local file = luajava.newInstance('java.io.File', path)
+            if group == 'Read.Network' then
+                return file:canRead()
+            end
+            return file:exists()
+        end)
+    end)
+    return not ok or exists
+end
+
+-- Whether a file is one of the group of the hook which the app could reach: its path or the path it leads to matches
+-- a pattern. The interfaces of VPNs come and go, the rest stays while the app runs.
 function hidden(hook, path, param)
     local group = about(hook).group
     if FILES[group] == nil then
@@ -195,7 +240,10 @@ function hidden(hook, path, param)
     if known ~= nil then
         return known
     end
-    local found = matched(group, path, param)
+    local found = matched(group, path, param) and reachable(group, path, param)
+    if group == 'Read.VPN' then
+        return found
+    end
     if cached >= 1000 then
         HIDDEN = {}
         cached = 0
@@ -304,14 +352,42 @@ function listing(hook, param, folder)
     end
     local group = about(hook).group
     local original = param:getArgument(1)
+    local none = unlisted(group, folder)
     param:setArgument(1, luajava.createProxy('java.nio.file.DirectoryStream$Filter', {
         accept = function(entry)
-            if matched(group, tostring(entry), param) then
+            if none or matched(group, tostring(entry), param) then
                 return false
             end
             return original == nil or original:accept(entry)
         end
     }))
+    return false
+end
+
+-- Whether the store of certificates of the app reads the certificates of the user, which runs in the app and must
+-- find them, or TLS with them fails; what the app itself asks the store is filtered (see device_details)
+function truststore()
+    local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
+    for index = 1, frames['length'] do
+        local class = frames[index]:getClassName()
+        if string.find(class, 'conscrypt', 1, true) or string.find(class, 'android.security.net.config', 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Whether the names of a folder are left out of a listing, the files themselves stay (see APPS)
+function unlisted(group, folder)
+    if group ~= 'Get.Applications' then
+        return false
+    end
+    local plain = unrooted(folder)
+    for _, pattern in ipairs(APPS) do
+        if string.find(plain, pattern) then
+            return true
+        end
+    end
     return false
 end
 
@@ -321,7 +397,7 @@ function before(hook, param)
     if class == 'sun.nio.fs.UnixFileSystemProvider' and about(hook).method == 'newDirectoryStream' then
         return listing(hook, param, path)
     end
-    if not hidden(hook, path, param) then
+    if not hidden(hook, path, param) or (string.find(path, 'cacerts', 1, true) and truststore()) then
         return false
     end
 
@@ -390,10 +466,15 @@ function after(hook, param)
     end
 
     local folder = pathof(param)
+    if string.find(folder, 'cacerts', 1, true) and truststore() then
+        return false
+    end
     local kept = {}
-    for index = 1, names['length'] do
-        if not hidden(hook, folder .. '/' .. names[index], param) then
-            table.insert(kept, names[index])
+    if not unlisted(about(hook).group, folder) then
+        for index = 1, names['length'] do
+            if not hidden(hook, folder .. '/' .. names[index], param) then
+                table.insert(kept, names[index])
+            end
         end
     end
     if #kept == names['length'] then

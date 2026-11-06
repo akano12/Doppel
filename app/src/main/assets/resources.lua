@@ -164,6 +164,10 @@ function after(hook, param)
         end
         info.totalMem = fake
         info.availMem = freesize(info.availMem)
+        -- The size the device is sold with, Android 14 and later: not smaller than the total, like on a device
+        if info.advertisedMem ~= nil and info.advertisedMem > 0 then
+            info.advertisedMem = fake
+        end
         local new = info.totalMem .. ' ' .. info.availMem
         return old ~= new, old, new
     end

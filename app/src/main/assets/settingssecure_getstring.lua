@@ -215,7 +215,19 @@ function components(param, key, value)
     local fake = table.concat(kept, ':')
     if fake == '' then
         fake = nil
-        if key == 'sms_default_application' or key == 'dialer_default_application' then
+        if key == 'default_input_method' then
+            -- A device always has a keyboard: the first of the enabled ones which stays visible
+            local ok, enabled = pcall(function()
+                return param:unhooked(function()
+                    return luajava.bindClass('android.provider.Settings$Secure'):getString(
+                            param:getApplicationContext():getContentResolver(), 'enabled_input_methods')
+                end)
+            end)
+            if ok and enabled ~= nil and enabled ~= value then
+                local others = components(param, 'enabled_input_methods', enabled)
+                fake = (others ~= nil and string.match(others, '^[^:;]+') or nil)
+            end
+        elseif key == 'sms_default_application' or key == 'dialer_default_application' then
             fake = systemdefault(param, key == 'dialer_default_application')
         end
     end
@@ -247,6 +259,9 @@ function identifier(key)
     return IDENTIFIERS[key] ~= nil or string.match(key, '^pps_%l+id$') ~= nil or string.match(key, '^pps_%l+id_c$') ~= nil
 end
 
+-- The settings of the always-on VPN
+local ALWAYSON = { always_on_vpn_app = true, always_on_vpn_lockdown = true, always_on_vpn_lockdown_whitelist = true }
+
 -- The other settings which hooks change
 local HOOKED = {
     android_id = true, bluetooth_name = true, device_name = true, wifi_p2p_device_name = true, boot_count = true,
@@ -257,7 +272,8 @@ local HOOKED = {
 
 -- Whether hooks change the setting; the hooked methods are called for all settings, so check the name first
 function hooked(key)
-    return key ~= nil and (HOOKED[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil or identifier(key))
+    return key ~= nil and (HOOKED[key] ~= nil or ALWAYSON[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil or
+            identifier(key))
 end
 
 -- The fake languages, normalized, without tags which are no language (und) and without repeats,
@@ -350,6 +366,12 @@ function fakesetting(param, name, key, result)
             return false
         end
         return true, '0'
+    elseif name == 'vpn' and ALWAYSON[key] ~= nil then
+        -- The always-on VPN, which names its app before Android 12 and tells there is one later; not set on a device
+        if result == nil then
+            return false
+        end
+        return true, nil
     elseif name == 'mac' and key == 'bluetooth_address' then
         -- The Bluetooth MAC address, like BluetoothAdapter.getAddress
         local fake = '02:00:00:00:00:00'
@@ -371,6 +393,7 @@ local PROVIDER = {
     settings = { 'settings' },
     battery = { 'battery' },
     locale = { 'locale' },
+    vpn = { 'vpn' },
 }
 
 -- The fake value of a setting for the variants of a provider hook, like fakesetting
@@ -539,7 +562,9 @@ function provider(hook, param, group)
         if nameIndex >= 0 then
             key = result:getString(nameIndex)
         end
-        local row = fakecursor:newRow()
+        -- A setting which is not set has no row
+        local values = {}
+        local missing = false
         for index = 0, columns['length'] - 1 do
             local value
             local kind = result:getType(index)
@@ -557,9 +582,16 @@ function provider(hook, param, group)
                 if hit then
                     changed = true
                     value = fakevalue
+                    missing = (value == nil)
                 end
             end
-            row:add(value)
+            values[index] = value
+        end
+        if not missing then
+            local row = fakecursor:newRow()
+            for index = 0, columns['length'] - 1 do
+                row:add(values[index])
+            end
         end
     end
 

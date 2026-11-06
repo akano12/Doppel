@@ -184,12 +184,13 @@ function after(hook, param)
         if result == nil then
             return false
         end
+        -- With the id of the vibrator: EMPTY_VIBRATOR_INFO has id -1, which getVibrator does not give
         local ok, empty = pcall(function()
-            return luajava.bindClass('android.os.VibratorInfo').EMPTY_VIBRATOR_INFO
+            return luajava.newInstance('android.os.VibratorInfo$Builder', result:getId()):build()
         end)
         if not ok or empty == nil then
             ok, empty = pcall(function()
-                return luajava.newInstance('android.os.VibratorInfo$Builder', result:getId()):build()
+                return luajava.bindClass('android.os.VibratorInfo').EMPTY_VIBRATOR_INFO
             end)
         end
         if not ok or empty == nil then

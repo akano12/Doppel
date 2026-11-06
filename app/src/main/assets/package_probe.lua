@@ -32,7 +32,19 @@ local arguments = {
     queryStatsForPackage = { 1 }, -- volume, package, user
     checkPackage = { 1 }, -- uid, package
     checkOpNoThrow = { 2 }, -- operation, uid, package
-    unsafeCheckOpNoThrow = { 2 }
+    unsafeCheckOpNoThrow = { 2 },
+    checkOp = { 2 },
+    unsafeCheckOp = { 2 },
+    unsafeCheckOpRaw = { 2 },
+    unsafeCheckOpRawNoThrow = { 2 },
+    setInstallerPackageName = { 0, 1 },
+    -- context, request code, intent or intents: what a PendingIntent starts is sent by the system, past the hooks of
+    -- the app, so one for a hidden app starts nothing
+    getActivity = { 2 },
+    getActivities = { 2 },
+    getService = { 2 },
+    getForegroundService = { 2 },
+    getBroadcast = { 2 }
 }
 
 -- The substitutes of the calls in progress on this thread, for after, which comes in reverse order
@@ -74,7 +86,7 @@ function substitute(param, value, suffix, substitutes)
             return luajava.newInstance('android.content.ComponentName', name, value:getClassName())
         end
     elseif param:isInstance(value, 'android.content.Intent') then
-        -- LauncherApps.resolveActivity, a copy, because the intent is of the app
+        -- LauncherApps.resolveActivity and PendingIntent, a copy, because the intent is of the app
         local component = value:getComponent()
         if component ~= nil then
             local name = hide(param, component:getPackageName(), suffix, substitutes)
@@ -83,7 +95,29 @@ function substitute(param, value, suffix, substitutes)
                 intent:setComponent(luajava.newInstance('android.content.ComponentName', name, component:getClassName()))
                 return intent
             end
+        elseif value:getPackage() ~= nil then
+            local name = hide(param, value:getPackage(), suffix, substitutes)
+            if name ~= nil then
+                return luajava.newInstance('android.content.Intent', value):setPackage(name)
+            end
         end
+    elseif param:isInstance(value, '[Landroid.content.Intent;') then
+        -- PendingIntent.getActivities, a copy, because the array is of the app
+        local intents = nil
+        for index = 1, value['length'] do
+            local intent = substitute(param, value[index], suffix, substitutes)
+            if intent ~= nil then
+                if intents == nil then
+                    local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+                    intents = arrayClass:newInstance(luajava.bindClass('android.content.Intent'), value['length'])
+                    for copy = 1, value['length'] do
+                        intents[copy] = value[copy]
+                    end
+                end
+                intents[index] = intent
+            end
+        end
+        return intents
     elseif param:isInstance(value, '[Ljava.lang.String;') then
         -- canPackageQuery, a copy, because the array is of the app
         local names = nil

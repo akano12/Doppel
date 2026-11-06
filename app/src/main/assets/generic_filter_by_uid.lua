@@ -53,6 +53,17 @@ function preferred(param, count)
     return true
 end
 
+-- Whether the user picked a document of a provider, which leaves the app a persisted grant
+function picked(param, authority)
+    local permissions = param:getApplicationContext():getContentResolver():getPersistedUriPermissions()
+    for index = 0, permissions:size() - 1 do
+        if permissions:get(index):getUri():getAuthority() == authority then
+            return true
+        end
+    end
+    return false
+end
+
 function after(hook, param)
     -- Processes of the system manage the packages of all apps
     if param:isSystem() then
@@ -95,8 +106,10 @@ function after(hook, param)
             ai = item.serviceInfo.applicationInfo -- ResolveInfo
         elseif name == 'PackageManager.queryContentProviders' then
             ai = item.applicationInfo -- ProviderInfo
-        elseif name == 'LauncherApps.getActivityList' then
+        elseif name == 'LauncherApps.getActivityList' or name == 'LauncherApps.getShortcutConfigActivityList' then
             ai = item:getApplicationInfo() -- LauncherActivityInfo
+        elseif string.match(name, '^AppWidgetManager%.') then
+            packageName = item.provider:getPackageName() -- AppWidgetProviderInfo
         elseif string.match(name, '^PackageManager%.query%a+Property$') then
             packageName = item:getPackageName() -- PackageManager.Property
         elseif name == 'DevicePolicyManager.getActiveAdmins' then
@@ -113,7 +126,9 @@ function after(hook, param)
 
         local visible
         if ai ~= nil then
-            visible = param:isVisible(ai)
+            -- A document the user picked stays a document (DocumentsContract.isDocumentUri), see provider_hidden
+            visible = param:isVisible(ai) or (name == 'PackageManager.queryIntentContentProviders' and
+                    picked(param, item.providerInfo.authority))
         elseif packageName ~= nil then
             visible = param:isPackageVisible(packageName)
         else

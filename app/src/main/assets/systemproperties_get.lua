@@ -41,7 +41,18 @@ local DEVICE = {
                    'ro.*.soc.*', 'ro.chipname', 'ro.hardware.chipname', 'ro.vendor.qti.soc_model',
                    'ro.vendor.qti.soc_name', 'ro.mediatek.platform', 'ro.vendor.mediatek.platform',
                    -- The family of the GPU (adreno, mali), which the EGL and Vulkan loaders read natively
-                   'ro.hardware.egl', 'ro.hardware.vulkan' } },
+                   'ro.hardware.egl', 'ro.hardware.vulkan',
+                   -- The model of key attestation, the vendor of the radio interface layer
+                   'ro.product.model_for_attestation', 'ro.product.brand_for_attestation',
+                   'ro.product.name_for_attestation', 'ro.product.device_for_attestation',
+                   'ro.product.manufacturer_for_attestation', 'gsm.version.ril-impl',
+                   -- The versions of ROMs of makers, which name the maker
+                   'ro.miui.ui.version.name', 'ro.miui.ui.version.code', 'ro.build.version.emui',
+                   'ro.build.version.oneui', 'ro.build.version.opporom', 'ro.vivo.os.version',
+                   'ro.com.google.clientidbase' } },
+    -- The cores the runtime compiles for, like cortex-a78; generic is valid for any
+    { 'generic', { 'dalvik.vm.isa.arm64.variant', 'dalvik.vm.isa.arm.variant', 'dalvik.vm.isa.x86_64.variant',
+                   'dalvik.vm.isa.x86.variant' } },
     { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
                    'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
                    'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
@@ -86,6 +97,8 @@ local DEBUGGING = {
     ['init.svc.adbd'] = 'stopped',
     ['sys.usb.config'] = NOADB, ['sys.usb.state'] = NOADB, ['persist.sys.usb.config'] = NOADB,
     ['ro.debuggable'] = '0', ['ro.secure'] = '1',
+    -- The port of adb over the network (adb tcpip), which apps can read
+    ['service.adb.tcp.port'] = '',
     ['persist.logd.size'] = '', ['persist.logd.size.main'] = '', ['persist.logd.size.crash'] = '',
 }
 
@@ -201,6 +214,10 @@ function typed(hook, param, key, result, method)
         fake = fakedevice(key, '')
     elseif name == 'debugging' and type(DEBUGGING[key]) == 'string' then
         fake = DEBUGGING[key]
+    elseif name == 'serial' and SERIALS[key] ~= nil then
+        fake = param:getSetting('value.serial') or 'unknown'
+    elseif name == 'operator' then
+        fake = OPERATOR[key]
     end
     -- Checked for the faked properties only, the variant device runs for all of ro.
     if fake == nil or (result == default and not isset(param, key)) then

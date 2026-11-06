@@ -982,7 +982,7 @@ public class HookDefinitionsTest {
         check("MediaSessionManager.getActiveSessionsForPackage/listener", m + "getActiveSessionsForPackage(java.lang.String," +
                 "android.content.ComponentName) @generic_empty 37-");
         check("MediaSessionManager.getSession2Tokens", m + "getSession2Tokens() @generic_empty 29-");
-        check("MediaSessionManager.getMediaKeyEventSessionPackageName", m + "getMediaKeyEventSessionPackageName() @generic_null_value 33-");
+        check("MediaSessionManager.getMediaKeyEventSessionPackageName", m + "getMediaKeyEventSessionPackageName() @generic_empty_text 33-");
         String l = "android.media.session.MediaSessionManager$OnActiveSessionsChangedListener";
         check("MediaSessionManager.addOnActiveSessionsChangedListener", m + "addOnActiveSessionsChangedListener(" + l +
                 ",android.content.ComponentName) @generic_block 27-");

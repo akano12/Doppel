@@ -20,13 +20,32 @@
 -- UserManager.getUserProfiles and LauncherApps.getProfiles keep the user of the app, getUserCount is 1,
 -- CrossProfileApps.getTargetUserProfiles has no profile to switch to, and the serial numbers of other users, which
 -- getUserForSerialNumber and getSerialNumberForUser convert, are like those of users which do not exist.
+-- UserManager.isUserRunning, isUserUnlocked and isQuietModeEnabled answer for a handle an app can make itself, like
+-- UserHandle.of(10): they are asked about a user which does not exist, so the app gets the answer of Android for that.
+
+-- The user id no device has, Android allows far fewer users
+local NOUSER = 9999
+
+local QUESTIONS = { isUserRunning = true, isUserUnlocked = true, isQuietModeEnabled = true }
+
+function before(hook, param)
+    if not QUESTIONS[hook:getMethodName()] then
+        return false
+    end
+    local user = param:getArgument(0)
+    if user == nil or user:equals(luajava.bindClass('android.os.Process'):myUserHandle()) then
+        return false
+    end
+    param:setArgument(0, luajava.bindClass('android.os.UserHandle'):getUserHandleForUid(NOUSER * 100000))
+    return true, tostring(user)
+end
 
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or param:getException() ~= nil then
+    local method = hook:getMethodName()
+    if result == nil or param:getException() ~= nil or QUESTIONS[method] then
         return false
     end
-    local method = hook:getMethodName()
     if method == 'getUserCount' then
         if result <= 1 then
             return false

@@ -17,7 +17,8 @@
 
 -- The LinkProperties of a VPN, which apps get for the active network with the interface of the network under it
 -- (see vpn), still have the addresses of the tunnel, like 10.8.0.2/32, and the DNS servers of the VPN, which tell
--- there is a VPN: they are left out, like Read.Network leaves them out for all networks (see network_address).
+-- there is a VPN, and its routes and search domains, which are the ones of the tunnel with the interface of the
+-- network under it: they are left out, like Read.Network leaves them out for all networks (see network_address).
 -- LinkProperties gets the real ones when it checks, compares, copies or parcels itself.
 
 -- Whether a network interface is of a VPN, like vpn, which a test compares
@@ -59,7 +60,9 @@ end
 
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or result:isEmpty() then
+    -- getDomains, the search domains of the VPN as text, like corp.example
+    local domains = (hook:getMethodName() == 'getDomains')
+    if result == nil or (not domains and result:isEmpty()) then
         return false
     end
     -- The real interface, which the hook of vpn would fake
@@ -70,6 +73,10 @@ function after(hook, param)
     if not isvpninterface(name) or linkproperties() then
         return false
     end
-    param:setResult(luajava.newInstance('java.util.ArrayList'))
+    if domains then
+        param:setResult(nil)
+    else
+        param:setResult(luajava.newInstance('java.util.ArrayList'))
+    end
     return true
 end

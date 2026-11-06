@@ -158,11 +158,18 @@ function before(hook, param)
         return true, service.package
     end
 
-    -- acquireContentProviderClient, acquireUnstableContentProviderClient and call: nothing found
-    local authority = authorityof(param:getArgument(0))
+    -- acquireContentProviderClient and acquireUnstableContentProviderClient: nothing found;
+    -- call: Android throws, with the words of the form of the call (see provider_hidden)
+    local target = param:getArgument(0)
+    local authority = authorityof(target)
     if authority == nil or PROVIDERS[authority] == nil then
         return false
     end
-    param:setResult(nil)
+    if method == 'call' then
+        local what = (type(target) == 'string' and 'authority ' or 'URI ') .. tostring(target)
+        param:setResult(luajava.newInstance('java.lang.IllegalArgumentException', 'Unknown ' .. what))
+    else
+        param:setResult(nil)
+    end
     return true, authority
 end

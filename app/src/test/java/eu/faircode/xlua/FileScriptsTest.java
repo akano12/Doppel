@@ -223,6 +223,8 @@ public class FileScriptsTest {
             "    getApplicationContext = function(self) return CONTEXT end,",
             "    isSystem = function(self) return false end,",
             "    unhooked = function(self, f) return f() end,",
+            "    getSetting = function(self, name) return 'abcd' end,",
+            "    uuidOf = function(self, seed) return (string.find(seed, '^abcd') and 'fffffff0' or '00000000') .. '-0000' end,",
             "    getException = function(self) return nil end,",
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value end }",
@@ -291,7 +293,8 @@ public class FileScriptsTest {
         assertEquals("1230768000", result.arg(3).tojstring());
         assertEquals("android.system.StructStat", result.arg(4).tojstring());
         assertEquals(13, result.arg(5).toint());
-        assertEquals(2, result.arg(6).toint());
+        // The inode of the fake Android ID, not the real one
+        assertEquals(0xfffffff + 1000, result.arg(6).tolong());
         assertEquals(7, result.arg(7).toint());
         assertEquals("android.system.StructTimespec", result.arg(8).tojstring());
         assertEquals(1230768000L, result.arg(9).tolong());
@@ -446,6 +449,56 @@ public class FileScriptsTest {
             "  names['length'] = select('#', ...)",
             "  return names",
             "end");
+
+    // A file the app could not reach gets the answer of the kernel: a fake one only for hidden names, like tun0 next
+    // to all of /sys/class/net which SELinux denies, tells the hook is there; a file which does not exist is not hidden
+    @Test
+    public void hiddenFilesAreOnlyThoseTheAppCouldReach() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local present = { ['/system_ext/etc/build.prop'] = true }\n" +
+                        "local file = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path)\n" +
+                        "  if name == 'java.io.File' then return { exists = function() return present[path] end,\n" +
+                        "    canRead = function() return false end } end\n" +
+                        "  return file(name, path)\n" +
+                        "end\n" +
+                        "local function param() return { unhooked = function(self, f) return f() end } end\n" +
+                        "present['/proc/net/arp'] = true\n" +
+                        "return hidden(hookof('Read.Network'), '/proc/net/arp', param()),\n" +
+                        "  hidden(hookof('Read.VPN'), '/sys/class/net/tun0', param()),\n" +
+                        "  hidden(hookof('Read.Debugging'), '/system/xbin/su', param()),\n" +
+                        "  hidden(hookof('Use.Tracking'), '/system_ext/etc/build.prop', param())");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+    }
+
+    // The files of the system by the folders etc of partitions, not the same names in a folder of the app; the store
+    // of certificates still reads the ones of the user; of the folders of apps only the names go
+    @Test
+    public void hiddenFilesOfTheSystem() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local tracking, features, apps = hookof('Use.Tracking'), hookof('Read.Features'), hookof('Get.Applications')\n" +
+                        "return hidden(tracking, '/product/etc/build.prop'), hidden(tracking, '/vendor/etc/fstab.qcom'),\n" +
+                        "  hidden(tracking, '/data/user/0/com.example/files/etc/build.prop'),\n" +
+                        "  hidden(tracking, '/data/misc/user/0/cacerts-added'),\n" +
+                        "  hidden(tracking, '/data/misc/user/0/cacerts-added/abcd1234.0'),\n" +
+                        "  hidden(features, '/system/etc/sysconfig/google.xml'), hidden(features, '/system/product/etc/permissions'),\n" +
+                        "  hidden(features, '/apex/com.android.foo/etc/permissions/a.xml'),\n" +
+                        "  hidden(features, '/data/user/0/com.example/files/rootfs/etc/sysconfig/network'),\n" +
+                        "  hidden(apps, '/system/etc/permissions/privapp-permissions-com.example.xml'),\n" +
+                        "  hidden(apps, '/system/etc/permissions/platform.xml'), hidden(apps, '/system/priv-app/Example'),\n" +
+                        "  unlisted('Get.Applications', '/system/priv-app'), unlisted('Get.Applications', '/product/app'),\n" +
+                        "  unlisted('Get.Applications', '/system/product/priv-app'), unlisted('Use.Tracking', '/system/app'),\n" +
+                        "  unlisted('Get.Applications', '/data/app')");
+        for (int i : new int[]{1, 2, 4, 5, 6, 7, 8, 10, 13, 14, 15, 17})
+            assertTrue("result " + i, result.arg(i).toboolean());
+        for (int i : new int[]{3, 9, 11, 12, 16})
+            assertFalse("result " + i, result.arg(i).toboolean());
+    }
 
     // Each group hides its files, by their path or the path their link leads to, the other files stay
     @Test

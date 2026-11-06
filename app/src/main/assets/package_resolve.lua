@@ -148,6 +148,23 @@ function after(hook, param)
         end
     end
 
+    -- A service any app may handle: the first visible one, which queryIntentServices also gives
+    if (method == 'resolveService' or method == 'resolveServiceAsUser') and implicit(param:getArgument(0)) and
+            not param:isPackageVisible(packageName) then
+        local pm, intent, flags = param:getThis(), param:getArgument(0), param:getArgument(1)
+        local ok, all = pcall(function()
+            return param:unhooked(function()
+                return pm:queryIntentServices(intent, flags)
+            end)
+        end)
+        for index = 0, (ok and all ~= nil) and all:size() - 1 or -1 do
+            if param:isPackageVisible(all:get(index).serviceInfo.packageName) then
+                param:setResult(all:get(index))
+                return true, packageName, all:get(index).serviceInfo.packageName
+            end
+        end
+    end
+
     -- The chooser between the screens of the app an intent names is of Android, but tells that app is there
     if chooser then
         packageName = param:getArgument(0):getPackage()

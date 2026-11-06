@@ -285,6 +285,7 @@ public class NetworkScriptsTest {
     private static final String NETWORKS = String.join("\n",
             "function infoof(type, name) return { type = type, name = name,",
             "  getType = function(self) return self.type end,",
+            "  isConnectedOrConnecting = function(self) return true end,",
             "  getTypeName = function(self) return self.name end } end",
             "function lpof(name) return { getInterfaceName = function(self) return name end } end",
             "vpninfo = infoof(17, 'VPN')",
@@ -364,9 +365,8 @@ public class NetworkScriptsTest {
                         "  after(hookof('getByInetAddress'), tun), tun.result, route.result, iface.result");
         assertEquals("[ Transports: WIFI Capabilities: INTERNET&TRUSTED&NOT_VPN&VALIDATED UnderlyingNetworks: null]",
                 result.arg(1).tojstring());
-        // The addresses of the tunnel are empty, like getLinkAddresses (see vpn_addresses)
-        assertEquals("{InterfaceName: rmnet_data0 LinkAddresses: [ ]" +
-                " Routes: [ 0.0.0.0/0 -> 0.0.0.0 rmnet_data0 mtu 0 ]}", result.arg(2).tojstring());
+        // The addresses and routes of the tunnel are empty, like getLinkAddresses (see vpn_addresses)
+        assertEquals("{InterfaceName: rmnet_data0 LinkAddresses: [ ] Routes: [ ]}", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
         assertTrue(result.arg(4).isnil());
         // The routes of the VPN network, which LinkProperties.getRoutes gives
@@ -380,10 +380,10 @@ public class NetworkScriptsTest {
         assertEquals("0.0.0.0/0 -> 10.8.0.1", tostring(globals, "android.net.RouteInfo", "0.0.0.0/0 -> 10.8.0.1"));
         assertEquals("::/0 unreachable", tostring(globals, "android.net.RouteInfo", "::/0 unreachable"));
         // The text of Android 9 and before, without spaces inside the brackets
-        assertEquals("{InterfaceName: wlan0 LinkAddresses: []  Routes: [0.0.0.0/0 -> 0.0.0.0 wlan0,]" +
+        assertEquals("{InterfaceName: wlan0 LinkAddresses: []  Routes: []" +
                 " DnsAddresses: [] Domains: null MTU: 0}", tostring(globals, "android.net.LinkProperties",
                 "{InterfaceName: tun0 LinkAddresses: [10.8.0.2/32,]  Routes: [0.0.0.0/0 -> 0.0.0.0 tun0,]" +
-                        " DnsAddresses: [10.8.0.1,] Domains: null MTU: 0}"));
+                        " DnsAddresses: [10.8.0.1,] Domains: corp.example MTU: 0}"));
         // Without an interface, like a new LinkProperties, there is nothing to hide
         String empty = "{LinkAddresses: [ ] DnsAddresses: [ ] Domains: null MTU: 0 Routes: [ ]}";
         assertEquals(empty, tostring(globals, "android.net.LinkProperties", empty));
@@ -588,32 +588,32 @@ public class NetworkScriptsTest {
         assertFalse(result.arg(6).toboolean());
     }
 
-    // The network info of the type VPN is not there, by its type or in the list of all networks; others stay
+    // The network info of the type VPN stays, not connected, like on a device without a VPN, by its type or in the
+    // list of all networks; others stay as they are
     @Test
-    public void vpnNetworkInfoIsLeftOut() throws Exception {
+    public void vpnNetworkInfoIsNotConnected() throws Exception {
         Globals globals = load("vpn");
         Scripts.run(globals, NETWORKS);
         Scripts.run(globals, Scripts.ARRAYOF + "\n" +
-                "luajava = { bindClass = function(name)\n" +
-                "  if name == 'android.net.NetworkInfo' then return 'NetworkInfo' end\n" +
-                "  assert(name == 'java.lang.reflect.Array', name)\n" +
-                "  return { newInstance = function(self, type, length) return { type = type, length = length } end }\n" +
-                "end }");
+                "luajava = { newInstance = function(name, info)\n" +
+                "    return { copyof = info, setDetailedState = function(self, state) self.state = state end }\n" +
+                "  end,\n" +
+                "  bindClass = function(name) return { DISCONNECTED = 'DISCONNECTED' } end }");
         Varargs result = Scripts.run(globals,
                 "local vpn = paramof(vpninfo, { [0] = 17 })\n" +
                         "local mobile = paramof(mobileinfo, { [0] = 0 })\n" +
                         "local all = paramof(arrayof(vpninfo, mobileinfo))\n" +
                         "local plain = paramof(arrayof(mobileinfo))\n" +
-                        "return after(hookof('getNetworkInfo'), vpn), vpn.result, after(hookof('getNetworkInfo'), mobile),\n" +
-                        "  mobile.set, after(hookof('getAllNetworkInfo'), all), all.result.type, all.result.length,\n" +
-                        "  all.result[1] == mobileinfo, after(hookof('getAllNetworkInfo'), plain), plain.set");
+                        "return after(hookof('getNetworkInfo'), vpn), vpn.result.state, after(hookof('getNetworkInfo'), mobile),\n" +
+                        "  mobile.set, after(hookof('getAllNetworkInfo'), all), all.result[1].state, all.result[1].copyof == vpninfo,\n" +
+                        "  all.result[2] == mobileinfo, after(hookof('getAllNetworkInfo'), plain), plain.set");
         assertTrue(result.arg(1).toboolean());
-        assertTrue(result.arg(2).isnil());
+        assertEquals("DISCONNECTED", result.arg(2).tojstring());
         assertFalse(result.arg(3).toboolean());
         assertFalse(result.arg(4).toboolean());
         assertTrue(result.arg(5).toboolean());
-        assertEquals("NetworkInfo", result.arg(6).tojstring());
-        assertEquals(1, result.arg(7).toint());
+        assertEquals("DISCONNECTED", result.arg(6).tojstring());
+        assertTrue(result.arg(7).toboolean());
         assertTrue(result.arg(8).toboolean());
         assertFalse(result.arg(9).toboolean());
         assertFalse(result.arg(10).toboolean());
@@ -743,6 +743,7 @@ public class NetworkScriptsTest {
             "  before(hookof(method, nil, group), paramof(nil, { [0] = value }, recorder))",
             "end",
             "function call(recorder, method, groups)",
+            "  recorder.reset = function(self) self.resets = (self.resets or 0) + 1 end",
             "  for _, group in ipairs(groups) do",
             "    local param = paramof(nil, {}, recorder)",
             "    local restricted = control.before(control.hookof(method, nil, group), param)",

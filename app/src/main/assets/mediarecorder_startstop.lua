@@ -45,9 +45,11 @@ function before(hook, param)
         return false
     end
 
-    -- Stopping resets the recorder too
+    -- Stopping resets the recorder too: the real one is prepared still, since start and stop did not run, and would
+    -- refuse the app setting it up again
     if method == 'stop' then
         forget(param, this)
+        this:reset()
     end
 
     param:setResult(nil)

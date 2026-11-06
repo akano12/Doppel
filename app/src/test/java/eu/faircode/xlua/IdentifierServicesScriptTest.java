@@ -34,6 +34,7 @@ public class IdentifierServicesScriptTest {
             "  return { getPackageName = function(self) return pkg end, getClassName = function(self) return cls end }",
             "end",
             "luajava.newInstance = function(name, pkg, cls)",
+            "  if name == 'java.lang.IllegalArgumentException' then return pkg end",
             "  assert(name == 'android.content.ComponentName', name)",
             "  return componentof(pkg, cls)",
             "end",
@@ -218,9 +219,16 @@ public class IdentifierServicesScriptTest {
         for (String method : new String[]{"acquireContentProviderClient", "acquireUnstableContentProviderClient", "call"}) {
             Varargs uri = run("return acquire(uriof('cn.nubia.identity'), '" + method + "')");
             assertTrue(method, uri.arg(1).toboolean());
-            assertTrue(uri.arg(2).isnil());
+            if (method.equals("call"))
+                assertTrue(uri.arg(2).tojstring(), uri.arg(2).tojstring().startsWith("Unknown URI "));
+            else
+                assertTrue(uri.arg(2).isnil());
             assertEquals("cn.nubia.identity", uri.arg(3).tojstring());
-            assertTrue(method, run("return acquire('cn.nubia.identity', '" + method + "')").arg(1).toboolean());
+            Varargs name = run("return acquire('cn.nubia.identity', '" + method + "')");
+            assertTrue(method, name.arg(1).toboolean());
+            // Android throws for a provider which does not exist, only the clients are null
+            if (method.equals("call"))
+                assertEquals("Unknown authority cn.nubia.identity", name.arg(2).tojstring());
             assertFalse(method, run("return acquire(uriof('com.android.contacts'), '" + method + "')").arg(1).toboolean());
             assertFalse(method, run("return acquire(nil, '" + method + "')").arg(1).toboolean());
         }

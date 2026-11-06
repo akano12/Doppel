@@ -128,16 +128,18 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <details>
 <summary><b>Who you are</b> · 5 groups</summary>
 
-* **Read account name**: fake name
+* **Read account name**: fake name, also in contacts and calendars
 * **Read biometric sensors**: no fingerprint sensor, face or iris unlock
 * **Read identifiers**: fake serial, Android ID, DRM id, advertising and app set ID, MAC addresses;
   the permanent ids of the chip, SD card and storage in /sys do not exist, and neither do the advertising ids (OAID)
   of the services of device makers (Samsung, Lenovo, Asus, OPPO, OnePlus, realme, Honor, Huawei, Coolpad, Nubia,
   Freeme and 360, also any service with one of their interfaces), the ids they and SDKs keep in the settings
-  (Huawei, Honor, Xiaomi, OnePlus, Amazon Fire OS, Baidu) and the SIM serial in their system properties
+  (Huawei, Honor, Xiaomi, OnePlus, Amazon Fire OS, Baidu), the SIM serial in their system properties and the id of
+  the file system
 * **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more, also in the phone accounts of the SIMs
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
-  boot id and the folder times that tell when the device was set up; the hardware files in /sys do not exist, nor do
+  boot id and the folder times and inodes that tell when the device was set up; the hardware files in /sys and the
+  property files of the partitions do not exist, nor do
   the files of the processors (8 processors, also in /proc/cpuinfo), and the fonts of device makers are not listed,
   also in the font configuration; codec names, the GPU and OpenGL extensions without the vendor of the chip; other
   users and work profiles, user-installed certificates, the heat, the vibrator, the audio buffer and the screen lock
@@ -178,7 +180,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Your device and apps</b> · 8 groups</summary>
 
 * **Get applications**: hide other apps, their components, widgets, install sessions and usage statistics, keyboards
-  and accessibility services, also in the permission files of system apps; hidden apps cannot be reached
+  and accessibility services, also in the permission files of system apps and the folders of system apps; hidden apps
+  cannot be reached
 * **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
 * **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable; the files of su and Magisk do not exist
 * **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers; the feature and permission files of the system do not exist
@@ -187,14 +190,15 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   use rounded down to a common step
 * **Read network data**: hide cells, Wi-Fi networks, Bluetooth devices (also in broadcasts) and local network discovery,
   fake Wi-Fi name
-* **Read VPN state**: no VPN
+* **Read VPN state**: no VPN, also without its routes and search domains and the settings of always-on VPN
 
 </details>
 
 <details>
 <summary><b>Recording</b> · 3 groups</summary>
 
-* **Record audio**, **Record video**: prevent recording, also speech recognition
+* **Record audio**, **Record video**: prevent recording, also speech recognition; of the audio devices only the speaker
+  and the earpiece are left
 * **Use camera**: no camera
 
 </details>

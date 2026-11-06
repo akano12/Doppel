@@ -124,6 +124,14 @@ function withnotvpn(names)
     return table.concat(list, '&')
 end
 
+-- A copy of the entry of a VPN which is not connected, like on a device without a VPN
+function notconnected(info)
+    local copy = luajava.newInstance('android.net.NetworkInfo', info)
+    local state = luajava.bindClass('android.net.NetworkInfo$DetailedState').DISCONNECTED
+    copy:setDetailedState(state, nil, nil)
+    return copy
+end
+
 -- LoWPAN, which phones do not have, is what a request for VPN networks asks for instead (see vpn_request)
 local TRANSPORT_LOWPAN = 6
 
@@ -235,11 +243,12 @@ function restrict(hook, param)
                             return before .. other .. after
                         end)
                 fake = string.sub(fake, 1, -2)
-                -- The addresses and DNS servers of the tunnel are empty, like their getters (see vpn_addresses);
+                -- The addresses, DNS servers, routes and search domains of the tunnel are empty, like their getters (see vpn_addresses);
                 -- the text of Android 10 and later has spaces inside the brackets
-                for _, label in ipairs({ 'LinkAddresses', 'DnsAddresses' }) do
+                for _, label in ipairs({ 'LinkAddresses', 'DnsAddresses', 'Routes' }) do
                     fake = string.gsub(fake, '([^%w]' .. label .. ': %[)( ?)[^%]]*%]', '%1%2]')
                 end
+                fake = string.gsub(fake, '([^%w]Domains: )%S+', '%1null')
                 param:setResult(fake)
                 return true, result, fake
             end
@@ -273,23 +282,42 @@ function restrict(hook, param)
         end
 
     elseif method == 'getNetworkInfo' then
-        if result ~= nil and param:getArgument(0) == TYPE_VPN then
-            param:setResult(nil)
+        if result ~= nil and param:getArgument(0) == TYPE_VPN and result:isConnectedOrConnecting() then
+            param:setResult(notconnected(result))
             return true
         end
 
     elseif method == 'getAllNetworkInfo' then
+        -- A device has an entry of the type VPN, not connected, also without one, so the entry stays
         if result ~= nil then
+            local changed = false
+            for index = 1, result['length'] do
+                if realtype(param, result[index]) == TYPE_VPN and result[index]:isConnectedOrConnecting() then
+                    result[index] = notconnected(result[index])
+                    changed = true
+                end
+            end
+            return changed
+        end
+
+    elseif method == 'getAllNetworks' then
+        -- Without the network of the VPN, like getAllNetworkInfo; underlyinginterface gets all of them (see nested)
+        if result ~= nil then
+            local cm = param:getThis()
             local keep = {}
             for index = 1, result['length'] do
-                if realtype(param, result[index]) ~= TYPE_VPN then
-                    keep[#keep + 1] = result[index]
+                local network = result[index]
+                local vpn = param:unhooked(function()
+                    local capabilities = cm:getNetworkCapabilities(network)
+                    return capabilities ~= nil and capabilities:hasTransport(TRANSPORT_VPN)
+                end)
+                if not vpn then
+                    keep[#keep + 1] = network
                 end
             end
             if #keep < result['length'] then
-                local infoClass = luajava.bindClass('android.net.NetworkInfo')
                 local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-                local fake = arrayClass:newInstance(infoClass, #keep)
+                local fake = arrayClass:newInstance(luajava.bindClass('android.net.Network'), #keep)
                 for index = 1, #keep do
                     fake[index] = keep[index]
                 end
@@ -300,14 +328,15 @@ function restrict(hook, param)
 
     elseif method == 'getType' then
         -- The type of the network the VPN runs over, like the capabilities of the VPN
-        if result == TYPE_VPN and not param:getValue('vpn.real', param:getThis()) then
+        if result == TYPE_VPN and not param:getValue('vpn.real', param:getThis()) and
+                param:getThis():isConnectedOrConnecting() then
             local fake = underlyingtype(param)
             param:setResult(fake)
             return true, tostring(result), tostring(fake)
         end
 
     elseif method == 'getTypeName' then
-        if result == 'VPN' then
+        if result == 'VPN' and param:getThis():isConnectedOrConnecting() then
             local _, fake = underlyingtype(param)
             param:setResult(fake)
             return true, result, fake

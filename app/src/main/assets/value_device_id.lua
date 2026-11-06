@@ -38,8 +38,9 @@ function after(hook, param)
     elseif type == PHONE_TYPE_CDMA and method ~= 'getImei' and method ~= 'getPrimaryImei' then
         fake = param:getSetting('value.meid')
     end
-    -- Also the fake of the overload this one calls, like getImei() calls getImei(slot), which reported it already
-    if result == fake then
+    -- Android gives nothing to apps targeting Android 9 or earlier without the privilege, from Android 10;
+    -- also the fake of the overload this one calls, like getImei() calls getImei(slot), which reported it already
+    if result == nil or result == fake then
         return false
     end
 

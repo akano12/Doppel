@@ -79,7 +79,9 @@ end
 function starredof(name, uri, param)
     if name == 'contacts' and authorityof(uri) == 'com.android.contacts' then
         local prefix = prefixof(uri)
-        if prefix == 'contacts' or prefix == 'raw_contacts' or prefix == 'data' then
+        -- The stream items of a contact, whose view has no column starred
+        if (prefix == 'contacts' or prefix == 'raw_contacts' or prefix == 'data') and
+                not string.find(uri:getPath(), '/stream_items', 1, true) then
             local starred = param:getSetting('contacts.starred')
             if starred == '0' or starred == '1' then
                 return starred
@@ -88,6 +90,15 @@ function starredof(name, uri, param)
     end
     return nil
 end
+
+-- Whether a query is of the contacts like a contact (Contacts.AggregationSuggestions), for which the provider ignores
+-- the selection: the column starred is added to the query, and after filters the rows by it
+function suggestions(uri)
+    return string.find(uri:getPath(), '^/contacts/.*/suggestions') ~= nil
+end
+
+-- Whether before added the column to the query in progress on this thread
+local added = false
 
 function before(hook, param)
     local uri = param:getArgument(0)
@@ -99,6 +110,28 @@ function before(hook, param)
     local name = string.match(hook:getName(), '^[^/]*/?(.*)$')
     local starred = starredof(name, uri, param)
     if starred == nil then
+        return false
+    end
+
+    if suggestions(uri) then
+        local projection = param:getArgument(1)
+        added = false
+        if projection ~= nil then
+            local present = false
+            for index = 1, projection['length'] do
+                present = present or projection[index] == 'starred'
+            end
+            if not present then
+                local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+                local columns = arrayClass:newInstance(luajava.bindClass('java.lang.String'), projection['length'] + 1)
+                for index = 1, projection['length'] do
+                    columns[index] = projection[index]
+                end
+                columns[projection['length'] + 1] = 'starred'
+                param:setArgument(1, columns)
+                added = true
+            end
+        end
         return false
     end
 
@@ -174,6 +207,30 @@ function gservices(param, cursor)
     return true
 end
 
+-- The rows of the suggestions which are (not) starred, without the column before added
+function starredrows(param, cursor, starred)
+    local names = cursor:getColumnNames()
+    local count = names['length'] - (added and 1 or 0)
+    local columns = luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('java.lang.String'), count)
+    for index = 1, count do
+        columns[index] = names[index]
+    end
+    local fake = luajava.newInstance('android.database.MatrixCursor', columns)
+    local column = cursor:getColumnIndex('starred')
+    while cursor:moveToNext() do
+        if cursor:getString(column) == starred then
+            local row = fake:newRow()
+            for index = 0, count - 1 do
+                row:add(cursor:getString(index))
+            end
+        end
+    end
+    added = false
+    cursor:close()
+    param:setResult(fake)
+    return true
+end
+
 function after(hook, param)
     local uri = param:getArgument(0)
     local cursor = param:getResult()
@@ -212,7 +269,11 @@ function after(hook, param)
             if uri:getPath() == nil or prefixof(uri) == 'provider_status' then
                 return false
             end
-            if starredof(name, uri, param) ~= nil then
+            local starred = starredof(name, uri, param)
+            if starred ~= nil then
+                if suggestions(uri) then
+                    return starredrows(param, cursor, starred)
+                end
                 return true
             end
         end
