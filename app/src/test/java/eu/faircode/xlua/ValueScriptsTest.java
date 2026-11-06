@@ -26,6 +26,8 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -166,16 +168,29 @@ public class ValueScriptsTest {
         check(globals, "return after_(nil, paramof('+3161234'))", true, true, "+3100000");
     }
 
-    // The Widevine ids become zeros of the same length, other properties stay
+    // The Widevine ids come from the fake Android ID, of the same length, zeros without one; other properties stay
     @Test
-    public void drmIdsAreZeroed() throws Exception {
+    public void drmIdsFollowAndroidId() throws Exception {
         Globals globals = load("mediadrm_unique_id");
         for (String property : new String[]{"deviceUniqueId", "provisioningUniqueId"}) {
-            globals.set("id", CoerceJavaToLua.coerce(new byte[]{1, 2, 3}));
+            globals.set("id", CoerceJavaToLua.coerce(new byte[32]));
             Varargs result = Scripts.run(globals, "return after_(nil, paramof(id, { [0] = '" + property + "' }))");
             assertTrue(property, result.arg1().toboolean());
-            assertArrayEquals(property, new byte[3], (byte[]) result.arg(3).checkuserdata());
+            assertArrayEquals(property, new byte[32], (byte[]) result.arg(3).checkuserdata());
+
+            for (String seed : new String[]{"44aa15730b248663", "0123456789abcdef"}) {
+                Scripts.run(globals, "settings['value.android_id'] = '" + seed + "'");
+                result = Scripts.run(globals, "return after_(nil, paramof(id, { [0] = '" + property + "' }))");
+                assertTrue(property, result.arg1().toboolean());
+                assertArrayEquals(property, MessageDigest.getInstance("SHA-256").digest((seed + property).getBytes(StandardCharsets.UTF_8)),
+                        (byte[]) result.arg(3).checkuserdata());
+            }
+            Scripts.run(globals, "settings['value.android_id'] = nil");
         }
+        Scripts.run(globals, "settings['value.android_id'] = 'abc'");
+        globals.set("id", CoerceJavaToLua.coerce(new byte[]{1, 2, 3}));
+        assertEquals(3, ((byte[]) Scripts.run(globals, "return after_(nil, paramof(id, { [0] = 'deviceUniqueId' }))")
+                .arg(3).checkuserdata()).length);
         globals.set("id", CoerceJavaToLua.coerce(new byte[]{1, 2, 3}));
         assertFalse(Scripts.run(globals, "return after_(nil, paramof(id, { [0] = 'vendor' }))").arg1().toboolean());
         globals.set("id", CoerceJavaToLua.coerce(new byte[0]));

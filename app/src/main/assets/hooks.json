@@ -5137,6 +5137,9 @@
     ],
     "returnType": "byte[]",
     "minSdk": 27,
+    "settings": [
+      "value.android_id"
+    ],
     "luaScript": "@mediadrm_unique_id"
   },
   {

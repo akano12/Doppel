@@ -30,10 +30,19 @@ function after(hook, param)
         return false
     end
 
-    local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-    local byteClass = luajava.bindClass('java.lang.Byte')
-    local rawByteType = byteClass.TYPE
-    local fake = arrayClass:newInstance(rawByteType, result.length)
-    param:setResult(fake)
+    -- From the fake Android ID, so it is per app and changes with it (see Fake values): a constant, like zeros,
+    -- would be one id which never changes, and libraries use this id when there is no GSF id
+    local seed = param:getSetting('value.android_id')
+    if seed == nil then
+        -- Only if the boot values could not be read
+        local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+        local byteClass = luajava.bindClass('java.lang.Byte')
+        param:setResult(arrayClass:newInstance(byteClass.TYPE, result.length))
+        return true
+    end
+
+    local digest = luajava.bindClass('java.security.MessageDigest'):getInstance('SHA-256')
+    local arrays = luajava.bindClass('java.util.Arrays')
+    param:setResult(arrays:copyOf(digest:digest(seed .. propertyString), result.length))
     return true
 end
