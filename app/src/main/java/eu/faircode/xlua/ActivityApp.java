@@ -165,9 +165,7 @@ public class ActivityApp extends ActivityBase {
         toolbar.inflateMenu(R.menu.app);
         toolbar.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
-            if (id == R.id.menu_launch)
-                Ui.launch(this, packageName, getLabel());
-            else if (id == R.id.menu_log)
+            if (id == R.id.menu_log)
                 startActivity(ActivityLog.getIntent(this, packageName, uid, getLabel()));
             else if (id == R.id.menu_app_info)
                 startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -175,6 +173,7 @@ public class ActivityApp extends ActivityBase {
             return true;
         });
 
+        findViewById(R.id.ibLaunch).setOnClickListener(view -> Ui.launch(this, packageName, getLabel()));
         svContent = findViewById(R.id.svContent);
         toolbarSummary = new ToolbarSummary(toolbar, svContent, findViewById(R.id.cvApp));
         pbLoading = findViewById(R.id.pbLoading);
@@ -301,7 +300,7 @@ public class ActivityApp extends ActivityBase {
 
         if (!searching)
             toolbar.setTitle(getLabel());
-        toolbar.getMenu().findItem(R.id.menu_launch).setVisible(launchable);
+        findViewById(R.id.ibLaunch).setVisibility(launchable ? View.VISIBLE : View.GONE);
 
         Ui.loadIcon(findViewById(R.id.ivIcon), app.packageName, app.icon);
         ((TextView) findViewById(R.id.tvPackage)).setText(app.packageName);

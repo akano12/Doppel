@@ -21,6 +21,16 @@
             android:contentDescription="@string/menu_search"
             android:src="@drawable/ic_search" />
 
+        <ImageButton
+            android:id="@+id/ibLaunch"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="end"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/menu_launch"
+            android:src="@drawable/ic_open"
+            android:visibility="gone" />
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilSearch"
             style="@style/XLua.Search"
