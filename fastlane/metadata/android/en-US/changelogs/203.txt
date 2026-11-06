@@ -1,0 +1,11 @@
+* Android 17 support
+* New group Read languages; turn it on for an app to use it
+* Device fingerprints: codecs, GPU, fonts, processors, memory
+* Commands of restricted apps are refused, not rewritten
+* OAID and other ids of device makers
+* Fake boot time removed: it broke times in apps
+* Lua scripts lose io, coroutine and package
+* Search on the screen of an app
+* Errors of the service now show; Retry where loading fails
+* Many crash and leak fixes
+* Reboot after updating
