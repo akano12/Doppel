@@ -36,6 +36,8 @@ import io.github.libxposed.service.XposedProvider;
 public class ScopeProvider extends ContentProvider {
     private static final String TAG = "XLua.ScopeProvider";
 
+    private static final int ROOT_UID = 0; // Process.ROOT_UID is there from Android 10
+
     // Hands the service to the library, which does not use its context for a call
     private final XposedProvider library = new XposedProvider();
 
@@ -47,11 +49,16 @@ public class ScopeProvider extends ContentProvider {
     @Override
     public Bundle call(String method, String arg, Bundle extras) {
         int uid = Binder.getCallingUid();
-        if (uid != Process.ROOT_UID && uid != Process.SYSTEM_UID) {
+        if (!accepts(uid)) {
             Log.w(TAG, "Refused " + method + " of uid " + uid);
             return null;
         }
         return library.call(method, arg, extras);
+    }
+
+    // Whether a uid can deliver the service of the framework, see ScopeProviderTest
+    static boolean accepts(int uid) {
+        return (uid == ROOT_UID || uid == Process.SYSTEM_UID);
     }
 
     @Override

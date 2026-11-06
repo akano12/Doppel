@@ -425,8 +425,9 @@ public class FragmentSettings extends FragmentBase {
             post(() -> {
                 StringBuilder question = new StringBuilder(getString(R.string.msg_restore_sure));
                 if (!preview.replaced.isEmpty())
-                    question.append("\n\n").append(getString(R.string.msg_import_replaces,
-                            "\n• " + TextUtils.join("\n• ", preview.replaced)));
+                    question.append("\n\n").append(getString(R.string.msg_import_replaces, Ui.bullets(preview.replaced)));
+                if (!preview.added.isEmpty())
+                    question.append("\n\n").append(getString(R.string.msg_restore_scripts, Ui.bullets(preview.added)));
                 if (preview.android)
                     question.append("\n\n").append(getString(R.string.msg_restore_android));
                 Ui.areYouSure(requireContext(), question, R.string.title_restore, () -> restore(uri));

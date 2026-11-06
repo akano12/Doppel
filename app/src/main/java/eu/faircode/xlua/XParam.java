@@ -20,6 +20,7 @@
 
 package eu.faircode.xlua;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
@@ -52,6 +53,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 public class XParam {
     private static final String TAG = "XLua.XParam";
@@ -339,6 +341,7 @@ public class XParam {
     }
 
     // Android 17 refuses reflection on static final fields for apps targeting it, their memory stays writable
+    @SuppressLint("DiscouragedPrivateApi")
     static void setFinalField(Field field, Object value) throws Exception {
         // Initializing the class later would overwrite the value
         field.get(null);
@@ -377,16 +380,24 @@ public class XParam {
         }
     }
 
+    // See plainPath, compiled once: the filters of several hooks run it for one call of the app, before and after it
+    private static final Pattern DOT_FOLDERS = Pattern.compile("/(\\./)+");
+    private static final Pattern DOUBLE_SLASHES = Pattern.compile("//+");
+    private static final Pattern DOT_AT_END = Pattern.compile("/\\.$");
+    private static final Pattern LINK_TO_ROOT = Pattern.compile("^/proc/[\\w-]+/(task/\\d+/)?(root|cwd)/");
+
     // An absolute path without // and /./, also at the end, and without a link of /proc to the root, also of the working
     // directory, which is the root for apps, like the file system reads it, see isPath and the filters of XCore; the
     // path itself without any of them, checked first, since the filters run for every call
     static String plainPath(String path) {
         if (!path.contains("/.") && !path.contains("//") && !path.contains("/root/") && !path.contains("/cwd/"))
             return path;
-        String plain = path.replaceAll("/(\\./)+", "/").replaceAll("//+", "/").replaceFirst("/\\.$", "");
+        String plain = DOT_FOLDERS.matcher(path).replaceAll("/");
+        plain = DOUBLE_SLASHES.matcher(plain).replaceAll("/");
+        plain = DOT_AT_END.matcher(plain).replaceFirst("");
         // Also the link of a thread (/proc/self/task/123/root/) and links after each other, which lead to the root too
         for (String rooted = null; !plain.equals(rooted); )
-            plain = (rooted = plain).replaceFirst("^/proc/[\\w-]+/(task/\\d+/)?(root|cwd)/", "/");
+            plain = LINK_TO_ROOT.matcher(rooted = plain).replaceFirst("/");
         return (plain.isEmpty() ? "/" : plain);
     }
 

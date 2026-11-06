@@ -19,6 +19,7 @@
 
 package eu.faircode.xlua;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.Test;
 
@@ -105,12 +106,30 @@ public class BackupTest {
                 "{\"collection\": \"Custom\", \"name\": \"Build.MODEL\"}, 1]," +
                 "\"restrictions\": [{\"package\": \"com.example\"}, {\"package\": \"android\"}, 2]}"), builtins);
         assertEquals(Collections.singletonList(PREFIX + "Build.MODEL"), preview.replaced);
+        // A definition with a new id can run its script in the apps the backup restricts with it
+        assertEquals(Collections.singletonList("Custom.Build.MODEL"), preview.added);
         assertTrue(preview.android);
 
         preview = Backup.preview(new JSONObject("{\"restrictions\": [{\"package\": \"com.example\"}]}"), builtins);
         assertTrue(preview.replaced.isEmpty());
+        assertTrue(preview.added.isEmpty());
         assertFalse(preview.android);
         assertTrue(Backup.preview(new JSONObject("{}"), builtins).replaced.isEmpty());
+    }
+
+    // An import asks about a custom definition it would replace, also one which replaces a built-in definition itself
+    @Test
+    public void previewOfAnImportNamesTheCustomDefinitionsItReplaces() throws Exception {
+        Set<String> builtins = new HashSet<>(Arrays.asList(PREFIX + "Build.MODEL", PREFIX + "Build.BRAND"));
+        Set<String> custom = new HashSet<>(Arrays.asList(PREFIX + "Build.BRAND", "Custom.mine"));
+        Backup.Preview preview = Backup.preview(new JSONArray("[" +
+                "{\"collection\": \"" + Util.COLLECTION_DEFAULT + "\", \"name\": \"Build.MODEL\"}," +
+                "{\"collection\": \"" + Util.COLLECTION_DEFAULT + "\", \"name\": \"Build.BRAND\"}," +
+                "{\"collection\": \"Custom\", \"name\": \"mine\"}," +
+                "{\"collection\": \"Custom\", \"name\": \"new\"}]"), builtins, custom);
+        assertEquals(Collections.singletonList(PREFIX + "Build.MODEL"), preview.replaced);
+        assertEquals(Arrays.asList(PREFIX + "Build.BRAND", "Custom.mine"), preview.existing);
+        assertEquals(Collections.singletonList("Custom.new"), preview.added);
     }
 
     // Unit tests run with an SDK version of 0, see the android.jar stubs, so the definitions are for all versions

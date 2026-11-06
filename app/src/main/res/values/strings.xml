@@ -142,6 +142,7 @@
     <string name="title_restore_stopped">Stopped to apply the restrictions: %1$s</string>
     <string name="title_restore_reboot">Restart the device to apply the restrictions of: %1$s</string>
     <string name="msg_restore_sure">Restore settings, custom definitions and restrictions from this backup? Existing values with the same names are replaced.</string>
+    <string name="msg_restore_scripts">These definitions come with scripts, which run inside the apps they restrict, with the rights of those apps. Restore only backups you trust.%1$s</string>
     <string name="msg_restore_android">This backup restricts Android itself, which can cause a bootloop.</string>
     <string name="msg_error">Error: %1$s</string>
 
@@ -395,6 +396,7 @@
     <string name="title_no_custom_hooks">No custom definitions</string>
     <string name="msg_no_hooks_file">This file has no hook definitions</string>
     <string name="msg_import_replaces">These definitions replace built-in definitions in all apps which have them, with their own scripts. Removing them restores the built-in ones.%1$s</string>
+    <string name="msg_import_existing">These definitions exist already. Importing replaces them, with their scripts.%1$s</string>
     <string name="title_restore_replaced">Built-in definitions replaced by custom ones: %1$s</string>
     <string name="msg_import_backup">This file is a backup, restore it in Settings</string>
     <!-- The quantity is the number of groups -->

@@ -29,6 +29,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.text.Editable;
 import android.text.Html;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.text.format.DateUtils;
 import android.text.method.LinkMovementMethod;
@@ -62,6 +63,7 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -395,6 +397,11 @@ final class Ui {
                 if (ids[i] == checkedIds.get(0))
                     listener.accept(values[i]);
         });
+    }
+
+    // Names below a question, each on a line of its own
+    static String bullets(List<String> names) {
+        return "\n• " + TextUtils.join("\n• ", names);
     }
 
     // The button names the action, like Delete, so an action which cannot be undone is not confirmed with OK

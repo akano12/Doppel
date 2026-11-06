@@ -30,6 +30,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -62,9 +63,11 @@ class Backup {
         }
     }
 
-    // What to ask before a restore, see preview
+    // What to ask before a restore or an import, see preview
     static class Preview {
         final List<String> replaced = new ArrayList<>(); // Built-in definitions which custom ones would replace
+        final List<String> existing = new ArrayList<>(); // Custom definitions which others would replace
+        final List<String> added = new ArrayList<>(); // Definitions which replace none of these
         boolean android; // Restrictions of system server
     }
 
@@ -147,27 +150,38 @@ class Backup {
 
     // What a backup does beyond setting values, which is asked before a restore, since a backup can come from someone
     // else: a definition with the id of a built-in one runs its script in all apps with that hook, like an import,
+    // the other definitions run theirs in the apps restricted with them,
     // and restrictions of android apply to all of system server, like restricting it by hand
     static Preview preview(Context context, Uri uri) throws Throwable {
         return preview(read(context, uri), Data.getBuiltinIds(context));
     }
 
     static Preview preview(JSONObject jroot, Set<String> builtins) {
-        Preview preview = new Preview();
-        JSONArray jhooks = jroot.optJSONArray("hooks");
-        for (int i = 0; jhooks != null && i < jhooks.length(); i++) {
-            JSONObject jhook = jhooks.optJSONObject(i);
-            if (jhook == null)
-                continue;
-            String id = XHook.id(jhook.optString("collection"), jhook.optString("name"));
-            if (builtins.contains(id))
-                preview.replaced.add(id);
-        }
+        Preview preview = preview(jroot.optJSONArray("hooks"), builtins, Collections.emptySet());
         JSONArray jrestrictions = jroot.optJSONArray("restrictions");
         for (int i = 0; jrestrictions != null && i < jrestrictions.length(); i++) {
             JSONObject jrestriction = jrestrictions.optJSONObject(i);
             if (jrestriction != null && "android".equals(jrestriction.optString("package")))
                 preview.android = true;
+        }
+        return preview;
+    }
+
+    // What the definitions of a backup or an imported file replace, a custom definition, also of a built-in one, first:
+    // it is gone with its script, which an import asks about, see FragmentHooks.importHooks
+    static Preview preview(JSONArray jhooks, Set<String> builtins, Set<String> custom) {
+        Preview preview = new Preview();
+        for (int i = 0; jhooks != null && i < jhooks.length(); i++) {
+            JSONObject jhook = jhooks.optJSONObject(i);
+            if (jhook == null)
+                continue;
+            String id = XHook.id(jhook.optString("collection"), jhook.optString("name"));
+            if (custom.contains(id))
+                preview.existing.add(id);
+            else if (builtins.contains(id))
+                preview.replaced.add(id);
+            else
+                preview.added.add(id);
         }
         return preview;
     }

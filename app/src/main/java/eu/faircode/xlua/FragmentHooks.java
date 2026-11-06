@@ -364,21 +364,25 @@ public class FragmentHooks extends FragmentBase {
                     return;
                 }
             }
-            // A definition with the id of a built-in one replaces it in all apps, which Downloads tells too
-            Set<String> builtins = Data.getBuiltinIds(context);
-            List<String> replaced = new ArrayList<>();
-            for (int i = 0; i < jarray.length(); i++) {
-                JSONObject jhook = jarray.getJSONObject(i);
-                String id = XHook.id(jhook.getString("collection"), jhook.getString("name"));
-                if (builtins.contains(id))
-                    replaced.add(id);
-            }
-            if (replaced.isEmpty())
+            // A definition with the id of a built-in one replaces it in all apps, which Downloads tells too,
+            // and one with the id of a custom one replaces its script, which the editor asks about too
+            Set<String> custom = new HashSet<>();
+            for (XHook hook : Data.getAllHooks(context, null))
+                if (!hook.isBuiltin())
+                    custom.add(hook.getId());
+            Backup.Preview preview = Backup.preview(jarray, Data.getBuiltinIds(context), custom);
+            if (preview.replaced.isEmpty() && preview.existing.isEmpty())
                 putImported(activity, jarray);
             else
-                post(() -> Ui.areYouSure(activity,
-                        getString(R.string.msg_import_replaces, "\n• " + TextUtils.join("\n• ", replaced)),
-                        R.string.menu_import, () -> run(TAG, () -> putImported(activity, jarray))));
+                post(() -> {
+                    List<String> questions = new ArrayList<>();
+                    if (!preview.replaced.isEmpty())
+                        questions.add(getString(R.string.msg_import_replaces, Ui.bullets(preview.replaced)));
+                    if (!preview.existing.isEmpty())
+                        questions.add(getString(R.string.msg_import_existing, Ui.bullets(preview.existing)));
+                    Ui.areYouSure(activity, TextUtils.join("\n\n", questions),
+                            R.string.menu_import, () -> run(TAG, () -> putImported(activity, jarray)));
+                });
         });
     }
 

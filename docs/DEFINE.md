@@ -62,7 +62,8 @@ An exported definition in [JSON](https://en.wikipedia.org/wiki/JSON) format look
 Note that you can conveniently edit hook definitions in Doppel (*Hooks* tab), so there is no need to edit JSON files.
 Definitions can be imported from and exported to JSON files there too.
 A script can call any Java code with the rights of the app it runs in, and of the system for *Android* (system server),
-so import definitions from people you trust only.
+so import definitions from people you trust only. An import asks before it replaces a definition,
+and a restore names the definitions of the backup first.
 
 <br>
 
