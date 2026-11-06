@@ -812,7 +812,6 @@ class XProvider {
 
             // Assigned hooks, of the one package only, which the index finds without reading all rows of the user
             String[] range = getUidRange(userid);
-            Map<String, Integer> errors = new HashMap<>();
             try (Cursor cursor = d.query("assignment",
                     new String[]{"package", "uid", "hook", "installed", "used", "restricted", "exception", "assigned"},
                     only == null ? WHERE_USER : WHERE_USER + " AND package = ?",
@@ -829,11 +828,7 @@ class XProvider {
                         assignment.installed = cursor.getLong(3);
                         assignment.used = cursor.getLong(4);
                         assignment.restricted = (cursor.getInt(5) == 1);
-                        String exception = cursor.getString(6);
-                        if (exception != null) {
-                            assignment.exception = limitError(exception, errors.getOrDefault(pkg, 0));
-                            errors.merge(pkg, assignment.exception.length(), Integer::sum);
-                        }
+                        assignment.exception = cursor.getString(6);
                         assignment.assigned = (cursor.isNull(7) ? -1 : cursor.getLong(7));
                         app.assignments.add(assignment);
                     } else if (hook == null && BuildConfig.DEBUG)
@@ -1127,17 +1122,6 @@ class XProvider {
     // Any app can report for itself, so the text stored in the database of system server is limited
     private static final int MAX_EXCEPTION = 16384;
     private static final int MAX_VALUE = 1024;
-
-    // All hooks of an app can fail at once, and an app is one row of getApps, which does not arrive when it is larger
-    // than the window of a cursor, 2 MB of characters of 2 bytes, so the list of all apps fails; errors past this number
-    // of characters of an app are cut to their start, see XProviderTest
-    private static final int MAX_APP_ERRORS = 500000;
-    private static final int MAX_CUT_ERROR = 128;
-
-    // An error of an app, of which the errors shown before it have this length
-    static String limitError(String exception, int before) {
-        return limit(exception, before + exception.length() <= MAX_APP_ERRORS ? exception.length() : MAX_CUT_ERROR);
-    }
 
     private static String limit(String text, int length) {
         return (text == null || text.length() <= length ? text : text.substring(0, length) + "…");

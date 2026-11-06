@@ -33,25 +33,6 @@ import static org.junit.Assert.assertTrue;
 
 // What hooked apps may ask the service without the permission of the app, see XProvider.APP_CALLS
 public class XProviderTest {
-    // An app is one row of the list of all apps; measured on Android 16: 1,020,000 characters of errors in a row, of
-    // 2 bytes each, did not arrive and emptied the list, 900,000 did. Here all hooks of an app failed with the longest
-    // error which is stored, more hooks than there are
-    @Test
-    public void errorsOfAnAppFitTheWindowOfACursor() {
-        String error = "x".repeat(16384);
-        assertEquals(error, XProvider.limitError(error, 0));
-
-        int length = 0;
-        for (int i = 0; i < 2000; i++)
-            length += XProvider.limitError(error, length).length();
-        assertTrue("length=" + length, length < 900000);
-
-        // The start of a cut error, which tells what failed
-        String cut = XProvider.limitError(error, length);
-        assertTrue(cut.length() < 200);
-        assertTrue(cut.startsWith("xxx"));
-    }
-
     // A method added here can give any hooked app the data of other apps, like getAllSettings the fake values
     // set for each app: it must check the caller itself, like the ones listed do
     @Test
