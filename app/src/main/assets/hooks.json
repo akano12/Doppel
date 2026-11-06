@@ -5568,6 +5568,7 @@
     "returnType": "byte[]",
     "minSdk": 27,
     "settings": [
+      "value.drm_id",
       "value.android_id"
     ],
     "luaScript": "@mediadrm_unique_id"
@@ -8122,7 +8123,64 @@
     "optional": true,
     "luaScript": "@generic_block"
   },
-  // logPurchase is not hooked to prevent trouble with purchases
+  // logPurchase only logs the event: the purchase itself is of the app and its payment library
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AppEventsLogger.logPurchase",
+    "author": "akano12",
+    "className": "com.facebook.appevents.AppEventsLogger",
+    "methodName": "logPurchase",
+    "parameterTypes": [
+      "java.math.BigDecimal",
+      "java.util.Currency"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AppEventsLogger.logPurchase/parameters",
+    "author": "akano12",
+    "className": "com.facebook.appevents.AppEventsLogger",
+    "methodName": "logPurchase",
+    "parameterTypes": [
+      "java.math.BigDecimal",
+      "java.util.Currency",
+      "android.os.Bundle"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AppEventsLogger.logProductItem",
+    "author": "akano12",
+    "className": "com.facebook.appevents.AppEventsLogger",
+    "methodName": "logProductItem",
+    "parameterTypes": [
+      "java.lang.String",
+      "com.facebook.appevents.AppEventsLogger$ProductAvailability",
+      "com.facebook.appevents.AppEventsLogger$ProductCondition",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "java.math.BigDecimal",
+      "java.util.Currency",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Analytics",

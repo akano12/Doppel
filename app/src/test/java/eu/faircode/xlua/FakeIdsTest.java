@@ -30,6 +30,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 // The fake identifiers which are fixed or new each boot, see FakeIds
@@ -101,6 +102,26 @@ public class FakeIdsTest {
     }
 
     // Only the identifiers new each boot get a value, of the app or the same for all apps
+    // The seed of the DRM id is not shown in Fake values and follows the mode of the Android ID; of a fixed one there is none
+    @Test
+    public void drmSeedFollowsTheAndroidId() {
+        Map<String, String> none = new HashMap<>();
+        String one = FakeIds.getBootValues(SECRET, 0, "com.example", none, none).get(FakeIds.DRM_ID);
+        assertNotNull(one);
+        assertNotEquals(one, FakeIds.getBootValues(SECRET, 0, "com.other", none, none).get(FakeIds.DRM_ID));
+        assertNotEquals(one, FakeIds.getBootValues(SECRET, 0, "com.example", none, none).get(FakeIds.ANDROID_ID));
+        assertFalse(FakeIds.isId(FakeIds.DRM_ID));
+
+        Map<String, String> all = new HashMap<>();
+        all.put(FakeIds.ANDROID_ID + FakeIds.MODE, FakeIds.BOOT_ALL);
+        assertEquals(FakeIds.getBootValues(SECRET, 0, "com.example", all, none).get(FakeIds.DRM_ID),
+                FakeIds.getBootValues(SECRET, 0, "com.other", all, none).get(FakeIds.DRM_ID));
+
+        Map<String, String> fixed = new HashMap<>();
+        fixed.put(FakeIds.ANDROID_ID + FakeIds.MODE, FakeIds.FIXED);
+        assertNull(FakeIds.getBootValues(SECRET, 0, "com.example", fixed, none).get(FakeIds.DRM_ID));
+    }
+
     @Test
     public void bootValues() {
         Map<String, String> global = new HashMap<>();

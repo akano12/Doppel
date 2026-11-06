@@ -38,6 +38,8 @@ final class FakeIds {
     static final String IMEI = "value.imei";
     static final String MEID = "value.meid";
     static final String[] KEYS = {SERIAL, ANDROID_ID, IMEI, MEID};
+    // Of the service only, not in Fake values: the seed of the fake DRM id, which follows the mode of the Android ID
+    static final String DRM_ID = "value.drm_id";
 
     // The setting of the mode of a value is its name with this suffix
     static final String MODE = ".mode";
@@ -119,6 +121,9 @@ final class FakeIds {
             else if (BOOT_ALL.equals(mode))
                 result.put(key, derive(secret, userid, null, key));
         }
+        String mode = getMode(ANDROID_ID, global, app);
+        if (!FIXED.equals(mode))
+            result.put(DRM_ID, derive(secret, userid, BOOT.equals(mode) ? packageName : null, DRM_ID));
         return result;
     }
 
@@ -142,6 +147,8 @@ final class FakeIds {
                 return randomString(random, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 12);
             case ANDROID_ID:
                 return randomString(random, "0123456789abcdef", 16);
+            case DRM_ID:
+                return randomString(random, "0123456789abcdef", 32);
             case IMEI:
                 // 14 digits and a Luhn check digit
                 String digits = randomString(random, "0123456789", 14);

@@ -187,6 +187,13 @@ public class ValueScriptsTest {
             }
             Scripts.run(globals, "settings['value.android_id'] = nil");
         }
+        // The value of the service goes before the Android ID, of which an app could compute the id
+        Scripts.run(globals, "settings['value.android_id'] = 'public'; settings['value.drm_id'] = 'secret'");
+        globals.set("id", CoerceJavaToLua.coerce(new byte[32]));
+        assertArrayEquals(MessageDigest.getInstance("SHA-256").digest("secretdeviceUniqueId".getBytes(StandardCharsets.UTF_8)),
+                (byte[]) Scripts.run(globals, "return after_(nil, paramof(id, { [0] = 'deviceUniqueId' }))")
+                        .arg(3).checkuserdata());
+        Scripts.run(globals, "settings['value.drm_id'] = nil");
         Scripts.run(globals, "settings['value.android_id'] = 'abc'");
         globals.set("id", CoerceJavaToLua.coerce(new byte[]{1, 2, 3}));
         assertEquals(3, ((byte[]) Scripts.run(globals, "return after_(nil, paramof(id, { [0] = 'deviceUniqueId' }))")

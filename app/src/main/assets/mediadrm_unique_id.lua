@@ -30,9 +30,10 @@ function after(hook, param)
         return false
     end
 
-    -- From the fake Android ID, so it is per app and changes with it (see Fake values): a constant, like zeros,
-    -- would be one id which never changes, and libraries use this id when there is no GSF id
-    local seed = param:getSetting('value.android_id')
+    -- A value of the service like the fake Android ID, per app and new each boot like it (see FakeIds): a constant, like
+    -- zeros, would be one id which never changes, and libraries use this id when there is no GSF id; made of the Android
+    -- ID an app could compute the id and tell it is fake. A fixed Android ID has no such value, so the id is made of it.
+    local seed = param:getSetting('value.drm_id') or param:getSetting('value.android_id')
     if seed == nil then
         -- Only if the boot values could not be read
         local arrayClass = luajava.bindClass('java.lang.reflect.Array')

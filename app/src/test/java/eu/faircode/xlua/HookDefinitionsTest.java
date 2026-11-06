@@ -909,6 +909,9 @@ public class HookDefinitionsTest {
                 "@generic_true_value 27- optional");
         check("FirebaseCrashlytics.sendUnsentReports", "com.google.firebase.crashlytics.FirebaseCrashlytics " +
                 "sendUnsentReports() @generic_block 27- optional");
+        check("AppEventsLogger.logPurchase", "com.facebook.appevents.AppEventsLogger logPurchase(" +
+                "java.math.BigDecimal,java.util.Currency) @generic_block 27- optional");
+        assertEquals("@generic_block", hook("AppEventsLogger.logProductItem").optString("luaScript"));
         assertNull(hook("Aps.setConsentStatus"));
     }
 
