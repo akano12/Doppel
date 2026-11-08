@@ -19,9 +19,9 @@
 -- of its maker, like com.google.android.feature.* or com.samsung.feature.*) tell its model. Apps get none:
 -- hasSystemFeature answers false and getSystemAvailableFeatures lists only the OpenGL ES version, which has
 -- no name, except the features of setting features.keep (comma separated; a name ending in * matches the
--- features starting with it, like android.hardware.camera*), for apps which need a feature to offer something,
--- like the camera. The framework, which checks features itself in the process of the app, gets the real answer
--- (see calledbyframework).
+-- features starting with it, like android.hardware.nfc*), for apps which need a feature to offer something,
+-- and the features of hardware another group hides (see OWNED). The framework, which checks features itself
+-- in the process of the app, gets the real answer (see calledbyframework).
 -- The shared libraries of the system carry vendor names too, like com.google.android.dialer.support;
 -- the libraries of the Android platform and the ones of Google on every device stay. Libraries of apps
 -- (static and SDK libraries) stay too, apps use them, in the list of names as well as in the list
@@ -34,13 +34,28 @@ local GOOGLE = { ['com.google.android.maps'] = true, ['com.google.android.media.
 local TYPE_BUILTIN = 0
 local TYPE_DYNAMIC = 1
 
--- Whether a feature is one of setting features.keep; a name ending in * matches the features starting with it
-function kept(name, param)
-    local keep = param:getSetting('features.keep')
-    if keep == nil then
-        return false
+-- The features of hardware which the group hiding that hardware hides, with hooks of this script in its group;
+-- Read.Features leaves them, so an app which may use the camera finds one. The biometric ones are hidden by
+-- the hooks of biometrics, with the same names.
+local OWNED = {
+    ['Use.Camera'] = { 'android.hardware.camera*' },
+    ['Record.Audio'] = { 'android.hardware.microphone' },
+    ['Get.Sensors'] = { 'android.hardware.sensor.*' },
+    ['Read.Biometrics'] = { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
+                            'android.hardware.biometrics.iris' },
+}
+
+-- hasSystemFeature is called very often, so the hooks of the groups of OWNED run for their features only
+function filter(hook)
+    if hook:getMethodName() == 'hasSystemFeature' then
+        return OWNED[hook:getGroup()]
     end
-    for feature in string.gmatch(keep, '[^,%s]+') do
+    return nil
+end
+
+-- Whether a feature is one of the names; a name ending in * matches the features starting with it
+function matches(name, names)
+    for _, feature in ipairs(names) do
         if string.sub(feature, -1) == '*' then
             local prefix = string.sub(feature, 1, -2)
             if string.sub(name, 1, string.len(prefix)) == prefix then
@@ -51,6 +66,36 @@ function kept(name, param)
         end
     end
     return false
+end
+
+-- Whether a feature is one of setting features.keep (comma separated)
+function kept(name, param)
+    local keep = param:getSetting('features.keep')
+    if keep == nil then
+        return false
+    end
+    local names = {}
+    for feature in string.gmatch(keep, '[^,%s]+') do
+        names[#names + 1] = feature
+    end
+    return matches(name, names)
+end
+
+-- Whether the group of the hook hides a feature: a group of OWNED its own features, Read.Features the others
+-- but the kept ones; the OpenGL ES version has no name
+function hides(group, name, param)
+    if name == nil then
+        return false
+    end
+    if OWNED[group] ~= nil then
+        return matches(name, OWNED[group])
+    end
+    for _, names in pairs(OWNED) do
+        if matches(name, names) then
+            return false
+        end
+    end
+    return not kept(name, param)
 end
 
 -- The classes on the stack, which tell the calls of the framework from the ones of the app
@@ -97,12 +142,9 @@ function calledbyframework(method)
     return (caller ~= nil and framework(caller))
 end
 
--- Whether a feature is hidden from the app: all but the kept ones; the OpenGL ES version has no name
-function hidden(name, param, method)
-    if name == nil or kept(name, param) then
-        return false
-    end
-    return not calledbyframework(method)
+-- Whether a feature is hidden from the app, see hides
+function hidden(group, name, param, method)
+    return hides(group, name, param) and not calledbyframework(method)
 end
 
 -- Whether a shared library of the system is not part of the Android platform
@@ -186,7 +228,7 @@ function after(hook, param)
 
     if method == 'hasSystemFeature' then
         local name = param:getArgument(0)
-        if result and hidden(name, param, method) then
+        if result and hidden(hook:getGroup(), name, param, method) then
             param:setResult(false)
             return true, name, 'false'
         end
@@ -201,7 +243,7 @@ function after(hook, param)
     local shown = luajava.newInstance('java.util.ArrayList')
     for index = 1, result['length'] do
         local name = result[index].name
-        if name == nil or kept(name, param) then
+        if not hides(hook:getGroup(), name, param) then
             shown:add(result[index])
         end
     end

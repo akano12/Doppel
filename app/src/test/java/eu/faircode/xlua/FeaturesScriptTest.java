@@ -31,7 +31,7 @@ import static org.junit.Assert.assertTrue;
 public class FeaturesScriptTest {
     private static final String STUBS = String.join("\n",
             "function hookof(method)",
-            "  return { getMethodName = function(self) return method end }",
+            "  return { getMethodName = function(self) return method end, getGroup = function(self) return nil end }",
             "end",
             "walks = 0",
             "function callers()",

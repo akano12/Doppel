@@ -4565,6 +4565,48 @@
     "minSdk": 27,
     "luaScript": "@generic_zero_value"
   },
+  // The sensor features (android.hardware.sensor.*), which Read.Features leaves to this group, see features
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "PackageManager.hasSystemFeature/sensors",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "PackageManager.hasSystemFeature/version/sensors",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "PackageManager.getSystemAvailableFeatures/sensors",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSystemAvailableFeatures",
+    "parameterTypes": [],
+    "returnType": "android.content.pm.FeatureInfo[]",
+    "minSdk": 27,
+    "luaScript": "@features"
+  },
   // Read account
   // https://developer.android.com/reference/android/accounts/Account.html
   {
@@ -7591,6 +7633,48 @@
     "optional": true,
     "luaScript": "@speech_recognizer"
   },
+  // The microphone feature, which Read.Features leaves to this group, see features
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "PackageManager.hasSystemFeature/microphone",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "PackageManager.hasSystemFeature/version/microphone",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "PackageManager.getSystemAvailableFeatures/microphone",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSystemAvailableFeatures",
+    "parameterTypes": [],
+    "returnType": "android.content.pm.FeatureInfo[]",
+    "minSdk": 27,
+    "luaScript": "@features"
+  },
   // Record video
   // https://developer.android.com/reference/android/media/MediaRecorder.html
   {
@@ -9245,6 +9329,48 @@
     "returnType": "void",
     "minSdk": 27,
     "luaScript": "@mediarecorder_startstop"
+  },
+  // The camera features (android.hardware.camera*), which Read.Features leaves to this group, see features
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "PackageManager.hasSystemFeature/camera",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "PackageManager.hasSystemFeature/version/camera",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "hasSystemFeature",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "PackageManager.getSystemAvailableFeatures/camera",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSystemAvailableFeatures",
+    "parameterTypes": [],
+    "returnType": "android.content.pm.FeatureInfo[]",
+    "minSdk": 27,
+    "luaScript": "@features"
   },
   // Use tracking
   // https://developer.android.com/reference/android/os/Build.html
@@ -13370,6 +13496,7 @@
   // Read device features
   // https://developer.android.com/reference/android/content/pm/PackageManager#getSystemAvailableFeatures()
   // Hides all features but the ones of setting features.keep (comma separated, a name ending in * matches a prefix)
+  // and the ones of the camera, microphone, sensors and biometrics, which their groups hide (see features)
   {
     "collection": "Privacy",
     "group": "Read.Features",

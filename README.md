@@ -154,7 +154,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Get location**: fake location, no NMEA messages or raw GNSS measurements, and no location of photos and videos.
   Do not restrict it for camera, gallery and photo editing apps whose photos should keep their location: what such
   an app saves, like an edited copy, is saved without it
-* **Get sensors**: hide them
+* **Get sensors**: hide them, also as features of the device
 * **Read languages**: fake languages, *Languages* in *Fake values*, default en-US, also in system properties
   and the settings; no region of sale (Samsung, Xiaomi). The app keeps the language chosen for it and its
   texts; the language of its configuration stays real
@@ -184,7 +184,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   cannot be reached
 * **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
 * **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable; the files of su and Magisk do not exist
-* **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers; the feature and permission files of the system do not exist
+* **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers; the feature and permission files of the system do not exist. The features of the camera, microphone, sensors and biometric sensors are left to *Use camera*, *Record audio*, *Get sensors* and *Read biometric sensors*
 * **Read device settings**: the values of a new device, like the animation scale and the screen timeout
 * **Read memory and storage**: sizes rounded like devices are sold, free space rounded down, and the memory apps may
   use rounded down to a common step
@@ -198,8 +198,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Recording</b> · 3 groups</summary>
 
 * **Record audio**, **Record video**: prevent recording, also speech recognition; of the audio devices only the speaker
-  and the earpiece are left
-* **Use camera**: no camera
+  and the earpiece are left; *Record audio* also hides the microphone feature
+* **Use camera**: no camera, also not as a feature of the device
 
 </details>
 

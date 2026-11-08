@@ -796,6 +796,22 @@ public class PackageScriptsTest {
         assertTrue(packages.arg(2).toboolean());
     }
 
+    // A document picked from a provider with several authorities: the grant of one of them counts, nothing without one
+    @Test
+    public void pickedDocumentsOfAProviderWithAuthorities() throws Exception {
+        Globals globals = load("generic_filter_by_uid");
+        Varargs result = Scripts.run(globals,
+                "local grants = { { getUri = function(self) return { getAuthority = function(self) return 'com.example.docs.legacy' end } end } }\n" +
+                        "local param = { getApplicationContext = function(self) return { getContentResolver = function(self)\n" +
+                        "  return { getPersistedUriPermissions = function(self) return { size = function(self) return #grants end,\n" +
+                        "    get = function(self, index) return grants[index + 1] end } end } end } end }\n" +
+                        "return picked(param, 'com.example.docs;com.example.docs.legacy'), picked(param, 'com.example.docs'),\n" +
+                        "  picked(param, nil)");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+    }
+
     // A provider of a hidden app is not found, also for a user
     @Test
     public void providerForUser() throws Exception {

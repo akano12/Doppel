@@ -610,7 +610,11 @@ function after(hook, param)
     -- the provider hooks is the method of call (GET_secure, LIST_secure), the name of the setting for
     -- ContentProviderClient.call(method, arg, extras) or the projection of a query
     local key = param:getArgument(1)
-    local getter = (type(key) == 'string' and string.sub(key, 1, 4) ~= 'GET_' and string.sub(key, 1, 5) ~= 'LIST_')
+    -- ContentProviderClient.call(LIST_secure, arg, extras) lists all settings, whatever the argument
+    local method = param:getArgument(0)
+    local listing = (type(method) == 'string' and string.sub(method, 1, 5) == 'LIST_')
+    local getter = (not listing and type(key) == 'string' and string.sub(key, 1, 4) ~= 'GET_' and
+            string.sub(key, 1, 5) ~= 'LIST_')
     if getter and not hooked(key) then
         return false
     end

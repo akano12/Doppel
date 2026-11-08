@@ -31,10 +31,11 @@ import static org.junit.Assert.assertTrue;
 // memory and storage, input devices and biometrics) with Lua stand-ins, like LocationScriptTest
 public class DeviceValuesScriptTest {
     private static final String STUBS = String.join("\n",
-            "function hookof(name, method, class)",
+            "function hookof(name, method, class, group)",
             "  return { getName = function(self) return name end,",
             "    getMethodName = function(self) return method end,",
-            "    getClassName = function(self) return class end }",
+            "    getClassName = function(self) return class end,",
+            "    getGroup = function(self) return group end }",
             "end",
             "function paramof(result, arguments)",
             "  local param = { result = result }",
@@ -763,6 +764,67 @@ public class DeviceValuesScriptTest {
         result = Scripts.run(globals, String.format(list, "featureof('android.hardware.nfc'), featureof(nil)"));
         assertFalse(result.arg1().toboolean());
         assertEquals("android.hardware.nfc,nil", result.arg(2).tojstring());
+    }
+
+    // Whether features.lua restricts hasSystemFeature(name) of a hook in the group, with the feature there
+    private static boolean hasFeature(Globals globals, String group, String name) {
+        return Scripts.run(globals, "return run(hookof('PackageManager.hasSystemFeature', 'hasSystemFeature', nil, " + group +
+                "), featureparamof(true, '" + name + "', nil))").arg1().toboolean();
+    }
+
+    // The features of hardware are left to the group which hides the hardware, and the others stay hidden
+    @Test
+    public void featuresOfHardwareAreOwnedByTheirGroups() throws Exception {
+        Globals globals = load("features");
+        Scripts.run(globals, FEATURES);
+        for (String name : new String[]{"android.hardware.camera.front", "android.hardware.microphone",
+                "android.hardware.sensor.accelerometer", "android.hardware.fingerprint"})
+            assertFalse(name, hasFeature(globals, "nil", name));
+        assertTrue(hasFeature(globals, "nil", "android.hardware.wifi"));
+        assertTrue(hasFeature(globals, "'Use.Camera'", "android.hardware.camera.front"));
+        assertFalse(hasFeature(globals, "'Use.Camera'", "android.hardware.wifi"));
+        assertFalse(hasFeature(globals, "'Use.Camera'", "android.hardware.microphone"));
+        assertTrue(hasFeature(globals, "'Record.Audio'", "android.hardware.microphone"));
+        assertFalse(hasFeature(globals, "'Record.Audio'", "android.hardware.camera"));
+        assertTrue(hasFeature(globals, "'Get.Sensors'", "android.hardware.sensor.gyroscope"));
+        assertFalse(hasFeature(globals, "'Get.Sensors'", "android.hardware.microphone"));
+
+        // The list of Read.Features keeps the features of the groups; the list of Use.Camera hides the camera only
+        String list = "local param = featureparamof(featuresof(featureof('android.hardware.wifi'), " +
+                "featureof('android.hardware.camera.flash'), featureof('android.hardware.microphone'), " +
+                "featureof('android.hardware.sensor.light'), featureof('android.hardware.fingerprint'), featureof(nil)), nil, nil)\n" +
+                "local restricted = after(hookof('PackageManager.getSystemAvailableFeatures', 'getSystemAvailableFeatures', nil, %s), param)\n" +
+                "return restricted, names(param.result)";
+        Varargs result = Scripts.run(globals, String.format(list, "nil"));
+        assertTrue(result.arg1().toboolean());
+        assertEquals("android.hardware.camera.flash,android.hardware.microphone,android.hardware.sensor.light," +
+                "android.hardware.fingerprint,nil", result.arg(2).tojstring());
+        result = Scripts.run(globals, String.format(list, "'Use.Camera'"));
+        assertTrue(result.arg1().toboolean());
+        assertEquals("android.hardware.wifi,android.hardware.microphone,android.hardware.sensor.light," +
+                "android.hardware.fingerprint,nil", result.arg(2).tojstring());
+
+        // The hooks of a group filter hasSystemFeature for its own features only, and the list of features not at all
+        result = Scripts.run(globals, "return filter(hookof('x', 'hasSystemFeature', nil, 'Use.Camera'))[1], " +
+                "filter(hookof('x', 'hasSystemFeature', nil, nil)), " +
+                "filter(hookof('x', 'getSystemAvailableFeatures', nil, 'Use.Camera'))");
+        assertEquals("android.hardware.camera*", result.arg1().tojstring());
+        assertTrue(result.arg(2).isnil());
+        assertTrue(result.arg(3).isnil());
+    }
+
+    // The names biometrics hides are the ones of its group, which features.lua leaves to it
+    @Test
+    public void biometricFeaturesAreOwnedByTheirGroup() throws Exception {
+        Varargs listed = Scripts.run(load("biometrics"), "local names = filter(hookof('x', 'hasSystemFeature'))\n" +
+                "assert(#names == 3, 'names')\n" +
+                "return table.concat(names, ',')");
+        String[] names = listed.arg1().tojstring().split(",");
+        assertEquals(3, names.length);
+        Globals globals = load("features");
+        Scripts.run(globals, FEATURES);
+        for (String name : names)
+            assertFalse(name, hasFeature(globals, "nil", name));
     }
 
     @Test

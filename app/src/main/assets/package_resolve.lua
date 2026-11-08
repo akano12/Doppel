@@ -149,7 +149,7 @@ function after(hook, param)
     end
 
     -- A service any app may handle: the first visible one, which queryIntentServices also gives
-    if (method == 'resolveService' or method == 'resolveServiceAsUser') and implicit(param:getArgument(0)) and
+    if method == 'resolveService' and implicit(param:getArgument(0)) and
             not param:isPackageVisible(packageName) then
         local pm, intent, flags = param:getThis(), param:getArgument(0), param:getArgument(1)
         local ok, all = pcall(function()

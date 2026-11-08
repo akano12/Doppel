@@ -500,6 +500,21 @@ public class FileScriptsTest {
             assertFalse("result " + i, result.arg(i).toboolean());
     }
 
+    // The properties at the root of a partition are hidden from Use.Tracking like the ones in etc, and the filter passes them
+    @Test
+    public void buildPropertiesAtTheRootAreHidden() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local tracking = hookof('Use.Tracking')\n" +
+                        "return hidden(tracking, '/system/etc/build.prop'), hidden(tracking, '/system/build.prop'),\n" +
+                        "  hidden(tracking, '/vendor/build.prop')");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking'))").arg1().checktable().unpack());
+        assertTrue(filterMatches(filter, "/system/build.prop"));
+    }
+
     // Each group hides its files, by their path or the path their link leads to, the other files stay
     @Test
     public void hardwareFiles() throws Exception {
@@ -832,6 +847,24 @@ public class FileScriptsTest {
         // Another folder, which Android resolves itself
         assertEquals("false nil", result.arg(6).tojstring());
         assertEquals("false nil", result.arg(7).tojstring());
+    }
+
+    // The path of a hidden folder followed by /. is the folder itself, which File.getCanonicalPath resolves the same way;
+    // a path ending in /.. is the real answer
+    @Test
+    public void hardwareCanonicalPathOfFolderDot() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local function run(group, path)\n" +
+                        "  local param = paramof(path)\n" +
+                        "  local hook = hookof(group, 'java.io.UnixFileSystem', 'canonicalize0', 'java.lang.String')\n" +
+                        "  return tostring(before(hook, param)) .. ' ' .. tostring(param.result)\n" +
+                        "end\n" +
+                        "return run('Use.Tracking', '/sys/class/sec/tsp/.'), run('Use.Tracking', '/sys/class/sec/tsp'),\n" +
+                        "  run('Use.Tracking', '/sys/class/sec/tsp/..'), run('Read.Debugging', '/system/bin/.')");
+        assertEquals(result.arg(2).tojstring(), result.arg(1).tojstring());
+        assertEquals("false nil", result.arg(3).tojstring());
+        assertEquals("false nil", result.arg(4).tojstring());
     }
 
     // Files.exists of Android 17 asks the provider, not the list of a folder

@@ -248,7 +248,12 @@ function restrict(hook, param)
                 for _, label in ipairs({ 'LinkAddresses', 'DnsAddresses', 'Routes' }) do
                     fake = string.gsub(fake, '([^%w]' .. label .. ': %[)( ?)[^%]]*%]', '%1%2]')
                 end
-                fake = string.gsub(fake, '([^%w]Domains: )%S+', '%1null')
+                -- The search domains are separated by spaces and followed by the MTU
+                local domains
+                fake, domains = string.gsub(fake, '([^%w]Domains: )[^:]-( MTU: )', '%1null%2')
+                if domains == 0 then
+                    fake = string.gsub(fake, '([^%w]Domains: )%S+', '%1null')
+                end
                 param:setResult(fake)
                 return true, result, fake
             end

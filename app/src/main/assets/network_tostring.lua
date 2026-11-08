@@ -94,14 +94,14 @@ function wifiinfo(text)
     restricted = restricted or changed
 
     -- The network key, the network name with the security type like "MyNet"psk, follows the requesting
-    -- package without a label of its own and is followed by the MLO information or the next field
+    -- package without a label of its own and is followed by the MLO information (Android 13 and later), else it
+    -- ends the text; a network name can contain ', ', so the next field is no end
     local _, last = string.find(text, ', Requesting package name: ', 1, true)
     if last ~= nil then
         local package = string.match(text, '^' .. NONE, last + 1) or string.match(text, '^[%w_%.]+', last + 1)
         if package ~= nil then
             local first = last + string.len(package) + 1
-            local following = string.find(text, 'MLO Information: ', first, true) or
-                    string.find(text, ', ', first, true) or string.len(text) + 1
+            local following = string.find(text, 'MLO Information: ', first, true) or string.len(text) + 1
             local key = string.sub(text, first, following - 1)
             if key ~= '' and key ~= NONE then
                 text = string.sub(text, 1, first - 1) .. NONE .. string.sub(text, following)

@@ -53,11 +53,16 @@ function preferred(param, count)
     return true
 end
 
--- Whether the user picked a document of a provider, which leaves the app a persisted grant
+-- Whether the user picked a document of a provider, which leaves the app a persisted grant; a provider can have
+-- several authorities, separated by ;
 function picked(param, authority)
+    if authority == nil then
+        return false
+    end
     local permissions = param:getApplicationContext():getContentResolver():getPersistedUriPermissions()
     for index = 0, permissions:size() - 1 do
-        if permissions:get(index):getUri():getAuthority() == authority then
+        local granted = permissions:get(index):getUri():getAuthority()
+        if granted ~= nil and string.find(';' .. authority .. ';', ';' .. granted .. ';', 1, true) then
             return true
         end
     end

@@ -67,13 +67,38 @@ function after(hook, param)
     local own = owntypes(param)
     local typeIndex = result:getColumnIndex('account_type')
     local methods = {}
-    -- The functions of the proxy get the arguments of the method only; the others call the method of the cursor
+    -- Whether the value of a column is faked: a name of an account which is not of the app
+    local function faked(index)
+        return hidden[index] and result:getString(index) ~= nil and
+                not (typeIndex >= 0 and own[result:getString(typeIndex)])
+    end
+    -- The functions of the proxy get the arguments of the method only; the others call the method of the cursor.
+    -- The text of a column can be read as its bytes and into a CharArrayBuffer too.
     methods.getString = function(index)
-        local value = result:getString(index)
-        if hidden[index] and value ~= nil and not (typeIndex >= 0 and own[result:getString(typeIndex)]) then
+        if faked(index) then
             return fake
         end
-        return value
+        return result:getString(index)
+    end
+    -- The proxy returns a text as its bytes for byte[]; a java.lang.String would become a text of Lua again, which a
+    -- StringBuilder does not
+    methods.getBlob = function(index)
+        if faked(index) then
+            return fake
+        end
+        return result:getBlob(index)
+    end
+    methods.copyStringToBuffer = function(index, buffer)
+        if not faked(index) then
+            result:copyStringToBuffer(index, buffer)
+            return
+        end
+        local text = luajava.newInstance('java.lang.StringBuilder', fake)
+        local chars = luajava.bindClass('java.lang.reflect.Array'):newInstance(
+                luajava.bindClass('java.lang.Character').TYPE, text:length())
+        text:getChars(0, text:length(), chars, 0)
+        buffer.data = chars
+        buffer.sizeCopied = text:length()
     end
     setmetatable(methods, { __index = function(_, method)
         -- The proxy itself for equals and hashCode, like any object

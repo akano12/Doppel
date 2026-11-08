@@ -115,6 +115,9 @@ for group, names in pairs({
         end
     end
 end
+-- The properties at the root of a partition too, like /system/build.prop and /vendor/build.prop
+table.insert(FILES['Use.Tracking'], '^/[%w_]+/build%.prop$')
+table.insert(FILES['Use.Tracking'], '^/system/[%w_]+/build%.prop$')
 
 -- The folders of the apps of the system, of which only the names are left out for Get.Applications: the files stay,
 -- since the system loads apps from them, like WebView
@@ -126,7 +129,7 @@ local APPS = { '^/[%w_]+/app/?$', '^/[%w_]+/priv%-app/?$', '^/system/[%w_]+/app/
 -- The folders of su and of the codec files are there for listing them, like File.list of /system/xbin.
 local FILTERS = {
     ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*',
-                         '*etc/build.prop*', '*etc/fstab.*', '*misc/user/*', '*/./*', '*//*', '/system/etc',
+                         '*/build.prop*', '*etc/fstab.*', '*misc/user/*', '*/./*', '*//*', '/system/etc',
                          '/vendor/etc', '/odm/etc', '/product/etc', '/system_ext/etc' },
     ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
     ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
@@ -408,9 +411,16 @@ function before(hook, param)
         param:setResult(luajava.newInstance('android.system.ErrnoException', method, ENOENT))
     elseif class == 'java.io.UnixFileSystem' then
         if method == 'canonicalize0' then
-            -- File.getCanonicalPath and getCanonicalFile, which follow links: . and .. name another folder
+            -- File.getCanonicalPath and getCanonicalFile, which follow links: .. names another folder, . the
+            -- folder itself, like /sys/class/net/tun0/., which is a link
             local name = string.match(path, '([^/]+)$')
-            if name == nil or name == '.' or name == '..' then
+            if name == '.' then
+                local folder = string.match(path, '^(.+)/%.$')
+                if folder == nil or not hidden(hook, folder, param) then
+                    return false
+                end
+                path = folder
+            elseif name == nil or name == '..' then
                 return false
             end
             param:setResult(missing(hook, path, param))

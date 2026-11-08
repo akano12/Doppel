@@ -22,6 +22,7 @@ package eu.faircode.xlua;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -121,12 +122,16 @@ public class AuditFixesScriptTest {
     @Test
     public void accountColumns() throws Exception {
         Globals globals = Scripts.load("account_columns", PARAM + "\n" +
-                "luajava = { createProxy = function(interface, methods) return methods end }\n" +
+                "local real = luajava\n" +
+                "luajava = { createProxy = function(interface, methods) return methods end, newInstance = real.newInstance,\n" +
+                "  bindClass = real.bindClass }\n" +
                 "function owntypes() return { ['own.type'] = true } end\n" +
                 "function cursorof(type, name) return {\n" +
                 "  getColumnIndex = function(self, column)\n" +
                 "    return ({ account_name = 0, account_type = 1 })[column] or -1 end,\n" +
-                "  getString = function(self, index) return index == 0 and name or type end } end\n" +
+                "  getString = function(self, index) return index == 0 and name or type end,\n" +
+                "  getBlob = function(self, index) return 'blob ' .. name end,\n" +
+                "  copyStringToBuffer = function(self, index, buffer) buffer.copied = name end } end\n" +
                 "function uriof(authority) return { getAuthority = function(self) return authority end } end\n" +
                 "function queried(authority, cursor)\n" +
                 "  local param = paramof(cursor, { uriof(authority) })\n" +
@@ -142,6 +147,21 @@ public class AuditFixesScriptTest {
         assertEquals("com.google", result.arg(2).tojstring());
         assertEquals("mine@example.com", result.arg(3).tojstring());
         assertFalse(result.arg(4).toboolean());
+
+        // The bytes and the chars of the name are the fake one too, of the account of the app the real ones
+        result = Scripts.run(globals,
+                "local _, fake = queried('com.android.contacts', cursorof('com.google', 'real@example.com'))\n" +
+                        "local _, own = queried('0@com.android.calendar', cursorof('own.type', 'mine@example.com'))\n" +
+                        "local buffer, ownBuffer = {}, {}\n" +
+                        "fake.copyStringToBuffer(0, buffer)\n" +
+                        "own.copyStringToBuffer(0, ownBuffer)\n" +
+                        "return fake.getBlob(0), buffer.sizeCopied, buffer.data, own.getBlob(0), ownBuffer.copied");
+        // The proxy coerces the text to the byte[] of getBlob
+        assertEquals("fake@example.com", new String((byte[]) CoerceLuaToJava.coerce(result.arg(1), byte[].class)));
+        assertEquals(16, result.arg(2).toint());
+        assertEquals("fake@example.com", new String((char[]) result.arg(3).touserdata()));
+        assertEquals("blob mine@example.com", result.arg(4).tojstring());
+        assertEquals("mine@example.com", result.arg(5).tojstring());
     }
 
     // The search domains of a VPN are text, nothing when they go; its routes are a list

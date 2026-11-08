@@ -510,4 +510,21 @@ public class SettingsScriptTest {
         assertFalse(result.arg1().toboolean());
         assertEquals("[low_power=0, android_id=1234abcd1234abcd]", result.arg(3).tojstring());
     }
+
+    // ContentProviderClient.call(LIST_secure, arg, extras) lists the settings whatever the argument
+    @Test
+    public void listsOfSettingsAreFakedByClient() {
+        for (String arguments : new String[]{"[1] = 'x', [2] = nil", "[1] = nil, [2] = nil"}) {
+            Varargs result = run("local bundle = bundleof('adb_enabled=1', 'android_id=1234abcd1234abcd')\n" +
+                    "local param = paramof({ [0] = 'LIST_secure', " + arguments + " }, {})\n" +
+                    "param.getResult = function(self) return bundle end\n" +
+                    "local restricted, old = after(hookof('ContentProviderClient.call/identifiers', " +
+                    "'android.content.ContentProviderClient', 'call'), param)\n" +
+                    "local lines = bundle:getStringArrayList('result_settings_list')\n" +
+                    "return restricted, old, lines:toString()");
+            assertTrue(arguments, result.arg1().toboolean());
+            assertEquals(arguments, "android_id", result.arg(2).tojstring());
+            assertEquals(arguments, "[adb_enabled=1, android_id=0000000000000000]", result.arg(3).tojstring());
+        }
+    }
 }

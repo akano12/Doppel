@@ -139,6 +139,14 @@ public class NetworkScriptsTest {
                         "Net ID: 3, Metered hint: false");
         assertEquals("SSID: \"private\", BSSID: 02:00:00:00:00:00, MAC: 02:00:00:00:00:00, IP: /0.0.0.0, " +
                 "Security type: 2, Net ID: -1, Metered hint: false", wifi);
+        // A network name can contain ', ', so it is hidden up to the MLO information or the end of the text
+        String key = tostring(globals, "android.net.wifi.WifiInfo", "SSID: \"Home\", BSSID: 12:34:56:78:9a:bc, " +
+                "Requesting package name: <none>\"Home, 5G\"psk");
+        assertFalse(key, key.contains("5G"));
+        String mlo = tostring(globals, "android.net.wifi.WifiInfo", "SSID: \"Home\", BSSID: 12:34:56:78:9a:bc, " +
+                "Requesting package name: <none>\"Home, 5G\"pskMLO Information: , AP MLD Address: 00:11:22:33:44:55");
+        assertFalse(mlo, mlo.contains("5G"));
+        assertTrue(mlo, mlo.contains("MLO Information: "));
     }
 
     @Test
@@ -384,6 +392,11 @@ public class NetworkScriptsTest {
                 " DnsAddresses: [] Domains: null MTU: 0}", tostring(globals, "android.net.LinkProperties",
                 "{InterfaceName: tun0 LinkAddresses: [10.8.0.2/32,]  Routes: [0.0.0.0/0 -> 0.0.0.0 tun0,]" +
                         " DnsAddresses: [10.8.0.1,] Domains: corp.example MTU: 0}"));
+        // The search domains are the words between Domains: and MTU, all of them go
+        String domains = tostring(globals, "android.net.LinkProperties", "{InterfaceName: tun0 LinkAddresses: [ 10.0.0.2/32 ]" +
+                " DnsAddresses: [ ] Domains: corp.example intranet.example MTU: 1500 Routes: [ ]}");
+        assertTrue(domains, domains.contains("Domains: null MTU: 1500"));
+        assertFalse(domains, domains.contains("intranet"));
         // Without an interface, like a new LinkProperties, there is nothing to hide
         String empty = "{LinkAddresses: [ ] DnsAddresses: [ ] Domains: null MTU: 0 Routes: [ ]}";
         assertEquals(empty, tostring(globals, "android.net.LinkProperties", empty));
