@@ -456,11 +456,12 @@ public class FileScriptsTest {
     public void hiddenFilesAreOnlyThoseTheAppCouldReach() throws Exception {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
         Varargs result = Scripts.run(globals,
-                "local present = { ['/system_ext/etc/build.prop'] = true }\n" +
+                "local present = { ['/system_ext/etc/build.prop'] = true, ['/system/build.prop'] = true }\n" +
+                        "local readable = { ['/system_ext/etc/build.prop'] = true }\n" +
                         "local file = luajava.newInstance\n" +
                         "luajava.newInstance = function(name, path)\n" +
                         "  if name == 'java.io.File' then return { exists = function() return present[path] end,\n" +
-                        "    canRead = function() return false end } end\n" +
+                        "    canRead = function() return readable[path] == true end } end\n" +
                         "  return file(name, path)\n" +
                         "end\n" +
                         "local function param() return { unhooked = function(self, f) return f() end } end\n" +
@@ -468,11 +469,14 @@ public class FileScriptsTest {
                         "return hidden(hookof('Read.Network'), '/proc/net/arp', param()),\n" +
                         "  hidden(hookof('Read.VPN'), '/sys/class/net/tun0', param()),\n" +
                         "  hidden(hookof('Read.Debugging'), '/system/xbin/su', param()),\n" +
-                        "  hidden(hookof('Use.Tracking'), '/system_ext/etc/build.prop', param())");
+                        "  hidden(hookof('Use.Tracking'), '/system_ext/etc/build.prop', param()),\n" +
+                        "  hidden(hookof('Use.Tracking'), '/system/build.prop', param())");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
         assertTrue(result.arg(4).toboolean());
+        // A property file every device has but apps cannot read, like /system/build.prop of Android 14 (EACCES)
+        assertFalse(result.arg(5).toboolean());
     }
 
     // The files of the system by the folders etc of partitions, not the same names in a folder of the app; the store

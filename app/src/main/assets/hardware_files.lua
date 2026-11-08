@@ -217,12 +217,14 @@ end
 -- Whether the app could reach a file: else the real call answers, since SELinux denies many paths whatever their
 -- name (EACCES), like all of /sys/class/net, and a fake answer for only the hidden names would tell the hook is there,
 -- and nothing is hidden for a file which does not exist, like su on a phone without root
--- Read.Network only hides opening its files (see FILES): of /proc/net apps can tell they exist, but not read them
+-- Read.Network only hides opening its files (see FILES): of /proc/net apps can tell they exist, but not read them.
+-- The property files of the partitions are there on every device, so the ones apps cannot read, like
+-- /system/build.prop of Android 14 (EACCES), stay as they are.
 function reachable(group, path, param)
     local ok, exists = pcall(function()
         return param:unhooked(function()
             local file = luajava.newInstance('java.io.File', path)
-            if group == 'Read.Network' then
+            if group == 'Read.Network' or string.find(path, 'build%.prop$') then
                 return file:canRead()
             end
             return file:exists()
