@@ -1205,6 +1205,10 @@ public class HookDefinitionsTest {
                 {"acquireUnstableProvider.authority/hidden", s}})
             check("ContentResolver." + acquire[0], "android.content.ContentResolver " + acquire[0].replaceAll("[./].*", "") +
                     "(" + acquire[1] + ") @provider_hidden 27- optional");
+        check("PackageManager.resolveServiceAsUser", "android.content.pm.PackageManager resolveServiceAsUser(" + i +
+                ",int,int) @package_resolve 27- optional");
+        check("PackageManager.resolveServiceAsUser/flags", "android.content.pm.PackageManager resolveServiceAsUser(" + i +
+                ",android.content.pm.PackageManager$ResolveInfoFlags,int) @package_resolve 33- optional");
     }
 
     // Other users by a handle, and the attribution and GPS tags of photos, which answer like the hooked siblings

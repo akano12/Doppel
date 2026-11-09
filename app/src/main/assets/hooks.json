@@ -5343,6 +5343,43 @@
     "excludePackages": "android",
     "luaScript": "@provider_hidden"
   },
+  // Services resolved for a user, the hidden overloads apps can call by reflection, like resolveService
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.resolveServiceAsUser",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.ResolveInfo",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.resolveServiceAsUser/flags",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.pm.PackageManager$ResolveInfoFlags",
+      "int"
+    ],
+    "returnType": "android.content.pm.ResolveInfo",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html
   {

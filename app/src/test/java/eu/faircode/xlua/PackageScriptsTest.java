@@ -672,6 +672,35 @@ public class PackageScriptsTest {
         assertFalse(shared.arg(6).toboolean());
     }
 
+    // A service resolved for a user, like resolveService: an implicit intent gets the first visible service,
+    // an intent naming a hidden app gets none
+    @Test
+    public void servicesResolvedForUser() throws Exception {
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local function service(name) return { serviceInfo = { packageName = name } } end\n" +
+                        "local hidden, visible = service('com.hidden'), service('com.visible')\n" +
+                        "local implicit = { getComponent = function() return nil end, getPackage = function() return nil end }\n" +
+                        "local explicit = { getComponent = function() return nil end, getPackage = function() return 'com.hidden' end }\n" +
+                        "local function call(intent)\n" +
+                        "  local param = paramof({ [0] = intent, [1] = 0, [2] = 0 }, { ['com.visible'] = true })\n" +
+                        "  param.result = hidden\n" +
+                        "  param.getThis = function() return { queryIntentServices = function(self, i, f)\n" +
+                        "    return listof({ hidden, visible }) end } end\n" +
+                        "  param.unhooked = function(self, fn) return fn() end\n" +
+                        "  return param\n" +
+                        "end\n" +
+                        "local hook = hookof('PackageManager.resolveServiceAsUser', 'resolveServiceAsUser')\n" +
+                        "local any, named = call(implicit), call(explicit)\n" +
+                        "local r1, old, new = after(hook, any)\n" +
+                        "return r1, old, new, any.result == visible, after(hook, named), named.result");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.hidden", result.arg(2).tojstring());
+        assertEquals("com.visible", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertTrue(result.arg(6).isnil());
+    }
+
     // Lists of components keep system apps, which the Android framework uses, lists of packages do not
     @Test
     public void componentsOfSystemAppsStay() throws Exception {
