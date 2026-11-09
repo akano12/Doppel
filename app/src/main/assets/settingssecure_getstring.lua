@@ -78,6 +78,13 @@ local COMPONENTS = {
     nfc_payment_default_component = 'packages',
     credential_service = 'packages',
     credential_service_primary = 'packages',
+    -- The media button receiver of the last media app, like com.example/.Receiver,0,1
+    media_button_receiver = 'packages',
+}
+
+-- Lists of COMPONENTS which Android separates by a comma (DreamManagerService.componentsFromString) instead of a colon
+local COMMAS = {
+    screensaver_components = true,
 }
 
 -- Shortcut targets of the framework itself, like com.android.server.accessibility/ColorInversion;
@@ -192,7 +199,12 @@ function components(param, key, value)
     local source = COMPONENTS[key]
     local services
     local kept = {}
-    for entry in string.gmatch(value, '[^:]+') do
+    -- A setting without entries stays as it is, like an empty accessibility_shortcut_target_service of Android 14
+    if value == '' then
+        return value
+    end
+    local separator = (COMMAS[key] and ',' or ':')
+    for entry in string.gmatch(value, '[^' .. separator .. ']+') do
         local packageName = string.match(entry, '^[^/;]+')
         local visible
         if source == 'accessibility' and (not string.find(entry, '/', 1, true) or FRAMEWORK[packageName]) then
@@ -212,7 +224,7 @@ function components(param, key, value)
             kept[#kept + 1] = entry
         end
     end
-    local fake = table.concat(kept, ':')
+    local fake = table.concat(kept, separator)
     if fake == '' then
         fake = nil
         if key == 'default_input_method' then

@@ -262,6 +262,36 @@ public class SettingsScriptTest {
         assertFalse(run("return hooked('tts_default_synth')").arg1().toboolean());
     }
 
+    // Screen savers are separated by commas, unlike the other lists (DreamManagerService.componentsFromString):
+    // splitting at colons named the first one only, and decided for all by it
+    @Test
+    public void screenSaversAreSeparatedByCommas() {
+        assertEquals("com.google.android.gms/.Dream",
+                applications("input_method", "screensaver_components",
+                        "com.google.android.gms/.Dream,com.third.hidden/.Dream"));
+        assertEquals(null, applications("input_method", "screensaver_components",
+                "com.third.hidden/.Dream,com.other.hidden/.Dream"));
+        assertEquals("same", applications("input_method", "screensaver_components",
+                "com.google.android.gms/.Dream,com.example.app/.Dream"));
+    }
+
+    // A setting without entries stays as it is, like an empty accessibility_shortcut_target_service of Android 14,
+    // instead of turning into a missing one
+    @Test
+    public void emptySettingsStay() {
+        assertEquals("same", applications("accessibility", "accessibility_shortcut_target_service", ""));
+        assertEquals("same", applications("input_method", "enabled_notification_listeners", ""));
+    }
+
+    // The media button receiver names the last media app, with its user and type after commas
+    @Test
+    public void mediaButtonReceiverOfHiddenAppIsNone() {
+        assertTrue(run("return hooked('media_button_receiver')").arg1().toboolean());
+        assertEquals(null, applications("input_method", "media_button_receiver", "com.third.hidden/.MediaReceiver,0,1"));
+        assertEquals("same", applications("input_method", "media_button_receiver",
+                "com.google.android.gms/.MediaReceiver,0,1"));
+    }
+
     // Apps expect a default SMS and phone app: the one of the system replaces a hidden one,
     // the configured one when installed, else a system app which can be the default
     @Test
