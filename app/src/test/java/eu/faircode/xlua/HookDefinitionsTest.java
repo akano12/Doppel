@@ -1010,7 +1010,7 @@ public class HookDefinitionsTest {
         check(n + "onSessionProgressChanged", d + "onSessionProgressChanged(int,float) @install_sessions 27-");
         check(n + "onSessionFinished", d + "onSessionFinished(int,boolean) @install_sessions 27-");
         String a = "android.content.pm.LauncherApps ";
-        check("LauncherApps.getAllPackageInstallerSessions", a + "getAllPackageInstallerSessions() @generic_empty 29-");
+        check("LauncherApps.getAllPackageInstallerSessions", a + "getAllPackageInstallerSessions() @install_sessions 29-");
         check("LauncherApps.registerPackageInstallerSessionCallback", a + "registerPackageInstallerSessionCallback(" +
                 "java.util.concurrent.Executor,android.content.pm.PackageInstaller$SessionCallback) @generic_block 29-");
         check("LauncherApps.registerCallback", a + "registerCallback(android.content.pm.LauncherApps$Callback) @generic_block 27-");

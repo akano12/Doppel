@@ -31,9 +31,12 @@ import static org.junit.Assert.assertTrue;
 // The app sees only the install sessions it installs itself, like an app updating itself (assets/install_sessions.lua)
 public class InstallSessionsScriptTest {
     private static final String STUBS = String.join("\n",
-            "function infoof(installer)",
-            "  return { getInstallerPackageName = function(self) return installer end }",
+            "function infoof(installer, app)",
+            "  return { getInstallerPackageName = function(self) return installer end,",
+            "    getAppPackageName = function(self) return app end }",
             "end",
+            // The app itself and system apps, like Play, are visible
+            "VISIBLE = { ['com.app'] = true, ['com.android.vending'] = true, ['com.google.android.gms'] = true }",
             "function listof(...)",
             "  local items = { ... }",
             "  return { size = function(self) return #items end, get = function(self, i) return items[i + 1] end }",
@@ -41,21 +44,25 @@ public class InstallSessionsScriptTest {
             "function paramof(result)",
             "  return { result = result, set = false,",
             "    getPackageName = function(self) return 'com.app' end,",
+            "    isPackageVisible = function(self, name) return VISIBLE[name] == true end,",
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value self.set = true end }",
             "end",
             "function hookof(method) return { getMethodName = function(self) return method end } end",
             // An event of a session for the callback of the app: whether it is dropped
             "sessions, values = {}, {}",
-            "function event(method, id)",
+            "function event(method, id, delegate)",
             "  local installer = { getSessionInfo = function(self, session) return sessions[session] end }",
             "  local context = { getPackageManager = function(self)",
             "    return { getPackageInstaller = function(self) return installer end } end }",
             "  local p = paramof(nil)",
             "  p.getArgument = function(self, index) return id end",
             "  p.getApplicationContext = function(self) return context end",
-            "  p.getValue = function(self, name, scope) return values[name] end",
-            "  p.putValue = function(self, name, value, scope) values[name] = value end",
+            // The values per callback (scope), the first one unless given
+            "  local scope = delegate or 'callback'",
+            "  p.getThis = function(self) return scope end",
+            "  p.getValue = function(self, name, s) return values[s .. '|' .. name] end",
+            "  p.putValue = function(self, name, value, s) values[s .. '|' .. name] = value end",
             "  p.unhooked = function(self, lookup) return lookup() end",
             "  return before(hookof(method), p), p.set",
             "end");
@@ -90,7 +97,7 @@ public class InstallSessionsScriptTest {
                 "sessions[1] = infoof('com.app') sessions[2] = infoof('com.android.vending')\n" +
                         "local own, ownSet = event('onSessionCreated', 1)\n" +
                         "local other, otherSet = event('onSessionProgressChanged', 2)\n" +
-                        "local remembered = (values['install_sessions.1'] == true and values['install_sessions.2'] == false)\n" +
+                        "local remembered = (values['callback|install_sessions.1'] == true and values['callback|install_sessions.2'] == false)\n" +
                         "sessions[1] = nil sessions[2] = nil\n" +
                         "local finished, finishedSet = event('onSessionFinished', 1)\n" +
                         "local again = event('onSessionFinished', 1)\n" +
@@ -112,6 +119,33 @@ public class InstallSessionsScriptTest {
         result = Scripts.run(globals, "local p = paramof(nil) return before(hookof('getSessionInfo'), p), p.set");
         assertFalse(result.arg1().toboolean());
         assertFalse(result.arg(2).toboolean());
+    }
+
+    // Two callbacks of the app both hear that its own session finished, each remembers the sessions itself
+    @Test
+    public void eachCallbackHearsOfOwnSessions() {
+        Varargs result = Scripts.run(globals,
+                "sessions[1] = infoof('com.app')\n" +
+                        "event('onSessionCreated', 1, 'first') event('onSessionCreated', 1, 'second')\n" +
+                        "sessions[1] = nil\n" +
+                        "local first = event('onSessionFinished', 1, 'first')\n" +
+                        "local second = event('onSessionFinished', 1, 'second')\n" +
+                        "return first, second");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+    }
+
+    // Sessions of visible apps by visible installers stay, like an update of the app or of a system app by Play;
+    // those of hidden apps, or by a hidden installer, do not
+    @Test
+    public void sessionsOfVisibleAppsStay() {
+        Varargs result = Scripts.run(globals,
+                "local p = paramof(listof(infoof('com.android.vending', 'com.app'),\n" +
+                        "  infoof('com.android.vending', 'com.google.android.gms'), infoof('com.android.vending', 'com.hidden'),\n" +
+                        "  infoof('com.hidden.store', 'com.app'), infoof(nil, 'com.app')))\n" +
+                        "return after(hookof('getAllSessions'), p), p.result:size()");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(3, result.arg(2).toint());
     }
 
     @Test

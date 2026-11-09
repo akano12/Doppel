@@ -15,10 +15,19 @@
 
 -- Copyright 2026 akano12
 
--- The install sessions of the device tell which apps are installed or updated; the app sees only the sessions it
--- installs itself, like an app updating itself, which Android always lets the installer see
+-- The install sessions of the device tell which apps are installed or updated; the app sees the sessions it installs
+-- itself, like an app updating itself, which Android always lets the installer see, and the sessions of visible apps,
+-- like the app itself or a system app, by a visible installer, which name no hidden app
 function mine(param, info)
-    return info ~= nil and info:getInstallerPackageName() == param:getPackageName()
+    if info == nil then
+        return false
+    end
+    local installer = info:getInstallerPackageName()
+    if installer == param:getPackageName() then
+        return true
+    end
+    local app = info:getAppPackageName()
+    return app ~= nil and param:isPackageVisible(app) and (installer == nil or param:isPackageVisible(installer))
 end
 
 -- The callbacks of sessions (PackageInstaller.SessionCallbackDelegate): Android tells a callback about every session
@@ -32,18 +41,20 @@ function before(hook, param)
     end
     local id = param:getArgument(0)
     local context = param:getApplicationContext()
+    -- Per callback, so each callback of the app hears that a session finished
+    local delegate = param:getThis()
     local key = 'install_sessions.' .. tostring(id)
-    local own = param:getValue(key, context)
+    local own = param:getValue(key, delegate)
     if own == nil then
         -- The lookup of the script itself, without the hooks of the app
         own = mine(param, param:unhooked(function()
             return context:getPackageManager():getPackageInstaller():getSessionInfo(id)
         end))
         if method ~= 'onSessionFinished' then
-            param:putValue(key, own, context)
+            param:putValue(key, own, delegate)
         end
     elseif method == 'onSessionFinished' then
-        param:putValue(key, nil, context)
+        param:putValue(key, nil, delegate)
     end
     if own then
         return false

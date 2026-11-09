@@ -3601,7 +3601,7 @@
     "returnType": "java.util.List",
     "minSdk": 29,
     "excludePackages": "android",
-    "luaScript": "@generic_empty"
+    "luaScript": "@install_sessions"
   },
   {
     "collection": "Privacy",
