@@ -23,6 +23,21 @@ function after(hook, param)
     if result == nil or param:getException() ~= nil then
         return false
     end
+
+    -- The certificate of the store which started the install, which Android gives only with the name of that store
+    -- (ComputerEngine.getInstallSourceInfo), so none when that name is hidden: it would name the store
+    if hook:getMethodName() == 'getInitiatingPackageSigningInfo' then
+        local info = param:getThis()
+        local initiating = param:unhooked(function()
+            return info:getInitiatingPackageName()
+        end)
+        if initiating == nil or param:isPackageVisible(initiating) then
+            return false
+        end
+        param:setResult(nil)
+        return true, initiating
+    end
+
     local packageName = (type(result) == 'string' and result or result:getPackageName())
     if param:isPackageVisible(packageName) then
         return false

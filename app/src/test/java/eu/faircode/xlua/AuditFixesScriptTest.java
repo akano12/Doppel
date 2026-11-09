@@ -50,14 +50,46 @@ public class AuditFixesScriptTest {
                 "local name = paramof('com.hidden')\n" +
                         "local component = paramof({ getPackageName = function(self) return 'com.hidden' end })\n" +
                         "local visible = paramof('com.visible', nil, 'com.visible')\n" +
-                        "return after(nil, name), name.result, after(nil, component), component.result,\n" +
-                        "  after(nil, visible), visible.set");
+                        "local hook = hookof('getInstallerPackageName')\n" +
+                        "return after(hook, name), name.result, after(hook, component), component.result,\n" +
+                        "  after(hook, visible), visible.set");
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).isnil());
         assertTrue(result.arg(3).toboolean());
         assertTrue(result.arg(4).isnil());
         assertFalse(result.arg(5).toboolean());
         assertFalse(result.arg(6).toboolean());
+    }
+
+    // The certificate of the store which started the install goes with its name: none when that store is hidden,
+    // like Android gives no signing info without the name (ComputerEngine.getInstallSourceInfo)
+    @Test
+    public void signingInfoOfHiddenStoreIsNone() throws Exception {
+        Globals globals = Scripts.load("package_result", PARAM + "\n" +
+                "function sourceof(initiating, visible)\n" +
+                "  local param = paramof({ signing = true }, nil, visible)\n" +
+                "  local info = { getInitiatingPackageName = function(self) return initiating end }\n" +
+                "  param.getThis = function(self) return info end\n" +
+                "  param.unhooked = function(self, fn) param.inside = true; return fn() end\n" +
+                "  return param\n" +
+                "end");
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('getInitiatingPackageSigningInfo')\n" +
+                        "local hidden = sourceof('com.store.hidden')\n" +
+                        "local visible = sourceof('com.store', 'com.store')\n" +
+                        "local none = sourceof(nil)\n" +
+                        "local r1, old = after(hook, hidden)\n" +
+                        "return r1, old, hidden.result, hidden.inside, after(hook, visible), visible.set,\n" +
+                        "  after(hook, none), none.set");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.store.hidden", result.arg(2).tojstring());
+        assertTrue(result.arg(3).isnil());
+        // The name is read without the hooks, which would else hide it
+        assertTrue(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean());
     }
 
     // Only the speaker and the earpiece stay: a device without an output does not exist, a headset names its owner

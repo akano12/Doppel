@@ -4921,6 +4921,362 @@
     "excludePackages": "android",
     "luaScript": "@package_probe"
   },
+  // Lookups of single packages which other hooks do not reach: hidden overloads apps can call by reflection,
+  // the newer public ones, and the binds and ordered broadcasts with a Handler or an app op
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.createPackageContextAsUser",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "createPackageContextAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.content.Context",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.isPackageSuspendedForUser",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "isPackageSuspendedForUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getAllIntentFilters",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getAllIntentFilters",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getInstallReason",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getInstallReason",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getIntentFilterVerifications",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getIntentFilterVerifications",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.relinquishUpdateOwnership",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "relinquishUpdateOwnership",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.requestArchive",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller",
+    "methodName": "requestArchive",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.IntentSender"
+    ],
+    "minSdk": 35,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageInstaller.requestUnarchive",
+    "author": "akano12",
+    "className": "android.content.pm.PackageInstaller",
+    "methodName": "requestUnarchive",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.IntentSender"
+    ],
+    "minSdk": 35,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "LauncherApps.getSuspendedPackageLauncherExtras",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getSuspendedPackageLauncherExtras",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AppOpsManager.checkOp/code",
+    "author": "akano12",
+    "className": "android.app.AppOpsManager",
+    "methodName": "checkOp",
+    "parameterTypes": [
+      "int",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AppOpsManager.checkOpNoThrow/code",
+    "author": "akano12",
+    "className": "android.app.AppOpsManager",
+    "methodName": "checkOpNoThrow",
+    "parameterTypes": [
+      "int",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.bindServiceAsUser.handler/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "int",
+      "android.os.Handler",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.bindServiceAsUser.flags.handler/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "android.content.Context$BindServiceFlags",
+      "android.os.Handler",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendOrderedBroadcast.op/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendOrderedBroadcast",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String",
+      "int",
+      "android.content.BroadcastReceiver",
+      "android.os.Handler",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendOrderedBroadcast.op.options/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendOrderedBroadcast",
+    "parameterTypes": [
+      "android.content.Intent",
+      "java.lang.String",
+      "int",
+      "android.content.BroadcastReceiver",
+      "android.os.Handler",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.os.Bundle"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendOrderedBroadcastAsUser.op/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendOrderedBroadcastAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.os.UserHandle",
+      "java.lang.String",
+      "int",
+      "android.content.BroadcastReceiver",
+      "android.os.Handler",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.sendOrderedBroadcastAsUser.op.options/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "sendOrderedBroadcastAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.os.UserHandle",
+      "java.lang.String",
+      "int",
+      "android.os.Bundle",
+      "android.content.BroadcastReceiver",
+      "android.os.Handler",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "InputMethodManager.getCurrentInputMethodInfoAsUser",
+    "author": "akano12",
+    "className": "android.view.inputmethod.InputMethodManager",
+    "methodName": "getCurrentInputMethodInfoAsUser",
+    "parameterTypes": [
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.view.inputmethod.InputMethodInfo",
+    "minSdk": 34,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@service_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "SpellCheckerSession.getSpellChecker",
+    "author": "akano12",
+    "className": "android.view.textservice.SpellCheckerSession",
+    "methodName": "getSpellChecker",
+    "parameterTypes": [],
+    "returnType": "android.view.textservice.SpellCheckerInfo",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@service_filter"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "InstallSourceInfo.getInitiatingPackageSigningInfo",
+    "author": "akano12",
+    "className": "android.content.pm.InstallSourceInfo",
+    "methodName": "getInitiatingPackageSigningInfo",
+    "parameterTypes": [],
+    "returnType": "android.content.pm.SigningInfo",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@package_result"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html
   {

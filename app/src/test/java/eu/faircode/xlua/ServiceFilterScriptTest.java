@@ -112,7 +112,10 @@ public class ServiceFilterScriptTest {
         String[][] currents = {
                 {"service_filter", "android.view.inputmethod.InputMethodManager", "getCurrentInputMethodInfo"},
                 {"service_filter", "android.view.textservice.TextServicesManager", "getCurrentSpellCheckerInfo"},
-                {"service_filter", "android.view.textservice.TextServicesManager", "getCurrentSpellChecker"}};
+                {"service_filter", "android.view.textservice.TextServicesManager", "getCurrentSpellChecker"},
+                // For a user, and the spell checker of a session, which names the current one
+                {"service_filter", "android.view.inputmethod.InputMethodManager", "getCurrentInputMethodInfoAsUser"},
+                {"service_filter", "android.view.textservice.SpellCheckerSession", "getSpellChecker"}};
         for (String[] current : currents) {
             Globals globals = Scripts.load(current[0], STUBS);
             String call = "filter('" + current[1] + "', '" + current[2] + "', serviceof(";

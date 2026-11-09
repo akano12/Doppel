@@ -1153,6 +1153,55 @@ public class HookDefinitionsTest {
                 "@user_profiles 27-");
     }
 
+    // Ways to hidden apps the audit of Get.Applications found without a hook: hidden overloads apps can call by
+    // reflection, newer public ones, binds and ordered broadcasts with a Handler or an app op, the current keyboard
+    // of a user, the spell checker of a session and the certificate of the store which installed the app
+    @Test
+    public void moreWaysToHiddenApps() throws Exception {
+        String s = "java.lang.String", i = "android.content.Intent", u = "android.os.UserHandle";
+        String r = "android.content.BroadcastReceiver,android.os.Handler,int," + s + ",android.os.Bundle";
+        check("Context.createPackageContextAsUser", "android.app.ContextImpl createPackageContextAsUser(" + s +
+                ",int," + u + ") @package_probe 27- optional");
+        check("PackageManager.isPackageSuspendedForUser", "android.content.pm.PackageManager isPackageSuspendedForUser(" +
+                s + ",int) @package_probe 27- optional");
+        check("PackageManager.getAllIntentFilters", "android.content.pm.PackageManager getAllIntentFilters(" + s +
+                ") @package_probe 27- optional");
+        check("PackageManager.getInstallReason", "android.content.pm.PackageManager getInstallReason(" + s + "," + u +
+                ") @package_probe 27- optional");
+        check("PackageManager.getIntentFilterVerifications", "android.content.pm.PackageManager " +
+                "getIntentFilterVerifications(" + s + ") @package_probe 27- optional");
+        check("PackageManager.relinquishUpdateOwnership", "android.content.pm.PackageManager relinquishUpdateOwnership(" +
+                s + ") @package_probe 34-");
+        check("PackageInstaller.requestArchive", "android.content.pm.PackageInstaller requestArchive(" + s +
+                ",android.content.IntentSender) @package_probe 35-");
+        check("PackageInstaller.requestUnarchive", "android.content.pm.PackageInstaller requestUnarchive(" + s +
+                ",android.content.IntentSender) @package_probe 35-");
+        check("LauncherApps.getSuspendedPackageLauncherExtras", "android.content.pm.LauncherApps " +
+                "getSuspendedPackageLauncherExtras(" + s + "," + u + ") @package_probe 28-");
+        check("AppOpsManager.checkOp/code", "android.app.AppOpsManager checkOp(int,int," + s + ") @package_probe 27- optional");
+        check("AppOpsManager.checkOpNoThrow/code", "android.app.AppOpsManager checkOpNoThrow(int,int," + s +
+                ") @package_probe 27- optional");
+        check("Context.bindServiceAsUser.handler/hidden", "android.app.ContextImpl bindServiceAsUser(" + i +
+                ",android.content.ServiceConnection,int,android.os.Handler," + u + ") @component_hidden 27- optional");
+        check("Context.bindServiceAsUser.flags.handler/hidden", "android.app.ContextImpl bindServiceAsUser(" + i +
+                ",android.content.ServiceConnection,android.content.Context$BindServiceFlags,android.os.Handler," + u +
+                ") @component_hidden 34- optional");
+        check("Context.sendOrderedBroadcast.op/hidden", "android.app.ContextImpl sendOrderedBroadcast(" + i + "," + s +
+                ",int," + r + ") @component_hidden 27- optional");
+        check("Context.sendOrderedBroadcast.op.options/hidden", "android.app.ContextImpl sendOrderedBroadcast(" + i + "," +
+                s + ",int," + r + ",android.os.Bundle) @component_hidden 27- optional");
+        check("Context.sendOrderedBroadcastAsUser.op/hidden", "android.app.ContextImpl sendOrderedBroadcastAsUser(" + i +
+                "," + u + "," + s + ",int," + r + ") @component_hidden 27- optional");
+        check("Context.sendOrderedBroadcastAsUser.op.options/hidden", "android.app.ContextImpl sendOrderedBroadcastAsUser(" +
+                i + "," + u + "," + s + ",int,android.os.Bundle," + r + ") @component_hidden 27- optional");
+        check("InputMethodManager.getCurrentInputMethodInfoAsUser", "android.view.inputmethod.InputMethodManager " +
+                "getCurrentInputMethodInfoAsUser(" + u + ") @service_filter 34- optional");
+        check("SpellCheckerSession.getSpellChecker", "android.view.textservice.SpellCheckerSession getSpellChecker() " +
+                "@service_filter 27-");
+        check("InstallSourceInfo.getInitiatingPackageSigningInfo", "android.content.pm.InstallSourceInfo " +
+                "getInitiatingPackageSigningInfo() @package_result 30-");
+    }
+
     // Other users by a handle, and the attribution and GPS tags of photos, which answer like the hooked siblings
     @Test
     public void otherUsersAndPhotoAttributesAreHooked() throws Exception {

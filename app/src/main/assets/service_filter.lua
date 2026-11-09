@@ -39,8 +39,9 @@ function after(hook, param)
     end
 
     local method = hook:getMethodName()
-    if method == 'getCurrentInputMethodInfo' or method == 'getCurrentSpellChecker' or
-            method == 'getCurrentSpellCheckerInfo' then
+    -- The current service, also for a user and of a spell checker session, which names the current spell checker
+    if method == 'getCurrentInputMethodInfo' or method == 'getCurrentInputMethodInfoAsUser' or
+            method == 'getCurrentSpellChecker' or method == 'getCurrentSpellCheckerInfo' or method == 'getSpellChecker' then
         if visible(hook, param, result) then
             return false
         end
