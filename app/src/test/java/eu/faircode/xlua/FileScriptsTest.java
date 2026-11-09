@@ -612,6 +612,26 @@ public class FileScriptsTest {
         assertFalse(filterMatches(filter, "/data/user/0/test.app/files/a.db"));
     }
 
+    // The folders of system apps list without names by any form of their path, also by the compatibility links of
+    // /system to the other partitions, which the filter passes too
+    @Test
+    public void foldersOfSystemAppsByOtherPaths() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "return unlisted('Get.Applications', '/system/app/.'), unlisted('Get.Applications', '/system//priv-app'),\n" +
+                        "  unlisted('Get.Applications', '/system/./product/app'), unlisted('Get.Applications', '/system/vendor/app/'),\n" +
+                        "  unlisted('Get.Applications', '/system/app/Example'), unlisted('Get.Applications', '/system/etc/.')");
+        for (int i = 1; i <= 4; i++)
+            assertTrue("result " + i, result.arg(i).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Applications'))").arg1().checktable().unpack());
+        for (String folder : new String[]{"/system/product/app", "/system/system_ext/priv-app", "/system/vendor/app",
+                "/system/app/.", "/system//priv-app"})
+            assertTrue(folder, filterMatches(filter, folder));
+        assertFalse(filterMatches(filter, "/system/app/Example/Example.apk"));
+    }
+
     // The properties at the root of a partition are hidden from Use.Tracking like the ones in etc, and the filter passes them
     @Test
     public void buildPropertiesAtTheRootAreHidden() throws Exception {

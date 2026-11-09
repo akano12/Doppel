@@ -161,7 +161,9 @@ local FILTERS = {
                           '/odm/etc', '/product/etc', '/system_ext/etc', '/etc' },
     ['Get.Applications'] = { '*etc/permissions*', '*/./*', '*//*', '/system/app', '/system/priv-app', '/product/app',
                              '/product/priv-app', '/system_ext/app', '/system_ext/priv-app', '/vendor/app',
-                             '/vendor/priv-app', '/odm/app', '/odm/priv-app' },
+                             '/vendor/priv-app', '/odm/app', '/odm/priv-app', '/system/product/app',
+                             '/system/product/priv-app', '/system/system_ext/app', '/system/system_ext/priv-app',
+                             '/system/vendor/app', '/system/vendor/priv-app' },
 }
 
 -- Whether a network interface is of a VPN, like vpn and interface_entries, which a test compares
@@ -475,7 +477,17 @@ function unlisted(group, folder)
     if group ~= 'Get.Applications' then
         return false
     end
+    -- The forms of a path which the file system lists the same, like /system/app/., /system//priv-app and /x/../app
     local plain = unrooted(folder)
+    if string.find(plain, '/../', 1, true) or string.find(plain, '/%.%.$') then
+        plain = resolve(plain)
+    end
+    local previous
+    repeat
+        previous = plain
+        plain = string.gsub(string.gsub(plain, '/%./', '/'), '//+', '/')
+    until plain == previous
+    plain = string.gsub(plain, '/%.$', '')
     for _, pattern in ipairs(APPS) do
         if string.find(plain, pattern) then
             return true
