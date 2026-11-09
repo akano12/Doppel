@@ -65,6 +65,9 @@ function after(hook, param)
         local infoClass = luajava.bindClass('android.view.textservice.SpellCheckerInfo')
         local arrayClass = luajava.bindClass('java.lang.reflect.Array')
         param:setResult(kept:toArray(arrayClass:newInstance(infoClass, 0)))
+    elseif hook:getClassName() == 'android.view.accessibility.AccessibilityManager' then
+        -- Unmodifiable, like the lists AccessibilityManager returns
+        param:setResult(luajava.bindClass('java.util.Collections'):unmodifiableList(kept))
     else
         param:setResult(kept)
     end

@@ -188,6 +188,23 @@ public class IntentScriptTest {
         assertEquals(10001, result.arg(3).toint());
     }
 
+    // Settings asks receivers whether a package may be restarted, by its data and its list of packages
+    @Test
+    public void restartQueryIsOfOwnPackage() {
+        Varargs result = run(
+                "local intent = intentof('android.intent.action.QUERY_PACKAGE_RESTART', {\n" +
+                        "  ['android.intent.extra.PACKAGES'] = { length = 1, 'com.example.bank' },\n" +
+                        "  ['android.intent.extra.UID'] = 10060 }, 'com.example.bank')\n" +
+                        "local restricted = after(hookof('Intent.createFromParcel/package'), paramof(intent))\n" +
+                        "local packages = intent.extras['android.intent.extra.PACKAGES']\n" +
+                        "return restricted, intent.data, packages.length, packages[1], intent.extras['android.intent.extra.UID']");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("package:com.example.app", result.arg(2).tojstring());
+        assertEquals(1, result.arg(3).toint());
+        assertEquals("com.example.app", result.arg(4).tojstring());
+        assertEquals(10001, result.arg(5).toint());
+    }
+
     @Test
     public void suspendedPackagesWithoutUids() {
         Varargs result = run(

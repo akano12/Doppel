@@ -25,7 +25,7 @@ local PACKAGE_ACTIONS = {}
 for kind, actions in pairs({
     own = { 'PACKAGE_ADDED', 'PACKAGE_CHANGED', 'PACKAGE_DATA_CLEARED', 'PACKAGE_FIRST_LAUNCH', 'PACKAGE_FULLY_REMOVED',
             'PACKAGE_INSTALL', 'PACKAGE_NEEDS_VERIFICATION', 'PACKAGE_REMOVED', 'PACKAGE_REPLACED',
-            'PACKAGE_RESTARTED', 'PACKAGE_UNSTOPPED', 'PACKAGE_VERIFIED' },
+            'PACKAGE_RESTARTED', 'PACKAGE_UNSTOPPED', 'PACKAGE_VERIFIED', 'QUERY_PACKAGE_RESTART' },
     lists = { 'EXTERNAL_APPLICATIONS_AVAILABLE', 'EXTERNAL_APPLICATIONS_UNAVAILABLE', 'PACKAGES_SUSPENDED',
               'PACKAGES_UNSUSPENDED' },
     uid = { 'UID_REMOVED' } }) do
@@ -126,6 +126,13 @@ function after(hook, param)
             end
             if extras:containsKey('android.intent.extra.changed_component_name') then
                 extras:putString('android.intent.extra.changed_component_name', param:getPackageName())
+            end
+            -- The packages Settings asks about with QUERY_PACKAGE_RESTART
+            if extras:containsKey('android.intent.extra.PACKAGES') then
+                local own = luajava.bindClass('java.lang.reflect.Array'):newInstance(
+                        luajava.bindClass('java.lang.String'), 1)
+                own[1] = param:getPackageName()
+                extras:putStringArray('android.intent.extra.PACKAGES', own)
             end
             if extras:containsKey('android.intent.extra.changed_component_name_list') then
                 local stringClass = luajava.bindClass('java.lang.String')

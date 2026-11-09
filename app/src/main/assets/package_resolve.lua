@@ -80,6 +80,25 @@ function after(hook, param)
         -- Its own user id, the user ids of the system, like 1000 for Android itself, and the user ids
         -- with a visible app, also of a shared user id, which names like com.example.shared:10123 have
         if param:isUidVisible(param:getArgument(0)) then
+            -- The other packages of a shared user id with a visible app stay hidden, like for their lookups
+            if method == 'getPackagesForUid' and result['length'] > 1 then
+                local kept = {}
+                for index = 1, result['length'] do
+                    if param:isPackageVisible(result[index]) then
+                        kept[#kept + 1] = result[index]
+                    end
+                end
+                if #kept == result['length'] then
+                    return false
+                end
+                local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+                local names = arrayClass:newInstance(luajava.bindClass('java.lang.String'), #kept)
+                for index = 1, #kept do
+                    names[index] = kept[index]
+                end
+                param:setResult(names)
+                return true, tostring(result['length']), tostring(#kept)
+            end
             return false
         end
         param:setResult(nil)

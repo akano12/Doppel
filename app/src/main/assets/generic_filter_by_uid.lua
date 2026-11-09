@@ -145,6 +145,11 @@ function after(hook, param)
         end
     end
 
+    -- Android answers null when there are no device admins (DevicePolicyManagerService.getActiveAdmins), not an empty list
+    if filtered and name == 'DevicePolicyManager.getActiveAdmins' and list:isEmpty() then
+        param:setResult(nil)
+    end
+
     -- Of a link Android gives only the default browser unless asked for all: when it is hidden the visible apps of
     -- all, like on a device without it (see package_resolve)
     -- shortcut: queryIntentActivitiesAsUser asks for the own user, which is the user of nearly every call

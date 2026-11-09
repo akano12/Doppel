@@ -98,6 +98,11 @@ public class ServiceFilterScriptTest {
             // The log tells how many there were and how many are left
             assertEquals(list[2], "2", result.arg(4).tojstring());
             assertEquals(list[2], "1", result.arg(5).tojstring());
+            // Accessibility services come in an unmodifiable list, like AccessibilityManager returns them
+            Varargs kind = Scripts.run(globals, "local restricted, set, list = " + call +
+                    "listof(" + list[3] + "('com.android.inputmethod'), " + list[3] + "('com.other.hidden')))\n" +
+                    "return pcall(function() list:add(list:get(0)) end)");
+            assertEquals(list[2], !list[1].endsWith("AccessibilityManager"), kind.arg1().toboolean());
 
             // Nothing hidden or no list: the result stays
             result = Scripts.run(globals, "return " + call + "listof(" + list[3] + "('com.android.inputmethod')))");

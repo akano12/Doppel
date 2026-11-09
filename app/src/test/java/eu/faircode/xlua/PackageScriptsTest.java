@@ -654,6 +654,22 @@ public class PackageScriptsTest {
         assertFalse(result.arg(4).toboolean());
         assertEquals("com.example", result.arg(5).tojstring());
         assertFalse(result.arg(6).toboolean());
+
+        // A shared user id with a visible app: its other packages stay hidden, like for their lookups
+        Varargs shared = Scripts.run(load("package_resolve"),
+                "local hook = hookof('PackageManager.getPackagesForUid', 'getPackagesForUid')\n" +
+                        "local param = paramof({ [0] = 10070 }, { [10070] = true, ['com.example.shared'] = true })\n" +
+                        "param.result = arrayof('com.example.shared', 'com.third.hidden')\n" +
+                        "local all = paramof({ [0] = 10070 }, { [10070] = true, ['com.a'] = true, ['com.b'] = true })\n" +
+                        "all.result = arrayof('com.a', 'com.b')\n" +
+                        "local restricted, old, new = after(hook, param)\n" +
+                        "return restricted, old, new, param.result.length, param.result[1], after(hook, all)");
+        assertTrue(shared.arg(1).toboolean());
+        assertEquals("2", shared.arg(2).tojstring());
+        assertEquals("1", shared.arg(3).tojstring());
+        assertEquals(1, shared.arg(4).toint());
+        assertEquals("com.example.shared", shared.arg(5).tojstring());
+        assertFalse(shared.arg(6).toboolean());
     }
 
     // Lists of components keep system apps, which the Android framework uses, lists of packages do not
@@ -711,6 +727,15 @@ public class PackageScriptsTest {
                         "return list:size(), list:get(0):getPackageName()");
         assertEquals(1, admins.arg(1).toint());
         assertEquals("com.google.android.gms", admins.arg(2).tojstring());
+
+        // No admins left is null, like Android answers without admins (DevicePolicyManagerService.getActiveAdmins)
+        Varargs noadmins = Scripts.run(globals,
+                "local list = listof({ { getPackageName = function(self) return 'com.example.mdm' end } })\n" +
+                        "local param = paramof({}, {})\n" +
+                        "param.result = list\n" +
+                        "return after(hookof('DevicePolicyManager.getActiveAdmins'), param), param.result == nil");
+        assertTrue(noadmins.arg(1).toboolean());
+        assertTrue(noadmins.arg(2).toboolean());
 
         // Instrumentations stay when both the test runner and the package it tests are visible
         Varargs instrumentations = Scripts.run(globals,
