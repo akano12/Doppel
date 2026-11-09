@@ -278,6 +278,67 @@ public class PackageScriptsTest {
         assertTrue(storage.arg(2).tojstring().startsWith("com.example.bank.x"));
     }
 
+    // An intent with a selector is sent by the selector, so the package of the intent itself does not count for it
+    @Test
+    public void selectorOfIntentIsSubstituted() throws Exception {
+        Varargs result = Scripts.run(load("package_probe"),
+                "local base = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, ...)\n" +
+                        "  if name == 'android.content.Intent' then\n" +
+                        "    return { from = ..., setSelector = function(self, selector) self.selector = selector end,\n" +
+                        "      setPackage = function(self, name) self.package = name return self end }\n" +
+                        "  end\n" +
+                        "  return base(name, ...)\n" +
+                        "end\n" +
+                        "function intentof(packageName, selector)\n" +
+                        "  return { getComponent = function(self) return nil end,\n" +
+                        "    getPackage = function(self) return packageName end,\n" +
+                        "    getSelector = function(self) return selector end }\n" +
+                        "end\n" +
+                        "local hook = hookof('LauncherApps.resolveActivity', 'resolveActivity')\n" +
+                        "local selector = intentof('com.example.bank', nil)\n" +
+                        "local outer = intentof('com.example.app', selector)\n" +
+                        "local hidden = paramof({ [0] = outer }, { ['com.example.app'] = true })\n" +
+                        "hidden.isInstance = function(self, object, name) return name == 'android.content.Intent' end\n" +
+                        "local restricted = before(hook, hidden)\n" +
+                        "local copy = hidden.args[0]\n" +
+                        "local visibleSelector = intentof('com.example.app', nil)\n" +
+                        "local other = intentof('com.example.bank', visibleSelector)\n" +
+                        "local visible = paramof({ [0] = other }, { ['com.example.app'] = true })\n" +
+                        "visible.isInstance = hidden.isInstance\n" +
+                        "local stays = before(hook, visible)\n" +
+                        "return restricted, copy ~= outer, copy.from == outer, copy.selector.package,\n" +
+                        "  stays, visible.args[0] == other");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).tojstring().startsWith("com.example.bank.x"));
+        // A visible selector gives nothing, whatever the package of the intent is
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+    }
+
+    // A permission of a user id which is not in use is denied, like the ones of hidden apps; visible ones stay
+    @Test
+    public void permissionOfHiddenUidIsDenied() throws Exception {
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local hook = hookof('Context.checkPermission', 'checkPermission')\n" +
+                        "local granted = paramof({ [0] = 'android.permission.INTERNET', [1] = 1, [2] = 10060 }, {})\n" +
+                        "granted.result = 0\n" +
+                        "local visible = paramof({ [0] = 'android.permission.INTERNET', [1] = 1, [2] = 10050 }, { [10050] = true })\n" +
+                        "visible.result = 0\n" +
+                        "local denied = paramof({ [0] = 'android.permission.INTERNET', [1] = 1, [2] = 10060 }, {})\n" +
+                        "denied.result = -1\n" +
+                        "return after(hook, granted), granted.result, after(hook, visible), visible.result,\n" +
+                        "  after(hook, denied), denied.result");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(-1, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals(0, result.arg(4).toint());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals(-1, result.arg(6).toint());
+    }
+
     // An array of targets is copied, the array of the app stays as it is
     @Test
     public void arrayOfAppStays() throws Exception {

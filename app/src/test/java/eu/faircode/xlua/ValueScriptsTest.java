@@ -354,14 +354,65 @@ public class ValueScriptsTest {
         check(globals, "return after_(hookof('getPrimaryClipDescription'), paramof(nil))", false, false, null);
     }
 
-    // Opening the camera throws the error of a camera disabled by policy
-    @Test
-    public void cameraIsDisabled() throws Exception {
+    // A camera the app cannot see is one the device does not have: the error of Android for the asked id, with the
+    // message of Android, which getCameraCharacteristics gives once per process for an id no device has
+    private static Globals camera(String characteristics) throws Exception {
         Globals globals = load("camera2_open");
-        Scripts.run(globals, "luajava = { bindClass = function(name) return name end,\n" +
-                "  new = function(class, reason, message) return class .. ' ' .. reason .. ' ' .. message end }");
-        check(globals, "return before_(nil, paramof(nil, { [0] = '0' }))", true, true,
-                "android.hardware.camera2.CameraAccessException 1 Camera \"0\" disabled by policy");
+        Scripts.run(globals, "luajava = { newInstance = function(class, message) return class .. ': ' .. message end }\n" +
+                "probes, values = 0, {}\n" +
+                "manager = { getCameraCharacteristics = function(self, id)\n" +
+                "  probes = probes + 1\n" +
+                characteristics + "\n" +
+                "end }\n" +
+                "function cameraof(id)\n" +
+                "  return { args = { [0] = id },\n" +
+                "    getArgument = function(self, index) return self.args[index] end,\n" +
+                "    setResult = function(self, value) self.result = value end,\n" +
+                "    getApplicationContext = function(self) return values end,\n" +
+                "    getValue = function(self, name, scope) return scope[name] end,\n" +
+                "    putValue = function(self, name, value, scope) scope[name] = value end,\n" +
+                "    getThis = function(self) return manager end,\n" +
+                "    unhooked = function(self, f) return f() end }\n" +
+                "end");
+        return globals;
+    }
+
+    @Test
+    public void cameraIsUnknown() throws Exception {
+        Globals globals = camera("  error('vm error: java.lang.IllegalArgumentException: getCameraCharacteristics:851: " +
+                "Unable to retrieve camera characteristics for unknown device ' .. id .. ': No such file or directory (-2)', 0)");
+        Varargs result = Scripts.run(globals,
+                "local first, second = cameraof('0'), cameraof('2')\n" +
+                        "return before(nil, first), first.result, before(nil, second), second.result, probes");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("java.lang.IllegalArgumentException: getCameraCharacteristics:851: Unable to retrieve camera " +
+                "characteristics for unknown device 0: No such file or directory (-2)", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("java.lang.IllegalArgumentException: getCameraCharacteristics:851: Unable to retrieve camera " +
+                "characteristics for unknown device 2: No such file or directory (-2)", result.arg(4).tojstring());
+        // The message is kept for the process, so the probe runs once
+        assertEquals(1, result.arg(5).toint());
+    }
+
+    // Without an error from the probe, the message is the one of Android's text for an unknown id
+    @Test
+    public void cameraIsUnknownWithoutProbeError() throws Exception {
+        Varargs result = Scripts.run(camera("  return nil"),
+                "local param = cameraof('7')\n" +
+                        "return before(nil, param), param.result");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("java.lang.IllegalArgumentException: Camera id 7 does not match any currently connected camera device",
+                result.arg(2).tojstring());
+    }
+
+    // The message of a Java exception in LuaJ has the form the probe reads, like the one of getCameraCharacteristics
+    @Test
+    public void javaExceptionHasTheProbePattern() throws Exception {
+        Varargs result = Scripts.run(Scripts.load("camera2_open", null),
+                "local ok, err = pcall(function() return luajava.bindClass('java.lang.Character'):toChars(-1) end)\n" +
+                        "return ok, string.match(tostring(err), 'java%.lang%.IllegalArgumentException: (.*)$')");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).isnil());
     }
 
     @Test

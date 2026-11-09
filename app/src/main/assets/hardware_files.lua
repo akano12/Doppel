@@ -128,11 +128,12 @@ local APPS = { '^/[%w_]+/app/?$', '^/[%w_]+/priv%-app/?$', '^/system/[%w_]+/app/
 -- The paths the script runs for, of the groups with files outside /sys (see filter); the filter also compares
 -- absolute paths without /./, // and the links of /proc to the root (XCore.getFilter), relative paths with them run
 -- it too, and so do paths with /../ to su and Magisk, like /vendor/../data/adb, which the prefixes do not match.
--- The folders of su and of the codec files are there for listing them, like File.list of /system/xbin.
+-- The folders of su and of the codec files are there for listing them, like File.list of /system/xbin, and so are
+-- the folders of etc, which list the names the group hides, like fstab.* of /etc, a link to /system/etc.
 local FILTERS = {
     ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*',
                          '*/build.prop*', '*etc/fstab.*', '/fstab.*', '/', '*misc/user/*', '*/./*', '*//*',
-                         '/system/etc', '/vendor/etc', '/odm/etc', '/product/etc', '/system_ext/etc' },
+                         '/system/etc', '/vendor/etc', '/odm/etc', '/product/etc', '/system_ext/etc', '/etc' },
     ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
     ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',
@@ -141,7 +142,8 @@ local FILTERS = {
                            '/data/adb*', '*bin/su*', '*magisk*', '*debug_ramdisk*', '*/./*', '*//*', '*/../*',
                            '/system/bin', '/system/xbin', '/sbin', '/data/local', '/cache', '/dev', '/vendor/bin',
                            '/vendor/xbin', '/product/bin', '/system_ext/bin', '/odm/bin', '/system/app' },
-    ['Read.Features'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
+    ['Read.Features'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*', '/system/etc', '/vendor/etc',
+                          '/odm/etc', '/product/etc', '/system_ext/etc', '/etc' },
     ['Get.Applications'] = { '*etc/permissions*', '*/./*', '*//*', '/system/app', '/system/priv-app', '/product/app',
                              '/product/priv-app', '/system_ext/app', '/system_ext/priv-app', '/vendor/app',
                              '/vendor/priv-app', '/odm/app', '/odm/priv-app' },

@@ -96,6 +96,14 @@ function substitute(param, value, suffix, substitutes)
                 intent:setComponent(luajava.newInstance('android.content.ComponentName', name, component:getClassName()))
                 return intent
             end
+        elseif value:getSelector() ~= nil then
+            -- Android sends an intent with a selector by the selector, so its package does not count
+            local selector = substitute(param, value:getSelector(), suffix, substitutes)
+            if selector ~= nil then
+                local intent = luajava.newInstance('android.content.Intent', value)
+                intent:setSelector(selector)
+                return intent
+            end
         elseif value:getPackage() ~= nil then
             local name = hide(param, value:getPackage(), suffix, substitutes)
             if name ~= nil then

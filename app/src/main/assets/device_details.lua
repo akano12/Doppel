@@ -111,6 +111,26 @@ function filled(type, other, value)
     return array
 end
 
+-- Whether a system alias leaves the folder of the system certificates for more than its parent, like
+-- system:../../../data/misc/user/0/...: the folders next to it are read-only, but the user ones are not
+function outside(alias)
+    if string.sub(alias, 1, 7) ~= 'system:' then
+        return false
+    end
+    local depth = 0
+    for part in string.gmatch(string.sub(alias, 8), '[^/]+') do
+        if part == '..' then
+            depth = depth - 1
+        elseif part ~= '.' then
+            depth = depth + 1
+        end
+        if depth < -1 then
+            return true
+        end
+    end
+    return false
+end
+
 function after(hook, param)
     if param:getException() ~= nil then
         return false
@@ -207,8 +227,9 @@ function after(hook, param)
         end
         fake = BIOMETRIC_SUCCESS
     elseif method == 'containsAlias' or method == 'getCertificate' then
-        -- The filter also passes all aliases with /../
-        if string.sub(param:getArgument(0), 1, 5) ~= 'user:' then
+        -- The filter also passes all aliases with /../, which can lead to the user ones
+        local alias = param:getArgument(0)
+        if string.sub(alias, 1, 5) ~= 'user:' and not outside(alias) then
             return false
         end
         if method == 'containsAlias' then

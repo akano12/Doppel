@@ -487,7 +487,20 @@
     "parameterTypes": [],
     "returnType": "android.content.SyncAdapterType[]",
     "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@package_resolve"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccountManager.getAuthenticatorTypes/apps",
+    "author": "akano12",
+    "className": "android.accounts.AccountManager",
+    "methodName": "getAuthenticatorTypes",
+    "parameterTypes": [],
+    "returnType": "android.accounts.AuthenticatorDescription[]",
+    "minSdk": 27,
+    "luaScript": "@account_authenticators"
   },
   {
     "collection": "Privacy",
@@ -2248,6 +2261,23 @@
     "minSdk": 27,
     "excludePackages": "android",
     "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.checkPermission",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "checkPermission",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
   },
   {
     "collection": "Privacy",
@@ -11905,6 +11935,36 @@
     "minSdk": 33,
     "luaScript": "@analytics_metadata"
   },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "PackageManager.getPackageInfo/analytics",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 27,
+    "luaScript": "@analytics_metadata"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "PackageManager.getPackageInfo/flags/analytics",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$PackageInfoFlags"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 33,
+    "luaScript": "@analytics_metadata"
+  },
   // https://dev.appsflyer.com/hc/docs/android-sdk-reference-appsflyerlib
   {
     "collection": "Privacy",
@@ -15263,6 +15323,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@user_profiles"
   },
   {
@@ -15277,6 +15338,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@user_profiles"
   },
   {
@@ -15291,6 +15353,7 @@
     ],
     "returnType": "android.os.Bundle",
     "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@user_profiles"
   },
   {
@@ -15305,6 +15368,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@user_profiles"
   },
   {
@@ -15319,6 +15383,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@user_profiles"
   },
   {
@@ -17759,6 +17824,19 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkCapabilities.getTransportTypes",
+    "author": "akano12",
+    "className": "android.net.NetworkCapabilities",
+    "methodName": "getTransportTypes",
+    "parameterTypes": [],
+    "returnType": "int[]",
+    "minSdk": 27,
+    "optional": true,
     "luaScript": "@vpn"
   },
   {

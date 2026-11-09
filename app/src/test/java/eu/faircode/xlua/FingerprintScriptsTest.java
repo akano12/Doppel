@@ -645,6 +645,31 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(6).isnil());
     }
 
+    // A system alias with ../ which leaves the folder of the system certificates is the user's one, so it is hidden too
+    @Test
+    public void aliasesLeavingTheSystemFolderAreHidden() throws Exception {
+        Varargs result = Scripts.run(load("device_details"),
+                "local up = paramof(true, { [0] = 'system:../../../data/misc/user/0/cacerts-added/abc.0' })\n" +
+                        "local upCertificate = paramof('certificate', { [0] = 'system:../../../data/misc/user/0/cacerts-added/abc.0' })\n" +
+                        "local down = paramof(true, { [0] = 'system:abc/../../../../data/misc/user/0/cacerts-added/abc.0' })\n" +
+                        "local downCertificate = paramof('certificate', { [0] = 'system:abc/../../../../data/misc/user/0/cacerts-added/abc.0' })\n" +
+                        "local plain = paramof(true, { [0] = 'system:abc.0' })\n" +
+                        "return after(hookof('containsAlias'), up), up.result, after(hookof('getCertificate'), upCertificate),\n" +
+                        "  upCertificate.result, after(hookof('containsAlias'), down), down.result,\n" +
+                        "  after(hookof('getCertificate'), downCertificate), downCertificate.result,\n" +
+                        "  after(hookof('containsAlias'), plain), plain.result");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).isnil());
+        assertTrue(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(7).toboolean());
+        assertTrue(result.arg(8).isnil());
+        assertFalse(result.arg(9).toboolean());
+        assertTrue(result.arg(10).toboolean());
+    }
+
     // Android answers a new listener of the heat with the real values, here those of the getters, once, and throws for
     // removing a listener it does not know, which the blocked ones are to it
     @Test

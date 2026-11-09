@@ -67,9 +67,19 @@ function after(hook, param)
         return false
     end
 
+    -- The application info of a package info, which getApplicationInfo gives itself
+    local byPackage = hook:getMethodName() == 'getPackageInfo'
+    local info = result
+    if byPackage then
+        info = result.applicationInfo
+        if info == nil then
+            return false
+        end
+    end
+
     local metaData = luajava.newInstance('android.os.Bundle')
-    if result.metaData ~= nil then
-        metaData:putAll(result.metaData)
+    if info.metaData ~= nil then
+        metaData:putAll(info.metaData)
     end
     local changed = {}
     for _, sdk in ipairs(SDKS) do
@@ -83,9 +93,20 @@ function after(hook, param)
         return false
     end
 
-    -- A copy, because the package manager can keep the application info in a cache
-    local fake = luajava.newInstance('android.content.pm.ApplicationInfo', result)
-    fake.metaData = metaData
+    local fake
+    if byPackage then
+        -- A copy through a parcel, because the package manager can cache the package info (see storage_stats_uid)
+        local parcel = luajava.bindClass('android.os.Parcel'):obtain()
+        parcel:writeParcelable(result, 0)
+        parcel:setDataPosition(0)
+        fake = parcel:readParcelable(nil)
+        parcel:recycle()
+        fake.applicationInfo.metaData = metaData
+    else
+        -- A copy, because the package manager can keep the application info in a cache
+        fake = luajava.newInstance('android.content.pm.ApplicationInfo', result)
+        fake.metaData = metaData
+    end
     param:setResult(fake)
     return true, nil, table.concat(changed, ', ')
 end

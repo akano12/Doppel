@@ -584,6 +584,40 @@ public class NetworkScriptsTest {
                 "[ Transports: VPN Capabilities: INTERNET UnderlyingNetworks: null]").replaceAll(".*Capabilities: (\\S*).*", "$1"));
     }
 
+    // The transports of a VPN network lack VPN and LOWPAN, which hasTransport denies too; other transports stay
+    @Test
+    public void vpnTransportsLackVpn() throws Exception {
+        Globals globals = load("vpn");
+        Scripts.run(globals, Scripts.ARRAYOF + "\n" +
+                "luajava = { bindClass = function(name)\n" +
+                "  if name == 'java.lang.Integer' then return { TYPE = 'int' } end\n" +
+                "  assert(name == 'java.lang.reflect.Array', name)\n" +
+                "  return { newInstance = function(self, type, length) return { length = length } end }\n" +
+                "end }");
+        Varargs result = Scripts.run(globals,
+                "local function types(values)\n" +
+                        "  local param = paramof(arrayof(table.unpack(values)))\n" +
+                        "  local restricted, old, new = after(hookof('getTransportTypes'), param)\n" +
+                        "  local list = {}\n" +
+                        "  for index = 1, param.result.length do list[index] = param.result[index] end\n" +
+                        "  return restricted, old, new, table.concat(list, ',')\n" +
+                        "end\n" +
+                        "local r1, o1, n1, l1 = types({ 1, 4 })\n" +
+                        "local r2, o2, n2, l2 = types({ 0, 6, 4 })\n" +
+                        "local r3, o3, n3, l3 = types({ 1 })\n" +
+                        "return r1, o1, n1, l1, r2, o2, n2, l2, r3, l3");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("1,4", result.arg(2).tojstring());
+        assertEquals("1", result.arg(3).tojstring());
+        assertEquals("1", result.arg(4).tojstring());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("0,6,4", result.arg(6).tojstring());
+        assertEquals("0", result.arg(7).tojstring());
+        assertEquals("0", result.arg(8).tojstring());
+        assertFalse(result.arg(9).toboolean());
+        assertEquals("1", result.arg(10).tojstring());
+    }
+
     // A VPN network lacks NOT_VPN, which it has here; other capabilities stay
     @Test
     public void vpnHasNotVpn() throws Exception {
@@ -979,6 +1013,44 @@ public class NetworkScriptsTest {
         assertFalse(result.arg(4).toboolean());
         assertTrue(result.arg(5).toboolean());
         assertTrue(result.arg(6).isnil()); // No Firebase Analytics in the app
+        assertFalse(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean());
+    }
+
+    // The package info of the app gets the meta-data as a copy through a parcel, the cached one stays as it is
+    @Test
+    public void analyticsAreOffInPackageInfo() throws Exception {
+        Globals globals = load("analytics_metadata");
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
+                "classes['com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar'] = true\n" +
+                        "parcel = { copies = 0, writeParcelable = function(self, object) self.object = object end,\n" +
+                        "  setDataPosition = function(self, position) end,\n" +
+                        "  readParcelable = function(self, loader)\n" +
+                        "    local info = self.object.applicationInfo\n" +
+                        "    return { applicationInfo = { metaData = info.metaData } } end,\n" +
+                        "  recycle = function(self) end }\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  assert(name == 'android.os.Parcel', name)\n" +
+                        "  return { obtain = function() return parcel end } end\n" +
+                        "local info = { applicationInfo = { metaData = bundleof() } }\n" +
+                        "info.applicationInfo.metaData:putBoolean('com.google.android.geo.API_KEY', true)\n" +
+                        "local param = paramof(info, { [0] = 'com.example', [1] = 128 }, nil, context)\n" +
+                        "local restricted = after(hookof('getPackageInfo'), param)\n" +
+                        "local copy = param.result\n" +
+                        "local other = paramof(info, { [0] = 'com.other', [1] = 128 }, nil, context)\n" +
+                        "local flags = paramof(info, { [0] = 'com.example', [1] = 0 }, nil, context)\n" +
+                        "return restricted, copy ~= info, copy.applicationInfo.metaData.items.firebase_analytics_collection_deactivated,\n" +
+                        "  info.applicationInfo.metaData.items.firebase_analytics_collection_deactivated,\n" +
+                        "  info.applicationInfo.metaData.items['com.google.android.geo.API_KEY'],\n" +
+                        "  copy.applicationInfo.metaData.items['com.google.android.geo.API_KEY'],\n" +
+                        "  after(hookof('getPackageInfo'), other), after(hookof('getPackageInfo'), flags)");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).isnil()); // The cached original is not changed
+        assertTrue(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
         assertFalse(result.arg(7).toboolean());
         assertFalse(result.arg(8).toboolean());
     }

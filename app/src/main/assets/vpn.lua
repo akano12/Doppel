@@ -218,6 +218,28 @@ function restrict(hook, param)
             return true
         end
 
+    elseif method == 'getTransportTypes' then
+        -- The transports of a VPN network lack VPN and LOWPAN, which hasTransport denies too
+        if result ~= nil then
+            local old, kept = {}, {}
+            for index = 1, result['length'] do
+                old[#old + 1] = result[index]
+                if result[index] ~= TRANSPORT_VPN and result[index] ~= TRANSPORT_LOWPAN then
+                    kept[#kept + 1] = result[index]
+                end
+            end
+            if #kept < #old then
+                local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+                local intClass = luajava.bindClass('java.lang.Integer')
+                local fake = arrayClass:newInstance(intClass.TYPE, #kept)
+                for index = 1, #kept do
+                    fake[index] = kept[index]
+                end
+                param:setResult(fake)
+                return true, table.concat(old, ','), table.concat(kept, ',')
+            end
+        end
+
     elseif method == 'getTransportInfo' then
         -- Android 12 and later describe a VPN network with VpnTransportInfo, which is not in the SDK;
         -- Lua sees a Class as its static members, so the class name cannot be read from Lua (see XParam.isInstance),

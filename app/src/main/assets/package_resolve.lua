@@ -84,6 +84,13 @@ function after(hook, param)
         end
         param:setResult(nil)
         return true, packageName
+    elseif method == 'checkPermission' then
+        -- A permission of a user id which is not in use is denied, which Android says for ones of hidden apps
+        if result ~= 0 or param:isUidVisible(param:getArgument(2)) then
+            return false
+        end
+        param:setResult(-1) -- PackageManager.PERMISSION_DENIED
+        return true, tostring(param:getArgument(2))
     elseif method == 'resolveContentProvider' or method == 'resolveContentProviderAsUser' then
         packageName = result.packageName -- ProviderInfo
     elseif method == 'getPermissionInfo' or method == 'getPermissionGroupInfo' then

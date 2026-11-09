@@ -553,6 +553,43 @@ public class FileScriptsTest {
         assertTrue(filterMatches(filter, "/system/build.prop"));
     }
 
+    // The folders of etc list without the names the group hides: permissions and sysconfig for Read.Features in /system/etc
+    // and /etc, which is a link to it, and fstab.* of /etc, which Use.Tracking hides when the app can read it
+    @Test
+    public void etcListingsLeaveOutHiddenNames() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local features = hookof('Read.Features', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]')\n" +
+                        "local system = paramof('/system/etc', namesof('permissions', 'sysconfig', 'fonts.xml'))\n" +
+                        "after(features, system)\n" +
+                        "local etc = paramof('/etc', namesof('permissions', 'sysconfig', 'fonts.xml'))\n" +
+                        "after(features, etc)\n" +
+                        "return system.result.length, system.result[1], etc.result.length, etc.result[1]");
+        assertEquals(1, result.arg(1).toint());
+        assertEquals("fonts.xml", result.arg(2).tojstring());
+        assertEquals(1, result.arg(3).toint());
+        assertEquals("fonts.xml", result.arg(4).tojstring());
+
+        Globals tracking = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs readable = Scripts.run(tracking,
+                "local file = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path)\n" +
+                        "  if name == 'java.io.File' then return { exists = function() return true end,\n" +
+                        "    canRead = function() return path == '/etc/fstab.ranchu' end } end\n" +
+                        "  return file(name, path)\n" +
+                        "end\n" +
+                        "local etc = paramof('/etc', namesof('fstab.ranchu', 'hosts'))\n" +
+                        "etc.unhooked = function(self, fn) return fn() end\n" +
+                        "after(hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), etc)\n" +
+                        "return etc.result.length, etc.result[1]");
+        assertEquals(1, readable.arg(1).toint());
+        assertEquals("hosts", readable.arg(2).tojstring());
+
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Features'))").arg1().checktable().unpack());
+        assertTrue(filterMatches(filter, "/etc"));
+        assertTrue(filterMatches(filter, "/system/etc"));
+    }
+
     // File.list of the root leaves out a readable fstab file, the names of the root are /name and not //name
     @Test
     public void fstabAtTheRootIsLeftOutOfListings() throws Exception {

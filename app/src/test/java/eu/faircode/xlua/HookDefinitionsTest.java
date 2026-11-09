@@ -1328,4 +1328,22 @@ public class HookDefinitionsTest {
             check(name + "/vpn", "android.net.LinkProperties " + getter[0] + "() @vpn_addresses 27-" + getter[1] + " optional");
         }
     }
+
+    // The permission checks of contexts, the packages of the analytics, the transports of a VPN and the account types of apps
+    @Test
+    public void secondAuditDefinitions() throws Exception {
+        String s = "java.lang.String";
+        check("Context.checkPermission", "android.app.ContextImpl checkPermission(" + s + ",int,int) @package_resolve 27-");
+        check("PackageManager.getPackageInfo/analytics", "android.content.pm.PackageManager getPackageInfo(" + s +
+                ",int) @analytics_metadata 27-");
+        check("PackageManager.getPackageInfo/flags/analytics", "android.content.pm.PackageManager getPackageInfo(" + s +
+                ",android.content.pm.PackageManager$PackageInfoFlags) @analytics_metadata 33-");
+        check("NetworkCapabilities.getTransportTypes", "android.net.NetworkCapabilities getTransportTypes() @vpn 27- optional");
+        for (String name : new String[]{"UserManager.isUserRunning", "UserManager.isUserRunningOrStopping",
+                "UserManager.getUserRestrictions", "UserManager.isUserUnlocked", "UserManager.isQuietModeEnabled",
+                "ContentResolver.getSyncAdapterTypes", "Context.checkPermission"})
+            assertTrue(name + " is not excluded from android", Arrays.asList(hook(name).optString("excludePackages", "")
+                    .split(",")).contains("android"));
+        assertEquals("Get.Applications", hook("AccountManager.getAuthenticatorTypes/apps").getString("group"));
+    }
 }
