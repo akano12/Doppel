@@ -1200,6 +1200,11 @@ public class HookDefinitionsTest {
                 "@service_filter 27-");
         check("InstallSourceInfo.getInitiatingPackageSigningInfo", "android.content.pm.InstallSourceInfo " +
                 "getInitiatingPackageSigningInfo() @package_result 30-");
+        for (String[] acquire : new String[][]{{"acquireProvider/hidden", "android.net.Uri"},
+                {"acquireProvider.authority/hidden", s}, {"acquireUnstableProvider/hidden", "android.net.Uri"},
+                {"acquireUnstableProvider.authority/hidden", s}})
+            check("ContentResolver." + acquire[0], "android.content.ContentResolver " + acquire[0].replaceAll("[./].*", "") +
+                    "(" + acquire[1] + ") @provider_hidden 27- optional");
     }
 
     // Other users by a handle, and the attribution and GPS tags of photos, which answer like the hooked siblings

@@ -135,6 +135,13 @@ public class HiddenAppsScriptTest {
         assertFalse(provider(globals, "refresh", hidden).arg(3).toboolean());
         // An authority alone, like of a content provider client, with the user in front
         assertTrue(provider(globals, "acquireContentProviderClient", "'0@com.other.hidden.provider'").arg(3).isnil());
+        // The hidden ContentResolver.acquireProvider and acquireUnstableProvider, by uri and by authority: no provider
+        for (String method : new String[]{"acquireProvider", "acquireUnstableProvider"})
+            for (String target : new String[]{hidden, "'com.other.hidden.provider'"}) {
+                Varargs acquired = provider(globals, method, target);
+                assertTrue(method, acquired.arg(1).toboolean());
+                assertTrue(method, acquired.arg(3).isnil());
+            }
 
         // The package of a provider is looked up once
         int lookups = Scripts.run(globals, "return lookups").arg1().toint();

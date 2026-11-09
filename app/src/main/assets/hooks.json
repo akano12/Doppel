@@ -5277,6 +5277,72 @@
     "excludePackages": "android",
     "luaScript": "@package_result"
   },
+  // The providers of hidden apps by the hidden ContentResolver methods which return the provider itself, which apps
+  // can call by reflection; Android calls them too, for the visible providers
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.acquireProvider/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireProvider",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.content.IContentProvider",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.acquireProvider.authority/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireProvider",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.IContentProvider",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.acquireUnstableProvider/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireUnstableProvider",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.content.IContentProvider",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.acquireUnstableProvider.authority/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireUnstableProvider",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.IContentProvider",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html
   {
