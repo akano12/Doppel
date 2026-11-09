@@ -125,6 +125,21 @@ table.insert(FILES['Use.Tracking'], '^/fstab%.[^/]*$')
 -- since the system loads apps from them, like WebView
 local APPS = { '^/[%w_]+/app/?$', '^/[%w_]+/priv%-app/?$', '^/system/[%w_]+/app/?$', '^/system/[%w_]+/priv%-app/?$' }
 
+-- The folders named after apps, of which those of hidden apps do not exist for Get.Applications: the private data of
+-- apps, which Android 8.1 to 10 let other apps find (app data isolation hides it from Android 11), and the folders
+-- of apps in the shared storage: data and obb, which scoped storage hides from Android 11, and media, which all
+-- versions let apps list. Each pattern captures the name of the app, with the last version which needs it.
+local APP_FOLDERS = {
+    { '^/data/data/([^/]+)', 29 }, { '^/data/user/%d+/([^/]+)', 29 }, { '^/data/user_de/%d+/([^/]+)', 29 },
+    { '^/data/misc/profiles/cur/%d+/([^/]+)', 29 }, { '^/data/misc/profiles/ref/([^/]+)', 29 },
+}
+for _, storage in ipairs({ '^/storage/emulated/%d+', '^/storage/self/primary', '^/sdcard', '^/mnt/sdcard',
+                           '^/storage/%x%x%x%x%-%x%x%x%x' }) do
+    table.insert(APP_FOLDERS, { storage .. '/Android/data/([^/]+)', 29 })
+    table.insert(APP_FOLDERS, { storage .. '/Android/obb/([^/]+)', 29 })
+    table.insert(APP_FOLDERS, { storage .. '/Android/media/([^/]+)', 999 })
+end
+
 -- The paths the script runs for, of the groups with files outside /sys (see filter); the filter also compares
 -- absolute paths without /./, // and the links of /proc to the root (XCore.getFilter), relative paths with them run
 -- it too, and so do paths with /../ to su and Magisk, like /vendor/../data/adb, which the prefixes do not match.
@@ -173,7 +188,62 @@ local READONLY = { system = true, vendor = true, product = true, system_ext = tr
 -- or sys/... relative to /, the folder apps run in; see XCore.getFilter. Not covered are links of apps themselves
 -- to the files, which have paths without sys/.
 function filter(hook)
-    return FILTERS[hook:getGroup()] or { '*sys/*', '*/./*', '*//*' }
+    local group = hook:getGroup()
+    if group ~= 'Get.Applications' then
+        return FILTERS[group] or { '*sys/*', '*/./*', '*//*' }
+    end
+    -- The folders of APP_FOLDERS, only on the versions which need them, since apps use their own ones often
+    local values = {}
+    for _, value in ipairs(FILTERS[group]) do
+        values[#values + 1] = value
+    end
+    values[#values + 1] = '*Android/media*'
+    if sdkversion() <= 29 then
+        for _, value in ipairs({ '/data/data/*', '/data/user/*', '/data/user_de/*', '/data/misc/profiles/*',
+                                 '*Android/data*', '*Android/obb*' }) do
+            values[#values + 1] = value
+        end
+    end
+    return values
+end
+
+-- The version of Android, read once
+local VERSION = nil
+
+function sdkversion()
+    if VERSION == nil then
+        VERSION = luajava.bindClass('android.os.Build$VERSION').SDK_INT
+    end
+    return VERSION
+end
+
+-- The app a path is in by APP_FOLDERS, nil when it is in no folder named after an app; like .nomedia, a name which
+-- cannot be a package is of no app
+function appfolder(path)
+    for _, folder in ipairs(APP_FOLDERS) do
+        if sdkversion() <= folder[2] then
+            local name = string.match(path, folder[1])
+            if name ~= nil then
+                return (string.find(name, '^%a[%w_]*%.[%w_.]*[%w_]$') and name or nil)
+            end
+        end
+    end
+    return nil
+end
+
+-- Whether an app is installed and hidden: the folder of an app which is not installed stays, like on Android, also
+-- one the app made itself, which an app could else make to tell the hook is there
+function hiddenapp(param, name)
+    if name == param:getPackageName() or param:isPackageVisible(name) then
+        return false
+    end
+    local installed = pcall(function()
+        return param:unhooked(function()
+            -- MATCH_UNINSTALLED_PACKAGES, like XParam looks packages up
+            return param:getApplicationContext():getPackageManager():getPackageInfo(name, 0x2000)
+        end)
+    end)
+    return installed
 end
 
 -- Whether paths are hidden for a group, per thread, since a script runs once per thread (see docs/DEFINE.md): files
@@ -295,6 +365,18 @@ function matched(group, path, param)
     end
     -- Resolved once, when needed: getCanonicalPath reads the file system
     local resolved
+    if group == 'Get.Applications' then
+        -- A folder named after an app, by its path or the path it leads to, like /sdcard to /storage/emulated/0;
+        -- the paths in the own folders of the app, which apps use often, do not read the file system
+        local name = appfolder(plain)
+        if name == nil then
+            resolved = resolve(plain, param)
+            name = appfolder(resolved)
+        end
+        if name ~= nil then
+            return hiddenapp(param, name)
+        end
+    end
     if group == 'Use.Tracking' and string.find(path, 'fonts', 1, true) then
         if brandfont(plain) then
             return true

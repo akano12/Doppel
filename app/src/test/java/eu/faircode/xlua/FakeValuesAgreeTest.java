@@ -337,7 +337,9 @@ public class FakeValuesAgreeTest {
     // The files of /sys which do not exist for some group (hardware_files), the others for none
     @Test
     public void hardwareFiles() throws Exception {
+        // The folders named after apps depend on the apps installed, see FileScriptsTest.foldersOfHiddenAppsDoNotExist
         Globals files = Scripts.load("hardware_files", STUBS + "\n" +
+                "function hiddenapp(param, name) return false end\n" +
                 "function grouphook(group)\n" +
                 "  return { getGroup = function(self) return group end,\n" +
                 "    getClassName = function(self) return 'libcore.io.BlockGuardOs' end,\n" +

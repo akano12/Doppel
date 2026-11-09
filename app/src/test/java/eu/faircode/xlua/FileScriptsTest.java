@@ -457,6 +457,8 @@ public class FileScriptsTest {
             "  ['/sys/class/sec/tsp'] = '/sys/devices/virtual/sec/tsp',",
             "  ['/sys/class/sec/tsp/fod_pos'] = '/sys/devices/virtual/sec/tsp/fod_pos' }",
             "function resolve(path) return LINKS[path] or path end",
+            // Android 14, unless a test says otherwise
+            "function sdkversion() return 34 end",
             "function hookof(group, class, method, returnType)",
             "  return { getGroup = function(self) return group end,",
             "    getClassName = function(self) return class or 'libcore.io.BlockGuardOs' end,",
@@ -536,6 +538,78 @@ public class FileScriptsTest {
             assertTrue("result " + i, result.arg(i).toboolean());
         for (int i : new int[]{3, 9, 11, 12, 16})
             assertFalse("result " + i, result.arg(i).toboolean());
+    }
+
+    // The folders named after hidden apps do not exist: their private data on Android 8.1 to 10, their folders data
+    // and obb of the shared storage on Android 8.1 to 10 and media on all versions; the own folders, those of
+    // visible apps and of apps which are not installed stay, like ones the app makes itself
+    private static final String APPS_STUBS = HARDWARE_STUBS + "\n" + String.join("\n",
+            "INSTALLED = { ['com.hidden'] = true, ['com.visible'] = true, ['test.app'] = true }",
+            "function appsparam(argument, result)",
+            "  local param = paramof(argument, result)",
+            "  param.getPackageName = function(self) return 'test.app' end",
+            "  param.isPackageVisible = function(self, name) return name == 'com.visible' end",
+            "  param.unhooked = function(self, fn) return fn() end",
+            "  param.getApplicationContext = function(self) return { getPackageManager = function(self) return {",
+            "    getPackageInfo = function(self, name, flags)",
+            "      assert(flags == 0x2000)",
+            "      if not INSTALLED[name] then error('NameNotFoundException: ' .. name) end",
+            "      return { packageName = name } end } end } end",
+            "  return param",
+            "end");
+
+    @Test
+    public void foldersOfHiddenAppsDoNotExist() throws Exception {
+        Globals globals = Scripts.load("hardware_files", APPS_STUBS + "\nfunction sdkversion() return 29 end");
+        Varargs result = Scripts.run(globals,
+                "local apps = hookof('Get.Applications')\n" +
+                        "local function h(path) return hidden(apps, path, appsparam(path)) end\n" +
+                        "return h('/data/data/com.hidden'), h('/data/user/0/com.hidden/files/a.db'),\n" +
+                        "  h('/data/user_de/0/com.hidden'), h('/data/misc/profiles/cur/0/com.hidden/primary.prof'),\n" +
+                        "  h('/storage/emulated/0/Android/data/com.hidden'), h('/sdcard/Android/obb/com.hidden/main.obb'),\n" +
+                        "  h('/storage/emulated/0/Android/media/com.hidden'), h('/storage/1A2B-3C4D/Android/data/com.hidden'),\n" +
+                        // Stay: the own folders, a visible app, an app which is not installed, a name of no app
+                        "  h('/data/user/0/test.app/files/a.db'), h('/storage/emulated/0/Android/data/com.visible'),\n" +
+                        "  h('/storage/emulated/0/Android/data/com.notinstalled'), h('/storage/emulated/0/Android/data/.nomedia'),\n" +
+                        "  h('/storage/emulated/0/Android/data'), h('/data/user/0/test.app/files/Android/data/com.hidden')");
+        for (int i = 1; i <= 8; i++)
+            assertTrue("result " + i, result.arg(i).toboolean());
+        for (int i = 9; i <= 14; i++)
+            assertFalse("result " + i, result.arg(i).toboolean());
+
+        // Listing the folder of the apps of the shared storage leaves out the hidden ones
+        Varargs listed = Scripts.run(globals,
+                "local param = appsparam(nil, namesof('com.hidden', 'test.app', 'com.notinstalled', '.nomedia'))\n" +
+                        "param.getArgument = function(self, index) return '/storage/emulated/0/Android/data' end\n" +
+                        "local restricted = after(hookof('Get.Applications', 'java.io.UnixFileSystem', 'list0'), param)\n" +
+                        "local names = {}\n" +
+                        "for index = 1, param.result.length do names[#names + 1] = param.result[index] end\n" +
+                        "return restricted, table.concat(names, ',')");
+        assertTrue(listed.arg(1).toboolean());
+        assertEquals("test.app,com.notinstalled,.nomedia", listed.arg(2).tojstring());
+
+        // The filter passes the folders on these versions
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Applications'))").arg1().checktable().unpack());
+        assertTrue(filterMatches(filter, "/data/data/com.hidden"));
+        assertTrue(filterMatches(filter, "/storage/emulated/0/Android/obb/com.hidden"));
+        assertTrue(filterMatches(filter, "/storage/emulated/0/Android/media/com.hidden"));
+    }
+
+    // From Android 11 Android itself hides the private data and the folders data and obb of other apps
+    @Test
+    public void mediaFoldersOfHiddenAppsDoNotExistFromAndroid11() throws Exception {
+        Globals globals = Scripts.load("hardware_files", APPS_STUBS + "\nfunction sdkversion() return 30 end");
+        Varargs result = Scripts.run(globals,
+                "local apps = hookof('Get.Applications')\n" +
+                        "local function h(path) return hidden(apps, path, appsparam(path)) end\n" +
+                        "return h('/storage/emulated/0/Android/media/com.hidden'), h('/data/data/com.hidden'),\n" +
+                        "  h('/storage/emulated/0/Android/data/com.hidden')");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Applications'))").arg1().checktable().unpack());
+        assertTrue(filterMatches(filter, "/storage/emulated/0/Android/media/com.hidden"));
+        assertFalse(filterMatches(filter, "/data/user/0/test.app/files/a.db"));
     }
 
     // The properties at the root of a partition are hidden from Use.Tracking like the ones in etc, and the filter passes them
