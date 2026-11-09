@@ -34,7 +34,24 @@ function after(hook, param)
 
     local method = hook:getMethodName()
     local packageName
-    if method == 'getSyncAdapterTypes' then
+    if method == 'getSyncAdapterPackagesForAuthorityAsUser' then
+        -- The packages which sync an authority, of which the hidden ones are left out
+        local kept = {}
+        for index = 1, result['length'] do
+            if param:isPackageVisible(result[index]) then
+                kept[#kept + 1] = result[index]
+            end
+        end
+        if #kept == result['length'] then
+            return false
+        end
+        local fake = luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('java.lang.String'), #kept)
+        for index = 1, #kept do
+            fake[index] = kept[index]
+        end
+        param:setResult(fake)
+        return true, tostring(result['length']), tostring(#kept)
+    elseif method == 'getSyncAdapterTypes' or method == 'getSyncAdapterTypesAsUser' then
         -- The apps which sync, like com.whatsapp and org.telegram.messenger: those of hidden apps are left out
         local kept = {}
         for index = 1, result['length'] do

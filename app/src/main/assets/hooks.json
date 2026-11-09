@@ -5508,6 +5508,97 @@
     "excludePackages": "android",
     "luaScript": "@generic_filter_by_uid"
   },
+  // The sync adapters for a user, the hidden overloads which name the apps which sync, also on Android 8.1
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.getSyncAdapterTypesAsUser",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "getSyncAdapterTypesAsUser",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.content.SyncAdapterType[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.getSyncAdapterPackagesForAuthorityAsUser",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "getSyncAdapterPackagesForAuthorityAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
+  // The settings screen of a running service, and the search providers of the global search, which name their apps
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ActivityManager.getRunningServiceControlPanel",
+    "author": "akano12",
+    "className": "android.app.ActivityManager",
+    "methodName": "getRunningServiceControlPanel",
+    "parameterTypes": [
+      "android.content.ComponentName"
+    ],
+    "returnType": "android.app.PendingIntent",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "SearchManager.getSearchablesInGlobalSearch",
+    "author": "akano12",
+    "className": "android.app.SearchManager",
+    "methodName": "getSearchablesInGlobalSearch",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "SearchManager.getGlobalSearchActivities",
+    "author": "akano12",
+    "className": "android.app.SearchManager",
+    "methodName": "getGlobalSearchActivities",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "SearchManager.getWebSearchActivity",
+    "author": "akano12",
+    "className": "android.app.SearchManager",
+    "methodName": "getWebSearchActivity",
+    "parameterTypes": [],
+    "returnType": "android.content.ComponentName",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_result"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html
   {

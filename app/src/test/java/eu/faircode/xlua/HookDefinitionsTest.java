@@ -1225,6 +1225,17 @@ public class HookDefinitionsTest {
                 "getInstalledProvidersForProfile(int," + u + "," + s + ") @generic_filter_by_uid 27- optional");
         check("DevicePolicyManager.getActiveAdminsAsUser", "android.app.admin.DevicePolicyManager getActiveAdminsAsUser(int) " +
                 "@generic_filter_by_uid 27- optional");
+        check("ContentResolver.getSyncAdapterTypesAsUser", "android.content.ContentResolver getSyncAdapterTypesAsUser(int) " +
+                "@package_resolve 27- optional");
+        check("ContentResolver.getSyncAdapterPackagesForAuthorityAsUser", "android.content.ContentResolver " +
+                "getSyncAdapterPackagesForAuthorityAsUser(" + s + ",int) @package_resolve 27- optional");
+        check("ActivityManager.getRunningServiceControlPanel", "android.app.ActivityManager getRunningServiceControlPanel(" +
+                "android.content.ComponentName) @package_probe 27-");
+        check("SearchManager.getSearchablesInGlobalSearch", "android.app.SearchManager getSearchablesInGlobalSearch() " +
+                "@generic_filter_by_uid 27-");
+        check("SearchManager.getGlobalSearchActivities", "android.app.SearchManager getGlobalSearchActivities() " +
+                "@generic_filter_by_uid 27- optional");
+        check("SearchManager.getWebSearchActivity", "android.app.SearchManager getWebSearchActivity() @package_result 27- optional");
     }
 
     // Other users by a handle, and the attribution and GPS tags of photos, which answer like the hooked siblings

@@ -602,6 +602,24 @@ public class PackageScriptsTest {
                         "return restricted, param.result['length']");
         assertTrue(result.arg(1).toboolean());
         assertEquals(2, result.arg(2).toint());
+
+        // For a user, the hidden overloads: the types, and the packages which sync an authority
+        Varargs user = Scripts.run(load("package_resolve"),
+                "local function syncof(name) return { getPackageName = function(self) return name end } end\n" +
+                        "local types = paramof({}, { ['com.google.android.gms'] = true })\n" +
+                        "types.findClass = function(self, name) return name end\n" +
+                        "types.result = { length = 2, syncof('com.google.android.gms'), syncof('com.whatsapp') }\n" +
+                        "local packages = paramof({}, { ['com.google.android.gms'] = true })\n" +
+                        "packages.result = arrayof('com.whatsapp', 'com.google.android.gms')\n" +
+                        "return after(hookof('ContentResolver.getSyncAdapterTypesAsUser', 'getSyncAdapterTypesAsUser'), types),\n" +
+                        "  types.result['length'],\n" +
+                        "  after(hookof('ContentResolver.getSyncAdapterPackagesForAuthorityAsUser',\n" +
+                        "    'getSyncAdapterPackagesForAuthorityAsUser'), packages), packages.result.length, packages.result[1]");
+        assertTrue(user.arg(1).toboolean());
+        assertEquals(1, user.arg(2).toint());
+        assertTrue(user.arg(3).toboolean());
+        assertEquals(1, user.arg(4).toint());
+        assertEquals("com.google.android.gms", user.arg(5).tojstring());
     }
 
     // Like for a user id which is not in use
@@ -791,6 +809,24 @@ public class PackageScriptsTest {
         assertEquals(1, overloads.arg(2).toint());
         assertTrue(overloads.arg(3).toboolean());
         assertTrue(overloads.arg(4).toboolean());
+
+        // The search providers of the global search, by the package of their screen
+        Varargs searches = Scripts.run(globals,
+                "local function searchable(name) return { getSearchActivity = function(self)\n" +
+                        "  return { getPackageName = function(self) return name end } end } end\n" +
+                        "local list = listof({ searchable('com.hidden'), searchable('com.google.android.googlequicksearchbox') })\n" +
+                        "local param = paramof({}, { ['com.google.android.googlequicksearchbox'] = true })\n" +
+                        "param.result = list\n" +
+                        "local activities = listof({ { activityInfo = { applicationInfo = { uid = 10060 } } },\n" +
+                        "  { activityInfo = { applicationInfo = { uid = 10010, system = true } } } })\n" +
+                        "local global = paramof({}, {})\n" +
+                        "global.result = activities\n" +
+                        "return after(hookof('SearchManager.getSearchablesInGlobalSearch'), param), list:size(),\n" +
+                        "  after(hookof('SearchManager.getGlobalSearchActivities'), global), activities:size()");
+        assertTrue(searches.arg(1).toboolean());
+        assertEquals(1, searches.arg(2).toint());
+        assertTrue(searches.arg(3).toboolean());
+        assertEquals(1, searches.arg(4).toint());
 
         // The phone accounts of VoIP apps, by the package of their connection service
         Varargs accounts = Scripts.run(globals,

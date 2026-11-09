@@ -133,6 +133,10 @@ function after(hook, param)
             packageName = item.provider:getPackageName() -- AppWidgetProviderInfo
         elseif string.match(name, '^PackageManager%.query%a+Property$') then
             packageName = item:getPackageName() -- PackageManager.Property
+        elseif name == 'SearchManager.getSearchablesInGlobalSearch' then
+            packageName = item:getSearchActivity():getPackageName() -- SearchableInfo
+        elseif name == 'SearchManager.getGlobalSearchActivities' then
+            ai = item.activityInfo.applicationInfo -- ResolveInfo
         elseif name == 'TelecomManager.getSelfManagedPhoneAccounts' then
             packageName = item:getComponentName():getPackageName() -- PhoneAccountHandle of a VoIP app
         elseif name == 'DevicePolicyManager.getActiveAdmins' then
