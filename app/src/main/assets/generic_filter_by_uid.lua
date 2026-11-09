@@ -80,6 +80,22 @@ function after(hook, param)
         return false
     end
 
+    -- The standby buckets of all apps, a map by package, which needs usage access only (UsageStatsService)
+    if hook:getName() == 'UsageStatsManager.getAppStandbyBuckets' then
+        local names = list:keySet():toArray()
+        local kept = luajava.newInstance('java.util.HashMap')
+        for index = 1, names['length'] do
+            if param:isPackageVisible(names[index]) then
+                kept:put(names[index], list:get(names[index]))
+            end
+        end
+        if kept:size() == names['length'] then
+            return false
+        end
+        param:setResult(kept)
+        return true, tostring(names['length']), tostring(kept:size())
+    end
+
     local filtered = false
     local name = string.gsub(hook:getName(), '%.%d+$', '')
     name = string.gsub(name, 'AsUser$', '') -- Hidden methods for a user, with the items of their public twin
@@ -117,6 +133,8 @@ function after(hook, param)
             packageName = item.provider:getPackageName() -- AppWidgetProviderInfo
         elseif string.match(name, '^PackageManager%.query%a+Property$') then
             packageName = item:getPackageName() -- PackageManager.Property
+        elseif name == 'TelecomManager.getSelfManagedPhoneAccounts' then
+            packageName = item:getComponentName():getPackageName() -- PhoneAccountHandle of a VoIP app
         elseif name == 'DevicePolicyManager.getActiveAdmins' then
             packageName = item:getPackageName() -- ComponentName, system admins stay like system apps
         elseif name == 'PackageManager.queryInstrumentation' then

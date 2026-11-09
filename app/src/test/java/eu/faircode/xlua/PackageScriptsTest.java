@@ -776,6 +776,19 @@ public class PackageScriptsTest {
         assertEquals(1, admins.arg(1).toint());
         assertEquals("com.google.android.gms", admins.arg(2).tojstring());
 
+        // The phone accounts of VoIP apps, by the package of their connection service
+        Varargs accounts = Scripts.run(globals,
+                "local function handle(name) return { getComponentName = function(self)\n" +
+                        "  return { getPackageName = function(self) return name end } end } end\n" +
+                        "local list = listof({ handle('com.hidden.voip'), handle('com.visible.voip') })\n" +
+                        "local param = paramof({}, { ['com.visible.voip'] = true })\n" +
+                        "param.result = list\n" +
+                        "return after(hookof('TelecomManager.getSelfManagedPhoneAccounts'), param), list:size(),\n" +
+                        "  list:get(0):getComponentName():getPackageName()");
+        assertTrue(accounts.arg(1).toboolean());
+        assertEquals(1, accounts.arg(2).toint());
+        assertEquals("com.visible.voip", accounts.arg(3).tojstring());
+
         // The processes in error of other apps go, and none left is null, like Android answers without errors
         Varargs errors = Scripts.run(globals,
                 "local list = listof({ { uid = 10060 }, { uid = 10001 } })\n" +

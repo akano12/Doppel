@@ -1213,6 +1213,12 @@ public class HookDefinitionsTest {
                 "@package_resolve 27- optional");
         check("ActivityManager.getProcessesInErrorState", "android.app.ActivityManager getProcessesInErrorState() " +
                 "@generic_filter_by_uid 27-");
+        check("TelecomManager.getSelfManagedPhoneAccounts", "android.telecom.TelecomManager getSelfManagedPhoneAccounts() " +
+                "@generic_filter_by_uid 27-");
+        check("UsageStatsManager.getAppStandbyBuckets", "android.app.usage.UsageStatsManager getAppStandbyBuckets() " +
+                "@generic_filter_by_uid 28- optional");
+        check("UsageStatsManager.getAppStandbyBucket", "android.app.usage.UsageStatsManager getAppStandbyBucket(" + s +
+                ") @package_probe 28- optional");
     }
 
     // Other users by a handle, and the attribution and GPS tags of photos, which answer like the hooked siblings

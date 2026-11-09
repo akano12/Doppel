@@ -92,6 +92,31 @@ public class AuditFixesScriptTest {
         assertFalse(result.arg(8).toboolean());
     }
 
+    // The standby buckets of all apps keep the visible ones only, a map like Android gives (real HashMap of luajava)
+    @Test
+    public void standbyBucketsOfHiddenAppsAreLeftOut() throws Exception {
+        Globals globals = Scripts.load("generic_filter_by_uid", PARAM);
+        Varargs result = Scripts.run(globals,
+                "local hook = { getName = function() return 'UsageStatsManager.getAppStandbyBuckets' end }\n" +
+                        "local map = luajava.newInstance('java.util.HashMap')\n" +
+                        "map:put('com.visible', 10)\n" +
+                        "map:put('com.hidden', 40)\n" +
+                        "local param = paramof(map, nil, 'com.visible')\n" +
+                        "param.isSystem = function() return false end\n" +
+                        "local all = luajava.newInstance('java.util.HashMap')\n" +
+                        "all:put('com.visible', 10)\n" +
+                        "local same = paramof(all, nil, 'com.visible')\n" +
+                        "same.isSystem = function() return false end\n" +
+                        "local restricted, old, new = after(hook, param)\n" +
+                        "return restricted, old, new, param.result:size(), param.result:get('com.visible'), after(hook, same)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("2", result.arg(2).tojstring());
+        assertEquals("1", result.arg(3).tojstring());
+        assertEquals(1, result.arg(4).toint());
+        assertEquals(10, result.arg(5).toint());
+        assertFalse(result.arg(6).toboolean());
+    }
+
     // Only the speaker and the earpiece stay: a device without an output does not exist, a headset names its owner
     @Test
     public void builtInOutputsStay() throws Exception {

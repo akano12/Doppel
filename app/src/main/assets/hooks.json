@@ -5411,6 +5411,51 @@
     "excludePackages": "android",
     "luaScript": "@generic_filter_by_uid"
   },
+  // The phone accounts of the VoIP apps of the user, which Telecom gives with READ_PHONE_STATE, and the standby
+  // buckets of apps, which need usage access only
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getSelfManagedPhoneAccounts",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getSelfManagedPhoneAccounts",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UsageStatsManager.getAppStandbyBuckets",
+    "author": "akano12",
+    "className": "android.app.usage.UsageStatsManager",
+    "methodName": "getAppStandbyBuckets",
+    "parameterTypes": [],
+    "returnType": "java.util.Map",
+    "minSdk": 28,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UsageStatsManager.getAppStandbyBucket",
+    "author": "akano12",
+    "className": "android.app.usage.UsageStatsManager",
+    "methodName": "getAppStandbyBucket",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 28,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html
   {
