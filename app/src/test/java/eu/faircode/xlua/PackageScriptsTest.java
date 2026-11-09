@@ -672,6 +672,25 @@ public class PackageScriptsTest {
         assertFalse(shared.arg(6).toboolean());
     }
 
+    // The names of several user ids: null for the user ids of hidden apps, like for user ids which are not in use
+    @Test
+    public void namesOfHiddenUids() throws Exception {
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local hook = hookof('PackageManager.getNamesForUids', 'getNamesForUids')\n" +
+                        "local param = paramof({ [0] = arrayof(10001, 10060, 1000) }, { [10001] = true, [1000] = true })\n" +
+                        "param.result = arrayof('test.app', 'com.hidden', 'android')\n" +
+                        "local visible = paramof({ [0] = arrayof(10001) }, { [10001] = true })\n" +
+                        "visible.result = arrayof('test.app')\n" +
+                        "return after(hook, param), param.result.length, param.result[1], param.result[2], param.result[3],\n" +
+                        "  after(hook, visible)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(3, result.arg(2).toint());
+        assertEquals("test.app", result.arg(3).tojstring());
+        assertTrue(result.arg(4).isnil());
+        assertEquals("android", result.arg(5).tojstring());
+        assertFalse(result.arg(6).toboolean());
+    }
+
     // A service resolved for a user, like resolveService: an implicit intent gets the first visible service,
     // an intent naming a hidden app gets none
     @Test
@@ -756,6 +775,20 @@ public class PackageScriptsTest {
                         "return list:size(), list:get(0):getPackageName()");
         assertEquals(1, admins.arg(1).toint());
         assertEquals("com.google.android.gms", admins.arg(2).tojstring());
+
+        // The processes in error of other apps go, and none left is null, like Android answers without errors
+        Varargs errors = Scripts.run(globals,
+                "local list = listof({ { uid = 10060 }, { uid = 10001 } })\n" +
+                        "local param = paramof({}, {})\n" +
+                        "param.result = list\n" +
+                        "local none = paramof({}, {})\n" +
+                        "none.result = listof({ { uid = 10060 } })\n" +
+                        "return after(hookof('ActivityManager.getProcessesInErrorState'), param), list:size(),\n" +
+                        "  after(hookof('ActivityManager.getProcessesInErrorState'), none), none.result == nil");
+        assertTrue(errors.arg(1).toboolean());
+        assertEquals(1, errors.arg(2).toint());
+        assertTrue(errors.arg(3).toboolean());
+        assertTrue(errors.arg(4).toboolean());
 
         // No admins left is null, like Android answers without admins (DevicePolicyManagerService.getActiveAdmins)
         Varargs noadmins = Scripts.run(globals,

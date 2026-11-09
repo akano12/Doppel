@@ -1209,6 +1209,10 @@ public class HookDefinitionsTest {
                 ",int,int) @package_resolve 27- optional");
         check("PackageManager.resolveServiceAsUser/flags", "android.content.pm.PackageManager resolveServiceAsUser(" + i +
                 ",android.content.pm.PackageManager$ResolveInfoFlags,int) @package_resolve 33- optional");
+        check("PackageManager.getNamesForUids", "android.content.pm.PackageManager getNamesForUids(int[]) " +
+                "@package_resolve 27- optional");
+        check("ActivityManager.getProcessesInErrorState", "android.app.ActivityManager getProcessesInErrorState() " +
+                "@generic_filter_by_uid 27-");
     }
 
     // Other users by a handle, and the attribution and GPS tags of photos, which answer like the hooked siblings

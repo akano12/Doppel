@@ -145,8 +145,10 @@ function after(hook, param)
         end
     end
 
-    -- Android answers null when there are no device admins (DevicePolicyManagerService.getActiveAdmins), not an empty list
-    if filtered and name == 'DevicePolicyManager.getActiveAdmins' and list:isEmpty() then
+    -- Android answers null when there are no device admins (DevicePolicyManagerService.getActiveAdmins) and no
+    -- processes in error (ActivityManager.getProcessesInErrorState), not an empty list
+    if filtered and (name == 'DevicePolicyManager.getActiveAdmins' or name == 'ActivityManager.getProcessesInErrorState') and
+            list:isEmpty() then
         param:setResult(nil)
     end
 

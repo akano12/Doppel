@@ -103,6 +103,30 @@ function after(hook, param)
         end
         param:setResult(nil)
         return true, packageName
+    elseif method == 'getNamesForUids' then
+        -- A name per user id, null for one which is not in use, like Android gives for the user ids of hidden apps
+        local uids = param:getArgument(0)
+        if uids == nil then
+            return false
+        end
+        local names = nil
+        for index = 1, result['length'] do
+            if result[index] ~= nil and not param:isUidVisible(uids[index]) then
+                if names == nil then
+                    local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+                    names = arrayClass:newInstance(luajava.bindClass('java.lang.String'), result['length'])
+                    for copy = 1, result['length'] do
+                        names[copy] = result[copy]
+                    end
+                end
+                names[index] = nil
+            end
+        end
+        if names == nil then
+            return false
+        end
+        param:setResult(names)
+        return true
     elseif method == 'checkPermission' then
         -- A permission of a user id which is not in use is denied, which Android says for ones of hidden apps
         if result ~= 0 or param:isUidVisible(param:getArgument(2)) then
