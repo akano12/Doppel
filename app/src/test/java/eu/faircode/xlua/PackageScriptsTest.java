@@ -776,6 +776,22 @@ public class PackageScriptsTest {
         assertEquals(1, admins.arg(1).toint());
         assertEquals("com.google.android.gms", admins.arg(2).tojstring());
 
+        // The hidden overloads of the widgets and the admins, like their public twins
+        Varargs overloads = Scripts.run(globals,
+                "local function widget(name) return { provider = { getPackageName = function(self) return name end } } end\n" +
+                        "local function admin(name) return { getPackageName = function(self) return name end } end\n" +
+                        "local widgets = listof({ widget('com.hidden'), widget('com.visible') })\n" +
+                        "local w = paramof({}, { ['com.visible'] = true })\n" +
+                        "w.result = widgets\n" +
+                        "local a = paramof({}, {})\n" +
+                        "a.result = listof({ admin('com.example.mdm') })\n" +
+                        "return after(hookof('AppWidgetManager.getInstalledProvidersForProfile.category'), w), widgets:size(),\n" +
+                        "  after(hookof('DevicePolicyManager.getActiveAdminsAsUser'), a), a.result == nil");
+        assertTrue(overloads.arg(1).toboolean());
+        assertEquals(1, overloads.arg(2).toint());
+        assertTrue(overloads.arg(3).toboolean());
+        assertTrue(overloads.arg(4).toboolean());
+
         // The phone accounts of VoIP apps, by the package of their connection service
         Varargs accounts = Scripts.run(globals,
                 "local function handle(name) return { getComponentName = function(self)\n" +

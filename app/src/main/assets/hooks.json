@@ -5456,6 +5456,58 @@
     "excludePackages": "android",
     "luaScript": "@package_probe"
   },
+  // The hidden overloads of the lists of widgets and device admins, which apps can call by reflection, filtered like
+  // their public twins
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AppWidgetManager.getInstalledProviders.category",
+    "author": "akano12",
+    "className": "android.appwidget.AppWidgetManager",
+    "methodName": "getInstalledProviders",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AppWidgetManager.getInstalledProvidersForProfile.category",
+    "author": "akano12",
+    "className": "android.appwidget.AppWidgetManager",
+    "methodName": "getInstalledProvidersForProfile",
+    "parameterTypes": [
+      "int",
+      "android.os.UserHandle",
+      "java.lang.String"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "DevicePolicyManager.getActiveAdminsAsUser",
+    "author": "akano12",
+    "className": "android.app.admin.DevicePolicyManager",
+    "methodName": "getActiveAdminsAsUser",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html
   {
