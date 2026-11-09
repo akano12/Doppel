@@ -940,7 +940,7 @@ public class HookDefinitionsTest {
                 readers++;
                 assertTrue(hook.getString("name"), hook.optBoolean("usage", true));
             }
-        assertEquals(11, readers);
+        assertEquals(13, readers);
         assertTrue(hook("MediaMetadataRetriever.extractMetadata").optBoolean("usage", true));
     }
 
@@ -1134,12 +1134,42 @@ public class HookDefinitionsTest {
                 "@component_hidden 27-");
         check("Context.stopServiceAsUser/hidden", "android.app.ContextImpl stopServiceAsUser(android.content.Intent," +
                 "android.os.UserHandle) @component_hidden 27-");
+        // Attribution checks of Android 16 and the enabled settings, which Android looks the package up for first
+        check("AppOpsManager.checkOp/attribution", "android.app.AppOpsManager checkOp(" + s + ",int," + s + "," + s +
+                ") @package_probe 36-");
+        check("AppOpsManager.checkOpRawNoThrow/attribution", "android.app.AppOpsManager checkOpRawNoThrow(" + s +
+                ",int," + s + "," + s + ") @package_probe 36-");
+        check("PackageManager.setApplicationEnabledSetting", "android.content.pm.PackageManager " +
+                "setApplicationEnabledSetting(" + s + ",int,int) @package_probe 27-");
+        check("PackageManager.setComponentEnabledSetting", "android.content.pm.PackageManager " +
+                "setComponentEnabledSetting(android.content.ComponentName,int,int) @package_probe 27-");
+        check("PowerManager.isIgnoringBatteryOptimizations", "android.os.PowerManager " +
+                "isIgnoringBatteryOptimizations(" + s + ") @package_probe 27-");
         // Lists which the app passes, and the users by their serial numbers
         check("PackageManager.getPreferredActivities", "android.content.pm.PackageManager getPreferredActivities(" +
                 "java.util.List,java.util.List," + s + ") @generic_filter_by_uid 27-");
         check("UserManager.getUserForSerialNumber", "android.os.UserManager getUserForSerialNumber(long) @user_profiles 27-");
         check("UserManager.getSerialNumberForUser", "android.os.UserManager getSerialNumberForUser(android.os.UserHandle) " +
                 "@user_profiles 27-");
+    }
+
+    // Other users by a handle, and the attribution and GPS tags of photos, which answer like the hooked siblings
+    @Test
+    public void otherUsersAndPhotoAttributesAreHooked() throws Exception {
+        check("UserManager.isUserRunningOrStopping", "android.os.UserManager isUserRunningOrStopping(" +
+                "android.os.UserHandle) @user_profiles 27-");
+        check("UserManager.getUserRestrictions", "android.os.UserManager getUserRestrictions(" +
+                "android.os.UserHandle) @user_profiles 27-");
+        String s = "java.lang.String";
+        check("ExifInterface.hasAttribute", "android.media.ExifInterface hasAttribute(" + s + ") @photo_location 29-");
+        check("ExifInterface.getAttributeRange", "android.media.ExifInterface getAttributeRange(" + s +
+                ") @photo_location 29-");
+        check("ExifInterfaceX.hasAttribute", "androidx.exifinterface.media.ExifInterface hasAttribute(" + s +
+                ") @photo_location 27- optional");
+        check("ExifInterfaceX.getAttributeRange", "androidx.exifinterface.media.ExifInterface getAttributeRange(" +
+                s + ") @photo_location 27- optional");
+        check("ExifInterfaceS.hasAttribute", "android.support.media.ExifInterface hasAttribute(" + s +
+                ") @photo_location 27- optional");
     }
 
     // Settings, intents, accounts and the default account of contacts restricted for Android would change what

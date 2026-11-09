@@ -137,6 +137,28 @@ function apptime(param, path)
     return time or nil
 end
 
+-- Whether lstat gave a symbolic link: the type bits of st_mode are 0xA000
+function islink(method, mode)
+    return method == 'lstat' and mode ~= nil and math.floor(mode / 4096) % 16 == 10
+end
+
+-- The key of the inode of a path: the spellings of a folder of the shared storage have one, like Android gives them
+-- one inode (Files.isSameFile compares them); a link keeps its own, like lstat of /sdcard
+function inodekey(path, link)
+    if link or not storage(path) then
+        return path
+    end
+    local root = tops()
+    local lower = string.lower(path)
+    for _, alias in ipairs({ root[2], root[3] }) do
+        local prefix = string.lower(alias)
+        if lower == prefix or string.sub(lower, 1, #prefix + 1) == prefix .. '/' then
+            return string.lower(root[1]) .. string.sub(lower, #prefix + 1)
+        end
+    end
+    return lower
+end
+
 function after(hook, param)
     if param:getException() ~= nil then
         return false
@@ -155,8 +177,11 @@ function after(hook, param)
     local seconds = math.floor(time / 1000)
     local nanos = (time % 1000) * 1000000
     -- The inode of a folder stays too, so apps would read the same number: one of its own for each app, of its fake
-    -- Android ID (see Fake values), which lets file systems tell folders apart as before
-    local inode = tonumber(string.sub(param:uuidOf((param:getSetting('value.android_id') or '') .. path), 1, 7), 16) + 1000
+    -- Android ID (see Fake values), which lets file systems tell folders apart as before; the mode decides the key
+    local function inode(link)
+        local key = (param:getSetting('value.android_id') or '') .. inodekey(path, link)
+        return tonumber(string.sub(param:uuidOf(key), 1, 7), 16) + 1000
+    end
 
     -- java.nio reads the times into the attributes of its argument; the boot image has the methods calling this
     -- one (UnixFileAttributes.get) compiled inline, so their hooks would not apply
@@ -167,7 +192,7 @@ function after(hook, param)
             return false
         end
         local old = attributes.st_mtime_sec
-        attributes.st_ino = inode
+        attributes.st_ino = inode(islink(hook:getMethodName(), attributes.st_mode))
         for _, name in ipairs({ 'atime', 'mtime', 'ctime' }) do
             attributes['st_' .. name .. '_sec'] = seconds
             attributes['st_' .. name .. '_nsec'] = nanos
@@ -200,7 +225,7 @@ function after(hook, param)
     end
     local spec = luajava.newInstance('android.system.StructTimespec', seconds, nanos)
     local fake = luajava.newInstance('android.system.StructStat',
-            result.st_dev, inode, result.st_mode, result.st_nlink, result.st_uid, result.st_gid,
+            result.st_dev, inode(islink(method, result.st_mode)), result.st_mode, result.st_nlink, result.st_uid, result.st_gid,
             result.st_rdev, result.st_size, spec, spec, spec, result.st_blksize, result.st_blocks)
     param:setResult(fake)
     return true, tostring(result.st_mtime), tostring(seconds)

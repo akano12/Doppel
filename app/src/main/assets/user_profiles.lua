@@ -20,13 +20,15 @@
 -- UserManager.getUserProfiles and LauncherApps.getProfiles keep the user of the app, getUserCount is 1,
 -- CrossProfileApps.getTargetUserProfiles has no profile to switch to, and the serial numbers of other users, which
 -- getUserForSerialNumber and getSerialNumberForUser convert, are like those of users which do not exist.
--- UserManager.isUserRunning, isUserUnlocked and isQuietModeEnabled answer for a handle an app can make itself, like
+-- UserManager.isUserRunning, isUserRunningOrStopping, isUserUnlocked, isQuietModeEnabled and getUserRestrictions
+-- answer for a handle an app can make itself, like
 -- UserHandle.of(10): they are asked about a user which does not exist, so the app gets the answer of Android for that.
 
 -- The user id no device has, Android allows far fewer users
 local NOUSER = 9999
 
-local QUESTIONS = { isUserRunning = true, isUserUnlocked = true, isQuietModeEnabled = true }
+local QUESTIONS = { isUserRunning = true, isUserRunningOrStopping = true, isUserUnlocked = true,
+    isQuietModeEnabled = true, getUserRestrictions = true }
 
 function before(hook, param)
     if not QUESTIONS[hook:getMethodName()] then

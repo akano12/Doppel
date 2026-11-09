@@ -115,9 +115,11 @@ for group, names in pairs({
         end
     end
 end
--- The properties at the root of a partition too, like /system/build.prop and /vendor/build.prop
+-- The properties at the root of a partition too, like /system/build.prop and /vendor/build.prop, and fstab at the
+-- root of devices of Android 8.1 and 9 without system as root
 table.insert(FILES['Use.Tracking'], '^/[%w_]+/build%.prop$')
 table.insert(FILES['Use.Tracking'], '^/system/[%w_]+/build%.prop$')
+table.insert(FILES['Use.Tracking'], '^/fstab%.[^/]*$')
 
 -- The folders of the apps of the system, of which only the names are left out for Get.Applications: the files stay,
 -- since the system loads apps from them, like WebView
@@ -129,8 +131,8 @@ local APPS = { '^/[%w_]+/app/?$', '^/[%w_]+/priv%-app/?$', '^/system/[%w_]+/app/
 -- The folders of su and of the codec files are there for listing them, like File.list of /system/xbin.
 local FILTERS = {
     ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*',
-                         '*/build.prop*', '*etc/fstab.*', '*misc/user/*', '*/./*', '*//*', '/system/etc',
-                         '/vendor/etc', '/odm/etc', '/product/etc', '/system_ext/etc' },
+                         '*/build.prop*', '*etc/fstab.*', '/fstab.*', '/', '*misc/user/*', '*/./*', '*//*',
+                         '/system/etc', '/vendor/etc', '/odm/etc', '/product/etc', '/system_ext/etc' },
     ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
     ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',
@@ -218,13 +220,13 @@ end
 -- name (EACCES), like all of /sys/class/net, and a fake answer for only the hidden names would tell the hook is there,
 -- and nothing is hidden for a file which does not exist, like su on a phone without root
 -- Read.Network only hides opening its files (see FILES): of /proc/net apps can tell they exist, but not read them.
--- The property files of the partitions are there on every device, so the ones apps cannot read, like
--- /system/build.prop of Android 14 (EACCES), stay as they are.
+-- The property files of the partitions and fstab are there on every device, so the ones apps cannot read, like
+-- /system/build.prop of Android 14 (EACCES), stay as they are: hiding them would turn EACCES into ENOENT.
 function reachable(group, path, param)
     local ok, exists = pcall(function()
         return param:unhooked(function()
             local file = luajava.newInstance('java.io.File', path)
-            if group == 'Read.Network' or string.find(path, 'build%.prop$') then
+            if group == 'Read.Network' or string.find(path, 'build%.prop$') or string.find(path, '/fstab%.[^/]*$') then
                 return file:canRead()
             end
             return file:exists()
@@ -360,7 +362,9 @@ function listing(hook, param, folder)
     local none = unlisted(group, folder)
     param:setArgument(1, luajava.createProxy('java.nio.file.DirectoryStream$Filter', {
         accept = function(entry)
-            if none or matched(group, tostring(entry), param) then
+            -- Left out as File.list does, so a matched file the app cannot read stays listed, as Android lists it
+            local path = tostring(entry)
+            if none or (matched(group, path, param) and reachable(group, path, param)) then
                 return false
             end
             return original == nil or original:accept(entry)
@@ -483,8 +487,9 @@ function after(hook, param)
     end
     local kept = {}
     if not unlisted(about(hook).group, folder) then
+        -- Of the root the path is /name, not //name, which the patterns of the root do not match
         for index = 1, names['length'] do
-            if not hidden(hook, folder .. '/' .. names[index], param) then
+            if not hidden(hook, (folder == '/' and '' or folder) .. '/' .. names[index], param) then
                 table.insert(kept, names[index])
             end
         end

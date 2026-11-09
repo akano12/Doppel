@@ -304,6 +304,34 @@ public class FileScriptsTest {
         assertFalse(result.arg(12).toboolean());
     }
 
+    // The spellings of a folder of the shared storage have one inode, like Android gives them; a link read by lstat
+    // keeps an inode of its own
+    @Test
+    public void storageInodes() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local function inode(method, path, mode)\n" +
+                        "  local stat = statof(1791913509)\n" +
+                        "  stat.st_mode = mode or 16889\n" +
+                        "  local param = paramof(stat, { path })\n" +
+                        "  param.uuidOf = function(self, seed)\n" +
+                        "    local sum = 0\n" +
+                        "    for i = 1, #seed do sum = sum + string.byte(seed, i) * i end\n" +
+                        "    return string.format('%08x', sum) .. '-0000'\n" +
+                        "  end\n" +
+                        "  after(hookof(method), param)\n" +
+                        "  return param.result.args[2]\n" +
+                        "end\n" +
+                        "return inode('stat', '/sdcard/Download'), inode('stat', '/storage/emulated/10/Download'),\n" +
+                        "  inode('stat', '/sdcard/download'), inode('stat', '/sdcard/Music'),\n" +
+                        "  inode('lstat', '/sdcard', 41471), inode('stat', '/sdcard')");
+        long download = result.arg(1).tolong();
+        assertEquals(download, result.arg(2).tolong());
+        assertEquals(download, result.arg(3).tolong());
+        assertTrue(download != result.arg(4).tolong());
+        assertTrue(result.arg(5).tolong() != result.arg(6).tolong());
+    }
+
     // File.lastModified in milliseconds, 0 for a missing folder; java.nio with the time the folder was made,
     // of the attributes it reads the times into
     @Test
@@ -456,8 +484,9 @@ public class FileScriptsTest {
     public void hiddenFilesAreOnlyThoseTheAppCouldReach() throws Exception {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
         Varargs result = Scripts.run(globals,
-                "local present = { ['/system_ext/etc/build.prop'] = true, ['/system/build.prop'] = true }\n" +
-                        "local readable = { ['/system_ext/etc/build.prop'] = true }\n" +
+                "local present = { ['/system_ext/etc/build.prop'] = true, ['/system/build.prop'] = true,\n" +
+                        "  ['/fstab.qcom'] = true, ['/fstab.ranchu'] = true }\n" +
+                        "local readable = { ['/system_ext/etc/build.prop'] = true, ['/fstab.qcom'] = true }\n" +
                         "local file = luajava.newInstance\n" +
                         "luajava.newInstance = function(name, path)\n" +
                         "  if name == 'java.io.File' then return { exists = function() return present[path] end,\n" +
@@ -470,13 +499,18 @@ public class FileScriptsTest {
                         "  hidden(hookof('Read.VPN'), '/sys/class/net/tun0', param()),\n" +
                         "  hidden(hookof('Read.Debugging'), '/system/xbin/su', param()),\n" +
                         "  hidden(hookof('Use.Tracking'), '/system_ext/etc/build.prop', param()),\n" +
-                        "  hidden(hookof('Use.Tracking'), '/system/build.prop', param())");
+                        "  hidden(hookof('Use.Tracking'), '/system/build.prop', param()),\n" +
+                        "  hidden(hookof('Use.Tracking'), '/fstab.qcom', param()),\n" +
+                        "  hidden(hookof('Use.Tracking'), '/fstab.ranchu', param())");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
         assertTrue(result.arg(4).toboolean());
         // A property file every device has but apps cannot read, like /system/build.prop of Android 14 (EACCES)
         assertFalse(result.arg(5).toboolean());
+        // fstab at the root: hidden when the app can read it, else EACCES as for build.prop
+        assertTrue(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
     }
 
     // The files of the system by the folders etc of partitions, not the same names in a folder of the app; the store
@@ -517,6 +551,47 @@ public class FileScriptsTest {
         assertTrue(result.arg(3).toboolean());
         Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking'))").arg1().checktable().unpack());
         assertTrue(filterMatches(filter, "/system/build.prop"));
+    }
+
+    // File.list of the root leaves out a readable fstab file, the names of the root are /name and not //name
+    @Test
+    public void fstabAtTheRootIsLeftOutOfListings() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local file = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path)\n" +
+                        "  if name == 'java.io.File' then return { canRead = function() return path == '/fstab.qcom' end } end\n" +
+                        "  return file(name, path)\n" +
+                        "end\n" +
+                        "local list = paramof('/', namesof('fstab.qcom', 'system'))\n" +
+                        "list.unhooked = function(self, fn) return fn() end\n" +
+                        "after(hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "return list.result.length, list.result[1]");
+        assertEquals(1, result.arg(1).toint());
+        assertEquals("system", result.arg(2).tojstring());
+    }
+
+    // Files.newDirectoryStream leaves out a matched file the app can read, and keeps one it cannot read, as File.list
+    @Test
+    public void hardwareListingOfUnreadableFiles() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local present = { ['/odm/etc/build.prop'] = true, ['/odm/etc/fstab.qcom'] = true }\n" +
+                        "local readable = { ['/odm/etc/fstab.qcom'] = true }\n" +
+                        "local file = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path)\n" +
+                        "  if name == 'java.io.File' then return { exists = function() return present[path] == true end,\n" +
+                        "    canRead = function() return readable[path] == true end } end\n" +
+                        "  return file(name, path)\n" +
+                        "end\n" +
+                        "local chip = paramof('/odm/etc', nil, nil)\n" +
+                        "chip.unhooked = function(self, fn) return fn() end\n" +
+                        "before(hookof('Use.Tracking', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), chip)\n" +
+                        "local accept = chip.argument.value.accept\n" +
+                        "return accept('/odm/etc/build.prop'), accept('/odm/etc/fstab.qcom'), accept('/odm/etc/other.xml')");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
     }
 
     // Each group hides its files, by their path or the path their link leads to, the other files stay

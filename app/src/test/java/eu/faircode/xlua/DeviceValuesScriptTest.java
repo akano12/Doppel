@@ -458,6 +458,19 @@ public class DeviceValuesScriptTest {
     }
 
     @Test
+    public void iccidOfNumbersIsEmpty() throws Exception {
+        Globals globals = load("systemproperties_get");
+        Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.getLong/serial', 'getLong'), " +
+                "paramof('8988211000000000000', { [0] = 'ril.iccid.sim1', [1] = '0' }))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(0, result.arg(2).toint());
+        result = Scripts.run(globals, "return run(hookof('SystemProperties.getInt/serial', 'getInt'), " +
+                "paramof('12345', { [0] = 'ril.iccid.sim1', [1] = '-1' }))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(-1, result.arg(2).toint());
+    }
+
+    @Test
     public void securityPatchIsAQuarter() throws Exception {
         Globals globals = load("systemproperties_get");
         String hook = "hookof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH')";

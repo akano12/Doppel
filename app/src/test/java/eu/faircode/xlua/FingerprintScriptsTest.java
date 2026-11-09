@@ -508,6 +508,23 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(10).isnil());
         assertFalse(result.arg(11).toboolean());
 
+        // hasAttribute of a GPS tag is false, the others stay; a range of a GPS tag is null
+        result = Scripts.run(globals,
+                "local lat = paramof(true, { [0] = 'GPSLatitude' })\n" +
+                        "local make = paramof(true, { [0] = 'Make' })\n" +
+                        "local range = paramof({ 10, 20 }, { [0] = 'GPSLatitude' })\n" +
+                        "return after(hookof('hasAttribute', 'boolean'), lat), lat.result,\n" +
+                        "  after(hookof('hasAttribute', 'boolean'), make), make.result,\n" +
+                        "  after(hookof('getAttributeRange', 'long[]'), range), range.result");
+        assertTrue(result.arg(1).toboolean());
+        // false itself: nil would not fit the boolean of hasAttribute
+        assertTrue(result.arg(2).isboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertTrue(result.arg(6).isnil());
+
         // The time of AndroidX is an object, null when there is no GPS time
         result = Scripts.run(globals, "local time = paramof(1700000000000)\n" +
                 "return after(hookof('getGpsDateTime', 'java.lang.Long'), time), time.result, time.set");

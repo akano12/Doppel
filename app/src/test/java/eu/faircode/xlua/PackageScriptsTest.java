@@ -210,6 +210,22 @@ public class PackageScriptsTest {
         assertEquals(10123, result.arg(4).toint());
     }
 
+    // The enabled settings of a package and an attribution check of a uid are looked up under a name which is not
+    // installed, like the other checks of packages (package_probe)
+    @Test
+    public void enabledSettingsOfHiddenPackages() throws Exception {
+        Globals globals = load("package_probe");
+        Varargs result = Scripts.run(globals,
+                "local op = paramof({ [0] = 'android:coarse_location', [1] = 10123, [2] = 'com.example.bank' }, {})\n" +
+                        "before(hookof('AppOpsManager.checkOpRawNoThrow/attribution', 'checkOpRawNoThrow'), op)\n" +
+                        "local enabled = paramof({ [0] = 'com.example.bank', [1] = 2, [2] = 0 }, {})\n" +
+                        "before(hookof('PackageManager.setApplicationEnabledSetting', 'setApplicationEnabledSetting'), enabled)\n" +
+                        "return op.args[2], enabled.args[0], enabled.args[1]");
+        assertTrue(result.arg(1).tojstring().startsWith("com.example.bank.x"));
+        assertTrue(result.arg(2).tojstring().startsWith("com.example.bank.x"));
+        assertEquals(2, result.arg(3).toint());
+    }
+
     // A provider of the app checks the app calling it (ContentProvider.getCallingPackage), which is not a probe,
     // with an entry for after like any other call, inside a call which was a probe
     @Test

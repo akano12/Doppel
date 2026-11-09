@@ -214,6 +214,9 @@ function typed(hook, param, key, result, method)
         fake = fakedevice(key, '')
     elseif name == 'debugging' and type(DEBUGGING[key]) == 'string' then
         fake = DEBUGGING[key]
+    elseif name == 'serial' and iccid(key) then
+        -- The ICC ID is empty as in the string getters, else a real one of 19 digits would fit in a long
+        fake = ''
     elseif name == 'serial' and SERIALS[key] ~= nil then
         fake = param:getSetting('value.serial') or 'unknown'
     elseif name == 'operator' then

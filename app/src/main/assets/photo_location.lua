@@ -19,6 +19,7 @@
 -- the location of photos for apps without ACCESS_MEDIA_LOCATION, unless they ask for the original
 -- (MediaStore.setRequireOriginal): the app gets the photo without it then, like an app without the permission.
 -- ExifInterface of Android, of AndroidX and of the support library gives no GPS tags (like a photo without them),
+-- hasAttribute is false for a GPS tag and getAttributeRange gives nothing for it,
 -- MediaMetadataRetriever no location of videos. The location columns of MediaStore (latitude, longitude), which
 -- Android 10 and later leave empty, are empty on Android 8.1 and 9 too. Not covered are apps reading the bytes of
 -- photos themselves.
@@ -141,9 +142,17 @@ function after(hook, param)
         end
         param:setResult(default)
         return true, tostring(result), tostring(default)
+    elseif method == 'hasAttribute' then
+        -- hasAttribute of a GPS tag is false, like a tag which is not there
+        local tag = param:getArgument(0)
+        if not gps(tag) or result == false then
+            return false
+        end
+        param:setResult(false)
+        return true, tag, nil
     else
-        -- getAttribute, getAttributeBytes, getAttributeInt and getAttributeDouble of a GPS tag: like a tag which
-        -- is not there, null or the default
+        -- getAttribute, getAttributeBytes, getAttributeInt, getAttributeDouble and getAttributeRange of a GPS tag:
+        -- like a tag which is not there, null or the default
         local tag = param:getArgument(0)
         if not gps(tag) then
             return false

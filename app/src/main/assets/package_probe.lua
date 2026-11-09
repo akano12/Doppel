@@ -37,6 +37,7 @@ local arguments = {
     unsafeCheckOp = { 2 },
     unsafeCheckOpRaw = { 2 },
     unsafeCheckOpRawNoThrow = { 2 },
+    checkOpRawNoThrow = { 2 },
     setInstallerPackageName = { 0, 1 },
     -- context, request code, intent or intents: what a PendingIntent starts is sent by the system, past the hooks of
     -- the app, so one for a hidden app starts nothing

@@ -118,6 +118,26 @@ public class AuditFixesScriptTest {
         assertFalse(result.arg(6).toboolean());
     }
 
+    // The other handles of users are answered like users which do not exist, the own one stays
+    @Test
+    public void otherUsersInUserRestrictions() throws Exception {
+        Globals globals = Scripts.load("user_profiles", PARAM + "\n" +
+                "own = { equals = function(self, other) return self == other end }\n" +
+                "luajava = { bindClass = function(name) return {\n" +
+                "  myUserHandle = function(self) return own end,\n" +
+                "  getUserHandleForUid = function(self, uid) return uid end } end }");
+        Varargs result = Scripts.run(globals,
+                "local other = { equals = function() return false end }\n" +
+                        "local foreign = paramof(nil, { other })\n" +
+                        "local mine = paramof(nil, { own })\n" +
+                        "return before(hookof('isUserRunningOrStopping'), foreign), foreign.arguments[1],\n" +
+                        "  before(hookof('getUserRestrictions'), mine), mine.arguments[1] == own");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(999900000, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+    }
+
     // The name of an account in a column of contacts or calendars is the fake one, of the types of the app it stays
     @Test
     public void accountColumns() throws Exception {
