@@ -71,6 +71,8 @@ public class XParam {
     private static final Map<String, Boolean> visiblePackages = new ConcurrentHashMap<>();
     private static final Map<Integer, Boolean> visibleUids = new ConcurrentHashMap<>();
     private static volatile String webViewPackage;
+    // Whether the package of WebView was looked up, also when there is none; not when the lookup failed
+    private static volatile boolean webViewKnown = false;
 
     // Field param
     public XParam(Context context, Field field, Map<String, String> settings) {
@@ -167,6 +169,7 @@ public class XParam {
                 PackageInfo pi = WebView.getCurrentWebViewPackage();
                 if (pi != null)
                     webViewPackage = pi.packageName;
+                webViewKnown = true;
             } catch (RuntimeException ex) {
                 // Like before the app has an application, tried again for the next package
                 XLog.w(TAG, "WebView package: " + ex);
@@ -189,8 +192,15 @@ public class XParam {
         // and report a call the app did not make
         XCore.enterService();
         try {
-            visible = isVisible(getPackageInfo(this.context.getPackageManager(), packageName).applicationInfo) ||
-                    packageName.equals(getWebViewPackage());
+            visible = isVisible(getPackageInfo(this.context.getPackageManager(), packageName).applicationInfo);
+            if (!visible) {
+                String webView = getWebViewPackage();
+                // Not kept while the lookup of the package of WebView fails, like before the app has an application:
+                // the package can be WebView, of the user, like WebView Beta, which would stay hidden for good
+                if (webView == null && !webViewKnown)
+                    return false;
+                visible = packageName.equals(webView);
+            }
         } catch (PackageManager.NameNotFoundException ignored) {
             // The hooked call found the package, the lookup, which finds system packages, did not;
             // not kept, the package can be installed while the app runs
