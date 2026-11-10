@@ -43,13 +43,13 @@ local REGISTRATION = {
 local SUBSCRIPTION = {
     -- Android 8.1 and 9 print its first digits, which name the country and the operator of the SIM card
     { ' iccId=', '', { ' simSlotIndex=' } },
-    { ' carrierId=', '-1', { ' displayName=' } },
+    { ' carrierId=', '1911', { ' displayName=' } },
     { ' displayName=', 'unknown', { ' carrierName=' } },
     { ' carrierName=', 'unknown', { ' nameSource=', ' isOpportunistic=' } },
     -- Android 11 to 13, and 14 and later
-    { ' countryIso=', 'xx', { ' isEmbedded=', ' profileClass=' } },
+    { ' countryIso=', '', { ' isEmbedded=', ' profileClass=' } },
     -- Android 10, right after the MNC
-    { 'mCountryIso=', 'xx', { ' isEmbedded ' } },
+    { 'mCountryIso=', '', { ' isEmbedded ' } },
 }
 -- The network codes, like getMcc and getMnc, and the home networks, which are made of them
 -- and have no getter for apps: Android 11 to 13, and 14 and later
@@ -89,7 +89,8 @@ function replace(text, label, fake, nexts)
         return text, false
     end
     local value = string.sub(text, last + 1, following - 1)
-    if value == fake or value == '' or value == 'null' then
+    -- An unknown carrier stays unknown, like getCarrierId keeps it
+    if value == fake or value == '' or value == 'null' or (label == ' carrierId=' and value == '-1') then
         return text, false
     end
     return string.sub(text, 1, last) .. fake .. string.sub(text, following), true

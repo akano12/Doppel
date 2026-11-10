@@ -97,7 +97,7 @@ end
 local OPERATOR = {
     ['gsm.operator.alpha'] = 'unknown', ['gsm.sim.operator.alpha'] = 'unknown',
     ['gsm.operator.numeric'] = '00101', ['gsm.sim.operator.numeric'] = '00101',
-    ['gsm.operator.iso-country'] = 'xx', ['gsm.sim.operator.iso-country'] = 'xx',
+    ['gsm.operator.iso-country'] = '', ['gsm.sim.operator.iso-country'] = '',
 }
 
 -- The properties of USB debugging, which agree with adb_enabled 0 of Read.Debugging (see settingssecure_getstring):

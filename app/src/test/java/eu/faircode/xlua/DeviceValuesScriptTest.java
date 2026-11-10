@@ -387,7 +387,7 @@ public class DeviceValuesScriptTest {
         Globals globals = load("systemproperties_get");
         String[][] cases = {{"gsm.operator.numeric", "26201", "00101"}, {"gsm.sim.operator.numeric", "26201", "00101"},
                 {"gsm.operator.alpha", "Telekom.de", "unknown"}, {"gsm.sim.operator.alpha", "Telekom.de", "unknown"},
-                {"gsm.operator.iso-country", "de", "xx"}, {"gsm.sim.operator.iso-country", "de", "xx"}};
+                {"gsm.operator.iso-country", "de", ""}, {"gsm.sim.operator.iso-country", "de", ""}};
         for (String[] c : cases) {
             Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get.default/operator', 'get'), " +
                     "paramof('" + c[1] + "', { [0] = '" + c[0] + "', [1] = '' }))");
@@ -496,8 +496,12 @@ public class DeviceValuesScriptTest {
         assertEquals("unknown", operator(globals, "getSimOperatorName", "'Telekom.de'").arg(2).tojstring());
         assertEquals("unknown", operator(globals, "getOperatorAlphaLong", "'Telekom.de'").arg(2).tojstring());
         assertEquals("00101", operator(globals, "getRegisteredPlmn", "'310260'").arg(2).tojstring());
-        assertEquals(-1, operator(globals, "getSimCarrierId", "1").arg(2).toint());
-        assertEquals(-1, operator(globals, "getCarrierIdFromSimMccMnc", "1839").arg(2).toint());
+        // The carrier of 00101 in the carrier database of Android, with its name
+        assertEquals(1911, operator(globals, "getSimCarrierId", "1").arg(2).toint());
+        assertEquals(1911, operator(globals, "getCarrierIdFromSimMccMnc", "1839").arg(2).toint());
+        assertEquals("Test Network, Used by GSM test equipment",
+                operator(globals, "getSimCarrierIdName", "'T-Mobile'").arg(2).tojstring());
+        assertEquals("", operator(globals, "getNetworkCountryIso", "'de'").arg(2).tojstring());
 
         // Without a SIM or service
         assertFalse(operator(globals, "getSimOperator", "''").arg1().toboolean());

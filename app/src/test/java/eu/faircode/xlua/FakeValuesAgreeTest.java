@@ -108,7 +108,8 @@ public class FakeValuesAgreeTest {
         }
     }
 
-    // The test network (MCC 001, MNC 01), the unknown country xx, unknown names and carrier id -1,
+    // The test network (MCC 001, MNC 01), no country like Android gives for MCC 001, unknown names and the carrier id
+    // of the test network (1911),
     // in the getters (test_network), the system properties and the texts of subscriptions,
     // service states and network registrations (operator_tostring)
     @Test

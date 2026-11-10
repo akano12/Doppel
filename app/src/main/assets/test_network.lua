@@ -17,8 +17,9 @@
 -- Copyright 2026 akano12
 
 -- The network and the SIM operator are those of the test network, MCC 001 and MNC 01,
--- in the formats of the methods; the country is the unknown country code xx,
--- the names are unknown and the carrier id is TelephonyManager.UNKNOWN_CARRIER_ID.
+-- in the formats of the methods; the country is empty, which Android gives for MCC 001 (MccTable has no country for
+-- it), the names are unknown and the carrier is the test network of the carrier database of Android
+-- (carrier_list.textpb, 1911 for 00101).
 -- Without a SIM or service the values are empty, which stay, a fake value would tell they are faked.
 
 local FAKES = {
@@ -30,19 +31,20 @@ local FAKES = {
     getSimOperator = '00101',
     getOperatorNumeric = '00101', -- ServiceState
     getRegisteredPlmn = '00101', -- NetworkRegistrationInfo
-    getCountryIso = 'xx',
-    getNetworkCountryIso = 'xx',
-    getSimCountryIso = 'xx',
+    getCountryIso = '',
+    getNetworkCountryIso = '',
+    getSimCountryIso = '',
     getNetworkOperatorName = 'unknown',
     getSimOperatorName = 'unknown',
     getOperatorAlphaLong = 'unknown', -- ServiceState
     getOperatorAlphaShort = 'unknown',
     getCarrierName = 'unknown', -- SubscriptionInfo
     getDisplayName = 'unknown',
-    getCarrierId = -1,
-    getSimCarrierId = -1, -- TelephonyManager
-    getSimSpecificCarrierId = -1,
-    getCarrierIdFromSimMccMnc = -1,
+    getCarrierId = 1911,
+    getSimCarrierId = 1911, -- TelephonyManager
+    getSimSpecificCarrierId = 1911,
+    getCarrierIdFromSimMccMnc = 1911,
+    getSimCarrierIdName = 'Test Network, Used by GSM test equipment',
 }
 
 -- Whether a code of 0 is empty: getMcc and getMnc of a subscription give 0 without its codes. No MCC is 0,
@@ -65,7 +67,8 @@ function after(hook, param)
     if type(result) == 'userdata' then
         result = result:toString() -- CharSequence
     end
-    if result == nil or result == '' or (result == 0 and nocode(method, param)) then
+    -- An unknown carrier (-1) stays, like an empty value
+    if result == nil or result == '' or result == -1 or (result == 0 and nocode(method, param)) then
         return false
     end
 

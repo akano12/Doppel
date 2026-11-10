@@ -130,9 +130,9 @@ public class OperatorTextScriptTest {
                 "displayName=My Carrier carrierName=My Carrier isOpportunistic=false number=[****] " +
                 "mcc=310 mnc=260 ehplmns=[310260] hplmns=[310260] cardString=[****] countryIso=us " +
                 "profileClass=-1 mType=LOCAL_SIM]";
-        assertEquals("[SubscriptionInfo: id=1 iccId= simSlotIndex=0 portIndex=0 isEmbedded=false carrierId=-1 " +
+        assertEquals("[SubscriptionInfo: id=1 iccId= simSlotIndex=0 portIndex=0 isEmbedded=false carrierId=1911 " +
                         "displayName=unknown carrierName=unknown isOpportunistic=false number=[****] " +
-                        "mcc=310 mnc=260 ehplmns=[310260] hplmns=[310260] cardString=[****] countryIso=xx " +
+                        "mcc=310 mnc=260 ehplmns=[310260] hplmns=[310260] cardString=[****] countryIso= " +
                         "profileClass=-1 mType=LOCAL_SIM]",
                 after(SUBSCRIPTION, OPERATOR, text).arg(2).tojstring());
         assertEquals("[SubscriptionInfo: id=1 iccId=[****] simSlotIndex=0 portIndex=0 isEmbedded=false carrierId=1 " +
@@ -140,9 +140,9 @@ public class OperatorTextScriptTest {
                         "mcc=001 mnc=01 ehplmns=[] hplmns=[] cardString=[****] countryIso=us " +
                         "profileClass=-1 mType=LOCAL_SIM]",
                 after(SUBSCRIPTION, PLMN, text).arg(2).tojstring());
-        assertEquals("[SubscriptionInfo: id=1 iccId= simSlotIndex=0 portIndex=0 isEmbedded=false carrierId=-1 " +
+        assertEquals("[SubscriptionInfo: id=1 iccId= simSlotIndex=0 portIndex=0 isEmbedded=false carrierId=1911 " +
                 "displayName=unknown carrierName=unknown isOpportunistic=false number=[****] " +
-                "mcc=001 mnc=01 ehplmns=[] hplmns=[] cardString=[****] countryIso=xx " +
+                "mcc=001 mnc=01 ehplmns=[] hplmns=[] cardString=[****] countryIso= " +
                 "profileClass=-1 mType=LOCAL_SIM]", both(text));
     }
 
@@ -154,14 +154,14 @@ public class OperatorTextScriptTest {
                 "isEmbedded=false nativeAccessRules=null cardString=[****] cardId=0 portIndex=0 " +
                 "isOpportunistic=false groupUUID=null isGroupDisabled=false profileClass=-1 " +
                 "ehplmns=[310260] hplmns=[310260] subscriptionType=0 groupOwner=null}";
-        assertEquals("{id=1 iccId= simSlotIndex=0 carrierId=-1 displayName=unknown carrierName=unknown " +
+        assertEquals("{id=1 iccId= simSlotIndex=0 carrierId=1911 displayName=unknown carrierName=unknown " +
                         "nameSource=0 iconTint=0 number=[****] dataRoaming=0 iconBitmap=null mcc=310 mnc=260 " +
-                        "countryIso=xx isEmbedded=false nativeAccessRules=null cardString=[****] cardId=0 portIndex=0 " +
+                        "countryIso= isEmbedded=false nativeAccessRules=null cardString=[****] cardId=0 portIndex=0 " +
                         "isOpportunistic=false groupUUID=null isGroupDisabled=false profileClass=-1 " +
                         "ehplmns=[310260] hplmns=[310260] subscriptionType=0 groupOwner=null}",
                 after(SUBSCRIPTION, OPERATOR, text).arg(2).tojstring());
-        assertEquals("{id=1 iccId= simSlotIndex=0 carrierId=-1 displayName=unknown carrierName=unknown " +
-                "nameSource=0 iconTint=0 number=[****] dataRoaming=0 iconBitmap=null mcc=001 mnc=01 countryIso=xx " +
+        assertEquals("{id=1 iccId= simSlotIndex=0 carrierId=1911 displayName=unknown carrierName=unknown " +
+                "nameSource=0 iconTint=0 number=[****] dataRoaming=0 iconBitmap=null mcc=001 mnc=01 countryIso= " +
                 "isEmbedded=false nativeAccessRules=null cardString=[****] cardId=0 portIndex=0 " +
                 "isOpportunistic=false groupUUID=null isGroupDisabled=false profileClass=-1 " +
                 "ehplmns=[] hplmns=[] subscriptionType=0 groupOwner=null}", both(text));
@@ -181,9 +181,9 @@ public class OperatorTextScriptTest {
                         "isOpportunistic false mGroupUUID=null mIsGroupDisabled=false profileClass=-1 " +
                         "ehplmns = [] hplmns = [] subscriptionType=0 mGroupOwner=null}",
                 after(SUBSCRIPTION, PLMN, text).arg(2).tojstring());
-        assertEquals("{id=1, iccId= simSlotIndex=0 carrierId=-1 displayName=unknown carrierName=unknown " +
+        assertEquals("{id=1, iccId= simSlotIndex=0 carrierId=1911 displayName=unknown carrierName=unknown " +
                 "nameSource=0 iconTint=0 mNumber=[****] dataRoaming=0 iconBitmap=null mcc 001 mnc 01" +
-                "mCountryIso=xx isEmbedded false accessRules null cardString=[****] cardId=0 " +
+                "mCountryIso= isEmbedded false accessRules null cardString=[****] cardId=0 " +
                 "isOpportunistic false mGroupUUID=null mIsGroupDisabled=false profileClass=-1 " +
                 "ehplmns = [] hplmns = [] subscriptionType=0 mGroupOwner=null}", both(text));
     }

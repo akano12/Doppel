@@ -15063,7 +15063,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.CharSequence",
     "minSdk": 28,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@test_network"
   },
   {
     "collection": "Privacy",
