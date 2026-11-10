@@ -6718,6 +6718,19 @@
     "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
+  // Access points of Wi-Fi RTT give their own location (LCI and LCR), within meters of the device: none, like an access point which gives none
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "RangingResult.getUnverifiedResponderLocation",
+    "author": "akano12",
+    "className": "android.net.wifi.rtt.RangingResult",
+    "methodName": "getUnverifiedResponderLocation",
+    "parameterTypes": [],
+    "returnType": "android.net.wifi.rtt.ResponderLocation",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
   // Get messages
   // https://developer.android.com/reference/android/provider/Telephony.Sms.Intents#SMS_RECEIVED_ACTION
   // https://developer.android.com/reference/android/provider/Telephony.Mms.html

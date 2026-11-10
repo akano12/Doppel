@@ -151,7 +151,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Where you are</b> · 5 groups</summary>
 
 * **Determine activity**: fake unknown activity, no activity transitions or sleep events
-* **Get location**: fake location, no NMEA messages or raw GNSS measurements, and no location of photos and videos.
+* **Get location**: fake location, no NMEA messages or raw GNSS measurements, no location of Wi-Fi access points (RTT), and no location of photos and videos.
   Do not restrict it for camera, gallery and photo editing apps whose photos should keep their location: what such
   an app saves, like an edited copy, is saved without it
 * **Get sensors**: hide them, also as features of the device, and dynamic sensors, like the head tracker of headphones; the proximity sensor cannot turn the screen off
