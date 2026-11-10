@@ -137,6 +137,76 @@ public class AuditFixesScriptTest {
         assertFalse(result.arg(3).toboolean());
     }
 
+    // A started record gives silence at the pace of its sample rate: zeros in whole frames, a blocking read waits for
+    // its frames, a non-blocking one gives the frames since the start; calls Android refuses go to Android
+    @Test
+    public void startedRecordGivesSilence() throws Exception {
+        Globals globals = Scripts.load("audio_record", PARAM);
+        Varargs result = Scripts.run(globals,
+                "now = 1000\n" +
+                        "function clock() return now end\n" +
+                        "local values = {}\n" +
+                        "local record = { state = 1, format = 2, getState = function(self) return self.state end,\n" +
+                        "  getAudioFormat = function(self) return self.format end,\n" +
+                        "  getChannelCount = function(self) return 1 end, getSampleRate = function(self) return 48000 end }\n" +
+                        "local function call(name, ...)\n" +
+                        "  local args = { ... }\n" +
+                        "  local param = paramof(nil, args)\n" +
+                        "  param.getThis = function() return record end\n" +
+                        "  param.putValue = function(self, key, value, scope) values[key] = value end\n" +
+                        "  param.getValue = function(self, key, scope) return values[key] end\n" +
+                        "  local hook = { getMethodName = function() return string.match(name, '^[^/]+%.(%a+)') end,\n" +
+                        "    getName = function() return name end,\n" +
+                        "    getParameterTypes = function() return { length = #args } end }\n" +
+                        "  local restricted = before(hook, param)\n" +
+                        "  return restricted, param.result end\n" +
+                        "local array = luajava.bindClass('java.lang.reflect.Array')\n" +
+                        "local shorts = array:newInstance(luajava.bindClass('java.lang.Short').TYPE, 100)\n" +
+                        "for i = 1, 100 do shorts[i] = 7 end\n" +
+                        "local started = call('AudioRecord.startRecording')\n" +
+                        "local _, state = call('AudioRecord.getRecordingState')\n" +
+                        "local _, blocking = call('AudioRecord.read/short', shorts, 2, 96)\n" +
+                        "local s1, s3, s98, s99 = shorts[1], shorts[3], shorts[98], shorts[99]\n" +
+                        "local _, none = call('AudioRecord.read/short/mode', shorts, 0, 96, 1)\n" +
+                        "now = now + 10\n" +
+                        "local _, some = call('AudioRecord.read/short/mode', shorts, 0, 96, 1)\n" +
+                        "local bytes = array:newInstance(luajava.bindClass('java.lang.Byte').TYPE, 5)\n" +
+                        "local _, odd = call('AudioRecord.read/byte', bytes, 0, 5)\n" +
+                        "local floats = array:newInstance(luajava.bindClass('java.lang.Float').TYPE, 4)\n" +
+                        "local float = call('AudioRecord.read/float/mode', floats, 0, 4, 0)\n" +
+                        "local outside = call('AudioRecord.read/short', shorts, 90, 20)\n" +
+                        // A stand-in, since the JVM does not let LuaJ call the members of its direct buffers
+                        "local buffer = { first = 9, isDirect = function() return true end,\n" +
+                        "  capacity = function() return 8 end, clear = function(self) self.cleared = true end,\n" +
+                        "  put = function(self, zeros, at, count) if self.cleared and at == 0 then self.first = zeros[1] end end,\n" +
+                        "  get = function(self, index) return self.first end }\n" +
+                        "buffer.duplicate = function() return buffer end\n" +
+                        "local _, direct = call('AudioRecord.read/buffer', buffer, 16)\n" +
+                        "local stopped = call('AudioRecord.stop')\n" +
+                        "local after = call('AudioRecord.getRecordingState')\n" +
+                        "record.state = 0\n" +
+                        "local uninitialized = call('AudioRecord.startRecording')\n" +
+                        "return started, state, blocking, s1, s3, s98, s99, none, some,\n" +
+                        "  odd, float, outside, direct, buffer:get(0), stopped, after, uninitialized");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(3, result.arg(2).toint());
+        assertEquals(96, result.arg(3).toint());
+        assertEquals(7, result.arg(4).toint());
+        assertEquals(0, result.arg(5).toint());
+        assertEquals(0, result.arg(6).toint());
+        assertEquals(7, result.arg(7).toint());
+        assertEquals(0, result.arg(8).toint()); // Nothing new without time
+        assertEquals(96, result.arg(9).toint()); // 10 ms later there are frames
+        assertEquals(4, result.arg(10).toint()); // Two frames of two bytes
+        assertFalse(result.arg(11).toboolean()); // Floats of 16 bit audio are refused by Android
+        assertFalse(result.arg(12).toboolean()); // So is a size past the array
+        assertEquals(8, result.arg(13).toint()); // At most the capacity of the buffer, from its start
+        assertEquals(0, result.arg(14).toint());
+        assertTrue(result.arg(15).toboolean());
+        assertFalse(result.arg(16).toboolean());
+        assertFalse(result.arg(17).toboolean());
+    }
+
     // The devices for calls keep the speaker and the earpiece; a hidden device for calls or sound becomes the
     // earpiece or the speaker, like Android chooses without it
     @Test

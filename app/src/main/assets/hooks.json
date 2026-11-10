@@ -11822,7 +11822,7 @@
     "returnType": "void",
     "minSdk": 27,
     "notify": true,
-    "luaScript": "@generic_block"
+    "luaScript": "@audio_record"
   },
   {
     "collection": "Privacy",
@@ -11837,7 +11837,7 @@
     "returnType": "void",
     "minSdk": 27,
     "notify": true,
-    "luaScript": "@generic_block"
+    "luaScript": "@audio_record"
   },
   {
     "collection": "Privacy",
@@ -11850,7 +11850,135 @@
     ],
     "returnType": "void",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@audio_record"
+  },
+  // A started record gives silence at the pace of the sample rate (audio_record)
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioRecord.getRecordingState",
+    "author": "akano12",
+    "className": "android.media.AudioRecord",
+    "methodName": "getRecordingState",
+    "parameterTypes": [
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@audio_record"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioRecord.read/byte",
+    "author": "akano12",
+    "className": "android.media.AudioRecord",
+    "methodName": "read",
+    "parameterTypes": [
+      "byte[]",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@audio_record"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioRecord.read/byte/mode",
+    "author": "akano12",
+    "className": "android.media.AudioRecord",
+    "methodName": "read",
+    "parameterTypes": [
+      "byte[]",
+      "int",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@audio_record"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioRecord.read/short",
+    "author": "akano12",
+    "className": "android.media.AudioRecord",
+    "methodName": "read",
+    "parameterTypes": [
+      "short[]",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@audio_record"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioRecord.read/short/mode",
+    "author": "akano12",
+    "className": "android.media.AudioRecord",
+    "methodName": "read",
+    "parameterTypes": [
+      "short[]",
+      "int",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@audio_record"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioRecord.read/float/mode",
+    "author": "akano12",
+    "className": "android.media.AudioRecord",
+    "methodName": "read",
+    "parameterTypes": [
+      "float[]",
+      "int",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@audio_record"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioRecord.read/buffer",
+    "author": "akano12",
+    "className": "android.media.AudioRecord",
+    "methodName": "read",
+    "parameterTypes": [
+      "java.nio.ByteBuffer",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@audio_record"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioRecord.read/buffer/mode",
+    "author": "akano12",
+    "className": "android.media.AudioRecord",
+    "methodName": "read",
+    "parameterTypes": [
+      "java.nio.ByteBuffer",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@audio_record"
   },
   // https://developer.android.com/reference/android/media/AudioManager.html
   // https://developer.android.com/reference/android/media/MediaRecorder.html
