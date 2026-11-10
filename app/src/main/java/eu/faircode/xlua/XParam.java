@@ -385,12 +385,14 @@ public class XParam {
     private static final Pattern DOUBLE_SLASHES = Pattern.compile("//+");
     private static final Pattern DOT_AT_END = Pattern.compile("/\\.$");
     private static final Pattern LINK_TO_ROOT = Pattern.compile("^/proc/[\\w-]+/(task/\\d+/)?(root|cwd)/");
+    private static final Pattern LINK_TO_ROOT_ITSELF = Pattern.compile("^/proc/[\\w-]+/(task/\\d+/)?(root|cwd)$");
 
     // An absolute path without // and /./, also at the end, and without a link of /proc to the root, also of the working
     // directory, which is the root for apps, like the file system reads it, see isPath and the filters of XCore; the
     // path itself without any of them, checked first, since the filters run for every call
     static String plainPath(String path) {
-        if (!path.contains("/.") && !path.contains("//") && !path.contains("/root/") && !path.contains("/cwd/"))
+        if (!path.contains("/.") && !path.contains("//") && !path.contains("/root/") && !path.contains("/cwd/") &&
+                !path.endsWith("/root") && !path.endsWith("/cwd"))
             return path;
         String plain = DOT_FOLDERS.matcher(path).replaceAll("/");
         plain = DOUBLE_SLASHES.matcher(plain).replaceAll("/");
@@ -398,6 +400,9 @@ public class XParam {
         // Also the link of a thread (/proc/self/task/123/root/) and links after each other, which lead to the root too
         for (String rooted = null; !plain.equals(rooted); )
             plain = LINK_TO_ROOT.matcher(rooted = plain).replaceFirst("/");
+        // The link itself, like /proc/self/root, is the root
+        if (LINK_TO_ROOT_ITSELF.matcher(plain).matches())
+            plain = "/";
         return (plain.isEmpty() ? "/" : plain);
     }
 

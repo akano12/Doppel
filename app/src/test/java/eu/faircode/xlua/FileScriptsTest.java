@@ -21,6 +21,7 @@ package eu.faircode.xlua;
 
 import org.junit.Test;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import java.util.UUID;
@@ -1181,6 +1182,17 @@ public class FileScriptsTest {
         for (int i = 1; i <= values.narg(); i++)
             add.invoke(filter, values.arg(i).tojstring());
         return filter;
+    }
+
+    // Paths with /.. at the end, which only the file system resolves, run the scripts, which resolve them; the link to the
+    // root itself is the root
+    @Test
+    public void filterOfParentFolders() throws Exception {
+        Object filter = xcoreFilter(LuaValue.varargsOf(new LuaValue[]{LuaValue.valueOf("/storage/emulated"), LuaValue.valueOf("/")}));
+        assertTrue(filterMatches(filter, "/storage/emulated/0/Download/.."));
+        assertTrue(filterMatches(filter, ".."));
+        assertTrue(filterMatches(filter, "/proc/self/root"));
+        assertFalse(filterMatches(filter, "/data/user/0/com.app/files"));
     }
 
     static boolean filterMatches(Object filter, String path) throws Exception {

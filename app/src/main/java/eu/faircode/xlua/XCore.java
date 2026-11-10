@@ -670,7 +670,8 @@ class XCore {
         boolean matches(String value) {
             if (value == null)
                 return false;
-            if (value.contains("/../") || value.startsWith("../"))
+            // Only the file system can resolve /.., also at the end, like /sdcard/Download/.., which is /sdcard
+            if (value.contains("/../") || value.startsWith("../") || value.endsWith("/..") || value.equals(".."))
                 return true;
             if (value.startsWith("/")) {
                 String plain = XParam.plainPath(value);

@@ -92,6 +92,10 @@ public class XParamTest {
         assertEquals("/data/cwd/file", XParam.plainPath("/data/cwd/file"));
         // Only the file system can resolve /../, see the filters of XCore
         assertEquals("/vendor/etc/init/../media_codecs.xml", XParam.plainPath("/vendor/etc/init/../media_codecs.xml"));
+        // The link to the root itself is the root
+        assertEquals("/", XParam.plainPath("/proc/self/root"));
+        assertEquals("/", XParam.plainPath("/proc/123/task/124/cwd"));
+        assertEquals("/data/root", XParam.plainPath("/data/root"));
         String plain = "/proc/meminfo";
         assertTrue(plain == XParam.plainPath(plain));
     }
