@@ -319,6 +319,16 @@ public class IntentScriptTest {
         assertTrue(wifi.arg(4).toboolean());
         assertTrue(wifi.arg(5).isnil());
         assertEquals(1, wifi.arg(6).toint());
+        // The saved network that changed, like the broadcast of Android when several networks changed
+        Varargs saved = run(
+                "local changed = intentof('android.net.wifi.CONFIGURED_NETWORKS_CHANGE', { wifiConfiguration = 'Home',\n" +
+                        "  multipleChanges = false, changeReason = 2 })\n" +
+                        "return after(hookof('Intent.createFromParcel/network'), paramof(changed)), changed.extras.wifiConfiguration,\n" +
+                        "  changed.extras.multipleChanges, changed.extras.changeReason");
+        assertTrue(saved.arg(1).toboolean());
+        assertTrue(saved.arg(2).isnil());
+        assertTrue(saved.arg(3).toboolean());
+        assertEquals(2, saved.arg(4).toint());
         // Nothing to leave out, and other variants
         assertFalse(run("return after(hookof('Intent.createFromParcel/network'),\n" +
                 "  paramof(intentof('android.bluetooth.adapter.action.STATE_CHANGED', { ['android.bluetooth.adapter.extra.STATE'] = 12 })))")

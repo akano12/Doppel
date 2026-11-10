@@ -43,6 +43,9 @@ local EXTRAS = {
     network = {
         ['android.net.wifi.STATE_CHANGE'] = { 'bssid' },
         ['android.net.conn.CONNECTIVITY_CHANGE'] = { 'extraInfo' },
+        -- The saved network that changed, with its name, of Android 8.1 to 10 for any app; without it, like the
+        -- broadcast Android sends when several networks changed (multipleChanges)
+        ['android.net.wifi.CONFIGURED_NETWORKS_CHANGE'] = { 'wifiConfiguration' },
     },
     call_log = {
         ['android.intent.action.PHONE_STATE'] = { 'incoming_number' },
@@ -90,6 +93,9 @@ function after(hook, param)
             end
         end
         if removed then
+            if action == 'android.net.wifi.CONFIGURED_NETWORKS_CHANGE' then
+                extras:putBoolean('multipleChanges', true)
+            end
             intent:replaceExtras(extras)
         end
         return removed
