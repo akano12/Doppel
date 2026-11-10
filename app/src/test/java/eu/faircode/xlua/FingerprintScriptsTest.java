@@ -694,6 +694,28 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(7).toboolean());
         assertEquals(0, result.arg(8).toint());
         assertFalse(result.arg(9).toboolean());
+
+        // An app in a profile, like a work profile, also sees the parent of the profile, which it can switch to
+        result = Scripts.run(globals,
+                "local function user(id) return { id = id, equals = function(self, other) return self.id == other.id end,\n" +
+                        "  getIdentifier = function(self) return self.id end } end\n" +
+                        "luajava.bindClass = function(name) return { myUserHandle = function(self) return user(10) end } end\n" +
+                        "local function inprofile(param) param.getApplicationContext = function(self) return {\n" +
+                        "  getSystemService = function(self, name) return { isProfile = function(self) return true end,\n" +
+                        "    getUserProfiles = function(self) return collection({ user(10), user(0), user(11) }) end } end } end\n" +
+                        "  param.unhooked = function(self, f) return f() end return param end\n" +
+                        "local profiles = inprofile(paramof(collection({ user(0), user(10), user(11) })))\n" +
+                        "after(hookof('getUserProfiles'), profiles)\n" +
+                        "local targets = inprofile(paramof(collection({ user(0) })))\n" +
+                        "local count = inprofile(paramof(3))\n" +
+                        "after(hookof('getUserCount'), count)\n" +
+                        "local serial = inprofile(paramof(0, { [0] = user(0) }))\n" +
+                        "return profiles.result:size(), after(hookof('getTargetUserProfiles'), targets), count.result,\n" +
+                        "  after(hookof('getSerialNumberForUser'), serial)");
+        assertEquals(2, result.arg1().toint());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals(2, result.arg(3).toint());
+        assertFalse(result.arg(4).toboolean());
     }
 
     // The filter of aliases passes all values with /../ (see XCore.Filter), of which only those of the user are faked
