@@ -208,8 +208,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 
 * **Run commands**: commands fail, like `su`, `id` or `getprop`, except programs in the app's own native library
   folder. *Read biometric sensors*, *Get sensors*, *Read identifiers*, *Use tracking*, *Read languages*, *Read time zone*,
-  *Get applications*, *Read debugging state*, *Read device features*, *Read memory and storage* and *Read network
-  data* refuse commands the same way, since commands could read their values
+  *Get applications*, *Read debugging state*, *Read device features*, *Read memory and storage*, *Read network
+  data* and *Read VPN state* refuse commands the same way, since commands could read their values
 * **Send messages**: prevent sending SMS, MMS and data messages
 * **Use analytics**: Adjust, AppsFlyer, Facebook app events, Firebase Analytics (without consent, so no app
   instance id) and Crashlytics, Google Analytics v4, Mixpanel, Segment, Amplitude, Branch, Microsoft Clarity,

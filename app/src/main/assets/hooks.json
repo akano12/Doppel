@@ -19601,6 +19601,53 @@
     "excludePackages": "android",
     "luaScript": "@settingssecure_getstring"
   },
+  // Commands are refused, since ip route, ip rule and ifconfig show the interface and the routes of the VPN
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "ProcessBuilder.start/vpn",
+    "author": "akano12",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Os.execv/vpn",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Os.execve/vpn",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
   // Ids of SD cards and USB drives
   // Battery
   {
