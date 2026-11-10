@@ -16,7 +16,8 @@
 -- Copyright 2026 akano12
 
 -- The phone accounts of the SIMs have the phone number as their address (tel:), like getLine1Number: the fake number
--- (value.phone_number), else none. The accounts of the app itself and other addresses, like sip: of calling apps, stay.
+-- (value.phone_number), else an empty one (tel:), which Android gives for a SIM without a number; never null, which
+-- Android does not give for a SIM. The accounts of the app itself and other addresses, like sip: of calling apps, stay.
 function after(hook, param)
     local result = param:getResult()
     if result == nil or result:getScheme() ~= 'tel' then
@@ -27,11 +28,11 @@ function after(hook, param)
         return false
     end
 
-    local number = param:getSetting('value.phone_number')
-    local fake = nil
-    if number ~= nil then
-        fake = luajava.bindClass('android.net.Uri'):fromParts('tel', number, nil)
+    local number = param:getSetting('value.phone_number') or ''
+    if result:getSchemeSpecificPart() == number then
+        return false
     end
+    local fake = luajava.bindClass('android.net.Uri'):fromParts('tel', number, nil)
     param:setResult(fake)
     return true, result:toString(), number
 end

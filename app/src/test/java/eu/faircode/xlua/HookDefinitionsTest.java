@@ -988,6 +988,8 @@ public class HookDefinitionsTest {
                 "android.os.Bundle,android.os.CancellationSignal) @contentresolver_query 27-");
         check("TelephonyManager.getMergedSubscriberIds", "android.telephony.TelephonyManager getMergedSubscriberIds() " +
                 "@generic_null_value 27- optional");
+        check("TelephonyManager.getVoiceMailAlphaTag", "android.telephony.TelephonyManager getVoiceMailAlphaTag() " +
+                "@value_voicemail_tag 27-");
         // Media sessions of other apps, which notification listeners get
         String m = "android.media.session.MediaSessionManager ";
         check("MediaSessionManager.getActiveSessions", m + "getActiveSessions(android.content.ComponentName) @generic_empty 27-");

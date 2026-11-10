@@ -115,13 +115,18 @@ public class ValueScriptsTest {
                 "  return { fromParts = function(self, scheme, part, fragment) return uriof(scheme, part) end }\n" +
                 "end }\n" +
                 "function uriof(scheme, part) return { scheme = scheme, part = part,\n" +
-                "  getScheme = function(self) return self.scheme end, toString = function(self) return self.scheme .. ':' .. self.part end } end\n" +
+                "  getScheme = function(self) return self.scheme end, getSchemeSpecificPart = function(self) return self.part end,\n" +
+                "  toString = function(self) return self.scheme .. ':' .. self.part end } end\n" +
                 "function accountof(pkg) return { getAccountHandle = function(self)\n" +
                 "  return { getComponentName = function(self) return { getPackageName = function(self) return pkg end } end } end } end");
+        // Without a fake number an empty one (tel:), never null, which Android does not give for a SIM
         Varargs sim = Scripts.run(globals, "local param = paramof(uriof('tel', '+3161234'), {}, accountof('com.android.phone'))\n" +
-                "return after(nil, param), param.result");
+                "return after(nil, param), param.result.scheme, param.result.part");
         assertTrue(sim.arg(1).toboolean());
-        assertTrue(sim.arg(2).isnil());
+        assertEquals("tel", sim.arg(2).tojstring());
+        assertEquals("", sim.arg(3).tojstring());
+        assertFalse(Scripts.run(globals, "return after(nil, paramof(uriof('tel', ''), {}, accountof('com.android.phone')))")
+                .arg1().toboolean());
         Varargs fake = Scripts.run(globals, "settings['value.phone_number'] = '+3100000'\n" +
                 "local param = paramof(uriof('tel', '+3161234'), {}, accountof('com.android.phone'))\n" +
                 "return after(nil, param), param.result.part\n");
@@ -155,6 +160,8 @@ public class ValueScriptsTest {
         Globals globals = load("value_phone_number");
         check(globals, "return after_(nil, paramof('+3161234'))", true, true, null);
         check(globals, "return after_(nil, paramof(nil))", false, false, null);
+        // A SIM without a number stays empty, like the other reads give it
+        check(globals, "return after_(nil, paramof(''))", false, false, "");
         Scripts.run(globals, "settings['value.phone_number'] = '+3100000'");
         check(globals, "return after_(nil, paramof('+3161234'))", true, true, "+3100000");
         // The fake already, like getLine1Number() calling the hooked getLine1Number(subId): not reported twice
@@ -642,5 +649,20 @@ public class ValueScriptsTest {
         assertEquals(0, result.arg(4).toint());
         assertEquals(0, result.arg(5).toint());
         assertFalse(result.arg(6).toboolean());
+    }
+
+    // The label of the voicemail number is the default label of Android, never null
+    @Test
+    public void voicemailLabelIsTheDefault() throws Exception {
+        Globals globals = load("value_voicemail_tag");
+        Scripts.run(globals, "luajava = { bindClass = function(name)\n" +
+                "  assert(name == 'android.content.res.Resources', name)\n" +
+                "  return { getSystem = function(self) return { getIdentifier = function(self, n, t, p)\n" +
+                "    return (n == 'defaultVoiceMailAlphaTag' and t == 'string' and p == 'android') and 17 or 0 end,\n" +
+                "    getString = function(self, id) return 'Voicemail' end } end }\n" +
+                "end }");
+        check(globals, "return after_(nil, paramof('Mailbox of Alice'))", true, true, "Voicemail");
+        check(globals, "return after_(nil, paramof('Voicemail'))", false, false, "Voicemail");
+        check(globals, "return after_(nil, paramof(nil))", false, false, null);
     }
 }

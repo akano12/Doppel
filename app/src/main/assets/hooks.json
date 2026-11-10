@@ -11194,7 +11194,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 27,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@value_voicemail_tag"
   },
   {
     "collection": "Privacy",
@@ -11209,7 +11209,7 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "optional": true,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@value_voicemail_tag"
   },
   {
     "collection": "Privacy",

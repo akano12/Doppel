@@ -17,7 +17,8 @@
 
 function after(hook, param)
     local result = param:getResult()
-    if result == nil then
+    -- Also an empty number, of a SIM without one, which stays empty like the reads which give it so
+    if result == nil or result == '' then
         return false
     end
 
