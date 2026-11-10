@@ -735,7 +735,7 @@ public class FingerprintScriptsTest {
                         "  local p = paramof(nil, {})\n" +
                         "  for index = 1, count do p.args[index - 1] = args[index] end\n" +
                         "  p.set = false\n" +
-                        "  p.setResult = function(self, value) self.set = true end\n" +
+                        "  p.setResult = function(self, value) self.set = true thrown = value end\n" +
                         "  p.getValue = function(self, name, scope) return values[name] and values[name][scope] end\n" +
                         "  p.putValue = function(self, name, value, scope)\n" +
                         "    values[name] = values[name] or {}\n" +
@@ -749,15 +749,19 @@ public class FingerprintScriptsTest {
                         "  posted = {}\n" +
                         "end\n" +
                         "luajava.createProxy = function(name, object) assert(name == 'java.lang.Runnable') return object end\n" +
-                        "luajava.bindClass = function(name) assert(name == 'android.os.Looper')\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                        "  assert(name == 'android.os.Looper')\n" +
                         "  return { getMainLooper = function(self) return 'main' end } end\n" +
+                        "sdk = 34\n" +
                         "luajava.newInstance = function(name, looper)\n" +
                         "  if name == 'java.util.HashMap' then return 'empty' end\n" +
+                        "  if name == 'java.lang.IllegalArgumentException' then return 'IllegalArgumentException: ' .. looper end\n" +
                         "  assert(name == 'android.os.Handler' and looper == 'main')\n" +
                         "  return { post = function(self, runnable) posted[#posted + 1] = runnable end }\n" +
                         "end\n" +
                         "executor = { execute = function(self, runnable) posted[#posted + 1] = runnable end }\n" +
-                        "listener = {\n" +
+                        "listener = { toString = function(self) return 'L' end,\n" +
                         "  onThermalStatusChanged = function(self, status) answers[#answers + 1] = 'status ' .. status end,\n" +
                         "  onThermalHeadroomChanged = function(self, headroom, forecast, seconds, thresholds)\n" +
                         "    answers[#answers + 1] = tostring(headroom ~= headroom) .. ' ' .. tostring(forecast ~= forecast) ..\n" +
@@ -779,19 +783,36 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(6).toboolean());
         assertFalse(result.arg(7).toboolean());
 
-        // By the executor of the call; headroom like the getters: not known, no thresholds
+        // Headroom like a device whose sensors have no samples yet: no call back, since Android does not call back
+        // with NaN
         result = Scripts.run(globals,
                 "answers = {}\n" +
-                        "local real = luajava.bindClass\n" +
-                        "luajava.bindClass = function(name) error('no main thread') end\n" +
                         "local added = call('addThermalHeadroomListener', executor, listener)\n" +
-                        "luajava.bindClass = real\n" +
-                        "drain()\n" +
+                        "local count = #posted\n" +
                         "local _, skipped = call('removeThermalHeadroomListener', listener)\n" +
-                        "return added, table.concat(answers, ','), skipped");
+                        "return added, count, #answers, skipped");
         assertTrue(result.arg(1).toboolean());
-        assertEquals("true true 0 empty", result.arg(2).tojstring());
-        assertTrue(result.arg(3).toboolean());
+        assertEquals(0, result.arg(2).toint());
+        assertEquals(0, result.arg(3).toint());
+        assertTrue(result.arg(4).toboolean());
+
+        // A listener added twice: Android refuses it with the message of its version
+        result = Scripts.run(globals,
+                "call('addThermalStatusListener', listener)\n" +
+                        "local again, set = call('addThermalStatusListener', listener)\n" +
+                        "local old = thrown\n" +
+                        "call('removeThermalStatusListener', listener)\n" +
+                        "sdk = 36\n" +
+                        "call('addThermalHeadroomListener', executor, listener)\n" +
+                        "call('addThermalHeadroomListener', executor, listener)\n" +
+                        "local new = thrown\n" +
+                        "call('removeThermalHeadroomListener', listener)\n" +
+                        "sdk = 34 posted = {}\n" +
+                        "return again, set, old, new");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("IllegalArgumentException: Listener already registered: L", result.arg(3).tojstring());
+        assertEquals("IllegalArgumentException: Thermal headroom listener already registered: L", result.arg(4).tojstring());
 
         // One object listening to both is removed from both: Android would throw for the second one too
         result = Scripts.run(globals,
@@ -919,6 +940,22 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg1().toboolean());
         assertEquals("empty", result.arg(2).tojstring());
         assertEquals("built1", result.arg(3).tojstring());
+
+        // A device without a vibrator keeps its details, which answer no; of no effects or primitives Android answers
+        // yes, and an effect which is not supported (no) stays
+        result = Scripts.run(load("device_details"),
+                "local none = paramof({ getClass = function(self)\n" +
+                        "  return { getName = function(self) return 'android.os.SystemVibrator$NoVibratorInfo' end } end })\n" +
+                        "return after(hookof('getInfo'), none),\n" +
+                        "  after(hookof('areAllEffectsSupported'), paramof(1, { [0] = { length = 0 } })),\n" +
+                        "  after(hookof('areAllEffectsSupported'), paramof(2, { [0] = { length = 1, 0 } })),\n" +
+                        "  after(hookof('areAllPrimitivesSupported'), paramof(true, { [0] = { length = 0 } })),\n" +
+                        "  after(hookof('areAllEffectsSupported'), paramof(1, { [0] = { length = 1, 0 } }))");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
     }
 
     // The screen lock is set, so it is a way to authenticate, which biometrics alone say nothing about

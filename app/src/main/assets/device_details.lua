@@ -74,15 +74,25 @@ function before(hook, param)
     if listener == nil or (count == 2 and executor == nil) then
         return false
     end
+    -- A listener added twice, which Android refuses with the message of its version
+    if param:getValue(blocked, listener) then
+        local message = 'Listener already registered: '
+        if luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 36 then
+            message = (method == 'addThermalStatusListener' and 'Thermal status' or 'Thermal headroom') ..
+                    ' listener already registered: '
+        end
+        param:setResult(luajava.newInstance('java.lang.IllegalArgumentException', message .. listener:toString()))
+        return true
+    end
     param:setResult(nil)
     param:putValue(blocked, true, listener)
+    -- Headroom like a device whose sensors have no samples yet, which Android does not call back for (NaN)
+    if method == 'addThermalHeadroomListener' then
+        return true
+    end
 
     local runnable = luajava.createProxy('java.lang.Runnable', { run = function()
-        if method == 'addThermalStatusListener' then
-            listener:onThermalStatusChanged(0) -- THERMAL_STATUS_NONE
-        else
-            listener:onThermalHeadroomChanged(0 / 0, 0 / 0, 0, luajava.newInstance('java.util.HashMap'))
-        end
+        listener:onThermalStatusChanged(0) -- THERMAL_STATUS_NONE
     end })
     if executor ~= nil then
         executor:execute(runnable)
@@ -91,6 +101,11 @@ function before(hook, param)
         luajava.newInstance('android.os.Handler', looper):post(runnable)
     end
     return true
+end
+
+-- Whether an array of arguments is empty, like areAllEffectsSupported() without effects
+function none(array)
+    return array == nil or array['length'] == 0
 end
 
 -- A Java array of the length of another one, of a type, with one value; nil when the other one has only that value,
@@ -144,7 +159,11 @@ function after(hook, param)
         end
         fake = 0 / 0
     elseif method == 'getCurrentThermalStatus' or method == 'areAllEffectsSupported' then
-        -- THERMAL_STATUS_NONE, VIBRATION_EFFECT_SUPPORT_UNKNOWN
+        -- THERMAL_STATUS_NONE, VIBRATION_EFFECT_SUPPORT_UNKNOWN; for no effects (yes) and of a vibrator which supports
+        -- none (no, like a device without one) the answer of Android stays
+        if method == 'areAllEffectsSupported' and (none(param:getArgument(0)) or result == 2) then
+            return false
+        end
         fake = 0
     elseif method == 'getThermalHeadroomThresholds' then
         if result == nil or result:isEmpty() then
@@ -159,6 +178,10 @@ function after(hook, param)
             return false
         end
     elseif method == 'hasAmplitudeControl' or method == 'areAllPrimitivesSupported' then
+        -- Of no primitives Android answers true
+        if method == 'areAllPrimitivesSupported' and none(param:getArgument(0)) then
+            return false
+        end
         fake = false
     elseif method == 'areEffectsSupported' or method == 'getPrimitiveDurations' then
         -- Of the effects asked for: unknown (0), of primitives: no duration (0)
@@ -200,8 +223,15 @@ function after(hook, param)
         param:setResult(luajava.newInstance('java.util.LinkedHashSet'))
         return true, tostring(result:size()), '0'
     elseif method == 'getInfo' then
-        -- An empty VibratorInfo (hidden): of Android 13 and later its constant, else built
+        -- An empty VibratorInfo (hidden): of Android 13 and later its constant, else built; the one of a device
+        -- without a vibrator (NoVibratorInfo) stays, which answers no for all effects
         if result == nil then
+            return false
+        end
+        local known, class = pcall(function()
+            return result:getClass():getName()
+        end)
+        if known and string.find(class, 'NoVibratorInfo', 1, true) then
             return false
         end
         -- With the id of the vibrator: EMPTY_VIBRATOR_INFO has id -1, which getVibrator does not give
