@@ -20,7 +20,7 @@
 -- in the formats of the methods; the country is empty, which Android gives for MCC 001 (MccTable has no country for
 -- it), the names are unknown and the carrier is the test network of the carrier database of Android
 -- (carrier_list.textpb, 1911 for 00101). Emergency numbers of the carrier have the country and MNC of the test
--- network too.
+-- network too, and so do the cells, of which the operator of the network is the faked one.
 -- Without a SIM or service the values are empty, which stay, a fake value would tell they are faked.
 
 local FAKES = {
@@ -31,6 +31,7 @@ local FAKES = {
     getNetworkOperator = '00101',
     getSimOperator = '00101',
     getOperatorNumeric = '00101', -- ServiceState
+    getMobileNetworkOperator = '00101', -- CellIdentity
     getRegisteredPlmn = '00101', -- NetworkRegistrationInfo
     getCountryIso = '',
     getNetworkCountryIso = '',
@@ -68,8 +69,8 @@ function after(hook, param)
     if type(result) == 'userdata' then
         result = result:toString() -- CharSequence
     end
-    -- An unknown carrier (-1) stays, like an empty value
-    if result == nil or result == '' or result == -1 or (result == 0 and nocode(method, param)) then
+    -- An unknown carrier (-1) stays, like an empty value, and so does an unknown code of a cell (Integer.MAX_VALUE)
+    if result == nil or result == '' or result == -1 or result == 2147483647 or (result == 0 and nocode(method, param)) then
         return false
     end
 

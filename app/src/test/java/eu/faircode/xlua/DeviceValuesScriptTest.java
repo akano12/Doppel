@@ -537,6 +537,9 @@ public class DeviceValuesScriptTest {
         assertEquals("Test Network, Used by GSM test equipment",
                 operator(globals, "getSimCarrierIdName", "'T-Mobile'").arg(2).tojstring());
         assertEquals("", operator(globals, "getNetworkCountryIso", "'de'").arg(2).tojstring());
+        // The operator of the network of a cell; unknown codes of a cell (Integer.MAX_VALUE) stay
+        assertEquals("00101", operator(globals, "getMobileNetworkOperator", "'310260'").arg(2).tojstring());
+        assertFalse(operator(globals, "getMcc", "2147483647").arg1().toboolean());
         // The country and MNC of an emergency number of the carrier, the MNC as text
         Varargs emergency = Scripts.run(globals,
                 "local hook = hookof(nil, 'getMnc')\n" +
