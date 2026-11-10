@@ -380,7 +380,16 @@ public class SettingsScriptTest {
     public void wifiDirectNameIsMissing() {
         assertTrue(run("return hooked('wifi_p2p_device_name')").arg1().toboolean());
         assertEquals(null, applications("device_name", "wifi_p2p_device_name", "Pixel of Alice"));
-        assertEquals(null, applications("device_name", "device_name", "Pixel of Alice"));
+        // The name of the device is the fake model, which Android gives when the user set no name
+        assertEquals("unknown", applications("device_name", "device_name", "Pixel of Alice"));
+        assertEquals("same", applications("device_name", "device_name", "unknown"));
+    }
+
+    // How often the device started: of a device started once, which Android always counts
+    @Test
+    public void bootCountIsOne() {
+        assertEquals("1", applications("boot_count", "boot_count", "287"));
+        assertEquals("same", applications("boot_count", "boot_count", "1"));
     }
 
     // Settings.Secure.getString calls the hooked getStringForUser, which already faked the value

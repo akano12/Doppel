@@ -329,10 +329,22 @@ function fakesetting(param, name, key, result)
             return false
         end
         return true, fake
+    elseif name == 'device_name' and key == 'device_name' then
+        -- The name of the device, which users set, often with their own name: the model, which Android gives when
+        -- the user did not set one, the fake Build.MODEL (see generic_unknown_value)
+        if result == 'unknown' then
+            return false
+        end
+        return true, 'unknown'
+    elseif name == 'boot_count' and key == 'boot_count' then
+        -- How often the device started, which Android counts from the first start: of a device started once
+        if result == nil or result == '1' then
+            return false
+        end
+        return true, '1'
     elseif (name == 'bluetooth_name' and key == 'bluetooth_name') or
-            -- The name of the device, also for Wi-Fi Direct, which users set, often with their own name
-            (name == 'device_name' and (key == 'device_name' or key == 'wifi_p2p_device_name')) or
-            (name == 'boot_count' and key == 'boot_count') or
+            -- The name of the device for Wi-Fi Direct, which AOSP does not set
+            (name == 'device_name' and key == 'wifi_p2p_device_name') or
             (name == 'oaid' and identifier(key)) then
         return true
     elseif (name == 'accessibility' and COMPONENTS[key] == 'accessibility') or
