@@ -49,7 +49,8 @@ public class CommandsExecScriptTest {
             "  if class ~= 'file' then return make(class, ...) end",
             "  local path = ...",
             "  return { isAbsolute = function(self) return true end,",
-            "    getCanonicalPath = function(self) return path end }",
+            "    getCanonicalPath = function(self) return path end,",
+            "    exists = function(self) return path ~= '/system/bin/nothing' end }",
             "end",
             "luajava.newInstance = function(name, ...)",
             "  if name ~= 'android.system.ErrnoException' then return instance(name, ...) end",
@@ -120,6 +121,8 @@ public class CommandsExecScriptTest {
             assertEquals("/system/bin/sh", result.arg(3).tojstring());
         }
         assertTrue(exec("execv", "getprop").arg1().toboolean());
+        // A program which does not exist, like Android answers
+        assertEquals("execv 2", exec("execv", "/system/bin/nothing").arg(2).tojstring());
         assertTrue(exec("execv", LIB + "-x/libtool.so").arg1().toboolean());
     }
 

@@ -84,24 +84,37 @@ public class CommandsBlockedScriptTest {
         return (IOException) result.arg(2).touserdata();
     }
 
+    // Programs which exist, here those of the computer running the test, fail like programs which may not run
     @Test
     public void commandsAreRefused() {
-        IOException ex = refused(null, "getprop", "ro.serialno");
-        assertEquals("Cannot run program \"getprop\": error=13, Permission denied", ex.getMessage());
+        Assume.assumeTrue(new File("/bin/sh").exists());
+        IOException ex = refused(null, "sh", "-c", "getprop");
+        assertEquals("Cannot run program \"sh\": error=13, Permission denied", ex.getMessage());
         assertEquals("error=13, Permission denied", ex.getCause().getMessage());
         assertTrue(ex.getCause() instanceof IOException);
+        assertEquals("Cannot run program \"/bin/sh\": error=13, Permission denied",
+                refused(null, "/bin/sh", "-c", "id").getMessage());
+    }
 
-        for (String[] command : new String[][]{
-                {"sh", "-c", "getprop"}, {"/system/bin/getprop"}, {"/system/bin/sh", "-c", "id"}, {"su"}})
+    // Programs which do not exist fail like on Android, by name in PATH and by path, also relative to the directory
+    @Test
+    public void missingProgramsDoNotExist() throws Exception {
+        for (String[] command : new String[][]{{"no_such_tool_12345"}, {"/nonexistent/bin/getprop", "ro.serialno"}})
             assertEquals(String.join(" ", command),
-                    "Cannot run program \"" + command[0] + "\": error=13, Permission denied",
+                    "Cannot run program \"" + command[0] + "\": error=2, No such file or directory",
                     refused(null, command).getMessage());
+        assertEquals("Cannot run program \"./tool\" (in directory \"" + files.getPath() + "\"): error=2, No such file or directory",
+                refused(files, "./tool").getMessage());
+        assertTrue(new File(files, "tool").createNewFile());
+        assertEquals("Cannot run program \"./tool\" (in directory \"" + files.getPath() + "\"): error=13, Permission denied",
+                refused(files, "./tool").getMessage());
     }
 
     @Test
     public void directoryIsInTheMessage() {
-        assertEquals("Cannot run program \"uname\" (in directory \"" + files.getPath() + "\"): error=13, Permission denied",
-                refused(files, "uname", "-a").getMessage());
+        Assume.assumeTrue(new File("/bin/sh").exists());
+        assertEquals("Cannot run program \"sh\" (in directory \"" + files.getPath() + "\"): error=13, Permission denied",
+                refused(files, "sh", "-c", "uname -a").getMessage());
     }
 
     @Test
