@@ -795,7 +795,7 @@ class XCore {
     }
 
     // shortcut: a count, not a size; 20 stack traces of a few KB each fit, measure the parcel when traces grow
-    private static final int REPORTS_PER_CALL = 20;
+    static final int REPORTS_PER_CALL = 20;
 
     private void flush(Context context, String packageName, int uid) {
         XLog.i(TAG, "Processing event queue package=" + packageName + ":" + uid);

@@ -981,6 +981,10 @@ class XProvider {
         ArrayList<Bundle> list = extras.getParcelableArrayList("reports");
         if (list == null)
             throw new IllegalArgumentException("reports missing");
+        // As many as the engine sends at a time: a restricted app sending more would hold the lock of the database,
+        // which the other apps wait for when they start
+        if (list.size() > XCore.REPORTS_PER_CALL)
+            throw new IllegalArgumentException("too many reports");
         final List<Report> reports = Report.all(list, Binder.getCallingUid(), hooks);
 
         db.write(d -> {
@@ -1038,6 +1042,11 @@ class XProvider {
             if (hookid == null || packageName == null || event == null || data == null)
                 throw new IllegalArgumentException("report invalid");
             restricted = data.getInt("restricted", 0);
+            // Only what the engine sends: an error of the install, or a use which restricted or failed, so the app
+            // itself cannot clear its restrictions from the log with a use which did not restrict, nor send others
+            boolean error = data.containsKey("exception");
+            if (!("install".equals(event) && error) && !("use".equals(event) && (restricted == 1 || error)))
+                throw new IllegalArgumentException("report invalid");
             hook = hooks.get(hookid);
 
             // The data has the real values, like an IMEI, which release builds do not write to the system log
