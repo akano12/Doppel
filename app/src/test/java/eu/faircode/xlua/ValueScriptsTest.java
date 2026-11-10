@@ -457,6 +457,11 @@ public class ValueScriptsTest {
             boolean restricted = Boolean.parseBoolean(c[2]);
             check(load(c[0]), "return after_(nil, paramof(" + c[1] + "))", restricted, restricted, c[3]);
         }
+        // The exception of the method stays, like the SecurityException of getUserCreationTime for another user
+        Varargs thrown = Scripts.run(load("generic_zero_value"),
+                "local param = paramof(nil, {}, nil, 'java.lang.SecurityException')\nreturn after(nil, param), param.set");
+        assertFalse(thrown.arg1().toboolean());
+        assertFalse(thrown.arg(2).toboolean());
     }
 
     // Opt-outs by the last argument: false, also for null of a Boolean, and true; like setAnalyticsCollectionEnabled(enabled)

@@ -15,9 +15,10 @@
 
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 
+-- The exception of the method stays, like for a user who is not the caller's (UserManager.getUserCreationTime)
 function after(hook, param)
     local result = param:getResult()
-    if result == 0 then
+    if result == 0 or param:getException() ~= nil then
         return false
     end
 
