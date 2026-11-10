@@ -494,26 +494,53 @@ public class ValueScriptsTest {
         assertEquals(0.1, result.arg(4).todouble(), 0);
     }
 
-    // The activity is unknown, at the time of the real result
+    // The activity is unknown, in a mutable list like the one of Play services, at the time of the real result; when
+    // the members are missing, which R8 can remove, there is no result rather than the real one
     @Test
     public void activityIsUnknown() throws Exception {
         Globals globals = load("activityrecognitionresult_extractresult");
-        Scripts.run(globals, "luajava = { new = function(class, ...) return { class = class, args = { ... } } end }");
+        Scripts.run(globals, "luajava = { new = function(class, ...) return { class = class, args = { ... } } end,\n" +
+                "  newInstance = function(name) local list = { class = name } list.add = function(self, v) self[#self + 1] = v end\n" +
+                "    return list end }");
         Varargs result = Scripts.run(globals, "local real = { getTime = function(self) return 1000 end,\n" +
                 "  getElapsedRealtimeMillis = function(self) return 500 end }\n" +
                 "local param = paramof(real)\n" +
+                "param.findClass = function(self, name) return name end\n" +
                 "local restricted = after(nil, param)\n" +
                 "local fake = param.result\n" +
-                "local detected = fake.args[1]\n" +
-                "return restricted, fake.class, detected.class, detected.args[1], detected.args[2], fake.args[2], fake.args[3]");
+                "local activities = fake.args[1]\n" +
+                "local detected = activities[1]\n" +
+                "local stripped = paramof({ getElapsedRealtimeMillis = function(self) return 500 end })\n" +
+                "stripped.findClass = function(self, name) return name end\n" +
+                "local none = after(nil, stripped)\n" +
+                "return restricted, fake.class, activities.class, #activities, detected.class, detected.args[1], detected.args[2],\n" +
+                "  fake.args[2], fake.args[3], none, stripped.result");
         assertTrue(result.arg(1).toboolean());
         assertEquals("com.google.android.gms.location.ActivityRecognitionResult", result.arg(2).tojstring());
-        assertEquals("com.google.android.gms.location.DetectedActivity", result.arg(3).tojstring());
-        assertEquals(4, result.arg(4).toint());
-        assertEquals(100, result.arg(5).toint());
-        assertEquals(1000, result.arg(6).toint());
-        assertEquals(500, result.arg(7).toint());
+        assertEquals("java.util.ArrayList", result.arg(3).tojstring());
+        assertEquals(1, result.arg(4).toint());
+        assertEquals("com.google.android.gms.location.DetectedActivity", result.arg(5).tojstring());
+        assertEquals(4, result.arg(6).toint());
+        assertEquals(100, result.arg(7).toint());
+        assertEquals(1000, result.arg(8).toint());
+        assertEquals(500, result.arg(9).toint());
+        assertTrue(result.arg(10).toboolean());
+        assertTrue(result.arg(11).isnil());
         check(globals, "return after_(nil, paramof(nil))", false, false, null);
+    }
+
+    // The sleep events are none, the empty list of Play services, which cannot be changed
+    @Test
+    public void sleepEventsAreNone() throws Exception {
+        Globals globals = load("sleepevent_extractevents");
+        Scripts.run(globals, "luajava = { bindClass = function(name) return { emptyList = function(self) return 'empty' end } end }");
+        Varargs result = Scripts.run(globals,
+                "local events = paramof({ isEmpty = function() return false end, size = function() return 2 end })\n" +
+                        "local none = paramof({ isEmpty = function() return true end })\n" +
+                        "return after(nil, events), events.result, after(nil, none)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("empty", result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
     }
 
     // The SDKs of apps are stopped once for each instance

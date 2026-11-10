@@ -1052,7 +1052,7 @@ public class HookDefinitionsTest {
         assertEquals("Get.Call.log", hook("TelephonyManager.listen/call_log").getString("group"));
         for (String c : new String[]{"SleepSegmentEvent", "SleepClassifyEvent"})
             check(c + ".extractEvents", "com.google.android.gms.location." + c + " extractEvents(android.content.Intent) " +
-                    "@generic_empty 27- optional");
+                    "@sleepevent_extractevents 27- optional");
     }
 
     // Permissions and their groups name the app which defines them (see package_resolve)

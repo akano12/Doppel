@@ -22,16 +22,21 @@ function after(hook, param)
         return false
     end
 
-    -- luajava.bindClass uses the thread context class loader,
-    -- which cannot see the Play services classes of the app on all threads
-    local classActivity = param:findClass('com.google.android.gms.location.DetectedActivity')
-    local detected = luajava.new(classActivity, 4, 100) -- unknown, 100%
-
-    local classResult = param:findClass('com.google.android.gms.location.ActivityRecognitionResult')
-    local time = result:getTime()
-    local elapsed = result:getElapsedRealtimeMillis()
-    local fake = luajava.new(classResult, detected, time, elapsed)
-
+    -- The unknown activity at 100%, in a mutable list like Play services gives, at the time of the real result;
+    -- luajava.bindClass uses the thread context class loader, which cannot see the Play services classes of the app on
+    -- all threads
+    local ok, fake = pcall(function()
+        local classActivity = param:findClass('com.google.android.gms.location.DetectedActivity')
+        local activities = luajava.newInstance('java.util.ArrayList')
+        activities:add(luajava.new(classActivity, 4, 100))
+        local classResult = param:findClass('com.google.android.gms.location.ActivityRecognitionResult')
+        return luajava.new(classResult, activities, result:getTime(), result:getElapsedRealtimeMillis())
+    end)
+    -- Without the members, which R8 can remove from an app which does not use them: no result, like an intent without
+    -- one, rather than the real one
+    if not ok then
+        fake = nil
+    end
     param:setResult(fake)
     return true, result, fake
 end

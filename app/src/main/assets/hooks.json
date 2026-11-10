@@ -52,7 +52,7 @@
     "returnType": "java.util.List",
     "minSdk": 27,
     "optional": true,
-    "luaScript": "@generic_empty"
+    "luaScript": "@sleepevent_extractevents"
   },
   {
     "collection": "Privacy",
@@ -67,7 +67,7 @@
     "returnType": "java.util.List",
     "minSdk": 27,
     "optional": true,
-    "luaScript": "@generic_empty"
+    "luaScript": "@sleepevent_extractevents"
   },
   {
     "collection": "Privacy",
