@@ -16884,6 +16884,46 @@
     "excludePackages": "android",
     "luaScript": "@device_details"
   },
+  // The media performance class (most devices have none) and the secure element of StrongBox name the model
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Build.VERSION.MEDIA_PERFORMANCE_CLASS",
+    "author": "akano12",
+    "className": "android.os.Build$VERSION",
+    "methodName": "#MEDIA_PERFORMANCE_CLASS",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 31,
+    "usage": false,
+    "luaScript": "@generic_zero_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Build.STRONGBOX_MANUFACTURER",
+    "author": "akano12",
+    "className": "android.os.Build",
+    "methodName": "#STRONGBOX_MANUFACTURER",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 37,
+    "usage": false,
+    "luaScript": "@generic_unknown_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Build.STRONGBOX_MODEL",
+    "author": "akano12",
+    "className": "android.os.Build",
+    "methodName": "#STRONGBOX_MODEL",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 37,
+    "usage": false,
+    "luaScript": "@generic_unknown_value"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",

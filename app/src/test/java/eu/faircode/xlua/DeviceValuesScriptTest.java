@@ -282,14 +282,16 @@ public class DeviceValuesScriptTest {
         assertFalse("once", result.arg(20).toboolean());
     }
 
-    // The version of the DRM plugin without the build of the firmware; other properties stay
+    // The version of the DRM plugin with the fake build of the firmware, like Build.ID; other properties stay
     @Test
-    public void drmVersionWithoutBuild() throws Exception {
+    public void drmVersionWithFakeBuild() throws Exception {
         Globals globals = load("mediadrm_version");
         Varargs result = Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
                 "'getPropertyString'), paramof('19.0.1@AV1A.240428.001', { [0] = 'version' }))");
         assertTrue(result.arg1().toboolean());
-        assertEquals("19.0.1", result.arg(2).tojstring());
+        assertEquals("19.0.1@unknown", result.arg(2).tojstring());
+        assertFalse(Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
+                "'getPropertyString'), paramof('19.0.1@unknown', { [0] = 'version' }))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
                 "'getPropertyString'), paramof('16.1.0', { [0] = 'version' }))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +

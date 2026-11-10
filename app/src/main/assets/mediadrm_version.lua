@@ -16,7 +16,8 @@
 -- Copyright 2026 akano12
 
 -- The version of the DRM plugin, like 19.0.1@AV1A.240428.001 of Widevine, ends with the build of the firmware,
--- like Build.ID, which is faked; the version of the plugin itself stays, apps check it
+-- like Build.ID, which is faked: it ends with the fake one (unknown, see generic_unknown_value), so it agrees with
+-- Build.ID; the version of the plugin itself stays, apps check it
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
@@ -26,10 +27,11 @@ function after(hook, param)
     if param:getArgument(0) ~= 'version' then
         return false
     end
-    local fake = string.match(result, '^([^@]*)@')
-    if fake == nil then
+    local version = string.match(result, '^([^@]*)@')
+    if version == nil or result == version .. '@unknown' then
         return false
     end
+    local fake = version .. '@unknown'
     param:setResult(fake)
     return true, result, fake
 end
