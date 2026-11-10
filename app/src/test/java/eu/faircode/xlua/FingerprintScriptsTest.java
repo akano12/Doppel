@@ -696,6 +696,33 @@ public class FingerprintScriptsTest {
         assertEquals(0, result.arg(8).toint());
         assertFalse(result.arg(9).toboolean());
 
+        // The hidden lists of the profiles of the own user: the own user only, made at 0 like getUserCreationTime
+        result = Scripts.run(globals,
+                "local function user(id) return { id = id, equals = function(self, other) return self.id == other.id end,\n" +
+                        "  getIdentifier = function(self) return self.id end } end\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name == 'java.lang.reflect.Array' then return { newInstance = function(self, type, n) return { length = n } end } end\n" +
+                        "  if name == 'java.lang.Integer' then return { TYPE = 'int' } end\n" +
+                        "  return { myUserHandle = function(self) return user(0) end } end\n" +
+                        "luajava.newInstance = function(name) local list = { items = {} }\n" +
+                        "  list.add = function(self, v) self.items[#self.items + 1] = v end\n" +
+                        "  list.size = function(self) return #self.items end return list end\n" +
+                        "local function info(id) return { id = id, creationTime = 1700000000000, lastLoggedInTime = 1700000500000 } end\n" +
+                        "local function users(method) local hook = hookof(method)\n" +
+                        "  hook.getClassName = function(self) return 'android.os.UserManager' end return hook end\n" +
+                        "local profiles = paramof(collection({ info(0), info(10) }))\n" +
+                        "after(users('getProfiles'), profiles)\n" +
+                        "local ids = paramof({ length = 2, 0, 10 })\n" +
+                        "after(users('getProfileIdsWithDisabled'), ids)\n" +
+                        "local first = profiles.result.items[1]\n" +
+                        "return profiles.result:size(), first.id, first.creationTime, first.lastLoggedInTime, ids.result.length, ids.result[1]");
+        assertEquals(1, result.arg1().toint());
+        assertEquals(0, result.arg(2).toint());
+        assertEquals(0, result.arg(3).tolong());
+        assertEquals(0, result.arg(4).tolong());
+        assertEquals(1, result.arg(5).toint());
+        assertEquals(0, result.arg(6).toint());
+
         // An app in a profile, like a work profile, also sees the parent of the profile, which it can switch to
         result = Scripts.run(globals,
                 "local function user(id) return { id = id, equals = function(self, other) return self.id == other.id end,\n" +

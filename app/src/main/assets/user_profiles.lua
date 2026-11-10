@@ -131,6 +131,48 @@ function after(hook, param)
     end
 
     -- Lists of UserHandle
+    -- The hidden lists of the profiles of a user, which apps reach for their own user: getProfiles of UserManager and
+    -- getEnabledProfiles of the users themselves (UserInfo), with the time the user was made, of the setup of the
+    -- device, like getUserCreationTime gives it (0), and getProfileIds and getProfileIdsWithDisabled of their ids
+    local users = (hook:getClassName() == 'android.os.UserManager')
+    if users and (method == 'getProfiles' or method == 'getEnabledProfiles') then
+        local kept = luajava.newInstance('java.util.ArrayList')
+        local changed = false
+        local iterator = result:iterator()
+        while iterator:hasNext() do
+            local info = iterator:next()
+            if info.id == own:getIdentifier() or (parent ~= nil and info.id == parent:getIdentifier()) then
+                if info.creationTime ~= 0 or info.lastLoggedInTime ~= 0 then
+                    info.creationTime = 0
+                    info.lastLoggedInTime = 0
+                    changed = true
+                end
+                kept:add(info)
+            end
+        end
+        if kept:size() == result:size() and not changed then
+            return false
+        end
+        param:setResult(kept)
+        return true, tostring(result:size()), tostring(kept:size())
+    elseif users and (method == 'getProfileIds' or method == 'getProfileIdsWithDisabled') then
+        local ids = {}
+        for index = 1, result['length'] do
+            if result[index] == own:getIdentifier() or (parent ~= nil and result[index] == parent:getIdentifier()) then
+                ids[#ids + 1] = result[index]
+            end
+        end
+        if #ids == result['length'] then
+            return false
+        end
+        local fake = luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('java.lang.Integer').TYPE, #ids)
+        for index = 1, #ids do
+            fake[index] = ids[index]
+        end
+        param:setResult(fake)
+        return true, tostring(result['length']), tostring(#ids)
+    end
+
     -- The profiles to switch to are the other ones of the group, of an app in a profile its parent
     local kept = luajava.newInstance('java.util.ArrayList')
     local iterator = result:iterator()

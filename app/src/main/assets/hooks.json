@@ -17698,6 +17698,72 @@
     "excludePackages": "android",
     "luaScript": "@user_profiles"
   },
+  // The hidden lists of the profiles of a user, which apps reach for their own user by reflection, with the time the user was made (user_profiles)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UserManager.getProfiles",
+    "author": "akano12",
+    "className": "android.os.UserManager",
+    "methodName": "getProfiles",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UserManager.getEnabledProfiles",
+    "author": "akano12",
+    "className": "android.os.UserManager",
+    "methodName": "getEnabledProfiles",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UserManager.getProfileIds",
+    "author": "akano12",
+    "className": "android.os.UserManager",
+    "methodName": "getProfileIds",
+    "parameterTypes": [
+      "int",
+      "boolean"
+    ],
+    "returnType": "int[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UserManager.getProfileIdsWithDisabled",
+    "author": "akano12",
+    "className": "android.os.UserManager",
+    "methodName": "getProfileIdsWithDisabled",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "int[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",
