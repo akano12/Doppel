@@ -75,8 +75,15 @@ public class DeviceValuesScriptTest {
                 "ro.product.marketname", "ro.product.vendor.marketname", "ro.config.marketing_name",
                 "ro.vendor.product.model", "ro.odm.product.manufacturer", "persist.sys.exif.model", "ro.vendor.soc.model",
                 "ro.vendor.soc.model.part_name", "ro.hardware.chipname", "ro.chipname", "ro.vendor.qti.soc_model",
-                "ro.mediatek.platform", "ro.hardware.egl", "ro.hardware.vulkan"})
+                "ro.mediatek.platform", "ro.hardware.egl", "ro.hardware.vulkan", "ro.boot.hardware.vulkan",
+                "ro.hardware.gralloc", "ro.hardware.power", "ro.boot.hardware.revision", "ro.revision", "ro.boot.bootdevice"})
             assertEquals(key, "unknown", Scripts.run(globals, "return fakedevice('" + key + "', 'x')").arg1().tojstring());
+        // Flags and numbers of the same form stay, like ro.hardware.keystore_desede, which AndroidKeyStore reads
+        for (String[] c : new String[][]{{"ro.hardware.keystore_desede", "true"}, {"ro.hardware.virtual_device", "1"}})
+            assertTrue(c[0], Scripts.run(globals, "return fakedevice('" + c[0] + "', '" + c[1] + "')").arg1().isnil());
+        // The cores the runtime compiles for: generic of ARM, the default variant of x86
+        assertEquals("generic", Scripts.run(globals, "return fakedevice('dalvik.vm.isa.arm64.variant', 'cortex-a78')").arg1().tojstring());
+        assertEquals("x86_64", Scripts.run(globals, "return fakedevice('dalvik.vm.isa.x86_64.variant', 'kabylake')").arg1().tojstring());
         // Not all properties of the hardware, WallpaperManager reads ro.boot.hardware.color
         assertTrue(Scripts.run(globals, "return fakedevice('ro.boot.hardware.color', 'x')").arg1().isnil());
         assertTrue(Scripts.run(globals, "return fakedevice('ro.product.first_api_level', '34')").arg1().isnil());
@@ -394,6 +401,10 @@ public class DeviceValuesScriptTest {
             assertTrue(c[0], result.arg1().toboolean());
             assertEquals(c[0], c[2], result.arg(2).tojstring());
         }
+        // The list of a phone with two SIM slots keeps its form, empty slots stay
+        for (String[] c : new String[][]{{",310260", ",00101"}, {"26201,310260", "00101,00101"}, {"26201,", "00101,"}})
+            assertEquals(c[0], c[1], Scripts.run(globals, "return run(hookof('SystemProperties.get/operator', 'get'), " +
+                    "paramof('" + c[0] + "', { [0] = 'gsm.sim.operator.numeric' }))").arg(2).tojstring());
         assertFalse(Scripts.run(globals, "return run(hookof('SystemProperties.get/operator', 'get'), " +
                 "paramof('', { [0] = 'gsm.operator.numeric' }))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(hookof('SystemProperties.get/operator', 'get'), " +
@@ -1227,8 +1238,16 @@ public class DeviceValuesScriptTest {
                 "return restricted, values['os.version'], values['http.agent'], new");
         assertTrue(result.arg1().toboolean());
         assertEquals("6.1.75", result.arg(2).tojstring());
-        assertEquals("Dalvik/2.1.0 (Linux; U; Android 15)", result.arg(3).tojstring());
-        assertEquals("6.1.75 Dalvik/2.1.0 (Linux; U; Android 15)", result.arg(4).tojstring());
+        // Like RuntimeInit makes it of the fake Build.MODEL and Build.ID
+        assertEquals("Dalvik/2.1.0 (Linux; U; Android 15; unknown Build/unknown)", result.arg(3).tojstring());
+        assertEquals("6.1.75 Dalvik/2.1.0 (Linux; U; Android 15; unknown Build/unknown)", result.arg(4).tojstring());
+        // A preview build has no model
+        Varargs preview = Scripts.run(globals, "local values = { ['http.agent'] = 'Dalvik/2.1.0 (Linux; U; Android Baklava Build/BP21.250103.003)' }\n" +
+                "local props = { get = function(self, key) return values[key] end,\n" +
+                "  put = function(self, key, value) values[key] = value end }\n" +
+                "after(hookof('System.props', '#props'), paramof(props, {}))\n" +
+                "return values['http.agent']");
+        assertEquals("Dalvik/2.1.0 (Linux; U; Android Baklava Build/unknown)", preview.arg1().tojstring());
         assertFalse(Scripts.run(globals, "local props = { get = function(self, key) return key == 'http.agent' and 'okhttp/4.12.0' or nil end }\n" +
                 "return after(hookof('System.props', '#props'), paramof(props, {}))").arg1().toboolean());
     }

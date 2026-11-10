@@ -47,12 +47,16 @@ local DEVICE = {
                    'ro.product.name_for_attestation', 'ro.product.device_for_attestation',
                    'ro.product.manufacturer_for_attestation', 'gsm.version.ril-impl',
                    -- The versions of ROMs of makers, which name the maker
+                   -- The revision of the board and the device it boots from, which name the board
+                   'ro.revision', 'ro.boot.revision', 'ro.boot.bootdevice',
                    'ro.miui.ui.version.name', 'ro.miui.ui.version.code', 'ro.build.version.emui',
                    'ro.build.version.oneui', 'ro.build.version.opporom', 'ro.vivo.os.version',
                    'ro.com.google.clientidbase' } },
-    -- The cores the runtime compiles for, like cortex-a78; generic is valid for any
-    { 'generic', { 'dalvik.vm.isa.arm64.variant', 'dalvik.vm.isa.arm.variant', 'dalvik.vm.isa.x86_64.variant',
-                   'dalvik.vm.isa.x86.variant' } },
+    -- The cores the runtime compiles for, like cortex-a78; generic is valid for any ARM core, of x86 the default
+    -- variants of ART are named like the architecture
+    { 'generic', { 'dalvik.vm.isa.arm64.variant', 'dalvik.vm.isa.arm.variant' } },
+    { 'x86_64', { 'dalvik.vm.isa.x86_64.variant' } },
+    { 'x86', { 'dalvik.vm.isa.x86.variant' } },
     { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
                    'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
                    'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
@@ -168,6 +172,20 @@ for _, rule in ipairs(DEVICE) do
     end
 end
 
+-- The fake value of an operator property: of each SIM slot of a list, like ',310260' of a phone with its SIM in the
+-- second slot, which TelephonyManager splits by phone; empty items stay
+function operator(key, result)
+    local fake = OPERATOR[key]
+    if result == nil or not string.find(result, ',', 1, true) then
+        return fake
+    end
+    local items = {}
+    for item in string.gmatch(result .. ',', '([^,]*),') do
+        items[#items + 1] = (item == '' and '' or fake)
+    end
+    return table.concat(items, ',')
+end
+
 -- The fake value of a device property, nil when it is not faked
 function fakedevice(key, result)
     -- ANGLE as the driver of the system names no GPU, and GraphicsEnvironment sets ANGLE up by it in Java
@@ -175,6 +193,16 @@ function fakedevice(key, result)
         return nil
     end
     local fake = NAMES[key]
+    -- The variants of the modules of the hardware, like ro.hardware.gralloc=qcom and ro.boot.hardware.vulkan=adreno,
+    -- name the board; flags of the same form, like ro.hardware.keystore_desede=true, which Android reads, stay
+    if fake == nil and (string.find(key, '^ro%.hardware%.') or string.find(key, '^ro%.boot%.hardware%.')) then
+        -- The color of the device stays, WallpaperManager reads it for the default wallpaper
+        if result == nil or result == 'true' or result == 'false' or string.find(result, '^%d*$') or
+                key == 'ro.boot.hardware.color' then
+            return nil
+        end
+        return 'unknown'
+    end
     if fake == nil then
         for _, entry in ipairs(PATTERNS) do
             if string.match(key, entry[1]) then
@@ -386,7 +414,7 @@ function after(hook, param)
         param:setResult(fake)
         return true, result, fake
     elseif name == 'operator' and OPERATOR[key] ~= nil then
-        local fake = OPERATOR[key]
+        local fake = operator(key, result)
         if fake == result then
             return false
         end

@@ -47,7 +47,12 @@ function after(hook, param)
 
     local agent = props:get('http.agent')
     if agent ~= nil then
-        local fake = (string.gsub(agent, ';[^;]*Build/[^)]*%)', ')'))
+        -- Like RuntimeInit makes it of the fake Build.MODEL and Build.ID (unknown, see generic_unknown_value), with
+        -- the model only for a release build, so the agent agrees with Build
+        local fake, count = string.gsub(agent, '(; Android [^;)]*); [^;)]* Build/[^)]*%)$', '%1; unknown Build/unknown)')
+        if count == 0 then
+            fake = (string.gsub(agent, ' Build/[^)]*%)$', ' Build/unknown)'))
+        end
         if fake ~= agent then
             props:put('http.agent', fake)
             restricted = true
