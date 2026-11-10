@@ -6900,7 +6900,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 27,
-    "luaScript": "@generic_empty"
+    "luaScript": "@sensors"
   },
   {
     "collection": "Privacy",
@@ -6914,7 +6914,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 27,
-    "luaScript": "@generic_empty"
+    "luaScript": "@sensors"
   },
   {
     "collection": "Privacy",
@@ -6970,6 +6970,96 @@
     "returnType": "android.content.pm.FeatureInfo[]",
     "minSdk": 27,
     "luaScript": "@features"
+  },
+  // Dynamic sensors are never reported, the proximity sensor turns no screen off, and commands are refused, since pm list features prints the sensor features (sensors)
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "SensorManager.registerDynamicSensorCallback",
+    "author": "akano12",
+    "className": "android.hardware.SensorManager",
+    "methodName": "registerDynamicSensorCallback",
+    "parameterTypes": [
+      "android.hardware.SensorManager$DynamicSensorCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@sensors"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "SensorManager.registerDynamicSensorCallback/handler",
+    "author": "akano12",
+    "className": "android.hardware.SensorManager",
+    "methodName": "registerDynamicSensorCallback",
+    "parameterTypes": [
+      "android.hardware.SensorManager$DynamicSensorCallback",
+      "android.os.Handler"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@sensors"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "PowerManager.isWakeLockLevelSupported/sensors",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "isWakeLockLevelSupported",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@sensors"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "ProcessBuilder.start/sensors",
+    "author": "akano12",
+    "className": "java.lang.ProcessBuilder",
+    "methodName": "start",
+    "parameterTypes": [],
+    "returnType": "java.lang.Process",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.execv/sensors",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.execve/sensors",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
   },
   // Read account
   // https://developer.android.com/reference/android/accounts/Account.html

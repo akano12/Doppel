@@ -1378,7 +1378,7 @@ public class HookDefinitionsTest {
                 assertEquals(hook.getString("group"), hook("Os.execv" + suffix).getString("group"));
                 assertEquals(hook.getString("group"), hook("Os.execve" + suffix).getString("group"));
             }
-        assertEquals(11, groups);
+        assertEquals(12, groups);
     }
 
     // The other ways to the values of fingerprints: the pages of memory, the methods behind SystemProperties.get, the

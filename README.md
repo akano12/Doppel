@@ -154,7 +154,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Get location**: fake location, no NMEA messages or raw GNSS measurements, and no location of photos and videos.
   Do not restrict it for camera, gallery and photo editing apps whose photos should keep their location: what such
   an app saves, like an edited copy, is saved without it
-* **Get sensors**: hide them, also as features of the device
+* **Get sensors**: hide them, also as features of the device, and dynamic sensors, like the head tracker of headphones; the proximity sensor cannot turn the screen off
 * **Read languages**: fake languages, *Languages* in *Fake values*, default en-US, also in system properties
   and the settings; no region of sale (Samsung, Xiaomi). The app keeps the language chosen for it and its
   texts; the language of its configuration stays real
@@ -207,7 +207,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Actions and analytics</b> · 3 groups</summary>
 
 * **Run commands**: commands fail, like `su`, `id` or `getprop`, except programs in the app's own native library
-  folder. *Read biometric sensors*, *Read identifiers*, *Use tracking*, *Read languages*, *Read time zone*,
+  folder. *Read biometric sensors*, *Get sensors*, *Read identifiers*, *Use tracking*, *Read languages*, *Read time zone*,
   *Get applications*, *Read debugging state*, *Read device features*, *Read memory and storage* and *Read network
   data* refuse commands the same way, since commands could read their values
 * **Send messages**: prevent sending SMS, MMS and data messages
@@ -224,7 +224,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary>What Doppel cannot do</summary>
 
 * Xposed cannot hook native code: audio recorded with OpenSL ES, like WhatsApp does, and files read natively
-  are not restricted. Native code also sees the real codecs, GPU, processors and fonts, and can start processes
+  are not restricted. Native code also sees the real codecs, GPU, processors, fonts and sensors, and can start processes
   itself, which are not refused. Apps reading the bytes of photos themselves still find their location.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
