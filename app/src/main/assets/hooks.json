@@ -6732,6 +6732,38 @@
     "minSdk": 29,
     "luaScript": "@generic_null_value"
   },
+  // The hidden country detector gives the country of the last known location, which apps reach by reflection: none, like a service that cannot answer
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "CountryDetector.detectCountry",
+    "author": "akano12",
+    "className": "android.location.CountryDetector",
+    "methodName": "detectCountry",
+    "parameterTypes": [],
+    "returnType": "android.location.Country",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "CountryDetector.addCountryListener",
+    "author": "akano12",
+    "className": "android.location.CountryDetector",
+    "methodName": "addCountryListener",
+    "parameterTypes": [
+      "android.location.CountryListener",
+      "android.os.Looper"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
   // Get messages
   // https://developer.android.com/reference/android/provider/Telephony.Sms.Intents#SMS_RECEIVED_ACTION
   // https://developer.android.com/reference/android/provider/Telephony.Mms.html
