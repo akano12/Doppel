@@ -5970,7 +5970,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -5985,7 +5985,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   // The deprecated listener of GpsStatus registers for NMEA sentences, with the location in them, until Android 9;
   // Android 10 returns false
@@ -6002,7 +6002,7 @@
     "returnType": "boolean",
     "minSdk": 27,
     "maxSdk": 28,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6051,7 +6051,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 30,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   // Raw GNSS measurements can be used to compute the location
   {
@@ -6066,7 +6066,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6081,7 +6081,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6096,7 +6096,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 30,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6112,7 +6112,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 31,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6126,7 +6126,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6141,7 +6141,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6156,7 +6156,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 30,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6170,7 +6170,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6185,7 +6185,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   {
     "collection": "Privacy",
@@ -6200,7 +6200,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 30,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   // The deprecated listener of GpsStatus gets the same satellites, for apps made for Android 11 and before,
   // registered without the methods above
@@ -6216,7 +6216,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@gnss_register"
   },
   // The location of photos and videos (photo_location); the readers of tags report, since getLatLong, getAltitude
   // and getGpsDateTime read the tags with them and so find no location

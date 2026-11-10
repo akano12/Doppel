@@ -308,6 +308,81 @@ public class LocationScriptTest {
         assertTrue(result.arg(6).isnil());
     }
 
+    // The Android classes of the GNSS registrations, as Lua sees them
+    private static final String GNSS_STUBS = String.join("\n",
+            "sdk = 34 granted = 0 target = 34 looper = {} gps = true enabled = true",
+            "luajava = {",
+            "  bindClass = function(name)",
+            "    if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+            "    assert(name == 'android.os.Looper', name)",
+            "    return { myLooper = function(self) return looper end }",
+            "  end,",
+            "  createProxy = function(name, implementation) return implementation end,",
+            "  newInstance = function(name, runnable)",
+            "    return { class = name, start = function(self) runnable.run() end, post = function(self, r) r.run() end } end }",
+            "CONTEXT = { checkSelfPermission = function(self, name) return granted end,",
+            "  getApplicationInfo = function(self) return { targetSdkVersion = target } end,",
+            "  getSystemService = function(self, name) return {",
+            "    getAllProviders = function(self) return { contains = function(self, p) return p == 'gps' and gps end } end,",
+            "    isProviderEnabled = function(self, p) return enabled end } end }",
+            "function register(method, types, args)",
+            "  types.length = #types",
+            "  local hook = { getMethodName = function(self) return method end,",
+            "    getParameterTypes = function(self) return types end }",
+            "  local param = { result = 'none', getApplicationContext = function(self) return CONTEXT end,",
+            "    getArgument = function(self, index) return args[index + 1] end,",
+            "    setResult = function(self, value) self.result = value end }",
+            "  return before(hook, param), param.result",
+            "end",
+            "function callback() return { onStatusChanged = function(self, status) self.status = status end } end",
+            "EXECUTOR = { execute = function(self, runnable) runnable.run() end }",
+            "STATUS = 'android.location.GnssStatus$Callback'",
+            "MEASUREMENTS = 'android.location.GnssMeasurementsEvent$Callback'",
+            "EX = 'java.util.concurrent.Executor'");
+
+    // Answered like Android answers a registration, which then sends nothing more; where Android throws or refuses,
+    // before it registers, the call runs; measurement callbacks get the status Android sends on a registration
+    @Test
+    public void gnssRegistrationsAnswerLikeAndroid() throws Exception {
+        Globals gnss = Scripts.load("gnss_register", GNSS_STUBS);
+        Varargs result = Scripts.run(gnss,
+                "local out = {}\n" +
+                        "local function add(...) for _, v in ipairs({ ... }) do out[#out + 1] = tostring(v) end end\n" +
+                        "add(register('registerGnssStatusCallback', { EX, STATUS }, { EXECUTOR, callback() }))\n" +
+                        "add(register('registerGnssStatusCallback', { EX, STATUS }, { nil, callback() }))\n" +
+                        "add(register('registerGnssStatusCallback', { EX, STATUS }, { EXECUTOR, nil }))\n" +
+                        "local measured = callback()\n" +
+                        "add(register('registerGnssMeasurementsCallback', { EX, MEASUREMENTS }, { EXECUTOR, measured }), measured.status)\n" +
+                        "looper = nil\n" +
+                        "add(register('registerGnssStatusCallback', { STATUS }, { callback() }))\n" +
+                        "local direct = callback()\n" +
+                        "add(register('registerGnssMeasurementsCallback', { MEASUREMENTS }, { direct }), direct.status)\n" +
+                        "looper = {}\n" +
+                        "add(register('addGpsStatusListener', { 'android.location.GpsStatus$Listener' }, { callback() }))\n" +
+                        "target = 30\n" +
+                        "add(register('addGpsStatusListener', { 'android.location.GpsStatus$Listener' }, { callback() }))\n" +
+                        "granted = -1\n" +
+                        "add(register('registerGnssStatusCallback', { EX, STATUS }, { EXECUTOR, callback() }))\n" +
+                        "granted = 0 sdk = 29 gps = false\n" +
+                        "add(register('registerGnssStatusCallback', { STATUS }, { callback() }))\n" +
+                        "gps = true enabled = false\n" +
+                        "local old = callback()\n" +
+                        "add(register('registerGnssMeasurementsCallback', { MEASUREMENTS }, { old }), old.status)\n" +
+                        "return table.concat(out, ' ')");
+        assertEquals(String.join(" ",
+                "true true", // Registered, true
+                "false none", "false none", // Null executor or callback: IllegalArgumentException
+                "true 1", // STATUS_READY on the executor (add keeps the first value of register here)
+                "false none", // No Looper for the Handler
+                "true 1", // The thread of the system
+                "false none", // UnsupportedOperationException for an app for Android 12
+                "true true", // An app for Android 11
+                "false none", // No permission: SecurityException
+                "false none", // No GNSS before Android 12: false
+                "true 2"), // STATUS_LOCATION_DISABLED
+                result.arg(1).tojstring());
+    }
+
     @Test
     public void offsetsAreValidCoordinates() {
         for (int i = 0; i < 1000; i++) {

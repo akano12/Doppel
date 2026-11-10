@@ -919,14 +919,14 @@ public class HookDefinitionsTest {
     @Test
     public void satellitesByEveryListener() throws Exception {
         check("LocationManager.addGpsStatusListener", "android.location.LocationManager " +
-                "addGpsStatusListener(android.location.GpsStatus$Listener) @generic_block 27-");
+                "addGpsStatusListener(android.location.GpsStatus$Listener) @gnss_register 27-");
         // The messages of the satellites
         String m = "android.location.LocationManager registerGnssNavigationMessageCallback(";
         String c = "android.location.GnssNavigationMessage$Callback";
-        check("LocationManager.registerGnssNavigationMessageCallback24a", m + c + ") @generic_block 27-");
-        check("LocationManager.registerGnssNavigationMessageCallback24b", m + c + ",android.os.Handler) @generic_block 27-");
+        check("LocationManager.registerGnssNavigationMessageCallback24a", m + c + ") @gnss_register 27-");
+        check("LocationManager.registerGnssNavigationMessageCallback24b", m + c + ",android.os.Handler) @gnss_register 27-");
         check("LocationManager.registerGnssNavigationMessageCallback30", m + "java.util.concurrent.Executor," + c +
-                ") @generic_block 30-");
+                ") @gnss_register 30-");
     }
 
     // getLatLong, getAltitude and getGpsDateTime of ExifInterface read the GPS tags with the readers of tags,
@@ -1336,7 +1336,7 @@ public class HookDefinitionsTest {
         check("Display.getDeviceProductInfo", "android.view.Display getDeviceProductInfo() @display_panel 31-");
         check("Build.getFingerprintedPartitions", "android.os.Build getFingerprintedPartitions() @generic_empty 29-");
         check("LocationManager.registerGnssStatusCallback30", "android.location.LocationManager registerGnssStatusCallback(" +
-                "java.util.concurrent.Executor,android.location.GnssStatus$Callback) @generic_block 30-");
+                "java.util.concurrent.Executor,android.location.GnssStatus$Callback) @gnss_register 30-");
         check("LinkProperties.getLinkAddresses/vpn", "android.net.LinkProperties getLinkAddresses() @vpn_addresses 27-");
         check("LinkProperties.getDnsServers/vpn", "android.net.LinkProperties getDnsServers() @vpn_addresses 27-");
         check("CarrierConfigManager.getConfigForSubId", "android.telephony.CarrierConfigManager getConfigForSubId(int) @mms_useragent 27-");
