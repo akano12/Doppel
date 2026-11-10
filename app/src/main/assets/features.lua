@@ -109,42 +109,60 @@ end
 -- its libraries included, gets false. The caller is the class on the stack below the deepest method with the name
 -- of the hooked method: the hook engine can replace the frame of the hooked method by one of a class of its own,
 -- with a random name, like LSPosed does, and the package manager calls the hooked method itself too,
--- like hasSystemFeature without a version, which calls the one with a version.
+-- like hasSystemFeature without a version, which calls the one with a version. A class of the framework is one of
+-- the boot class path, not one by its name, since an app can name its own classes android.* too.
 local FRAMEWORK = { 'android.', 'com.android.internal.', 'com.android.server.', 'java.', 'javax.', 'dalvik.', 'libcore.' }
+local BOOT = {} -- Whether a class is of the boot class path, by name
 
-function framework(class)
+-- Whether a class is of the boot class path, which a class loader of null finds
+function bootclass(class)
+    local ok = pcall(function()
+        return luajava.bindClass('java.lang.Class'):forName(class, false, nil)
+    end)
+    return ok
+end
+
+function framework(class, param)
     -- The support library is part of apps, like androidx
     if string.sub(class, 1, 16) == 'android.support.' then
         return false
     end
     for _, prefix in ipairs(FRAMEWORK) do
         if string.sub(class, 1, string.len(prefix)) == prefix then
-            return true
+            -- The services of the system server are not of the boot class path, but only it has them
+            if prefix == 'com.android.server.' and param:getPackageName() == 'android' then
+                return true
+            end
+            if BOOT[class] == nil then
+                BOOT[class] = bootclass(class)
+            end
+            return BOOT[class]
         end
     end
     return false
 end
 
--- Reflection is passed over, like Method.invoke, else an app calling the method by reflection would count as
--- the framework.
-function calledbyframework(method)
+-- Reflection is passed over, like Method.invoke and method handles, else an app calling the method by reflection
+-- would count as the framework.
+function calledbyframework(method, param)
     local frames = callers()
     local caller = nil
     for index = 1, frames['length'] - 1 do
         if frames[index]:getMethodName() == method then
             local next = index + 1
-            while next < frames['length'] and string.sub(frames[next]:getClassName(), 1, 18) == 'java.lang.reflect.' do
+            while next < frames['length'] and (string.sub(frames[next]:getClassName(), 1, 18) == 'java.lang.reflect.' or
+                    string.sub(frames[next]:getClassName(), 1, 17) == 'java.lang.invoke.') do
                 next = next + 1
             end
             caller = frames[next]:getClassName()
         end
     end
-    return (caller ~= nil and framework(caller))
+    return (caller ~= nil and framework(caller, param))
 end
 
 -- Whether a feature is hidden from the app, see hides
 function hidden(group, name, param, method)
-    return hides(group, name, param) and not calledbyframework(method)
+    return hides(group, name, param) and not calledbyframework(method, param)
 end
 
 -- Whether a shared library of the system is not part of the Android platform
@@ -237,7 +255,7 @@ function after(hook, param)
 
     -- getSystemAvailableFeatures, the OpenGL ES version has no name;
     -- one stack walk for all features, the caller is the same for each
-    if calledbyframework(method) then
+    if calledbyframework(method, param) then
         return false
     end
     local shown = luajava.newInstance('java.util.ArrayList')

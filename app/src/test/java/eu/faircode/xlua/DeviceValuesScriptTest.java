@@ -708,6 +708,8 @@ public class DeviceValuesScriptTest {
             "end",
             "stack = stackof('com.example.app.Main.onCreate')",
             "function callers() return stack end",
+            // The classes of the app, also named like the framework, are not of the boot class path
+            "function bootclass(name) return not string.find(name, 'example', 1, true) end",
             "function names(result)",
             "  local list = {}",
             "  for index = 1, result['length'] do list[index] = tostring(result[index].name) end",
@@ -763,6 +765,14 @@ public class DeviceValuesScriptTest {
                     "'android.app.Activity.performCreate')");
             assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
         }
+        // Classes of the app named like the framework, and method handles, are not the framework
+        for (String caller : new String[]{"android.example.Check.run", "com.android.internal.example.Check.run"}) {
+            Scripts.run(globals, "stack = stackof(" + engine + "'" + caller + "', 'android.app.Activity.performCreate')");
+            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+        }
+        Scripts.run(globals, "stack = stackof(" + engine + "'java.lang.invoke.MethodHandle.invokeExact', " +
+                "'com.example.app.Main.onCreate', 'android.app.Activity.performCreate')");
+        assertTrue(Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
         Scripts.run(globals, "stack = stackof('com.example.app.Main.onCreate')");
 
         // The list has the same features, and the OpenGL ES version, which has no name
