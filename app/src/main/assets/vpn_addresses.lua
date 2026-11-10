@@ -23,7 +23,8 @@
 
 -- Whether a network interface is of a VPN, like vpn, which a test compares
 function isvpninterface(name)
-    if type(name) ~= 'string' then
+    -- tunl0 is the tunnel of the kernel for IP in IP, which every device has, VPN or not
+    if type(name) ~= 'string' or string.sub(name, 1, 4) == 'tunl' then
         return false
     end
     for _, prefix in ipairs({ 'tun', 'ppp', 'tap', 'ipsec', 'wg', 'utun', 'l2tp', 'pptp', 'vpn' }) do

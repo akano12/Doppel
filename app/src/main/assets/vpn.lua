@@ -30,7 +30,8 @@ local TRANSPORTS = { [0] = 'CELLULAR', [1] = 'WIFI', [7] = 'BLUETOOTH', [9] = 'E
 local nested = {}
 
 function isvpninterface(name)
-    if type(name) ~= 'string' then
+    -- tunl0 is the tunnel of the kernel for IP in IP, which every device has, VPN or not
+    if type(name) ~= 'string' or string.sub(name, 1, 4) == 'tunl' then
         return false
     end
     for _, prefix in ipairs({ 'tun', 'ppp', 'tap', 'ipsec', 'wg', 'utun', 'l2tp', 'pptp', 'vpn' }) do
@@ -176,6 +177,22 @@ end
 function restrict(hook, param)
     local method = hook:getMethodName()
     local result = param:getResult()
+
+    -- The index of a network interface by its name and back (Os), which NetworkInterface and /sys hide for VPNs:
+    -- like for an interface which does not exist, 0 and null
+    if method == 'if_nametoindex' then
+        if result == 0 or param:getException() ~= nil or not isvpninterface(param:getArgument(0)) then
+            return false
+        end
+        param:setResult(0)
+        return true, tostring(result), '0'
+    elseif method == 'if_indextoname' then
+        if result == nil or param:getException() ~= nil or not isvpninterface(result) then
+            return false
+        end
+        param:setResult(nil)
+        return true, result, nil
+    end
 
     if method == 'hasTransport' then
         local transport = param:getArgument(0)

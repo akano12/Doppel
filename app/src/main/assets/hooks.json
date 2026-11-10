@@ -19776,6 +19776,37 @@
     "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
+  // The index of a network interface by its name and back, which shows the interface of a VPN (vpn)
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Os.if_nametoindex/vpn",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "if_nametoindex",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Os.if_indextoname/vpn",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "if_indextoname",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@vpn"
+  },
   // Ids of SD cards and USB drives
   // Battery
   {

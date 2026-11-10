@@ -118,8 +118,11 @@ public class InterfaceEntriesScriptTest {
         Globals entries = Scripts.load("interface_entries", STUBS);
         Globals vpn = Scripts.load("vpn", "");
         for (String name : new String[]{"tun0", "ppp0", "tap1", "ipsec0", "wg0", "utun2", "l2tp0", "pptp0", "vpn0",
-                "wlan0", "rmnet_data0", "eth0", "lo", "dummy0"})
+                "wlan0", "rmnet_data0", "eth0", "lo", "dummy0", "tunl0"})
             assertEquals(name, vpn.get("isvpninterface").call(LuaValue.valueOf(name)).toboolean(),
                     entries.get("isvpninterface").call(LuaValue.valueOf(name)).toboolean());
+        // The tunnel of the kernel for IP in IP, which every device has, is no VPN
+        assertFalse(vpn.get("isvpninterface").call(LuaValue.valueOf("tunl0")).toboolean());
+        assertTrue(vpn.get("isvpninterface").call(LuaValue.valueOf("tun0")).toboolean());
     }
 }

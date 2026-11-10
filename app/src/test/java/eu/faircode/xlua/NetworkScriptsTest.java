@@ -55,6 +55,7 @@ public class NetworkScriptsTest {
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value self.set = true end,",
             "    getArgument = function(self, index) return self.args[index] end,",
+            "    getException = function(self) return nil end,",
             "    getThis = function(self) return this end,",
             "    isInstance = function(self, object, name) return checks:isInstance(object, name) end,",
             "    getPackageName = function(self) return 'com.example' end,",
@@ -345,6 +346,25 @@ public class NetworkScriptsTest {
                         "return after(hookof('getType'), type), type.result");
         assertTrue(fallback.arg(1).toboolean());
         assertEquals(1, fallback.arg(2).toint());
+    }
+
+    // The index of the interface of a VPN by its name and back is like for an interface which does not exist
+    @Test
+    public void vpnInterfaceIndexIsMissing() throws Exception {
+        Globals globals = load("vpn");
+        Varargs result = Scripts.run(globals,
+                "local byname = paramof(27, { [0] = 'tun0' })\n" +
+                        "local wifi = paramof(12, { [0] = 'wlan0' })\n" +
+                        "local byindex = paramof('tun0', { [0] = 27 })\n" +
+                        "local tunnel = paramof('tunl0', { [0] = 2 })\n" +
+                        "return after(hookof('if_nametoindex'), byname), byname.result, after(hookof('if_nametoindex'), wifi),\n" +
+                        "  after(hookof('if_indextoname'), byindex), byindex.result, after(hookof('if_indextoname'), tunnel)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(0, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).isnil());
+        assertFalse(result.arg(6).toboolean());
     }
 
     // The fake value of a hook calls the same hook, which then sees the real value
