@@ -70,6 +70,29 @@ function after(hook, param)
         end
         param:setResult(fake)
         return true, tostring(result['length']), tostring(#kept)
+    elseif method == 'getIsSyncable' then
+        -- Whether an account syncs an authority: not syncable (0) for the sync adapter of a hidden app, like for an
+        -- authority without one, which Android answers so (SyncManager.computeSyncable)
+        local account = param:getArgument(0)
+        local authority = param:getArgument(1)
+        if result == 0 or account == nil or authority == nil then
+            return false
+        end
+        local types = param:unhooked(function()
+            return luajava.bindClass('android.content.ContentResolver'):getSyncAdapterTypes()
+        end)
+        for index = 1, (types ~= nil and types['length'] or 0) do
+            local sync = types[index]
+            if sync.authority == authority and sync.accountType == account.type then
+                local name = syncpackage(param, sync)
+                if name == nil or param:isPackageVisible(name) then
+                    return false
+                end
+                param:setResult(0)
+                return true, name, '0'
+            end
+        end
+        return false
     elseif method == 'checkSignatures' then
         -- The user ids of two apps, like for a uid which is not in use
         if result == SIGNATURE_UNKNOWN_PACKAGE or

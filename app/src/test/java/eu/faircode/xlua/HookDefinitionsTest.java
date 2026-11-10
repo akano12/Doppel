@@ -1023,8 +1023,8 @@ public class HookDefinitionsTest {
         check(n + "onSessionFinished", d + "onSessionFinished(int,boolean) @install_sessions 27-");
         String a = "android.content.pm.LauncherApps ";
         check("LauncherApps.getAllPackageInstallerSessions", a + "getAllPackageInstallerSessions() @install_sessions 29-");
-        check("LauncherApps.registerPackageInstallerSessionCallback", a + "registerPackageInstallerSessionCallback(" +
-                "java.util.concurrent.Executor,android.content.pm.PackageInstaller$SessionCallback) @generic_block 29-");
+        // The callbacks of LauncherApps get the same delegate, filtered above, so Android's checks of the call stay
+        assertFalse(hooks.stream().anyMatch(h -> h.optString("name").equals("LauncherApps.registerPackageInstallerSessionCallback")));
         check("LauncherApps.registerCallback", a + "registerCallback(android.content.pm.LauncherApps$Callback) @generic_block 27-");
         check("LauncherApps.registerCallback/handler", a + "registerCallback(android.content.pm.LauncherApps$Callback," +
                 "android.os.Handler) @generic_block 27-");

@@ -3606,22 +3606,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
-    "name": "LauncherApps.registerPackageInstallerSessionCallback",
-    "author": "akano12",
-    "className": "android.content.pm.LauncherApps",
-    "methodName": "registerPackageInstallerSessionCallback",
-    "parameterTypes": [
-      "java.util.concurrent.Executor",
-      "android.content.pm.PackageInstaller$SessionCallback"
-    ],
-    "returnType": "void",
-    "minSdk": 29,
-    "excludePackages": "android",
-    "luaScript": "@generic_block"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
     "name": "LauncherApps.registerCallback",
     "author": "akano12",
     "className": "android.content.pm.LauncherApps",
@@ -5632,6 +5616,23 @@
     "optional": true,
     "excludePackages": "android",
     "luaScript": "@generic_filter_by_uid"
+  },
+  // Whether an account syncs an authority tells that the app of its sync adapter is installed (package_resolve)
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.getIsSyncable",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "getIsSyncable",
+    "parameterTypes": [
+      "android.accounts.Account",
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
   },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html

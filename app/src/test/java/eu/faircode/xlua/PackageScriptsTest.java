@@ -622,6 +622,33 @@ public class PackageScriptsTest {
         assertEquals("com.google.android.gms", user.arg(5).tojstring());
     }
 
+    // An account syncs no authority of a hidden app's sync adapter (0, like an authority without one); the others stay
+    @Test
+    public void syncableOfHiddenSyncAdapter() throws Exception {
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local function syncof(name, authority, account)\n" +
+                        "  return { authority = authority, accountType = account, getPackageName = function(self) return name end } end\n" +
+                        "local types = { length = 2, syncof('com.whatsapp', 'com.whatsapp.provider.contact', 'com.whatsapp'),\n" +
+                        "  syncof('com.google.android.gms', 'com.android.contacts', 'com.google') }\n" +
+                        "luajava = { bindClass = function(name) return { getSyncAdapterTypes = function(self) return types end } end }\n" +
+                        "local function syncable(type, authority, result)\n" +
+                        "  local param = paramof({ [0] = { type = type }, [1] = authority }, { ['com.google.android.gms'] = true })\n" +
+                        "  param.unhooked = function(self, f) return f() end\n" +
+                        "  param.result = result\n" +
+                        "  local restricted = after(hookof('ContentResolver.getIsSyncable', 'getIsSyncable'), param)\n" +
+                        "  return restricted, param.result end\n" +
+                        "local hidden, hiddenResult = syncable('com.whatsapp', 'com.whatsapp.provider.contact', -1)\n" +
+                        "local shown, shownResult = syncable('com.google', 'com.android.contacts', 1)\n" +
+                        "local none, noneResult = syncable('com.whatsapp', 'com.whatsapp.provider.contact', 0)\n" +
+                        "return hidden, hiddenResult, shown, shownResult, none, noneResult");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(0, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals(1, result.arg(4).toint());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals(0, result.arg(6).toint());
+    }
+
     // Like for a user id which is not in use
     @Test
     public void signaturesOfHiddenUid() throws Exception {

@@ -249,6 +249,7 @@ class XDatabase {
             "Vibrator.getQFactor", "Vibrator.getInfo",
             // The callbacks of install sessions are told about the sessions of the app itself, see install_sessions.lua
             "PackageInstaller.registerSessionCallback", "PackageInstaller.registerSessionCallback/handler",
+            "LauncherApps.registerPackageInstallerSessionCallback",
             // The media provider decides by the permission alone whether a photo has its location, so the URI the hook
             // gave back changed nothing but was not the one of Android; the readers of the tags are hooked
             "MediaStore.setRequireOriginal"
