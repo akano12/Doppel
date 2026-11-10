@@ -121,7 +121,7 @@ class XCore {
             String engine = System.getProperty(PROP_ENGINE);
             if (engine == null) {
                 System.setProperty(PROP_ENGINE, backend.getName());
-                Log.i(TAG, "Using " + backend.getName() + " API in " + Process.myPid());
+                XLog.i(TAG, "Using " + backend.getName() + " API in " + Process.myPid());
                 return true;
             }
             return engine.equals(backend.getName());
@@ -144,7 +144,9 @@ class XCore {
     }
 
     static void log(Throwable ex) {
-        Log.e(TAG, Log.getStackTraceString(ex));
+        if (!XLog.enabled())
+            return;
+        XLog.e(TAG, Log.getStackTraceString(ex));
         XBackend b = backend;
         if (b != null)
             try {
@@ -154,7 +156,9 @@ class XCore {
     }
 
     static void log(String message) {
-        Log.i(TAG, message);
+        if (!XLog.enabled())
+            return;
+        XLog.i(TAG, message);
         XBackend b = backend;
         if (b != null)
             try {
@@ -194,7 +198,7 @@ class XCore {
                     PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), BuildConfig.APPLICATION_ID,
                             ReceiverPackage.MATCH_ANY_USER);
                     version = (int) PackageInfoCompat.getLongVersionCode(pi);
-                    Log.i(TAG, "Module version " + version);
+                    XLog.i(TAG, "Module version " + version);
 
                     // The texts of notifications of the module version which runs, also after an update
                     try {
@@ -206,7 +210,7 @@ class XCore {
                     // Listen for removed users and profiles; the broadcast has no data, so a filter of its own
                     try {
                         registerReceiver(context, new IntentFilter(ReceiverPackage.ACTION_USER_REMOVED));
-                        Log.i(TAG, "Registered user listener");
+                        XLog.i(TAG, "Registered user listener");
                     } catch (Throwable ex) {
                         log(ex);
                     }
@@ -224,9 +228,9 @@ class XCore {
                         context.getClass().getMethod("registerReceiverAsUser", BroadcastReceiver.class,
                                         UserHandle.class, IntentFilter.class, String.class, Handler.class)
                                 .invoke(context, new ReceiverPackage(), all, ifPackageAdd, null, null);
-                        Log.i(TAG, "Registered package listener for all users");
+                        XLog.i(TAG, "Registered package listener for all users");
                     } catch (Throwable ex) {
-                        Log.w(TAG, "Registering for all users: " + ex);
+                        XLog.w(TAG, "Registering for all users: " + ex);
 
                         // The existing users only; looked up here, so a change of these hidden methods
                         // does not prevent registering for all users
@@ -237,7 +241,7 @@ class XCore {
                         // public int[] getUserIds()
                         int[] userids = (int[]) um.getClass().getDeclaredMethod("getUserIds").invoke(um);
                         for (int userid : userids) {
-                            Log.i(TAG, "Registering package listener user=" + userid);
+                            XLog.i(TAG, "Registering package listener user=" + userid);
                             registerReceiver(Util.createContextForUser(context, userid), ifPackageAdd);
                         }
                     }
@@ -255,7 +259,7 @@ class XCore {
                     for (Field field : cAm.getDeclaredFields())
                         if (field.getType().equals(Context.class)) {
                             field.setAccessible(true);
-                            Log.i(TAG, "Context found in " + cAm + " as " + field.getName());
+                            XLog.i(TAG, "Context found in " + cAm + " as " + field.getName());
                             return (Context) field.get(am);
                         }
                 throw new Throwable("Context not found");
@@ -417,7 +421,7 @@ class XCore {
 
                     // Isolated processes (including app zygote) cannot access the provider
                     if (Util.isIsolated(uid)) {
-                        Log.i(TAG, "Skipping isolated " + packageName + ":" + uid);
+                        XLog.i(TAG, "Skipping isolated " + packageName + ":" + uid);
                         return;
                     }
 
@@ -436,7 +440,7 @@ class XCore {
         } catch (IllegalArgumentException ex) {
             // The settings provider refuses the query of an app without assignments, see XProvider.answers;
             // logged, since an illegal argument of the service would else leave the app without hooks silently
-            Log.i(TAG, "No assigned hooks: " + ex.getMessage());
+            XLog.i(TAG, "No assigned hooks: " + ex.getMessage());
             return;
         }
         if (hooks.isEmpty())
@@ -462,9 +466,9 @@ class XCore {
                                 ex instanceof NoSuchMethodException ||
                                 ex instanceof ClassNotFoundException ||
                                 ex instanceof NoClassDefFoundError))
-                    Log.i(TAG, "Optional hook=" + hook.getId() + ": " + ex.getClass().getName() + ": " + ex.getMessage());
+                    XLog.i(TAG, "Optional hook=" + hook.getId() + ": " + ex.getClass().getName() + ": " + ex.getMessage());
                 else {
-                    Log.e(TAG, hook.getId() + ": " + Log.getStackTraceString(ex));
+                    XLog.e(TAG, hook.getId() + ": " + Log.getStackTraceString(ex));
 
                     // Report install error
                     Bundle data = new Bundle();
@@ -598,7 +602,7 @@ class XCore {
                         reportError(context, hook, function, ex,
                                 "\nMethod:\n" + function + " " + member + "\n" + describe(call));
                     } catch (Throwable exex) {
-                        Log.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(exex));
+                        XLog.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(exex));
                     } finally {
                         leaveService();
                     }
@@ -614,10 +618,10 @@ class XCore {
         try {
             call.setResult(answer.call());
         } catch (IllegalArgumentException ex) {
-            Log.i(TAG, "Error: " + ex.getMessage());
+            XLog.i(TAG, "Error: " + ex.getMessage());
             call.setThrowable(ex);
         } catch (SecurityException | RemoteException ex) {
-            Log.w(TAG, what + ": " + ex.getMessage());
+            XLog.w(TAG, what + ": " + ex.getMessage());
             call.setResult(null);
         } catch (Throwable ex) {
             log(ex);
@@ -715,8 +719,14 @@ class XCore {
         return sb.toString();
     }
 
+    // The value of an argument or result without running code of the app, which toString of its own objects would,
+    // inside enterService where all hooks are off: the text of plain values, else the class and identity
     private static String describe(Object value) {
-        return (value == null ? "null" : value + " (" + value.getClass().getName() + ")");
+        if (value == null)
+            return "null";
+        if (value instanceof String || value instanceof Number || value instanceof Boolean || value instanceof Character)
+            return value + " (" + value.getClass().getName() + ")";
+        return value.getClass().getName() + "@" + Integer.toHexString(System.identityHashCode(value));
     }
 
     // Scripts return whether they restricted something, optionally with the old and new value;
@@ -748,9 +758,9 @@ class XCore {
         // The details have the real arguments and result, which release builds do not write to the system log,
         // like the service (see XProvider.Report); the report stores them for the app
         if (BuildConfig.DEBUG)
-            Log.e(TAG, message);
+            XLog.e(TAG, message);
         else
-            Log.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(ex));
+            XLog.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(ex));
 
         Bundle data = new Bundle();
         data.putString("exception", message);
@@ -788,7 +798,7 @@ class XCore {
     private static final int REPORTS_PER_CALL = 20;
 
     private void flush(Context context, String packageName, int uid) {
-        Log.i(TAG, "Processing event queue package=" + packageName + ":" + uid);
+        XLog.i(TAG, "Processing event queue package=" + packageName + ":" + uid);
 
         ArrayList<Bundle> work = new ArrayList<>();
         synchronized (queue) {
@@ -809,7 +819,7 @@ class XCore {
                 } catch (Throwable ex) {
                     // One line: the service logged its error already, or refused an app whose restrictions were
                     // all removed while it runs, which would else log a stack trace each second
-                    Log.w(TAG, "Report " + packageName + ":" + uid + ": " + ex);
+                    XLog.w(TAG, "Report " + packageName + ":" + uid + ": " + ex);
                 }
         } finally {
             leaveService();
@@ -905,7 +915,7 @@ class XCore {
                 // Not an error, which would stop the script, which can hook other methods next
                 List<Method> resolved = XResolver.resolveMethods(cls, m);
                 if (resolved.isEmpty())
-                    Log.w(TAG, "Dynamic hook " + key + " not found");
+                    XLog.w(TAG, "Dynamic hook " + key + " not found");
                 for (Method method : resolved)
                     if (installed.add(hookId + "/" + method))
                         methods.add(method);
@@ -913,7 +923,7 @@ class XCore {
             if (methods.isEmpty())
                 return LuaValue.NIL;
 
-            Log.i(TAG, "Dynamic hook " + cls.getName() + "." + m + " methods=" + methods.size());
+            XLog.i(TAG, "Dynamic hook " + cls.getName() + "." + m + " methods=" + methods.size());
             final List<LuaValue> xargs = new ArrayList<>();
             for (int i = 4; i <= args.narg(); i++)
                 xargs.add(args.arg(i));
@@ -935,7 +945,7 @@ class XCore {
                         return;
                     try {
                         if (BuildConfig.DEBUG)
-                            Log.i(TAG, "Dynamic invoke " + call.method);
+                            XLog.i(TAG, "Dynamic invoke " + call.method);
                         List<LuaValue> values = new ArrayList<>();
                         values.add(LuaValue.valueOf(when));
                         values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
@@ -946,7 +956,7 @@ class XCore {
                             fun.invoke(values.toArray(new LuaValue[0]));
                         }
                     } catch (Throwable ex) {
-                        Log.e(TAG, "Dynamic hook " + hookId + " " + call.method + ": " + Log.getStackTraceString(ex));
+                        XLog.e(TAG, "Dynamic hook " + hookId + " " + call.method + ": " + Log.getStackTraceString(ex));
                     }
                 }
             };
@@ -982,7 +992,7 @@ class XCore {
 
         @Override
         public LuaValue call(LuaValue arg) {
-            Log.i(TAG, "Log " + packageName + ":" + uid + " " + hook + " " +
+            XLog.i(TAG, "Log " + packageName + ":" + uid + " " + hook + " " +
                     arg.toString() + " (" + arg.typename() + ")");
             return LuaValue.NIL;
         }

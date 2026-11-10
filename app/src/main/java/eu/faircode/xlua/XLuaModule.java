@@ -43,6 +43,8 @@ public class XLuaModule extends XposedModule {
             return;
         }
         systemServer = param.isSystemServer();
+        if (systemServer)
+            XLog.inSystemServer();
         core = new XCore(backend);
         XCore.log("Loaded in " + param.getProcessName() + ":" + Process.myUid() +
                 " framework=" + getFrameworkName() + " " + getFrameworkVersion() + " api=" + getApiVersion());

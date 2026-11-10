@@ -169,7 +169,7 @@ public class XParam {
                     webViewPackage = pi.packageName;
             } catch (RuntimeException ex) {
                 // Like before the app has an application, tried again for the next package
-                Log.w(TAG, "WebView package: " + ex);
+                XLog.w(TAG, "WebView package: " + ex);
             }
         return webViewPackage;
     }

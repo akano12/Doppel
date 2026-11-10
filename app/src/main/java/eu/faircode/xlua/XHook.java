@@ -24,7 +24,6 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -220,7 +219,7 @@ public class XHook {
         } catch (ClassNotFoundException ignored) {
             // A class of an app, like Google Play services
         } catch (Throwable ex) {
-            Log.w(TAG, "Resolve " + this.className + ": " + ex);
+            XLog.w(TAG, "Resolve " + this.className + ": " + ex);
         }
     }
 

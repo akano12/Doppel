@@ -21,7 +21,6 @@
 package eu.faircode.xlua;
 
 import android.os.Process;
-import android.util.Log;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -42,6 +41,8 @@ public class XLua implements IXposedHookLoadPackage {
             core = new XCore(backend);
 
         int uid = Process.myUid();
+        if ("android".equals(lpparam.packageName))
+            XLog.inSystemServer();
         XCore.log("Loaded " + lpparam.packageName + ":" + uid);
 
         if ("android".equals(lpparam.packageName))
@@ -64,7 +65,7 @@ public class XLua implements IXposedHookLoadPackage {
                 Class<?> cls = Class.forName("io.github.libxposed.api.XposedInterface", false, XLua.class.getClassLoader());
                 cls.getField("API_101");
                 modern = true;
-                Log.i(TAG, "Modern API available, legacy entry inactive");
+                XLog.i(TAG, "Modern API available, legacy entry inactive");
             } catch (Throwable ignored) {
                 modern = false;
             }
