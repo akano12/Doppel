@@ -310,7 +310,7 @@ public class HookDefinitionsTest {
             "SleepSegmentEvent.extractEvents", "SleepClassifyEvent.extractEvents",
             "AdvertisingIdClient$Info.getId", "HuaweiAdvertisingIdClient$Info.getId", "AppSetIdInfo.getId",
             "AdvertisingIdClient$Info.isLimitAdTrackingEnabled", "HuaweiAdvertisingIdClient$Info.isLimitAdTrackingEnabled",
-            "Amplitude.getOptOut", "AmplitudeClient.isOptedOut", "Branch.isTrackingDisabled",
+            "Amplitude.getOptOut", "Amplitude.getOptOut/android", "AmplitudeClient.isOptedOut", "Branch.isTrackingDisabled",
             "Branch.isTrackingDisabled/context", "Singular.isAllTrackingStopped",
             "FirebaseAnalytics.getInstance", "GoogleAnalytics.getInstance/optout", "AdRegistration.getInstance",
             "FirebaseCrashlytics.getInstance", "AppsFlyerLib.getInstance", "SegmentAnalytics.build",

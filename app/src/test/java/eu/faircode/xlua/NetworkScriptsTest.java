@@ -1089,6 +1089,23 @@ public class NetworkScriptsTest {
         assertFalse(result.arg(8).toboolean());
     }
 
+    // Firebase Performance sends traces of app starts, screens and network requests unless deactivated
+    @Test
+    public void performanceIsOffInMetaData() throws Exception {
+        Globals globals = load("analytics_metadata");
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
+                "classes['com.google.firebase.perf.FirebasePerfRegistrar'] = true\n" +
+                        "local info = { metaData = bundleof() }\n" +
+                        "local param = paramof(info, { [0] = 'com.example', [1] = 128 }, nil, context)\n" +
+                        "local restricted = after(hookof('getApplicationInfo'), param)\n" +
+                        "return restricted, param.result.metaData.items.firebase_performance_collection_deactivated,\n" +
+                        "  param.result.metaData.items.firebase_crashlytics_collection_enabled");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).isnil()); // No Crashlytics in the app
+    }
+
     // The package info of the app gets the meta-data as a copy through a parcel, the cached one stays as it is
     @Test
     public void analyticsAreOffInPackageInfo() throws Exception {

@@ -13205,6 +13205,20 @@
     "optional": true,
     "luaScript": "@generic_true_value"
   },
+  // The configuration of Android apps (com.amplitude:analytics-android) overrides the getter with its own field
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "Amplitude.getOptOut/android",
+    "author": "akano12",
+    "className": "com.amplitude.android.Configuration",
+    "methodName": "getOptOut",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_true_value"
+  },
   // The legacy Amplitude SDK (com.amplitude:android-sdk) reads its opt-out field itself,
   // so its uploads, which all go through updateServer(boolean), are blocked instead
   {
