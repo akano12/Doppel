@@ -83,6 +83,17 @@ function iccid(key)
     return string.find(string.lower(key), 'iccid', 1, true) ~= nil
 end
 
+-- The IMEI and MEID of the phone, which properties of vendors hold too, like persist.sys.imei1 of Nokia,
+-- gsm.device.imei0 of TCL and ro.ril.miui.imei0 of Xiaomi: empty, like getImei gives apps from Android 10, for each name
+-- with imei or meid at the start of a part of it, so a name like persist.sys.timeinfo is not one
+local DEVICEID = { '*imei*', '*IMEI*', '*meid*', '*MEID*' }
+
+function deviceid(key)
+    local lower = string.lower(key)
+    return string.find(lower, '^imei') ~= nil or string.find(lower, '[%._]imei') ~= nil or
+            string.find(lower, '^meid') ~= nil or string.find(lower, '[%._]meid') ~= nil
+end
+
 local OPERATOR = {
     ['gsm.operator.alpha'] = 'unknown', ['gsm.sim.operator.alpha'] = 'unknown',
     ['gsm.operator.numeric'] = '00101', ['gsm.sim.operator.numeric'] = '00101',
@@ -214,8 +225,8 @@ function typed(hook, param, key, result, method)
         fake = fakedevice(key, '')
     elseif name == 'debugging' and type(DEBUGGING[key]) == 'string' then
         fake = DEBUGGING[key]
-    elseif name == 'serial' and iccid(key) then
-        -- The ICC ID is empty as in the string getters, else a real one of 19 digits would fit in a long
+    elseif name == 'serial' and (iccid(key) or deviceid(key)) then
+        -- The ICC ID and the IMEI are empty as in the string getters, else a real one of 15 to 19 digits would fit in a long
         fake = ''
     elseif name == 'serial' and SERIALS[key] ~= nil then
         fake = param:getSetting('value.serial') or 'unknown'
@@ -258,6 +269,9 @@ function filter(hook)
             table.insert(keys, key)
         end
         for _, key in ipairs(ICCID) do
+            table.insert(keys, key)
+        end
+        for _, key in ipairs(DEVICEID) do
             table.insert(keys, key)
         end
         return keys
@@ -330,7 +344,7 @@ function after(hook, param)
     -- The hooked methods are called for all properties, so check the name first
     local key = param:getArgument(0)
     if key == nil or not (string.sub(key, 1, 3) == 'ro.' or
-            string.sub(key, 1, 4) == 'gsm.' or SERIALS[key] ~= nil or iccid(key) or key == 'persist.sys.timezone' or
+            string.sub(key, 1, 4) == 'gsm.' or SERIALS[key] ~= nil or iccid(key) or deviceid(key) or key == 'persist.sys.timezone' or
             DEBUGGING[key] ~= nil or NAMES[key] ~= nil or HEAP[key] ~= nil or OTHERHEAP[key] ~= nil) then
         return false
     end
@@ -355,7 +369,7 @@ function after(hook, param)
         return false
     end
 
-    if name == 'serial' and iccid(key) then
+    if name == 'serial' and (iccid(key) or deviceid(key)) then
         param:setResult(empty)
         return true, result, empty
     elseif name == 'serial' and SERIALS[key] ~= nil then

@@ -223,6 +223,14 @@ public class FakeValuesAgreeTest {
             assertEquals(key, "", run(properties, "fakeof('SystemProperties.get/serial', 'get', '8949012345678901234', { '" +
                     key + "' }, " + settings + ")"));
         }
+        // The IMEI and MEID of vendors are empty like the ICC ID; names which only contain the letters stay
+        for (String key : new String[]{"persist.sys.imei1", "gsm.device.imei0", "ro.ril.miui.imei0", "ril.IMEI",
+                "persist.vendor.radio.meid", "imei"}) {
+            assertEquals(key, "", run(properties, "fakeof('SystemProperties.get/serial', 'get', '490154203237518', { '" +
+                    key + "' }, " + settings + ")"));
+        }
+        assertEquals("1700000000", run(properties, "fakeof('SystemProperties.get/serial', 'get', '1700000000', " +
+                "{ 'persist.sys.timeinfo' }, " + settings + ")"));
         // Not of other variants, and other properties stay
         assertEquals("8949012345678901234", run(properties, "fakeof('SystemProperties.get/device', 'get', " +
                 "'8949012345678901234', { 'ril.iccid.sim1' }, " + settings + ")"));
