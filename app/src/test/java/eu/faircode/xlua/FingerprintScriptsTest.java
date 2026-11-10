@@ -41,6 +41,7 @@ public class FingerprintScriptsTest {
             "function hookof(method, returnType)",
             "  return { getName = function(self) return method end,",
             "    getMethodName = function(self) return method end,",
+            "    getClassName = function(self) return nil end,",
             "    getReturnType = function(self) return returnType end }",
             "end",
             "function paramof(result, arguments)",

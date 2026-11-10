@@ -23,7 +23,8 @@
 -- getUserForSerialNumber and getSerialNumberForUser convert, are like those of users which do not exist.
 -- UserManager.isUserRunning, isUserRunningOrStopping, isUserUnlocked, isQuietModeEnabled and getUserRestrictions
 -- answer for a handle an app can make itself, like
--- UserHandle.of(10): they are asked about a user which does not exist, so the app gets the answer of Android for that.
+-- UserHandle.of(10): they are asked about a user which does not exist, so the app gets the answer of Android for that,
+-- and so are the methods of LauncherApps for a user, like getActivityList and isPackageEnabled.
 
 -- The parent of the user of the app when the app runs in a profile, like a work profile, a private space or a clone,
 -- else nil: a device with one user and that profile, since the profile cannot be there without its parent. From
@@ -58,22 +59,47 @@ local NOUSER = 9999
 local QUESTIONS = { isUserRunning = true, isUserRunningOrStopping = true, isUserUnlocked = true,
     isQuietModeEnabled = true, getUserRestrictions = true }
 
+-- The argument which is a user: the first of the questions of UserManager, the UserHandle of the methods of
+-- LauncherApps, like getActivityList(package, user), which give the apps and shortcuts of a profile; nil for others
+function userargument(hook)
+    if QUESTIONS[hook:getMethodName()] then
+        return 0
+    end
+    if hook:getClassName() ~= 'android.content.pm.LauncherApps' then
+        return nil
+    end
+    local types = hook:getParameterTypes()
+    for index = 1, types['length'] do
+        if types[index] == 'android.os.UserHandle' then
+            return index - 1
+        end
+    end
+    return nil
+end
+
 function before(hook, param)
-    if not QUESTIONS[hook:getMethodName()] then
+    local index = userargument(hook)
+    if index == nil then
         return false
     end
-    local user = param:getArgument(0)
-    if user == nil or user:equals(luajava.bindClass('android.os.Process'):myUserHandle()) then
+    local user = param:getArgument(index)
+    local own = luajava.bindClass('android.os.Process'):myUserHandle()
+    if user == nil or user:equals(own) then
         return false
     end
-    param:setArgument(0, luajava.bindClass('android.os.UserHandle'):getUserHandleForUid(NOUSER * 100000))
+    -- The parent of the profile the app runs in stays, like for the lists
+    local parent = parentof(param, own)
+    if parent ~= nil and user:equals(parent) then
+        return false
+    end
+    param:setArgument(index, luajava.bindClass('android.os.UserHandle'):getUserHandleForUid(NOUSER * 100000))
     return true, tostring(user)
 end
 
 function after(hook, param)
     local result = param:getResult()
     local method = hook:getMethodName()
-    if result == nil or param:getException() ~= nil or QUESTIONS[method] then
+    if result == nil or param:getException() ~= nil or userargument(hook) ~= nil then
         return false
     end
 

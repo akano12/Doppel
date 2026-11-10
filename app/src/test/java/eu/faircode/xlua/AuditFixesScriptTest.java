@@ -40,7 +40,9 @@ public class AuditFixesScriptTest {
             "    setResult = function(self, value) self.result = value; self.set = true end,",
             "    isPackageVisible = function(self, name) return name == visible end }",
             "end",
-            "function hookof(method) return { getMethodName = function(self) return method end } end");
+            "function hookof(method, class) return { getMethodName = function(self) return method end,",
+            "  getClassName = function(self) return class end,",
+            "  getParameterTypes = function(self) return { length = 0 } end } end");
 
     // A name or a component of a hidden app is nothing, like Android gives for an app the caller may not see
     @Test
@@ -173,6 +175,31 @@ public class AuditFixesScriptTest {
         assertTrue(result.arg(4).toboolean());
         assertFalse(result.arg(5).toboolean());
         assertFalse(result.arg(6).toboolean());
+    }
+
+    // The methods of LauncherApps for a user, like getActivityList, are asked about a user which does not exist for
+    // another user, so the apps of a hidden profile are not shown; the own user stays
+    @Test
+    public void launcherAppsOfOtherUsers() throws Exception {
+        Globals globals = Scripts.load("user_profiles", PARAM + "\n" +
+                "own = { equals = function(self, other) return self == other end }\n" +
+                "luajava = { bindClass = function(name) return {\n" +
+                "  myUserHandle = function(self) return own end,\n" +
+                "  getUserHandleForUid = function(self, uid) return uid end } end }");
+        Varargs result = Scripts.run(globals,
+                "local function launcher(method, count, at) local hook = hookof(method, 'android.content.pm.LauncherApps')\n" +
+                        "  hook.getParameterTypes = function(self) local types = { length = count }\n" +
+                        "    for i = 1, count do types[i] = (i == at) and 'android.os.UserHandle' or 'java.lang.String' end\n" +
+                        "    return types end return hook end\n" +
+                        "local other = { equals = function() return false end }\n" +
+                        "local list = paramof(nil, { 'com.android.settings', other })\n" +
+                        "local mine = paramof(nil, { 'com.android.settings', own })\n" +
+                        "return before(launcher('getActivityList', 2, 2), list), list.arguments[2],\n" +
+                        "  before(launcher('isPackageEnabled', 2, 2), mine), after(launcher('getActivityList', 2, 2), paramof({}))");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(999900000, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
     }
 
     // The other handles of users are answered like users which do not exist, the own one stays

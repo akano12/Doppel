@@ -17416,6 +17416,288 @@
     "minSdk": 28,
     "luaScript": "@test_network"
   },
+  // The apps and shortcuts of another user or profile by a handle the app made itself, which tell the profile is there (user_profiles)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getActivityList/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getActivityList",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.resolveActivity/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "resolveActivity",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.content.pm.LauncherActivityInfo",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.isPackageEnabled/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "isPackageEnabled",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.isActivityEnabled/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "isActivityEnabled",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getApplicationInfo/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getApplicationInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.content.pm.ApplicationInfo",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getShortcutConfigActivityList/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getShortcutConfigActivityList",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getSuspendedPackageLauncherExtras/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getSuspendedPackageLauncherExtras",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.shouldHideFromSuggestions/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "shouldHideFromSuggestions",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getLauncherUserInfo/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getLauncherUserInfo",
+    "parameterTypes": [
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.content.pm.LauncherUserInfo",
+    "minSdk": 35,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getPreInstalledSystemPackages/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getPreInstalledSystemPackages",
+    "parameterTypes": [
+      "android.os.UserHandle"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 35,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getAppMarketActivityIntent/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getAppMarketActivityIntent",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.content.IntentSender",
+    "minSdk": 35,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getShortcutIntent/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getShortcutIntent",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.app.PendingIntent",
+    "minSdk": 31,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.getShortcuts/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "getShortcuts",
+    "parameterTypes": [
+      "android.content.pm.LauncherApps$ShortcutQuery",
+      "android.os.UserHandle"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.startMainActivity/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "startMainActivity",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "android.os.UserHandle",
+      "android.graphics.Rect",
+      "android.os.Bundle"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.startAppDetailsActivity/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "startAppDetailsActivity",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "android.os.UserHandle",
+      "android.graphics.Rect",
+      "android.os.Bundle"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.startShortcut/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "startShortcut",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "android.graphics.Rect",
+      "android.os.Bundle",
+      "android.os.UserHandle"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "LauncherApps.pinShortcuts/profiles",
+    "author": "akano12",
+    "className": "android.content.pm.LauncherApps",
+    "methodName": "pinShortcuts",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.util.List",
+      "android.os.UserHandle"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@user_profiles"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",
