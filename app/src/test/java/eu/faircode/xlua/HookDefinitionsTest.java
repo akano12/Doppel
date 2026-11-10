@@ -1429,6 +1429,36 @@ public class HookDefinitionsTest {
         }
     }
 
+    // The prompt of biometrics, the developer options in the system settings, the torch, the recordings and the
+    // devices of audio, and the analytics of Kotlin apps (the audit of 2026-11-11)
+    @Test
+    public void deviceStateAndMediaDefinitions() throws Exception {
+        String s = "java.lang.String";
+        String prompt = "android.hardware.biometrics.BiometricPrompt";
+        check("BiometricPrompt.authenticate", prompt + " authenticate(android.os.CancellationSignal," +
+                "java.util.concurrent.Executor," + prompt + "$AuthenticationCallback) @biometric_prompt 30-");
+        check("BiometricPrompt.authenticate/crypto", prompt + " authenticate(" + prompt + "$CryptoObject," +
+                "android.os.CancellationSignal,java.util.concurrent.Executor," + prompt + "$AuthenticationCallback) @biometric_prompt 30-");
+        check("Settings.System.getStringForUser/adb", "android.provider.Settings$System getStringForUser(" +
+                "android.content.ContentResolver," + s + ",int) @settingssecure_getstring 27- optional");
+        check("CameraManager2.setTorchMode", "android.hardware.camera2.CameraManager setTorchMode(" + s + ",boolean) @camera2_open 27-");
+        check("CameraManager2.turnOnTorchWithStrengthLevel", "android.hardware.camera2.CameraManager turnOnTorchWithStrengthLevel(" +
+                s + ",int) @camera2_open 33-");
+        check("AudioRecord.startRecording", "android.media.AudioRecord startRecording() @audio_record 27-");
+        check("AudioRecord.getRecordingState", "android.media.AudioRecord getRecordingState() @audio_record 27-");
+        check("AudioRecord.read/short", "android.media.AudioRecord read(short[],int,int) @audio_record 27-");
+        check("AudioRecord.read/float/mode", "android.media.AudioRecord read(float[],int,int,int) @audio_record 27-");
+        check("AudioRecord.read/buffer/mode", "android.media.AudioRecord read(java.nio.ByteBuffer,int,int) @audio_record 27-");
+        check("AudioManager.getCommunicationDevice", "android.media.AudioManager getCommunicationDevice() @audio_devices 31-");
+        check("AudioManager.isWiredHeadsetOn", "android.media.AudioManager isWiredHeadsetOn() @generic_block 27-");
+        check("AppEventsLogger.activateApp/companion/app", "com.facebook.appevents.AppEventsLogger$Companion activateApp(" +
+                "android.app.Application) @generic_block 27- optional");
+        check("Amplitude.getOptOut/android", "com.amplitude.android.Configuration getOptOut() @generic_true_value 27- optional");
+        // The settings provider sees the system settings of the developer options too
+        assertTrue(Arrays.asList(hook("Settings.System.getStringForUser/adb").optString("excludePackages", "").split(","))
+                .contains("android"));
+    }
+
     // The permission checks of contexts, the packages of the analytics, the transports of a VPN and the account types of apps
     @Test
     public void secondAuditDefinitions() throws Exception {

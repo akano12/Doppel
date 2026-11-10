@@ -12009,6 +12009,46 @@
     "minSdk": 27,
     "luaScript": "@audio_devices"
   },
+  // A connected headset, which the devices leave out, is not on either (false, like a device without it)
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioManager.isWiredHeadsetOn",
+    "author": "akano12",
+    "className": "android.media.AudioManager",
+    "methodName": "isWiredHeadsetOn",
+    "parameterTypes": [
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioManager.isBluetoothA2dpOn",
+    "author": "akano12",
+    "className": "android.media.AudioManager",
+    "methodName": "isBluetoothA2dpOn",
+    "parameterTypes": [
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioManager.isBluetoothScoOn",
+    "author": "akano12",
+    "className": "android.media.AudioManager",
+    "methodName": "isBluetoothScoOn",
+    "parameterTypes": [
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@generic_block"
+  },
   {
     "collection": "Privacy",
     "group": "Record.Audio",
@@ -12728,6 +12768,38 @@
     "name": "AppEventsLogger.activateApp/app/id",
     "author": "M66B",
     "className": "com.facebook.appevents.AppEventsLogger",
+    "methodName": "activateApp",
+    "parameterTypes": [
+      "android.app.Application",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  // Kotlin calls the static methods through the companion object
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AppEventsLogger.activateApp/companion/app",
+    "author": "akano12",
+    "className": "com.facebook.appevents.AppEventsLogger$Companion",
+    "methodName": "activateApp",
+    "parameterTypes": [
+      "android.app.Application"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "AppEventsLogger.activateApp/companion/app/id",
+    "author": "akano12",
+    "className": "com.facebook.appevents.AppEventsLogger$Companion",
     "methodName": "activateApp",
     "parameterTypes": [
       "android.app.Application",
