@@ -40,6 +40,9 @@ final class FakeIds {
     static final String[] KEYS = {SERIAL, ANDROID_ID, IMEI, MEID};
     // Of the service only, not in Fake values: the seed of the fake DRM id, which follows the mode of the Android ID
     static final String DRM_ID = "value.drm_id";
+    // Of the service only too: the key of the offsets of fake locations (location.lua), of each app, new each boot like
+    // the offsets of the coarse locations of Android, so apps cannot compute them
+    static final String LOCATION_KEY = "location.key";
 
     // The setting of the mode of a value is its name with this suffix
     static final String MODE = ".mode";
@@ -124,6 +127,7 @@ final class FakeIds {
         String mode = getMode(ANDROID_ID, global, app);
         if (!FIXED.equals(mode))
             result.put(DRM_ID, derive(secret, userid, BOOT.equals(mode) ? packageName : null, DRM_ID));
+        result.put(LOCATION_KEY, derive(secret, userid, packageName, LOCATION_KEY));
         return result;
     }
 
@@ -148,6 +152,7 @@ final class FakeIds {
             case ANDROID_ID:
                 return randomString(random, "0123456789abcdef", 16);
             case DRM_ID:
+            case LOCATION_KEY:
                 return randomString(random, "0123456789abcdef", 32);
             case IMEI:
                 // 14 digits and a Luhn check digit

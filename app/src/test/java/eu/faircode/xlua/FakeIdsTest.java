@@ -122,6 +122,18 @@ public class FakeIdsTest {
         assertNull(FakeIds.getBootValues(SECRET, 0, "com.example", fixed, none).get(FakeIds.DRM_ID));
     }
 
+    // The key of the location offsets is of each app, whatever the modes, and not shown in Fake values
+    @Test
+    public void locationKeyIsOfEachApp() {
+        Map<String, String> fixed = new HashMap<>();
+        fixed.put(FakeIds.ANDROID_ID + FakeIds.MODE, FakeIds.FIXED);
+        String one = FakeIds.getBootValues(SECRET, 0, "com.example", fixed, fixed).get(FakeIds.LOCATION_KEY);
+        assertEquals(32, one.length());
+        assertNotEquals(one, FakeIds.getBootValues(SECRET, 0, "com.other", fixed, fixed).get(FakeIds.LOCATION_KEY));
+        assertNotEquals(one, FakeIds.getBootValues(SECRET, 1, "com.example", fixed, fixed).get(FakeIds.LOCATION_KEY));
+        assertFalse(FakeIds.isId(FakeIds.LOCATION_KEY));
+    }
+
     @Test
     public void bootValues() {
         Map<String, String> global = new HashMap<>();

@@ -5953,7 +5953,8 @@
       "location.type",
       "location.latitude",
       "location.longitude",
-      "location.accuracy"
+      "location.accuracy",
+      "location.key"
     ],
     "luaScript": "@location"
   },
