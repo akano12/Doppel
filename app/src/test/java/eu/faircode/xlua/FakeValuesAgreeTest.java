@@ -184,8 +184,9 @@ public class FakeValuesAgreeTest {
 
         String text = run(load("network_tostring"), "wifiinfo('SSID: \"Home\", BSSID: aa:bb:cc:dd:ee:ff," +
                 " MAC: 11:22:33:44:55:66, IP: /10.0.2.16, Security type: 0')");
+        // The address 0 of the getter is no address, which Android prints as null
         assertTrue(text, text.startsWith("SSID: " + ssid + ", BSSID: " + bssid + ", MAC: " + mac + "," +
-                " IP: /0.0.0.0,"));
+                " IP: null,"));
 
         // The Bluetooth address of the settings is a MAC address too, like BluetoothAdapter.getAddress
         assertEquals(mac, run(load("settingssecure_getstring"), "fakeof('Settings.Secure.getStringForUser/mac'," +
@@ -319,6 +320,7 @@ public class FakeValuesAgreeTest {
     @Test
     public void vpnInterfacesAreTheSame() throws Exception {
         assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("hardware_files", "isvpninterface"));
+        assertEquals(Scripts.function("generic_empty", "emptylike"), Scripts.function("network_address", "emptylike"));
         assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("vpn_addresses", "isvpninterface"));
         assertEquals(Scripts.function("vpn", "linkproperties"), Scripts.function("vpn_addresses", "linkproperties"));
         assertEquals(Scripts.function("vpn", "linkproperties"), Scripts.function("network_address", "linkproperties"));

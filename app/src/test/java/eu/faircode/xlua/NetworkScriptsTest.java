@@ -153,7 +153,7 @@ public class NetworkScriptsTest {
         String wifi = tostring(globals, "android.net.wifi.WifiInfo",
                 "SSID: \"Home\", BSSID: 12:34:56:78:9a:bc, MAC: 02:00:00:00:00:00, IP: /192.168.1.5, Security type: 2, " +
                         "Net ID: 3, Metered hint: false");
-        assertEquals("SSID: \"private\", BSSID: 02:00:00:00:00:00, MAC: 02:00:00:00:00:00, IP: /0.0.0.0, " +
+        assertEquals("SSID: \"private\", BSSID: 02:00:00:00:00:00, MAC: 02:00:00:00:00:00, IP: null, " +
                 "Security type: 2, Net ID: -1, Metered hint: false", wifi);
         // A network name can contain ', ', so it is hidden up to the MLO information or the end of the text
         String key = tostring(globals, "android.net.wifi.WifiInfo", "SSID: \"Home\", BSSID: 12:34:56:78:9a:bc, " +
@@ -195,22 +195,32 @@ public class NetworkScriptsTest {
         Globals globals = load("wifiinfo_ssid_bssid");
         Varargs result = Scripts.run(globals,
                 "local real = luajava\n" +
+                        "sdk = 33\n" +
                         "luajava = setmetatable({ bindClass = function(name)\n" +
+                        "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
                         "  if name ~= 'android.net.wifi.WifiSsid' then return real.bindClass(name) end\n" +
+                        // Android 13 quotes the text, before it is the name itself
                         "  return { fromBytes = function(self, bytes)\n" +
                         "    local text = '\"' .. tostring(real.newInstance('java.lang.String', bytes)) .. '\"'\n" +
-                        "    return { toString = function() return text end } end } end }, { __index = real })\n" +
+                        "    return { toString = function() return text end } end,\n" +
+                        "    createFromAsciiEncoded = function(self, name) return { toString = function() return name end } end } end },\n" +
+                        "  { __index = real })\n" +
                         "local function ssidof(text) return { toString = function() return text end } end\n" +
                         "local home = paramof(ssidof('\"Home\"'))\n" +
                         "local ssid = paramof('\"Home\"')\n" +
                         "after(hookof('getSSID'), ssid)\n" +
                         "return after(hookof('getWifiSsid'), home), home.result:toString(), ssid.result,\n" +
                         "  after(hookof('getWifiSsid'), paramof(ssidof('<unknown ssid>'))),\n" +
-                        "  after(hookof('getWifiSsid'), paramof(ssidof('')))");
+                        "  after(hookof('getWifiSsid'), paramof(ssidof(''))),\n" +
+                        "  (function() sdk = 30 local old = paramof(ssidof('Home')) after(hookof('getWifiSsid'), old)\n" +
+                        "    return old.result:toString() end)(), after(hookof('getWifiSsid'), paramof(ssidof('private')))");
         assertTrue(result.arg(1).toboolean());
         assertEquals(result.arg(3).tojstring(), result.arg(2).tojstring());
         assertFalse(result.arg(4).toboolean());
         assertFalse(result.arg(5).toboolean());
+        // Before Android 13 the hidden method, of a WifiSsid whose text has no quotes
+        assertEquals("private", result.arg(6).tojstring());
+        assertFalse(result.arg(7).toboolean());
     }
 
     // The local address of sockets: those of the device become the wildcard address of their family, also in a
@@ -451,6 +461,15 @@ public class NetworkScriptsTest {
         assertTrue(reason.arg(2).isnil());
         assertFalse(reason.arg(3).toboolean());
         assertEquals("connected", reason.arg(4).tojstring());
+    }
+
+    // The empty extra info Android leaves most apps is (none) in the text, like the hooked getter gives no extra info
+    @Test
+    public void emptyExtraInfoIsNone() throws Exception {
+        Globals globals = load("network_tostring");
+        assertEquals("[type: WIFI[], state: CONNECTED/CONNECTED, reason: (unspecified), extra: (none), failover: false]",
+                Scripts.run(globals, "return (networkinfo('[type: WIFI[], state: CONNECTED/CONNECTED, reason: (unspecified), " +
+                        "extra: , failover: false]'))").arg1().tojstring());
     }
 
     // The runtime of a script stays after an error (see XCore), so an error must not leave the guard of nested calls set

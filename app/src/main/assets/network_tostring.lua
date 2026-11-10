@@ -79,8 +79,8 @@ function wifiinfo(text)
     end)
     restricted = restricted or replaced > 0
 
-    -- The IP address, like the getter (0)
-    text, changed = replace(text, ', IP: /', ', ', '0.0.0.0', nil)
+    -- The IP address, like the getter (0), which Android has as no address, printed as null
+    text, changed = replace(text, ', IP: ', ', ', 'null', nil)
     restricted = restricted or changed
 
     -- The id of the saved network, like the getter (-1)
@@ -114,8 +114,9 @@ function wifiinfo(text)
 end
 
 function networkinfo(text)
-    -- The extra info is (none) like when the getter returns nothing, Android leaves it empty for most apps
-    return replace(text, ', extra: ', ', failover: ', '(none)', { [''] = true })
+    -- The extra info is (none), which Android prints when the getter returns nothing, like the hooked getter does,
+    -- also for the empty one Android leaves most apps
+    return replace(text, ', extra: ', ', failover: ', '(none)', nil)
 end
 
 -- The lists are empty, like the getters; the text of Android 10 and later has spaces inside the brackets.

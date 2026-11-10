@@ -471,6 +471,33 @@ public class ValueScriptsTest {
         assertFalse(thrown.arg(2).toboolean());
     }
 
+    // An empty collection like Android's: unmodifiable of the same kind when Android's is, like the bonded Bluetooth
+    // devices (a set) and the devices of Wi-Fi Direct (a collection), else a new one which can be changed
+    @Test
+    public void emptyCollectionsLikeAndroids() throws Exception {
+        Globals globals = load("generic_empty");
+        Varargs result = Scripts.run(globals,
+                "luajava = { newInstance = function(name) return name end,\n" +
+                        "  bindClass = function(name) return { unmodifiableSet = function(self, c) return 'set of ' .. c end,\n" +
+                        "    unmodifiableList = function(self, c) return 'list of ' .. c end,\n" +
+                        "    unmodifiableCollection = function(self, c) return 'collection of ' .. c end } end }\n" +
+                        // A collection of Android by the name of its class and the interfaces it has
+                        "local function of(class, kinds) return { kinds = kinds, isEmpty = function() return false end,\n" +
+                        "  getClass = function() return { getName = function() return class end } end } end\n" +
+                        "local function empty(result) local param = paramof(result)\n" +
+                        "  param.isInstance = function(self, object, name) return name == 'java.util.Collection' or object.kinds[name] end\n" +
+                        "  after(nil, param) return param.result end\n" +
+                        "local U = 'java.util.Collections$UnmodifiableCollection'\n" +
+                        "return empty(of('java.util.Collections$UnmodifiableSet', { ['java.util.Set'] = true, [U] = true })),\n" +
+                        "  empty(of('java.util.Collections$UnmodifiableCollection', { [U] = true })),\n" +
+                        "  empty(of('java.util.Collections$UnmodifiableRandomAccessList', { ['java.util.List'] = true, [U] = true })),\n" +
+                        "  empty(of('java.util.ArrayList', { ['java.util.List'] = true }))");
+        assertEquals("set of java.util.HashSet", result.arg(1).tojstring());
+        assertEquals("collection of java.util.ArrayList", result.arg(2).tojstring());
+        assertEquals("list of java.util.ArrayList", result.arg(3).tojstring());
+        assertEquals("java.util.ArrayList", result.arg(4).tojstring());
+    }
+
     // Opt-outs by the last argument: false, also for null of a Boolean, and true; like setAnalyticsCollectionEnabled(enabled)
     // and submitPolicyGrantResult(context, granted), of which the context stays
     @Test

@@ -69,7 +69,7 @@ function after(hook, param)
         if result:isEmpty() or linkproperties() then
             return false
         end
-        param:setResult(luajava.newInstance('java.util.ArrayList'))
+        param:setResult(emptylike(param, result, luajava.newInstance('java.util.ArrayList')))
         return true
 
     elseif method == 'getLocalHost' then
@@ -141,4 +141,22 @@ function after(hook, param)
     end
 
     return false
+end
+
+-- An empty collection like the one of Android: unmodifiable when Android's is, of the same kind; by the class all
+-- unmodifiable ones of Collections extend, since luajava binds a class to its static members, not to its name
+function emptylike(param, result, fake)
+    local known, unmodifiable = pcall(function()
+        return param:isInstance(result, 'java.util.Collections$UnmodifiableCollection')
+    end)
+    if not known or not unmodifiable then
+        return fake
+    end
+    local collections = luajava.bindClass('java.util.Collections')
+    if param:isInstance(result, 'java.util.Set') then
+        return collections:unmodifiableSet(fake)
+    elseif param:isInstance(result, 'java.util.List') then
+        return collections:unmodifiableList(fake)
+    end
+    return collections:unmodifiableCollection(fake)
 end

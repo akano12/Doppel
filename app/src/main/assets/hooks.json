@@ -9158,7 +9158,7 @@
     "methodName": "getWifiSsid",
     "parameterTypes": [],
     "returnType": "android.net.wifi.WifiSsid",
-    "minSdk": 33,
+    "minSdk": 27,
     "optional": true,
     "luaScript": "@wifiinfo_ssid_bssid"
   },

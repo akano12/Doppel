@@ -24,19 +24,25 @@ function after(hook, param)
         return false
     end
 
-    -- The name as bytes (Android 13), the same network as getSSID: unknown and empty names stay, like getSSID
-    -- shows them as <unknown ssid>, the others become the fake name, else the two would tell different networks
+    -- The name as bytes (public from Android 13, hidden before, which apps reach by reflection), the same network as
+    -- getSSID: unknown and empty names stay, like getSSID shows them as <unknown ssid>, the others become the fake
+    -- name, else the two would tell different networks; before Android 13 its text has no quotes
     if hook:getMethodName() == 'getWifiSsid' then
         local text = result:toString()
-        if text == '' or text == '<unknown ssid>' or text == '"private"' then
+        if text == '' or text == '<unknown ssid>' or text == '"private"' or text == 'private' then
             return false
         end
         local name = 'private'
-        local bytes = luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('java.lang.Byte').TYPE, #name)
-        for index = 1, #name do
-            bytes[index] = string.byte(name, index)
+        local class = luajava.bindClass('android.net.wifi.WifiSsid')
+        if luajava.bindClass('android.os.Build$VERSION').SDK_INT < 33 then
+            param:setResult(class:createFromAsciiEncoded(name))
+        else
+            local bytes = luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('java.lang.Byte').TYPE, #name)
+            for index = 1, #name do
+                bytes[index] = string.byte(name, index)
+            end
+            param:setResult(class:fromBytes(bytes))
         end
-        param:setResult(luajava.bindClass('android.net.wifi.WifiSsid'):fromBytes(bytes))
         return true, text, '"private"'
     end
 
