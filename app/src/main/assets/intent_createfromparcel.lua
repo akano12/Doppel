@@ -217,9 +217,24 @@ function after(hook, param)
         if extras:containsKey('temperature') then
             extras:putInt('temperature', 250)
         end
-        for _, extra in ipairs({ 'charge_counter', 'max_charging_current', 'max_charging_voltage',
-                                 'android.os.extra.CYCLE_COUNT' }) do
-            extras:remove(extra)
+        -- The details of charging, neutral values instead of none, since Android always sends them: no charging
+        -- current and voltage, the charge of a 4000 mAh battery at the level, no cycles, the default policy of
+        -- charging (CHARGING_POLICY_DEFAULT, 1) instead of one the user chose, like adaptive or long life, while
+        -- a device without policies (0) stays, and the level of the capacity by the level (BATTERY_CAPACITY_LEVEL_*)
+        local percent = (scale > 0 and level * 100 / scale or 0)
+        for key, value in pairs({ charge_counter = math.floor(percent * 40000), max_charging_current = 0,
+                                  max_charging_voltage = 0, ['android.os.extra.CYCLE_COUNT'] = 0 }) do
+            if extras:containsKey(key) then
+                extras:putInt(key, value)
+            end
+        end
+        if extras:getInt('android.os.extra.CHARGING_STATUS', 0) > 1 then
+            extras:putInt('android.os.extra.CHARGING_STATUS', 1)
+        end
+        local capacity = extras:getInt('android.os.extra.CAPACITY_LEVEL', -1)
+        if capacity > 0 then
+            extras:putInt('android.os.extra.CAPACITY_LEVEL',
+                    percent >= 100 and 5 or percent >= 80 and 4 or percent >= 20 and 3 or 2)
         end
         intent:replaceExtras(extras)
         -- The values shown in the log are the level, which can stay, like 100, when only the other extras changed
@@ -227,6 +242,15 @@ function after(hook, param)
             return true
         end
         return true, tostring(old), tostring(level)
+    elseif name == 'battery' and action == 'android.os.action.POWER_SAVE_MODE_CHANGING' then
+        -- The battery saver going on, which isPowerSaveMode hides: off
+        local extras = intent:getExtras()
+        if extras == nil or not extras:getBoolean('mode', false) then
+            return false
+        end
+        extras:putBoolean('mode', false)
+        intent:replaceExtras(extras)
+        return true, 'true', 'false'
     elseif name == 'debugging' and action == 'android.hardware.usb.action.USB_STATE' then
         -- The sticky broadcast of the USB connection has the function adb when USB debugging is on,
         -- also without a cable; without USB debugging, charging only is the function mtp (UsbDeviceManager)

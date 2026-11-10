@@ -66,6 +66,7 @@ public class IntentScriptTest {
             "    function bundle:remove(key) self.values[key] = nil end",
             "    function bundle:getInt(key, default) return self.values[key] or default end",
             "    function bundle:getString(key) return self.values[key] end",
+            "    function bundle:getBoolean(key, default) local v = self.values[key] if v == nil then return default end return v end",
             "    bundle.getStringArray = bundle.getString",
             "    bundle.getIntArray = bundle.getString",
             "    function bundle:put(key, value) self.values[key] = value end",
@@ -367,6 +368,35 @@ public class IntentScriptTest {
                             "return intent.extras.level", level[0], level[1]));
             assertEquals(level[0] + "/" + level[1], level[2], result.arg1().toint());
         }
+    }
+
+    // The details of charging have neutral values instead of none, since Android always sends them; the level of the
+    // capacity follows the fake level; the battery saver going on is off
+    @Test
+    public void batteryDetailsAreNeutral() {
+        Varargs result = run(
+                "local intent = intentof('android.intent.action.BATTERY_CHANGED', { level = 4, scale = 100, charge_counter = 123456,\n" +
+                        "  max_charging_current = 500000, ['android.os.extra.CYCLE_COUNT'] = 321, ['android.os.extra.CHARGING_STATUS'] = 4,\n" +
+                        "  ['android.os.extra.CAPACITY_LEVEL'] = 1 })\n" +
+                        "after(hookof('Intent.createFromParcel/battery'), paramof(intent))\n" +
+                        "local e = intent.extras\n" +
+                        "local saver = intentof('android.os.action.POWER_SAVE_MODE_CHANGING', { mode = true })\n" +
+                        "local restricted = after(hookof('Intent.createFromParcel/battery'), paramof(saver))\n" +
+                        "return e.level, e.charge_counter, e.max_charging_current, e['android.os.extra.CYCLE_COUNT'],\n" +
+                        "  e['android.os.extra.CHARGING_STATUS'], e['android.os.extra.CAPACITY_LEVEL'], restricted, saver.extras.mode");
+        assertEquals(15, result.arg(1).toint());
+        assertEquals(600000, result.arg(2).toint());
+        assertEquals(0, result.arg(3).toint());
+        assertEquals(0, result.arg(4).toint());
+        assertEquals(1, result.arg(5).toint());
+        assertEquals(2, result.arg(6).toint());
+        assertTrue(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean());
+        // A device without policies of charging (0) keeps it
+        assertEquals(0, run("local intent = intentof('android.intent.action.BATTERY_CHANGED', { level = 50, scale = 100,\n" +
+                "  ['android.os.extra.CHARGING_STATUS'] = 0 })\n" +
+                "after(hookof('Intent.createFromParcel/battery'), paramof(intent))\n" +
+                "return intent.extras['android.os.extra.CHARGING_STATUS']").arg1().toint());
     }
 
     // The notification of an MMS message has the sender and the subject

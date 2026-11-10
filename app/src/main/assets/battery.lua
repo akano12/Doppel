@@ -30,6 +30,10 @@ local CAPACITY = 'battery.capacity'
 function after(hook, param)
     local method = hook:getMethodName()
     local result = param:getResult()
+    -- The exception of Android stays, like the SecurityException of properties which need BATTERY_STATS
+    if param:getException() ~= nil then
+        return false
+    end
 
     if hook:getClassName() == 'com.android.internal.os.PowerProfile' then
         -- getBatteryCapacity, and getAveragePower and getAveragePowerOrDefault of battery.capacity, which it calls
