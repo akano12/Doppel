@@ -18,7 +18,7 @@
 -- The text of network objects contains the values their getters hide, so the same fake values replace them
 -- in the text; the other fields stay:
 -- WifiInfo: the network name, the address of the access point, the MAC and IP address, the id of the saved network
--- and the Passpoint provider
+-- and the Passpoint provider; its variant mac of Read.Identifiers only the MAC address
 -- NetworkInfo: the extra info, which is the network name or the APN
 -- LinkProperties: the addresses of the device, the DNS servers, the domains, the DHCP server and the routes
 -- NetworkRegistrationInfo, also in the text of ServiceState: the cell
@@ -196,7 +196,10 @@ function after(hook, param)
 
     local fake, restricted
     local class = hook:getClassName()
-    if class == 'android.net.wifi.WifiInfo' then
+    if class == 'android.net.wifi.WifiInfo' and string.match(hook:getName(), '/(.*)$') == 'mac' then
+        -- Read.Identifiers: only the MAC address, like getMacAddress, for an app which is not restricted in Read.Network
+        fake, restricted = replace(result, ', MAC: ', ', ', HIDDEN_MAC, { ['00:00:00:00:00:00'] = true })
+    elseif class == 'android.net.wifi.WifiInfo' then
         fake, restricted = wifiinfo(result)
     elseif class == 'android.net.LinkProperties' then
         fake, restricted = linkproperties(result)

@@ -8816,6 +8816,19 @@
     "excludePackages": "android",
     "luaScript": "@settingssecure_getstring"
   },
+  // The MAC address in the text of WifiInfo, like getMacAddress, also for an app which is not restricted in Read.Network
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "WifiInfo.toString/mac",
+    "author": "akano12",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@network_tostring"
+  },
   // Read network data
   // https://developer.android.com/reference/android/telephony/TelephonyManager.html
   // https://developer.android.com/reference/android/telephony/PhoneStateListener.html

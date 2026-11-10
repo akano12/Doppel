@@ -41,8 +41,9 @@ import static org.junit.Assert.assertTrue;
 // and the Android objects, like LocationScriptTest, because the Android classes are stubs in unit tests
 public class NetworkScriptsTest {
     private static final String STUBS = String.join("\n",
-            "function hookof(method, class, group, types)",
+            "function hookof(method, class, group, types, name)",
             "  return { getMethodName = function(self) return method end,",
+            "    getName = function(self) return name or method end,",
             "    getClassName = function(self) return class end,",
             "    getGroup = function(self) return group end,",
             "    getParameterTypes = function(self) return types end }",
@@ -78,6 +79,20 @@ public class NetworkScriptsTest {
                         "local restricted = after(hookof('toString', '" + className + "'), param)\n" +
                         "return param.result, restricted");
         return result.arg(1).tojstring();
+    }
+
+    // Read.Identifiers: only the MAC address of the text of WifiInfo, like getMacAddress, the network stays to Read.Network
+    @Test
+    public void wifiInfoTextHidesTheMacForIdentifiers() throws Exception {
+        Globals globals = load("network_tostring");
+        globals.set("text", LuaValue.valueOf("SSID: \"Home\", BSSID: 12:34:56:78:9a:bc, MAC: 3c:28:6d:11:22:33, IP: /192.168.1.5"));
+        Varargs result = Scripts.run(globals,
+                "local param = paramof(text)\n" +
+                        "local restricted = after(hookof('toString', 'android.net.wifi.WifiInfo', 'Read.Identifiers', nil, " +
+                        "'WifiInfo.toString/mac'), param)\n" +
+                        "return param.result, restricted");
+        assertEquals("SSID: \"Home\", BSSID: 12:34:56:78:9a:bc, MAC: 02:00:00:00:00:00, IP: /192.168.1.5", result.arg(1).tojstring());
+        assertTrue(result.arg(2).toboolean());
     }
 
     @Test
