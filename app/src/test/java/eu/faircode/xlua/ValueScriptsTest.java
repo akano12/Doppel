@@ -209,6 +209,21 @@ public class ValueScriptsTest {
         assertFalse(Scripts.run(globals, "return after_(nil, paramof(id, { [0] = 'vendor' }))").arg1().toboolean());
         globals.set("id", CoerceJavaToLua.coerce(new byte[0]));
         assertFalse(Scripts.run(globals, "return after_(nil, paramof(id, { [0] = 'deviceUniqueId' }))").arg1().toboolean());
+
+        // Where Widevine gives the provisioning id as the inverted bits of the device id, the fakes are inverted too
+        byte[] device = MessageDigest.getInstance("SHA-256").digest("real".getBytes(StandardCharsets.UTF_8));
+        byte[] provisioning = new byte[device.length];
+        for (int i = 0; i < device.length; i++)
+            provisioning[i] = (byte) ~device[i];
+        globals.set("realdevice", CoerceJavaToLua.coerce(device));
+        globals.set("id", CoerceJavaToLua.coerce(provisioning));
+        Scripts.run(globals, "settings['value.android_id'] = 'abc'");
+        byte[] fakeDevice = MessageDigest.getInstance("SHA-256").digest("abcdeviceUniqueId".getBytes(StandardCharsets.UTF_8));
+        byte[] fakeProvisioning = (byte[]) Scripts.run(globals,
+                "local drm = { getPropertyByteArray = function(self, name) assert(name == 'deviceUniqueId') return realdevice end }\n" +
+                        "return after_(nil, paramof(id, { [0] = 'provisioningUniqueId' }, drm))").arg(3).checkuserdata();
+        for (int i = 0; i < fakeDevice.length; i++)
+            assertEquals("byte " + i, (byte) ~fakeDevice[i], fakeProvisioning[i]);
     }
 
     // The cell location and cell info events are left out, the other events stay

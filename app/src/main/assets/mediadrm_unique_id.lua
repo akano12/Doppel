@@ -34,16 +34,48 @@ function after(hook, param)
     -- zeros, would be one id which never changes, and libraries use this id when there is no GSF id; made of the Android
     -- ID an app could compute the id and tell it is fake. A fixed Android ID has no such value, so the id is made of it.
     local seed = param:getSetting('value.drm_id') or param:getSetting('value.android_id')
-    if seed == nil then
-        -- Only if the boot values could not be read
-        local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-        local byteClass = luajava.bindClass('java.lang.Byte')
-        param:setResult(arrayClass:newInstance(byteClass.TYPE, result.length))
-        return true
+    local fake = fakeid(seed, 'deviceUniqueId', result.length)
+    if propertyString == 'provisioningUniqueId' then
+        -- Widevine of newer devices gives the inverted bits of the device id: the inverted fake device id then, which
+        -- an app can check against it, else an id of its own
+        local drm = param:getThis()
+        local ok, device = pcall(function()
+            return param:unhooked(function()
+                return drm:getPropertyByteArray('deviceUniqueId')
+            end)
+        end)
+        if ok and inverted(device, result) then
+            -- The bytes are signed, like in Java, of which the inverted bits are -x - 1
+            for index = 1, result.length do
+                fake[index] = -fake[index] - 1
+            end
+        else
+            fake = fakeid(seed, propertyString, result.length)
+        end
     end
+    param:setResult(fake)
+    return true
+end
 
+-- The fake id of a property, made of the seed, zeros only if the boot values could not be read
+function fakeid(seed, property, length)
+    if seed == nil then
+        local arrayClass = luajava.bindClass('java.lang.reflect.Array')
+        return arrayClass:newInstance(luajava.bindClass('java.lang.Byte').TYPE, length)
+    end
     local digest = luajava.bindClass('java.security.MessageDigest'):getInstance('SHA-256')
-    local arrays = luajava.bindClass('java.util.Arrays')
-    param:setResult(arrays:copyOf(digest:digest(seed .. propertyString), result.length))
+    return luajava.bindClass('java.util.Arrays'):copyOf(digest:digest(seed .. property), length)
+end
+
+-- Whether two ids are the inverted bits of each other: signed bytes of which each pair adds up to -1
+function inverted(a, b)
+    if a == nil or b == nil or a.length ~= b.length or a.length == 0 then
+        return false
+    end
+    for index = 1, a.length do
+        if a[index] + b[index] ~= -1 then
+            return false
+        end
+    end
     return true
 end
