@@ -367,6 +367,22 @@ public class SettingsScriptTest {
         assertEquals("same", applications("battery", "low_power_sticky", "0"));
     }
 
+    // The options which Settings turns off with developer options are off too, like Show taps, and no app waits to be
+    // debugged; one which was never set stays unset
+    @Test
+    public void developerOptionsAreOff() {
+        for (String key : new String[]{"show_touches", "pointer_location", "debug_view_attributes", "wait_for_debugger",
+                "always_finish_activities"}) {
+            assertTrue(key, run("return hooked('" + key + "')").arg1().toboolean());
+            assertEquals(key, "0", applications("adb", key, "1"));
+            assertEquals(key, "same", applications("adb", key, "0"));
+        }
+        assertEquals(null, applications("adb", "debug_app", "com.example.app"));
+        assertEquals("same", run("local changed = fakesetting(paramof({}, {}, 10200), 'adb', 'show_touches', nil)\n" +
+                "return changed and 'changed' or 'same'").arg1().tojstring());
+        assertEquals("same", applications("settings", "show_touches", "1"));
+    }
+
     // The languages the user chose (system_locales) are the fake ones by the settings provider too, for Read.Locale
     @Test
     public void systemLocalesAreFake() {

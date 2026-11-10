@@ -20859,6 +20859,25 @@
     "excludePackages": "android",
     "luaScript": "@settingssecure_getstring"
   },
+  // Show taps and Pointer location of the developer options are system settings
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Settings.System.getStringForUser/adb",
+    "author": "akano12",
+    "className": "android.provider.Settings$System",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Debugging",

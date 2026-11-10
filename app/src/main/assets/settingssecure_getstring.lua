@@ -274,17 +274,25 @@ end
 -- The settings of the always-on VPN
 local ALWAYSON = { always_on_vpn_app = true, always_on_vpn_lockdown = true, always_on_vpn_lockdown_whitelist = true }
 
+-- Developer options, USB and wireless debugging and Stay awake (the power sources, 0 by default) appear off, and so do
+-- the options which Settings turns off with developer options (DevelopmentSettingsDashboardFragment), like Show taps
+-- and the app to debug
+local DEVELOPER = {
+    adb_enabled = '0', adb_wifi_enabled = '0', development_settings_enabled = '0', stay_on_while_plugged_in = '0',
+    show_touches = '0', pointer_location = '0', debug_view_attributes = '0', wait_for_debugger = '0',
+    always_finish_activities = '0', debug_app = NONE,
+}
+
 -- The other settings which hooks change
 local HOOKED = {
     android_id = true, bluetooth_name = true, device_name = true, wifi_p2p_device_name = true, boot_count = true,
-    adb_enabled = true, adb_wifi_enabled = true, development_settings_enabled = true, stay_on_while_plugged_in = true,
     low_power = true, low_power_sticky = true, system_locales = true, private_dns_specifier = true, private_dns_mode = true,
     bluetooth_address = true,
 }
 
 -- Whether hooks change the setting; the hooked methods are called for all settings, so check the name first
 function hooked(key)
-    return key ~= nil and (HOOKED[key] ~= nil or ALWAYSON[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil or
+    return key ~= nil and (HOOKED[key] ~= nil or DEVELOPER[key] ~= nil or ALWAYSON[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil or
             identifier(key))
 end
 
@@ -370,13 +378,16 @@ function fakesetting(param, name, key, result)
             return false
         end
         return true, fake
-    elseif name == 'adb' and (key == 'adb_enabled' or key == 'adb_wifi_enabled' or key == 'development_settings_enabled' or
-            key == 'stay_on_while_plugged_in') then
-        -- Developer options and USB or wireless debugging appear off, also Stay awake (the power sources, 0 by default)
-        if result == '0' then
+    elseif name == 'adb' and DEVELOPER[key] ~= nil then
+        local fake = DEVELOPER[key]
+        if fake == NONE then
+            fake = nil
+        end
+        -- An option which was never set stays unset, like on a device where it was never changed
+        if result == nil or fake == result then
             return false
         end
-        return true, '0'
+        return true, fake
     elseif name == 'locale' and key == 'system_locales' then
         -- The languages the user chose, the fake ones, like Settings.System.getStringForUser of locale
         local fake = table.concat(fakes(param), ',')
