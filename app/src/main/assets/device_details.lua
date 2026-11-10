@@ -228,10 +228,10 @@ function after(hook, param)
         if result == nil then
             return false
         end
-        local known, class = pcall(function()
-            return result:getClass():getName()
+        local known, novibrator = pcall(function()
+            return param:isInstance(result, 'android.os.SystemVibrator$NoVibratorInfo')
         end)
-        if known and string.find(class, 'NoVibratorInfo', 1, true) then
+        if known and novibrator then
             return false
         end
         -- With the id of the vibrator: EMPTY_VIBRATOR_INFO has id -1, which getVibrator does not give

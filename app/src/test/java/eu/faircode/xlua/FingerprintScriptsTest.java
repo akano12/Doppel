@@ -987,8 +987,8 @@ public class FingerprintScriptsTest {
         // A device without a vibrator keeps its details, which answer no; of no effects or primitives Android answers
         // yes, and an effect which is not supported (no) stays
         result = Scripts.run(load("device_details"),
-                "local none = paramof({ getClass = function(self)\n" +
-                        "  return { getName = function(self) return 'android.os.SystemVibrator$NoVibratorInfo' end } end })\n" +
+                "local none = paramof({})\n" +
+                        "none.isInstance = function(self, object, name) return name == 'android.os.SystemVibrator$NoVibratorInfo' end\n" +
                         "return after(hookof('getInfo'), none),\n" +
                         "  after(hookof('areAllEffectsSupported'), paramof(1, { [0] = { length = 0 } })),\n" +
                         "  after(hookof('areAllEffectsSupported'), paramof(2, { [0] = { length = 1, 0 } })),\n" +
