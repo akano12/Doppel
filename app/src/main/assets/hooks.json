@@ -13694,6 +13694,37 @@
     "minSdk": 33,
     "luaScript": "@camera2_open"
   },
+  // The torch of a camera the app cannot see, which needs no permission
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.setTorchMode",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "setTorchMode",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@camera2_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.turnOnTorchWithStrengthLevel",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "turnOnTorchWithStrengthLevel",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "luaScript": "@camera2_open"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Camera",

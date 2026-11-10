@@ -384,7 +384,8 @@ public class ValueScriptsTest {
     }
 
     // A camera the app cannot see is one the device does not have: the error of Android for the asked id, with the
-    // message of Android, which getCameraCharacteristics gives once per process for an id no device has
+    // message of Android, which the same method, or getCameraCharacteristics, gives once per process for an id no
+    // device has
     private static Globals camera(String characteristics) throws Exception {
         Globals globals = load("camera2_open");
         Scripts.run(globals, "luajava = { newInstance = function(class, message) return class .. ': ' .. message end }\n" +
@@ -392,7 +393,11 @@ public class ValueScriptsTest {
                 "manager = { getCameraCharacteristics = function(self, id)\n" +
                 "  probes = probes + 1\n" +
                 characteristics + "\n" +
-                "end }\n" +
+                "end,\n" +
+                "  setTorchMode = function(self, id, on)\n" +
+                "    torch = on\n" +
+                "    error('vm error: java.lang.IllegalArgumentException: Camera ID \"' .. id .. '\" is a not valid camera ID', 0)\n" +
+                "  end }\n" +
                 "function cameraof(id)\n" +
                 "  return { args = { [0] = id },\n" +
                 "    getArgument = function(self, index) return self.args[index] end,\n" +
@@ -412,7 +417,8 @@ public class ValueScriptsTest {
                 "Unable to retrieve camera characteristics for unknown device ' .. id .. ': No such file or directory (-2)', 0)");
         Varargs result = Scripts.run(globals,
                 "local first, second = cameraof('0'), cameraof('2')\n" +
-                        "return before(nil, first), first.result, before(nil, second), second.result, probes");
+                        "return before(hookof('openCamera'), first), first.result, before(hookof('getCameraCharacteristics'), second),\n" +
+                        "  second.result, probes");
         assertTrue(result.arg(1).toboolean());
         assertEquals("java.lang.IllegalArgumentException: getCameraCharacteristics:851: Unable to retrieve camera " +
                 "characteristics for unknown device 0: No such file or directory (-2)", result.arg(2).tojstring());
@@ -428,10 +434,24 @@ public class ValueScriptsTest {
     public void cameraIsUnknownWithoutProbeError() throws Exception {
         Varargs result = Scripts.run(camera("  return nil"),
                 "local param = cameraof('7')\n" +
-                        "return before(nil, param), param.result");
+                        "return before(hookof('openCamera'), param), param.result");
         assertTrue(result.arg(1).toboolean());
         assertEquals("java.lang.IllegalArgumentException: Camera id 7 does not match any currently connected camera device",
                 result.arg(2).tojstring());
+    }
+
+    // The torch of a camera the app cannot see gets the error of the torch for an unknown id, which the probe asks
+    // with the torch off
+    @Test
+    public void torchIsUnknown() throws Exception {
+        Globals globals = camera("  error('not this probe')");
+        Varargs result = Scripts.run(globals,
+                "local param = cameraof('0')\n" +
+                        "return before(hookof('setTorchMode'), param), param.result, torch, probes");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("java.lang.IllegalArgumentException: Camera ID \"0\" is a not valid camera ID", result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals(0, result.arg(4).toint());
     }
 
     // The message of a Java exception in LuaJ has the form the probe reads, like the one of getCameraCharacteristics

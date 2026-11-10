@@ -17,19 +17,30 @@
 -- Copyright 2026 akano12
 
 -- The camera list of the app is empty, so every camera id is one the device does not have: the error of Android for
--- that, with the message of Android for the id the app asked for. Android words the message by version, so it is
--- taken from getCameraCharacteristics once per process, for an id no device has.
--- shortcut: getTorchStrengthLevel gets the message of getCameraCharacteristics, Android's own differs; take its own when an app is seen comparing them
+-- that, with the message of Android for the id the app asked for. Android words the message by version and method,
+-- so it is taken once per process from the same method for an id no device has, which changes nothing; the methods
+-- which need a callback take the message of getCameraCharacteristics.
 local PROBE = '1234567' -- a number, since Android 8.1 and 9 parse the ids as numbers
+local PROBES = {
+    getTorchStrengthLevel = function(manager) return manager:getTorchStrengthLevel(PROBE) end,
+    setTorchMode = function(manager) return manager:setTorchMode(PROBE, false) end,
+    turnOnTorchWithStrengthLevel = function(manager) return manager:turnOnTorchWithStrengthLevel(PROBE, 1) end,
+}
 
 function before(hook, param)
     local scope = param:getApplicationContext()
-    local message = param:getValue('camera.unknown', scope)
+    local method = hook:getMethodName()
+    local probe = PROBES[method]
+    if probe == nil then
+        method = 'getCameraCharacteristics'
+        probe = function(manager) return manager:getCameraCharacteristics(PROBE) end
+    end
+    local message = param:getValue('camera.unknown.' .. method, scope)
     if message == nil then
         local manager = param:getThis()
         local ok, err = pcall(function()
             return param:unhooked(function()
-                return manager:getCameraCharacteristics(PROBE)
+                return probe(manager)
             end)
         end)
         local text = nil
@@ -37,7 +48,7 @@ function before(hook, param)
             text = string.match(tostring(err), 'java%.lang%.IllegalArgumentException: (.*)$')
         end
         message = text or ('Camera id ' .. PROBE .. ' does not match any currently connected camera device')
-        param:putValue('camera.unknown', message, scope)
+        param:putValue('camera.unknown.' .. method, message, scope)
     end
 
     -- The id is replaced by plain text, so ids with % or other pattern characters are safe
