@@ -66,6 +66,8 @@ public class IntentScriptTest {
             "    function bundle:remove(key) self.values[key] = nil end",
             "    function bundle:getInt(key, default) return self.values[key] or default end",
             "    function bundle:getString(key) return self.values[key] end",
+            "    bundle.getStringArray = bundle.getString",
+            "    bundle.getIntArray = bundle.getString",
             "    function bundle:put(key, value) self.values[key] = value end",
             "    bundle.putInt = bundle.put",
             "    bundle.putString = bundle.put",
@@ -219,6 +221,30 @@ public class IntentScriptTest {
         assertEquals(0, result.arg(2).toint());
         assertEquals(0, result.arg(3).toint());
         assertEquals("int", result.arg(4).tojstring());
+    }
+
+    // The visible packages of a list stay with their user ids, like the app itself
+    @Test
+    public void suspendedPackagesKeepVisibleOnes() {
+        Varargs result = run(
+                "local intent = intentof('android.intent.action.PACKAGES_SUSPENDED', {\n" +
+                        "  ['android.intent.extra.changed_package_list'] = { length = 2, 'com.example.app', 'com.example.bank' },\n" +
+                        "  ['android.intent.extra.changed_uid_list'] = { length = 2, 10001, 10060 } })\n" +
+                        "local restricted = after(hookof('Intent.createFromParcel/package'), paramof(intent))\n" +
+                        "local packages = intent.extras['android.intent.extra.changed_package_list']\n" +
+                        "local uids = intent.extras['android.intent.extra.changed_uid_list']\n" +
+                        "return restricted, packages.length, packages[1], uids.length, uids[1]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertEquals("com.example.app", result.arg(3).tojstring());
+        assertEquals(1, result.arg(4).toint());
+        assertEquals(10001, result.arg(5).toint());
+        // Only visible packages: nothing changes
+        Varargs same = run(
+                "local intent = intentof('android.intent.action.PACKAGES_UNSUSPENDED', {\n" +
+                        "  ['android.intent.extra.changed_package_list'] = { length = 1, 'com.example.app' } })\n" +
+                        "return after(hookof('Intent.createFromParcel/package'), paramof(intent))");
+        assertFalse(same.arg(1).toboolean());
     }
 
     // With USB debugging off the USB state has the function mtp for charging only

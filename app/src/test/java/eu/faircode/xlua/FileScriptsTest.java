@@ -612,6 +612,18 @@ public class FileScriptsTest {
         assertFalse(filterMatches(filter, "/data/user/0/test.app/files/a.db"));
     }
 
+    // The permissions of the platform, which every AOSP build has, stay; those of the system apps of makers do not
+    @Test
+    public void platformPermissionsStay() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local apps = hookof('Get.Applications')\n" +
+                        "return hidden(apps, '/system/etc/permissions/privapp-permissions-platform.xml'),\n" +
+                        "  hidden(apps, '/system/etc/permissions/privapp-permissions-com.samsung.android.dialer.xml')");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+    }
+
     // The folders of system apps list without names by any form of their path, also by the compatibility links of
     // /system to the other partitions, which the filter passes too
     @Test

@@ -378,6 +378,10 @@ function matched(group, path, param)
         if name ~= nil then
             return hiddenapp(param, name)
         end
+        -- The permissions of the platform itself, which every AOSP build has, name no app of a maker
+        if string.find(plain, '/privapp%-permissions%-platform%.xml$') then
+            return false
+        end
     end
     if group == 'Use.Tracking' and string.find(path, 'fonts', 1, true) then
         if brandfont(plain) then

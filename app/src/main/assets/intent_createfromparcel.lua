@@ -145,17 +145,39 @@ function after(hook, param)
         end
         return true
     elseif kind == 'lists' then
-        -- No packages and no user ids, empty, because receivers iterate them
+        -- The visible packages with their user ids, which are at the same index, empty when none is left,
+        -- because receivers iterate them
         local extras = intent:getExtras()
         if extras == nil then
             return false
         end
+        local packages = extras:getStringArray('android.intent.extra.changed_package_list')
+        local uids = extras:getIntArray('android.intent.extra.changed_uid_list')
+        local keptPackages, keptUids = {}, {}
+        local count = (packages ~= nil and packages['length'] or 0)
+        for index = 1, count do
+            if param:isPackageVisible(packages[index]) then
+                keptPackages[#keptPackages + 1] = packages[index]
+                if uids ~= nil and index <= uids['length'] then
+                    keptUids[#keptUids + 1] = uids[index]
+                end
+            end
+        end
+        if #keptPackages == count then
+            return false
+        end
         local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-        extras:putStringArray('android.intent.extra.changed_package_list',
-                arrayClass:newInstance(luajava.bindClass('java.lang.String'), 0))
-        if extras:containsKey('android.intent.extra.changed_uid_list') then
-            extras:putIntArray('android.intent.extra.changed_uid_list',
-                    arrayClass:newInstance(luajava.bindClass('java.lang.Integer').TYPE, 0))
+        local names = arrayClass:newInstance(luajava.bindClass('java.lang.String'), #keptPackages)
+        for index = 1, #keptPackages do
+            names[index] = keptPackages[index]
+        end
+        extras:putStringArray('android.intent.extra.changed_package_list', names)
+        if uids ~= nil then
+            local ids = arrayClass:newInstance(luajava.bindClass('java.lang.Integer').TYPE, #keptUids)
+            for index = 1, #keptUids do
+                ids[index] = keptUids[index]
+            end
+            extras:putIntArray('android.intent.extra.changed_uid_list', ids)
         end
         intent:replaceExtras(extras)
         return true
