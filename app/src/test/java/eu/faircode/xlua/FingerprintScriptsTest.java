@@ -21,6 +21,7 @@ package eu.faircode.xlua;
 
 import org.junit.Test;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import java.io.IOException;
@@ -50,6 +51,8 @@ public class FingerprintScriptsTest {
             "  param.setArgument = function(self, index, value) self.args[index] = value end",
             "  param.getException = function(self) return nil end",
             "  param.unhooked = function(self, f) return f() end",
+            "  param.getThis = function(self) return self.this end",
+            "  param.getValue = function(self, name, scope) return nil end",
             "  param.isInstance = function(self, object, name) return false end",
             "  return param",
             "end",
@@ -62,6 +65,13 @@ public class FingerprintScriptsTest {
             "        next = function(self) index = index + 1 return values[index] end }",
             "    end }",
             "end");
+
+    private static String text(Varargs values) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 1; i <= values.narg(); i++)
+            sb.append(i > 1 ? " " : "").append(values.arg(i).tojstring());
+        return sb.toString();
+    }
 
     private static Globals load(String script) throws Exception {
         return Scripts.load(script, STUBS);
@@ -471,13 +481,52 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(6).toboolean());
     }
 
+    // The GPS tags the app set on the object read back, also as the location; tags the media provider zeroed stay like
+    // Android gives them; the XMP has its GPS properties blanked with the same length, as text and as bytes
+    @Test
+    public void photoTagsOfTheAppAndOfAndroidStay() throws Exception {
+        Globals globals = load("photo_location");
+        Varargs result = Scripts.run(globals,
+                "local exif = { getAttribute = function(self, tag) return ({ GPSLatitudeRef = '', GPSAltitude = '0/0' })[tag] end }\n" +
+                        "local values = {}\n" +
+                        "local function on(param) param.getThis = function() return exif end\n" +
+                        "  param.putValue = function(self, name, value, scope) values[name] = value end\n" +
+                        "  param.getValue = function(self, name, scope) return values[name] end return param end\n" +
+                        "after(hookof('setAttribute'), on(paramof(nil, { [0] = 'GPSLatitude', [1] = '52/1,31/1,0/1' })))\n" +
+                        "after(hookof('setAttribute'), on(paramof(nil, { [0] = 'GPSLongitude', [1] = '13/1,24/1,0/1' })))\n" +
+                        "local set = on(paramof('52/1,31/1,0/1', { [0] = 'GPSLatitude' }))\n" +
+                        "local latlong = on(paramof(true, { [0] = 'array' }))\n" +
+                        "after(hookof('getLatLong', 'boolean'), latlong)\n" +
+                        "local ref = on(paramof('', { [0] = 'GPSLatitudeRef' }))\n" +
+                        "local has = on(paramof(true, { [0] = 'GPSAltitude' }))\n" +
+                        "local double = on(paramof(0, { [0] = 'GPSAltitude', [1] = -1 }))\n" +
+                        "local real = on(paramof('120/1', { [0] = 'GPSImgDirection' }))\n" +
+                        "after(hookof('setAttribute'), on(paramof(nil, { [0] = 'GPSLongitude' })))\n" +
+                        "local removed = on(paramof(true, { [0] = 'array' }))\n" +
+                        "after(hookof('getLatLong', 'boolean'), removed)\n" +
+                        "return after(hookof('getAttribute'), set), set.result, latlong.result, after(hookof('getAttribute'), ref),\n" +
+                        "  after(hookof('hasAttribute', 'boolean'), has), has.result, after(hookof('getAttributeDouble'), double),\n" +
+                        "  after(hookof('getAttribute'), real), real.result, removed.result");
+        assertEquals("false 52/1,31/1,0/1 true false false true false true nil false", text(result));
+
+        String xmp = "<rdf:Description exif:GPSLatitude=\"52,30.12N\" tiff:Make=\"Pixel\">" +
+                "<exif:GPSLongitude>13,24.5E</exif:GPSLongitude><dc:title>Caf\u00e9</dc:title></rdf:Description>";
+        String blanked = "<rdf:Description exif:GPSLatitude=\"         \" tiff:Make=\"Pixel\">" +
+                "<exif:GPSLongitude>        </exif:GPSLongitude><dc:title>Caf\u00e9</dc:title></rdf:Description>";
+        LuaValue blank = globals.get("blankxmp").call(LuaValue.valueOf(xmp));
+        assertEquals(blanked, blank.tojstring());
+        assertEquals(xmp.length(), blank.tojstring().length());
+        // The bytes of getAttributeBytes, of the same length
+        LuaValue bytes = globals.get("xmp").call(LuaValue.NIL,
+                org.luaj.vm2.lib.jse.CoerceJavaToLua.coerce(xmp.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1)));
+        assertArrayEquals(blanked.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1), (byte[]) bytes.touserdata(byte[].class));
+    }
+
     @Test
     public void photosHaveNoLocation() throws Exception {
         Globals globals = load("photo_location");
         Varargs result = Scripts.run(globals,
-                "local original = paramof('content://media/1?requireOriginal=1', { [0] = 'content://media/1' })\n" +
-                        "after(hookof('setRequireOriginal'), original)\n" +
-                        "local tag = paramof('52/1,31/1,0/1', { [0] = 'GPSLatitude' })\n" +
+                "local tag = paramof('52/1,31/1,0/1', { [0] = 'GPSLatitude' })\n" +
                         "after(hookof('getAttribute'), tag)\n" +
                         "local model = paramof('Pixel', { [0] = 'Model' })\n" +
                         "local int = paramof(3, { [0] = 'GPSAltitudeRef', [1] = -1 })\n" +
@@ -493,10 +542,9 @@ public class FingerprintScriptsTest {
                         "local video = paramof('+52.5200+013.4050/', { [0] = 23 })\n" +
                         "after(hookof('extractMetadata'), video)\n" +
                         "local title = paramof('Holiday', { [0] = 7 })\n" +
-                        "return original.result, tag.result, after(hookof('getAttribute'), model), model.result, int.result,\n" +
+                        "return 'unused', tag.result, after(hookof('getAttribute'), model), model.result, int.result,\n" +
                         "  latlong.result, doubles.result, altitude.result, time.result, video.result,\n" +
                         "  after(hookof('extractMetadata'), title)");
-        assertEquals("content://media/1", result.arg1().tojstring());
         assertTrue(result.arg(2).isnil());
         assertFalse(result.arg(3).toboolean());
         assertEquals("Pixel", result.arg(4).tojstring());

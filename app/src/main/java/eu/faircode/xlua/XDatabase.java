@@ -248,7 +248,10 @@ class XDatabase {
             "Vibrator.areAllPrimitivesSupported", "Vibrator.getPrimitiveDurations", "Vibrator.getResonantFrequency",
             "Vibrator.getQFactor", "Vibrator.getInfo",
             // The callbacks of install sessions are told about the sessions of the app itself, see install_sessions.lua
-            "PackageInstaller.registerSessionCallback", "PackageInstaller.registerSessionCallback/handler"
+            "PackageInstaller.registerSessionCallback", "PackageInstaller.registerSessionCallback/handler",
+            // The media provider decides by the permission alone whether a photo has its location, so the URI the hook
+            // gave back changed nothing but was not the one of Android; the readers of the tags are hooked
+            "MediaStore.setRequireOriginal"
     };
 
     // Settings of all users and apps which no script reads anymore, removed on each start, see upgrade

@@ -6223,21 +6223,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Location",
-    "name": "MediaStore.setRequireOriginal",
-    "author": "akano12",
-    "className": "android.provider.MediaStore",
-    "methodName": "setRequireOriginal",
-    "parameterTypes": [
-      "android.net.Uri"
-    ],
-    "returnType": "android.net.Uri",
-    "minSdk": 29,
-    "excludePackages": "android",
-    "luaScript": "@photo_location"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Location",
     "name": "MediaMetadataRetriever.extractMetadata",
     "author": "akano12",
     "className": "android.media.MediaMetadataRetriever",
@@ -6247,7 +6232,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 27,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6262,7 +6247,7 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 27,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6278,7 +6263,7 @@
     ],
     "returnType": "int",
     "minSdk": 27,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6294,7 +6279,7 @@
     ],
     "returnType": "double",
     "minSdk": 27,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6309,7 +6294,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6324,7 +6309,7 @@
     ],
     "returnType": "double",
     "minSdk": 27,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6339,7 +6324,7 @@
     ],
     "returnType": "byte[]",
     "minSdk": 29,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6354,7 +6339,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 29,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6369,7 +6354,7 @@
     ],
     "returnType": "long[]",
     "minSdk": 29,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6385,7 +6370,7 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6402,7 +6387,7 @@
     "returnType": "int",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6419,7 +6404,7 @@
     "returnType": "double",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6435,7 +6420,7 @@
     "returnType": "boolean",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6451,7 +6436,7 @@
     "returnType": "double",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6467,7 +6452,7 @@
     "returnType": "byte[]",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6483,7 +6468,7 @@
     "returnType": "boolean",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6499,7 +6484,7 @@
     "returnType": "long[]",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6515,7 +6500,7 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6532,7 +6517,7 @@
     "returnType": "int",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6549,7 +6534,7 @@
     "returnType": "double",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6565,7 +6550,7 @@
     "returnType": "boolean",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6581,7 +6566,7 @@
     "returnType": "double",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6597,7 +6582,7 @@
     "returnType": "boolean",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6610,7 +6595,7 @@
     "parameterTypes": [],
     "returnType": "long",
     "minSdk": 31,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6624,7 +6609,7 @@
     "returnType": "double[]",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6638,7 +6623,7 @@
     "returnType": "java.lang.Long",
     "minSdk": 27,
     "optional": true,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   // The location columns of MediaStore, which Android 10 and later leave empty (photo_location)
@@ -6659,7 +6644,7 @@
     "minSdk": 27,
     "maxSdk": 28,
     "usage": false,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   {
@@ -6679,7 +6664,58 @@
     "minSdk": 27,
     "maxSdk": 28,
     "usage": false,
-    "excludePackages": "android",
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  // The GPS tags an app sets on an ExifInterface read back on that object, like a photo it writes (photo_location)
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.setAttribute",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "methodName": "setAttribute",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.setAttribute",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "methodName": "setAttribute",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceS.setAttribute",
+    "author": "akano12",
+    "className": "android.support.media.ExifInterface",
+    "methodName": "setAttribute",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
   // Get messages
