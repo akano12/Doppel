@@ -50,6 +50,13 @@ local SUBSCRIPTION = {
     { ' countryIso=', '', { ' isEmbedded=', ' profileClass=' } },
     -- Android 10, right after the MNC
     { 'mCountryIso=', '', { ' isEmbedded ' } },
+    -- The rules of the certificates of the carrier and its app, which name the carrier: none, like a SIM without
+    -- them, of the test network; Android 11 and later, Android 8.1 to 10 print one list (accessRules)
+    { ' nativeAccessRules=', 'null', { ' carrierConfigAccessRules=', ' cardString=' } },
+    { ' carrierConfigAccessRules=', 'null', { ' countryIso=', ' areUiccApplicationsEnabled=' } },
+    { ' accessRules ', 'null', { ' cardString=', ' cardId=' } },
+    { ' groupOwner=', '', { ' isGroupDisabled=', ' carrierConfigAccessRules=' } },
+    { ' mGroupOwner=', '', { '}' } },
 }
 -- The network codes, like getMcc and getMnc, and the home networks, which are made of them
 -- and have no getter for apps: Android 11 to 13, and 14 and later

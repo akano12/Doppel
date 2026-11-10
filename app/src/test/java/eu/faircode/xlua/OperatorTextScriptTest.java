@@ -71,6 +71,22 @@ public class OperatorTextScriptTest {
         return after(SUBSCRIPTION, PLMN, after(SUBSCRIPTION, OPERATOR, text).arg(2).tojstring()).arg(2).tojstring();
     }
 
+    // The rules of the certificates of the carrier and the app owning the group name the carrier: none, like a SIM of
+    // the test network, in the forms of Android 14, 11 to 13 and 8.1 to 10
+    @Test
+    public void subscriptionAccessRules() {
+        String rules = "[cert: 7A2B pkg: com.carrier.app access: 0]";
+        assertEquals(" groupOwner= isGroupDisabled=false cardId=0 nativeAccessRules=null carrierConfigAccessRules=null countryIso=",
+                after(SUBSCRIPTION, OPERATOR, " groupOwner=com.carrier.app isGroupDisabled=false cardId=0 nativeAccessRules=" +
+                        rules + " carrierConfigAccessRules=" + rules + " countryIso=").arg(2).tojstring());
+        assertEquals(" nativeAccessRules=null cardString=[****] groupOwner= carrierConfigAccessRules=null areUiccApplicationsEnabled=true",
+                after(SUBSCRIPTION, OPERATOR, " nativeAccessRules=" + rules + " cardString=[****] groupOwner=com.carrier.app" +
+                        " carrierConfigAccessRules=" + rules + " areUiccApplicationsEnabled=true").arg(2).tojstring());
+        assertEquals(" accessRules null cardString=[****] cardId=0 mGroupOwner=}",
+                after(SUBSCRIPTION, OPERATOR, " accessRules " + rules + " cardString=[****] cardId=0 mGroupOwner=com.carrier.app}")
+                        .arg(2).tojstring());
+    }
+
     @Test
     public void serviceState() {
         Varargs result = after(SERVICE_STATE,
