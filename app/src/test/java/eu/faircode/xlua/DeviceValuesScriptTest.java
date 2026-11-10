@@ -308,6 +308,43 @@ public class DeviceValuesScriptTest {
         assertFalse(result.arg(3).toboolean());
     }
 
+    // A prompt for biometrics gets the error of a device without them on its executor, without the dialog; a prompt
+    // which allows the screen lock too (by its authenticators or without a negative button), and a call without its
+    // arguments, go to Android
+    @Test
+    public void biometricPromptHasNoHardware() throws Exception {
+        Globals globals = load("biometric_prompt");
+        Varargs result = Scripts.run(globals,
+                "luajava = { createProxy = function(name, object) return object end,\n" +
+                        "  bindClass = function(name) return { getSystem = function(self) return {\n" +
+                        "    getIdentifier = function(self, n, t, p) return 7 end,\n" +
+                        "    getString = function(self, id) return 'Biometric hardware unavailable' end } end } end }\n" +
+                        "local errors = {}\n" +
+                        "local executor = { execute = function(self, runnable) runnable.run() end }\n" +
+                        "local callback = { onAuthenticationError = function(self, code, text)\n" +
+                        "  errors[#errors + 1] = code .. ' ' .. text end }\n" +
+                        "local function prompt(authenticators, negative) return {\n" +
+                        "  getAllowedAuthenticators = function(self) return authenticators end,\n" +
+                        "  getNegativeButtonText = function(self) return negative end } end\n" +
+                        "local function call(authenticators, args, negative) local param = paramof('real', args)\n" +
+                        "  param.getThis = function(self) return prompt(authenticators, negative) end\n" +
+                        "  local hook = { getParameterTypes = function(self) return { length = 3 } end }\n" +
+                        "  return before(hook, param), param.result == nil end\n" +
+                        "local cancel = 'Cancel'\n" +
+                        "local weak, set = call(255, { [0] = 'cancel', [1] = executor, [2] = callback }, cancel)\n" +
+                        "local credential = call(255 + 32768, { [0] = 'cancel', [1] = executor, [2] = callback }, nil)\n" +
+                        "local deprecated = call(0, { [0] = 'cancel', [1] = executor, [2] = callback }, '')\n" +
+                        "local missing = call(255, { [0] = 'cancel', [1] = nil, [2] = callback }, cancel)\n" +
+                        "return weak, set, errors[1], #errors, credential, missing, deprecated");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("12 Biometric hardware unavailable", result.arg(3).tojstring());
+        assertEquals(1, result.arg(4).toint());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+    }
+
     // The version of the DRM plugin with the fake build of the firmware, like Build.ID; other properties stay
     @Test
     public void drmVersionWithFakeBuild() throws Exception {

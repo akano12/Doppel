@@ -18418,6 +18418,42 @@
     "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
+  // BiometricPrompt asks the service, which shows the real dialog of the sensors from Android 11 (biometric_prompt)
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricPrompt.authenticate",
+    "author": "akano12",
+    "className": "android.hardware.biometrics.BiometricPrompt",
+    "methodName": "authenticate",
+    "parameterTypes": [
+      "android.os.CancellationSignal",
+      "java.util.concurrent.Executor",
+      "android.hardware.biometrics.BiometricPrompt$AuthenticationCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@biometric_prompt"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricPrompt.authenticate/crypto",
+    "author": "akano12",
+    "className": "android.hardware.biometrics.BiometricPrompt",
+    "methodName": "authenticate",
+    "parameterTypes": [
+      "android.hardware.biometrics.BiometricPrompt$CryptoObject",
+      "android.os.CancellationSignal",
+      "java.util.concurrent.Executor",
+      "android.hardware.biometrics.BiometricPrompt$AuthenticationCallback"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@biometric_prompt"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Features",
