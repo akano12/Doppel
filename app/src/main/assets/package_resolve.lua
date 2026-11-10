@@ -146,8 +146,18 @@ function after(hook, param)
         return true
     elseif method == 'checkPermission' then
         -- A permission of a user id which is not in use is denied, which Android says for ones of hidden apps
-        if result ~= 0 or param:isUidVisible(param:getArgument(2)) then
+        if result ~= 0 then
             return false
+        end
+        if param:isUidVisible(param:getArgument(2)) then
+            -- A permission which a hidden app defines, like the own permission of a messenger: no app defines it
+            local permission = param:getArgument(0)
+            local owner = (permission ~= nil and permissionowner(param, permission) or nil)
+            if owner == nil or param:isPackageVisible(owner) then
+                return false
+            end
+            param:setResult(-1) -- PackageManager.PERMISSION_DENIED
+            return true, owner
         end
         param:setResult(-1) -- PackageManager.PERMISSION_DENIED
         return true, tostring(param:getArgument(2))
@@ -242,6 +252,24 @@ function after(hook, param)
     end
     param:setResult(nil)
     return true, packageName
+end
+
+-- The app which defines a permission, nil when none does; asked without the hooks of the app, once per process,
+-- since Context.checkPermission runs for most permission checks of the app; the same function as in package_probe
+function permissionowner(param, permission)
+    local context = param:getApplicationContext()
+    local key = 'permission.owner.' .. permission
+    local owner = param:getValue(key, context)
+    if owner == nil then
+        local ok, name = pcall(function()
+            return param:unhooked(function()
+                return context:getPackageManager():getPermissionInfo(permission, 0).packageName
+            end)
+        end)
+        owner = (ok and name or '')
+        param:putValue(key, owner, context)
+    end
+    return (owner ~= '' and owner or nil)
 end
 
 -- Without a package or a component, like a link

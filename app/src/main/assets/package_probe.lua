@@ -196,9 +196,37 @@ function before(hook, param)
     return true, substitutes[1][2]
 end
 
+-- The app which defines a permission, nil when none does; asked without the hooks of the app, once per process,
+-- since Context.checkPermission runs for most permission checks of the app; the same function as in package_resolve
+function permissionowner(param, permission)
+    local context = param:getApplicationContext()
+    local key = 'permission.owner.' .. permission
+    local owner = param:getValue(key, context)
+    if owner == nil then
+        local ok, name = pcall(function()
+            return param:unhooked(function()
+                return context:getPackageManager():getPermissionInfo(permission, 0).packageName
+            end)
+        end)
+        owner = (ok and name or '')
+        param:putValue(key, owner, context)
+    end
+    return (owner ~= '' and owner or nil)
+end
+
 -- Android answered for a package which is not installed, an exception has the name the app asked for
 function after(hook, param)
     local substitutes = table.remove(calls)
+    -- A permission of a hidden app which a visible package holds: a permission no app defines, which is denied
+    if not substitutes and hook:getMethodName() == 'checkPermission' and param:getException() == nil and
+            param:getResult() == 0 then
+        local permission = param:getArgument(0)
+        local owner = (permission ~= nil and permissionowner(param, permission) or nil)
+        if owner ~= nil and not param:isPackageVisible(owner) then
+            param:setResult(-1) -- PackageManager.PERMISSION_DENIED
+            return true, owner
+        end
+    end
     if not substitutes then
         return false
     end

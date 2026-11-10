@@ -690,6 +690,56 @@ public class PackageScriptsTest {
         assertFalse(shared.arg(6).toboolean());
     }
 
+    // A permission which a hidden app defines, like the own permission of a messenger, is denied to the app like a
+    // permission no app defines; asked once per process, by Context.checkPermission and PackageManager.checkPermission
+    @Test
+    public void permissionsOfHiddenAppsAreDenied() throws Exception {
+        String context = "local owners = { ['com.whatsapp.permission.X'] = 'com.whatsapp',\n" +
+                "  ['android.permission.CAMERA'] = 'android' }\n" +
+                "asked = 0\n" +
+                "local values = { getPackageManager = function(self) return { getPermissionInfo = function(self, name, flags)\n" +
+                "  asked = asked + 1\n" +
+                "  if owners[name] == nil then error('NameNotFoundException') end\n" +
+                "  return { packageName = owners[name] } end } end }\n" +
+                "local function check(args, visible)\n" +
+                "  local param = paramof(args, visible, values)\n" +
+                "  param.result = 0\n" +
+                "  param.unhooked = function(self, fn) return fn() end\n" +
+                "  return param\n" +
+                "end\n";
+        Varargs resolve = Scripts.run(load("package_resolve"), context +
+                "local hook = hookof('Context.checkPermission', 'checkPermission')\n" +
+                "local hidden = check({ [0] = 'com.whatsapp.permission.X', [2] = 10001 }, { [10001] = true, android = true })\n" +
+                "local again = check({ [0] = 'com.whatsapp.permission.X', [2] = 10001 }, { [10001] = true, android = true })\n" +
+                "local system = check({ [0] = 'android.permission.CAMERA', [2] = 10001 }, { [10001] = true, android = true })\n" +
+                "local none = check({ [0] = 'com.example.UNDEFINED', [2] = 10001 }, { [10001] = true })\n" +
+                "local r1, owner = after(hook, hidden)\n" +
+                "after(hook, again)\n" +
+                "return r1, owner, hidden.result, again.result, after(hook, system), system.result, after(hook, none), asked");
+        assertTrue(resolve.arg(1).toboolean());
+        assertEquals("com.whatsapp", resolve.arg(2).tojstring());
+        assertEquals(-1, resolve.arg(3).toint());
+        assertEquals(-1, resolve.arg(4).toint());
+        assertFalse(resolve.arg(5).toboolean());
+        assertEquals(0, resolve.arg(6).toint());
+        assertFalse(resolve.arg(7).toboolean());
+        // Once per permission and process: whatsapp, camera, the undefined one
+        assertEquals(3, resolve.arg(8).toint());
+
+        Varargs probe = Scripts.run(load("package_probe"), context +
+                "local hook = hookof('PackageManager.checkPermission', 'checkPermission')\n" +
+                "local param = check({ [0] = 'com.whatsapp.permission.X', [1] = 'test.app' }, { ['test.app'] = true })\n" +
+                "param.getPackageName = function() return 'test.app' end\n" +
+                "before(hook, param)\n" +
+                "local restricted, owner = after(hook, param)\n" +
+                "return restricted, owner, param.result");
+        assertTrue(probe.arg(1).toboolean());
+        assertEquals("com.whatsapp", probe.arg(2).tojstring());
+        assertEquals(-1, probe.arg(3).toint());
+        // The two copies of the lookup stay the same
+        assertEquals(Scripts.function("package_probe", "permissionowner"), Scripts.function("package_resolve", "permissionowner"));
+    }
+
     // The names of several user ids: null for the user ids of hidden apps, like for user ids which are not in use
     @Test
     public void namesOfHiddenUids() throws Exception {
