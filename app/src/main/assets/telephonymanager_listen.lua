@@ -30,6 +30,12 @@ function before(h, param)
         return true
     end
 
+    -- Without a location permission Android throws a SecurityException for the events of the cells, so they stay
+    local context = param:getApplicationContext()
+    if context:checkSelfPermission('android.permission.ACCESS_COARSE_LOCATION') ~= 0 and
+            context:checkSelfPermission('android.permission.ACCESS_FINE_LOCATION') ~= 0 then
+        return false
+    end
     local restricted = false
     -- Subtracted, not bit32.bxor, which makes the negative int of the highest bit a number an int cannot hold
     if bit32.band(events, 16) ~= 0 then -- cell location

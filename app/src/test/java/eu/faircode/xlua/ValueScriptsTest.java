@@ -232,17 +232,24 @@ public class ValueScriptsTest {
         Globals globals = load("telephonymanager_listen");
         Scripts.run(globals, "function listenof(variant)\n" +
                 "  return { getName = function(self) return 'TelephonyManager.listen' .. (variant and '/' .. variant or '') end }\n" +
-                "end");
-        Varargs result = Scripts.run(globals, "local param = paramof(nil, { [0] = 'listener', [1] = 16 + 1024 + 1 })\n" +
+                "end\n" +
+                "function located(param, granted) param.getApplicationContext = function(self) return {\n" +
+                "  checkSelfPermission = function(self, name) return granted and 0 or -1 end } end return param end");
+        Varargs result = Scripts.run(globals, "local param = located(paramof(nil, { [0] = 'listener', [1] = 16 + 1024 + 1 }), true)\n" +
                 "return before(listenof(), param), param.args[1]");
         assertTrue(result.arg1().toboolean());
         assertEquals(1, result.arg(2).toint());
-        check(globals, "return before_(listenof(), paramof(nil, { [0] = 'listener', [1] = 1 }))", false, false, null);
+        check(globals, "return before_(listenof(), located(paramof(nil, { [0] = 'listener', [1] = 1 }), true))", false, false, null);
+        // Without a location permission the events stay, which Android refuses with a SecurityException
+        result = Scripts.run(globals, "local param = located(paramof(nil, { [0] = 'listener', [1] = 16 + 1 }), false)\n" +
+                "return before(listenof(), param), param.args[1]");
+        assertFalse(result.arg1().toboolean());
+        assertEquals(17, result.arg(2).toint());
 
         // With the highest bit (LISTEN_BARRING_INFO) the events are a negative int, which must stay an int
         for (int events : new int[]{0x80000010, 0x80000400}) {
             globals.set("events", LuaValue.valueOf(events));
-            result = Scripts.run(globals, "local param = paramof(nil, { [0] = 'listener', [1] = events })\n" +
+            result = Scripts.run(globals, "local param = located(paramof(nil, { [0] = 'listener', [1] = events }), true)\n" +
                     "return before(listenof(), param), param.args[1]");
             assertTrue(result.arg1().toboolean());
             Object value = XParam.coerceValue(int.class, CoerceLuaToJava.coerce(result.arg(2), Object.class));

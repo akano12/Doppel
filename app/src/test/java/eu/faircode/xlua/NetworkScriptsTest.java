@@ -888,21 +888,32 @@ public class NetworkScriptsTest {
         Globals globals = load("telephonymanager_requestcellinfoupdate");
         Varargs result = Scripts.run(globals,
                 "luajava = { createProxy = function(name, object) assert(name == 'java.lang.Runnable') return object end,\n" +
-                        "  newInstance = function(name) return { isEmpty = function() return true end } end }\n" +
+                        "  newInstance = function(name, runnable)\n" +
+                        "    if name == 'java.lang.Thread' then return { start = function(self) thread = true runnable:run() end } end\n" +
+                        "    return { isEmpty = function() return true end } end }\n" +
+                        "function permitted(param, granted) param.getApplicationContext = function(self) return {\n" +
+                        "  checkSelfPermission = function(self, name) return granted and 0 or -1 end } end return param end\n" +
                         "local answer\n" +
                         "local executor = { execute = function(self, runnable) runnable:run() end }\n" +
                         "local callback = { onCellInfo = function(self, cells) answer = cells end }\n" +
-                        "local param = paramof(nil, { [0] = executor, [1] = callback })\n" +
-                        "return before(hookof('requestCellInfoUpdate'), param), param.set, answer:isEmpty()");
+                        "local param = permitted(paramof(nil, { [0] = executor, [1] = callback }), true)\n" +
+                        "local denied = permitted(paramof(nil, { [0] = executor, [1] = callback }), false)\n" +
+                        "return before(hookof('requestCellInfoUpdate'), param), param.set, answer:isEmpty(), thread,\n" +
+                        "  before(hookof('requestCellInfoUpdate'), denied), denied.set");
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
+        // On a thread of its own, like Android answers from the binder
+        assertTrue(result.arg(4).toboolean());
+        // Without a location permission Android refuses the request itself
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
 
         // An app which fails on no cells, with a direct executor, does not let the real request through
         Varargs failing = Scripts.run(globals,
                 "local executor = { execute = function(self, runnable) runnable:run() end }\n" +
                         "local callback = { onCellInfo = function(self, cells) error('no cells') end }\n" +
-                        "local param = paramof(nil, { [0] = executor, [1] = callback })\n" +
+                        "local param = permitted(paramof(nil, { [0] = executor, [1] = callback }), true)\n" +
                         "return before(hookof('requestCellInfoUpdate'), param), param.set");
         assertTrue(failing.arg(1).toboolean());
         assertTrue(failing.arg(2).toboolean());
