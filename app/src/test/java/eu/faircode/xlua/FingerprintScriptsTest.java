@@ -359,6 +359,26 @@ public class FingerprintScriptsTest {
         assertEquals("3", result.arg(3).tojstring());
         assertEquals(3, result.arg(4).toint());
         assertFalse(result.arg(5).toboolean());
+
+        // From Android 12 the set Android keeps, which cannot be changed, the same for each call
+        Globals cached = load("system_fonts");
+        result = Scripts.run(cached,
+                "local bind = luajava.bindClass\n" +
+                        "luajava.bindClass = function(name) if name == 'android.os.Build$VERSION' then return { SDK_INT = 34 } end\n" +
+                        "  return bind(name) end\n" +
+                        "local values = {}\n" +
+                        "local function call(fonts) local p = paramof(fonts)\n" +
+                        "  p.getValue = function(self, name, scope) return values[name] end\n" +
+                        "  p.putValue = function(self, name, value, scope) values[name] = value end\n" +
+                        "  after(hookof('getAvailableFonts'), p) return p.result end\n" +
+                        "local function font(name) return { getFile = function(self)\n" +
+                        "  return { getName = function(self) return name end } end } end\n" +
+                        "local one = call(collection({ font('Roboto-Regular.ttf'), font('SamsungOne-400.ttf') }))\n" +
+                        "local two = call(collection({ font('Roboto-Regular.ttf'), font('SamsungOne-400.ttf') }))\n" +
+                        "return one == two, one:size(), pcall(function() one:clear() end)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
     }
 
     @Test
@@ -463,7 +483,8 @@ public class FingerprintScriptsTest {
                         "  after(hookof('open'), failed), failed.set");
         assertTrue(result.arg1().toboolean());
         assertEquals("1", result.arg(2).tojstring());
-        assertEquals(text, result.arg(3).tojstring());
+        // As long as the file, by spaces after the root element
+        assertEquals(text + " ".repeat(xml.length() - text.length()), result.arg(3).tojstring());
         for (int i = 4; i <= 11; i++)
             assertFalse(String.valueOf(i), result.arg(i).toboolean());
 

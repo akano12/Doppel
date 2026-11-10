@@ -36,7 +36,17 @@ function after(hook, param)
     if result == nil or param:getException() ~= nil then
         return false
     end
-    local kept = luajava.newInstance('java.util.LinkedHashSet')
+    -- From Android 12 the set Android keeps, which cannot be changed, the same for each call; before a new HashSet
+    local sdk = luajava.bindClass('android.os.Build$VERSION').SDK_INT
+    local scope = luajava.bindClass('android.graphics.fonts.SystemFonts')
+    if sdk >= 31 then
+        local cached = param:getValue('fonts', scope)
+        if cached ~= nil then
+            param:setResult(cached)
+            return true
+        end
+    end
+    local kept = luajava.newInstance(sdk >= 31 and 'java.util.LinkedHashSet' or 'java.util.HashSet')
     local iterator = result:iterator()
     while iterator:hasNext() do
         local font = iterator:next()
@@ -47,6 +57,10 @@ function after(hook, param)
     end
     if kept:size() == result:size() then
         return false
+    end
+    if sdk >= 31 then
+        kept = luajava.bindClass('java.util.Collections'):unmodifiableSet(kept)
+        param:putValue('fonts', kept, scope)
     end
     param:setResult(kept)
     return true, tostring(result:size()), tostring(kept:size())

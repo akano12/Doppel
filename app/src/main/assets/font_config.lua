@@ -106,9 +106,14 @@ function after(hook, param)
     if param:getException() ~= nil or param:getResult() == nil or not config(param) then
         return false
     end
-    local text, count = filtered(param:getFileText())
+    local original = param:getFileText()
+    local text, count = filtered(original)
     if count == 0 then
         return false
+    end
+    -- As long as the file, which stat and File.length give, by spaces after the root element, which XML allows
+    if #text < #original then
+        text = text .. string.rep(' ', #original - #text)
     end
     param:setFileText(text)
     return true, tostring(count)
