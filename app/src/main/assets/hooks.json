@@ -17052,6 +17052,31 @@
     "usage": false,
     "luaScript": "@generic_unknown_value"
   },
+  // The emergency numbers of the carrier name its country and network, like the operator (test_network)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "EmergencyNumber.getCountryIso",
+    "author": "akano12",
+    "className": "android.telephony.emergency.EmergencyNumber",
+    "methodName": "getCountryIso",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@test_network"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "EmergencyNumber.getMnc",
+    "author": "akano12",
+    "className": "android.telephony.emergency.EmergencyNumber",
+    "methodName": "getMnc",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@test_network"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",

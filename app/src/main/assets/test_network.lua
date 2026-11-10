@@ -19,7 +19,8 @@
 -- The network and the SIM operator are those of the test network, MCC 001 and MNC 01,
 -- in the formats of the methods; the country is empty, which Android gives for MCC 001 (MccTable has no country for
 -- it), the names are unknown and the carrier is the test network of the carrier database of Android
--- (carrier_list.textpb, 1911 for 00101).
+-- (carrier_list.textpb, 1911 for 00101). Emergency numbers of the carrier have the country and MNC of the test
+-- network too.
 -- Without a SIM or service the values are empty, which stay, a fake value would tell they are faked.
 
 local FAKES = {
@@ -73,6 +74,10 @@ function after(hook, param)
     end
 
     local fake = FAKES[method]
+    -- The MNC of an emergency number of the carrier is text, like getMncString
+    if method == 'getMnc' and hook:getClassName() == 'android.telephony.emergency.EmergencyNumber' then
+        fake = FAKES.getMncString
+    end
     if fake == nil or fake == result then
         return false
     end

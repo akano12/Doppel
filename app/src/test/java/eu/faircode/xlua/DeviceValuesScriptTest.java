@@ -522,6 +522,16 @@ public class DeviceValuesScriptTest {
         assertEquals("Test Network, Used by GSM test equipment",
                 operator(globals, "getSimCarrierIdName", "'T-Mobile'").arg(2).tojstring());
         assertEquals("", operator(globals, "getNetworkCountryIso", "'de'").arg(2).tojstring());
+        // The country and MNC of an emergency number of the carrier, the MNC as text
+        Varargs emergency = Scripts.run(globals,
+                "local hook = hookof(nil, 'getMnc')\n" +
+                        "hook.getClassName = function(self) return 'android.telephony.emergency.EmergencyNumber' end\n" +
+                        "local mnc = paramof('260', {})\n" +
+                        "local none = paramof('', {})\n" +
+                        "return run(hook, mnc), mnc.result, run(hook, none)");
+        assertTrue(emergency.arg(1).toboolean());
+        assertEquals("01", emergency.arg(2).tojstring());
+        assertFalse(emergency.arg(3).toboolean());
 
         // Without a SIM or service
         assertFalse(operator(globals, "getSimOperator", "''").arg1().toboolean());
