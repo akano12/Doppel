@@ -184,6 +184,12 @@ function networkregistrationinfo(text)
     return replace(text, ' cellIdentity=', ' voiceSpecificInfo=', 'null', nil)
 end
 
+-- Android 9 names it NetworkRegistrationState (hidden), which the text of ServiceState lists, also for apps without
+-- a location permission, since listening to the service state needs none there
+function networkregistrationstate(text)
+    return replace(text, ' cellIdentity=', ' voiceSpecificStates=', 'null', nil)
+end
+
 function wifip2pdevicelist(text)
     -- The text of an empty list, like the getter
     return '', text ~= ''
@@ -204,6 +210,8 @@ function after(hook, param)
         fake, restricted = wifiinfo(result)
     elseif class == 'android.net.LinkProperties' then
         fake, restricted = linkproperties(result)
+    elseif class == 'android.telephony.NetworkRegistrationState' then
+        fake, restricted = networkregistrationstate(result)
     elseif class == 'android.telephony.NetworkRegistrationInfo' then
         fake, restricted = networkregistrationinfo(result)
     elseif class == 'android.net.wifi.p2p.WifiP2pDeviceList' then

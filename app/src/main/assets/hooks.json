@@ -10564,6 +10564,35 @@
     "excludePackages": "android",
     "luaScript": "@settingssecure_getstring"
   },
+  // Android 9: the serving cell in the registration of the service state, which apps get without permission (network_tostring)
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NetworkRegistrationState.toString",
+    "author": "akano12",
+    "className": "android.telephony.NetworkRegistrationState",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 28,
+    "maxSdk": 28,
+    "optional": true,
+    "luaScript": "@network_tostring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "NetworkRegistrationState.getCellIdentity",
+    "author": "akano12",
+    "className": "android.telephony.NetworkRegistrationState",
+    "methodName": "getCellIdentity",
+    "parameterTypes": [],
+    "returnType": "android.telephony.CellIdentity",
+    "minSdk": 28,
+    "maxSdk": 28,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
   // Read notifications
   // https://developer.android.com/reference/android/service/notification/NotificationListenerService.html
   // Media sessions of other apps, which notification listeners get: what plays, in which app

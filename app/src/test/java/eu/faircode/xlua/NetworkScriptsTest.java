@@ -142,6 +142,13 @@ public class NetworkScriptsTest {
         assertEquals("{mVoiceRegState=0(IN_SERVICE), mNetworkRegistrationInfos=[" +
                         String.format(info, "CS", "null") + ", " + String.format(info, "PS", "null") + "]}",
                 tostring(globals, "android.telephony.NetworkRegistrationInfo", text));
+
+        // Android 9 names it NetworkRegistrationState, with other labels
+        String state = "NetworkRegistrationState{transportType=1 domain=PS regState=HOME accessNetworkTechnology=LTE" +
+                " reasonForDenial=0 emergencyEnabled=false supportedServices=[2] cellIdentity=%s" +
+                " voiceSpecificStates=null dataSpecificStates=null}";
+        assertEquals(String.format(state, "null"),
+                tostring(globals, "android.telephony.NetworkRegistrationState", String.format(state, cell)));
     }
 
     @Test
