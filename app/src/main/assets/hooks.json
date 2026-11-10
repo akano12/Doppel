@@ -11891,7 +11891,7 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 31,
-    "luaScript": "@generic_empty"
+    "luaScript": "@audio_devices"
   },
   {
     "collection": "Privacy",
@@ -11903,7 +11903,7 @@
     "parameterTypes": [],
     "returnType": "android.media.AudioDeviceInfo",
     "minSdk": 31,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@audio_devices"
   },
   {
     "collection": "Privacy",
@@ -11929,7 +11929,7 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 33,
-    "luaScript": "@generic_empty"
+    "luaScript": "@audio_devices"
   },
   {
     "collection": "Privacy",

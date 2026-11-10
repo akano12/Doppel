@@ -130,10 +130,51 @@ public class AuditFixesScriptTest {
                         "  getType = function() return type end } end\n" +
                         "local param = paramof(arrayof(device(true, 2), device(false, 15), device(true, 8)))\n" +
                         "local builtin = paramof(arrayof(device(true, 2)))\n" +
-                        "return after(nil, param), param.result.length, after(nil, builtin)");
+                        "local hook = { getMethodName = function() return 'getDevices' end }\n" +
+                        "return after(hook, param), param.result.length, after(hook, builtin)");
         assertTrue(result.arg(1).toboolean());
         assertEquals(1, result.arg(2).toint());
         assertFalse(result.arg(3).toboolean());
+    }
+
+    // The devices for calls keep the speaker and the earpiece; a hidden device for calls or sound becomes the
+    // earpiece or the speaker, like Android chooses without it
+    @Test
+    public void builtInDevicesForCallsStay() throws Exception {
+        Globals globals = Scripts.load("audio_devices", PARAM + "\n" + Scripts.ARRAYOF + "\n" +
+                "function listof(...)\n" +
+                "  local items = { ... }\n" +
+                "  return { items = items, size = function(self) return #self.items end,\n" +
+                "    get = function(self, index) return self.items[index + 1] end,\n" +
+                "    add = function(self, item) self.items[#self.items + 1] = item end,\n" +
+                "    isEmpty = function(self) return #self.items == 0 end } end\n" +
+                "luajava = { newInstance = function(name) return listof() end }");
+        Varargs result = Scripts.run(globals,
+                "local function device(sink, type) return { isSink = function() return sink end,\n" +
+                        "  getType = function() return type end } end\n" +
+                        "local earpiece, speaker, headset = device(true, 1), device(true, 2), device(true, 7)\n" +
+                        "local function hookof(method) return { getMethodName = function() return method end } end\n" +
+                        "local function call(method, result, usage)\n" +
+                        "  local param = paramof(result)\n" +
+                        "  param.getThis = function() return { getDevices = function(self, flags)\n" +
+                        "    return arrayof(earpiece, speaker, headset) end } end\n" +
+                        "  param.unhooked = function(self, fn) return fn() end\n" +
+                        "  param.getArgument = function() return { getUsage = function() return usage end } end\n" +
+                        "  return after(hookof(method), param), param.result end\n" +
+                        "local _, available = call('getAvailableCommunicationDevices', listof(earpiece, speaker, headset))\n" +
+                        "local _, current = call('getCommunicationDevice', headset)\n" +
+                        "local same = call('getCommunicationDevice', speaker)\n" +
+                        "local _, media = call('getAudioDevicesForAttributes', listof(headset), 1)\n" +
+                        "local _, voice = call('getAudioDevicesForAttributes', listof(headset), 2)\n" +
+                        "return available:size(), available:get(1) == speaker, current == earpiece, same,\n" +
+                        "  media:size(), media:get(0) == speaker, voice:get(0) == earpiece");
+        assertEquals(2, result.arg(1).toint());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals(1, result.arg(5).toint());
+        assertTrue(result.arg(6).toboolean());
+        assertTrue(result.arg(7).toboolean());
     }
 
     // The id of the file system goes, the sizes stay
