@@ -277,8 +277,8 @@ local ALWAYSON = { always_on_vpn_app = true, always_on_vpn_lockdown = true, alwa
 -- The other settings which hooks change
 local HOOKED = {
     android_id = true, bluetooth_name = true, device_name = true, wifi_p2p_device_name = true, boot_count = true,
-    adb_enabled = true, adb_wifi_enabled = true, development_settings_enabled = true, stay_on_while_plugged = true,
-    low_power = true, system_locales = true, private_dns_specifier = true, private_dns_mode = true,
+    adb_enabled = true, adb_wifi_enabled = true, development_settings_enabled = true, stay_on_while_plugged_in = true,
+    low_power = true, low_power_sticky = true, system_locales = true, private_dns_specifier = true, private_dns_mode = true,
     bluetooth_address = true,
 }
 
@@ -371,7 +371,7 @@ function fakesetting(param, name, key, result)
         end
         return true, fake
     elseif name == 'adb' and (key == 'adb_enabled' or key == 'adb_wifi_enabled' or key == 'development_settings_enabled' or
-            key == 'stay_on_while_plugged') then
+            key == 'stay_on_while_plugged_in') then
         -- Developer options and USB or wireless debugging appear off, also Stay awake (the power sources, 0 by default)
         if result == '0' then
             return false
@@ -384,8 +384,8 @@ function fakesetting(param, name, key, result)
             return false
         end
         return true, fake
-    elseif name == 'battery' and key == 'low_power' then
-        -- Battery saver appears off, like PowerManager.isPowerSaveMode
+    elseif name == 'battery' and (key == 'low_power' or key == 'low_power_sticky') then
+        -- Battery saver appears off, like PowerManager.isPowerSaveMode, also the one kept on after charging (sticky)
         if result == '0' then
             return false
         end

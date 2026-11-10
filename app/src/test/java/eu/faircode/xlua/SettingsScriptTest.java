@@ -355,11 +355,16 @@ public class SettingsScriptTest {
     // Stay awake of the developer options appears off, like adb_enabled: the power sources it is on for, 0 by default
     @Test
     public void stayAwakeIsOff() {
-        assertTrue(run("return hooked('stay_on_while_plugged')").arg1().toboolean());
-        assertEquals("0", applications("adb", "stay_on_while_plugged", "3"));
-        assertEquals("same", applications("adb", "stay_on_while_plugged", "0"));
+        assertTrue(run("return hooked('stay_on_while_plugged_in')").arg1().toboolean());
+        assertEquals("0", applications("adb", "stay_on_while_plugged_in", "3"));
+        assertEquals("same", applications("adb", "stay_on_while_plugged_in", "0"));
         assertEquals("0", applications("adb", "adb_enabled", "1"));
-        assertEquals("same", applications("settings", "stay_on_while_plugged", "7"));
+        assertEquals("same", applications("settings", "stay_on_while_plugged_in", "7"));
+        // The name Android has, not the one without _in
+        assertFalse(run("return hooked('stay_on_while_plugged')").arg1().toboolean());
+        // Battery saver is off, also the one kept on after charging
+        assertEquals("0", applications("battery", "low_power_sticky", "1"));
+        assertEquals("same", applications("battery", "low_power_sticky", "0"));
     }
 
     // The languages the user chose (system_locales) are the fake ones by the settings provider too, for Read.Locale
