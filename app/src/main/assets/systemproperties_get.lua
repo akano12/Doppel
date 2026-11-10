@@ -106,8 +106,10 @@ local OPERATOR = {
 
 -- The properties of USB debugging, which agree with adb_enabled 0 of Read.Debugging (see settingssecure_getstring):
 -- adbd stopped, adb left out of the USB functions; a build which is not debuggable, like a user build;
--- the log buffer sizes of the developer options, which LSPosed sets too, not set
+-- the log buffer sizes of the developer options, which LSPosed sets too, not set, and the logger buffer Off of the
+-- developer options (persist.log.tag Settings, with the tag it keeps on), not chosen
 local NOADB = {}
+local LOGTAG = {}
 local DEBUGGING = {
     ['init.svc.adbd'] = 'stopped',
     ['sys.usb.config'] = NOADB, ['sys.usb.state'] = NOADB, ['persist.sys.usb.config'] = NOADB,
@@ -115,6 +117,7 @@ local DEBUGGING = {
     -- The port of adb over the network (adb tcpip), which apps can read
     ['service.adb.tcp.port'] = '',
     ['persist.logd.size'] = '', ['persist.logd.size.main'] = '', ['persist.logd.size.crash'] = '',
+    ['persist.log.tag'] = LOGTAG, ['persist.log.tag.snet_event_log'] = '',
 }
 
 -- The heap of apps, which Android sets per model, like 256m and 512m: rounded down to a step like memory_class
@@ -147,14 +150,19 @@ function heap(value)
 end
 
 -- A list of USB functions without adb, like mtp for mtp,adb; adb alone becomes none
-function noadb(value)
+-- The USB functions without adb: of the state and the config what Android gives with adb off while charging (mtp,
+-- like the broadcast of the USB state), of the persistent config not set, which Android writes when adb goes off
+function noadb(value, key)
     local kept = {}
     for item in string.gmatch(value, '[^,]+') do
         if item ~= 'adb' then
             kept[#kept + 1] = item
         end
     end
-    return (#kept == 0 and 'none' or table.concat(kept, ','))
+    if #kept == 0 then
+        return (key == 'persist.sys.usb.config' and '' or 'mtp')
+    end
+    return table.concat(kept, ',')
 end
 
 -- The fake values by property name and the Lua patterns of the names with a *,
@@ -423,7 +431,10 @@ function after(hook, param)
     elseif name == 'debugging' and DEBUGGING[key] ~= nil then
         local fake = DEBUGGING[key]
         if fake == NOADB then
-            fake = noadb(result)
+            fake = noadb(result, key)
+        elseif fake == LOGTAG then
+            -- The logger buffer Off writes Settings in front of the tag of the log, which stays
+            fake = (result == 'Settings' and empty or string.gsub(result, '^Settings,?', ''))
         elseif fake == '' then
             fake = empty
         end

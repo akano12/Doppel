@@ -20852,6 +20852,7 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "usage": false,
+    "excludePackages": "android",
     "luaScript": "@systemproperties_get"
   },
   {
@@ -20868,6 +20869,7 @@
     "minSdk": 27,
     "optional": true,
     "usage": false,
+    "excludePackages": "android",
     "luaScript": "@systemproperties_get"
   },
   {
@@ -20884,6 +20886,7 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "usage": false,
+    "excludePackages": "android",
     "luaScript": "@systemproperties_get"
   },
   // Not debuggable, like ro.debuggable of a user build, which apps read as a number or a flag too
@@ -20901,6 +20904,7 @@
     "returnType": "int",
     "minSdk": 27,
     "usage": false,
+    "excludePackages": "android",
     "luaScript": "@systemproperties_get"
   },
   {
@@ -20917,6 +20921,7 @@
     "returnType": "long",
     "minSdk": 27,
     "usage": false,
+    "excludePackages": "android",
     "luaScript": "@systemproperties_get"
   },
   {
@@ -20933,6 +20938,7 @@
     "returnType": "boolean",
     "minSdk": 27,
     "usage": false,
+    "excludePackages": "android",
     "luaScript": "@systemproperties_get"
   },
   {

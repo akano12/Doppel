@@ -118,9 +118,13 @@ public class DeviceValuesScriptTest {
     public void propertiesOfDebuggingAreFaked() throws Exception {
         Globals globals = load("systemproperties_get");
         String[][] cases = {{"init.svc.adbd", "running", "stopped"}, {"sys.usb.config", "mtp,adb", "mtp"},
-                {"sys.usb.state", "adb", "none"}, {"persist.sys.usb.config", "adb,mtp", "mtp"},
+                // Adb alone is charging only, which Android gives as mtp, and its persistent config as not set
+                {"sys.usb.state", "adb", "mtp"}, {"sys.usb.config", "adb", "mtp"}, {"persist.sys.usb.config", "adb", ""},
+                {"persist.sys.usb.config", "adb,mtp", "mtp"},
                 {"sys.usb.config", "mtp,adb,rndis", "mtp,rndis"}, {"ro.debuggable", "1", "0"}, {"ro.secure", "0", "1"},
-                {"persist.logd.size", "16M", ""}};
+                {"persist.logd.size", "16M", ""},
+                // The logger buffer Off of the developer options, with the tag it keeps on
+                {"persist.log.tag", "Settings", ""}, {"persist.log.tag", "Settings,I", "I"}, {"persist.log.tag.snet_event_log", "I", ""}};
         for (String[] c : cases) {
             Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get/debugging', 'get'), " +
                     "paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))");
