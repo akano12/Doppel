@@ -5599,6 +5599,23 @@
     "excludePackages": "android",
     "luaScript": "@package_result"
   },
+  // The tasks of the device, which Android 8.1 to 11 list to any app with the task of the launcher; not the name of the
+  // hook of Android 4.4 and before, which was removed (XDatabase.REMOVED)
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ActivityManager.getRunningTasks.27",
+    "author": "akano12",
+    "className": "android.app.ActivityManager",
+    "methodName": "getRunningTasks",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
   // Get calendars
   // https://developer.android.com/guide/topics/providers/calendar-provider.html
   {

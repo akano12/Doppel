@@ -137,6 +137,10 @@ function after(hook, param)
             packageName = item:getSearchActivity():getPackageName() -- SearchableInfo
         elseif name == 'SearchManager.getGlobalSearchActivities' then
             ai = item.activityInfo.applicationInfo -- ResolveInfo
+        elseif name == 'ActivityManager.getRunningTasks' then
+            -- RunningTaskInfo, like the task of the launcher, which Android 8.1 to 11 lists to any app
+            local component = item.baseActivity or item.topActivity
+            packageName = (component ~= nil and component:getPackageName() or param:getPackageName())
         elseif name == 'TelecomManager.getSelfManagedPhoneAccounts' then
             packageName = item:getComponentName():getPackageName() -- PhoneAccountHandle of a VoIP app
         elseif name == 'DevicePolicyManager.getActiveAdmins' then
@@ -164,6 +168,24 @@ function after(hook, param)
         if not visible then
             filtered = true
             list:remove(index - 1)
+        end
+    end
+
+    -- The activities of a package which only a hidden app has: what Android answers for a package which is not
+    -- installed, like Collections.EMPTY_LIST of Android 14, asked without the hooks under a name no app has
+    if filtered and list:isEmpty() and (name == 'LauncherApps.getActivityList' or
+            name == 'LauncherApps.getShortcutConfigActivityList') then
+        local launcher, user = param:getThis(), param:getArgument(1)
+        local ok, missing = pcall(function()
+            return param:unhooked(function()
+                if name == 'LauncherApps.getActivityList' then
+                    return launcher:getActivityList('android.nonexistent.package', user)
+                end
+                return launcher:getShortcutConfigActivityList('android.nonexistent.package', user)
+            end)
+        end)
+        if ok and missing ~= nil and missing:isEmpty() then
+            param:setResult(missing)
         end
     end
 

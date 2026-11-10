@@ -1236,6 +1236,7 @@ public class HookDefinitionsTest {
         check("SearchManager.getGlobalSearchActivities", "android.app.SearchManager getGlobalSearchActivities() " +
                 "@generic_filter_by_uid 27- optional");
         check("SearchManager.getWebSearchActivity", "android.app.SearchManager getWebSearchActivity() @package_result 27- optional");
+        check("ActivityManager.getRunningTasks.27", "android.app.ActivityManager getRunningTasks(int) @generic_filter_by_uid 27-");
     }
 
     // Other users by a handle, and the attribution and GPS tags of photos, which answer like the hooked siblings

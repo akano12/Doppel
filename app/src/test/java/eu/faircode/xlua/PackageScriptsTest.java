@@ -828,6 +828,31 @@ public class PackageScriptsTest {
         assertTrue(searches.arg(3).toboolean());
         assertEquals(1, searches.arg(4).toint());
 
+        // The activities of a hidden package are what Android gives for a package which is not installed
+        Varargs launcher = Scripts.run(globals,
+                "local list = listof({ { getApplicationInfo = function(self) return { uid = 10060 } end } })\n" +
+                        "local missing = listof({})\n" +
+                        "local param = paramof({ [1] = 'user' }, {})\n" +
+                        "param.result = list\n" +
+                        "param.getThis = function() return { getActivityList = function(self, name, user)\n" +
+                        "  asked = name .. ' ' .. user return missing end } end\n" +
+                        "param.unhooked = function(self, fn) return fn() end\n" +
+                        "return after(hookof('LauncherApps.getActivityList'), param), param.result == missing, asked");
+        assertTrue(launcher.arg(1).toboolean());
+        assertTrue(launcher.arg(2).toboolean());
+        assertEquals("android.nonexistent.package user", launcher.arg(3).tojstring());
+
+        // The tasks of the device keep those of visible apps, by their first or top activity
+        Varargs tasks = Scripts.run(globals,
+                "local function comp(name) return { getPackageName = function(self) return name end } end\n" +
+                        "local list = listof({ { baseActivity = comp('com.hidden.launcher') }, { topActivity = comp('com.visible') }, {} })\n" +
+                        "local param = paramof({}, { ['com.visible'] = true, ['test.app'] = true })\n" +
+                        "param.getPackageName = function() return 'test.app' end\n" +
+                        "param.result = list\n" +
+                        "return after(hookof('ActivityManager.getRunningTasks.27'), param), list:size()");
+        assertTrue(tasks.arg(1).toboolean());
+        assertEquals(2, tasks.arg(2).toint());
+
         // The phone accounts of VoIP apps, by the package of their connection service
         Varargs accounts = Scripts.run(globals,
                 "local function handle(name) return { getComponentName = function(self)\n" +
