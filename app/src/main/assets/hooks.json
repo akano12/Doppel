@@ -8969,6 +8969,35 @@
     "minSdk": 27,
     "luaScript": "@network_tostring"
   },
+  // The ids of AdServices are made of the zero id with its default, so toString, hashCode and equals agree with the getters (adservices_id)
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AdId.constructor",
+    "author": "akano12",
+    "className": "android.adservices.adid.AdId",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@adservices_id"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "AppSetId.constructor",
+    "author": "akano12",
+    "className": "android.adservices.appsetid.AppSetId",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@adservices_id"
+  },
   // Read network data
   // https://developer.android.com/reference/android/telephony/TelephonyManager.html
   // https://developer.android.com/reference/android/telephony/PhoneStateListener.html

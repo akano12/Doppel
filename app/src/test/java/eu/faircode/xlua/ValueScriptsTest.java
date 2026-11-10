@@ -529,6 +529,28 @@ public class ValueScriptsTest {
         check(globals, "return after_(nil, paramof(nil))", false, false, null);
     }
 
+    // The ids of AdServices are made of the zero id, an AdId with ad tracking limited and an AppSetId of the app's scope,
+    // so the getters, toString, hashCode and equals agree
+    @Test
+    public void adServicesIdsAreMadeOfTheZeroId() throws Exception {
+        Globals globals = load("adservices_id");
+        Varargs result = Scripts.run(globals,
+                "local function hook(class) return { getClassName = function(self) return class end } end\n" +
+                        "local adid = paramof(nil, { [0] = 'f0e1d2c3-0000-4000-8000-123456789abc', [1] = false })\n" +
+                        "local appset = paramof(nil, { [0] = 'a1b2c3d4-0000-4000-8000-123456789abc', [1] = 2 })\n" +
+                        "local zero = paramof(nil, { [0] = '00000000-0000-0000-0000-000000000000', [1] = 1 })\n" +
+                        "return before(hook('android.adservices.adid.AdId'), adid), adid.args[0], adid.args[1],\n" +
+                        "  before(hook('android.adservices.appsetid.AppSetId'), appset), appset.args[0], appset.args[1],\n" +
+                        "  before(hook('android.adservices.appsetid.AppSetId'), zero)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("00000000-0000-0000-0000-000000000000", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("00000000-0000-0000-0000-000000000000", result.arg(5).tojstring());
+        assertEquals(1, result.arg(6).toint());
+        assertFalse(result.arg(7).toboolean());
+    }
+
     // The sleep events are none, the empty list of Play services, which cannot be changed
     @Test
     public void sleepEventsAreNone() throws Exception {
