@@ -75,6 +75,24 @@ function after(hook, param)
         return false
     end
 
+    -- PackageManager.getHomeActivities fills a list of the app with the launchers and returns the default one, null
+    -- without one: the hidden launchers are left out of the list, and a hidden default is none
+    if hook:getName() == 'PackageManager.getHomeActivities' then
+        local activities, home = param:getArgument(0), param:getResult()
+        local removed = 0
+        for index = (activities ~= nil and activities:size() or 0) - 1, 0, -1 do
+            if not param:isVisible(activities:get(index).activityInfo.applicationInfo) then
+                activities:remove(index)
+                removed = removed + 1
+            end
+        end
+        if home ~= nil and not param:isPackageVisible(home:getPackageName()) then
+            param:setResult(nil)
+            return true, home:getPackageName()
+        end
+        return removed > 0
+    end
+
     local list = param:getResult()
     if list == nil then
         return false

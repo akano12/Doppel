@@ -903,6 +903,21 @@ public class PackageScriptsTest {
         assertTrue(tasks.arg(1).toboolean());
         assertEquals(2, tasks.arg(2).toint());
 
+        // The launchers: the hidden ones leave the list of the app, a hidden default launcher is none
+        Varargs homes = Scripts.run(globals,
+                "local function home(uid, system) return { activityInfo = { applicationInfo = { uid = uid, system = system } } } end\n" +
+                        "local activities = listof({ home(10060), home(10010, true) })\n" +
+                        "local param = paramof({ [0] = activities }, {})\n" +
+                        "param.result = { getPackageName = function(self) return 'com.hidden.launcher' end }\n" +
+                        "local restricted, old = after(hookof('PackageManager.getHomeActivities'), param)\n" +
+                        "local none = paramof({ [0] = listof({ home(10010, true) }) }, {})\n" +
+                        "return restricted, old, param.result, activities:size(), after(hookof('PackageManager.getHomeActivities'), none)");
+        assertTrue(homes.arg(1).toboolean());
+        assertEquals("com.hidden.launcher", homes.arg(2).tojstring());
+        assertTrue(homes.arg(3).isnil());
+        assertEquals(1, homes.arg(4).toint());
+        assertFalse(homes.arg(5).toboolean());
+
         // The phone accounts of VoIP apps, by the package of their connection service
         Varargs accounts = Scripts.run(globals,
                 "local function handle(name) return { getComponentName = function(self)\n" +
