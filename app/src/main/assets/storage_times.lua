@@ -73,7 +73,17 @@ function normal(path)
             table.insert(parts, part)
         end
     end
-    return '/' .. table.concat(parts, '/')
+    -- Without the links of /proc to the root, also of a thread and of the working directory, which is the root for
+    -- apps, like the filter compares the paths (XParam.plainPath), so the times of the folders are faked by them too
+    local plain = '/' .. table.concat(parts, '/')
+    repeat
+        local before = plain
+        for _, link in ipairs({ 'root', 'cwd' }) do
+            plain = string.gsub(plain, '^/proc/[%w_%-]+/task/%d+/' .. link .. '/', '/')
+            plain = string.gsub(plain, '^/proc/[%w_%-]+/' .. link .. '/', '/')
+        end
+    until plain == before
+    return plain
 end
 
 -- The folders of the shared storage in lower case, for paths in any case

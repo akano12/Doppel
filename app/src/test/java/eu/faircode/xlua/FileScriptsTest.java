@@ -273,6 +273,16 @@ public class FileScriptsTest {
             assertTrue(String.valueOf(i), result.arg(i).toboolean());
         for (int i = 13; i <= 15; i++)
             assertFalse(String.valueOf(i), result.arg(i).toboolean());
+
+        // By the links of /proc to the root, also of a thread and of the working directory, which the filter runs it for
+        result = Scripts.run(globals,
+                "local function faked(path) return after(hookof('stat'), paramof(statof(1791913509), { path })) end\n" +
+                        "return faked('/proc/self/root/sdcard/Download'), faked('/proc/self/cwd/sdcard/DCIM'),\n" +
+                        "  faked('/proc/123/task/124/root/storage/emulated/10/Download'), faked('/proc/self/root/proc/self/root/sdcard/Music'),\n" +
+                        "  faked('/proc/self/root/data/user/0/test.app')");
+        for (int i = 1; i <= 4; i++)
+            assertTrue("link " + i, result.arg(i).toboolean());
+        assertFalse(result.arg(5).toboolean());
     }
 
     // Os.stat with the times of reproducible builds, in nanoseconds, the rest as it is
