@@ -289,6 +289,21 @@ public class DeviceValuesScriptTest {
         assertFalse("once", result.arg(20).toboolean());
     }
 
+    // The text of a mode of the display has no other refresh rates, like getAlternativeRefreshRates
+    @Test
+    public void displayModeTextHasNoAlternatives() throws Exception {
+        Globals globals = load("display_panel");
+        Varargs result = Scripts.run(globals,
+                "local mode = paramof('{id=1, width=1080, height=2400, fps=120.0, alternativeRefreshRates=[60.0, 90.0], " +
+                        "supportedHdrTypes=[2, 3]}')\n" +
+                        "local none = paramof('{id=1, width=1080, height=2400, fps=60.0, alternativeRefreshRates=[]}')\n" +
+                        "return after(hookof('Display.Mode', 'toString'), mode), mode.result, after(hookof('Display.Mode', 'toString'), none)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("{id=1, width=1080, height=2400, fps=120.0, alternativeRefreshRates=[], supportedHdrTypes=[2, 3]}",
+                result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
+    }
+
     // The version of the DRM plugin with the fake build of the firmware, like Build.ID; other properties stay
     @Test
     public void drmVersionWithFakeBuild() throws Exception {

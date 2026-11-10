@@ -115,7 +115,19 @@ function after(hook, param)
         return true, real, tostring(metrics.xdpi)
     end
 
-    if method == 'getDeviceProductInfo' then
+    if method == 'toString' then
+        -- The text of Display.Mode, with the other rates of the same size like getAlternativeRefreshRates gives them
+        local result = param:getResult()
+        if result == nil then
+            return false
+        end
+        local fake = string.gsub(result, ', alternativeRefreshRates=%[[^%]]*%]', ', alternativeRefreshRates=[]')
+        if fake == result then
+            return false
+        end
+        param:setResult(fake)
+        return true, result, fake
+    elseif method == 'getDeviceProductInfo' then
         if param:getResult() == nil then
             return false
         end

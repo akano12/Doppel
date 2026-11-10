@@ -17106,6 +17106,19 @@
     "minSdk": 29,
     "luaScript": "@test_network"
   },
+  // The text of a mode of the display lists the other refresh rates of the panel (display_panel)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Display.Mode.toString",
+    "author": "akano12",
+    "className": "android.view.Display$Mode",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "luaScript": "@display_panel"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",
