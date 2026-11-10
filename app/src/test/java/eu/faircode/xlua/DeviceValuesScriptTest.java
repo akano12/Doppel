@@ -222,14 +222,21 @@ public class DeviceValuesScriptTest {
                 "paramof('GL_OES_EGL_image', { [0] = 7939 }))").arg1().toboolean());
     }
 
-    // The panel of the display: the exact density becomes the logical one, also in the metrics of Resources, and of
-    // the modes and refresh rates only the active one stays
+    // The panel of the display: the exact density becomes the stable density of the device, which does not follow the
+    // display size the user sets, also in the metrics of Resources, and of the modes and refresh rates only the
+    // active one stays, at the rate of the mode
     @Test
     public void displayPanelIsGeneric() throws Exception {
         Globals globals = load("display_panel");
         Varargs result = Scripts.run(globals, String.join("\n",
-                "local display = { getMode = function(self) return 'active' end,",
-                "  getRefreshRate = function(self) return 120 end }",
+                "local bind = luajava.bindClass",
+                "luajava.bindClass = function(name)",
+                "  if name == 'android.util.DisplayMetrics' then return { DENSITY_DEVICE_STABLE = 440 } end",
+                "  return bind(name) end",
+                // getRefreshRate follows the frame rate of the app, the mode does not
+                "local mode = { getRefreshRate = function(self) return 120 end }",
+                "local display = { getMode = function(self) return mode end,",
+                "  getRefreshRate = function(self) return 60 end }",
                 "local function call(method, result, arguments)",
                 "  local param = paramof(result, arguments or {})",
                 "  param.getThis = function(self) return display end",
@@ -239,7 +246,7 @@ public class DeviceValuesScriptTest {
                 "array = function(class, values) values['length'] = #values return values end",
                 "local metrics = { densityDpi = 480, xdpi = 403.411, ydpi = 403.041 }",
                 "local metrics2 = { densityDpi = 480, xdpi = 403.411, ydpi = 403.041 }",
-                "local same = { densityDpi = 480, xdpi = 480, ydpi = 480 }",
+                "local same = { densityDpi = 480, xdpi = 440, ydpi = 440 }",
                 "local restricted = call('getRealMetrics', nil, { [0] = metrics })",
                 "local restricted2 = call('getMetrics', nil, { [0] = same })",
                 // The metrics of Resources: of ResourcesImpl when it fills them, and when the hooks are installed,
@@ -255,28 +262,28 @@ public class DeviceValuesScriptTest {
                 "local installed = after(hookof('Resources.mSystem', '#mSystem'), install)",
                 "local again = after(hookof('Resources.mSystem', '#mSystem'), install)",
                 "local again2 = after(hookof('ResourcesImpl', 'updateConfiguration'), param3)",
-                "local _, modes = call('getSupportedModes', { 'a', 'active', 'b', length = 3 })",
+                "local _, modes = call('getSupportedModes', { 'a', mode, 'b', length = 3 })",
                 "local _, rates = call('getSupportedRefreshRates', { 60, 90, 120, length = 3 })",
                 "local _, alternative = call('getAlternativeRefreshRates', { 60, 90, length = 2 })",
-                "local single = call('getSupportedModes', { 'active', length = 1 })",
+                "local single = call('getSupportedModes', { mode, length = 1 })",
                 "return restricted, metrics.xdpi, metrics.ydpi, restricted2, restricted3, metrics2.xdpi,",
-                "  modes.length, modes[1], rates.length, rates[1], alternative.length, single,",
+                "  modes.length, modes[1] == mode, rates.length, rates[1], alternative.length, single,",
                 "  installed, system.xdpi, system.ydpi, app.xdpi, app.ydpi, app.densityDpi, again, again2"));
         assertTrue(result.arg(1).toboolean());
-        assertEquals(480, result.arg(2).todouble(), 0);
-        assertEquals(480, result.arg(3).todouble(), 0);
+        assertEquals(440, result.arg(2).todouble(), 0);
+        assertEquals(440, result.arg(3).todouble(), 0);
         assertFalse("already generic", result.arg(4).toboolean());
         assertTrue("resources", result.arg(5).toboolean());
-        assertEquals(480, result.arg(6).todouble(), 0);
+        assertEquals(440, result.arg(6).todouble(), 0);
         assertEquals(1, result.arg(7).toint());
-        assertEquals("active", result.arg(8).tojstring());
+        assertTrue(result.arg(8).toboolean());
         assertEquals(1, result.arg(9).toint());
         assertEquals(120, result.arg(10).toint());
         assertEquals(0, result.arg(11).toint());
         assertFalse(result.arg(12).toboolean());
         assertTrue("installed", result.arg(13).toboolean());
         for (int i = 14; i <= 17; i++)
-            assertEquals(String.valueOf(i), 420, result.arg(i).todouble(), 0);
+            assertEquals(String.valueOf(i), 440, result.arg(i).todouble(), 0);
         assertEquals(420, result.arg(18).toint());
         assertFalse("once", result.arg(19).toboolean());
         assertFalse("once", result.arg(20).toboolean());

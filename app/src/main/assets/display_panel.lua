@@ -16,7 +16,7 @@
 -- Copyright 2026 akano12
 
 -- The panel of the display tells the model of the screen: its exact density, like 403.411 dpi, and the refresh
--- rates it supports, like 60, 90 and 120 Hz. The density becomes the logical density (densityDpi), the value of
+-- rates it supports, like 60, 90 and 120 Hz. The density becomes the stable density of the device, the value of
 -- displays without calibration, like of emulators, and only the active mode is supported. The sizes, the
 -- densities layouts use and the active refresh rate, which apps use to pace frames, stay.
 -- The metrics of Resources (getDisplayMetrics, which is not hooked, it is called very often) get the same density
@@ -28,9 +28,11 @@
 -- displays which do not tell it, the HDR types stay, since apps choose the videos to play by them; the maker and
 -- product of the panel (DeviceProductInfo, of its EDID) are not known, like for displays without EDID.
 
--- The metrics with the logical density as the exact one; the old ones, or nil when they are already
+-- The metrics with the density of the device as the exact one, the one of displays without calibration: the stable
+-- one (DENSITY_DEVICE_STABLE), which does not follow the display size the user sets, like the panel does not; the
+-- old ones, or nil when they are already
 function generic(metrics)
-    local dpi = metrics.densityDpi
+    local dpi = luajava.bindClass('android.util.DisplayMetrics').DENSITY_DEVICE_STABLE
     if metrics.xdpi == dpi and metrics.ydpi == dpi then
         return nil
     end
@@ -103,14 +105,14 @@ function after(hook, param)
         if real == nil then
             return false
         end
-        return true, real, tostring(metrics.densityDpi)
+        return true, real, tostring(metrics.xdpi)
     end
     if metrics ~= nil then
         local real = generic(metrics)
         if real == nil then
             return false
         end
-        return true, real, tostring(metrics.densityDpi)
+        return true, real, tostring(metrics.xdpi)
     end
 
     if method == 'getDeviceProductInfo' then
@@ -137,8 +139,9 @@ function after(hook, param)
     elseif method == 'getSupportedModes' then
         fake = array(luajava.bindClass('android.view.Display$Mode'), { param:getThis():getMode() })
     else
-        -- getSupportedRefreshRates
-        fake = array(float, { param:getThis():getRefreshRate() })
+        -- getSupportedRefreshRates: the rate of the mode, like getSupportedModes gives it, not getRefreshRate, which
+        -- follows the frame rate of the app
+        fake = array(float, { param:getThis():getMode():getRefreshRate() })
     end
     param:setResult(fake)
     return true, tostring(result['length']), tostring(fake['length'])
