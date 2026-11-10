@@ -976,8 +976,18 @@ public class HookDefinitionsTest {
                 "@wifip2pdevice_name 27-");
         // The network access identifier, which Android 9 and before give to apps with the phone state permission, also
         // by the hidden methods
-        check("TelephonyManager.getNai", "android.telephony.TelephonyManager getNai() @generic_null_value 27-28");
-        check("TelephonyManager.getNai/slot", "android.telephony.TelephonyManager getNai(int) @generic_null_value 27-28 optional");
+        check("TelephonyManager.getNai", "android.telephony.TelephonyManager getNai() @generic_null_value 27-");
+        check("TelephonyManager.getNai/slot", "android.telephony.TelephonyManager getNai(int) @generic_null_value 27- optional");
+        // The type allocation code and manufacturer code of the fake IMEI and MEID, the SIM cards of the telephony provider
+        // and the merged subscriber ids (the audit of Read.Telephony)
+        check("TelephonyManager.getTypeAllocationCode", "android.telephony.TelephonyManager getTypeAllocationCode() @value_device_code 29-");
+        check("TelephonyManager.getManufacturerCode/slot", "android.telephony.TelephonyManager getManufacturerCode(int) @value_device_code 29-");
+        check("ContentResolver.query26/siminfo", "android.content.ContentResolver query(android.net.Uri,java.lang.String[],android.os.Bundle," +
+                "android.os.CancellationSignal) @contentresolver_query 27-");
+        check("ContentProviderClient.query26/siminfo", "android.content.ContentProviderClient query(android.net.Uri,java.lang.String[]," +
+                "android.os.Bundle,android.os.CancellationSignal) @contentresolver_query 27-");
+        check("TelephonyManager.getMergedSubscriberIds", "android.telephony.TelephonyManager getMergedSubscriberIds() " +
+                "@generic_null_value 27- optional");
         // Media sessions of other apps, which notification listeners get
         String m = "android.media.session.MediaSessionManager ";
         check("MediaSessionManager.getActiveSessions", m + "getActiveSessions(android.content.ComponentName) @generic_empty 27-");

@@ -11108,7 +11108,6 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 27,
-    "maxSdk": 28,
     "excludePackages": "android",
     "luaScript": "@generic_null_value"
   },
@@ -11124,7 +11123,6 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 27,
-    "maxSdk": 28,
     "excludePackages": "android",
     "optional": true,
     "luaScript": "@generic_null_value"
@@ -11328,7 +11326,10 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 29,
-    "luaScript": "@generic_null_value"
+    "settings": [
+      "value.imei"
+    ],
+    "luaScript": "@value_device_code"
   },
   {
     "collection": "Privacy",
@@ -11342,7 +11343,10 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 29,
-    "luaScript": "@generic_null_value"
+    "settings": [
+      "value.imei"
+    ],
+    "luaScript": "@value_device_code"
   },
   // The manufacturer code, the start of the MEID like the type allocation code is of the IMEI
   {
@@ -11355,7 +11359,10 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 29,
-    "luaScript": "@generic_null_value"
+    "settings": [
+      "value.meid"
+    ],
+    "luaScript": "@value_device_code"
   },
   {
     "collection": "Privacy",
@@ -11369,6 +11376,64 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 29,
+    "settings": [
+      "value.meid"
+    ],
+    "luaScript": "@value_device_code"
+  },
+  // The SIM cards of the telephony provider, which apps can read with their ICCID, IMSI and number, and the merged
+  // subscriber ids (IMSIs), which the hidden getMergedSubscriberIds gives with READ_PHONE_STATE
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "ContentResolver.query26/siminfo",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "ContentProviderClient.query26/siminfo",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "TelephonyManager.getMergedSubscriberIds",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "getMergedSubscriberIds",
+    "parameterTypes": [],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "optional": true,
     "luaScript": "@generic_null_value"
   },
   // Record audio

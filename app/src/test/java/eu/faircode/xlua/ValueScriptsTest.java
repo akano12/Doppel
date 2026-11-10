@@ -595,4 +595,52 @@ public class ValueScriptsTest {
         assertTrue(optOut.get());
         assertFalse(Scripts.run(globals, "return after(hookof('build'), paramof({}))").arg1().toboolean());
     }
+
+    // The type allocation code and the manufacturer code are the first 8 digits of the fake IMEI and MEID
+    @Test
+    public void deviceCodesOfFakeIds() throws Exception {
+        Globals globals = Scripts.load("value_device_code", null);
+        String param = "local function paramof(result, settings)\n" +
+                "  return { result = result, getResult = function(self) return self.result end,\n" +
+                "    getException = function(self) return nil end,\n" +
+                "    setResult = function(self, value) self.result = value end,\n" +
+                "    getSetting = function(self, name) return settings[name] end }\n" +
+                "end\n" +
+                "local function hookof(method) return { getMethodName = function(self) return method end } end\n" +
+                "local settings = { ['value.imei'] = '490154203237518', ['value.meid'] = 'A0000049FBC2A1' }\n";
+        Varargs result = Scripts.run(globals, param +
+                "local tac, mc, none = paramof('35824005', settings), paramof('A1000001', settings), paramof(nil, settings)\n" +
+                "return after(hookof('getTypeAllocationCode'), tac), tac.result, after(hookof('getManufacturerCode'), mc), mc.result,\n" +
+                "  after(hookof('getTypeAllocationCode'), none), none.result == nil");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("49015420", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("A0000049", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+    }
+
+    // The bytes of the hardware address of an interface are 02:00:00:00:00:00 like Android gives when it is not
+    // accessible, not null, which Android does not give an app for an interface with an address
+    @Test
+    public void hardwareAddressBytes() throws Exception {
+        Globals globals = Scripts.load("mac_address", null);
+        Varargs result = Scripts.run(globals,
+                "local array = luajava.bindClass('java.lang.reflect.Array')\n" +
+                        "local real = array:newInstance(luajava.bindClass('java.lang.Byte').TYPE, 6)\n" +
+                        "real[1] = 82 real[2] = 84 real[6] = 18\n" +
+                        "local param = { result = real, getResult = function(self) return self.result end,\n" +
+                        "  setResult = function(self, value) self.result = value end }\n" +
+                        "local hook = { getMethodName = function(self) return 'getHardwareAddress' end }\n" +
+                        "local restricted = after(hook, param)\n" +
+                        "local fake = param.result\n" +
+                        "local again = after(hook, param)\n" +
+                        "return restricted, fake['length'], fake[1], fake[2], fake[6], again");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(6, result.arg(2).toint());
+        assertEquals(2, result.arg(3).toint());
+        assertEquals(0, result.arg(4).toint());
+        assertEquals(0, result.arg(5).toint());
+        assertFalse(result.arg(6).toboolean());
+    }
 }

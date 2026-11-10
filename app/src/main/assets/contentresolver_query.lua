@@ -186,9 +186,17 @@ end
 function gservices(param, cursor)
     local fake = luajava.newInstance('android.database.MatrixCursor', cursor:getColumnNames())
     local removed = false
+    -- Gservices answers a query of exact keys with a row per key, the value null for a key it does not have,
+    -- and one of a prefix (the path prefix) with the keys it has
+    local exact = (prefixof(param:getArgument(0)) ~= 'prefix')
     while cursor:moveToNext() do
         if cursor:getString(0) == 'android_id' then
             removed = true
+            if exact then
+                local row = fake:newRow()
+                row:add('android_id')
+                row:add(nil)
+            end
         else
             local row = fake:newRow()
             for index = 0, cursor:getColumnCount() - 1 do
@@ -201,6 +209,55 @@ function gservices(param, cursor)
         fake:close()
         cursor:moveToPosition(-1)
         return false
+    end
+    cursor:close()
+    param:setResult(fake)
+    return true
+end
+
+-- The SIM cards of the telephony provider (content://telephony/siminfo), which apps could read: the ICCID, the card id
+-- and the IMSI like the getters of SubscriptionInfo give them, empty, and the number the fake one; the other columns
+-- with their own types
+local SIMINFO = { icc_id = '', card_id = '', imsi = false, number = true }
+
+function siminfo(param, cursor)
+    local names = cursor:getColumnNames()
+    local faked = false
+    for index = 1, cursor:getColumnCount() do
+        if SIMINFO[names[index]] ~= nil then
+            faked = true
+        end
+    end
+    if not faked then
+        return false
+    end
+    local number = param:getSetting('value.phone_number') or ''
+    local fake = luajava.newInstance('android.database.MatrixCursor', names)
+    while cursor:moveToNext() do
+        local row = fake:newRow()
+        for index = 0, cursor:getColumnCount() - 1 do
+            local column = SIMINFO[names[index + 1]]
+            local type = cursor:getType(index)
+            if column ~= nil and type ~= 0 then
+                if column == true then
+                    row:add(number)
+                elseif column == false then
+                    row:add(nil)
+                else
+                    row:add(column)
+                end
+            elseif type == 1 then
+                row:add(luajava.newInstance('java.lang.Long', cursor:getLong(index)))
+            elseif type == 2 then
+                row:add(luajava.newInstance('java.lang.Double', cursor:getDouble(index)))
+            elseif type == 4 then
+                row:add(cursor:getBlob(index))
+            elseif type == 3 then
+                row:add(cursor:getString(index))
+            else
+                row:add(nil)
+            end
+        end
     end
     cursor:close()
     param:setResult(fake)
@@ -263,7 +320,8 @@ function after(hook, param)
             (name == 'mmssms' and authority == 'sms') or
             (name == 'mmssms' and authority == 'mms-sms') or
             (name == 'mmssms' and authority == 'com.google.android.apps.messaging.shared.datamodel.BugleContentProvider') or
-            (name == 'voicemail' and authority == 'com.android.voicemail') then
+            (name == 'voicemail' and authority == 'com.android.voicemail') or
+            (name == 'siminfo' and authority == 'telephony' and prefixof(uri) == 'siminfo') then
 
         if name == 'contacts' and authority == 'com.android.contacts' then
             if uri:getPath() == nil or prefixof(uri) == 'provider_status' then
@@ -280,6 +338,9 @@ function after(hook, param)
 
         if name == 'gsf_id' then
             return gservices(param, cursor)
+        end
+        if name == 'siminfo' then
+            return siminfo(param, cursor)
         end
 
         -- The real cursor holds the provider and its data until closed

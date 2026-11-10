@@ -68,6 +68,12 @@ public class ContentResolverScriptTest {
             "  function cursor:moveToNext() self.position = self.position + 1 return self.position < #self.rows end",
             "  function cursor:moveToPosition(position) self.position = position return true end",
             "  function cursor:getString(index) return self.rows[self.position + 1][index + 1] end",
+            // Types like Cursor.getType: 0 null, 1 integer, 3 string
+            "  function cursor:getType(index)",
+            "    local value = self.rows[self.position + 1][index + 1]",
+            "    if value == nil then return 0 elseif type(value) == 'number' then return 1 else return 3 end",
+            "  end",
+            "  function cursor:getLong(index) return self.rows[self.position + 1][index + 1] end",
             "  function cursor:close() self.closed = true end",
             "  return cursor",
             "end",
@@ -78,12 +84,15 @@ public class ContentResolverScriptTest {
             "    if columns ~= nil then for key, value in pairs(columns.values) do copy.values[key] = value end end",
             "    return copy",
             "  end",
+            "  if name == 'java.lang.Long' or name == 'java.lang.Double' then return columns end",
             "  assert(name == 'android.database.MatrixCursor', name)",
             "  local matrix = cursorof(columns, {})",
             "  function matrix:newRow()",
             "    local row = {}",
             "    table.insert(self.rows, row)",
-            "    return { add = function(self, value) table.insert(row, value) end }",
+            // By position, so a null value keeps its column like MatrixCursor.RowBuilder.add(null)
+            "    local count = 0",
+            "    return { add = function(self, value) count = count + 1 row[count] = value end }",
             "  end",
             "  return matrix",
             "end }");
@@ -322,5 +331,54 @@ public class ContentResolverScriptTest {
         assertTrue(other.arg(2).toboolean());
         assertEquals(-1, other.arg(3).toint());
         assertFalse(other.arg(4).toboolean());
+    }
+
+    // A query of exact keys gets a row per key from Gservices, with null for one it does not have, so the GSF id
+    // is a row without a value instead of no row
+    @Test
+    public void gservicesExactKeyKeepsItsRow() {
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('ContentResolver.query26/gsf_id')\n" +
+                        "local param = paramof(urlof('com.google.android.gsf.gservices', nil))\n" +
+                        "local cursor = cursorof({ 'key', 'value' }, { { 'android_id', '1234567890' } })\n" +
+                        "param.result = cursor\n" +
+                        "local restricted = after(hook, param)\n" +
+                        "local row = param.result.rows[1]\n" +
+                        "return restricted, #param.result.rows, row[1], row[2] == nil");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(1, result.arg(2).toint());
+        assertEquals("android_id", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+    }
+
+    // The SIM cards of the telephony provider: the ICCID, card id and IMSI empty like the getters give them, the number
+    // the fake one, the other columns as they are with their types
+    @Test
+    public void simInfoWithoutIdentifiers() {
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('ContentResolver.query26/siminfo')\n" +
+                        "local param = paramof(urlof('telephony', '/siminfo'), nil, nil, { ['value.phone_number'] = '+15550001111' })\n" +
+                        "local cursor = cursorof({ '_id', 'icc_id', 'number', 'imsi', 'card_id', 'display_name' },\n" +
+                        "  { { 1, '89014103211118510720', '+31612345678', '310260000000000', '89014103211118510720', 'SIM 1' } })\n" +
+                        "param.result = cursor\n" +
+                        "local restricted = after(hook, param)\n" +
+                        "local row = param.result.rows[1]\n" +
+                        "return restricted, cursor.closed, row[1], row[2], row[3], row[4] == nil, row[5], row[6]");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(1, result.arg(3).toint());
+        assertEquals("", result.arg(4).tojstring());
+        assertEquals("+15550001111", result.arg(5).tojstring());
+        assertTrue(result.arg(6).toboolean());
+        assertEquals("", result.arg(7).tojstring());
+        assertEquals("SIM 1", result.arg(8).tojstring());
+
+        // Another table of the provider, like the carriers, stays
+        Varargs other = Scripts.run(globals,
+                "local hook = hookof('ContentResolver.query26/siminfo')\n" +
+                        "local param = paramof(urlof('telephony', '/carriers'), nil, nil, {})\n" +
+                        "param.result = cursorof({ 'name' }, { { 'Carrier' } })\n" +
+                        "return after(hook, param)");
+        assertFalse(other.arg(1).toboolean());
     }
 }
