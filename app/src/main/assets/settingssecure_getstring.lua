@@ -278,7 +278,7 @@ local ALWAYSON = { always_on_vpn_app = true, always_on_vpn_lockdown = true, alwa
 local HOOKED = {
     android_id = true, bluetooth_name = true, device_name = true, wifi_p2p_device_name = true, boot_count = true,
     adb_enabled = true, adb_wifi_enabled = true, development_settings_enabled = true, stay_on_while_plugged = true,
-    low_power = true, system_locales = true,
+    low_power = true, system_locales = true, private_dns_specifier = true, private_dns_mode = true,
     bluetooth_address = true,
 }
 
@@ -390,6 +390,19 @@ function fakesetting(param, name, key, result)
             return false
         end
         return true, '0'
+    elseif name == 'network' and (key == 'private_dns_specifier' or key == 'private_dns_mode') then
+        -- The private DNS server, like abc123.dns.nextdns.io, which names the account of the user: none, like
+        -- LinkProperties.getPrivateDnsServerName gives, the mode of a server by the hostname the automatic one
+        if key == 'private_dns_specifier' then
+            if result == nil then
+                return false
+            end
+            return true, nil
+        end
+        if result ~= 'hostname' then
+            return false
+        end
+        return true, 'opportunistic'
     elseif name == 'vpn' and ALWAYSON[key] ~= nil then
         -- The always-on VPN, which names its app before Android 12 and tells there is one later; not set on a device
         if result == nil then
@@ -418,6 +431,7 @@ local PROVIDER = {
     battery = { 'battery' },
     locale = { 'locale' },
     vpn = { 'vpn' },
+    network = { 'network' },
 }
 
 -- The fake value of a setting for the variants of a provider hook, like fakesetting

@@ -385,6 +385,17 @@ public class SettingsScriptTest {
         assertEquals("same", applications("device_name", "device_name", "unknown"));
     }
 
+    // The private DNS server, which names the account of the user, is none, like LinkProperties.getPrivateDnsServerName
+    // gives it, and a mode by hostname is the automatic one; a mode which is off stays
+    @Test
+    public void privateDnsIsNone() {
+        assertTrue(run("return hooked('private_dns_specifier')").arg1().toboolean());
+        assertEquals(null, applications("network", "private_dns_specifier", "abc123.dns.nextdns.io"));
+        assertEquals("opportunistic", applications("network", "private_dns_mode", "hostname"));
+        assertEquals("same", applications("network", "private_dns_mode", "off"));
+        assertEquals("same", applications("tracking", "private_dns_mode", "hostname"));
+    }
+
     // How often the device started: of a device started once, which Android always counts
     @Test
     public void bootCountIsOne() {
