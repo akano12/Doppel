@@ -15,7 +15,7 @@
 
 -- Copyright 2026 akano12
 
--- Firebase Analytics, Firebase Crashlytics, Firebase Performance and Facebook collect by themselves when the app starts,
+-- Firebase Analytics, Crashlytics and Performance, Sentry and Facebook collect by themselves when the app starts,
 -- unless the meta-data of the app turns this off, which they read from the application info of the app.
 -- An SDK is recognized by classes which are kept in minified apps, like those named in the manifest.
 local SDKS = {
@@ -29,6 +29,9 @@ local SDKS = {
     -- The traces of app starts, screens and network requests; deactivated cannot be turned on again by the app
     { classes = { 'com.google.firebase.perf.FirebasePerfRegistrar', 'com.google.firebase.perf.FirebasePerformance' },
       key = 'firebase_performance_collection_deactivated', value = true },
+    -- Crashes, ANRs, breadcrumbs and performance spans; also when the app starts Sentry itself
+    { classes = { 'io.sentry.android.core.SentryInitProvider', 'io.sentry.android.core.SentryAndroid' },
+      key = 'io.sentry.enabled', value = false },
     { classes = { 'com.facebook.internal.FacebookInitProvider', 'com.facebook.FacebookSdk' },
       key = 'com.facebook.sdk.AutoLogAppEventsEnabled', value = false },
     -- The advertising id goes with the events, on when the key is absent

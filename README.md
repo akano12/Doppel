@@ -129,7 +129,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Who you are</b> · 5 groups</summary>
 
 * **Read account name**: fake name, also in contacts and calendars
-* **Read biometric sensors**: no fingerprint sensor, face or iris unlock
+* **Read biometric sensors**: no fingerprint sensor, face or iris unlock, also in the prompt of biometrics
 * **Read identifiers**: fake serial, Android ID, DRM id, advertising and app set ID, MAC addresses;
   the permanent ids of the chip, SD card and storage in /sys do not exist, and neither do the advertising ids (OAID)
   of the services of device makers (Samsung, Lenovo, Asus, OPPO, OnePlus, realme, Honor, Huawei, Coolpad, Nubia,
@@ -197,9 +197,10 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <details>
 <summary><b>Recording</b> · 3 groups</summary>
 
-* **Record audio**, **Record video**: prevent recording, also speech recognition; of the audio devices only the speaker
-  and the earpiece are left; *Record audio* also hides the microphone feature
-* **Use camera**: no camera, also not as a feature of the device
+* **Record audio**, **Record video**: prevent recording, also speech recognition; a started AudioRecord gives silence,
+  like a microphone another app took; of the audio devices only the speaker and the earpiece are left, also for calls;
+  *Record audio* also hides the microphone feature and connected headsets
+* **Use camera**: no camera, also not as a feature of the device, and no torch
 
 </details>
 
@@ -212,9 +213,9 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   data* and *Read VPN state* refuse commands the same way, since commands could read their values
 * **Send messages**: prevent sending SMS, MMS and data messages
 * **Use analytics**: Adjust, AppsFlyer, Facebook app events, Firebase Analytics (without consent, so no app
-  instance id) and Crashlytics, Google Analytics v4, Mixpanel, Segment, Amplitude, Branch, Microsoft Clarity,
-  Singular, Umeng; Unity Ads without consent for personalized ads, Amazon Publisher Services without consent
-  and location
+  instance id), Crashlytics and Performance Monitoring, Google Analytics v4, Mixpanel, Segment, Amplitude, Branch,
+  Microsoft Clarity, Sentry, Singular, Umeng; Unity Ads without consent for personalized ads, Amazon Publisher
+  Services without consent and location
 
 </details>
 
