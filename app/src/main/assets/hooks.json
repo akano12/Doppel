@@ -10955,6 +10955,65 @@
     ],
     "luaScript": "@systemproperties_get"
   },
+  // The natives behind get(key, default), getInt and getLong, which apps reach by reflection: native_get_long any app,
+  // the others apps made for Android 9 and before, and all of them any app on Android 8.1, which does not restrict them
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "SystemProperties.native_get.default/serial",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "SystemProperties.native_get_int/serial",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get_int",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "SystemProperties.native_get_long/serial",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get_long",
+    "parameterTypes": [
+      "java.lang.String",
+      "long"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@systemproperties_get"
+  },
   // The same properties in the property areas apps can read as files (/dev/__properties__), see XParam.setPropertyValues
   {
     "collection": "Privacy",
@@ -18924,6 +18983,56 @@
     "minSdk": 27,
     "luaScript": "@systemproperties_get"
   },
+  // The natives behind get(key, default), getInt and getLong, which apps reach by reflection: native_get_long any app,
+  // the others apps made for Android 9 and before, and all of them any app on Android 8.1, which does not restrict them
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.native_get.default/operator",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.native_get_int/operator",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get_int",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.native_get_long/operator",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get_long",
+    "parameterTypes": [
+      "java.lang.String",
+      "long"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@systemproperties_get"
+  },
   // The same properties in the property areas apps can read as files (/dev/__properties__), see XParam.setPropertyValues
   {
     "collection": "Privacy",
@@ -19034,6 +19143,93 @@
     ],
     "returnType": "int",
     "minSdk": 27,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  // The same properties in the property areas apps can read as files (/dev/__properties__), like the model and the build
+  // in u:object_r:build_prop:s0, see XParam.setPropertyValues
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.open/device",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.open/device",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@systemproperties_get"
+  },
+  // The natives behind get(key, default), getInt and getLong, which apps reach by reflection: native_get_long any app,
+  // the others apps made for Android 9 and before, and all of them any app on Android 8.1, which does not restrict them
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.native_get.default/device",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.native_get_int/device",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get_int",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SystemProperties.native_get_long/device",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get_long",
+    "parameterTypes": [
+      "java.lang.String",
+      "long"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "optional": true,
     "usage": false,
     "luaScript": "@systemproperties_get"
   },
@@ -19406,6 +19602,21 @@
     "minSdk": 27,
     "luaScript": "@operator_tostring"
   },
+  // The fields of a subscription, which its parcel and equals give, with the names, codes and country of the getters
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "SubscriptionInfo.createFromParcel/operator",
+    "author": "akano12",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.telephony.SubscriptionInfo",
+    "minSdk": 27,
+    "luaScript": "@test_network"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -19619,6 +19830,37 @@
     "minSdk": 27,
     "luaScript": "@operator_tostring"
   },
+  // The fields of a service state, which its parcel, equals and hashCode give, with the operator of the getters
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "ServiceState.createFromParcel/operator",
+    "author": "akano12",
+    "className": "android.telephony.ServiceState",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.telephony.ServiceState",
+    "minSdk": 27,
+    "luaScript": "@test_network"
+  },
+  // The sticky broadcasts of the names the status bar shows and of the service state have the carrier as strings
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Intent.createFromParcel/operator",
+    "author": "akano12",
+    "className": "android.content.Intent",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@intent_createfromparcel"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -19715,6 +19957,131 @@
     "minSdk": 27,
     "luaScript": "@boot_id"
   },
+  // The stat, size and link of the files the scripts fake answer like for the file the app opened, see faked_files,
+  // also the stat, length and modification time by that link (/proc/self/fd/57); Os.fstat is beneath
+  // ParcelFileDescriptor.getStatSize too, FileDispatcherImpl.size beneath FileChannel.size
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.fstat/faked_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "fstat",
+    "parameterTypes": [
+      "java.io.FileDescriptor"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "FileInputStream.available/faked_files",
+    "author": "akano12",
+    "className": "java.io.FileInputStream",
+    "methodName": "available",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "RandomAccessFile.length/faked_files",
+    "author": "akano12",
+    "className": "java.io.RandomAccessFile",
+    "methodName": "length",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "FileDispatcherImpl.size/faked_files",
+    "author": "akano12",
+    "className": "sun.nio.ch.FileDispatcherImpl",
+    "methodName": "size",
+    "parameterTypes": [
+      "java.io.FileDescriptor"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.readlink/faked_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.readlink/faked_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.stat/faked_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.getLength/faked_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLength",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileSystem.getLastModifiedTime/faked_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
   // The lines of /proc/cpuinfo which name the chip or the board, like Hardware and Serial
   {
     "collection": "Privacy",
@@ -19781,8 +20148,10 @@
     "minSdk": 27,
     "luaScript": "@kernel_version"
   },
-  // The times of the folders of the shared storage: Os.stat and Os.lstat, File.lastModified and java.nio.file.Files;
-  // the script runs for these folders only; not covered is a SecureDirectoryStream of the storage (see storage_times)
+  // The times of the folders of the shared storage and at the top of /data: Os.stat, Os.lstat and Os.fstat,
+  // File.lastModified and java.nio.file.Files; the script runs for these folders only, except for Os.fstat, which has a
+  // descriptor; also for paths through a descriptor, with /fd/; not covered is a SecureDirectoryStream of the storage
+  // (see storage_times)
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -19870,6 +20239,25 @@
     ],
     "luaScript": "@storage_times"
   },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.fstat",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "fstat",
+    "parameterTypes": [
+      "java.io.FileDescriptor"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@storage_times"
+  },
+  // The files which name the hardware model do not exist (see hardware_files); opening also gives the maps of the
+  // process without the libraries of the vendor and the mount tables without the storage controller of the chip
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -20120,6 +20508,32 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  // The names of the file stores of java.nio, which FileSystems.getDefault().getFileStores() makes of the mount entries
+  // it reads of /proc/mounts natively: the partition by name, like the mount table (see hardware_files)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileStore.name/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileStore",
+    "methodName": "name",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixFileStore.toString/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileStore",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -20294,7 +20708,301 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
-  // The own device of Wi-Fi Direct with the name users give the device (see wifip2pdevice_name)
+  // The calls which tell a hidden file exists, like for the ids of Read.Identifiers: listing or changing the
+  // attributes, the mode or the owner, linking, removing or moving it and making a folder, a pipe or a link by its name
+  // (EEXIST), which answer like for a missing file, also on the read-only partitions of the fonts and etc (EROFS)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.listxattr/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "listxattr",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.setxattr/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "setxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "byte[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.removexattr/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "removexattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.chmod/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.chown/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.lchown/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.link/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "link",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.remove/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "remove",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.mkdir/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.mkfifo/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkfifo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.symlink/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Os.rename/hardware_model",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "rename",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.chmod/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.chown/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.lchown/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.link/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "link",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.mkdir/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.symlink/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "byte[]",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.rename/hardware_model",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "rename",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The own device of Wi-Fi Direct with the name users give the device, also in the broadcast THIS_DEVICE_CHANGED of
+  // Android 8.1 and 9, and the network name of a group it owns, which ends in that name unless the app chose it (see
+  // wifip2pdevice_name)
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -20307,6 +21015,59 @@
     ],
     "returnType": "android.net.wifi.p2p.WifiP2pDevice",
     "minSdk": 27,
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@wifip2pdevice_name"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "WifiP2pGroup.createFromParcel/name",
+    "author": "akano12",
+    "className": "android.net.wifi.p2p.WifiP2pGroup",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.net.wifi.p2p.WifiP2pGroup",
+    "minSdk": 27,
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@wifip2pdevice_name"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Intent.createFromParcel/device_name",
+    "author": "akano12",
+    "className": "android.content.Intent",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "excludePackages": "android",
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@wifip2pdevice_name"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "WifiP2pConfig$Builder.setNetworkName",
+    "author": "akano12",
+    "className": "android.net.wifi.p2p.WifiP2pConfig$Builder",
+    "methodName": "setNetworkName",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.net.wifi.p2p.WifiP2pConfig$Builder",
+    "minSdk": 29,
     "luaScript": "@wifip2pdevice_name"
   },
   // The device name is often set to the name of the owner
@@ -20396,6 +21157,63 @@
     "name": "Os.execve",
     "author": "akano12",
     "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  // The methods beneath, which apps can call by reflection, on Android 8.1 without any trick: forkAndExec runs the
+  // program for ProcessImpl.start and the UNIXProcess constructor, Linux.execv and execve for Os and Libcore.os
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UNIXProcess.forkAndExec",
+    "author": "akano12",
+    "className": "java.lang.UNIXProcess",
+    "methodName": "forkAndExec",
+    "parameterTypes": [
+      "byte[]",
+      "byte[]",
+      "int",
+      "byte[]",
+      "int",
+      "byte[]",
+      "int[]",
+      "boolean"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Linux.execv",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Linux.execve",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
     "methodName": "execve",
     "parameterTypes": [
       "java.lang.String",
@@ -20696,7 +21514,8 @@
     "excludePackages": "android",
     "luaScript": "@media_codecs"
   },
-  // The extensions of OpenGL ES and EGL of vendors, by name and by index (gles_getstring)
+  // The extensions of OpenGL ES and EGL of vendors, by name and by index, and their number GL_NUM_EXTENSIONS by each getter
+  // the EGL loader answers it for (GLES30 to GLES32 inherit those of GLES20; see gles_getstring)
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -20709,6 +21528,111 @@
       "int"
     ],
     "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES20.glGetIntegerv",
+    "author": "akano12",
+    "className": "android.opengl.GLES20",
+    "methodName": "glGetIntegerv",
+    "parameterTypes": [
+      "int",
+      "int[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES20.glGetIntegerv/buffer",
+    "author": "akano12",
+    "className": "android.opengl.GLES20",
+    "methodName": "glGetIntegerv",
+    "parameterTypes": [
+      "int",
+      "java.nio.IntBuffer"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES20.glGetFloatv",
+    "author": "akano12",
+    "className": "android.opengl.GLES20",
+    "methodName": "glGetFloatv",
+    "parameterTypes": [
+      "int",
+      "float[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES20.glGetFloatv/buffer",
+    "author": "akano12",
+    "className": "android.opengl.GLES20",
+    "methodName": "glGetFloatv",
+    "parameterTypes": [
+      "int",
+      "java.nio.FloatBuffer"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES30.glGetInteger64v",
+    "author": "akano12",
+    "className": "android.opengl.GLES30",
+    "methodName": "glGetInteger64v",
+    "parameterTypes": [
+      "int",
+      "long[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@gles_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "GLES30.glGetInteger64v/buffer",
+    "author": "akano12",
+    "className": "android.opengl.GLES30",
+    "methodName": "glGetInteger64v",
+    "parameterTypes": [
+      "int",
+      "java.nio.LongBuffer"
+    ],
+    "returnType": "void",
     "minSdk": 27,
     "usage": false,
     "excludePackages": "android",
@@ -20796,7 +21720,7 @@
     "excludePackages": "android",
     "luaScript": "@cpu_count"
   },
-  // The processors possible, present and online of /sys/devices/system/cpu (cpu_count)
+  // The processors of the files of /sys/devices/system/cpu and of the status files of /proc (cpu_count)
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -21354,7 +22278,74 @@
     "excludePackages": "android",
     "luaScript": "@device_details"
   },
-  // The configuration of the fonts without the families of device makers (font_config)
+  // The alias of a certificate (KeyStore.getCertificateAlias of AndroidCAStore) and whether the user added it, which
+  // would name a certificate the aliases above do not have
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TrustedCertificateStore.getCertificateAlias",
+    "author": "akano12",
+    "className": "com.android.org.conscrypt.TrustedCertificateStore",
+    "methodName": "getCertificateAlias",
+    "parameterTypes": [
+      "java.security.cert.Certificate"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TrustedCertificateStore.getCertificateAlias/deleted",
+    "author": "akano12",
+    "className": "com.android.org.conscrypt.TrustedCertificateStore",
+    "methodName": "getCertificateAlias",
+    "parameterTypes": [
+      "java.security.cert.Certificate",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "TrustedCertificateStore.isUserAddedCertificate",
+    "author": "akano12",
+    "className": "com.android.org.conscrypt.TrustedCertificateStore",
+    "methodName": "isUserAddedCertificate",
+    "parameterTypes": [
+      "java.security.cert.X509Certificate"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "X509TrustManagerExtensions.isUserAddedCertificate",
+    "author": "akano12",
+    "className": "android.net.http.X509TrustManagerExtensions",
+    "methodName": "isUserAddedCertificate",
+    "parameterTypes": [
+      "java.security.cert.X509Certificate"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@device_details"
+  },
+  // The configuration of the fonts without the families of device makers, also for the lookups of Typeface by name
+  // (font_config); hasFontFamily is private
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -21386,6 +22377,68 @@
     ],
     "returnType": "int",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@font_config"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Typeface.create/font_config",
+    "author": "akano12",
+    "className": "android.graphics.Typeface",
+    "methodName": "create",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.graphics.Typeface",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@font_config"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Typeface$Builder.setFallback",
+    "author": "akano12",
+    "className": "android.graphics.Typeface$Builder",
+    "methodName": "setFallback",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.graphics.Typeface$Builder",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@font_config"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Typeface$CustomFallbackBuilder.setSystemFallback",
+    "author": "akano12",
+    "className": "android.graphics.Typeface$CustomFallbackBuilder",
+    "methodName": "setSystemFallback",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.graphics.Typeface$CustomFallbackBuilder",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@font_config"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Typeface.hasFontFamily",
+    "author": "akano12",
+    "className": "android.graphics.Typeface",
+    "methodName": "hasFontFamily",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 31,
+    "optional": true,
     "excludePackages": "android",
     "luaScript": "@font_config"
   },
@@ -21514,6 +22567,34 @@
     "usage": false,
     "luaScript": "@generic_unknown_value"
   },
+  // The version of the camera hardware names its image processor and sensors, without the permission of the camera
+  // (camera_characteristics)
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "CameraCharacteristics.get",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraCharacteristics",
+    "methodName": "get",
+    "parameterTypes": [
+      "android.hardware.camera2.CameraCharacteristics$Key"
+    ],
+    "returnType": "java.lang.Object",
+    "minSdk": 28,
+    "luaScript": "@camera_characteristics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "CameraCharacteristics.getKeys",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraCharacteristics",
+    "methodName": "getKeys",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 28,
+    "luaScript": "@camera_characteristics"
+  },
   // The emergency numbers of the carrier name its country and network, like the operator (test_network)
   {
     "collection": "Privacy",
@@ -21539,7 +22620,8 @@
     "minSdk": 29,
     "luaScript": "@test_network"
   },
-  // The text of a mode of the display lists the other refresh rates of the panel (display_panel)
+  // The text of a mode of the display lists the other refresh rates of the panel, the text of the display its exact
+  // density, all modes and the luminance, which it reads from its fields, not by the hooked getters (display_panel)
   {
     "collection": "Privacy",
     "group": "Use.Tracking",
@@ -21550,6 +22632,34 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 31,
+    "luaScript": "@display_panel"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Display.toString",
+    "author": "akano12",
+    "className": "android.view.Display",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@display_panel"
+  },
+  // Android 10: the address of the panel, which apps reach by reflection (hidden, but on the greylist), has the
+  // model of its EDID, which the text of the display does not have
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "Display.getAddress",
+    "author": "akano12",
+    "className": "android.view.Display",
+    "methodName": "getAddress",
+    "parameterTypes": [],
+    "returnType": "android.view.DisplayAddress",
+    "minSdk": 29,
+    "maxSdk": 29,
+    "optional": true,
     "luaScript": "@display_panel"
   },
   // The cells name the operator of their network, like the operator (test_network)
@@ -25671,6 +26781,81 @@
     "excludePackages": "android",
     "luaScript": "@systemproperties_get"
   },
+  // The natives behind get(key, default), getInt, getLong and getBoolean, which apps reach by reflection: native_get_long
+  // any app, the others apps made for Android 9 and before, and all of them any app on Android 8.1, which does not
+  // restrict them
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "SystemProperties.native_get.default/debugging",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "SystemProperties.native_get_int/debugging",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get_int",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "SystemProperties.native_get_long/debugging",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get_long",
+    "parameterTypes": [
+      "java.lang.String",
+      "long"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "SystemProperties.native_get_boolean/debugging",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get_boolean",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@systemproperties_get"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Debugging",
@@ -26724,6 +27909,26 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@systemproperties_get"
+  },
+  // The native behind get(key, default), which apps made for Android 9 and before reach by reflection, and any app on
+  // Android 8.1, which does not restrict it
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "SystemProperties.native_get.default/resources",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
     "usage": false,
     "excludePackages": "android",
     "luaScript": "@systemproperties_get"

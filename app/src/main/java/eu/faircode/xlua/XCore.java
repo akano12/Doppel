@@ -383,6 +383,9 @@ class XCore {
     }
 
     // First package of an app process
+    // shortcut: the app's own AppComponentFactory (Android 9 and later) is made, and makes the class loader, before both
+    // entry points run, so a Build field the factory copies keeps the real value; install the field hooks from the
+    // modern API's onPackageLoaded (Android 10 and later only) once the assigned hooks can be got there without a context
     void hookApplication(final String packageName, ClassLoader classLoader) throws Throwable {
         final int uid = Process.myUid();
 
@@ -419,7 +422,9 @@ class XCore {
                     made = true;
                     release();
 
-                    // Isolated processes (including app zygote) cannot access the provider
+                    // Isolated processes (including app zygote) cannot access the provider; this is for legacy loaders
+                    // that inject there. LSPosed does not even load modules there, so an isolated service of the app
+                    // reads the real Build fields (README Limits).
                     if (Util.isIsolated(uid)) {
                         XLog.i(TAG, "Skipping isolated " + packageName + ":" + uid);
                         return;

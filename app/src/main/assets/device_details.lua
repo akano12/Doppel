@@ -23,7 +23,10 @@
 -- - the vibrator: no amplitude control, effects and primitives unknown or not supported, no resonance (NaN),
 --   which apps answer with a plain vibration;
 -- - the certificates the user installed (AndroidCAStore, user: aliases), like of a VPN, proxy or ad blocker, are not
---   listed; which certificates connections trust stays;
+--   listed, the alias of such a certificate is the one of the system, else none, and the user did not add it
+--   (X509TrustManagerExtensions.isUserAddedCertificate); which certificates connections trust stays. shortcut: the
+--   hidden UserCertificateSource, which apps reach only by reflection, still finds them, since the trust of
+--   connections asks it too; hook it with a check of the caller when an app is seen using it;
 -- - the details of the vibrator of Android 12 and later (Vibrator.getInfo), which the methods above use: those of a
 --   vibrator without capabilities;
 -- - the screen lock: set (KeyguardManager.isDeviceSecure and isKeyguardSecure), like on most devices, and so a way to
@@ -146,6 +149,29 @@ function outside(alias)
     return false
 end
 
+-- The alias a store without the certificates of the user gives for one of them (TrustedCertificateStore
+-- .getCertificateAlias): the system one of the same certificate, which has the hash of the user alias in its name with
+-- an index of its own, unless the user disabled it and the caller does not ask for those; else none. The search ends
+-- at the first index without a certificate, where Android goes on after empty or broken files, which the read-only
+-- folder of the system does not have
+function systemalias(store, certificate, alias, deleted)
+    local hash = string.match(alias, '^user:(.+)%.%d+$')
+    if hash == nil then
+        return nil
+    end
+    local index = 0
+    while true do
+        local system = 'system:' .. hash .. '.' .. index
+        local found = store:getCertificate(system, true)
+        if found == nil then
+            return nil
+        elseif found:equals(certificate) then
+            return (deleted or store:getCertificate(system, false) ~= nil) and system or nil
+        end
+        index = index + 1
+    end
+end
+
 function after(hook, param)
     if param:getException() ~= nil then
         return false
@@ -265,6 +291,22 @@ function after(hook, param)
         if method == 'containsAlias' then
             fake = false
         end
+    elseif method == 'getCertificateAlias' then
+        -- An alias of the user, which the other methods do not have; the system ones are those of the store
+        if result == nil or string.sub(result, 1, 5) ~= 'user:' then
+            return false
+        end
+        local store = param:getThis()
+        local deleted = (hook:getParameterTypes()['length'] == 2 and param:getArgument(1))
+        local ok, alias = pcall(function()
+            return param:unhooked(function()
+                return systemalias(store, param:getArgument(0), result, deleted)
+            end)
+        end)
+        -- The hidden API rules may hide the methods of the store from apps, then none, like for nearly all of them
+        fake = (ok and alias or nil)
+    elseif method == 'isUserAddedCertificate' then
+        fake = false
     else
         return false
     end

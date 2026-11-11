@@ -43,13 +43,13 @@ function generic(metrics)
 end
 
 -- HdrCapabilities without the luminance; it has no public constructor, so it is read from a parcel, written like
--- HdrCapabilities writes itself; should the parcel differ, which the luminance read back shows, it stays
-function hdr(param)
-    local result = param:getResult()
+-- HdrCapabilities writes itself; nil when it has no luminance, or should the parcel differ, which the luminance read
+-- back shows
+function hdr(result)
     local invalid = -1
     if result == nil or (result:getDesiredMaxLuminance() == invalid and
             result:getDesiredMaxAverageLuminance() == invalid and result:getDesiredMinLuminance() == invalid) then
-        return false
+        return nil
     end
     local ok, fake = pcall(function()
         local types = result:getSupportedHdrTypes()
@@ -67,10 +67,9 @@ function hdr(param)
         return made
     end)
     if not ok or fake == nil or fake:getDesiredMaxLuminance() ~= invalid or fake:getDesiredMinLuminance() ~= invalid then
-        return false
+        return nil
     end
-    param:setResult(fake)
-    return true, tostring(result:getDesiredMaxLuminance()), tostring(invalid)
+    return fake
 end
 
 -- A Java array of the class with the values
@@ -80,6 +79,100 @@ function array(class, values)
         fake[index] = values[index]
     end
     return fake
+end
+
+-- The text with the part which ends at stop as another
+function spliced(text, stop, old, new)
+    return string.sub(text, 1, stop - #old) .. new .. string.sub(text, stop + 1)
+end
+
+-- The text with the list after the label, like ", modes [{id=1, ...}, {id=2, ...}]", as only the active mode, which
+-- starts with its id, like getSupportedModes gives it; the text of the active mode too, also when the list stays
+function onlymode(text, label, id, active)
+    local _, stop, list = string.find(text, ', ' .. label .. ' (%b[])')
+    if stop == nil then
+        return text, active
+    end
+    local count = 0
+    for mode in string.gmatch(list, '%b{}') do
+        count = count + 1
+        if string.find(mode, '{id=' .. id .. ',', 1, true) == 1 then
+            active = mode
+        end
+    end
+    if count < 2 or active == nil then
+        return text, active
+    end
+    return spliced(text, stop, list, '[' .. active .. ']'), active
+end
+
+-- The text of a display (Display.toString), which DisplayInfo and DisplayMetrics make from their fields, not by the
+-- hooked getters, with the same values as the getters: the stable density, only the active mode, its refresh rate and
+-- the ids of the default and preferred mode, and the luminance unknown. Up to Android 10 DisplayInfo has the exact
+-- density, the HdrCapabilities as the text of Object, with the hash of its values, and on Android 10 the id and address
+-- of the panel, which tell the model of its EDID; from Android 11 these are only in the text for the system.
+function displaytext(param)
+    local result = param:getResult()
+    if result == nil then
+        return false
+    end
+    local display = param:getThis()
+    local found = param:unhooked(function()
+        local real = display:getHdrCapabilities()
+        return { display:getMode():getModeId(), real, hdr(real) }
+    end)
+    local id = found[1]
+    local dpi = luajava.bindClass('android.util.DisplayMetrics').DENSITY_DEVICE_STABLE .. '.0'
+    local text = string.gsub(result, 'xdpi=[^,]*, ydpi=[^}]*', function()
+        return 'xdpi=' .. dpi .. ', ydpi=' .. dpi
+    end)
+    text = string.gsub(text, '(, density %d+ )%([^)]*%)( dpi)', function(before, after)
+        return before .. '(' .. dpi .. ' x ' .. dpi .. ')' .. after
+    end)
+
+    -- The modes, from Android 15 those of the system and of apps, which getSupportedModes gives
+    local active
+    text, active = onlymode(text, 'modes', id, nil)
+    text, active = onlymode(text, 'supportedModes', id, active)
+    text, active = onlymode(text, 'appsSupportedModes', id, active)
+    if active ~= nil then
+        text = string.gsub(text, '(, defaultMode )%d+', function(label) return label .. id end)
+        text = string.gsub(text, '(, userPreferredModeId )%d+', function(label) return label .. id end)
+        -- Android 16: the refresh rates of the active mode, like getSupportedRefreshRates gives them.
+        -- shortcut: frameRateCategoryRate in the text, like getSuggestedFrameRate, still has the highest rate of the
+        -- panel, until getSuggestedFrameRate is hooked too
+        local _, stop, rates = string.find(text, ', supportedRefreshRates (%b[])')
+        local fps = string.match(active, ', fps=([^,}]*)')
+        if stop ~= nil and fps ~= nil and string.find(rates, ',', 1, true) ~= nil then
+            text = spliced(text, stop, rates, '[' .. fps .. ']')
+        end
+    end
+    text = string.gsub(text, ', alternativeRefreshRates=%[[^%]]*%]', ', alternativeRefreshRates=[]')
+
+    local real, fake = found[2], found[3]
+    if fake ~= nil then
+        local start, stop = string.find(text, tostring(real), 1, true)
+        if start ~= nil then
+            text = spliced(text, stop, tostring(real), tostring(fake))
+        end
+    end
+    -- From Android 16 the text has the luminance also when the getter gives none, for a display forced to SDR
+    if fake ~= nil or real == nil then
+        text = string.gsub(text, '(m[%a]*Luminance=)[^,}]*', '%1-1.0')
+    end
+
+    -- Android 10: a panel without EDID has only its port, like local:129 and {port=129}, like getAddress gives it
+    local port = string.match(text, ', address {port=(%d+), model=0x%x+}')
+    if port ~= nil then
+        text = string.gsub(text, '(, address {port=%d+), model=0x%x+}', '%1}')
+        text = string.gsub(text, 'uniqueId "local:%d+"', 'uniqueId "local:' .. port .. '"')
+    end
+
+    if text == result then
+        return false
+    end
+    param:setResult(text)
+    return true, result, text
 end
 
 function after(hook, param)
@@ -115,7 +208,9 @@ function after(hook, param)
         return true, real, tostring(metrics.xdpi)
     end
 
-    if method == 'toString' then
+    if method == 'toString' and hook:getClassName() == 'android.view.Display' then
+        return displaytext(param)
+    elseif method == 'toString' then
         -- The text of Display.Mode, with the other rates of the same size like getAlternativeRefreshRates gives them
         local result = param:getResult()
         if result == nil then
@@ -134,7 +229,34 @@ function after(hook, param)
         param:setResult(nil)
         return true
     elseif method == 'getHdrCapabilities' then
-        return hdr(param)
+        local result = param:getResult()
+        local fake = hdr(result)
+        if fake == nil then
+            return false
+        end
+        param:setResult(fake)
+        return true, tostring(result:getDesiredMaxLuminance()), tostring(fake:getDesiredMaxLuminance())
+    elseif method == 'getAddress' then
+        -- Android 10: apps reach the address by reflection; like the text of the display it has only the port, not the
+        -- model of the EDID. DisplayAddress, its getModel and its CREATOR are hidden from apps (and scripts), so its
+        -- text tells the port and the model, and the address is read from a parcel, written like Physical writes
+        -- itself, of which Parcel finds the CREATOR; should the parcel differ, which the text read back shows, it stays
+        local result = param:getResult()
+        local port = result ~= nil and string.match(tostring(result), '^{port=(%d+), model=0x%x+}$')
+        if not port then
+            return false
+        end
+        local parcel = luajava.bindClass('android.os.Parcel'):obtain()
+        parcel:writeString('android.view.DisplayAddress$Physical')
+        parcel:writeLong(tonumber(port))
+        parcel:setDataPosition(0)
+        local fake = parcel:readParcelable(nil)
+        parcel:recycle()
+        if fake == nil or tostring(fake) ~= '{port=' .. port .. '}' then
+            return false
+        end
+        param:setResult(fake)
+        return true, tostring(result), tostring(fake)
     end
 
     local result = param:getResult()

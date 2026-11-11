@@ -96,6 +96,30 @@ public class PackageInfoScriptTest {
         assertEquals("1720734637000", result.arg(4).tojstring());
     }
 
+    // After an update of the firmware the install time is still of the first firmware, and in a profile it is when the
+    // profile was made; it gets the update time, the time of the current firmware, like on a device which started with it
+    @Test
+    public void systemAppsGetTheTimeOfTheFirmware() {
+        Varargs result = run("infoof('com.android.settings', 1, 1689000000000, 1720734637000)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("com.android.settings 1689000000000", result.arg(2).tojstring());
+        assertEquals("1720734637000", result.arg(3).tojstring());
+        assertEquals("1720734637000", result.arg(4).tojstring());
+        assertEquals("1720734637000", result.arg(5).tojstring());
+        result = run("infoof('com.android.settings', 1, 1761400000456, 1720734637000)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("1720734637000", result.arg(4).tojstring());
+    }
+
+    // A new profile has an install time of 0 for system apps until a reboot on Android 13 and 14, which every device gives
+    @Test
+    public void systemAppsWithoutInstallTime() {
+        Varargs result = run("infoof('com.android.settings', 1, 0, 1720734637000)");
+        assertFalse(result.arg1().toboolean());
+        assertEquals("0", result.arg(4).tojstring());
+        assertEquals("1720734637000", result.arg(5).tojstring());
+    }
+
     // An update of a system app, FLAG_UPDATED_SYSTEM_APP, has the time it was installed on the device;
     // it gets the time of the firmware, like before the update
     @Test

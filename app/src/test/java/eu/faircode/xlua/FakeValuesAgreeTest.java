@@ -189,6 +189,24 @@ public class FakeValuesAgreeTest {
                     "fakeof('SystemProperties.get/operator', 'get', 'T-Mobile', { '" + key + "' })"));
             assertEquals(key, key + "=" + name, area(properties, "BlockGuardOs.open/operator", "{}", key, "T-Mobile"));
         }
+        // The broadcasts of the service state and of the names the status bar shows
+        Globals intent = load("intent_createfromparcel");
+        Scripts.run(intent, "function intentof(action, key, value)\n" +
+                "  local values = { [key] = value }\n" +
+                "  local bundle = { getString = function(self, key) return values[key] end,\n" +
+                "    putString = function(self, key, value) values[key] = value end }\n" +
+                "  return { getAction = function(self) return action end,\n" +
+                "    getExtras = function(self) return bundle end, replaceExtras = function(self, extras) end,\n" +
+                "    value = function(self) return values[key] end }\n" +
+                "end");
+        String[][] extras = {{"android.intent.action.SERVICE_STATE", "operator-numeric", "310260", operator},
+                {"android.intent.action.SERVICE_STATE", "data-operator-numeric", "310260", operator},
+                {"android.intent.action.SERVICE_STATE", "operator-alpha-long", "T-Mobile", name},
+                {"android.provider.Telephony.SPN_STRINGS_UPDATED", "spn", "T-Mobile", name},
+                {"android.telephony.action.SERVICE_PROVIDERS_UPDATED", "android.telephony.extra.SPN", "T-Mobile", name}};
+        for (String[] e : extras)
+            assertEquals(e[1], e[3], run(intent, "fakeof('Intent.createFromParcel/operator', nil, intentof('" + e[0] +
+                    "', '" + e[1] + "', '" + e[2] + "')):value()"));
 
         String country = run(getters, "fakeof(nil, 'getCountryIso', 'us')");
         for (String method : new String[]{"getNetworkCountryIso", "getSimCountryIso"})
@@ -337,6 +355,28 @@ public class FakeValuesAgreeTest {
                     "', { 'ro.build.version.security_patch' })"));
         }
         assertEquals("2025-04-01", run(globals, "fakeof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH', '2025-05-05')"));
+    }
+
+    // The model, the build and the security patch in the property areas the app reads as files, like
+    // u:object_r:build_prop:s0 and build_vendor_prop, are those of get, for both ways of opening files; ANGLE as the
+    // driver of the system and properties which name no device stay
+    @Test
+    public void deviceInPropertyAreas() throws Exception {
+        Globals properties = load("systemproperties_get");
+        String[][] cases = {{"ro.product.model", "sdk_gphone64_x86_64"}, {"ro.product.vendor.model", "sdk_gphone64_x86_64"},
+                {"ro.build.id", "UE1A.230829.050"},
+                {"ro.vendor.build.fingerprint", "google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.050/10930475:userdebug/dev-keys"},
+                {"ro.build.version.security_patch", "2023-09-05"}};
+        for (String[] property : cases) {
+            String expected = run(properties, "fakeof('SystemProperties.get/device', 'get', '" + property[1] + "', { '" +
+                    property[0] + "' })");
+            assertTrue(property[0], !expected.equals(property[1]));
+            for (String hook : new String[]{"BlockGuardOs.open/device", "UnixNativeDispatcher.open/device"})
+                assertEquals(property[0], property[0] + "=" + expected, area(properties, hook, "{}", property[0], property[1]));
+        }
+        assertEquals("", area(properties, "BlockGuardOs.open/device", "{}", "ro.hardware.egl", "angle",
+                "persist.sys.locale", "de-DE", "ro.product.first_api_level", "34"));
+        assertEquals("/dev/__properties__/*", run(properties, "filter(hookof('BlockGuardOs.open/device', 'open'))[1]"));
     }
 
     // The model and build in the user agent of WebView become K, like Chrome does, for the default user agent

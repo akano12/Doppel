@@ -308,6 +308,152 @@ public class DeviceValuesScriptTest {
         assertFalse(result.arg(3).toboolean());
     }
 
+    // The text of the display, which Display makes from its fields, has the values of the hooked getters: the stable
+    // density, only the active mode, also as the default one, with its refresh rates, and the luminance unknown, up to
+    // Android 10 also in the hash of HdrCapabilities, and on Android 10 the panel without the model of its EDID; the
+    // formats of AOSP android10-release, android14-release and android16-release, where frameRateCategoryRate stays like
+    // getSuggestedFrameRate; a generic text stays
+    @Test
+    public void displayTextIsGeneric() throws Exception {
+        Globals globals = load("display_panel");
+        Scripts.run(globals, String.join("\n",
+                "local bind = luajava.bindClass",
+                "luajava.bindClass = function(name)",
+                "  if name == 'android.util.DisplayMetrics' then return { DENSITY_DEVICE_STABLE = 440 } end",
+                "  return bind(name) end",
+                // HdrCapabilities as its text, with the one without luminance which hdr makes of it
+                "local function hdrof(text, fake)",
+                "  return setmetatable({ fake = fake }, { __tostring = function() return text end }) end",
+                "hdr = function(real) return real and real.fake end",
+                "function text(result, hdr)",
+                "  local display = { getMode = function(self) return { getModeId = function(self) return 2 end } end,",
+                "    getHdrCapabilities = function(self) return hdr end }",
+                "  local param = paramof(result, {})",
+                "  param.getThis = function(self) return display end",
+                "  return after(hookof('Display.toString', 'toString', 'android.view.Display'), param), param.result",
+                "end",
+                "HDR10 = hdrof('android.view.Display$HdrCapabilities@6b1c2f', hdrof('android.view.Display$HdrCapabilities@3e4d1a'))",
+                // From Android 14 the HdrCapabilities of the getter has the types of the mode
+                "HDR14 = hdrof('HdrCapabilities{mSupportedHdrTypes=[2], mMaxLuminance=1000.0, mMaxAverageLuminance=500.0, " +
+                        "mMinLuminance=5.0E-4}', hdrof('HdrCapabilities{mSupportedHdrTypes=[2], mMaxLuminance=-1.0, " +
+                        "mMaxAverageLuminance=-1.0, mMinLuminance=-1.0}'))"));
+        String metrics = ", DisplayMetrics{density=2.75, width=1080, height=2177, scaledDensity=2.75, ";
+        String[][] cases = {{
+                "Display id 0: DisplayInfo{\"Built-in Screen, displayId 0\", uniqueId \"local:4619827259835644545\", " +
+                        "app 1080 x 2280, real 1080 x 2280, largest app 2280 x 2177, smallest app 1080 x 977, mode 2, " +
+                        "defaultMode 1, modes [{id=1, width=1080, height=2280, fps=60.0}, {id=2, width=1080, height=2280, " +
+                        "fps=90.0}], colorMode 0, supportedColorModes [0, 7, 9], hdrCapabilities " +
+                        "android.view.Display$HdrCapabilities@6b1c2f, rotation 0, density 440 (403.411 x 403.041) dpi, " +
+                        "layerStack 0, appVsyncOff 2000000, presDeadline 11111111, type BUILT_IN, address {port=129, " +
+                        "model=0x401cecae7d6e8a}, state ON, FLAG_SECURE, FLAG_SUPPORTS_PROTECTED_BUFFERS, removeMode 0}" +
+                        metrics + "xdpi=403.411, ydpi=403.041}, isValid=true",
+                "Display id 0: DisplayInfo{\"Built-in Screen, displayId 0\", uniqueId \"local:129\", " +
+                        "app 1080 x 2280, real 1080 x 2280, largest app 2280 x 2177, smallest app 1080 x 977, mode 2, " +
+                        "defaultMode 2, modes [{id=2, width=1080, height=2280, fps=90.0}], colorMode 0, supportedColorModes " +
+                        "[0, 7, 9], hdrCapabilities android.view.Display$HdrCapabilities@3e4d1a, rotation 0, " +
+                        "density 440 (440.0 x 440.0) dpi, layerStack 0, appVsyncOff 2000000, presDeadline 11111111, " +
+                        "type BUILT_IN, address {port=129}, state ON, FLAG_SECURE, FLAG_SUPPORTS_PROTECTED_BUFFERS, " +
+                        "removeMode 0}" + metrics + "xdpi=440.0, ydpi=440.0}, isValid=true",
+                "HDR10"}, {
+                // Android 14 appends the render rate to the mode id without a space, 2 and 60.0
+                "Display id 0: DisplayInfo{\"Built-in Screen\", displayId 0, displayGroupId 0, FLAG_SECURE, real 1080 x 2400, " +
+                        "largest app 2400 x 2337, smallest app 1080 x 1017, appVsyncOff 6233334, presDeadline 11500000, " +
+                        "mode 260.0, defaultMode 1, modes [{id=1, width=1080, height=2400, fps=60.0, " +
+                        "alternativeRefreshRates=[120.0], supportedHdrTypes=[2, 3]}, {id=2, width=1080, height=2400, " +
+                        "fps=120.0, alternativeRefreshRates=[60.0], supportedHdrTypes=[2]}], hdrCapabilities " +
+                        "HdrCapabilities{mSupportedHdrTypes=[2, 3], mMaxLuminance=1000.0, mMaxAverageLuminance=500.0, " +
+                        "mMinLuminance=5.0E-4}, userDisabledHdrTypes [], minimalPostProcessingSupported false, rotation 0, " +
+                        "state ON, committedState ON}" + metrics + "xdpi=403.411, ydpi=403.041}, isValid=true",
+                "Display id 0: DisplayInfo{\"Built-in Screen\", displayId 0, displayGroupId 0, FLAG_SECURE, real 1080 x 2400, " +
+                        "largest app 2400 x 2337, smallest app 1080 x 1017, appVsyncOff 6233334, presDeadline 11500000, " +
+                        "mode 260.0, defaultMode 2, modes [{id=2, width=1080, height=2400, " +
+                        "fps=120.0, alternativeRefreshRates=[], supportedHdrTypes=[2]}], hdrCapabilities " +
+                        "HdrCapabilities{mSupportedHdrTypes=[2, 3], mMaxLuminance=-1.0, mMaxAverageLuminance=-1.0, " +
+                        "mMinLuminance=-1.0}, userDisabledHdrTypes [], minimalPostProcessingSupported false, rotation 0, " +
+                        "state ON, committedState ON}" + metrics + "xdpi=440.0, ydpi=440.0}, isValid=true",
+                "HDR14"}, {
+                "Display id 0: DisplayInfo{\"Built-in Screen\", displayId 0, displayGroupId 0, FLAG_SECURE, mode 2, " +
+                        "renderFrameRate 120.0, hasArrSupport false, frameRateCategoryRate FrameRateCategoryRate {normal=60.0, " +
+                        "high=120.0}, supportedRefreshRates [60.0, 120.0], defaultMode 1, " +
+                        "userPreferredModeId 1, supportedModes [{id=1, width=1080, height=2400, fps=60.0, vsync=60.0, " +
+                        "synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}, {id=2, width=1080, height=2400, " +
+                        "fps=120.0, vsync=120.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], " +
+                        "appsSupportedModes [{id=1, width=1080, height=2400, fps=60.0, vsync=60.0, synthetic=false, " +
+                        "alternativeRefreshRates=[], supportedHdrTypes=[]}, {id=2, width=1080, height=2400, fps=120.0, " +
+                        "vsync=120.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], hdrCapabilities " +
+                        "HdrCapabilities{mSupportedHdrTypes=[2], mMaxLuminance=1000.0, mMaxAverageLuminance=500.0, " +
+                        "mMinLuminance=5.0E-4}, isForceSdr true, rotation 0, state ON, committedState ON}" + metrics +
+                        "xdpi=440.0, ydpi=440.0}, isValid=true",
+                "Display id 0: DisplayInfo{\"Built-in Screen\", displayId 0, displayGroupId 0, FLAG_SECURE, mode 2, " +
+                        "renderFrameRate 120.0, hasArrSupport false, frameRateCategoryRate FrameRateCategoryRate {normal=60.0, " +
+                        "high=120.0}, supportedRefreshRates [120.0], defaultMode 2, " +
+                        "userPreferredModeId 2, supportedModes [{id=2, width=1080, height=2400, " +
+                        "fps=120.0, vsync=120.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], " +
+                        "appsSupportedModes [{id=2, width=1080, height=2400, fps=120.0, " +
+                        "vsync=120.0, synthetic=false, alternativeRefreshRates=[], supportedHdrTypes=[]}], hdrCapabilities " +
+                        "HdrCapabilities{mSupportedHdrTypes=[2], mMaxLuminance=-1.0, mMaxAverageLuminance=-1.0, " +
+                        "mMinLuminance=-1.0}, isForceSdr true, rotation 0, state ON, committedState ON}" + metrics +
+                        "xdpi=440.0, ydpi=440.0}, isValid=true",
+                // Forced to SDR the getter gives no HdrCapabilities, the text has them
+                "nil"}};
+        for (String[] c : cases) {
+            globals.set("TEXT", c[0]);
+            Varargs result = Scripts.run(globals, "return text(TEXT, " + c[2] + ")");
+            assertTrue(c[2], result.arg(1).toboolean());
+            assertEquals(c[2], c[1], result.arg(2).tojstring());
+        }
+        // A panel with one mode, the stable density and no luminance
+        globals.set("TEXT", "Display id 0: DisplayInfo{\"Built-in Screen\", displayId 0, mode 2, defaultMode 2, " +
+                "userPreferredModeId -1, modes [{id=2, " +
+                "width=1080, height=2400, fps=60.0}], hdrCapabilities null, state ON}" + metrics + "xdpi=440.0, ydpi=440.0}, " +
+                "isValid=true");
+        assertFalse(Scripts.run(globals, "return text(TEXT, nil)").arg1().toboolean());
+    }
+
+    // Android 10: the address of the panel, which apps get by reflection, has only its port like the text of the
+    // display, made from a parcel like DisplayAddress.Physical writes itself, since its members are hidden from apps;
+    // an address without model, of a network display, none, and a parcel read back otherwise stay
+    @Test
+    public void displayAddressHasNoModel() throws Exception {
+        Globals globals = load("display_panel");
+        Varargs result = Scripts.run(globals, String.join("\n",
+                "local function textof(text) return setmetatable({}, { __tostring = function() return text end }) end",
+                "local written = {}",
+                "local parcel = { writeString = function(self, s) written[#written + 1] = s end,",
+                "  writeLong = function(self, l) written[#written + 1] = l end,",
+                "  setDataPosition = function(self, p) written.position = p end,",
+                "  readParcelable = function(self, loader) written.loader = loader",
+                "    return textof(READ or '{port=' .. written[2] .. '}') end,",
+                "  recycle = function(self) written.recycled = true end }",
+                "local bind = luajava.bindClass",
+                "luajava.bindClass = function(name)",
+                "  if name == 'android.os.Parcel' then return { obtain = function(self) return parcel end } end",
+                "  return bind(name) end",
+                "local function address(text)",
+                "  local param = paramof(text and textof(text))",
+                "  return after(hookof('Display.getAddress', 'getAddress', 'android.view.Display'), param), tostring(param.result)",
+                "end",
+                "local restricted, fake = address('{port=129, model=0x401cecae7d6e8a}')",
+                "local made = written",
+                "written = {}",
+                "READ = '{port=0}'",
+                "local other, kept = address('{port=129, model=0x401cecae7d6e8a}')",
+                "return restricted, fake, made[1], made[2], made.position, made.loader, made.recycled,",
+                "  address('{port=129}'), address('02:00:00:00:00:00'), address(nil), other, kept"));
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("{port=129}", result.arg(2).tojstring());
+        assertEquals("android.view.DisplayAddress$Physical", result.arg(3).tojstring());
+        assertEquals(129, result.arg(4).toint());
+        assertEquals(0, result.arg(5).toint());
+        assertTrue("default loader", result.arg(6).isnil());
+        assertTrue("recycled", result.arg(7).toboolean());
+        assertFalse("no model", result.arg(8).toboolean());
+        assertFalse("network", result.arg(9).toboolean());
+        assertFalse("none", result.arg(10).toboolean());
+        assertFalse("read back otherwise", result.arg(11).toboolean());
+        assertEquals("{port=129, model=0x401cecae7d6e8a}", result.arg(12).tojstring());
+    }
+
     // A prompt for biometrics gets the error of a device without them on its executor, without the dialog; a prompt
     // which allows the screen lock too (by its authenticators or without a negative button), and a call without its
     // arguments, go to Android
@@ -364,6 +510,41 @@ public class DeviceValuesScriptTest {
                 "'getPropertyString'), paramof('18615', { [0] = 'systemId' }))").arg1().toboolean());
     }
 
+    // The maker and the model in the build information of OEMCrypto become unknown in place, the rest stays as it is;
+    // the free text of older OEMCrypto and a value already unknown stay
+    @Test
+    public void drmBuildInformationWithoutModel() throws Exception {
+        Globals globals = load("mediadrm_version");
+        String[][] cases = {
+                {"{\"soc_vendor\": \"samsung\", \"soc_model\": \"SM-S938U1\", \"fused\": \"locked\", \"tee_os_ver\": \"150000\", " +
+                        "\"tee_os\": \"strongbox\", \"uses_opk\": false, \"implementer\": \"Qualcomm\", \"ta_ver\": \"1.186\", " +
+                        "\"ree\": {\"liboemcrypto_ver\": \"1.93\"}}",
+                        "{\"soc_vendor\": \"unknown\", \"soc_model\": \"unknown\", \"fused\": \"locked\", \"tee_os_ver\": \"150000\", " +
+                                "\"tee_os\": \"strongbox\", \"uses_opk\": false, \"implementer\": \"Qualcomm\", \"ta_ver\": \"1.186\", " +
+                                "\"ree\": {\"liboemcrypto_ver\": \"1.93\"}}"},
+                {"{\"soc_vendor\":\"L3_28615\",\"soc_model\":\"X86 64 bit\",\"ta_ver\":\"18.1.0+May  1 2023_06:32:45_\"," +
+                        "\"uses_opk\":false,\"tee_os\":\"none\",\"form_factor\":\"L3\",\"implementer\":\"Widevine\",\"fused\":false}",
+                        "{\"soc_vendor\":\"unknown\",\"soc_model\":\"unknown\",\"ta_ver\":\"18.1.0+May  1 2023_06:32:45_\"," +
+                                "\"uses_opk\":false,\"tee_os\":\"none\",\"form_factor\":\"L3\"," +
+                                "\"implementer\":\"Widevine\",\"fused\":false}"}};
+        for (String[] c : cases) {
+            globals.set("real", c[0]);
+            Varargs result = Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
+                    "'getPropertyString'), paramof(real, { [0] = 'oemCryptoBuildInformation' }))");
+            assertTrue(c[0], result.arg1().toboolean());
+            assertEquals(c[1], result.arg(2).tojstring());
+            globals.set("real", c[1]);
+            assertFalse(c[1], Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
+                    "'getPropertyString'), paramof(real, { [0] = 'oemCryptoBuildInformation' }))").arg1().toboolean());
+        }
+        String[] kept = {"OEMCrypto Level3 Code 22594 May 28 2021 16:59:07", "", "{\"soc_vendor\":\"\",\"soc_model\":\"\"}"};
+        for (String real : kept) {
+            globals.set("real", real);
+            assertFalse(real, Scripts.run(globals, "return run(hookof('MediaDrm.getPropertyString/version', " +
+                    "'getPropertyString'), paramof(real, { [0] = 'oemCryptoBuildInformation' }))").arg1().toboolean());
+        }
+    }
+
     // Values of MMS other than the generic ones of Android become those; generic and empty ones stay
     @Test
     public void mmsValuesAreGeneric() throws Exception {
@@ -391,6 +572,7 @@ public class DeviceValuesScriptTest {
         Varargs result = Scripts.run(globals, "local values = { userAgent = 'SAMSUNG-SM-G991B',\n" +
                 "  uaProfUrl = 'http://wap.samsungmobile.com/uaprof/SM-G991B.xml', maxMessageSize = 1048576 }\n" +
                 "local bundle = { getString = function(self, key) return values[key] end,\n" +
+                "  getBoolean = function(self, key) return values[key] == true end,\n" +
                 "  putString = function(self, key, value) values[key] = value end }\n" +
                 "local restricted = run(hookof('SmsManager.getCarrierConfigValues', 'getCarrierConfigValues'), paramof(bundle, {}))\n" +
                 "return restricted, values.userAgent, values.uaProfUrl, values.maxMessageSize");
@@ -401,8 +583,48 @@ public class DeviceValuesScriptTest {
         // Generic and empty values stay
         assertFalse(Scripts.run(globals, "local values = { userAgent = 'Android-Mms/2.0', uaProfUrl = '' }\n" +
                 "local bundle = { getString = function(self, key) return values[key] end,\n" +
+                "  getBoolean = function(self, key) return values[key] == true end,\n" +
                 "  putString = function(self, key, value) values[key] = value end }\n" +
                 "return run(hookof('SmsManager.getCarrierConfigValues', 'getCarrierConfigValues'), paramof(bundle, {}))")
+                .arg1().toboolean());
+    }
+
+    // The name of the carrier and the version of its configuration become the empty defaults of Android, and the
+    // override of the name its default false; a bundle without them, like the MMS values of SmsManager or a subset for
+    // other keys, gains none, and other values stay
+    @Test
+    public void carrierConfigNameAndVersionAreDefaults() throws Exception {
+        Globals globals = load("mms_useragent");
+        String bundle = "local bundle = { getString = function(self, key) return values[key] end,\n" +
+                "  getBoolean = function(self, key) return values[key] == true end,\n" +
+                "  putString = function(self, key, value) values[key] = value end,\n" +
+                "  putBoolean = function(self, key, value) values[key] = value end }\n";
+        Varargs result = Scripts.run(globals, "local values = { carrier_name_string = 'T-Mobile',\n" +
+                "  carrier_config_version_string = '310260-tmobile_us-1234', carrier_volte_available_bool = true,\n" +
+                "  carrier_name_override_bool = true }\n" + bundle +
+                "local restricted = run(hookof('CarrierConfigManager.getConfigForSubId', 'getConfigForSubId'), paramof(bundle, {}))\n" +
+                "return restricted, values.carrier_name_string, values.carrier_config_version_string,\n" +
+                "  values.carrier_volte_available_bool, values.carrier_name_override_bool");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("", result.arg(2).tojstring());
+        assertEquals("", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).isboolean());
+        assertFalse(result.arg(5).toboolean());
+        String[] methods = {"SmsManager.getCarrierConfigValues|getCarrierConfigValues",
+                "CarrierConfigManager.getConfig/keys|getConfig"};
+        for (String method : methods) {
+            String[] m = method.split("\\|");
+            result = Scripts.run(globals, "local values = { maxMessageSize = 1048576 }\n" + bundle +
+                    "return run(hookof('" + m[0] + "', '" + m[1] + "'), paramof(bundle, {})),\n" +
+                    "  values.carrier_name_string, values.carrier_config_version_string, values.carrier_name_override_bool");
+            assertFalse(m[0], result.arg(1).toboolean());
+            assertTrue(m[0], result.arg(2).isnil());
+            assertTrue(m[0], result.arg(3).isnil());
+            assertTrue(m[0], result.arg(4).isnil());
+        }
+        assertFalse(Scripts.run(globals, "local values = { carrier_name_string = '', carrier_config_version_string = '' }\n" +
+                bundle + "return run(hookof('CarrierConfigManager.getConfig', 'getConfig'), paramof(bundle, {}))")
                 .arg1().toboolean());
     }
 
@@ -550,6 +772,52 @@ public class DeviceValuesScriptTest {
         assertEquals(3000000000L, Scripts.run(globals, "return number('3000000000', 'getLong')").arg1().tolong());
     }
 
+    // getInt, getLong and getBoolean call natives, which apps reach by reflection: those fake like the getters, the
+    // getter around them sees the fake and changes nothing; a property which is not set keeps the default
+    @Test
+    public void nativeNumbersAreFakedFirst() throws Exception {
+        Globals globals = load("systemproperties_get");
+        Varargs result = Scripts.run(globals,
+                "PROPERTIES = { ['gsm.operator.numeric'] = '310260', ['ro.build.date.utc'] = '1720722121' }\n" +
+                        "local operator, fake = run(hookof('SystemProperties.native_get_long/operator', 'native_get_long'), " +
+                        "paramof(310260, { [0] = 'gsm.operator.numeric', [1] = 0 }))\n" +
+                        "local date, zero = run(hookof('SystemProperties.native_get_long/device', 'native_get_long'), " +
+                        "paramof(1720722121, { [0] = 'ro.build.date.utc', [1] = -1 }))\n" +
+                        "local again = run(hookof('SystemProperties.getLong/device', 'getLong'), " +
+                        "paramof(zero, { [0] = 'ro.build.date.utc', [1] = -1 }))\n" +
+                        "local int, small = run(hookof('SystemProperties.native_get_int/operator', 'native_get_int'), " +
+                        "paramof(310260, { [0] = 'gsm.operator.numeric', [1] = 0 }))\n" +
+                        "local flag, off = run(hookof('SystemProperties.native_get_boolean/debugging', 'native_get_boolean'), " +
+                        "paramof(true, { [0] = 'ro.debuggable', [1] = false }))\n" +
+                        "local unset, default = run(hookof('SystemProperties.native_get_long/operator', 'native_get_long'), " +
+                        "paramof(7, { [0] = 'gsm.sim.operator.numeric', [1] = 7 }))\n" +
+                        "return operator, fake, date, zero, again, int, small, flag, off, unset, default");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(101, result.arg(2).toint());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(0, result.arg(4).toint());
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+        assertEquals(101, result.arg(7).toint());
+        assertTrue(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
+        assertFalse(result.arg(10).toboolean());
+        assertEquals(7, result.arg(11).toint());
+
+        // native_get(key, default) of the serial keeps the default of a property which is not set, like get(key, default)
+        Varargs serial = Scripts.run(globals,
+                "PROPERTIES = { ['ro.serialno'] = 'R58M' }\n" +
+                        "local hook = hookof('SystemProperties.native_get.default/serial', 'native_get')\n" +
+                        "local restricted, fake = run(hook, paramof('R58M', { [0] = 'ro.serialno', [1] = 'd' }))\n" +
+                        "PROPERTIES = {}\n" +
+                        "local kept, default = run(hook, paramof('d', { [0] = 'ro.serialno', [1] = 'd' }))\n" +
+                        "return restricted, fake, kept, default");
+        assertTrue(serial.arg(1).toboolean());
+        assertEquals("unknown", serial.arg(2).tojstring());
+        assertFalse(serial.arg(3).toboolean());
+        assertEquals("d", serial.arg(4).tojstring());
+    }
+
     @Test
     public void iccidOfNumbersIsEmpty() throws Exception {
         Globals globals = load("systemproperties_get");
@@ -630,6 +898,277 @@ public class DeviceValuesScriptTest {
                 "param.getThis = function(self) return { getMcc = function(self) return " + mcc + " end } end\n" +
                 "param.unhooked = function(self, fn) return fn() end\n" +
                 "return run(hookof('SubscriptionInfo." + method + "', '" + method + "'), param)");
+    }
+
+    // A service state and a subscription the app gets, as Lua stand-ins which give their values only without the hooks,
+    // and parcels of typed values at offsets in bytes, each padded to 4 bytes like Android, which the objects write and
+    // read like Android of version sdk: the codes as numbers before Android 10, the raw names of a service state and the
+    // fields of a subscription after its country from Android 10, its group UUID as UTF-8 from Android 14, of which the
+    // script skips the bytes; made runs the hook of the creator and returns whether it restricted and the object the app
+    // gets
+    private static final String CREATED = String.join("\n",
+            "function pad(size) return math.floor((size + 3) / 4) * 4 end",
+            "function stringsize(v) return v and 4 + pad((#v + 1) * 2) or 4 end",
+            "function stateof(long, short, numeric, rawlong, rawshort)",
+            "  local state = { names = { long, short, numeric }, raw = { rawlong, rawshort } }",
+            "  function state:getOperatorAlphaLong() assert(inservice) return self.names[1] end",
+            "  function state:getOperatorAlphaShort() assert(inservice) return self.names[2] end",
+            "  function state:getOperatorNumeric() assert(inservice) return self.names[3] end",
+            "  function state:setOperatorName(long, short, numeric) self.set = { long, short, numeric } self.names = self.set end",
+            "  function state:writeToParcel(p, flags) assert(inservice and sdk >= 29) p:writeInt(0) p:writeInt(1)",
+            "    for _ = 1, (sdk == 29 and 2 or 1) do for i = 1, 3 do p:writeString(self.names[i]) end end",
+            "    for i = 1, 10 do p:writeInt(i) end p:writeInt(1) p:put('value', 'registration', 12) p:writeInt(5)",
+            "    p:put('ints', 5000, 8) p:writeInt(0) p:writeString(self.raw[1]) p:writeString(self.raw[2])",
+            "    for _ = 1, (sdk == 29 and 1 or 2) do p:writeInt(1) end end",
+            "  return state",
+            "end",
+            "states = { createFromParcel = function(self, p) assert(inservice) assert(p:readInt() == 0 and p:readInt() == 1)",
+            "  local names = { p:readString(), p:readString(), p:readString() }",
+            "  if sdk == 29 then for i = 1, 3 do assert(p:readString() == names[i]) end end",
+            "  for i = 1, 10 do assert(p:readInt() == i) end assert(p:readInt() == 1 and p:get('value') == 'registration')",
+            "  assert(p:readInt() == 5 and p:get('ints') == 5000 and p:readInt() == 0)",
+            "  local state = stateof(names[1], names[2], names[3], p:readString(), p:readString())",
+            "  for _ = 1, (sdk == 29 and 1 or 2) do assert(p:readInt() == 1) end return state end }",
+            "parcels = {}",
+            "function parcelof() local p = { items = {}, pos = 0, size = 0 } parcels[#parcels + 1] = p",
+            "  function p:put(kind, value, size) size = size or 4 self.items[self.pos] = { kind, value, size }",
+            "    self.pos = self.pos + size self.size = math.max(self.size, self.pos) end",
+            "  function p:get(kind) local item = self.items[self.pos]",
+            "    assert(item ~= nil and item[1] == kind, kind .. ' at ' .. self.pos) self.pos = self.pos + item[3] return item[2] end",
+            "  function p:writeInt(v) self:put('int', v) end function p:readInt() return self:get('int') end",
+            "  function p:writeLong(v) self:put('long', v, 8) end function p:readLong() return self:get('long') end",
+            "  function p:writeString(v) self:put('string', v, stringsize(v)) end",
+            "  function p:readString() return self:get('string') end",
+            "  function p:readValue(loader) return self:get('value') end function p:createIntArray() return self:get('ints') end",
+            "  function p:readParcelable(loader) return self:get('icon') end",
+            "  function p:createByteArray() return self:get('bytes') end",
+            "  function p:dataPosition() return self.pos end function p:setDataPosition(pos) self.pos = pos end",
+            "  function p:dataSize() return self.size end function p:dataAvail() return self.size - self.pos end",
+            "  function p:recycle() self.recycled = true end",
+            "  function p:appendFrom(other, offset, length)",
+            "    for at = offset, offset + length - 1 do local item = other.items[at]",
+            "      if item ~= nil then assert(at + item[3] <= offset + length) self.items[self.pos + at - offset] = item end end",
+            "    self.pos = self.pos + length self.size = math.max(self.size, self.pos) end",
+            "  return p end",
+            "sdk = 34",
+            "UUID = 'c0ffee00-0000-4000-8000-000000000001'",
+            "function infoof(display, carrier, mcc, mnc, country, carrierid, ehplmns, hplmns)",
+            "  local info = { display = display, carrier = carrier, mcc = mcc, mnc = mnc, country = country,",
+            "    carrierid = carrierid or -1, ehplmns = ehplmns or false, hplmns = hplmns or false, uuid = UUID }",
+            "  function info:getDisplayName() assert(inservice) return self.display end",
+            "  function info:getCarrierName() assert(inservice) return self.carrier end",
+            "  function info:getMcc() assert(inservice) return (sdk < 29 and self.mcc or tonumber(self.mcc) or 0) end",
+            "  function info:getMnc() assert(inservice) return (sdk < 29 and self.mnc or tonumber(self.mnc) or 0) end",
+            "  function info:getMccString() assert(inservice and sdk >= 29) return self.mcc end",
+            "  function info:getMncString() assert(inservice and sdk >= 29) return self.mnc end",
+            "  function info:getCountryIso() assert(inservice) return self.country end",
+            "  function info:getCarrierId() assert(inservice and sdk >= 29) return self.carrierid end",
+            "  function info:writeToParcel(p, flags) assert(inservice) p:writeInt(7) p:writeString('8931') p:writeInt(0)",
+            "    p:put('text', self.display, 12) p:put('text', self.carrier, 12) p:writeInt(1) p:writeInt(2)",
+            "    p:writeString('+316') p:writeInt(0) if sdk < 29 then p:writeInt(self.mcc) p:writeInt(self.mnc)",
+            "    else p:writeString(self.mcc) p:writeString(self.mnc) end p:writeString(self.country)",
+            "    if sdk >= 29 then writetail(p, self) end p:writeString('tail') end",
+            "  return info end",
+            // The fields after the country: the icon before Android 13, an access rule and none, the port from
+            // Android 13 and the group UUID, as UTF-8 from Android 14; home networks of false are none (null)
+            "function writetail(p, info)",
+            "  if sdk < 33 then p:put('icon', 'bitmap', 16) end p:writeInt(1)",
+            "  p:writeInt(2) p:writeInt(1) p:put('bytes', 'hash', 8) p:writeString('com.carrier') p:writeLong(3) p:writeInt(0)",
+            "  p:writeString('89014') p:writeInt(4) if sdk >= 33 then p:writeInt(0) end p:writeInt(1)",
+            "  if sdk < 34 then p:writeString(info.uuid) else p:writeInt(#info.uuid) p:put('utf8', info.uuid, pad(#info.uuid + 1)) end",
+            "  p:writeInt(0) p:writeInt(info.carrierid) p:writeInt(0) p:writeInt(0)",
+            "  for _, list in ipairs({ info.ehplmns, info.hplmns }) do",
+            "    if list then p:writeInt(#list) for _, plmn in ipairs(list) do p:writeString(plmn) end else p:writeInt(-1) end end",
+            "end",
+            "function readtail(p, info)",
+            "  if sdk < 33 then assert(p:get('icon') == 'bitmap') end assert(p:readInt() == 1)",
+            "  assert(p:readInt() == 2 and p:readInt() == 1 and p:get('bytes') == 'hash' and p:readString() == 'com.carrier')",
+            "  assert(p:readLong() == 3 and p:readInt() == 0 and p:readString() == '89014' and p:readInt() == 4)",
+            "  if sdk >= 33 then assert(p:readInt() == 0) end assert(p:readInt() == 1)",
+            "  if sdk < 34 then info.uuid = p:readString() else assert(p:readInt() == #UUID) info.uuid = p:get('utf8') end",
+            "  assert(p:readInt() == 0) info.carrierid = p:readInt() assert(p:readInt() == 0 and p:readInt() == 0)",
+            "  info.ehplmns, info.hplmns = readplmns(p), readplmns(p)",
+            "end",
+            "function readplmns(p) local count = p:readInt() if count < 0 then return false end",
+            "  local list = {} for i = 1, count do list[i] = p:readString() end return list end",
+            "infos = { createFromParcel = function(self, p) assert(inservice) assert(p:readInt() == 7)",
+            "  assert(p:readString() == '8931') assert(p:readInt() == 0) local display, carrier = p:get('text'), p:get('text')",
+            "  assert(p:readInt() == 1 and p:readInt() == 2) assert(p:readString() == '+316') assert(p:readInt() == 0)",
+            "  local mcc, mnc if sdk < 29 then mcc, mnc = p:readInt(), p:readInt() else mcc, mnc = p:readString(), p:readString() end",
+            "  local info = infoof(display, carrier, mcc, mnc, p:readString()) if sdk >= 29 then readtail(p, info) end",
+            "  assert(p:readString() == 'tail') return info end }",
+            "luajava = { bindClass = function(name)",
+            "  if name == 'android.os.Parcel' then return { obtain = function(self) return parcelof() end } end",
+            "  if name == 'android.text.TextUtils' then",
+            "    return { CHAR_SEQUENCE_CREATOR = { createFromParcel = function(self, p) return p:get('text') end },",
+            "      writeToParcel = function(self, text, p, flags) p:put('text', text) end } end",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+            "  if name == 'android.telephony.ServiceState' then return { CREATOR = states } end",
+            "  assert(name == 'android.telephony.SubscriptionInfo', name)",
+            "  return { CREATOR = infos }",
+            "end }",
+            "function made(class, object)",
+            "  parcels = {}",
+            "  local param = paramof(object, {})",
+            "  param.unhooked = function(self, fn) inservice = true local value = fn() inservice = false return value end",
+            "  local restricted = after(hookof(class .. '.createFromParcel/operator', 'CREATOR:createFromParcel',",
+            "    'android.telephony.' .. class), param)",
+            "  for _, p in ipairs(parcels) do assert(p.recycled) end",
+            "  return restricted, param.result",
+            "end");
+
+    // A service state the app gets has the operator of the getters in its fields, by the public setter, which sets the
+    // names of voice and data alike, like Android; empty names stay, and so does a state without service
+    @Test
+    public void serviceStateFieldsAreTheTestNetwork() throws Exception {
+        Globals globals = load("test_network");
+        Scripts.run(globals, CREATED);
+        String set = "local state = stateof(%s)\n" +
+                "local restricted = made('ServiceState', state)\n" +
+                "local set = state.set or {}\n" +
+                "return restricted, state.set ~= nil, set[1], set[2], set[3]";
+        Varargs result = Scripts.run(globals, String.format(set, "'T-Mobile', 'T-Mobile', '310260'"));
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("unknown", result.arg(3).tojstring());
+        assertEquals("unknown", result.arg(4).tojstring());
+        assertEquals("00101", result.arg(5).tojstring());
+        result = Scripts.run(globals, String.format(set, "'T-Mobile', nil, '310260'"));
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("unknown", result.arg(3).tojstring());
+        assertTrue(result.arg(4).isnil());
+        assertEquals("00101", result.arg(5).tojstring());
+        result = Scripts.run(globals, String.format(set, "'', 'TMO', ''"));
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("", result.arg(3).tojstring());
+        assertEquals("unknown", result.arg(4).tojstring());
+        assertEquals("", result.arg(5).tojstring());
+        for (String stays : new String[]{"nil, nil, nil", "'', '', ''", "'unknown', 'unknown', '00101'"}) {
+            result = Scripts.run(globals, String.format(set, stays));
+            assertFalse(stays, result.arg(1).toboolean());
+            assertFalse(stays, result.arg(2).toboolean());
+        }
+    }
+
+    // From Android 10 a service state the app gets is made again from its parcel with its raw names faked like the
+    // names, also where Android removed the names (an app without location); empty raw names stay, Android 9 has none,
+    // and a state of which the parcel does not read like Android keeps the names of the setter
+    @Test
+    public void serviceStateRawNamesAreTheTestNetwork() throws Exception {
+        Globals globals = load("test_network");
+        Scripts.run(globals, CREATED);
+        String raw = "sdk = %s\n" +
+                "local state = stateof(%s)\n" +
+                "local restricted, made = made('ServiceState', state)\n" +
+                "return restricted, made ~= state, tostring(made.names[1]) .. ' ' .. tostring(made.names[2]) .. ' ' ..\n" +
+                "  tostring(made.names[3]) .. ' ' .. tostring(made.raw[1]) .. ' ' .. tostring(made.raw[2])";
+        String[][] cases = {
+                // The version, the state, whether it is made again and the names and raw names of the one the app gets
+                {"29", "'T-Mobile', 'T-Mobile', '310260', 'T-Mobile', 'TMO'", "true", "unknown unknown 00101 unknown unknown"},
+                {"30", "'T-Mobile', 'T-Mobile', '310260', 'T-Mobile', 'TMO'", "true", "unknown unknown 00101 unknown unknown"},
+                {"34", "nil, nil, nil, 'T-Mobile', 'TMO'", "true", "nil nil nil unknown unknown"},
+                {"29", "nil, nil, nil, 'T-Mobile', nil", "true", "nil nil nil unknown nil"},
+                {"34", "'T-Mobile', 'T-Mobile', '310260', '', nil", "false", "unknown unknown 00101  nil"},
+                {"28", "'T-Mobile', 'T-Mobile', '310260', 'T-Mobile', 'TMO'", "false", "unknown unknown 00101 T-Mobile TMO"}};
+        for (String[] c : cases) {
+            String lua = String.format(raw, c[0], c[1]);
+            Varargs result = Scripts.run(globals, lua);
+            assertTrue(lua, result.arg(1).toboolean());
+            assertEquals(lua, Boolean.parseBoolean(c[2]), result.arg(2).toboolean());
+            assertEquals(lua, c[3], result.arg(3).tojstring());
+        }
+        Varargs result = Scripts.run(globals, String.format(raw, "34", "nil, nil, nil, '', 'unknown'"));
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        // A ROM which writes another field first
+        result = Scripts.run(globals, "sdk = 34\n" +
+                "local state = stateof('T-Mobile', 'T-Mobile', '310260', 'T-Mobile', 'TMO')\n" +
+                "local write = state.writeToParcel\n" +
+                "function state:writeToParcel(p, flags) p:writeInt(9) write(self, p, flags) end\n" +
+                "local restricted, made = made('ServiceState', state)\n" +
+                "return restricted, made == state, made.names[1], made.raw[1]");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("unknown", result.arg(3).tojstring());
+        assertEquals("T-Mobile", result.arg(4).tojstring());
+    }
+
+    // A subscription the app gets is made again from its parcel with the names, codes and country of the getters, the
+    // other fields copied; no codes stay, like the getters keep them, and so does a subscription of which the parcel
+    // does not read like Android
+    @Test
+    public void subscriptionFieldsAreTheTestNetwork() throws Exception {
+        Globals globals = load("test_network");
+        Scripts.run(globals, CREATED);
+        String fields = "sdk = %s\n" +
+                "local info = infoof(%s)\n" +
+                "local restricted, made = made('SubscriptionInfo', info)\n" +
+                "return restricted, made ~= info, made.display, made.carrier, made.mcc, made.mnc, made.country";
+        String[][] cases = {
+                // The version, the subscription and the fields of the one the app gets
+                {"34", "'SIM 1', 'T-Mobile', '310', '260', 'us'", "unknown unknown 001 01 "},
+                {"29", "'SIM 1', 'T-Mobile', '310', '260', 'us'", "unknown unknown 001 01 "},
+                {"28", "'SIM 1', 'T-Mobile', 310, 260, 'us'", "unknown unknown 1 1 "},
+                {"27", "'SIM 1', 'T-Mobile', 0, 0, ''", "unknown unknown 0 0 "},
+                // An MNC of 0 (00) is a code with an MCC
+                {"28", "'', '', 460, 0, ''", "  1 1 "},
+                {"34", "'SIM 1', '', '', '', ''", "unknown    "}};
+        for (String[] c : cases) {
+            String lua = String.format(fields, c[0], c[1]);
+            Varargs result = Scripts.run(globals, lua);
+            assertTrue(lua, result.arg(1).toboolean());
+            assertTrue(lua, result.arg(2).toboolean());
+            assertEquals(lua, c[2], result.arg(3).tojstring() + " " + result.arg(4).tojstring() + " " +
+                    result.arg(5).tojstring() + " " + result.arg(6).tojstring() + " " + result.arg(7).tojstring());
+        }
+        for (String stays : new String[]{"'', '', '', '', ''", "'unknown', 'unknown', '001', '01', ''"}) {
+            Varargs result = Scripts.run(globals, String.format(fields, "34", stays));
+            assertFalse(stays, result.arg(1).toboolean());
+            assertFalse(stays, result.arg(2).toboolean());
+        }
+        // A getter which gives another value than the parcel has, like of a ROM which writes other fields first
+        Varargs result = Scripts.run(globals, "sdk = 34\n" +
+                "local info = infoof('SIM 1', 'T-Mobile', '310', '260', 'us')\n" +
+                "function info:getCountryIso() return 'de' end\n" +
+                "local restricted, made = made('SubscriptionInfo', info)\n" +
+                "return restricted, made ~= info");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+    }
+
+    // From Android 10 the carrier of a subscription the app gets is the test network too, like getCarrierId gives it,
+    // and its home networks are none, like toString prints them; the fields between are copied, also the group UUID,
+    // which Android 14 and later write as UTF-8. An unknown carrier and no home networks stay, and where the carrier
+    // does not read back like the getter gives it, the names, codes and country are faked still
+    @Test
+    public void subscriptionCarrierIsTheTestNetwork() throws Exception {
+        Globals globals = load("test_network");
+        Scripts.run(globals, CREATED);
+        String fields = "sdk = %s\n" +
+                "local info = infoof('SIM 1', 'T-Mobile', '310', '260', 'us', %s)\n" +
+                "%s\n" +
+                "local restricted, made = made('SubscriptionInfo', info)\n" +
+                "local plmns = function(list) return list and #list or 'none' end\n" +
+                "return restricted, made ~= info, made.display .. ' ' .. made.carrierid .. ' ' .. plmns(made.ehplmns) ..\n" +
+                "  ' ' .. plmns(made.hplmns), made.uuid";
+        String[][] cases = {
+                // The version, the carrier and home networks, a change of the getters and the fields the app gets
+                {"29", "1, { '310260' }, { '310260', '310026' }", "", "unknown 1911 0 0"},
+                {"31", "1, { '310260' }, { '310260', '310026' }", "", "unknown 1911 0 0"},
+                {"33", "1, { '310260' }, { '310260', '310026' }", "", "unknown 1911 0 0"},
+                {"34", "1, { '310260' }, { '310260', '310026' }", "", "unknown 1911 0 0"},
+                {"36", "1, { '310260' }, { '310260', '310026' }", "", "unknown 1911 0 0"},
+                {"34", "-1, false, {}", "", "unknown -1 none 0"},
+                {"33", "1911, { '00101' }, false", "", "unknown 1911 0 none"},
+                {"34", "1, { '310260' }", "function info:getCarrierId() return 2 end", "unknown 1 1 none"},
+                {"31", "1, { '310260' }", "function info:getCarrierId() return 2 end", "unknown 1 1 none"}};
+        for (String[] c : cases) {
+            String lua = String.format(fields, c[0], c[1], c[2]);
+            Varargs result = Scripts.run(globals, lua);
+            assertTrue(lua, result.arg(1).toboolean());
+            assertTrue(lua, result.arg(2).toboolean());
+            assertEquals(lua, c[3], result.arg(3).tojstring());
+            assertEquals(lua, "c0ffee00-0000-4000-8000-000000000001", result.arg(4).tojstring());
+        }
     }
 
     // Stand-ins of the package manager, the system dialer and the configuration of the system, which are stubs

@@ -24,6 +24,11 @@
 -- the app brings back with null or an empty user agent. Other user agents of the app stay.
 -- So do user agents with the model and build the app sends as a header, which it can have stored before,
 -- with HttpURLConnection or OkHttp, of which Request.Builder.header and addHeader call Headers.Builder.set and add.
+-- shortcut: pages still read the real GPU (the unmasked renderer, vendor and extensions of WebGL) and number of
+-- processors (navigator.hardwareConcurrency), since Chromium gets them in native code and in its own renderer process,
+-- so they can differ from the fakes of glGetString and availableProcessors; a script overriding them would itself
+-- show in the page, would not reach workers and needs androidx.webkit in the app for a start before the page's own,
+-- upgrade when Doppel decides to change what pages run.
 
 function reduce(ua)
     return (string.gsub(ua, '; [^;]*Build/[^;)]*', '; K', 1))

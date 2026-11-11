@@ -22,6 +22,9 @@ package eu.faircode.xlua;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
+import android.system.ErrnoException;
+import android.system.Os;
+import android.system.StructStat;
 
 import org.junit.Test;
 import org.luaj.vm2.LuaError;
@@ -29,10 +32,16 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.ZeroArgFunction;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
+import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -41,6 +50,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -194,6 +204,180 @@ public class XParamTest {
     @Test(expected = IllegalArgumentException.class)
     public void smallTextOfAFileAsLongWithoutFolder() throws Throwable {
         XParam.oldFile(null, new byte[3897], true);
+    }
+
+    // A small text, like of boot_id, goes to a removed file of the app too when there is a folder, not to a pipe; the
+    // stubs of Android open no file (null) and have no pipe (it would fail), so the text is empty, which writes nothing
+    @Test
+    public void smallTextInAFile() throws Throwable {
+        File folder = Files.createTempDirectory("cache").toFile();
+        try {
+            assertNull(XParam.oldFile(folder, new byte[0], false));
+            assertEquals(0, folder.list().length);
+        } finally {
+            //noinspection ResultOfMethodCallIgnored
+            folder.delete();
+        }
+    }
+
+    // A folder in which no file can be made fails a text a pipe cannot take, like no folder
+    @Test
+    public void textsWithoutAUsableFolder() throws Throwable {
+        File folder = File.createTempFile("cache", null);
+        try {
+            for (boolean sameSize : new boolean[]{false, true})
+                try {
+                    XParam.oldFile(folder, new byte[sameSize ? 3897 : 4097], sameSize);
+                    fail("Made a file in " + folder);
+                } catch (IOException expected) {
+                }
+        } finally {
+            //noinspection ResultOfMethodCallIgnored
+            folder.delete();
+        }
+    }
+
+    // A file of /proc tells the size 0 and one of /sys a page, whatever their text, so a fake tells the same; other files
+    // tell their length, which the fake has then
+    @Test
+    public void sizeOfFakedFiles() {
+        assertEquals(0, XParam.sizeOf(0, 37, 37));
+        assertEquals(4096, XParam.sizeOf(4096, 4, 4));
+        assertEquals(25000, XParam.sizeOf(30000, 30000, 25000));
+    }
+
+    // Like FIONREAD and FileInputStream.available of Android: the size less the position, none past the end
+    @Test
+    public void availableOfFakedFiles() {
+        assertEquals(0, XParam.available(0, 0));
+        assertEquals(0, XParam.available(0, 37));
+        assertEquals(4096, XParam.available(4096, 0));
+        assertEquals(4092, XParam.available(4096, 4));
+        assertEquals(0, XParam.available(4096, 5000));
+        assertEquals(25000, XParam.available(25000, 0));
+    }
+
+    // Fakes are told apart by device, inode and change time, so a file which gets the inode of a removed fake is no fake;
+    // the fakes asked about last stay
+    @Test
+    public void fakedFilesKept() {
+        String first = XParam.fakedKey(5, 1, 1700000000, 1);
+        assertNotEquals(first, XParam.fakedKey(5, 1, 1700000000, 2));
+        assertNotEquals(first, XParam.fakedKey(6, 1, 1700000000, 1));
+        try {
+            XParam.fakedFiles.put(first, new XParam.Faked(null, 0, "/proc/cpuinfo", "/memfd:file (deleted)"));
+            String second = XParam.fakedKey(5, 2, 1700000000, 1);
+            XParam.fakedFiles.put(second, new XParam.Faked(null, 0, "/proc/version", "/memfd:file (deleted)"));
+            assertEquals("/proc/cpuinfo", XParam.fakedFiles.get(first).path);
+            for (int i = 3; i <= XParam.FAKED_MAX + 1; i++)
+                XParam.fakedFiles.put(XParam.fakedKey(5, i, 1700000000, 1), new XParam.Faked(null, 0, "/proc/meminfo", ""));
+            assertEquals(XParam.FAKED_MAX, XParam.fakedFiles.size());
+            assertEquals("/proc/cpuinfo", XParam.fakedFiles.get(first).path);
+            assertNull(XParam.fakedFiles.get(second));
+        } finally {
+            XParam.fakedFiles.clear();
+        }
+    }
+
+    // A fake of the fake of an earlier hook of the same open, like of two properties of one property area, answers like
+    // the file the app opened, with the size that file tells; the earlier fake, which is closed, is gone
+    @Test
+    public void fakesOfFakes() {
+        String area = "/dev/__properties__/u:object_r:exported_system_prop:s0";
+        String memfd = "/memfd:file (deleted)";
+        StructStat stat = new StructStat(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        try {
+            XParam.addFaked("1:2:3.4", new XParam.Faked(stat, 131072, area, null), "5:6:7.8", memfd, 131072, 131072);
+            XParam.addFaked("5:6:7.8", new XParam.Faked(null, 131072, memfd, null), "5:9:7.9", memfd, 131072, 131072);
+            XParam.Faked faked = XParam.fakedFiles.get("5:9:7.9");
+            assertSame(stat, faked.stat);
+            assertEquals(area, faked.path);
+            assertEquals(131072, faked.size);
+            assertEquals(memfd, faked.link);
+            assertNull(XParam.fakedFiles.get("5:6:7.8"));
+            // A file of /proc tells 0, whatever the fakes; another file the length of the last fake
+            XParam.addFaked("1:3:3.4", new XParam.Faked(null, 0, "/proc/cpuinfo", null), "5:10:8.1", memfd, 900, 950);
+            XParam.addFaked("5:10:8.1", new XParam.Faked(null, 950, memfd, null), "5:11:8.2", memfd, 950, 990);
+            assertEquals("/proc/cpuinfo", XParam.fakedFiles.get("5:11:8.2").path);
+            assertEquals(0, XParam.fakedFiles.get("5:11:8.2").size);
+            XParam.addFaked("1:4:3.4", new XParam.Faked(null, 30000, "/system/etc/fonts.xml", null), "5:12:8.3", memfd,
+                    30000, 25000);
+            XParam.addFaked("5:12:8.3", new XParam.Faked(null, 25000, memfd, null), "5:13:8.4", memfd, 25000, 20000);
+            assertEquals(20000, XParam.fakedFiles.get("5:13:8.4").size);
+        } finally {
+            XParam.fakedFiles.clear();
+        }
+    }
+
+    // Methods with the names of the hooked ones of Android which the tests cannot reach, see unfakedCalls
+    @SuppressWarnings("unused")
+    private static class Hooked {
+        long size(FileDescriptor fd) {
+            return 0;
+        }
+
+        long getLength(File file) {
+            return 0;
+        }
+
+        long getLastModifiedTime(File file) {
+            return 0;
+        }
+
+        void open(String path) {
+        }
+    }
+
+    // The calls about a descriptor of a fake, or about its path, answer like about the file the fake replaced, a file of
+    // /sys here; not those about other files, paths which lead to no file, links of the app to the link of the fake
+    // and other methods
+    @Test
+    public void unfakedCalls() throws Exception {
+        File file = File.createTempFile("faked", null);
+        try (FileInputStream in = new FileInputStream(file); RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            FileDescriptor other = new FileDescriptor();
+            Map<Object, String> keys = new HashMap<>();
+            keys.put(in.getFD(), "fake");
+            keys.put(raf.getFD(), "fake");
+            keys.put("/proc/self/fd/57", "fake");
+            keys.put(other, "other");
+            XParam.Keys keyOf = (f) -> {
+                if (!keys.containsKey(f))
+                    throw new ErrnoException("stat", 2);
+                return keys.get(f);
+            };
+            String link = "/memfd:file (deleted)";
+            // The stubs of Android give a stat of zeros, so a modification time of 0
+            StructStat stat = new StructStat(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            XParam.fakedFiles.put("fake", new XParam.Faked(stat, 4096, "/sys/devices/system/cpu/possible", link));
+            Method available = FileInputStream.class.getMethod("available");
+            Method length = RandomAccessFile.class.getMethod("length");
+            Method size = Hooked.class.getDeclaredMethod("size", FileDescriptor.class);
+            Method getLength = Hooked.class.getDeclaredMethod("getLength", File.class);
+            Method getLastModifiedTime = Hooked.class.getDeclaredMethod("getLastModifiedTime", File.class);
+            Method readlink = Os.class.getMethod("readlink", String.class);
+            Method open = Hooked.class.getDeclaredMethod("open", String.class);
+            assertEquals(4096, XParam.unfaked(new XCall(available, in, new Object[0]), 4, keyOf));
+            assertEquals(4096L, XParam.unfaked(new XCall(length, raf, new Object[0]), 4L, keyOf));
+            assertEquals(4096L, XParam.unfaked(new XCall(size, null, new Object[]{in.getFD()}), 4L, keyOf));
+            assertNull(XParam.unfaked(new XCall(size, null, new Object[]{other}), 4L, keyOf));
+            assertEquals(4096L, XParam.unfaked(new XCall(getLength, null, new Object[]{new File("/proc/self/fd/57")}), 4L, keyOf));
+            assertNull(XParam.unfaked(new XCall(getLength, null, new Object[]{new File("/proc/self/fd/58")}), 0L, keyOf));
+            File fd57 = new File("/proc/self/fd/57");
+            assertEquals(0L, XParam.unfaked(new XCall(getLastModifiedTime, null, new Object[]{fd57}), 1700000000000L, keyOf));
+            assertNull(XParam.unfaked(new XCall(getLastModifiedTime, null, new Object[]{new File("/proc/self/fd/58")}),
+                    1700000000000L, keyOf));
+            Object[] path = new Object[]{"/proc/self/fd/57"};
+            assertEquals("/sys/devices/system/cpu/possible", XParam.unfaked(new XCall(readlink, null, path), link, keyOf));
+            assertEquals("/sys/devices/system/cpu/possible",
+                    XParam.unfaked(new XCall(readlink, null, path), link.getBytes(StandardCharsets.UTF_8), keyOf));
+            assertNull(XParam.unfaked(new XCall(readlink, null, path), "/proc/self/fd/57", keyOf));
+            assertNull(XParam.unfaked(new XCall(open, null, path), 57, keyOf));
+        } finally {
+            XParam.fakedFiles.clear();
+            //noinspection ResultOfMethodCallIgnored
+            file.delete();
+        }
     }
 
     @Test

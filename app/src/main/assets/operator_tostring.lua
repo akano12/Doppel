@@ -41,10 +41,10 @@ local SERVICE_STATE = {
 local REGISTRATION = {
     { ' rRplmn=', '00101', { ' isUsingCarrierAggregation=', '}' } },
 }
--- The carrier, its names and the country, like the getters in Use.Tracking
+-- The carrier, its names and the country, like the getters in Use.Tracking. The ICCID stays, although its first digits
+-- name the country and the operator, because getIccId, the parcel and the fields keep it in this group: an empty one
+-- next to a real getIccId cannot happen on Android. Read.Telephony hides it in all of them (see telephony).
 local SUBSCRIPTION = {
-    -- Android 8.1 and 9 print its first digits, which name the country and the operator of the SIM card
-    { ' iccId=', '', { ' simSlotIndex=' } },
     { ' carrierId=', '1911', { ' displayName=' } },
     { ' displayName=', 'unknown', { ' carrierName=' } },
     { ' carrierName=', 'unknown', { ' nameSource=', ' isOpportunistic=' } },

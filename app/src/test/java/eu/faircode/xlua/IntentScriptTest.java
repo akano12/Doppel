@@ -96,6 +96,14 @@ public class IntentScriptTest {
             "  end",
             "  if name == 'java.lang.Integer' then return { TYPE = 'int' } end",
             "  if name == 'java.lang.Byte' then return { TYPE = 'byte' } end",
+            // The texts of Android without service, by their names in the resources of the system
+            "  if name == 'android.content.res.Resources' then",
+            "    local ids = { lockscreen_carrier_default = 1, emergency_calls_only = 2 }",
+            "    local texts = { 'No service', 'Emergency calls only' }",
+            "    return { getSystem = function(self) return {",
+            "      getIdentifier = function(self, name, type, package) return package == 'android' and ids[name] or 0 end,",
+            "      getString = function(self, id) return texts[id] end } end }",
+            "  end",
             "  return { name = name }",
             "end }");
 
@@ -390,6 +398,75 @@ public class IntentScriptTest {
             assertFalse(data, other.arg(1).toboolean());
             assertFalse(data, other.arg(2).toboolean());
         }
+    }
+
+    // The names of the carrier the status bar shows, by the extras of Android 11 and later and of 8.1 to 10, and the
+    // strings beside the service state are those of the fake operator, like getNetworkOperatorName (see test_network);
+    // empty names, the flags and the texts of Android without service stay
+    @Test
+    public void carrierOfBroadcastsIsFake() {
+        String extra = "android.telephony.extra.";
+        Varargs providers = run(
+                "local intent = intentof('android.telephony.action.SERVICE_PROVIDERS_UPDATED', {\n" +
+                        "  ['" + extra + "PLMN'] = 'T-Mobile', ['" + extra + "SPN'] = 'T-Mobile Wi-Fi Calling',\n" +
+                        "  ['" + extra + "DATA_SPN'] = '', ['" + extra + "SHOW_PLMN'] = true })\n" +
+                        "local restricted, old, new = after(hookof('Intent.createFromParcel/operator'), paramof(intent))\n" +
+                        "return restricted, old, new, intent.extras['" + extra + "PLMN'], intent.extras['" + extra + "SPN'],\n" +
+                        "  intent.extras['" + extra + "DATA_SPN'], intent.extras['" + extra + "SHOW_PLMN']");
+        assertTrue(providers.arg(1).toboolean());
+        assertEquals("T-Mobile,T-Mobile Wi-Fi Calling", providers.arg(2).tojstring());
+        assertEquals("unknown,unknown", providers.arg(3).tojstring());
+        assertEquals("unknown", providers.arg(4).tojstring());
+        assertEquals("unknown", providers.arg(5).tojstring());
+        assertEquals("", providers.arg(6).tojstring());
+        assertTrue(providers.arg(7).toboolean());
+
+        Varargs spn = run(
+                "local intent = intentof('android.provider.Telephony.SPN_STRINGS_UPDATED',\n" +
+                        "  { plmn = 'No service', spn = 'T-Mobile', spnData = 'T-Mobile' })\n" +
+                        "return after(hookof('Intent.createFromParcel/operator'), paramof(intent)),\n" +
+                        "  intent.extras.plmn, intent.extras.spn, intent.extras.spnData");
+        assertTrue(spn.arg(1).toboolean());
+        assertEquals("No service", spn.arg(2).tojstring());
+        assertEquals("unknown", spn.arg(3).tojstring());
+        assertEquals("unknown", spn.arg(4).tojstring());
+        Varargs emergency = run(
+                "local intent = intentof('android.provider.Telephony.SPN_STRINGS_UPDATED',\n" +
+                        "  { plmn = 'Emergency calls only', spn = '' })\n" +
+                        "return after(hookof('Intent.createFromParcel/operator'), paramof(intent)), intent.extras.plmn");
+        assertFalse(emergency.arg(1).toboolean());
+        assertEquals("Emergency calls only", emergency.arg(2).tojstring());
+
+        Varargs state = run(
+                "local intent = intentof('android.intent.action.SERVICE_STATE', { ['operator-numeric'] = '310260',\n" +
+                        "  ['data-operator-numeric'] = '310260', ['operator-alpha-long'] = 'T-Mobile',\n" +
+                        "  ['operator-alpha-short'] = 'TMO', ['data-operator-alpha-long'] = 'T-Mobile',\n" +
+                        "  ['operator-alpha-long-raw'] = 'T-Mobile', voiceRegState = 0 })\n" +
+                        "local restricted = after(hookof('Intent.createFromParcel/operator'), paramof(intent))\n" +
+                        "local e = intent.extras\n" +
+                        "return restricted, e['operator-numeric'], e['data-operator-numeric'], e['operator-alpha-long'],\n" +
+                        "  e['operator-alpha-short'], e['data-operator-alpha-long'], e['operator-alpha-long-raw'],\n" +
+                        "  e['data-operator-alpha-short'], e.voiceRegState");
+        assertTrue(state.arg(1).toboolean());
+        assertEquals("00101", state.arg(2).tojstring());
+        assertEquals("00101", state.arg(3).tojstring());
+        for (int i = 4; i <= 7; i++)
+            assertEquals("unknown", state.arg(i).tojstring());
+        assertTrue(state.arg(8).isnil());
+        assertEquals(0, state.arg(9).toint());
+
+        // The copy without the operator, which Android sends to apps without the location permission, and other
+        // variants stay
+        Varargs sanitized = run(
+                "local intent = intentof('android.intent.action.SERVICE_STATE', { voiceRegState = 0 })\n" +
+                        "return after(hookof('Intent.createFromParcel/operator'), paramof(intent))");
+        assertFalse(sanitized.arg1().toboolean());
+        Varargs other = run(
+                "local intent = intentof('android.intent.action.SERVICE_STATE', { ['operator-numeric'] = '310260' })\n" +
+                        "return after(hookof('Intent.createFromParcel/network'), paramof(intent)), " +
+                        "intent.extras['operator-numeric']");
+        assertFalse(other.arg(1).toboolean());
+        assertEquals("310260", other.arg(2).tojstring());
     }
 
     // The battery level in steps of 10 percent of its scale, but at least 15 percent, like BatteryManager (see battery)

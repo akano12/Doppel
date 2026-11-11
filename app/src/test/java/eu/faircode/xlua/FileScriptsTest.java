@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 import java.util.UUID;
 
@@ -192,13 +193,70 @@ public class FileScriptsTest {
         assertEquals("*boot_id*", result.arg(5).tojstring());
     }
 
+    // Only the paths of descriptors are filtered, by their link, its stat and length; the other hooks have a descriptor
+    // or none; XParam answers
+    @Test
+    public void fakedFiles() throws Exception {
+        Globals globals = Scripts.load("faked_files", STUBS);
+        Varargs result = Scripts.run(globals,
+                "local param = { unfakeFile = function(self) return true end }\n" +
+                        "local other = { unfakeFile = function(self) return false end }\n" +
+                        "return filter(hookof('readlink'))[1], filter(hookof('stat'))[1], filter(hookof('getLength'))[1],\n" +
+                        "  filter(hookof('getLastModifiedTime'))[1],\n" +
+                        "  filter(hookof('fstat')), filter(hookof('available')), filter(hookof('size')),\n" +
+                        "  after(hookof('fstat'), param), after(hookof('readlink'), other)");
+        for (int i = 1; i <= 4; i++)
+            assertEquals("*/fd/*", result.arg(i).tojstring());
+        for (int i = 5; i <= 7; i++)
+            assertTrue(result.arg(i).isnil());
+        assertTrue(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
+    }
+
     // The Android classes the times script uses, as Lua sees them: objects made are tables of their arguments
     private static final String TIMES_STUBS = String.join("\n",
             "sdk = 34",
             "luajava = {",
-            "  newInstance = function(name, ...) return { class = name, args = { ... } } end,",
+            // A file gives the path CANONICAL has for it, which only a read of the disk can tell
+            "  newInstance = function(name, ...)",
+            "    local args = { ... }",
+            "    if name == 'java.io.File' then",
+            "      return { getCanonicalPath = function(self)",
+            "        assert(POLICY == 'reads', POLICY)",
+            "        return CANONICAL[args[1]] or args[1]",
+            "      end }",
+            "    end",
+            "    return { class = name, args = args }",
+            "  end,",
             "  bindClass = function(name)",
             "    if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+            // The clocks, which put the boot at BOOT seconds, read by the script itself
+            "    if name == 'java.lang.System' then",
+            "      return { currentTimeMillis = function(self) assert(POLICY == 'reads', POLICY); return BOOT * 1000 + 5000 end }",
+            "    end",
+            "    if name == 'android.os.SystemClock' then",
+            "      return { elapsedRealtime = function(self) return 5000 end }",
+            "    end",
+            // A descriptor is a table of its number (see descriptorof), of which copies are counted in DUPS; LINKS are
+            // the links of /proc/self/fd, DEVICES the file systems of paths, of /data without one, and POLICY the
+            // thread policy of StrictMode
+            "    if name == 'android.os.ParcelFileDescriptor' then",
+            "      return { dup = function(self, fd) DUPS = DUPS + 1; return fd end }",
+            "    end",
+            "    if name == 'android.system.Os' then",
+            "      return { readlink = function(self, path)",
+            "        assert(POLICY == 'reads', POLICY)",
+            "        return LINKS[path] or error('ErrnoException')",
+            "      end,",
+            "      stat = function(self, path)",
+            "        assert(POLICY == 'reads', POLICY)",
+            "        return { st_dev = DEVICES[path] or 1 }",
+            "      end }",
+            "    end",
+            "    if name == 'android.os.StrictMode' then",
+            "      return { allowThreadDiskReads = function(self) local old = POLICY; POLICY = 'reads'; return old end,",
+            "        setThreadPolicy = function(self, policy) POLICY = policy end }",
+            "    end",
             "    assert(name == 'android.os.Environment', name)",
             "    local root = { getPath = function(self) return '/storage/emulated/10' end }",
             "    return { getExternalStorageDirectory = function(self) return root end }",
@@ -209,6 +267,13 @@ public class FileScriptsTest {
             "end",
             // The app with its own APK and the packages it can see, see apptime
             "OWN = '/data/app/~~own==/com.example-a==/base.apk'",
+            "DUPS = 0",
+            "POLICY = 'app'",
+            "LINKS = {}",
+            "DEVICES = {}",
+            "CANONICAL = {}",
+            "BOOT = 1799999000",
+            "function descriptorof(number) return { number = number, ['getInt$'] = function(self) return self.number end } end",
             "PACKAGES = { ['com.google.android.gms'] = { firstInstallTime = 1720723580123, applicationInfo = { flags = 129 } },",
             "  ['com.other'] = { firstInstallTime = 5, applicationInfo = { flags = 0 } } }",
             "CONTEXT = { getApplicationInfo = function(self) return { sourceDir = OWN } end,",
@@ -237,7 +302,8 @@ public class FileScriptsTest {
             "end",
             "function statof(time)",
             "  return { st_dev = 1, st_ino = 2, st_mode = 16889, st_nlink = 3, st_uid = 4, st_gid = 5, st_rdev = 6,",
-            "    st_size = 7, st_atime = time, st_mtime = time, st_ctime = time, st_blksize = 8, st_blocks = 9 }",
+            "    st_size = 7, st_atime = time, st_mtime = time, st_ctime = time, st_blksize = 8, st_blocks = 9,",
+            "    st_atim = { args = { time, 1 } }, st_mtim = { args = { time, 2 } }, st_ctim = { args = { time, 3 } } }",
             "end");
 
     // The folders of the shared storage of the user, with and without a slash, not the files in them
@@ -373,6 +439,244 @@ public class FileScriptsTest {
         assertTrue(result.arg(9).toboolean());
         assertEquals(1230768000L, result.arg(10).tolong());
         assertTrue(result.arg(11).isnil());
+    }
+
+    // Os.fstat by the link of its descriptor: a folder of the shared storage like by Os.stat, with the inode of the same
+    // folder, and the APKs of other apps; the APK of the app itself, a socket and a descriptor of which the link cannot
+    // be read keep their answer, also a socket the link of which would name a folder, the link of which is not read.
+    // The number is read from the descriptor of the app, which is never copied, since closing a copy of a file would
+    // release the locks of the app on it, and the app has its thread policy back; LuaJ finds the number of a Java
+    // object by its method getInt$. The filter has no paths for a descriptor, so the script runs for each call
+    @Test
+    public void storageFstat() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        globals.set("java", CoerceJavaToLua.coerce(new Descriptor()));
+        Varargs result = Scripts.run(globals,
+                "LINKS['/proc/self/fd/9'] = '/storage/emulated/10/DCIM'\n" +
+                        "LINKS['/proc/self/fd/15'] = '/storage/emulated/10/Pictures'\n" +
+                        "LINKS['/proc/self/fd/10'] = 'socket:[4711]'\n" +
+                        "LINKS['/proc/self/fd/11'] = OWN\n" +
+                        "LINKS['/proc/self/fd/12'] = '/data/app/~~x==/com.other-y==/base.apk'\n" +
+                        "LINKS['/proc/self/fd/14'] = '/storage/emulated/10/Music'\n" +
+                        "local function keyed(param)\n" +
+                        "  param.uuidOf = function(self, seed)\n" +
+                        "    local sum = 0\n" +
+                        "    for i = 1, #seed do sum = sum + string.byte(seed, i) * i end\n" +
+                        "    return string.format('%08x', sum) .. '-0000'\n" +
+                        "  end\n" +
+                        "  return param\n" +
+                        "end\n" +
+                        "local function fstat(number, mode)\n" +
+                        "  local stat = statof(1791913509)\n" +
+                        "  stat.st_mode = mode or stat.st_mode\n" +
+                        "  local param = keyed(paramof(stat, { descriptorof(number) }))\n" +
+                        "  if not after(hookof('fstat', 'android.system.Os'), param) then return 'real' end\n" +
+                        "  return param.result.args[9].args[1], param.result.args[2]\n" +
+                        "end\n" +
+                        "local stat = keyed(paramof(statof(1791913509), { '/sdcard/DCIM' }))\n" +
+                        "after(hookof('stat'), stat)\n" +
+                        "local time, inode = fstat(9)\n" +
+                        "local _, music = fstat(14)\n" +
+                        "local socket = statof(1791913509)\n" +
+                        "socket.st_mode = 49663\n" +
+                        "local named = paramof(socket, { descriptorof(9) })\n" +
+                        "local pictures = paramof(statof(1791913509), { java })\n" +
+                        "after(hookof('fstat', 'android.system.Os'), pictures)\n" +
+                        "return time, inode == stat.result.args[2], inode ~= music, fstat(10), fstat(11, 33188), fstat(12, 33188),\n" +
+                        "  fstat(13), DUPS, POLICY, filter(hookof('fstat')), after(hookof('fstat', 'android.system.Os'), named),\n" +
+                        "  pictures.result.args[9].args[1]");
+        assertEquals(1230768000L, result.arg(1).tolong());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("real", result.arg(4).tojstring());
+        assertEquals("real", result.arg(5).tojstring());
+        assertEquals(1230768000L, result.arg(6).tolong());
+        assertEquals("real", result.arg(7).tojstring());
+        assertEquals(0, result.arg(8).toint());
+        assertEquals("app", result.arg(9).tojstring());
+        assertTrue(result.arg(10).isnil());
+        assertFalse(result.arg(11).toboolean());
+        assertEquals(1230768000L, result.arg(12).tolong());
+    }
+
+    // A FileDescriptor of Android as LuaJ sees it, with the hidden method which gives its number
+    public static class Descriptor {
+        @SuppressWarnings("unused")
+        public int getInt$() {
+            return 15;
+        }
+    }
+
+    // The folders at the top of /data, which are made when the device is set up, by each spelling, and /data itself,
+    // which keeps the inode of the root of its file system; the folder of the data of the apps and the paths below keep
+    // their times, also /data/user and /data/user_de when they are the tmpfs of the process of an app for Android 11 and
+    // later, which Android mounts with the data of apps kept apart
+    @Test
+    public void dataFolders() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "DEVICES['/data/user'] = 2\n" +
+                        "DEVICES['/data/user_de'] = 3\n" +
+                        "local found = {}\n" +
+                        "for _, path in ipairs(filter(nil)) do found[path] = true end\n" +
+                        "local function faked(path) return after(hookof('stat'), paramof(statof(1791913509), { path })) end\n" +
+                        "local modified = paramof(1791913509227, { '/data/fonts' })\n" +
+                        "after(hookof('getLastModifiedTime'), modified)\n" +
+                        "local user = paramof(1791913509227, { '/data/user' })\n" +
+                        "after(hookof('getLastModifiedTime'), user)\n" +
+                        "local data = paramof(statof(1791913509), { '/data/.' })\n" +
+                        "after(hookof('lstat'), data)\n" +
+                        "return found['/data/local'], found['/data/misc/'], found['/data/fonts/.'], found['/data/.'],\n" +
+                        "  found['/data/data'], found['/data/local/tmp'], faked('/data/local'), faked('/data/misc/'),\n" +
+                        "  faked('/data//system_ce'), faked('/data/data'), faked('/data/local/tmp'), faked('/data/user/0'),\n" +
+                        "  faked('/data/user'), faked('/data/user_de/'), modified.result, user.result,\n" +
+                        "  data.result.args[9].args[1], data.result.args[2], POLICY");
+        for (int i = 1; i <= 4; i++)
+            assertTrue(String.valueOf(i), result.arg(i).toboolean());
+        for (int i = 5; i <= 6; i++)
+            assertTrue(String.valueOf(i), result.arg(i).isnil());
+        for (int i = 7; i <= 9; i++)
+            assertTrue(String.valueOf(i), result.arg(i).toboolean());
+        for (int i = 10; i <= 14; i++)
+            assertFalse(String.valueOf(i), result.arg(i).toboolean());
+        assertEquals(1230768000000L, result.arg(15).tolong());
+        assertEquals(1791913509227L, result.arg(16).tolong());
+        assertEquals(1230768000L, result.arg(17).tolong());
+        assertEquals(2, result.arg(18).toint());
+        assertEquals("app", result.arg(19).tojstring());
+    }
+
+    // A time of a folder at the top of /data from the current boot stays, since it tells the boot, not the setup, and the
+    // folder gets the inode of the app, by stat, lstat, fstat and java.nio: all times of a folder changed since the boot,
+    // the change of status of a folder init sets the mode of on each boot up to Android 10, with the time of its last
+    // change faked. /data keeps its inode too, so all of it when all its times are of the boot, as File.lastModified
+    @Test
+    public void dataFoldersSinceBoot() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/proc/self/fd/9'] = '/data/system'\n" +
+                        "local function stat(method, path, atime, mtime, ctime)\n" +
+                        "  local result = statof(mtime)\n" +
+                        "  result.st_atime, result.st_atim = atime, { args = { atime, 1 } }\n" +
+                        "  result.st_ctime, result.st_ctim = ctime, { args = { ctime, 3 } }\n" +
+                        "  local param = paramof(result, { path })\n" +
+                        "  if not after(hookof(method), param) then return 'real' end\n" +
+                        "  local args = param.result.args\n" +
+                        "  return args[9].args[1], args[10].args[1], args[11].args[1], args[11].args[2], args[2]\n" +
+                        "end\n" +
+                        "local data = stat('stat', '/data', BOOT + 30, BOOT + 30, BOOT + 30)\n" +
+                        "local system = { stat('lstat', '/data/system/', BOOT + 10, BOOT + 30, BOOT + 30) }\n" +
+                        "local booted = { stat('stat', '/data/misc', BOOT, BOOT, BOOT) }\n" +
+                        "local older = { stat('stat', '/data/system', BOOT - 1, BOOT - 1, BOOT - 1) }\n" +
+                        "local status = { stat('lstat', '/data/local', BOOT - 100, BOOT - 100, BOOT + 10) }\n" +
+                        "local root = { stat('stat', '/data', BOOT - 100, BOOT + 30, BOOT + 30) }\n" +
+                        "local modified = paramof((BOOT + 30) * 1000 + 227, { '/data/system' })\n" +
+                        "local attributes = objectof({ st_ino = 2, st_mode = 16889, st_atime_sec = BOOT + 10,\n" +
+                        "  st_mtime_sec = BOOT - 100, st_ctime_sec = BOOT + 30 }, true)\n" +
+                        "local nio = after(hookof('stat', 'sun.nio.fs.UnixNativeDispatcher'),\n" +
+                        "  paramof(nil, { '/data/misc', attributes }))\n" +
+                        "local fstat = paramof(statof(BOOT + 30), { descriptorof(9) })\n" +
+                        "after(hookof('fstat', 'android.system.Os'), fstat)\n" +
+                        "return data, system[1], system[2], system[3], system[4], system[5], booted[2], older[2], older[3],\n" +
+                        "  status[1], status[2], status[3], status[5], root[1], root[2], root[5],\n" +
+                        "  after(hookof('getLastModifiedTime'), modified), modified.result, nio, attributes.st_atime_sec,\n" +
+                        "  attributes.st_mtime_sec, attributes.st_ctime_sec, attributes.st_ino, fstat.result.args[10].args[1],\n" +
+                        "  fstat.result.args[2], POLICY");
+        long fake = 1230768000L, inode = 0xfffffff + 1000;
+        // /data itself
+        assertEquals("real", result.arg(1).tojstring());
+        // lstat of /data/system/: the real times, each its own, and the inode of the app
+        assertEquals(1799999010L, result.arg(2).tolong());
+        assertEquals(1799999030L, result.arg(3).tolong());
+        assertEquals(1799999030L, result.arg(4).tolong());
+        assertEquals(3, result.arg(5).toint());
+        assertEquals(inode, result.arg(6).tolong());
+        // Changed in the second of the boot, and before it
+        assertEquals(1799999000L, result.arg(7).tolong());
+        assertEquals(fake, result.arg(8).tolong());
+        assertEquals(fake, result.arg(9).tolong());
+        // The mode set again on this boot, of Android 10 and before
+        assertEquals(fake, result.arg(10).tolong());
+        assertEquals(fake, result.arg(11).tolong());
+        assertEquals(1799999010L, result.arg(12).tolong());
+        assertEquals(inode, result.arg(13).tolong());
+        // /data read last before the boot, with its own inode
+        assertEquals(fake, result.arg(14).tolong());
+        assertEquals(1799999030L, result.arg(15).tolong());
+        assertEquals(2, result.arg(16).toint());
+        assertFalse(result.arg(17).toboolean());
+        assertEquals(1799999030227L, result.arg(18).tolong());
+        // java.nio, each time by itself
+        assertTrue(result.arg(19).toboolean());
+        assertEquals(1799999010L, result.arg(20).tolong());
+        assertEquals(fake, result.arg(21).tolong());
+        assertEquals(1799999030L, result.arg(22).tolong());
+        assertEquals(inode, result.arg(23).tolong());
+        assertEquals(1799999030L, result.arg(24).tolong());
+        assertEquals(inode, result.arg(25).tolong());
+        assertEquals("app", result.arg(26).tojstring());
+    }
+
+    // Os.stat, File.lastModified and java.nio by the link of a descriptor of the app, also of its process by number, of
+    // a thread and by /dev/fd, and by a path on through the descriptor of a folder: like by the path of the folder or
+    // APK it leads to, with the same inode; lstat of the link itself, a socket and the APK of the app keep their answer.
+    // The path is resolved by the file system, without a copy of a descriptor, and the app has its thread policy back
+    @Test
+    public void storageDescriptorPaths() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "for _, link in ipairs({ '/proc/self/fd/9', '/dev/fd/9', '/proc/4711/fd/9', '/proc/self/task/4712/fd/9' }) do\n" +
+                        "  CANONICAL[link] = '/storage/emulated/10/DCIM'\n" +
+                        "end\n" +
+                        "CANONICAL['/proc/self/fd/16/download/'] = '/storage/emulated/10/Download'\n" +
+                        "CANONICAL['/proc/self/fd/9/..'] = '/storage/emulated/10'\n" +
+                        "CANONICAL['/proc/self/fd/10'] = '/proc/4711/fd/socket:[4711]'\n" +
+                        "CANONICAL['/proc/self/fd/11'] = OWN\n" +
+                        "CANONICAL['/proc/self/fd/12'] = '/data/app/~~x==/com.other-y==/base.apk'\n" +
+                        "local function keyed(param)\n" +
+                        "  param.uuidOf = function(self, seed)\n" +
+                        "    local sum = 0\n" +
+                        "    for i = 1, #seed do sum = sum + string.byte(seed, i) * i end\n" +
+                        "    return string.format('%08x', sum) .. '-0000'\n" +
+                        "  end\n" +
+                        "  return param\n" +
+                        "end\n" +
+                        "local function stat(method, path, mode)\n" +
+                        "  local result = statof(1791913509)\n" +
+                        "  result.st_mode = mode or result.st_mode\n" +
+                        "  local param = keyed(paramof(result, { path }))\n" +
+                        "  if not after(hookof(method), param) then return 'real' end\n" +
+                        "  return param.result.args[9].args[1], param.result.args[2]\n" +
+                        "end\n" +
+                        "local found = {}\n" +
+                        "for _, path in ipairs(filter(hookof('stat'))) do found[path] = true end\n" +
+                        "local _, dcim = stat('stat', '/sdcard/DCIM')\n" +
+                        "local _, download = stat('stat', '/sdcard/Download')\n" +
+                        "local time, inode = stat('stat', '/proc/self/fd/9')\n" +
+                        "local _, by = stat('lstat', '/proc/self/fd/16/download/')\n" +
+                        "local modified = paramof(1791913509227, { '/dev/fd/9' })\n" +
+                        "after(hookof('getLastModifiedTime'), modified)\n" +
+                        "local attributes = objectof({ st_mode = 16889, st_atime_sec = 1, st_mtime_sec = 3, st_ctime_sec = 5 }, true)\n" +
+                        "after(hookof('stat', 'sun.nio.fs.UnixNativeDispatcher'), paramof(nil, { '/proc/4711/fd/9', attributes }))\n" +
+                        "return found['*/fd/*'], time, inode == dcim, by == download, stat('stat', '/proc/self/task/4712/fd/9'),\n" +
+                        "  modified.result, attributes.st_mtime_sec, stat('lstat', '/proc/self/fd/9', 41471),\n" +
+                        "  stat('stat', '/proc/self/fd/10'),\n" +
+                        "  stat('stat', '/proc/self/fd/11', 33188), stat('stat', '/proc/self/fd/12', 33188), DUPS, POLICY,\n" +
+                        "  stat('stat', '/proc/self/fd/9/..')");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(1230768000L, result.arg(2).tolong());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals(1230768000L, result.arg(5).tolong());
+        assertEquals(1230768000000L, result.arg(6).tolong());
+        assertEquals(1230768000L, result.arg(7).tolong());
+        for (int i = 8; i <= 10; i++)
+            assertEquals(String.valueOf(i), "real", result.arg(i).tojstring());
+        assertEquals(1230768000L, result.arg(11).tolong());
+        assertEquals(0, result.arg(12).toint());
+        assertEquals("app", result.arg(13).tojstring());
+        // The folder the descriptor of DCIM is in, which only the file system can tell
+        assertEquals(1230768000L, result.arg(14).tolong());
     }
 
     // The files of other apps in /data/app get the times of their package info: the time of the firmware for updates
@@ -562,6 +866,39 @@ public class FileScriptsTest {
             assertTrue("result " + i, result.arg(i).toboolean());
         for (int i : new int[]{3, 9, 11, 12, 16, 22})
             assertFalse("result " + i, result.arg(i).toboolean());
+    }
+
+    // The store of certificates finds a certificate of the user by its file, which connections need, but lists their
+    // folder without them, like the accepted issuers of the trust manager read it (DirectoryCertificateSource of
+    // UserCertificateSource), so they are not there; the app itself does not find the folder at all
+    @Test
+    public void certificatesOfTheUserAreFoundButNotListedByTheTrustStore() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local folder = '/data/misc/user/0/cacerts-added'\n" +
+                        "local io = 'java.io.UnixFileSystem'\n" +
+                        "local list, exists = hookof('Use.Tracking', io, 'list0'), hookof('Use.Tracking', io, 'checkAccess')\n" +
+                        "local store = true\n" +
+                        "function truststore() return store end\n" +
+                        "local file = paramof(folder .. '/abcd1234.0')\n" +
+                        "local found = before(exists, file)\n" +
+                        "local listing = paramof(folder)\n" +
+                        "local listed, early = before(list, listing), listing.early\n" +
+                        "listing.result = namesof('abcd1234.0', '5678ef90.0')\n" +
+                        "after(list, listing)\n" +
+                        "store = false\n" +
+                        "local own = paramof(folder)\n" +
+                        "before(list, own)\n" +
+                        "return found, file.early, listed, early, listing.result.class, listing.result.length,\n" +
+                        "  own.early, own.result");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals("java.lang.String", result.arg(5).tojstring());
+        assertEquals(0, result.arg(6).toint());
+        assertTrue(result.arg(7).toboolean());
+        assertTrue(result.arg(8).isnil());
     }
 
     // The folders named after hidden apps do not exist: their private data on Android 8.1 to 10, their folders data
@@ -1040,6 +1377,223 @@ public class FileScriptsTest {
         assertFalse(result.arg(2).toboolean());
     }
 
+    // The drivers of the GPU in the folders egl, which name it, but not ANGLE; the manifests of vintf of the vendor, also
+    // the fragments and those at the root of the partitions of Android 8.1, the SELinux contexts of the vendor and the
+    // configuration of the display panel; their folders, the other files of vintf and SELinux and the libraries of the
+    // system stay, and listings leave the names out. A manifest the app cannot read stays (EACCES), like build.prop.
+    @Test
+    public void gpuDriversAndVendorConfiguration() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        String[] hidden = {"/vendor/lib64/egl/libGLESv2_adreno.so", "/vendor/lib/egl/libGLES_mali.so",
+                "/vendor/lib64/egl/libEGL_emulation.so", "/system/vendor/lib64/egl/eglSubDriverAndroid.so",
+                "/vendor/etc/vintf/manifest.xml", "/odm/etc/vintf/manifest_ssku.xml", "/vendor/etc/vintf/manifest",
+                "/vendor/etc/vintf/manifest/vendor.qti.hardware.display.xml", "/system/vendor/etc/vintf/manifest.xml",
+                "/vendor/etc/selinux/vendor_property_contexts", "/vendor/etc/selinux/nonplat_property_contexts",
+                "/vendor/etc/displayconfig", "/vendor/etc/displayconfig/display_id_4619827259835644672.xml",
+                "/vendor/manifest.xml", "/odm/manifest.xml", "/vendor/odm/etc/vintf/manifest.xml",
+                "/system/vendor/odm/etc/vintf/manifest/vendor.qti.hardware.display.xml"};
+        // The manifest of the framework, which every device has, of /system, its link /etc and of Android 8.1, and the
+        // manifests of /system_ext and /product
+        String[] stay = {"/vendor/lib64/egl", "/vendor/lib64/egl/libGLESv2_angle.so", "/system/lib64/libEGL.so",
+                "/vendor/etc/vintf", "/vendor/etc/vintf/compatibility_matrix.xml", "/vendor/etc/selinux",
+                "/vendor/etc/selinux/plat_sepolicy_vers.txt", "/system/etc/selinux/plat_property_contexts",
+                "/data/user/0/com.example/files/vendor/lib64/egl/libGLESv2_adreno.so", "/data/manifest.xml",
+                "/system/etc/vintf/manifest.xml", "/system/etc/vintf/manifest", "/etc/vintf/manifest.xml",
+                "/system/etc/vintf/manifest/android.hidl.allocator@1.0-service.xml", "/system/manifest.xml",
+                "/system_ext/etc/vintf/manifest.xml", "/product/etc/vintf/manifest.xml"};
+        for (String path : hidden)
+            assertTrue(path, Scripts.run(globals, "return hidden(hookof('Use.Tracking'), '" + path + "')").arg1().toboolean());
+        for (String path : stay)
+            assertFalse(path, Scripts.run(globals, "return hidden(hookof('Use.Tracking'), '" + path + "')").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return hidden(hookof('Read.Identifiers'), '/vendor/etc/vintf/manifest.xml')")
+                .arg1().toboolean());
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]')\n" +
+                        "local egl = paramof('/vendor/lib64/egl', namesof('libEGL_emulation.so', 'libGLESv2_angle.so',\n" +
+                        "  'libGLESv2_emulation.so', 'libEGL_angle.so'))\n" +
+                        "after(hook, egl)\n" +
+                        "local etc = paramof('/vendor/etc', namesof('vintf', 'displayconfig', 'init'))\n" +
+                        "after(hook, etc)\n" +
+                        "local vendor = paramof('/vendor', namesof('manifest.xml', 'etc'))\n" +
+                        "after(hook, vendor)\n" +
+                        "local system = paramof('/system/etc/vintf', namesof('compatibility_matrix.xml', 'manifest.xml',\n" +
+                        "  'manifest'))\n" +
+                        "local listed = after(hook, system)\n" +
+                        "return egl.result.length, egl.result[1], egl.result[2], etc.result.length, etc.result[1],\n" +
+                        "  etc.result[2], vendor.result.length, vendor.result[1], listed, system.result.length,\n" +
+                        "  system.result[2]");
+        assertEquals(2, result.arg1().toint());
+        assertEquals("libGLESv2_angle.so", result.arg(2).tojstring());
+        assertEquals("libEGL_angle.so", result.arg(3).tojstring());
+        assertEquals(2, result.arg(4).toint());
+        assertEquals("vintf", result.arg(5).tojstring());
+        assertEquals("init", result.arg(6).tojstring());
+        assertEquals(1, result.arg(7).toint());
+        assertEquals("etc", result.arg(8).tojstring());
+        assertFalse(result.arg(9).toboolean());
+        assertEquals(3, result.arg(10).toint());
+        assertEquals("manifest.xml", result.arg(11).tojstring());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking'))").arg1().checktable().unpack());
+        for (String path : new String[]{"/vendor/lib64/egl", "/vendor/lib/egl/libGLES_mali.so", "/vendor/etc/vintf",
+                "/vendor/etc/vintf/manifest/vendor.qti.hardware.display.xml", "/vendor/etc/selinux",
+                "/vendor/etc/selinux/vendor_property_contexts", "/vendor/etc/displayconfig", "/vendor", "/vendor/manifest.xml",
+                "/system/vendor/manifest.xml", "/proc/self/root/vendor/etc/vintf/manifest.xml", "/vendor/odm/etc/vintf"})
+            assertTrue(path, filterMatches(filter, path));
+        // Unreadable, like a version which denies apps the files of the vendor
+        assertFalse(Scripts.run(globals, "local file = luajava.newInstance\n" +
+                "luajava.newInstance = function(name, path)\n" +
+                "  if name == 'java.io.File' then return { exists = function() return true end,\n" +
+                "    canRead = function() return false end } end\n" +
+                "  return file(name, path)\n" +
+                "end\n" +
+                "return hidden(hookof('Use.Tracking'), '/odm/etc/vintf/manifest.xml',\n" +
+                "  { unhooked = function(self, f) return f() end })").arg1().toboolean());
+    }
+
+    // The tables of the process an app opens with Use.Tracking, by /proc or a descriptor: the maps and smaps without the
+    // mappings of the libraries of the vendor and of the device of the GPU, ANGLE and the rest stay; the mount tables
+    // with the partitions in /dev/block/by-name. Other files, a failed open, other groups and a text without them stay.
+    private static final String TABLE_STUBS = String.join("\n",
+            "LINKS['/proc/self/maps'] = '/proc/123/maps'",
+            "LINKS['/proc/thread-self/smaps'] = '/proc/123/task/124/smaps'",
+            "LINKS['/proc/self/root/proc/self/maps'] = '/proc/123/maps'",
+            "LINKS['proc/self/maps'] = '/proc/123/maps'",
+            "LINKS['/proc/mounts'] = '/proc/123/mounts'",
+            "LINKS['/dev/fd/9/maps'] = '/proc/123/maps'",
+            "function opened(path, text, group, failed)",
+            "  local param = paramof(path, 'fd')",
+            "  param.getFileText = function(self) return text end",
+            "  param.setFileText = function(self, value) self.text = value end",
+            "  if failed then param.getException = function(self) return 'ErrnoException' end end",
+            "  local restricted, left = after(hookof(group or 'Use.Tracking'), param)",
+            "  return restricted, left, param.text",
+            "end");
+
+    @Test
+    public void tablesOfTheProcessWithoutTheHardware() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS + "\n" + TABLE_STUBS);
+        String kept = String.join("\n",
+                "5f8e1c000-5f8e1d000 r--p 00000000 fe:05 1234                      /system/bin/app_process64",
+                "7a1b000000-7a1b001000 r--p 00000000 00:00 0                       [anon:dalvik-/system/framework/boot.art]",
+                "7a1b001000-7a1b002000 rw-p 00000000 00:00 0",
+                "7a1b002000-7a1b003000 r--p 00000000 fe:05 2345                    /system/lib64/libEGL.so",
+                "7a1b003000-7a1b004000 r--p 00000000 fe:0f 3456                    /vendor/lib64/egl/libGLESv2_angle.so",
+                "");
+        String vendor = String.join("\n",
+                "7a1c000000-7a1c001000 r--p 00000000 fe:0f 222                     /vendor/lib64/egl/libGLESv2_emulation.so",
+                "7a1c001000-7a1c002000 r-xp 00001000 fe:0f 222                     /vendor/lib64/egl/libGLESv2_emulation.so",
+                "7a1d000000-7a1d001000 r--p 00000000 fe:0f 333                     " +
+                        "/vendor/lib64/hw/android.hardware.graphics.mapper@3.0-impl-ranchu.so",
+                "7a1e000000-7a1e001000 r--p 00000000 fe:0f 444                     /vendor/lib64/libOpenglSystemCommon.so",
+                "7a1f000000-7a1f001000 rw-s 00000000 00:05 555                     /dev/kgsl-3d0",
+                "7a20000000-7a20001000 r--p 00000000 fe:05 666                     /system/lib/egl/libGLES_mali.so",
+                "");
+        String maps = kept + vendor;
+        String smaps = "7a1c000000-7a1c001000 r--p 00000000 fe:0f 222   /vendor/lib64/egl/libEGL_emulation.so\n" +
+                "Size:                  4 kB\nVmFlags: rd mr mw me\n" +
+                "7a1b002000-7a1b003000 r--p 00000000 fe:05 2345   /system/lib64/libEGL.so\n" +
+                "Size:                  4 kB\nVmFlags: rd mr mw me\n";
+        for (String path : new String[]{"/proc/self/maps", "/proc/123/maps", "/proc/thread-self/smaps",
+                "/proc/123/task/124/maps", "/proc/self/root/proc/self/maps", "proc/self/maps", "/dev/fd/9/maps"}) {
+            Varargs result = Scripts.run(globals, "return opened('" + path + "', [[" + maps + "]])");
+            assertTrue(path, result.arg1().toboolean());
+            assertEquals(path, "6", result.arg(2).tojstring());
+            assertEquals(path, kept, result.arg(3).tojstring());
+        }
+        Varargs result = Scripts.run(globals, "return opened('/proc/self/smaps', [[" + smaps + "]])");
+        assertEquals("1", result.arg(2).tojstring());
+        assertEquals("7a1b002000-7a1b003000 r--p 00000000 fe:05 2345   /system/lib64/libEGL.so\n" +
+                "Size:                  4 kB\nVmFlags: rd mr mw me\n", result.arg(3).tojstring());
+
+        String mounts = "/dev/block/pci/pci0000:00/0000:00:06.0/by-name/metadata /metadata ext4 rw,seclabel 0 0\n" +
+                "/dev/block/dm-5 /vendor ext4 ro,seclabel 0 0\n" +
+                "/dev/block/by-name/misc /misc ext4 rw 0 0\n";
+        String mountinfo = "43 31 253:49 / /metadata rw,nosuid shared:24 - ext4 " +
+                "/dev/block/platform/soc/1d84000.ufshc/by-name/metadata rw,seclabel\n" +
+                "44 31 8:5 / /mnt/vendor/persist rw shared:25 - ext4 /dev/block/bootdevice/by-name/persist rw\n";
+        String mountstats = "device /dev/block/platform/14700000.ufs/by-name/metadata mounted on /metadata with fstype ext4\n";
+        result = Scripts.run(globals, "local a, b, c = opened('/proc/mounts', [[" + mounts + "]])\n" +
+                "local d, e, f = opened('/proc/self/mountinfo', [[" + mountinfo + "]])\n" +
+                "return a, b, c, d, e, f, select(3, opened('/proc/123/mountstats', [[" + mountstats + "]]))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("1", result.arg(2).tojstring());
+        assertEquals("/dev/block/by-name/metadata /metadata ext4 rw,seclabel 0 0\n" +
+                "/dev/block/dm-5 /vendor ext4 ro,seclabel 0 0\n/dev/block/by-name/misc /misc ext4 rw 0 0\n",
+                result.arg(3).tojstring());
+        assertEquals("2", result.arg(5).tojstring());
+        assertEquals("43 31 253:49 / /metadata rw,nosuid shared:24 - ext4 /dev/block/by-name/metadata rw,seclabel\n" +
+                "44 31 8:5 / /mnt/vendor/persist rw shared:25 - ext4 /dev/block/by-name/persist rw\n",
+                result.arg(6).tojstring());
+        assertEquals("device /dev/block/by-name/metadata mounted on /metadata with fstype ext4\n",
+                result.arg(7).tojstring());
+
+        // Not the tables: a file of the app, a failed open, another group, a text without the vendor
+        result = Scripts.run(globals, "return opened('/data/user/0/test.app/files/maps/tile', [[" + maps + "]]),\n" +
+                "  opened('/proc/self/maps', [[" + maps + "]], nil, true),\n" +
+                "  opened('/proc/self/maps', [[" + maps + "]], 'Read.Identifiers'),\n" +
+                "  opened('/proc/self/maps', [[" + kept + "]]), opened('/proc/self/mounts', 'tmpfs /dev tmpfs rw 0 0')");
+        for (int i = 1; i <= 5; i++)
+            assertFalse(String.valueOf(i), result.arg(i).toboolean());
+
+        // Only the hooks of open of Use.Tracking run for them, and not as hidden files
+        Object open = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking'))").arg1().checktable().unpack());
+        Object stat = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking', nil, 'stat'))")
+                .arg1().checktable().unpack());
+        Object identifiers = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Identifiers'))")
+                .arg1().checktable().unpack());
+        for (String path : new String[]{"/proc/self/maps", "/proc/self/smaps", "/proc/mounts", "proc/self/mountinfo",
+                "/proc/self/task/124/mountstats"}) {
+            assertTrue(path, filterMatches(open, path));
+            assertFalse(path, filterMatches(stat, path));
+            assertFalse(path, filterMatches(identifiers, path));
+        }
+        // Hidden files of the groups by a link of /proc, like the working directory, stay hidden with the same parts
+        result = Scripts.run(globals, "LINKS['/proc/self/cwd/su/mounts'] = '/su/mounts'\n" +
+                "LINKS['/proc/self/cwd/fstab.qcom'] = '/fstab.qcom'\n" +
+                "return before(hookof('Use.Tracking'), paramof('/proc/self/maps')),\n" +
+                "  before(hookof('Read.Debugging'), paramof('/proc/self/cwd/su/mounts')),\n" +
+                "  before(hookof('Use.Tracking'), paramof('/proc/self/cwd/fstab.qcom/mounts'))");
+        assertFalse(result.arg1().toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertFalse(Scripts.run(globals, "hidden = function() error('hidden') end\n" +
+                "return before(hookof('Use.Tracking'), paramof('/data/user/0/test.app/files/maps/tile'))").arg1().toboolean());
+    }
+
+    // The file stores of java.nio, which read the mount entries natively, name the partition like the mount table the
+    // app reads itself, by name() and toString(); a failed call and a device without a controller stay, and no path is
+    // looked at
+    @Test
+    public void fileStoresNameThePartitionLikeTheMountTable() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS + "\n" + TABLE_STUBS + "\n" +
+                "function named(method, result, group, failed)\n" +
+                "  local param = paramof(nil, result)\n" +
+                "  if failed then param.getException = function(self) return 'SecurityException' end end\n" +
+                "  local hook = hookof(group or 'Use.Tracking', 'sun.nio.fs.UnixFileStore', method, 'java.lang.String')\n" +
+                "  local restricted, real, fake = after(hook, param)\n" +
+                "  return restricted, real, fake, param.result\n" +
+                "end");
+        String device = "/dev/block/platform/soc/1d84000.ufshc/by-name/system";
+        String table = Scripts.run(globals, "return select(3, opened('/proc/self/mounts', '" + device + " /system ext4 ro 0 0'))")
+                .arg1().tojstring();
+        Varargs result = Scripts.run(globals, "return named('name', '" + device + "')");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(device, result.arg(2).tojstring());
+        assertEquals(table.split(" ")[0], result.arg(4).tojstring());
+        assertEquals("/dev/block/by-name/system", result.arg(4).tojstring());
+        result = Scripts.run(globals, "return named('toString', '/system (" + device + ")')");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("/system (/dev/block/by-name/system)", result.arg(4).tojstring());
+
+        result = Scripts.run(globals, "return named('name', '" + device + "', nil, true), named('name', '/dev/block/dm-5'),\n" +
+                "  named('toString', '/data (/dev/block/dm-48)')");
+        for (int i = 1; i <= 3; i++)
+            assertFalse(String.valueOf(i), result.arg(i).toboolean());
+        assertTrue(Scripts.run(globals, "hidden = function() error('hidden') end\n" +
+                "local hook = hookof('Use.Tracking', 'sun.nio.fs.UnixFileStore', 'name', 'java.lang.String')\n" +
+                "return filter(hook) == nil and before(hook, paramof(nil)) == false").arg1().toboolean());
+    }
+
     // A path with /../ counts by the file it leads to, which XCore lets through for every group, not by the folders it
     // passes, like one of the app with the name of a folder of /sys
     @Test
@@ -1278,6 +1832,41 @@ public class FileScriptsTest {
         assertEquals("sun.nio.fs.UnixException:2", result.arg(5).tojstring());
         assertEquals("argument 0:[]", result.arg(6).tojstring());
         assertEquals("sun.nio.fs.UnixException:2", result.arg(7).tojstring());
+    }
+
+    // The same for the files Use.Tracking hides, like the folder of the speeds of the processors in /sys (EACCES) and a
+    // font of a maker on the read-only /system, where Linux answers EROFS for making a name before the permissions and
+    // for removing one before it looks the name up, so the real call answers that; the attributes like a missing file
+    @Test
+    public void makingByTheNameOfAHiddenFileOfTheModel() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "READONLY['/system/fonts'] = true\n" +
+                        "local cpufreq, font = '/sys/devices/system/cpu/cpufreq', '/system/fonts/SamsungOne-400.ttf'\n" +
+                        "local function run(class, method, path)\n" +
+                        "  local param = makingparam(path)\n" +
+                        "  local restricted = before(hookof('Use.Tracking', class, method), param)\n" +
+                        "  if not param.early then\n" +
+                        "    return tostring(restricted) .. ' ' .. (param.argument and 'argument ' .. param.argument.index ..\n" +
+                        "      ':[' .. param.argument.value .. ']' or 'unchanged')\n" +
+                        "  end\n" +
+                        "  return param.result.class .. ':' .. table.concat(param.result.args, ':')\n" +
+                        "end\n" +
+                        "local os, nio = 'android.system.Os', 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        "return run(os, 'mkdir', cpufreq), run(nio, 'mkdir', cpufreq), run(os, 'mkdir', font), run(nio, 'mkdir', font),\n" +
+                        "  run(os, 'mkfifo', font), run(os, 'listxattr', cpufreq), run(os, 'remove', cpufreq), run(os, 'remove', font),\n" +
+                        "  run(nio, 'chmod', font), run(os, 'mkdir', '/system/fonts/Roboto-Regular.ttf')");
+        assertEquals("android.system.ErrnoException:mkdir:13", result.arg(1).tojstring());
+        assertEquals("sun.nio.fs.UnixException:13", result.arg(2).tojstring());
+        assertEquals("android.system.ErrnoException:mkdir:30", result.arg(3).tojstring());
+        assertEquals("sun.nio.fs.UnixException:30", result.arg(4).tojstring());
+        assertEquals("android.system.ErrnoException:mkfifo:30", result.arg(5).tojstring());
+        assertEquals("true argument 0:[]", result.arg(6).tojstring());
+        assertEquals("true argument 0:[]", result.arg(7).tojstring());
+        assertEquals("false unchanged", result.arg(8).tojstring());
+        assertEquals("sun.nio.fs.UnixException:2", result.arg(9).tojstring());
+        // A font of every Android stays
+        assertEquals("false unchanged", result.arg(10).tojstring());
     }
 
     // link, symlink and rename of a hidden id run with a name of its folder which does not exist in place of the id, so

@@ -236,8 +236,10 @@ public class ValueScriptsTest {
             "  local uris = {} for i = 1, 2 do if p:readInt() ~= 0 then uris[i] = p:get('uri') end end",
             "  assert(p:readString() == 'tail') local phone = accountof(nil, uris[1], uris[2]) phone.handle = handle",
             "  return phone end }",
+            "sdk = 29",
             "luajava = { bindClass = function(name)",
             "  if name == 'android.os.Parcel' then return { obtain = function(self) return parcelof() end } end",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
             "  if name == 'android.text.TextUtils' then return { CHAR_SEQUENCE_CREATOR = creatorof('text') } end",
             "  if name == 'android.telecom.PhoneAccountHandle' then return { CREATOR = creatorof('handle') } end",
             "  if name == 'android.telephony.SubscriptionInfo' then return { CREATOR = infos } end",
@@ -367,21 +369,208 @@ public class ValueScriptsTest {
         check(globals, "return after_(nil, portof('8931440000000000001', nil))", true, true, redacted);
     }
 
+    // A stand-in for the fake id the hash of the fake Android ID gives, and the parcel of a group of Wi-Fi Direct with its
+    // network name first, like Android writes it, and a tail value for the fields after its owner and whether it owns;
+    // the version of Android is 10 unless a test sets sdk
+    private static final String P2P = String.join("\n",
+            "settings['value.android_id'] = '0123456789abcdef'",
+            "local base = paramof",
+            "function paramof(...) local param = base(...)",
+            "  param.uuidOf = function(self, seed) assert(seed == 'wifip2p/0123456789abcdef', seed)",
+            "    return 'c0ffee12-3456-4789-8abc-def012345678' end",
+            "  return param end",
+            "device = hookof('CREATOR:createFromParcel', 'android.net.wifi.p2p.WifiP2pDevice')",
+            "group = hookof('CREATOR:createFromParcel', 'android.net.wifi.p2p.WifiP2pGroup')",
+            "builder = hookof('setNetworkName', 'android.net.wifi.p2p.WifiP2pConfig$Builder')",
+            "function groupof(network, owner, go, rom) local g = { network = network, owner = owner, go = go, rom = rom }",
+            "  function g:getOwner() return self.owner end function g:getNetworkName() return self.network end",
+            "  function g:isGroupOwner() return self.go end",
+            "  function g:writeToParcel(p, flags) if self.rom then p:writeString('rom') end",
+            "    p:writeString(self.network) p:put('owner', self.owner) p:put('go', self.go) p:writeString('tail') end",
+            "  return g end",
+            "groups = { createFromParcel = function(self, p) local g = groupof(p:readString(), p:get('owner'), p:get('go'))",
+            "  assert(p:readString() == 'tail') return g end }",
+            "sdk = 29",
+            "luajava = { bindClass = function(name)",
+            "  if name == 'android.os.Parcel' then return { obtain = function(self) return parcelof() end } end",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+            "  assert(name == 'android.net.wifi.p2p.WifiP2pGroup', name) return { CREATOR = groups } end }",
+            // Unparcels a group like Android: its owner first, through the hook of the device
+            "function unparcel(result) local param = paramof(result.owner) after(device, param)",
+            "  param = paramof(result) local restricted = after(group, param) return restricted, param end");
+
     // The own device of Wi-Fi Direct, of which apps get the anonymous address, has the name users give the device,
-    // often with their own name, like device_name (see settingssecure_getstring); devices around keep theirs
+    // often with their own name, like device_name (see settingssecure_getstring): the name Android gives a device which
+    // was never named, Android_ and 4 characters; devices around and an own device without a name keep theirs
     @Test
-    public void ownWifiDirectNameIsEmpty() throws Exception {
+    public void ownWifiDirectNameIsDefault() throws Exception {
         Globals globals = load("wifip2pdevice_name");
-        Varargs own = Scripts.run(globals, "local device = { deviceAddress = '02:00:00:00:00:00', deviceName = 'Pixel of Alice' }\n" +
-                "return after(nil, paramof(device, {})), device.deviceName");
+        Scripts.run(globals, P2P);
+        Varargs own = Scripts.run(globals, "local device_ = { deviceAddress = '02:00:00:00:00:00', deviceName = 'Pixel of Alice' }\n" +
+                "local restricted, old, new = after(device, paramof(device_, {}))\n" +
+                "return restricted, old, new, device_.deviceName");
         assertTrue(own.arg(1).toboolean());
-        assertEquals("", own.arg(2).tojstring());
-        Varargs other = Scripts.run(globals, "local device = { deviceAddress = '6a:11:22:33:44:55', deviceName = 'TV' }\n" +
-                "return after(nil, paramof(device, {})), device.deviceName");
+        assertEquals("Pixel of Alice", own.arg(2).tojstring());
+        assertEquals("Android_c0ff", own.arg(3).tojstring());
+        assertEquals("Android_c0ff", own.arg(4).tojstring());
+        Varargs other = Scripts.run(globals, "local device_ = { deviceAddress = '6a:11:22:33:44:55', deviceName = 'TV' }\n" +
+                "return after(device, paramof(device_, {})), device_.deviceName");
         assertFalse(other.arg(1).toboolean());
         assertEquals("TV", other.arg(2).tojstring());
-        assertFalse(Scripts.run(globals, "return after(nil, paramof({ deviceAddress = '02:00:00:00:00:00', deviceName = '' }, {}))")
+        for (String name : new String[]{"''", "nil", "'Android_c0ff'"})
+            assertFalse(name, Scripts.run(globals, "return after(device, paramof({ deviceAddress = '02:00:00:00:00:00', " +
+                    "deviceName = " + name + " }, {}))").arg1().toboolean());
+    }
+
+    // A group the device owns, of which Android gives the owner with the anonymous address and no name, has a network
+    // name of DIRECT-, two characters and a dash with the name of the device, in full, cut to 22 bytes, left out when
+    // the name is too long or of the time a persistent group was made, so it is made again from its parcel with a dash
+    // and the fake name there, and the owner keeps no name; a name the app chose, a group of another device or which the
+    // device does not own and a parcel which does not read like Android stay
+    @Test
+    public void ownWifiDirectGroupNameIsDefault() throws Exception {
+        Globals globals = load("wifip2pdevice_name");
+        Scripts.run(globals, PARCELS);
+        Scripts.run(globals, P2P);
+        String own = "{ deviceAddress = '02:00:00:00:00:00', deviceName = '' }";
+        // A name the app chose, and one the Builder refused, like with an exception
+        Scripts.run(globals, "assert(after(builder, paramof({}, { [0] = 'DIRECT-ab-MyGame' })) == false)\n" +
+                "assert(after(builder, paramof(nil, { [0] = 'DIRECT-ab-Refused' })) == false)");
+        // The third is of a name of 19 bytes and a character of 4 after it, of which Android 14 leaves out the 3 bytes it keeps
+        for (String network : new String[]{"'DIRECT-ab-Pixel of Alice'", "'DIRECT-ab-Galaxy S21 Ultra of Al'",
+                "'DIRECT-ab-' .. string.rep('a', 19)", "'DIRECT-ab'", "'DIRECT-ab-Pixel'", "'DIRECT-ab-Refused'"}) {
+            String lua = "parcels = {} local result = groupof(" + network + ", " + own + ", true)\n" +
+                    "local restricted, param = unparcel(result)\n" +
+                    "return restricted, param.set, param.result.network, param.result.owner.deviceName, recycled()";
+            Varargs made = Scripts.run(globals, lua);
+            assertTrue(lua, made.arg(1).toboolean());
+            assertTrue(lua, made.arg(2).toboolean());
+            assertEquals(lua, "DIRECT-ab-Android_c0ff", made.arg(3).tojstring());
+            assertEquals(lua, "", made.arg(4).tojstring());
+            assertTrue(lua, made.arg(5).toboolean());
+        }
+        // An owner with a name, like in the persistent groups of Settings, gets the fake one from the hook of the device
+        Varargs named = Scripts.run(globals, "parcels = {} local result = groupof('DIRECT-ab-Pixel of Alice', " +
+                "{ deviceAddress = '02:00:00:00:00:00', deviceName = 'Pixel of Alice' }, true)\n" +
+                "local restricted, param = unparcel(result)\n" +
+                "return restricted, param.result.network, param.result.owner.deviceName");
+        assertTrue(named.arg(1).toboolean());
+        assertEquals("DIRECT-ab-Android_c0ff", named.arg(2).tojstring());
+        assertEquals("Android_c0ff", named.arg(3).tojstring());
+        for (String stays : new String[]{"groupof('DIRECT-ab-MyGame', " + own + ", true)",
+                "groupof('DIRECT-ab-Android_c0ff', " + own + ", true)", "groupof('Pixel of Alice', " + own + ", true)",
+                "groupof('DIRECT-a-Pixel', " + own + ", true)",
+                "groupof('DIRECT-ab-TV', { deviceAddress = '6a:11:22:33:44:55', deviceName = 'TV' }, false)",
+                "groupof('DIRECT-ab-Pixel', " + own + ", false)",
+                "groupof('DIRECT-ab-Pixel of Alice', " + own + ", true, true)", "groupof('DIRECT-ab', nil, false)"}) {
+            String lua = "parcels = {} local result = " + stays + "\n" +
+                    "local restricted, param = unparcel(result)\n" +
+                    "return restricted == false and param.set == false and (#parcels == 0 or recycled())";
+            assertTrue(lua, Scripts.run(globals, lua).arg1().toboolean());
+        }
+        // One copy of the way an object is made again from its parcel
+        assertEquals(Scripts.function("telephony_createfromparcel", "remade"), Scripts.function("wifip2pdevice_name", "remade"));
+    }
+
+    // Android 8.1 and 9 give the own device with its real address, in the sticky broadcast THIS_DEVICE_CHANGED, which
+    // only has the own device and gets the fake name, and as the owner of a group it owns, which is told by its group
+    // owner flag alone and gets the fake name in its network name and, in a persistent group, for its owner too; the
+    // address stays, which wifip2p_own_address makes anonymous, in either order; from Android 10 a group owner with a
+    // real address, other broadcasts and a device without a name stay
+    @Test
+    public void ownWifiDirectNameIsDefaultOnAndroid9() throws Exception {
+        Globals globals = load("wifip2pdevice_name");
+        Scripts.run(globals, PARCELS);
+        Scripts.run(globals, P2P);
+        Scripts.run(globals, "sdk = 28");
+        String real = "deviceAddress = '6a:11:22:33:44:55'";
+        for (String[] c : new String[][]{{"'DIRECT-ab-Pixel of Alice'", "6a:11:22:33:44:55", "", ""},
+                {"'DIRECT-ab-Pixel of Alice'", "02:00:00:00:00:00", "", ""}, {"'DIRECT-ab'", "6a:11:22:33:44:55", "", ""},
+                {"'DIRECT-ab-Pixel of Alice'", "6a:11:22:33:44:55", "Pixel of Alice", "Android_c0ff"}}) {
+            String lua = "parcels = {} local result = groupof(" + c[0] + ", { deviceAddress = '" + c[1] + "', " +
+                    "deviceName = '" + c[2] + "' }, true)\nlocal restricted, param = unparcel(result)\n" +
+                    "return restricted, param.set, param.result.network, param.result.owner.deviceName, recycled(),\n" +
+                    "  param.result.owner.deviceAddress";
+            Varargs made = Scripts.run(globals, lua);
+            assertTrue(lua, made.arg(1).toboolean());
+            assertTrue(lua, made.arg(2).toboolean());
+            assertEquals(lua, "DIRECT-ab-Android_c0ff", made.arg(3).tojstring());
+            assertEquals(lua, c[3], made.arg(4).tojstring());
+            assertTrue(lua, made.arg(5).toboolean());
+            assertEquals(lua, c[1], made.arg(6).tojstring());
+        }
+        // A persistent group of which the network name has the fake name already: only its owner is renamed
+        Varargs owner = Scripts.run(globals, "parcels = {} local result = groupof('DIRECT-ab-Android_c0ff', " +
+                "{ " + real + ", deviceName = 'Pixel of Alice' }, true)\n" +
+                "local restricted, param = unparcel(result)\n" +
+                "return restricted, param.set, result.owner.deviceName");
+        assertTrue(owner.arg(1).toboolean());
+        assertFalse(owner.arg(2).toboolean());
+        assertEquals("Android_c0ff", owner.arg(3).tojstring());
+        String joined = "parcels = {} local result = groupof('DIRECT-ab-TV', { deviceAddress = '6a:99:22:33:44:55', " +
+                "deviceName = 'TV' }, false)\nlocal restricted, param = unparcel(result)\n" +
+                "return restricted == false and param.set == false and #parcels == 0 and result.owner.deviceName == 'TV'";
+        assertTrue(joined, Scripts.run(globals, joined).arg1().toboolean());
+        String android10 = "sdk = 29 parcels = {} local result = groupof('DIRECT-ab-Pixel of Alice', { " + real +
+                ", deviceName = '' }, true)\nlocal restricted, param = unparcel(result) sdk = 28\n" +
+                "return restricted == false and param.set == false and #parcels == 0";
+        assertTrue(android10, Scripts.run(globals, android10).arg1().toboolean());
+
+        // An intent with only a copy of its extras, like Intent.getExtras, whose device is a new object, like one
+        // unparcelled from the copied parcel, so the change reaches the intent only with replaceExtras
+        Scripts.run(globals, String.join("\n",
+                "function intentof(action, device)",
+                "  local intent = { extras = { wifiP2pDevice = device } }",
+                "  function intent:getAction() return action end",
+                "  function intent:replaceExtras(bundle) self.extras = bundle.values end",
+                "  function intent:getExtras()",
+                "    if self.extras == nil then return nil end",
+                "    local bundle = { values = {} }",
+                "    for key, value in pairs(self.extras) do",
+                "      bundle.values[key] = { deviceAddress = value.deviceAddress, deviceName = value.deviceName } end",
+                "    function bundle:getParcelable(key) return self.values[key] end",
+                "    return bundle",
+                "  end",
+                "  return intent",
+                "end",
+                "intent = hookof('CREATOR:createFromParcel', 'android.content.Intent')"));
+        Varargs own = Scripts.run(globals, "local device_ = { " + real + ", deviceName = 'Pixel of Alice' }\n" +
+                "local result = intentof('android.net.wifi.p2p.THIS_DEVICE_CHANGED', device_)\n" +
+                "local restricted, old, new = after(intent, paramof(result))\n" +
+                "return restricted, old, new, result.extras.wifiP2pDevice.deviceName, device_.deviceName,\n" +
+                "  result.extras.wifiP2pDevice.deviceAddress");
+        assertTrue(own.arg(1).toboolean());
+        assertEquals("Pixel of Alice", own.arg(2).tojstring());
+        assertEquals("Android_c0ff", own.arg(3).tojstring());
+        assertEquals("Android_c0ff", own.arg(4).tojstring());
+        assertEquals("Pixel of Alice", own.arg(5).tojstring());
+        assertEquals("6a:11:22:33:44:55", own.arg(6).tojstring());
+        for (String name : new String[]{"''", "nil", "'Android_c0ff'"}) {
+            String lua = "local result = intentof('android.net.wifi.p2p.THIS_DEVICE_CHANGED', { " + real + ", " +
+                    "deviceName = " + name + " })\nreturn after(intent, paramof(result)) == false and\n" +
+                    "  result.extras.wifiP2pDevice.deviceName == " + name;
+            assertTrue(lua, Scripts.run(globals, lua).arg1().toboolean());
+        }
+        assertFalse(Scripts.run(globals, "return after(intent, paramof(intentof('android.net.wifi.p2p.PEERS_CHANGED', " +
+                "{ " + real + ", deviceName = 'TV' })))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return after(intent, paramof(intentof('android.net.wifi.p2p.THIS_DEVICE_CHANGED', nil)))")
                 .arg1().toboolean());
+        assertFalse(Scripts.run(globals, "local result = intentof('android.net.wifi.p2p.THIS_DEVICE_CHANGED', nil)\n" +
+                "result.extras = nil\nreturn after(intent, paramof(result))").arg1().toboolean());
+
+        // With the hook of the address on the same broadcast, in either order, the app gets both fakes
+        Globals address = load("wifip2p_own_address");
+        globals.set("anonymous", address.get("after"));
+        for (String order : new String[]{"after(intent, paramof(result)) anonymous(intent, paramof(result))",
+                "anonymous(intent, paramof(result)) after(intent, paramof(result))"}) {
+            String lua = "local result = intentof('android.net.wifi.p2p.THIS_DEVICE_CHANGED', { " + real + ", " +
+                    "deviceName = 'Pixel of Alice' })\n" + order + "\n" +
+                    "local device_ = result:getExtras():getParcelable('wifiP2pDevice')\n" +
+                    "return device_.deviceAddress, device_.deviceName";
+            Varargs both = Scripts.run(globals, lua);
+            assertEquals(lua, "02:00:00:00:00:00", both.arg(1).tojstring());
+            assertEquals(lua, "Android_c0ff", both.arg(2).tojstring());
+        }
     }
 
     // Its address, which Android 8.1 and 9 give in the broadcast THIS_DEVICE_CHANGED and as the owner of a group of
@@ -994,6 +1183,95 @@ public class ValueScriptsTest {
                         "return ok, string.match(tostring(err), 'java%.lang%.IllegalArgumentException: (.*)$')");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).isnil());
+    }
+
+    // The version of the camera hardware is not set, like on devices without it: get gives null for its key, also
+    // for one the app makes by name, its tag leaves the hidden list of the available keys, and getKeys lists the other
+    // keys, the same list each time for the same camera
+    @Test
+    public void cameraVersionIsNotSet() throws Exception {
+        Globals globals = load("camera_characteristics");
+        Scripts.run(globals, "function keyof(name) return { getName = function(self) return name end } end\n" +
+                "function listof(...)\n" +
+                "  local list = { items = { ... } }\n" +
+                "  function list:size() return #self.items end\n" +
+                "  function list:get(index) return self.items[index + 1] end\n" +
+                "  function list:add(item) self.items[#self.items + 1] = item end\n" +
+                "  return list\n" +
+                "end\n" +
+                // The hidden list is a real int[] or Integer[], made with the real luajava like on the device
+                "jvm = luajava\n" +
+                "function intsof(boxed, ...)\n" +
+                "  local integer = jvm.bindClass('java.lang.Integer')\n" +
+                "  local ints = jvm.bindClass('java.lang.reflect.Array')\n" +
+                "    :newInstance(boxed and integer or integer.TYPE, select('#', ...))\n" +
+                "  for index, tag in ipairs({ ... }) do ints[index] = tag end\n" +
+                "  return ints\n" +
+                "end\n" +
+                "function keysof(result, class)\n" +
+                "  local param = paramof(result, { [0] = keyof('android.request.availableCharacteristicsKeys') })\n" +
+                "  param.isInstance = function(self, object, name) return name == class end\n" +
+                "  return param\n" +
+                "end\n" +
+                "luajava = { newInstance = function(name) assert(name == 'java.util.ArrayList', name) return listof() end,\n" +
+                "  bindClass = function(name)\n" +
+                "    if name == 'java.lang.reflect.Array' or name == 'java.lang.Integer' then return jvm.bindClass(name) end\n" +
+                "    assert(name == 'java.util.Collections', name)\n" +
+                "    return { unmodifiableList = function(self, list) list.unmodifiable = true return list end } end }\n" +
+                "version, size, facing = keyof('android.info.version'), keyof('android.sensor.info.physicalSize'),\n" +
+                "  keyof('android.lens.facing')\n" +
+                "camera, other = {}, {}");
+        check(globals, "return after_(hookof('get'), paramof('ISP 2.1 IMX766', { [0] = version }))", true, true, null);
+        check(globals, "return after_(hookof('get'), paramof('5.6x4.2', { [0] = size }))", false, false, "5.6x4.2");
+        check(globals, "return after_(hookof('get'), paramof(nil, { [0] = version }))", false, false, null);
+        // A key of the version's name and a type without a marshaler throws only where the version is set
+        check(globals, "return after_(hookof('get'), paramof(nil, { [0] = version }, nil, 'exception'))", true, true, null);
+        check(globals, "return after_(hookof('get'), paramof('x', { [0] = size }, nil, 'exception'))", false, false, "x");
+        check(globals, "return after_(hookof('get'), paramof(nil, {}, nil, 'exception'))", false, false, null);
+
+        // The hidden list loses the tag of the version (0x150001) and keeps the other tags in their order and its type,
+        // the int[] of Android's own key and the Integer[] of a key the app makes
+        for (String[] c : new String[][]{{"false", "[I"}, {"true", "[Ljava.lang.Integer;"}}) {
+            Varargs keys = Scripts.run(globals, "local real = intsof(" + c[0] + ", 0x80005, 0x150001, 0x150000, 0xF0005)\n" +
+                    "local param = keysof(real, '" + c[1] + "')\n" +
+                    "return after(hookof('get'), param), param.set, jvm.bindClass('java.util.Arrays'):toString(param.result),\n" +
+                    "  real['length'], param.result");
+            assertTrue(keys.arg(1).toboolean());
+            assertTrue(keys.arg(2).toboolean());
+            assertEquals("[524293, 1376256, 983045]", keys.arg(3).tojstring());
+            assertEquals(4, keys.arg(4).toint());
+            assertEquals(c[1], keys.arg(5).touserdata().getClass().getName());
+        }
+        // A list without the version, a result of another type and none stay as they are
+        Varargs same = Scripts.run(globals, "local real = intsof(false, 0x80005, 0x150000)\n" +
+                "local param, other, none = keysof(real, '[I'), keysof(arrayof(0x150001), '[J'), keysof(nil, '[I')\n" +
+                "return after(hookof('get'), param), param.set, param.result == real, after(hookof('get'), other), other.set,\n" +
+                "  after(hookof('get'), none), none.set");
+        for (int index = 1; index <= 7; index++)
+            assertEquals("arg " + index, index == 3, same.arg(index).toboolean());
+
+        Varargs result = Scripts.run(globals,
+                "local real = listof(size, version, facing)\n" +
+                        "local first, second = paramof(real, {}, camera), paramof(real, {}, camera)\n" +
+                        "local restricted = after(hookof('getKeys'), first)\n" +
+                        "after(hookof('getKeys'), second)\n" +
+                        "return restricted, first.result.unmodifiable, first.result:size(), first.result:get(0):getName(),\n" +
+                        "  first.result:get(1):getName(), second.result == first.result, real:size()");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(2, result.arg(3).toint());
+        assertEquals("android.sensor.info.physicalSize", result.arg(4).tojstring());
+        assertEquals("android.lens.facing", result.arg(5).tojstring());
+        assertTrue(result.arg(6).toboolean());
+        assertEquals(3, result.arg(7).toint());
+
+        // A camera without the version keeps its list
+        Varargs plain = Scripts.run(globals, "local real = listof(size, facing)\n" +
+                "local param = paramof(real, {}, other)\n" +
+                "return after(hookof('getKeys'), param), param.set, param.result == real");
+        assertFalse(plain.arg(1).toboolean());
+        assertFalse(plain.arg(2).toboolean());
+        assertTrue(plain.arg(3).toboolean());
     }
 
     @Test

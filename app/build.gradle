@@ -113,11 +113,12 @@ android {
     testOptions {
         // Engine code logs in debug builds; the methods of the Android stubs return defaults instead of failing
         unitTests.returnDefaultValues = true
-        // Scripts create Java collections and arrays, of which LuaJ looks at all members, like it can on Android;
-        // XParam.setMessage sets the message of a Throwable, which Android allows apps
+        // Scripts create Java collections and arrays, of which LuaJ looks at all members, like it can on Android, and
+        // call the buffers of the app, whose classes are not public; XParam.setMessage sets the message of a Throwable,
+        // which Android allows apps
         unitTests.all {
             jvmArgs '--add-opens', 'java.base/java.util=ALL-UNNAMED', '--add-opens', 'java.base/java.lang.reflect=ALL-UNNAMED',
-                    '--add-opens', 'java.base/java.lang=ALL-UNNAMED'
+                    '--add-opens', 'java.base/java.lang=ALL-UNNAMED', '--add-opens', 'java.base/java.nio=ALL-UNNAMED'
             // The tests read the scripts and definitions from the source folders, which are no inputs of the
             // compiled tests: a change of a script or of Downloads alone would else leave the tests up to date
             inputs.dir('src/main/assets')

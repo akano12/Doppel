@@ -53,6 +53,34 @@ local EXTRAS = {
     },
 }
 
+-- The names and codes of the carrier in broadcasts (variant operator), which get the fakes of test_network: the names
+-- of the network (plmn), of the SIM (spn) and for data that the status bar shows (ServiceStateTracker), by the extras
+-- of Android 8.1 to 10 and of 11 and later, sticky for any app; the strings Android puts beside the ServiceState, whose
+-- getters are hooked (TelephonyRegistry), sticky for any app up to Android 10, the raw names from Android 10
+local OPERATOR = {
+    ['android.provider.Telephony.SPN_STRINGS_UPDATED'] = { 'plmn', 'spn', 'spnData' },
+    ['android.telephony.action.SERVICE_PROVIDERS_UPDATED'] = { 'android.telephony.extra.PLMN',
+        'android.telephony.extra.SPN', 'android.telephony.extra.DATA_SPN' },
+    ['android.intent.action.SERVICE_STATE'] = { 'operator-alpha-long', 'operator-alpha-short', 'operator-numeric',
+        'data-operator-alpha-long', 'data-operator-alpha-short', 'data-operator-numeric', 'operator-alpha-long-raw',
+        'operator-alpha-short-raw' },
+}
+
+-- Whether a name of the network is a text of Android without service, No service or Emergency calls only, which names
+-- no carrier and stays, like on a device of the test network without service
+-- shortcut: a sticky broadcast of before a change of the language of the system has the text of the old language,
+-- which becomes unknown; compare with the old language too when an app is seen to read it then
+function noservice(text)
+    local resources = luajava.bindClass('android.content.res.Resources'):getSystem()
+    for _, name in ipairs({ 'lockscreen_carrier_default', 'emergency_calls_only' }) do
+        local id = resources:getIdentifier(name, 'string', 'android')
+        if id ~= 0 and resources:getString(id) == text then
+            return true
+        end
+    end
+    return false
+end
+
 -- The extras a variant leaves out of a broadcast, nil when none
 function extrasof(name, action)
     local actions = EXTRAS[name]
@@ -320,6 +348,29 @@ function after(hook, param)
         extras:putString('time-zone', id)
         intent:replaceExtras(extras)
         return true, old, id
+    elseif name == 'operator' and OPERATOR[action] ~= nil then
+        -- The codes 00101 and the names unknown, like getNetworkOperator and getNetworkOperatorName; empty and null
+        -- values stay, like the operator of the copy Android sends to apps without the location permission
+        local extras = intent:getExtras()
+        if extras == nil then
+            return false
+        end
+        local old, new = {}, {}
+        for _, key in ipairs(OPERATOR[action]) do
+            local value = extras:getString(key)
+            local fake = (string.find(key, 'numeric', 1, true) and '00101' or 'unknown')
+            local plmn = (key == 'plmn' or key == 'android.telephony.extra.PLMN')
+            if value ~= nil and value ~= '' and value ~= fake and not (plmn and noservice(value)) then
+                extras:putString(key, fake)
+                old[#old + 1] = value
+                new[#new + 1] = fake
+            end
+        end
+        if #old == 0 then
+            return false
+        end
+        intent:replaceExtras(extras)
+        return true, table.concat(old, ','), table.concat(new, ',')
     else
         return false
     end

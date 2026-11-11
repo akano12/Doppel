@@ -371,9 +371,12 @@ end
 
 -- The property areas of /dev/__properties__, which apps can read as files where they can read the properties (see
 -- XParam.getProperties and setPropertyValues): the properties the variant fakes get the values get gives, of the serial
--- also the ICC IDs and IMEIs of vendors by their names in the area. A property with an empty value stays, like for get.
--- shortcut: the variants device, debugging and resources have no hooks of opening files, so the areas keep their real
--- values, like ro.product.model, give them the hooks too if apps read the areas for them.
+-- also the ICC IDs and IMEIs of vendors by their names in the area, of the device the model and the build, like
+-- ro.product.model in u:object_r:build_prop:s0. A property with an empty value stays, like for get.
+-- shortcut: the variants debugging and resources have no hooks of opening files, so the areas keep their real values,
+-- like ro.debuggable, give them the hooks too if apps read the areas for them.
+-- shortcut: a long value (92 bytes or more, only of ro. properties, like a long ro.build.fingerprint) stays real, since
+-- setPropertyValues only replaces short ones, write the long values too if devices have such faked properties.
 function area(hook, param)
     local name = string.match(hook:getName(), '/(.*)$')
     local properties = param:getProperties()
@@ -387,6 +390,8 @@ function area(hook, param)
             fake = param:getSetting('value.serial') or 'unknown'
         elseif name == 'operator' and OPERATOR[key] ~= nil then
             fake = operator(key, properties[index + 1])
+        elseif name == 'device' then
+            fake = fakedevice(key, properties[index + 1])
         end
         if fake ~= nil then
             keys[#keys + 1] = key
@@ -409,6 +414,9 @@ function area(hook, param)
     end
     return true, table.concat(old, ','), table.concat(new, ',')
 end
+
+-- The getters of numbers by the natives they call (AOSP oreo-mr1 to main)
+local NATIVES = { native_get_int = 'getInt', native_get_long = 'getLong', native_get_boolean = 'getBoolean' }
 
 function after(hook, param)
     -- The field Build.VERSION.SECURITY_PATCH of the property, without an argument; not set it stays empty
@@ -433,7 +441,8 @@ function after(hook, param)
     end
 
     local result = param:getResult()
-    local method = hook:getMethodName()
+    -- The natives of getInt, getLong and getBoolean, which apps reach by reflection, read the property like them
+    local method = NATIVES[hook:getMethodName()] or hook:getMethodName()
     if method == 'getInt' or method == 'getLong' or method == 'getBoolean' then
         return typed(hook, param, key, result, method)
     end

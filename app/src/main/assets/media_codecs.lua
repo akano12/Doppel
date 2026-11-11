@@ -23,8 +23,9 @@
 -- of Qualcomm) become google, which they take for software too. What the codecs can do stays, since players choose
 -- codecs by it, and so does the end of a name, like .secure. Media libraries get the fake names too, which turns off
 -- their workarounds of bugs of codecs of vendors by name (ExoPlayer, Media3); a fake name an app opens a codec with
--- is the real one again. The metrics of a codec have the fake name too, and vendor parameters, named after the vendor,
--- are not there (generic hooks). Not covered is native code (NDK AMediaCodec).
+-- is the real one again, and a real name, which the faked list does not have, opens no codec, and the exceptions of
+-- both name the codec the app asked for. The metrics of a codec have the fake name too, and vendor parameters, named
+-- after the vendor, are not there (generic hooks). Not covered is native code (NDK AMediaCodec).
 local KEPT = { android = true, google = true, ffmpeg = true, hw = true }
 
 -- MediaCodec.MetricsConstants.CODEC, and MediaPlayer.MetricsConstants.CODEC_VIDEO and CODEC_AUDIO of the codecs
@@ -106,27 +107,56 @@ function codecs(param)
     return FAKES, REALS
 end
 
+-- The name the app asked createByCodecName for, where another one went to Android, per thread like the mapping
+local ASKED = nil
+
+-- All occurrences of a text, without patterns: the characters which are magic in patterns are escaped
+function replace(text, old, new)
+    return (string.gsub(text, (string.gsub(old, '%W', '%%%0')), (string.gsub(new, '%%', '%%%%'))))
+end
+
 function before(hook, param)
-    -- MediaCodec.createByCodecName with a fake name
     if hook:getMethodName() ~= 'createByCodecName' then
         return false
     end
+    ASKED = nil
     local name = param:getArgument(0)
     if name == nil then
         return false
     end
-    local _, reals = codecs(param)
-    local real = reals[name]
-    if real == nil then
+    local fakes, reals = codecs(param)
+    -- A fake name opens the real codec. Not reported: the app opens the codec it was told about
+    if reals[name] ~= nil then
+        ASKED = name
+        param:setArgument(0, reals[name])
         return false
     end
-    param:setArgument(0, real)
-    -- Not reported: the app opens the codec it was told about
-    return false
+    -- A real name of a faked codec, also of its secure variant which Android 9+ finds by the name without .secure,
+    -- is a codec the faked list does not have: Android gets the fake name, which no codec of the device has (see
+    -- mapping), and fails like for a name of no codec.
+    -- shortcut: Android 9+ would open a real codec named like a secure fake name without .secure, which only a device
+    -- with codecs of the vendor hw has, upgrade when one does
+    local stem = string.match(name, '^(.+)%.secure$')
+    local fake = fakes[name] or (stem ~= nil and fakes[stem] ~= nil and fakes[stem] .. '.secure') or nil
+    if fake == nil or fake == name then
+        return false
+    end
+    ASKED = name
+    param:setArgument(0, fake)
+    return true
 end
 
 function after(hook, param)
-    if hook:getMethodName() == 'createByCodecName' or param:getException() ~= nil then
+    if hook:getMethodName() == 'createByCodecName' then
+        local asked = ASKED
+        ASKED = nil
+        local ex = param:getException()
+        if asked ~= nil and ex ~= nil and ex:getMessage() ~= nil then
+            rename(param, ex, replace(ex:getMessage(), param:getArgument(0), asked))
+        end
+        return false
+    end
+    if param:getException() ~= nil then
         return false
     end
     local result = param:getResult()
@@ -170,4 +200,31 @@ function fakeof(param, name)
         return nil
     end
     return fakes[name] or fakename(name)
+end
+
+-- The exception Android threw with the name it was given, which its message has, like "Failed to initialize %s",
+-- with the name the app asked for: the same class, stack trace and cause; an exception without a constructor with
+-- a message, like MediaCodec.CodecException, gets the message itself, which only Java can set (see XParam)
+function rename(param, ex, message)
+    if message == ex:getMessage() then
+        return
+    end
+    local ok, fake = pcall(function()
+        local made = luajava.new(ex:getClass(), message)
+        if made:getMessage() ~= message then
+            error('No constructor with a message')
+        end
+        made:setStackTrace(ex:getStackTrace())
+        if ex:getCause() ~= nil then
+            made:initCause(ex:getCause())
+        end
+        return made
+    end)
+    if ok then
+        param:setResult(fake)
+    else
+        pcall(function()
+            param:setMessage(ex, message)
+        end)
+    end
 end

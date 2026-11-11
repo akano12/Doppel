@@ -139,12 +139,14 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more, also in the phone accounts of the SIMs
   and in the calls of the call log
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
-  boot id and the folder times and inodes that tell when the device was set up; the hardware files in /sys and the
-  property files of the partitions do not exist, nor do
+  boot id and the folder times and inodes that tell when the device was set up; the hardware files in /sys, the
+  property files of the partitions, the GPU drivers and the vendor's HAL manifests, SELinux contexts and display
+  configuration do not exist, nor do
   the files of the processors (8 processors, also in /proc/cpuinfo), and the fonts of device makers are not listed,
-  also in the font configuration; codec names, the GPU and OpenGL extensions without the vendor of the chip; other
-  users and work profiles, user-installed certificates, the heat, the vibrator, the audio buffer and the screen lock
-  like on a plain device
+  also in the font configuration; codec names, the GPU and OpenGL extensions without the vendor of the chip, the camera
+  without the version of its hardware; the app's memory maps without the vendor's libraries and the mount tables and
+  file stores without the storage controller; other users and work profiles, user-installed certificates, the heat, the
+  vibrator, the audio buffer and the screen lock like on a plain device
 
 </details>
 
@@ -230,6 +232,12 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   are not restricted. Native code also sees the real system properties, codecs, GPU, processors, fonts and sensors,
   and can start processes itself, which are not refused. Apps reading the bytes of photos themselves still find their
   location.
+* Services an app runs in isolated processes, and its app zygote preload (Android 10 and later), get no hooks, since
+  the framework does not load modules there: they see the real `Build` values, like the model and fingerprint, and can
+  pass them to the app. The app's own `AppComponentFactory` (Android 9 and later) runs before the hooks are installed
+  and reads the real `Build` values too.
+* Pages in a WebView run in Chromium's native code too: their WebGL names the real GPU, its vendor and extensions, and
+  navigator.hardwareConcurrency gives the real number of processors, which can differ from what *Use tracking* fakes.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
   The Firebase, Segment, Amazon and Facebook SDKs store the opt-outs and consents *Use analytics* sets, so collection

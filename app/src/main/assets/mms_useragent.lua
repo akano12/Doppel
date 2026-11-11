@@ -27,6 +27,16 @@ local GENERIC = {
 -- CarrierConfigManager.getConfig and getConfigForSubId, KEY_MMS_USER_AGENT_STRING and KEY_MMS_UA_PROF_URL_STRING)
 local KEYS = { userAgent = 'getMmsUserAgent', uaProfUrl = 'getMmsUAProfUrl' }
 
+-- The name of the carrier and the version of its configuration in CarrierConfigManager name the real carrier, while
+-- the SIM has the operator of the test network 00101, for which Android has neither: they become its empty defaults.
+-- Only keys the bundle has are replaced, so the MMS values of SmsManager and the subsets of Android 14 asked for other
+-- keys gain none. The override of the name becomes its default false as well, because carrier files that turn it on
+-- always set a name, so an override next to the empty name would be a pair only Doppel gives.
+-- shortcut: the other values of the carrier stay, carrier_config_applied_bool included, which as a set can still tell
+-- the carrier; upgrade to the defaults of CarrierConfigManager.getDefaultConfig with only the keys that MMS and calls
+-- of the app need, once those are known.
+local DEFAULTS = { carrier_name_string = '', carrier_config_version_string = '' }
+
 function after(hook, param)
     local result = param:getResult()
     local method = hook:getMethodName()
@@ -42,6 +52,17 @@ function after(hook, param)
                 result:putString(key, GENERIC[getter])
                 changed = true
             end
+        end
+        for key, default in pairs(DEFAULTS) do
+            local value = result:getString(key)
+            if value ~= nil and value ~= default then
+                result:putString(key, default)
+                changed = true
+            end
+        end
+        if result:getBoolean('carrier_name_override_bool') then
+            result:putBoolean('carrier_name_override_bool', false)
+            changed = true
         end
         return changed
     end

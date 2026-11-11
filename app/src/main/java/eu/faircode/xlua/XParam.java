@@ -29,9 +29,12 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
+import android.os.StrictMode;
+import android.system.ErrnoException;
 import android.system.Os;
 import android.system.OsConstants;
 import android.system.StructStat;
+import android.system.StructTimespec;
 import android.util.Log;
 import android.webkit.WebView;
 
@@ -43,6 +46,7 @@ import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -54,12 +58,15 @@ import java.security.MessageDigest;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
@@ -71,6 +78,8 @@ public class XParam {
     private final XCall param;
     private final Class<?> returnType;
     private final Map<String, String> settings;
+    // The length of the file the hooked method opened, once read, see setFileBytes
+    private long fileLength = -1;
 
     // Values scripts keep per scope, like per object, see putValue and getValue
     private static final Map<Object, Map<String, Object>> scopedValues = new WeakHashMap<>();
@@ -488,12 +497,16 @@ public class XParam {
 
     private byte[] getFileBytes() throws Throwable {
         Object result = this.param.getResult();
+        byte[] bytes;
         if (result instanceof Integer)
             // A descriptor of its own, which the reading does not move, like the one of the app
             try (ParcelFileDescriptor pfd = ParcelFileDescriptor.fromFd((Integer) result)) {
-                return readBytes(pfd.getFileDescriptor());
+                bytes = readBytes(pfd.getFileDescriptor());
             }
-        return readBytes((FileDescriptor) result);
+        else
+            bytes = readBytes((FileDescriptor) result);
+        this.fileLength = bytes.length;
+        return bytes;
     }
 
     private static byte[] readBytes(FileDescriptor fd) throws Throwable {
@@ -506,8 +519,9 @@ public class XParam {
     }
 
     // The app reads the text instead of the file the hooked method opened, without a file being kept:
-    // the method returns a file in memory, or a pipe or a removed file before Android 11, of which the app cannot tell
-    // the contents of the file apart; the file which was opened is closed. java.nio gets the number of a descriptor.
+    // the method returns a file in memory, or before Android 11 a removed file or a pipe (see oldFile), of which the app
+    // cannot tell the contents of the file apart, nor but for a pipe by the hooks of faked_files its stat, size and link
+    // (see unfakeFile); the file which was opened is closed. java.nio gets the number of a descriptor.
     @SuppressWarnings("unused")
     public void setFileText(String text) throws Throwable {
         setFileBytes(text.getBytes(StandardCharsets.UTF_8));
@@ -515,19 +529,13 @@ public class XParam {
 
     private void setFileBytes(byte[] bytes) throws Throwable {
         Object opened = this.param.getResult();
-        FileDescriptor fake;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            fake = Os.memfd_create("file", OsConstants.MFD_CLOEXEC);
-            try {
-                for (int at = 0; at < bytes.length; )
-                    at += Os.write(fake, bytes, at, bytes.length - at);
-                Os.lseek(fake, 0, OsConstants.SEEK_SET);
-            } catch (Throwable ex) {
-                Os.close(fake);
-                throw ex;
-            }
-        } else
-            fake = oldFile(this.context.getCacheDir(), bytes, sameSize(opened, bytes.length));
+        FileDescriptor fake = quietly(() -> newFile(opened, bytes));
+        try {
+            long read = (this.fileLength < 0 ? getFileBytes().length : this.fileLength);
+            quietly(() -> addFaked(opened, fake, read, bytes.length));
+        } catch (Throwable ignored) {
+            // The app still reads the text, only the descriptor tells the fake apart, like before
+        }
         if (opened instanceof Integer) {
             this.param.setResult(ParcelFileDescriptor.dup(fake).detachFd());
             Os.close(fake);
@@ -538,9 +546,25 @@ public class XParam {
         }
     }
 
+    // The fake with the text: a file in memory, before Android 11 a removed file of the app or a pipe (see oldFile)
+    private FileDescriptor newFile(Object opened, byte[] bytes) throws Exception {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+            return oldFile(this.context.getCacheDir(), bytes, sameSize(opened, bytes.length));
+        FileDescriptor fake = Os.memfd_create("file", OsConstants.MFD_CLOEXEC);
+        try {
+            for (int at = 0; at < bytes.length; )
+                at += Os.write(fake, bytes, at, bytes.length - at);
+            Os.lseek(fake, 0, OsConstants.SEEK_SET);
+        } catch (Throwable ex) {
+            Os.close(fake);
+            throw ex;
+        }
+        return fake;
+    }
+
     // Whether the hooked method opened a regular file as long as the text, like a feature file of the system padded to
     // its length, unlike the files of /proc, which have no length
-    private static boolean sameSize(Object opened, int length) throws Throwable {
+    private static boolean sameSize(Object opened, int length) throws Exception {
         if (length == 0)
             return false;
         if (opened instanceof Integer)
@@ -551,41 +575,240 @@ public class XParam {
         return OsConstants.S_ISREG(stat.st_mode) && stat.st_size == length;
     }
 
-    // Before Android 11, without files in memory: a pipe, which holds at least a page without a reader, like for
-    // the small files of /proc; a larger text, like the font configuration of tens of kB, and the text of a regular
-    // file as long as the file (see sameSize) in a file of the app which is removed right away, opened read-only like
-    // the file it replaces, since fstat of a pipe gives a FIFO of no length, while stat of the path gives the file,
-    // and RandomAccessFile.length, which is fstat, would be 0
-    static FileDescriptor oldFile(File folder, byte[] bytes, boolean sameSize) throws Throwable {
-        if (bytes.length <= 4096 && !sameSize) {
-            FileDescriptor[] pipe = Os.pipe();
-            try {
-                for (int at = 0; at < bytes.length; )
-                    at += Os.write(pipe[1], bytes, at, bytes.length - at);
-            } catch (Throwable ex) {
-                Os.close(pipe[0]);
-                throw ex;
-            } finally {
-                Os.close(pipe[1]);
-            }
-            return pipe[0];
+    // The files setFileBytes made, by the device, inode and change time of each, also of their copies (dup), with what
+    // the app would learn of the file each replaced, see unfakeFile; the change time keeps a file which gets the inode of
+    // a removed fake apart. Not the pipes oldFile makes before Android 11 when it can make no file: FileUtils.copy copies
+    // a file with sendfile and a pipe with splice, so a pipe with the stat of a file would fail; its removed files are
+    // files like the ones they replace. shortcut: a fake still open after FAKED_MAX later ones answers like a fake again,
+    // upgrade when apps keep faked files open that long.
+    static final int FAKED_MAX = 256;
+    static final Map<String, Faked> fakedFiles = Collections.synchronizedMap(
+            new LinkedHashMap<String, Faked>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Faked> eldest) {
+                    return (size() > FAKED_MAX);
+                }
+            });
+
+    static final class Faked {
+        final StructStat stat;
+        final long size;
+        final String path;
+        final String link;
+
+        // The stat of the file replaced with the size it tells, the link of its descriptor in /proc/self/fd
+        // and the link of the fake there
+        Faked(StructStat stat, long size, String path, String link) {
+            this.stat = stat;
+            this.size = size;
+            this.path = path;
+            this.link = link;
         }
-        if (folder == null)
-            throw new IllegalArgumentException("Text of " + bytes.length + " bytes without a cache folder");
-        File file = File.createTempFile("file", null, folder);
+
+        // A new stat for each call, like fstat makes
+        StructStat newStat() {
+            StructStat s = this.stat;
+            return new StructStat(s.st_dev, s.st_ino, s.st_mode, s.st_nlink, s.st_uid, s.st_gid, s.st_rdev, this.size,
+                    newTime(s.st_atim), newTime(s.st_mtim), newTime(s.st_ctim), s.st_blksize, s.st_blocks);
+        }
+
+        private static StructTimespec newTime(StructTimespec time) {
+            return new StructTimespec(time.tv_sec, time.tv_nsec);
+        }
+    }
+
+    static String fakedKey(long device, long inode, long changed, long changedNanos) {
+        return device + ":" + inode + ":" + changed + "." + changedNanos;
+    }
+
+    private static String fakedKey(StructStat stat) {
+        return fakedKey(stat.st_dev, stat.st_ino, stat.st_ctim.tv_sec, stat.st_ctim.tv_nsec);
+    }
+
+    // The size a file tells: one of /proc 0 and of /sys a page, whatever their text; other files their length,
+    // which the fake has then
+    static long sizeOf(long size, long read, long length) {
+        return (size == read ? length : size);
+    }
+
+    // Like FileInputStream.available of Android for a file: FIONREAD, the size the file tells less the position,
+    // which the kernel gives as an int, and none past the end
+    static int available(long size, long at) {
+        return Math.max(0, (int) (size - at));
+    }
+
+    // The file the app opened, the descriptor or its number, before it is closed, and the fake replacing it, but a pipe
+    private static Void addFaked(Object opened, FileDescriptor fake, long read, long length) throws Exception {
+        StructStat faked = Os.fstat(fake);
+        if (!OsConstants.S_ISREG(faked.st_mode))
+            return null;
+        String link;
+        try (ParcelFileDescriptor pfd = ParcelFileDescriptor.dup(fake)) {
+            link = Os.readlink("/proc/self/fd/" + pfd.getFd());
+        }
+        try (ParcelFileDescriptor pfd = (opened instanceof Integer ? ParcelFileDescriptor.fromFd((Integer) opened) :
+                ParcelFileDescriptor.dup((FileDescriptor) opened))) {
+            StructStat stat = Os.fstat(pfd.getFileDescriptor());
+            String path = Os.readlink("/proc/self/fd/" + pfd.getFd());
+            addFaked(fakedKey(stat), new Faked(stat, stat.st_size, path, null), fakedKey(faked), link, read, length);
+        }
+        return null;
+    }
+
+    // A fake by its key and link, with what the app would learn of the file opened, by the key of that file; a fake of an
+    // earlier hook of the same open, like of another property of the same property area, stands for the file it replaced
+    static void addFaked(String openedKey, Faked opened, String fakeKey, String link, long read, long length) {
+        Faked was = fakedFiles.remove(openedKey);
+        if (was == null)
+            was = opened;
+        fakedFiles.put(fakeKey, new Faked(was.stat, sizeOf(was.size, read, length), was.path, link));
+    }
+
+    // The answers about a descriptor of setFileBytes like about the file it replaced: its stat (Os.fstat), the bytes left
+    // to read (FileInputStream.available), its length (RandomAccessFile.length), the size of a FileChannel
+    // (FileDispatcherImpl.size) and its link in /proc/self/fd, also by /dev/fd and java.nio (readlink), and the stat,
+    // length and modification time by that link (BlockGuardOs.stat, UnixFileSystem.getLength and getLastModifiedTime);
+    // whether the hooked method answered about one
+    @SuppressWarnings("unused")
+    public boolean unfakeFile() throws Throwable {
+        Object result = this.param.getResult();
+        if (result == null || fakedFiles.isEmpty())
+            return false;
+        Object answer;
+        if (result instanceof StructStat) {
+            // The stat tells itself which file it is of
+            Faked faked = fakedFiles.get(fakedKey((StructStat) result));
+            answer = (faked == null ? null : faked.newStat());
+        } else
+            answer = quietly(() -> unfaked(this.param, result, XParam::keyOf));
+        if (answer == null)
+            return false;
+        setResult(answer);
+        return true;
+    }
+
+    // The key of a descriptor or of a path by its stat, see fakedKey; the tests have their own, Android stubs have no stat
+    interface Keys {
+        String of(Object file) throws ErrnoException;
+    }
+
+    private static String keyOf(Object file) throws ErrnoException {
+        return fakedKey(file instanceof String ? Os.stat((String) file) : Os.fstat((FileDescriptor) file));
+    }
+
+    // The answer of the hooked method about the file a fake replaced, null when it answered about no fake
+    static Object unfaked(XCall call, Object result, Keys keys) throws Exception {
+        String name = call.method.getName();
+        Object file;
+        switch (name) {
+            case "available":
+                file = ((FileInputStream) call.thisObject).getFD();
+                break;
+            case "length":
+                file = ((RandomAccessFile) call.thisObject).getFD();
+                break;
+            case "size":
+                file = call.args[0];
+                break;
+            case "getLength":
+            case "getLastModifiedTime":
+                file = ((File) call.args[0]).getPath();
+                break;
+            case "readlink":
+                file = call.args[0].toString();
+                break;
+            default:
+                return null;
+        }
+        Faked faked;
         try {
-            FileDescriptor write = Os.open(file.getPath(), OsConstants.O_WRONLY | OsConstants.O_CLOEXEC, 0);
-            try {
-                for (int at = 0; at < bytes.length; )
-                    at += Os.write(write, bytes, at, bytes.length - at);
-            } finally {
-                Os.close(write);
-            }
-            return Os.open(file.getPath(), OsConstants.O_RDONLY | OsConstants.O_CLOEXEC, 0);
-        } finally {
-            //noinspection ResultOfMethodCallIgnored
-            file.delete();
+            faked = fakedFiles.get(keys.of(file));
+        } catch (ErrnoException ignored) {
+            // A path which leads to no file, like a link of the app to a file which does not exist
+            return null;
         }
+        if (faked == null)
+            return null;
+        if (name.equals("available"))
+            return available(faked.size, Os.lseek((FileDescriptor) file, 0, OsConstants.SEEK_CUR));
+        if (name.equals("readlink")) {
+            String link = (result instanceof byte[] ? new String((byte[]) result, StandardCharsets.UTF_8) : (String) result);
+            // Not a link of the app to the link of the descriptor, which leads to the fake too
+            return (faked.link.equals(link) ? faked.path : null);
+        }
+        if (name.equals("getLastModifiedTime"))
+            return lastModified(faked.stat, (Long) result);
+        return faked.size;
+    }
+
+    // Like File.lastModified of the file replaced: its modification time in whole seconds, like libcore up to Android 13,
+    // or to the millisecond, like libcore of Android 14, which updates of the ART module may bring to Android 12 and 13,
+    // as the hooked call about the fake tells (AOSP UnixFileSystem_md.c, getLastModifiedTime0). shortcut: on Android 12
+    // and 13 with the newer libcore a fake changed in the first millisecond of a second gives whole seconds, one in a
+    // thousand, upgrade when that matters.
+    static long lastModified(StructStat stat, long result) {
+        long millis = stat.st_mtime * 1000;
+        boolean exact = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE || result % 1000 != 0);
+        return (exact ? millis + stat.st_mtim.tv_nsec / 1000000 : millis);
+    }
+
+    // Os calls of Doppel itself about a file of the app or making a fake: without the hooks, which would take them for
+    // calls of the app, and without reports of disk reads and writes to StrictMode (allowThreadDiskWrites allows both),
+    // which the hooked call of the app does not make
+    private static <T> T quietly(Callable<T> call) throws Exception {
+        StrictMode.ThreadPolicy policy = StrictMode.allowThreadDiskWrites();
+        XCore.enterService();
+        try {
+            return call.call();
+        } finally {
+            XCore.leaveService();
+            StrictMode.setThreadPolicy(policy);
+        }
+    }
+
+    // Before Android 11, without files in memory: a file of the app which is removed right away and opened read-only
+    // like the file it replaces. It is a regular file like that one and like the files in memory of Android 11, so seek
+    // works and faked_files answers its stat, size and link like those of the file replaced. A pipe, which holds at least
+    // a page without a reader, shows itself by the FIFO of fstat, by available (FIONREAD, AOSP libcore
+    // FileInputStream.c), by its link pipe:[n] and by ESPIPE of RandomAccessFile.seek; it is used only when no file can
+    // be made, like in a cache folder which is missing, since getCacheDir gives the folder also when it cannot make it
+    // (AOSP ContextImpl), and only for a text it holds which is not the text of a regular file as long as the file (see
+    // sameSize), of which fstat would give a FIFO of no length. shortcut: the removed file shows in the cache folder
+    // while it is written, to a listing or a FileObserver of the app, and a pipe answers like a pipe, upgrade when apps
+    // watch their cache folder or read faked files where they cannot make one.
+    static FileDescriptor oldFile(File folder, byte[] bytes, boolean sameSize) throws Exception {
+        try {
+            if (folder == null)
+                throw new IllegalArgumentException("Text of " + bytes.length + " bytes without a cache folder");
+            File file = File.createTempFile("file", null, folder);
+            try {
+                FileDescriptor write = Os.open(file.getPath(), OsConstants.O_WRONLY | OsConstants.O_CLOEXEC, 0);
+                try {
+                    for (int at = 0; at < bytes.length; )
+                        at += Os.write(write, bytes, at, bytes.length - at);
+                } finally {
+                    Os.close(write);
+                }
+                return Os.open(file.getPath(), OsConstants.O_RDONLY | OsConstants.O_CLOEXEC, 0);
+            } finally {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
+        } catch (Exception ex) {
+            if (bytes.length > 4096 || sameSize)
+                throw ex;
+        }
+        FileDescriptor[] pipe = Os.pipe();
+        try {
+            for (int at = 0; at < bytes.length; )
+                at += Os.write(pipe[1], bytes, at, bytes.length - at);
+        } catch (Throwable ex) {
+            Os.close(pipe[0]);
+            throw ex;
+        } finally {
+            Os.close(pipe[1]);
+        }
+        return pipe[0];
     }
 
     // A property area the hooked method opened, a file of /dev/__properties__ which bionic maps in each process to read

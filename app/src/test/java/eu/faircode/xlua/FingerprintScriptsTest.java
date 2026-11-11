@@ -23,8 +23,14 @@ import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.nio.LongBuffer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -114,7 +120,9 @@ public class FingerprintScriptsTest {
         assertEquals("c2.hw.hevc.decoder", result.arg(2).tojstring());
         assertFalse(result.arg(3).toboolean());
 
-        // createByCodecName with a fake name opens the real codec; with a real name it stays
+        // createByCodecName with a fake name opens the real codec; a real name, which the faked list does not have,
+        // goes to Android as the fake name, of no codec of the device, also its secure variant, which Android 9+ finds
+        // by the name without .secure; the codecs of Android and unknown names stay
         result = Scripts.run(globals,
                 "luajava.newInstance = function(name, kind)\n" +
                         "  local names = { 'c2.android.avc.decoder', 'c2.qti.avc.decoder', 'c2.qti.hevc.decoder' }\n" +
@@ -124,13 +132,69 @@ public class FingerprintScriptsTest {
                         "    return infos end }\n" +
                         "end\n" +
                         "local fake = paramof(nil, { [0] = 'c2.hw.hevc.decoder' })\n" +
-                        "before(hookof('createByCodecName'), fake)\n" +
+                        "local opened = before(hookof('createByCodecName'), fake)\n" +
                         "local real = paramof(nil, { [0] = 'c2.qti.avc.decoder' })\n" +
-                        "before(hookof('createByCodecName'), real)\n" +
-                        "return fake.args[0], real.args[0], after(hookof('createByCodecName'), paramof('codec'))");
-        assertEquals("c2.qti.hevc.decoder", result.arg1().tojstring());
-        assertEquals("c2.qti.avc.decoder", result.arg(2).tojstring());
-        assertFalse(result.arg(3).toboolean());
+                        "local refused = before(hookof('createByCodecName'), real)\n" +
+                        "local secure = paramof(nil, { [0] = 'c2.qti.avc.decoder.secure' })\n" +
+                        "before(hookof('createByCodecName'), secure)\n" +
+                        "local kept = paramof(nil, { [0] = 'c2.android.avc.decoder' })\n" +
+                        "local unknown = paramof(nil, { [0] = 'c2.exynos.avc.decoder' })\n" +
+                        "return fake.args[0], opened, real.args[0], refused, secure.args[0],\n" +
+                        "  before(hookof('createByCodecName'), kept), kept.args[0],\n" +
+                        "  before(hookof('createByCodecName'), unknown), unknown.args[0],\n" +
+                        "  after(hookof('createByCodecName'), paramof('codec'))");
+        assertEquals("c2.qti.hevc.decoder", result.arg(1).tojstring());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals("c2.hw.avc.decoder", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("c2.hw.avc.decoder.secure", result.arg(5).tojstring());
+        assertFalse(result.arg(6).toboolean());
+        assertEquals("c2.android.avc.decoder", result.arg(7).tojstring());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals("c2.exynos.avc.decoder", result.arg(9).tojstring());
+        assertFalse(result.arg(10).toboolean());
+
+        // The exception of the name Android was given names the codec the app asked for, in both directions, with
+        // the same class and stack trace; one without a constructor with a message, like CodecException, gets the
+        // message itself, and one of a name which went to Android unchanged stays
+        globals.set("coded", CoerceJavaToLua.coerce(PackageScriptsTest.CodedException.class));
+        result = Scripts.run(globals,
+                "local function fails(name, class, format)\n" +
+                        "  local p = paramof(nil, { [0] = name })\n" +
+                        "  before(hookof('createByCodecName'), p)\n" +
+                        "  local message = string.format(format, p.args[0])\n" +
+                        "  local ex = (class == coded and luajava.new(class, -12, message) or luajava.new(class, message))\n" +
+                        "  p.getException = function(self) return ex end\n" +
+                        "  p.setMessage = function(self, ex, message) self.message = message end\n" +
+                        "  return after(hookof('createByCodecName'), p), ex, p.result, p.message\n" +
+                        "end\n" +
+                        "local real = { fails('c2.qti.avc.decoder', luajava.bindClass('java.lang.IllegalArgumentException'),\n" +
+                        "  'Failed to initialize %s, error 0xfffffffe (NAME_NOT_FOUND)') }\n" +
+                        "local fake = { fails('c2.hw.hevc.decoder', luajava.bindClass('java.io.IOException'),\n" +
+                        "  'Failed to find matching codec %s, error 0x80000000 (?)') }\n" +
+                        "local coded = { fails('c2.hw.hevc.decoder', coded, 'Failed to initialize %s, error 0xfffffff4 (NO_MEMORY)') }\n" +
+                        "local unknown = { fails('c2.exynos.avc.decoder', luajava.bindClass('java.lang.IllegalArgumentException'),\n" +
+                        "  'Failed to initialize %s, error 0xfffffffe') }\n" +
+                        "return real[1], real[2], real[3], fake[1], fake[2], fake[3], coded[1], coded[3], coded[4],\n" +
+                        "  unknown[1], unknown[3], unknown[4]");
+        assertFalse(result.arg(1).toboolean());
+        Throwable genuine = (Throwable) result.arg(2).touserdata();
+        Throwable thrown = (Throwable) result.arg(3).touserdata();
+        assertEquals(IllegalArgumentException.class, thrown.getClass());
+        assertEquals("Failed to initialize c2.qti.avc.decoder, error 0xfffffffe (NAME_NOT_FOUND)", thrown.getMessage());
+        assertArrayEquals(genuine.getStackTrace(), thrown.getStackTrace());
+        assertFalse(result.arg(4).toboolean());
+        genuine = (Throwable) result.arg(5).touserdata();
+        thrown = (Throwable) result.arg(6).touserdata();
+        assertEquals(IOException.class, thrown.getClass());
+        assertEquals("Failed to find matching codec c2.hw.hevc.decoder, error 0x80000000 (?)", thrown.getMessage());
+        assertArrayEquals(genuine.getStackTrace(), thrown.getStackTrace());
+        assertFalse(result.arg(7).toboolean());
+        assertTrue(result.arg(8).isnil());
+        assertEquals("Failed to initialize c2.hw.hevc.decoder, error 0xfffffff4 (NO_MEMORY)", result.arg(9).tojstring());
+        assertFalse(result.arg(10).toboolean());
+        assertTrue(result.arg(11).isnil());
+        assertTrue(result.arg(12).isnil());
 
         // Two codecs never get the same fake name, nor the name of a real codec
         result = Scripts.run(globals,
@@ -246,25 +310,129 @@ public class FingerprintScriptsTest {
         assertEquals("Android", result.arg(4).tojstring());
         assertFalse(result.arg(5).toboolean());
 
-        // By index: the kept ones, beyond them an empty name; the list is read once per context
+        // By index: the kept ones, beyond them what the driver gives for an index beyond its own ones, with its
+        // GL_INVALID_VALUE: an empty name, like the one of the emulator, or none; the list is read once per context
         result = Scripts.run(globals,
                 "reads = 0\n" +
                         "context = 1\n" +
+                        "none = ''\n" +
                         "luajava.bindClass = function(name) return {\n" +
                         "  glGetString = function(self, n) reads = reads + 1 return '" + real + "' end,\n" +
+                        "  glGetStringi = function(self, n, i) invalid = name .. ' ' .. n .. ' ' .. i return none end,\n" +
                         "  eglGetCurrentContext = function(self) return { getNativeHandle = function(self) return context end } end } end\n" +
                         "local second = paramof('GL_QCOM_tiled_rendering', { [0] = 7939, [1] = 1 })\n" +
                         "after(hookof('glGetStringi'), second)\n" +
-                        "local beyond = paramof('GL_IMG_texture_compression_pvrtc', { [0] = 7939, [1] = 7 })\n" +
+                        "local beyond = paramof('GL_IMG_texture_compression_pvrtc', { [0] = 7939, [1] = 5 })\n" +
                         "after(hookof('glGetStringi'), beyond)\n" +
+                        // Beyond the real ones too, the empty name of the driver stays
+                        "local past = paramof('', { [0] = 7939, [1] = 8 })\n" +
+                        "local changed = after(hookof('glGetStringi'), past)\n" +
+                        "none = nil\n" +
+                        "local null = paramof('GL_IMG_texture_compression_pvrtc', { [0] = 7939, [1] = 5 })\n" +
+                        "after(hookof('glGetStringi'), null)\n" +
                         "local once = reads\n" +
                         "context = 2\n" +
                         "after(hookof('glGetStringi'), paramof('GL_OES_EGL_image', { [0] = 7939, [1] = 0 }))\n" +
-                        "return second.result, beyond.result, once, reads");
+                        "return second.result, beyond.result, beyond.set, invalid, once, reads, changed, past.result,\n" +
+                        "  null.result, null.set");
         assertEquals("GL_EXT_color_buffer_float", result.arg1().tojstring());
         assertEquals("", result.arg(2).tojstring());
-        assertEquals(1, result.arg(3).toint());
-        assertEquals(2, result.arg(4).toint());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("android.opengl.GLES30 7939 -1", result.arg(4).tojstring());
+        assertEquals(1, result.arg(5).toint());
+        assertEquals(2, result.arg(6).toint());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals("", result.arg(8).tojstring());
+        assertTrue(result.arg(9).isnil());
+        assertTrue(result.arg(10).toboolean());
+    }
+
+    // GL_NUM_EXTENSIONS is the number of the kept extensions, into the array at the offset or the buffer at its position,
+    // of int, long and float; other names do not read the list, nor does a call without a current context change it
+    @Test
+    public void glNumberOfExtensionsIsOfTheKeptOnes() throws Exception {
+        Globals globals = load("gles_getstring");
+        String real = "GL_OES_EGL_image GL_QCOM_tiled_rendering GL_EXT_color_buffer_float GL_ARM_shader_framebuffer_fetch ";
+        Scripts.run(globals, "binds = 0\n" +
+                "context = 1\n" +
+                "extensions = '" + real + "'\n" +
+                // The classes of Java the script swaps the bytes with are the real ones
+                "local bind = luajava.bindClass\n" +
+                "luajava.bindClass = function(name) if string.sub(name, 1, 5) == 'java.' then return bind(name) end\n" +
+                "  binds = binds + 1 return {\n" +
+                "  glGetString = function(self, n) return extensions end,\n" +
+                "  eglGetCurrentContext = function(self) return { getNativeHandle = function(self) return context end } end } end\n" +
+                "function counted(method, types, params, offset)\n" +
+                "  local hook = hookof(method)\n" +
+                "  hook.getParameterTypes = function(self) return types end\n" +
+                "  return after(hook, paramof(nil, { [0] = 33309, [1] = params, [2] = offset }))\n" +
+                "end");
+        int[] ints = {7, 4, 7};
+        IntBuffer buffer = IntBuffer.wrap(new int[]{7, 4, 7});
+        buffer.position(1);
+        long[] longs = {4};
+        FloatBuffer floats = FloatBuffer.wrap(new float[]{4});
+        globals.set("ints", CoerceJavaToLua.coerce(ints));
+        globals.set("buffer", CoerceJavaToLua.coerce(buffer));
+        globals.set("longs", CoerceJavaToLua.coerce(longs));
+        globals.set("floats", CoerceJavaToLua.coerce(floats));
+        globals.set("three", CoerceJavaToLua.coerce(new String[]{"int", "int[]", "int"}));
+        globals.set("two", CoerceJavaToLua.coerce(new String[]{"int", "java.nio.IntBuffer"}));
+        Varargs result = Scripts.run(globals, "return counted('glGetIntegerv', three, ints, 1), counted('glGetIntegerv', two, buffer),\n" +
+                "  counted('glGetInteger64v', three, longs, 0), counted('glGetFloatv', two, floats),\n" +
+                // The JNI of glGetInteger64v does not check the length of the array
+                "  counted('glGetInteger64v', three, longs, 1)");
+        assertTrue(result.arg1().toboolean());
+        assertArrayEquals(new int[]{7, 2, 7}, ints);
+        assertTrue(result.arg(2).toboolean());
+        assertArrayEquals(new int[]{7, 2, 7}, buffer.array());
+        assertEquals(1, buffer.position());
+        assertTrue(result.arg(3).toboolean());
+        assertArrayEquals(new long[]{2}, longs);
+        assertTrue(result.arg(4).toboolean());
+        assertEquals(2, floats.get(0), 0);
+        assertFalse(result.arg(5).toboolean());
+
+        // A direct buffer of the other byte order reads what the driver wrote swapped, so the fake too (the second call
+        // finds it there already); a read-only one keeps the real count
+        ByteOrder other = (ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+        IntBuffer swappedInts = ByteBuffer.allocateDirect(4).order(other).asIntBuffer().put(0, Integer.reverseBytes(4));
+        LongBuffer swappedLongs = ByteBuffer.allocateDirect(8).order(other).asLongBuffer().put(0, Long.reverseBytes(4));
+        FloatBuffer swappedFloats = ByteBuffer.allocateDirect(4).order(other).asFloatBuffer()
+                .put(0, Float.intBitsToFloat(Integer.reverseBytes(Float.floatToRawIntBits(4))));
+        IntBuffer readOnly = ByteBuffer.allocateDirect(4).asReadOnlyBuffer().order(ByteOrder.nativeOrder()).asIntBuffer();
+        globals.set("swappedInts", CoerceJavaToLua.coerce(swappedInts));
+        globals.set("swappedLongs", CoerceJavaToLua.coerce(swappedLongs));
+        globals.set("swappedFloats", CoerceJavaToLua.coerce(swappedFloats));
+        globals.set("readOnly", CoerceJavaToLua.coerce(readOnly));
+        result = Scripts.run(globals, "return counted('glGetIntegerv', two, swappedInts),\n" +
+                "  counted('glGetInteger64v', two, swappedLongs), counted('glGetFloatv', two, swappedFloats),\n" +
+                "  counted('glGetIntegerv', two, swappedInts),\n" +
+                "  counted('glGetIntegerv', two, readOnly)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(Integer.reverseBytes(2), swappedInts.get(0));
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(Long.reverseBytes(2), swappedLongs.get(0));
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(Integer.reverseBytes(Float.floatToRawIntBits(2)), Float.floatToRawIntBits(swappedFloats.get(0)));
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals(0, readOnly.get(0));
+
+        // The real count already, another name (without reading the list) and no current context change nothing
+        result = Scripts.run(globals, "local same = counted('glGetIntegerv', three, ints, 1)\n" +
+                "binds = 0\n" +
+                "ints[1] = 4\n" +
+                "local other = after(hookof('glGetIntegerv'), paramof(nil, { [0] = 3379, [1] = ints, [2] = 0 }))\n" +
+                "local unbound = binds\n" +
+                "context = 0\n" +
+                "extensions = nil\n" +
+                "return same, other, unbound, counted('glGetIntegerv', three, ints, 0)");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals(0, result.arg(3).toint());
+        assertFalse(result.arg(4).toboolean());
+        assertArrayEquals(new int[]{4, 2, 7}, ints);
     }
 
     // Older kernels print the lines of all processors in one block, under Processor with the revision of the core
@@ -307,23 +475,31 @@ public class FingerprintScriptsTest {
         assertEquals(4096, result.arg(6).toint());
         assertFalse(result.arg(7).toboolean());
 
-        // The processors possible, present and online of /sys are 0-7; the other files and the folder stay
+        // The processors possible, present and online of /sys are 0-7, none is offline and each of the 8 is online,
+        // like the kernel prints them (offline is possible and not online); the other files and the folder stay
         assertTrue(Scripts.run(globals, "return filter(hookof('availableProcessors'))").arg1().isnil());
         assertEquals("*system/cpu/*", Scripts.run(globals, "return filter(hookof('open'))[1]").arg1().tojstring());
-        result = Scripts.run(globals,
-                "local function fileof(path, text)\n" +
-                        "  local p = paramof('fd', { [0] = path })\n" +
-                        "  p.opens = function(self, file) return string.gsub(path, '^/proc/self/root', '') == file end\n" +
-                        "  p.getFileText = function(self) return text end\n" +
-                        "  p.setFileText = function(self, value) text = value end\n" +
-                        "  p.text = function(self) return text end\n" +
-                        "  return p\n" +
-                        "end\n" +
-                        "local possible = fileof('/sys/devices/system/cpu/possible', '0-5\\n')\n" +
-                        "local online = fileof('/proc/self/root/sys/devices/system/cpu/online', '0-3,6\\n')\n" +
-                        "local core = fileof('/sys/devices/system/cpu/cpu0/online', '1\\n')\n" +
-                        "return after(hookof('open'), possible), possible:text(), after(hookof('open'), online), online:text(),\n" +
-                        "  after(hookof('open'), core), core:text(), after(hookof('open'), fileof('/sys/devices/system/cpu/present', '0-7\\n'))");
+        assertEquals("*/status*", Scripts.run(globals, "return filter(hookof('open'))[2]").arg1().tojstring());
+        assertEquals("*bus/cpu/*", Scripts.run(globals, "return filter(hookof('open'))[3]").arg1().tojstring());
+        // The canonical path of each file, by default the path without /proc/self/root, and how often one was resolved
+        String files = "local CANONICAL, resolved = {}, 0\n" +
+                "luajava.newInstance = function(name, path) assert(name == 'java.io.File')\n" +
+                "  return { getCanonicalPath = function(self) resolved = resolved + 1\n" +
+                "    return CANONICAL[path] or error('No file ' .. path) end } end\n" +
+                "local function fileof(path, text, canonical)\n" +
+                "  CANONICAL[path] = canonical or string.gsub(path, '^/proc/self/root', '')\n" +
+                "  local p = paramof('fd', { [0] = path })\n" +
+                "  p.getFileText = function(self) return text end\n" +
+                "  p.setFileText = function(self, value) text = value end\n" +
+                "  p.text = function(self) return text end\n" +
+                "  return p\n" +
+                "end\n";
+        result = Scripts.run(globals, files +
+                "local possible = fileof('/sys/devices/system/cpu/possible', '0-5\\n')\n" +
+                "local online = fileof('/proc/self/root/sys/devices/system/cpu/online', '0-3,6\\n')\n" +
+                "local core = fileof('/sys/devices/system/cpu/cpu0/online', '1\\n')\n" +
+                "return after(hookof('open'), possible), possible:text(), after(hookof('open'), online), online:text(),\n" +
+                "  after(hookof('open'), core), core:text(), after(hookof('open'), fileof('/sys/devices/system/cpu/present', '0-7\\n'))");
         assertTrue(result.arg1().toboolean());
         assertEquals("0-7\n", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
@@ -331,6 +507,108 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(5).toboolean());
         assertEquals("1\n", result.arg(6).tojstring());
         assertFalse(result.arg(7).toboolean());
+        result = Scripts.run(globals, files +
+                "local offline = fileof('/sys/devices/system/cpu/offline', '6-7\\n')\n" +
+                "local six = fileof('/sys/devices/system/cpu/cpu6/online', '0\\n')\n" +
+                "local nine = fileof('/sys/devices/system/cpu/cpu9/online', '0\\n')\n" +
+                "local small = fileof('/sys/devices/system/cpu/kernel_max', '3\\n')\n" +
+                "local max = fileof('/sys/devices/system/cpu/kernel_max', '31\\n')\n" +
+                "local freq = fileof('/sys/devices/system/cpu/cpu0/cpufreq/online', '0\\n')\n" +
+                "local function said(...) return table.concat({ tostring((...)), tostring((select(2, ...))),\n" +
+                "  tostring((select(3, ...))) }, ' ') end\n" +
+                "return said(after(hookof('open'), offline)), offline:text(), said(after(hookof('open'), six)), six:text(),\n" +
+                "  after(hookof('open'), nine), nine:text(), after(hookof('open'), small), small:text(),\n" +
+                "  after(hookof('open'), max), max:text(), after(hookof('open'), freq), freq:text()");
+        assertEquals("true 6-7 ", result.arg1().tojstring());
+        assertEquals("\n", result.arg(2).tojstring());
+        assertEquals("true 0 1", result.arg(3).tojstring());
+        assertEquals("1\n", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals("0\n", result.arg(6).tojstring());
+        assertTrue(result.arg(7).toboolean());
+        assertEquals("7\n", result.arg(8).tojstring());
+        assertFalse(result.arg(9).toboolean());
+        assertEquals("31\n", result.arg(10).tojstring());
+        assertFalse(result.arg(11).toboolean());
+        assertEquals("0\n", result.arg(12).tojstring());
+        // A processor by its link in /sys/bus/cpu/devices is the same file
+        result = Scripts.run(globals, files +
+                "local bus = fileof('/sys/bus/cpu/devices/cpu6/online', '0\\n', '/sys/devices/system/cpu/cpu6/online')\n" +
+                "local restricted, old, new = after(hookof('open'), bus)\n" +
+                "return restricted, old, new, bus:text()");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("0", result.arg(2).tojstring());
+        assertEquals("1", result.arg(3).tojstring());
+        assertEquals("1\n", result.arg(4).tojstring());
+        // So is a processor by // or /./, by .. after its own folder and by .. after its link; cpu6/.. is the folder of
+        // all of them; a file of another folder, like of the memory, and a path which cannot be resolved stay
+        String[][] spellings = {
+                {"/sys/devices/system/cpu/cpu6//online", "/sys/devices/system/cpu/cpu6/online", "0\n", "true 0 1", "1\n"},
+                {"/sys/devices/system/cpu/cpu6/./online", "/sys/devices/system/cpu/cpu6/online", "0\n", "true 0 1", "1\n"},
+                {"/sys/devices/system/cpu/cpu6/power/../online", "/sys/devices/system/cpu/cpu6/online", "0\n", "true 0 1", "1\n"},
+                {"/sys/bus/cpu/devices/cpu6//online", "/sys/devices/system/cpu/cpu6/online", "0\n", "true 0 1", "1\n"},
+                {"/sys/devices/system/cpu/cpu6/../online", "/sys/devices/system/cpu/online", "0-5\n", "true 0-5 0-7", "0-7\n"},
+                {"/sys/bus/cpu/devices/cpu6/../offline", "/sys/devices/system/cpu/offline", "6-7\n", "true 6-7 ", "\n"},
+                {"/sys/devices/system/cpu/../memory/memory0/online", "/sys/devices/system/memory/memory0/online", "0\n",
+                        "false nil nil", "0\n"},
+                {"/sys/devices/system/cpu/cpu6/../online", null, "0-5\n", "false nil nil", "0-5\n"}};
+        for (String[] spelling : spellings) {
+            result = Scripts.run(globals, files +
+                    "local p = fileof('" + spelling[0] + "', [[" + spelling[2] + "]], " +
+                    (spelling[1] == null ? "nil" : "'" + spelling[1] + "'") + ")\n" +
+                    (spelling[1] == null ? "CANONICAL['" + spelling[0] + "'] = nil\n" : "") +
+                    "local restricted, old, new = after(hookof('open'), p)\n" +
+                    "return tostring(restricted) .. ' ' .. tostring(old) .. ' ' .. tostring(new), p:text(), resolved");
+            assertEquals(spelling[0], spelling[3], result.arg1().tojstring());
+            assertEquals(spelling[0], spelling[4], result.arg(2).tojstring());
+            assertEquals(spelling[0], 1, result.arg(3).toint());
+        }
+        // A file which ends in no name of these is not resolved, also when it ends in no letter
+        for (String path : new String[]{"/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq",
+                "/sys/devices/system/cpu/cpu6/..", "/data/user/0/app/files/status.v2"}) {
+            result = Scripts.run(globals, files +
+                    "local p = fileof('" + path + "', '300000\\n')\n" +
+                    "return after(hookof('open'), p), p:text(), resolved");
+            assertFalse(path, result.arg1().toboolean());
+            assertEquals(path, "300000\n", result.arg(2).tojstring());
+            assertEquals(path, 0, result.arg(3).toint());
+        }
+
+        // The processors a task may run on in the status files of /proc, also by links, are the 8, the other lines stay
+        String status = "Name:\tprobe\nState:\tR (running)\nTracerPid:\t0\nCpus_allowed:\tf\nCpus_allowed_list:\t0-3\n" +
+                "Mems_allowed:\t1\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t5\n";
+        String links = files +
+                "local REAL = { ['/proc/self/status'] = '/proc/123/status',\n" +
+                "  ['/proc/thread-self/status'] = '/proc/123/task/124/status',\n" +
+                "  ['/proc/self/root/proc/self/status'] = '/proc/123/status',\n" +
+                "  ['/proc/self/task/124/status'] = '/proc/123/task/124/status',\n" +
+                "  ['/data/user/0/app/files/status'] = '/data/user/0/app/files/status',\n" +
+                "  ['/sys/class/power_supply/battery/status'] = '/sys/devices/battery/status' }\n" +
+                "luajava.newInstance = function(name, path) assert(name == 'java.io.File')\n" +
+                "  return { getCanonicalPath = function(self) return REAL[path] or error('No file ' .. path) end } end\n" +
+                "local function statusof(path, text)\n" +
+                "  local p = fileof(path, text)\n" +
+                "  local restricted, old, new = after(hookof('open'), p)\n" +
+                "  return tostring(restricted) .. ' ' .. tostring(old) .. ' ' .. tostring(new), p:text()\n" +
+                "end\n";
+        String fake = status.replace("Cpus_allowed:\tf\n", "Cpus_allowed:\tff\n").replace("_list:\t0-3\n", "_list:\t0-7\n");
+        for (String path : new String[]{"/proc/self/status", "/proc/thread-self/status", "/proc/self/root/proc/self/status",
+                "/proc/self/task/124/status"}) {
+            result = Scripts.run(globals, links + "return statusof('" + path + "', [[" + status + "]])");
+            assertEquals(path, "true 0-3 0-7", result.arg1().tojstring());
+            assertEquals(path, fake, result.arg(2).tojstring());
+        }
+        String eight = status.replace("Cpus_allowed:\tf\n", "Cpus_allowed:\tff\n").replace("_list:\t0-3\n", "_list:\t0-5,7\n");
+        result = Scripts.run(globals, links + "return statusof('/proc/self/status', [[" + eight + "]])");
+        assertEquals("true 0-5,7 0-7", result.arg1().tojstring());
+        assertEquals(fake, result.arg(2).tojstring());
+        for (String path : new String[]{"/proc/self/status", "/data/user/0/app/files/status",
+                "/sys/class/power_supply/battery/status", "/proc/self/stat"}) {
+            String same = path.startsWith("/proc") ? fake : status;
+            result = Scripts.run(globals, links + "return statusof('" + path + "', [[" + same + "]])");
+            assertEquals(path, "false nil nil", result.arg1().tojstring());
+            assertEquals(path, same, result.arg(2).tojstring());
+        }
     }
 
     @Test
@@ -501,6 +779,65 @@ public class FingerprintScriptsTest {
         for (int i = 1; i <= 5; i++)
             assertTrue("path " + i, result.arg(i).toboolean());
         assertFalse(result.arg(6).toboolean());
+    }
+
+    // Typeface looks up a family or alias the app reads without by a name no family has, which keeps the name of the app;
+    // the configuration is read once, without StrictMode, and the hooks of opening files keep their filter
+    @Test
+    public void typefaceLooksUpFamiliesOfMakersLikeUnknownOnes() throws Exception {
+        Globals globals = load("font_config");
+        // A family of AOSP with a font of the maker in it keeps its name, like its aliases
+        String fonts = "<familyset>\n" +
+                "    <family name=\"sans-serif\">\n        <font weight=\"400\">Roboto-Regular.ttf</font>\n" +
+                "        <font weight=\"500\">SamsungOne-500.ttf</font>\n    </family>\n" +
+                "    <alias name=\"sans-serif-medium\" to=\"sans-serif\" weight=\"500\" />\n" +
+                "    <family name=\"sec-roboto-light\">\n        <font weight=\"300\">SECRobotoLight-Regular.ttf</font>\n" +
+                "    </family>\n" +
+                "    <alias name=\"sec-roboto-light-bold\" to=\"sec-roboto-light\" weight=\"700\" />\n" +
+                "    <alias name=\"sans-serif-light\" to=\"sans-serif\" weight=\"300\" />\n" +
+                "    <family name=\"roboto\">\n        <font weight=\"400\">SamsungOne-400.ttf</font>\n    </family>\n" +
+                "</familyset>\n";
+        String customization = "<fonts-modification version=\"1\">\n" +
+                "    <family customizationType=\"new-named-family\" name=\"google-sans\">\n" +
+                "        <font weight=\"400\">GoogleSans-Regular.ttf</font>\n    </family>\n" +
+                "</fonts-modification>\n";
+        Varargs result = Scripts.run(globals,
+                "local files = { ['/system/etc/fonts.xml'] = [[" + fonts + "]],\n" +
+                        "  ['/product/etc/fonts_customization.xml'] = [[" + customization + "]] }\n" +
+                        "local reads, policies = {}, {}\n" +
+                        "luajava.bindClass = function(name) return { allowThreadDiskReads = function(self) return 'old' end,\n" +
+                        "  setThreadPolicy = function(self, policy) policies[#policies + 1] = policy end } end\n" +
+                        "local function lookup(method, name)\n" +
+                        "  local p = paramof(nil, { [0] = name })\n" +
+                        "  p.readFile = function(self, path) reads[#reads + 1] = path return files[path] end\n" +
+                        "  local restricted = before(hookof(method), p)\n" +
+                        "  return tostring(restricted) .. ':' .. tostring(p.args[0])\n" +
+                        "end\n" +
+                        "return lookup('create', 'sec-roboto-light'), lookup('create', 'sec-roboto-light-bold'),\n" +
+                        "  lookup('create', 'google-sans'), lookup('setFallback', 'google-sans'),\n" +
+                        "  lookup('setSystemFallback', 'sec-roboto-light'), lookup('hasFontFamily', 'google-sans'),\n" +
+                        "  lookup('create', 'sans-serif-medium'), lookup('create', 'sans-serif-light'), lookup('create', nil),\n" +
+                        "  lookup('open', 'google-sans'), table.concat(reads, ' '), table.concat(policies, ' '),\n" +
+                        "  filter(hookof('create')), filter(hookof('open'))[1], after(hookof('create'), paramof('typeface')),\n" +
+                        "  lookup('create', 'roboto')");
+        assertEquals("true:sec-roboto-light\0", result.arg(1).tojstring());
+        assertEquals("true:sec-roboto-light-bold\0", result.arg(2).tojstring());
+        assertEquals("true:google-sans\0", result.arg(3).tojstring());
+        assertEquals("true:google-sans\0", result.arg(4).tojstring());
+        assertEquals("true:sec-roboto-light\0", result.arg(5).tojstring());
+        assertEquals("true:google-sans\0", result.arg(6).tojstring());
+        assertEquals("false:sans-serif-medium", result.arg(7).tojstring());
+        assertEquals("false:sans-serif-light", result.arg(8).tojstring());
+        assertEquals("false:nil", result.arg(9).tojstring());
+        assertEquals("false:google-sans", result.arg(10).tojstring());
+        assertEquals("/system/etc/fonts.xml /system/etc/font_fallback.xml /product/etc/fonts_customization.xml",
+                result.arg(11).tojstring());
+        assertEquals("old", result.arg(12).tojstring());
+        assertTrue(result.arg(13).isnil());
+        assertEquals("*etc/font*", result.arg(14).tojstring());
+        assertFalse(result.arg(15).toboolean());
+        // The roboto family of Android 16 and 17
+        assertEquals("false:roboto", result.arg(16).tojstring());
     }
 
     // The GPS tags the app set on the object read back, also as the location; tags the media provider zeroed stay like
@@ -1159,6 +1496,64 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(8).isnil());
         assertFalse(result.arg(9).toboolean());
         assertTrue(result.arg(10).toboolean());
+    }
+
+    // The alias of a certificate the user added is the one a store without it gives: of the same certificate among the
+    // system ones, whose index can differ, unless the user disabled that one; and the user added none
+    @Test
+    public void certificatesOfTheUserHaveNoAlias() throws Exception {
+        Varargs result = Scripts.run(load("device_details"),
+                "local function certificate() return { equals = function(self, other) return self == other end } end\n" +
+                        "local mine, other, ca = certificate(), certificate(), certificate()\n" +
+                        "local disabled = {}\n" +
+                        "local store = { system = { ['system:abc.0'] = other, ['system:abc.1'] = mine },\n" +
+                        "  getCertificate = function(self, alias, deleted)\n" +
+                        "    local found = self.system[alias]\n" +
+                        "    return (deleted or not disabled[alias]) and found or nil end }\n" +
+                        "local function alias(result, certificate, ...)\n" +
+                        "  local count = select('#', ...)\n" +
+                        "  local hook = hookof('getCertificateAlias')\n" +
+                        "  hook.getParameterTypes = function(self) return { length = 1 + count } end\n" +
+                        "  local param = paramof(result, { [0] = certificate, ... })\n" +
+                        "  param.this = store\n" +
+                        "  local restricted = after(hook, param)\n" +
+                        "  return restricted, param.result, param.set\n" +
+                        "end\n" +
+                        "local a, b = alias('user:abc.0', mine)\n" +
+                        "local c, d = alias('user:def.0', ca, false)\n" +
+                        "local e, f, g = alias('system:abc.1', mine)\n" +
+                        "local _, h, i = alias(nil, ca)\n" +
+                        "disabled['system:abc.1'] = true\n" +
+                        "local _, j = alias('user:abc.0', mine)\n" +
+                        "local _, k = alias('user:abc.0', mine, true)\n" +
+                        "local added = paramof(true, { [0] = ca })\n" +
+                        "local l = after(hookof('isUserAddedCertificate'), added)\n" +
+                        "local m = after(hookof('isUserAddedCertificate'), paramof(false, { [0] = ca }))\n" +
+                        "store = {}\n" +
+                        "local n, o = alias('user:abc.0', mine, true)\n" +
+                        "return a, b, c, d, e, f, g, h, i, j, k, l, added.result, m, filter(hookof('getCertificateAlias')), n, o");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("system:abc.1", result.arg(2).tojstring());
+        // Only the user has it: none, like Android for a certificate the store does not have
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).isnil());
+        // The aliases of the system and none stay
+        assertFalse(result.arg(5).toboolean());
+        assertEquals("system:abc.1", result.arg(6).tojstring());
+        assertFalse(result.arg(7).toboolean());
+        assertTrue(result.arg(8).isnil());
+        assertFalse(result.arg(9).toboolean());
+        // A system certificate the user disabled has none, unless the caller asks for those, like Android
+        assertTrue(result.arg(10).isnil());
+        assertEquals("system:abc.1", result.arg(11).tojstring());
+        assertTrue(result.arg(12).toboolean());
+        assertFalse(result.arg(13).toboolean());
+        assertFalse(result.arg(14).toboolean());
+        // The certificate is no text, so the filter would never run the script
+        assertTrue(result.arg(15).isnil());
+        // A store whose methods the hidden API rules hide from the app: none, not the alias of the user
+        assertTrue(result.arg(16).toboolean());
+        assertTrue(result.arg(17).isnil());
     }
 
     // Android answers a new listener of the heat with the real values, here those of the getters, once, and throws for

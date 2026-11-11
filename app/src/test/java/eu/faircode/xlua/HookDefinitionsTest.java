@@ -305,6 +305,26 @@ public class HookDefinitionsTest {
         assertTrue(loaded.containsKey("font_config"));
     }
 
+    // The lookups of Typeface by the name of a family, on every version which has them (font_config)
+    @Test
+    public void typefaceLookupsByName() throws Exception {
+        String s = "java.lang.String", t = "android.graphics.Typeface";
+        check("Typeface.create/font_config", t + " create(" + s + ",int) @font_config 27-");
+        check("Typeface$Builder.setFallback", t + "$Builder setFallback(" + s + ") @font_config 27-");
+        check("Typeface$CustomFallbackBuilder.setSystemFallback", t + "$CustomFallbackBuilder setSystemFallback(" + s +
+                ") @font_config 29-");
+        check("Typeface.hasFontFamily", t + " hasFontFamily(" + s + ") @font_config 31- optional");
+    }
+
+    // The times of the folders also by the descriptor the app opened, by the public method only, since Android calls
+    // Libcore.os.fstat for every file it opens (see storage_times)
+    @Test
+    public void storageTimesByDescriptor() throws Exception {
+        check("Os.fstat", "android.system.Os fstat(java.io.FileDescriptor) @storage_times 27-");
+        assertEquals("Use.Tracking", hook("Os.fstat").getString("group"));
+        assertEquals("value.android_id", hook("Os.fstat").getJSONArray("settings").getString(0));
+    }
+
     // A hook of a library in the app which does not use the result must not require a return type: R8 makes methods
     // whose result the app does not use return void, which XResolver refuses, like OkHttp's Headers.Builder in LinkedIn.
     // Per hook, because a script shared by several methods, like webview_constructor, can read the result of one only.
@@ -848,8 +868,9 @@ public class HookDefinitionsTest {
             check("UnixNativeDispatcher.open/" + variant,
                     "sun.nio.fs.UnixNativeDispatcher open(sun.nio.fs.UnixPath,int,int) @" + variant + " 27-");
         }
-        // The serials, ICC IDs, IMEIs and operators of systemproperties_get, in the group of their getters
-        for (String variant : new String[]{"serial", "operator"}) {
+        // The serials, ICC IDs, IMEIs, operators and the model and build of systemproperties_get, in the group of their
+        // getters
+        for (String variant : new String[]{"serial", "operator", "device"}) {
             check("BlockGuardOs.open/" + variant, "libcore.io.BlockGuardOs open(java.lang.String,int,int) @systemproperties_get 27-");
             check("UnixNativeDispatcher.open/" + variant,
                     "sun.nio.fs.UnixNativeDispatcher open(sun.nio.fs.UnixPath,int,int) @systemproperties_get 27-");
@@ -860,6 +881,28 @@ public class HookDefinitionsTest {
                         hook(name + variant).optJSONArray("settings") + "");
             }
         }
+    }
+
+    // The stat, size and link of faked files answer like for the file the app opened, also by the path of the link, by
+    // the methods beneath the public ones (AOSP libcore oreo-mr1-release to main)
+    @Test
+    public void fakedFilesAnswerLikeTheFileOpened() throws Exception {
+        String d = "java.io.FileDescriptor";
+        check("Os.fstat/faked_files", "android.system.Os fstat(" + d + ") @faked_files 27-");
+        check("FileInputStream.available/faked_files", "java.io.FileInputStream available() @faked_files 27-");
+        check("RandomAccessFile.length/faked_files", "java.io.RandomAccessFile length() @faked_files 27-");
+        check("FileDispatcherImpl.size/faked_files", "sun.nio.ch.FileDispatcherImpl size(" + d + ") @faked_files 27-");
+        check("Os.readlink/faked_files", "android.system.Os readlink(java.lang.String) @faked_files 27-");
+        check("UnixNativeDispatcher.readlink/faked_files",
+                "sun.nio.fs.UnixNativeDispatcher readlink(sun.nio.fs.UnixPath) @faked_files 27-");
+        check("BlockGuardOs.stat/faked_files", "libcore.io.BlockGuardOs stat(java.lang.String) @faked_files 27-");
+        check("UnixFileSystem.getLength/faked_files", "java.io.UnixFileSystem getLength(java.io.File) @faked_files 27-");
+        check("UnixFileSystem.getLastModifiedTime/faked_files",
+                "java.io.UnixFileSystem getLastModifiedTime(java.io.File) @faked_files 27-");
+        for (String name : new String[]{"Os.fstat", "FileInputStream.available", "RandomAccessFile.length", "FileDispatcherImpl.size",
+                "Os.readlink", "UnixNativeDispatcher.readlink", "BlockGuardOs.stat", "UnixFileSystem.getLength",
+                "UnixFileSystem.getLastModifiedTime"})
+            assertEquals(name, hook("BlockGuardOs.open/boot_id").getString("group"), hook(name + "/faked_files").getString("group"));
     }
 
     // The identifier services of manufacturers are bound by each method binding services, and their providers are
@@ -986,6 +1029,19 @@ public class HookDefinitionsTest {
     public void graphicsChipByEveryVersionOfOpenGl() throws Exception {
         check("GLES10.glGetString", "android.opengl.GLES10 glGetString(int) @gles_getstring 27-");
         check("GLES20.glGetString", "android.opengl.GLES20 glGetString(int) @gles_getstring 27-");
+    }
+
+    // The extensions by index and their number GL_NUM_EXTENSIONS by each getter the EGL loader answers it for, those of
+    // GLES20 also for GLES30 to GLES32, which inherit them (see gles_getstring)
+    @Test
+    public void extensionsByIndexAndTheirNumber() throws Exception {
+        check("GLES30.glGetStringi", "android.opengl.GLES30 glGetStringi(int,int) @gles_getstring 27-");
+        check("GLES20.glGetIntegerv", "android.opengl.GLES20 glGetIntegerv(int,int[],int) @gles_getstring 27-");
+        check("GLES20.glGetIntegerv/buffer", "android.opengl.GLES20 glGetIntegerv(int,java.nio.IntBuffer) @gles_getstring 27-");
+        check("GLES20.glGetFloatv", "android.opengl.GLES20 glGetFloatv(int,float[],int) @gles_getstring 27-");
+        check("GLES20.glGetFloatv/buffer", "android.opengl.GLES20 glGetFloatv(int,java.nio.FloatBuffer) @gles_getstring 27-");
+        check("GLES30.glGetInteger64v", "android.opengl.GLES30 glGetInteger64v(int,long[],int) @gles_getstring 27-");
+        check("GLES30.glGetInteger64v/buffer", "android.opengl.GLES30 glGetInteger64v(int,java.nio.LongBuffer) @gles_getstring 27-");
     }
 
     // Unity Ads gets no consent, by its setters, the MetaData of former versions and before each way it starts (see
@@ -1230,6 +1286,18 @@ public class HookDefinitionsTest {
         // The name of the own device of Wi-Fi Direct
         check("WifiP2pDevice.createFromParcel", "android.net.wifi.p2p.WifiP2pDevice CREATOR:createFromParcel(android.os.Parcel) " +
                 "@wifip2pdevice_name 27-");
+        // And the network name of a group it owns, which ends in the name, and on Android 8.1 and 9, where the device
+        // has its real address, the broadcast of the own device
+        check("WifiP2pGroup.createFromParcel/name", "android.net.wifi.p2p.WifiP2pGroup CREATOR:createFromParcel(android.os.Parcel) " +
+                "@wifip2pdevice_name 27-");
+        check("Intent.createFromParcel/device_name", "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +
+                "@wifip2pdevice_name 27-28");
+        for (String name : new String[]{"WifiP2pGroup.createFromParcel/name", "Intent.createFromParcel/device_name"})
+            assertEquals(name, "Use.Tracking", hook(name).getString("group"));
+        assertEquals("android", hook("Intent.createFromParcel/device_name").getString("excludePackages"));
+        // And the network name an app chose for its group, which stays
+        check("WifiP2pConfig$Builder.setNetworkName", "android.net.wifi.p2p.WifiP2pConfig$Builder setNetworkName(java.lang.String) " +
+                "@wifip2pdevice_name 29-");
         // Its address, which Android 10 and later make anonymous themselves
         check("Intent.createFromParcel/identifiers", "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +
                 "@wifip2p_own_address 27-28");
@@ -1422,8 +1490,9 @@ public class HookDefinitionsTest {
         check("NsdManager.registerServiceInfoCallback/discovery", "android.net.nsd.NsdManager registerServiceInfoCallback(" +
                 "android.net.nsd.DiscoveryRequest,java.util.concurrent.Executor,android.net.nsd.NsdManager$ServiceInfoCallback) " +
                 "@nsdmanager_listener 33- optional");
-        // Broadcasts with Bluetooth devices and the network of Android 8.1, and with the number of a call
-        for (String[] variant : new String[][]{{"network", "Read.Network"}, {"call_log", "Get.Call.log"}}) {
+        // Broadcasts with Bluetooth devices and the network of Android 8.1, with the number of a call and with the carrier
+        for (String[] variant : new String[][]{{"network", "Read.Network"}, {"call_log", "Get.Call.log"},
+                {"operator", "Use.Tracking"}}) {
             check("Intent.createFromParcel/" + variant[0], "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +
                     "@intent_createfromparcel 27-");
             assertEquals(variant[1], hook("Intent.createFromParcel/" + variant[0]).getString("group"));
@@ -1497,6 +1566,19 @@ public class HookDefinitionsTest {
     public void neighboringCellsOnAllVersions() throws Exception {
         check("TelephonyManager.getNeighboringCellInfo", "android.telephony.TelephonyManager getNeighboringCellInfo() " +
                 "@generic_empty 27- optional");
+    }
+
+    // The fields of the service states and subscriptions the app gets, which their parcels and equals give, with the
+    // operator of the getters, in the group of the getters
+    @Test
+    public void operatorInTheFieldsOfParcels() throws Exception {
+        for (String type : new String[]{"ServiceState", "SubscriptionInfo"}) {
+            String name = type + ".createFromParcel/operator";
+            String className = "android.telephony." + type;
+            check(name, className + " CREATOR:createFromParcel(android.os.Parcel) @test_network 27-");
+            assertEquals(name, className, hook(name).getString("returnType"));
+            assertEquals(name, "Use.Tracking", hook(name).getString("group"));
+        }
     }
 
     // From Android 14 QPR2, still SDK 34, the recognizer of apps is a SpeechRecognizerProxy which calls a
@@ -1807,6 +1889,10 @@ public class HookDefinitionsTest {
         check("BlockGuardOs.open/kernel", "libcore.io.BlockGuardOs open(" + s + ",int,int) @kernel_version 27-");
         check("CameraManager2.getCameraCharacteristics", "android.hardware.camera2.CameraManager getCameraCharacteristics(" + s +
                 ") @camera2_open 27-");
+        // The version of the camera hardware in the characteristics, which apps of Use.Tracking read without the camera
+        String c = "android.hardware.camera2.CameraCharacteristics";
+        check("CameraCharacteristics.get", c + " get(" + c + "$Key) @camera_characteristics 28-");
+        check("CameraCharacteristics.getKeys", c + " getKeys() @camera_characteristics 28-");
         check("CameraManager2.getConcurrentCameraIds", "android.hardware.camera2.CameraManager getConcurrentCameraIds() @generic_empty 30-");
         check("CameraManager2.registerAvailabilityCallback/executor", "android.hardware.camera2.CameraManager " +
                 "registerAvailabilityCallback(java.util.concurrent.Executor,android.hardware.camera2.CameraManager$AvailabilityCallback) " +
@@ -1816,6 +1902,8 @@ public class HookDefinitionsTest {
         check("SpeechRecognizer.startListening", "android.speech.SpeechRecognizer startListening(" + i + ") @speech_recognizer 27-");
         check("Display.getHdrCapabilities", "android.view.Display getHdrCapabilities() @display_panel 27-");
         check("Display.getDeviceProductInfo", "android.view.Display getDeviceProductInfo() @display_panel 31-");
+        check("Display.toString", "android.view.Display toString() @display_panel 27-");
+        check("Display.getAddress", "android.view.Display getAddress() @display_panel 29-29 optional");
         check("Build.getFingerprintedPartitions", "android.os.Build getFingerprintedPartitions() @generic_empty 29-");
         check("LocationManager.registerGnssStatusCallback30", "android.location.LocationManager registerGnssStatusCallback(" +
                 "java.util.concurrent.Executor,android.location.GnssStatus$Callback) @gnss_register 30-");
@@ -1903,6 +1991,34 @@ public class HookDefinitionsTest {
             assertEquals(name, "Read.Identifiers", hook(name + "/hardware_ids").getString("group"));
     }
 
+    // The same calls for the files Use.Tracking hides, like the speeds of the processors and the fonts of makers, which
+    // gave EEXIST for making a folder or a link by their name where stat gave ENOENT
+    @Test
+    public void hardwareModelByEveryPathCall() throws Exception {
+        for (String name : new String[]{"Os.listxattr", "Os.setxattr", "Os.removexattr", "Os.chmod", "Os.chown", "Os.lchown",
+                "Os.link", "Os.remove", "Os.mkdir", "Os.mkfifo", "Os.symlink", "Os.rename", "UnixNativeDispatcher.chmod",
+                "UnixNativeDispatcher.chown", "UnixNativeDispatcher.lchown", "UnixNativeDispatcher.link",
+                "UnixNativeDispatcher.mkdir", "UnixNativeDispatcher.symlink", "UnixNativeDispatcher.rename"}) {
+            JSONObject ids = hook(name + "/hardware_ids"), model = hook(name + "/hardware_model");
+            assertNotNull(name, model);
+            for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk", "luaScript"})
+                assertEquals(name + " " + key, ids.get(key).toString(), model.get(key).toString());
+            assertFalse(name, model.has("optional"));
+            assertEquals(name, "Use.Tracking", model.getString("group"));
+        }
+    }
+
+    // The names of the file stores of java.nio, which getFileStores makes of the mount entries it reads natively, on
+    // every version (AOSP oreo-mr1-release to android17-release declare both in UnixFileStore)
+    @Test
+    public void namesOfFileStores() throws Exception {
+        for (String method : new String[]{"name", "toString"}) {
+            check("UnixFileStore." + method + "/hardware_model", "sun.nio.fs.UnixFileStore " + method + "() @hardware_files 27-");
+            assertEquals(method, "Use.Tracking", hook("UnixFileStore." + method + "/hardware_model").getString("group"));
+            assertEquals(method, "java.lang.String", hook("UnixFileStore." + method + "/hardware_model").getString("returnType"));
+        }
+    }
+
     // A SecureDirectoryStream opens the files of its folder and reads their attributes by the descriptor of the folder
     // and their name, which the script checks itself, since the filter only compares paths
     @Test
@@ -1960,9 +2076,10 @@ public class HookDefinitionsTest {
     @Test
     public void programsBeneathTheWaysToRun() throws Exception {
         String s = "java.lang.String";
-        String[][] groups = {{"packages", "Get.Applications"}, {"commands", "Run.Commands"}};
+        // Use.Tracking for its own commands, by the names without a suffix
+        String[][] groups = {{"/packages", "Get.Applications"}, {"/commands", "Run.Commands"}, {"", "Use.Tracking"}};
         for (String[] group : groups) {
-            String suffix = "/" + group[0];
+            String suffix = group[0];
             check("UNIXProcess.forkAndExec" + suffix,
                     "java.lang.UNIXProcess forkAndExec(byte[],byte[],int,byte[],int,byte[],int[],boolean) @commands_blocked 27-");
             check("Linux.execv" + suffix, "libcore.io.Linux execv(" + s + "," + s + "[]) @commands_blocked 27-");
@@ -1992,6 +2109,27 @@ public class HookDefinitionsTest {
                 ") @systemproperties_get 27- optional");
         check("SystemProperties.native_get.default/locale", "android.os.SystemProperties native_get(" + s + "," + s +
                 ") @locale 27- optional");
+        // The natives of get(key, default), getInt, getLong and getBoolean for each variant which hooks the getter, in its
+        // group and with its settings
+        String[][] natives = {{"native_get.default", "get.default", "native_get(" + s + "," + s + ")"},
+                {"native_get_int", "getInt", "native_get_int(" + s + ",int)"},
+                {"native_get_long", "getLong", "native_get_long(" + s + ",long)"},
+                {"native_get_boolean", "getBoolean", "native_get_boolean(" + s + ",boolean)"}};
+        int pairs = 0;
+        for (String variant : new String[]{"serial", "operator", "device", "timezone", "debugging", "resources"})
+            for (String[] n : natives) {
+                JSONObject getter = hook("SystemProperties." + n[1] + "/" + variant);
+                if (getter == null)
+                    continue;
+                String name = "SystemProperties." + n[0] + "/" + variant;
+                check(name, "android.os.SystemProperties " + n[2] + " @systemproperties_get 27- optional");
+                assertEquals(name, getter.getString("group"), hook(name).getString("group"));
+                assertEquals(name, getter.optJSONArray("settings") + "", hook(name).optJSONArray("settings") + "");
+                assertEquals(name, getter.optBoolean("usage", true), hook(name).optBoolean("usage", true));
+                assertEquals(name, getter.optString("excludePackages"), hook(name).optString("excludePackages"));
+                pairs++;
+            }
+        assertEquals(15, pairs);
         check("ITextToSpeechService.getClientDefaultLanguage", "android.speech.tts.ITextToSpeechService$Stub$Proxy " +
                 "getClientDefaultLanguage() @locale 27- optional");
         // The languages of the keyboards, by the same methods on all versions
@@ -2023,6 +2161,16 @@ public class HookDefinitionsTest {
         check("PowerManager.removeThermalHeadroomListener", p + " removeThermalHeadroomListener(" + headroom + ") @device_details 36-");
         check("SystemVibrator.getInfo", "android.os.SystemVibrator getInfo() @device_details 31- optional");
         assertNull(hook("Vibrator.getInfo"));
+        // The alias of a certificate by both overloads, and whether the user added it, also by the public API
+        String store = "com.android.org.conscrypt.TrustedCertificateStore ";
+        check("TrustedCertificateStore.getCertificateAlias", store +
+                "getCertificateAlias(java.security.cert.Certificate) @device_details 27- optional");
+        check("TrustedCertificateStore.getCertificateAlias/deleted", store +
+                "getCertificateAlias(java.security.cert.Certificate,boolean) @device_details 27- optional");
+        check("TrustedCertificateStore.isUserAddedCertificate", store +
+                "isUserAddedCertificate(java.security.cert.X509Certificate) @device_details 27- optional");
+        check("X509TrustManagerExtensions.isUserAddedCertificate", "android.net.http.X509TrustManagerExtensions " +
+                "isUserAddedCertificate(java.security.cert.X509Certificate) @device_details 27-");
     }
 
     // The hidden getters of LinkProperties, with the links on top of it; before Android 11 also of its own values

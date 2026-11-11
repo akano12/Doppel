@@ -33,6 +33,14 @@
 -- areas of /dev/__properties__ have the fake values of the properties, see systemproperties_get.
 -- shortcut: a SecureDirectoryStream of a folder in the one of the stream (its newDirectoryStream) has no filter, so it
 -- lists the names of hidden files, which openat then does not find, hook its constructor to add a filter if apps do so.
+-- For Use.Tracking the tables of the process which every app reads of itself name the hardware too (see tables): the
+-- maps (/proc/self/maps and smaps) leave out the mappings of the libraries of the vendor, like the GPU driver and the
+-- graphics HAL of the board (android.hardware.graphics.mapper@3.0-impl-ranchu.so), and of the device of the GPU; the
+-- mount tables (/proc/mounts, mountinfo and mountstats) and the names of the file stores of java.nio, which reads
+-- /proc/mounts natively (see storename), name the partitions by /dev/block/by-name, not by the storage controller of
+-- the chip, like /dev/block/platform/soc/1d84000.ufshc/by-name.
+-- shortcut: the mount points of makers, like /efs of Samsung, and the numbers of the block devices, which tell UFS
+-- from eMMC, stay in the mount tables; leave them out once the mounts of AOSP of Android 8.1 to 17 are known.
 
 -- The files of each group, as patterns of the path; a pattern ending in / covers the files of a folder
 local FILES = {
@@ -72,7 +80,7 @@ local FILES = {
         'qcom,kgsl%-3d0$', 'qcom,kgsl%-3d0/', '%.mali$', '%.mali/', '/misc/mali0$', '/misc/mali0/',
         '/proc/scsi/', '/proc/bus/input/devices$',
         -- The certificates the user added, like of a VPN or an ad blocker, by name and content; the store of
-        -- certificates of the app reads them too (see truststore)
+        -- certificates of the app reads them too, but does not list them (see truststore)
         '^/data/misc/user/%d+/cacerts%-added$', '^/data/misc/user/%d+/cacerts%-added/',
         '^/data/misc/user/%d+/cacerts%-removed$', '^/data/misc/user/%d+/cacerts%-removed/' },
     ['Read.Biometrics'] = {
@@ -112,8 +120,10 @@ local ETC = { '^/etc/', '^/[%w_]+/etc/', '^/system/[%w_]+/etc/', '^/apex/[^/]+/e
 for group, names in pairs({
     -- The codecs of the chip by name (see media_codecs), like /vendor/etc/media_codecs_sm8550_vendor.xml, the
     -- properties of the partitions, of which those of /product and /system_ext can be read and name the device, and
-    -- the file systems of the device, named after its hardware, like fstab.qcom
-    ['Use.Tracking'] = { 'media_codecs[^/]*%.xml$', 'build%.prop$', 'fstab%.[^/]*$' },
+    -- the file systems of the device, named after its hardware, like fstab.qcom; the properties and services of the
+    -- vendor in its SELinux contexts (nonplat_ on Android 8.1) and the configuration of the display panel
+    ['Use.Tracking'] = { 'media_codecs[^/]*%.xml$', 'build%.prop$', 'fstab%.[^/]*$', 'selinux/vendor_[^/]*_contexts$',
+                         'selinux/nonplat_[^/]*_contexts$', 'displayconfig$', 'displayconfig/' },
     ['Read.Features'] = { 'permissions$', 'permissions/', 'sysconfig$', 'sysconfig/' },
     -- The permissions of the system apps, a file per app, like privapp-permissions-com.samsung.android.dialer.xml
     ['Get.Applications'] = { 'permissions/privapp%-permissions%-[^/]*$' },
@@ -134,6 +144,21 @@ end
 table.insert(FILES['Use.Tracking'], '^/[%w_]+/build%.prop$')
 table.insert(FILES['Use.Tracking'], '^/system/[%w_]+/build%.prop$')
 table.insert(FILES['Use.Tracking'], '^/fstab%.[^/]*$')
+-- The HALs of the vendor in the manifests of vintf of its partitions, like vendor.qti.hardware.*, also in fragments from
+-- Android 10 and at the root of the partitions on Android 8.1, and of /odm also by the path it leads to without an odm
+-- partition (see ETC). The manifest of the framework stays, of /system and its link /etc, which every device has with
+-- the HALs of AOSP, and so do those of /system_ext and /product.
+-- shortcut: the fragments of makers in /system_ext and /product, like vendor.qti.hardware.* of Qualcomm, stay; hide
+-- them once it is known which devices have the folder of fragments there. The same for the fragments of the APEXes of
+-- the vendor, which Android 14 and later read from /apex/<name>/etc/vintf for the APEXes of /vendor/apex, and for
+-- the manifests Android 9 and later read from /odm/etc itself, manifest.xml and manifest_<sku>.xml; hide them once the
+-- names of the vendor APEXes are known and the filter lets manifest_ names in /odm/etc through.
+for _, partition in ipairs({ '/vendor', '/odm', '/system/vendor', '/vendor/odm', '/system/vendor/odm' }) do
+    for _, name in ipairs({ '/etc/vintf/manifest[^/]*%.xml$', '/etc/vintf/manifest$', '/etc/vintf/manifest/',
+                            '/manifest%.xml$' }) do
+        table.insert(FILES['Use.Tracking'], '^' .. partition .. name)
+    end
+end
 
 -- The folders of the apps of the system, of which only the names are left out for Get.Applications: the files stay,
 -- since the system loads apps from them, like WebView
@@ -158,12 +183,14 @@ end
 -- absolute paths without /./, // and the links of /proc to the root (XCore.getFilter), relative paths with them run
 -- it too, and so do paths with /../ to su and Magisk, like /vendor/../data/adb, which the prefixes do not match.
 -- The folders of su and of the codec files are there for listing them, like File.list of /system/xbin, and so are
--- the folders of etc, which list the names the group hides, like fstab.* of /etc, a link to /system/etc.
+-- the folders of etc, which list the names the group hides, like fstab.* of /etc, a link to /system/etc, the folders
+-- of the drivers of the GPU and the partitions, which list the manifests of Android 8.1.
 local FILTERS = {
     ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*',
                          '*/build.prop*', '*etc/fstab.*', '/fstab.*', '/', '*misc/user/*', '*/./*', '*//*',
                          '/system/etc', '/vendor/etc', '/odm/etc', '/vendor/odm/etc', '/product/etc', '/system_ext/etc',
-                         '/etc' },
+                         '/etc', '*etc/vintf*', '*etc/selinux*', '*etc/displayconfig*', '*lib64/egl*', '*lib/egl*',
+                         '*/manifest.xml*', '/system', '/vendor', '/odm', '/system/vendor' },
     ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
     ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',
@@ -228,15 +255,36 @@ local ST_RDONLY = 1
 -- the group and which matched resolves. Not covered are links of apps themselves to the files, which have paths
 -- without sys/. The calls by the descriptor of a folder, openat, unlinkat, renameat and fstatat, have no path the
 -- filter could compare, and link, symlink, rename and renameat have a second path, which the filter does not see, so the
--- script compares their paths itself (see atpath and renaming).
+-- script compares their paths itself (see atpath and renaming). The name and the text of a file store have no
+-- argument at all (see storename).
 local UNFILTERED = { openat = true, unlinkat = true, renameat = true, fstatat = true, link = true, symlink = true,
-                     rename = true }
+                     rename = true, name = true, toString = true }
+
+-- Parts of the paths of the tables of the process (see tables), which only the hooks of open of Use.Tracking run for
+local TABLES = { '/maps', '/smaps', '/mount' }
 
 function filter(hook)
-    if UNFILTERED[hook:getMethodName()] then
+    local method, group = hook:getMethodName(), hook:getGroup()
+    if UNFILTERED[method] then
         return nil
     end
-    return paths(hook:getGroup())
+    local values = paths(group)
+    if method == 'open' and group == 'Use.Tracking' then
+        for _, part in ipairs(TABLES) do
+            values[#values + 1] = '*' .. part .. '*'
+        end
+    end
+    return values
+end
+
+-- Whether a path has a part of the paths of the tables of the process
+function tabled(path)
+    for _, part in ipairs(TABLES) do
+        if string.find(path, part, 1, true) then
+            return true
+        end
+    end
+    return false
 end
 
 -- The paths the script runs for in a group, which the filter gives the hooks
@@ -351,16 +399,23 @@ end
 -- and nothing is hidden for a file which does not exist, like su on a phone without root
 -- Read.Network only hides opening its files (see FILES): of /proc/net apps can tell they exist, but not read them.
 -- The property files of the partitions and fstab are there on every device, so the ones apps cannot read, like
--- /system/build.prop of Android 14 (EACCES), stay as they are: hiding them would turn EACCES into ENOENT. So do
+-- /system/build.prop of Android 14 (EACCES), stay as they are: hiding them would turn EACCES into ENOENT; the same for
+-- the manifests and SELinux contexts of vintf and the drivers of the GPU (EVERYWHERE, the files of every device). So do
 -- the ids of Read.Identifiers which SELinux lets apps find but not read: the id stays unknown, and the driver
 -- makes the file with the others of its folder, like cid with csd and date of an SD card.
+local EVERYWHERE = { 'build%.prop$', '/fstab%.[^/]*$', '/manifest%.xml$', '/vintf/', '/selinux/', '/egl/' }
+
 function reachable(group, path, param)
     local ok, exists = pcall(function()
         return param:unhooked(function()
             local file = luajava.newInstance('java.io.File', path)
-            if group == 'Read.Network' or group == 'Read.Identifiers' or string.find(path, 'build%.prop$') or
-                    string.find(path, '/fstab%.[^/]*$') then
+            if group == 'Read.Network' or group == 'Read.Identifiers' then
                 return file:canRead()
+            end
+            for _, pattern in ipairs(EVERYWHERE) do
+                if string.find(path, pattern) then
+                    return file:canRead()
+                end
             end
             return file:exists()
         end)
@@ -444,6 +499,106 @@ function brandfont(path)
     return true
 end
 
+-- Whether a file is a driver of the GPU, in the folder egl of the libraries of a partition, like
+-- /vendor/lib64/egl/libGLESv2_adreno.so and libGLES_mali.so, which name the GPU (see gles_getstring); the folder stays,
+-- the system loads the driver natively, and so do the libraries of ANGLE, which name no GPU, like ro.hardware.egl=angle
+function gpudriver(path)
+    local name = string.match(path, '^/[%w_]+/lib%w*/egl/([^/]+)$') or string.match(path, '^/system/[%w_]+/lib%w*/egl/([^/]+)$')
+    return name ~= nil and not string.find(name, '_angle%.so$')
+end
+
+-- The files of the vendor which the maps of the app leave out: the libraries of the partitions of the vendor, which
+-- only the GPU driver and the graphics HALs load into apps, named after the GPU or the board, like libgsl.so of Adreno,
+-- the libraries of the emulator and mapper.qti.so, gralloc.msm8998.so and vulkan.adreno.so of /hw; the GPU drivers of
+-- /system of devices without Treble (see gpudriver), and the devices of the GPUs of Adreno, Mali and PowerVR, whose
+-- memory the driver maps. ANGLE names no GPU (see gpudriver).
+local VENDOR = { '^/vendor/lib', '^/odm/lib', '^/system/vendor/lib', '^/dev/kgsl', '^/dev/mali', '^/dev/pvrsrvkm' }
+
+function vendorfile(path)
+    if string.find(path, '_angle%.so') then
+        return false
+    elseif gpudriver(path) then
+        return true
+    end
+    for _, prefix in ipairs(VENDOR) do
+        if string.find(path, prefix) then
+            return true
+        end
+    end
+    return false
+end
+
+-- The maps or smaps of a process without the mappings of vendorfile, and how many it left out; a line of a mapping
+-- starts with its addresses, and in smaps the lines after it belong to it. The path is after the inode, the first /
+-- of the line after a space, unlike in names like [anon:dalvik-/system/framework/boot.art].
+function unmapped(text)
+    local result, left, skipping = {}, 0, false
+    for line in string.gmatch(text, '[^\n]*\n?') do
+        if string.find(line, '^%x+%-%x+ ') then
+            local path = string.match(line, '^%x+%-%x+ [^/\n]* (/[^\n]*)')
+            skipping = path ~= nil and vendorfile(path)
+            left = left + (skipping and 1 or 0)
+        end
+        if not skipping then
+            result[#result + 1] = line
+        end
+    end
+    return table.concat(result), left
+end
+
+-- The partitions of a mount table or entry by name in /dev/block/by-name, which the paths of the controllers lead to,
+-- like /dev/block/pci/pci0000:00/0000:00:06.0/by-name/metadata of the emulator, and how many it renamed. Android 9 and
+-- later make the links of by-name; SELinux does not let apps search /dev/block on any version, so that Android 8.1
+-- has none cannot be found either.
+function byname(text)
+    return string.gsub(text, '/dev/block/[^%s]-/by%-name/', '/dev/block/by-name/')
+end
+
+-- The tables of the process which the app opened with a hook of open of Use.Tracking, by the path they lead to through
+-- /proc or a descriptor, like /proc/self/maps, /proc/thread-self/smaps, /proc/mounts, a link to self/mounts, and
+-- /dev/fd/9/maps of a descriptor of /proc/self, not by links of the app itself: the maps without the files of the
+-- vendor (see unmapped), and the mount tables with the partitions by name (see byname)
+function tables(hook, param)
+    local path = pathof(param)
+    if about(hook).group ~= 'Use.Tracking' or param:getException() ~= nil or param:getResult() == nil or
+            not (string.find(path, 'proc/', 1, true) or string.find(path, '/fd/', 1, true)) or not tabled(path) then
+        return false
+    end
+    local resolved = resolve(path, param)
+    local name = string.match(resolved, '^/proc/[^/]+/(%a+)$') or string.match(resolved, '^/proc/[^/]+/task/%d+/(%a+)$')
+    local text, left
+    if name == 'maps' or name == 'smaps' then
+        text, left = unmapped(param:getFileText())
+    elseif name == 'mounts' or name == 'mountinfo' or name == 'mountstats' then
+        text, left = byname(param:getFileText())
+    end
+    if left == nil or left == 0 then
+        return false
+    end
+    param:setFileText(text)
+    return true, tostring(left)
+end
+
+-- The name and the text of a file store of java.nio, name() and toString(), like of the stores of
+-- FileSystems.getDefault().getFileStores(), which it makes of the mount entries it reads of /proc/mounts natively: the
+-- partition by name, like the mount tables (see byname). Files.getFileStore(path) throws SecurityException on Android
+-- 8.1 to 17, so that list is the way apps get stores, of the mounts whose folder they can stat, like /system where
+-- Android 8.1 and 9 mount it straight from its partition. The methods are hooked rather than the natives which fill the
+-- entries, since the name in the entry is a field the hidden API rules block: a listing of the fields may leave it out,
+-- and getDeclaredField reports it to StrictMode as a hidden API the app used.
+function storename(param)
+    local result = param:getResult()
+    if param:getException() ~= nil or result == nil then
+        return false
+    end
+    local renamed, count = byname(result)
+    if count == 0 then
+        return false
+    end
+    param:setResult(renamed)
+    return true, result, renamed
+end
+
 -- Whether a file is one of a group, without the cache, so other threads can ask too (see listing)
 function matched(group, path, param)
     local plain = unrooted(path)
@@ -477,12 +632,13 @@ function matched(group, path, param)
         end
     end
     -- Also through the descriptor of a folder, like /proc/self/fd/57/SamsungOne.ttf of /system/fonts
-    if group == 'Use.Tracking' and (string.find(path, 'fonts', 1, true) or string.find(path, '/fd/', 1, true)) then
-        if brandfont(plain) then
+    if group == 'Use.Tracking' and (string.find(path, 'fonts', 1, true) or string.find(path, 'egl', 1, true) or
+            string.find(path, '/fd/', 1, true)) then
+        if brandfont(plain) or gpudriver(plain) then
             return true
         end
         resolved = resolve(plain, param)
-        if brandfont(resolved) then
+        if brandfont(resolved) or gpudriver(resolved) then
             return true
         end
     end
@@ -550,13 +706,16 @@ end
 
 -- The error of a call on a hidden file: of making a file, a folder or a pipe by its name (open and openat with
 -- O_CREAT, mkdir, mkfifo) like a missing name in a folder of /sys, which apps cannot write (EACCES), unless making
--- answers first, since Linux never gives ENOENT for a name it makes in a folder which exists; else of a name no
--- lookup finds
+-- answers first, since Linux never gives ENOENT for a name it makes in a folder which exists; of removing it (remove)
+-- EROFS on a file system mounted read-only, like the fonts of /system, which Linux checks before it looks the name up;
+-- else of a name no lookup finds
 function failing(hook, path, param)
     local method = about(hook).method
     local flags = (method == 'open' and param:getArgument(1)) or (method == 'openat' and param:getArgument(2)) or 0
     if method == 'mkdir' or method == 'mkfifo' or bit32.band(flags, O_CREAT) ~= 0 then
         return making(hook, path, param) or EACCES
+    elseif method == 'remove' then
+        return making(hook, path, param) or ENOENT
     end
     return ENOENT
 end
@@ -684,7 +843,9 @@ function listing(hook, param, folder)
 end
 
 -- Whether the store of certificates of the app reads the certificates of the user, which runs in the app and must
--- find them, or TLS with them fails; what the app itself asks the store is filtered (see device_details)
+-- find them, or TLS with them fails; what the app itself asks the store is filtered (see device_details). The store
+-- finds a certificate by the hash of its subject, as a file name; only listing the folder gives all of them, which
+-- the accepted issuers of the trust manager and the aliases of the store do, so the listing leaves them out (see after).
 function truststore()
     local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
     for index = 1, frames['length'] do
@@ -724,7 +885,9 @@ end
 function before(hook, param)
     local class, method = about(hook).class, about(hook).method
     local path
-    if method == 'openat' or method == 'fstatat' or method == 'unlinkat' then
+    if method == 'name' or method == 'toString' then
+        return false
+    elseif method == 'openat' or method == 'fstatat' or method == 'unlinkat' then
         -- unlinkat of a hidden id: ENOENT (see failing), which Linux gives for a missing name before it checks the
         -- permissions; the ids are in /sys, which is mounted read-write, so EROFS does not come first
         path = atpath(hook, param, 1)
@@ -735,6 +898,12 @@ function before(hook, param)
         return renaming(hook, param)
     else
         path = pathof(param)
+    end
+    -- Files which only the parts of the tables of the process let in, like in a folder maps of the app, are no hidden
+    -- files; paths of /proc run the script, since filtered does not know all its links to the root
+    if method == 'open' and about(hook).group == 'Use.Tracking' and not string.find(path, '^/?proc/') and
+            tabled(path) and not filtered('Use.Tracking', path) then
+        return false
     end
     if class == 'sun.nio.fs.UnixFileSystemProvider' and method == 'newDirectoryStream' then
         return listing(hook, param, path)
@@ -756,6 +925,9 @@ function before(hook, param)
             -- of getxattr (ERANGE), older kernels after, and libcore throws NullPointerException for a null name
             -- or value before the kernel runs
             param:setArgument(0, '')
+        elseif method == 'remove' then
+            -- EROFS, which the real call gives for the hidden file as for a missing one, with the stack trace of Android
+            return false
         else
             -- shortcut: the other errors (EACCES, EROFS) are made here, so their stack trace has the frames of the
             -- script, make them by a real call of a path with the same error if apps compare traces
@@ -873,10 +1045,16 @@ function featuretext(hook, param)
     return true, tostring(count)
 end
 
--- File.list of a folder with hidden files: without their names; a feature file opened: without hidden features
+-- File.list of a folder with hidden files: without their names; a feature file opened: without hidden features; the
+-- tables of the process an app opened (see tables) and the names of the file stores of java.nio (see storename)
 function after(hook, param)
     if about(hook).method == 'open' then
+        if about(hook).group == 'Use.Tracking' then
+            return tables(hook, param)
+        end
         return featuretext(hook, param)
+    elseif about(hook).method == 'name' or about(hook).method == 'toString' then
+        return storename(param)
     end
     if about(hook).method ~= 'list0' or param:getException() ~= nil then
         return false
@@ -887,9 +1065,6 @@ function after(hook, param)
     end
 
     local folder = pathof(param)
-    if string.find(folder, 'cacerts', 1, true) and truststore() then
-        return false
-    end
     local kept = {}
     if not unlisted(about(hook).group, folder, param) then
         -- Of the root the path is /name, not //name, which the patterns of the root do not match

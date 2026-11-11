@@ -241,6 +241,7 @@ public class AuditScriptsTest {
             Varargs result = Scripts.run(globals,
                     "local values = { userAgent = 'SAMSUNG-SM-G991B', uaProfUrl = 'http://wap.samsungmobile.com/uaprof/SM-G991B.xml' }\n" +
                             "local bundle = { getString = function(self, key) return values[key] end,\n" +
+                            "  getBoolean = function(self, key) return values[key] == true end,\n" +
                             "  putString = function(self, key, value) values[key] = value end }\n" +
                             "return after(hookof('" + method + "'), paramof(bundle)), values.userAgent, values.uaProfUrl");
             assertTrue(method, result.arg(1).toboolean());
