@@ -16,10 +16,12 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
--- A result without transitions: apps check with hasResult, which is not hooked, that the intent has a result
+-- A result without transitions: apps check with hasResult, which is not hooked, that the intent has a result;
+-- of extractResult and of the creator, which makes the results also when the app reads the extra itself, and which
+-- R8 can merge with the creators of other classes
 function after(hook, param)
     local result = param:getResult()
-    if result == nil then
+    if not param:isInstance(result, 'com.google.android.gms.location.ActivityTransitionResult') then
         return false
     end
 

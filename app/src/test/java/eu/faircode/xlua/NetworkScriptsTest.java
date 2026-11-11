@@ -1031,18 +1031,33 @@ public class NetworkScriptsTest {
         assertTrue(result.arg(5).isnil());
     }
 
+    // Of extractResult and of the creator, which R8 can merge with the creators of other classes, whose objects stay
     @Test
     public void transitionResultIsEmpty() throws Exception {
         Globals globals = load("activitytransitionresult_extractresult");
         Varargs result = Scripts.run(globals,
-                "classes['com.google.android.gms.location.ActivityTransitionResult'] = true\n" +
+                "local class = 'com.google.android.gms.location.ActivityTransitionResult'\n" +
+                        "classes[class] = true\n" +
                         "luajava = { newInstance = function(name) assert(name == 'java.util.ArrayList') return {} end,\n" +
                         "  new = function(class, events) return { class = class, events = events } end }\n" +
-                        "local param = paramof({})\n" +
-                        "return after(hookof('extractResult'), param), param.result.class, #param.result.events");
+                        "local function resultof(object) local param = paramof(object)\n" +
+                        "  param.isInstance = function(self, object, name) return object ~= nil and object.class == name end\n" +
+                        "  return param end\n" +
+                        "local param = resultof({ class = class })\n" +
+                        "local creator = resultof({ class = class })\n" +
+                        "local other = resultof({ class = 'com.google.android.gms.location.ActivityTransitionEvent' })\n" +
+                        "return after(hookof('extractResult'), param), param.result.class, #param.result.events,\n" +
+                        "  after(hookof('CREATOR:createFromParcel'), creator), #creator.result.events,\n" +
+                        "  after(hookof('CREATOR:createFromParcel'), other), other.result.events,\n" +
+                        "  after(hookof('extractResult'), resultof(nil))");
         assertTrue(result.arg(1).toboolean());
         assertEquals("com.google.android.gms.location.ActivityTransitionResult", result.arg(2).tojstring());
         assertEquals(0, result.arg(3).toint());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals(0, result.arg(5).toint());
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(7).isnil());
+        assertFalse(result.arg(8).toboolean());
     }
 
     // Bundles and application infos as Lua sees them

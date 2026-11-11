@@ -15,13 +15,15 @@
 
 -- Copyright 2026 akano12
 
--- The sleep events of Play services (SleepSegmentEvent and SleepClassifyEvent): none, the empty list Play services
--- gives for an intent without events, which cannot be changed, like all its lists
+-- The sleep events of Play services (SleepSegmentEvent and SleepClassifyEvent): none, in the list Play services
+-- gives for an intent which has the events extra, an unmodifiable ArrayList, also when it is empty;
+-- Collections.emptyList, which it gives only without the extra, would be another class while hasEvents is true
 function after(hook, param)
     local result = param:getResult()
     if result == nil or result:isEmpty() then
         return false
     end
-    param:setResult(luajava.bindClass('java.util.Collections'):emptyList())
+    local none = luajava.newInstance('java.util.ArrayList')
+    param:setResult(luajava.bindClass('java.util.Collections'):unmodifiableList(none))
     return true, tostring(result:size()), '0'
 end

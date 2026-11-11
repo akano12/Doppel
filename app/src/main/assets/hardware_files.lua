@@ -26,6 +26,7 @@
 -- read, listed or found, with java.io, android.system.Os and java.nio.file. The paths are resolved first,
 -- so the links of /sys do not lead to the files either, like /sys/bus/mmc/devices/mmc0:0001/cid.
 -- Each variant hides the files of its group, and folders listed with java.nio.file leave the names of hidden files out.
+-- The feature files of the system which stay are read without the features the group hides (see FEATURES).
 -- A SecureDirectoryStream of java.nio, which Files.newDirectoryStream gives, opens, removes and moves the files of its
 -- folder and reads their attributes by the descriptor of the folder and their name (openat, unlinkat, renameat and
 -- fstatat, see atpath), which only the groups which hook those calls cover. Not covered is native code. The property
@@ -98,11 +99,15 @@ local FILES = {
     -- /product and the others, and sysconfig), like com.samsung.feature.*, which apps can read
     ['Read.Features'] = {},
     ['Get.Applications'] = {},
+    ['Get.Sensors'] = {},
 }
 
 -- The folders etc of the system, so a copy of a Linux system an app unpacks in its own folder keeps its files:
--- of the root, of each partition, like /vendor/etc, also /system/product/etc, and of APEX modules
-local ETC = { '^/etc/', '^/[%w_]+/etc/', '^/system/[%w_]+/etc/', '^/apex/[^/]+/etc/' }
+-- of the root, of each partition, like /vendor/etc, also /system/product/etc, and of APEX modules; and the folder
+-- /odm/etc leads to on Android 9 and later without an odm partition, /vendor/odm/etc (/system/vendor/odm/etc where
+-- /vendor is a link to /system/vendor), which is its canonical path then
+local ETC = { '^/etc/', '^/[%w_]+/etc/', '^/system/[%w_]+/etc/', '^/apex/[^/]+/etc/', '^/vendor/odm/etc/',
+              '^/system/vendor/odm/etc/' }
 
 for group, names in pairs({
     -- The codecs of the chip by name (see media_codecs), like /vendor/etc/media_codecs_sm8550_vendor.xml, the
@@ -111,7 +116,13 @@ for group, names in pairs({
     ['Use.Tracking'] = { 'media_codecs[^/]*%.xml$', 'build%.prop$', 'fstab%.[^/]*$' },
     ['Read.Features'] = { 'permissions$', 'permissions/', 'sysconfig$', 'sysconfig/' },
     -- The permissions of the system apps, a file per app, like privapp-permissions-com.samsung.android.dialer.xml
-    ['Get.Applications'] = { 'permissions/privapp%-permissions%-[^/]*$' } }) do
+    ['Get.Applications'] = { 'permissions/privapp%-permissions%-[^/]*$' },
+    -- The files of the sensor features, a file per feature, like android.hardware.sensor.gyroscope.xml, from which
+    -- the system has the features hasSystemFeature answers (see features); the other feature files stay, without
+    -- the sensor features (see FEATURES). Android 10 and later also read a folder for the SKU of the device in there,
+    -- like /odm/etc/permissions/sku_X (in /vendor too from Android 11, in /product from Android 15), no deeper one.
+    ['Get.Sensors'] = { 'permissions/android%.hardware%.sensor%.[^/]*$',
+                        'permissions/sku_[^/]+/android%.hardware%.sensor%.[^/]*$' } }) do
     for _, name in ipairs(names) do
         for _, etc in ipairs(ETC) do
             table.insert(FILES[group], etc .. name)
@@ -151,7 +162,8 @@ end
 local FILTERS = {
     ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*',
                          '*/build.prop*', '*etc/fstab.*', '/fstab.*', '/', '*misc/user/*', '*/./*', '*//*',
-                         '/system/etc', '/vendor/etc', '/odm/etc', '/product/etc', '/system_ext/etc', '/etc' },
+                         '/system/etc', '/vendor/etc', '/odm/etc', '/vendor/odm/etc', '/product/etc', '/system_ext/etc',
+                         '/etc' },
     ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
     ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',
@@ -161,13 +173,28 @@ local FILTERS = {
                            '/system/bin', '/system/xbin', '/sbin', '/data/local', '/cache', '/dev', '/vendor/bin',
                            '/vendor/xbin', '/product/bin', '/system_ext/bin', '/odm/bin', '/system/app' },
     ['Read.Features'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*', '/system/etc', '/vendor/etc',
-                          '/odm/etc', '/product/etc', '/system_ext/etc', '/etc' },
+                          '/odm/etc', '/vendor/odm/etc', '/product/etc', '/system_ext/etc', '/etc' },
     ['Get.Applications'] = { '*etc/permissions*', '*/./*', '*//*', '/system/app', '/system/priv-app', '/product/app',
                              '/product/priv-app', '/system_ext/app', '/system_ext/priv-app', '/vendor/app',
                              '/vendor/priv-app', '/odm/app', '/odm/priv-app', '/system/product/app',
                              '/system/product/priv-app', '/system/system_ext/app', '/system/system_ext/priv-app',
                              '/system/vendor/app', '/system/vendor/priv-app' },
+    ['Get.Sensors'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
 }
+
+-- The features of the system each group hides from the feature files which stay, like handheld_core_hardware.xml,
+-- by the start of their names, the same as the hooks of the group in features hide
+local FEATURES = { ['Get.Sensors'] = 'android.hardware.sensor.' }
+
+-- The feature files of the system, which it reads its features from, in the folders permissions and sysconfig of etc
+-- and in their folders of the SKU of the device, like sku_X, which Android 10 and later read too (see Get.Sensors)
+local FEATURE_FILES = {}
+for _, etc in ipairs(ETC) do
+    table.insert(FEATURE_FILES, etc .. 'permissions/[^/]+%.xml$')
+    table.insert(FEATURE_FILES, etc .. 'sysconfig/[^/]+%.xml$')
+    table.insert(FEATURE_FILES, etc .. 'permissions/sku_[^/]+/[^/]+%.xml$')
+    table.insert(FEATURE_FILES, etc .. 'sysconfig/sku_[^/]+/[^/]+%.xml$')
+end
 
 -- Whether a network interface is of a VPN, like vpn and interface_entries, which a test compares
 function isvpninterface(name)
@@ -184,12 +211,14 @@ function isvpninterface(name)
 end
 
 -- The error of a file which does not exist, OsConstants.ENOENT, the error of making a file in a folder the app cannot
--- write, EACCES, and on a file system mounted read-only, EROFS, the flag of open which makes the file, O_CREAT, and
--- the flag of statvfs of a file system mounted read-only, ST_RDONLY, the same on every Linux
+-- write, EACCES, and on a file system mounted read-only, EROFS, the flag of open which makes the file, O_CREAT, the bits
+-- of open for reading or writing, O_ACCMODE (0 is O_RDONLY), and the flag of statvfs of a file system mounted
+-- read-only, ST_RDONLY, the same on every Linux
 local ENOENT = 2
 local EACCES = 13
 local EROFS = 30
 local O_CREAT = 64
+local O_ACCMODE = 3
 local ST_RDONLY = 1
 
 -- The script runs for the files of /sys only (with net/ in the path for Read.Network and Read.VPN, see FILTERS for
@@ -421,6 +450,13 @@ function matched(group, path, param)
     -- Only the file it leads to counts: the filter passes all paths with /../, like ones through a folder of the app
     if string.find(plain, '/../', 1, true) then
         plain = resolve(plain, param)
+    end
+    -- A file the app makes itself in the shared storage, like /sdcard/etc/permissions/android.hardware.sensor.light.xml,
+    -- is no sensor file of the system, as for featurefile.
+    -- shortcut: Read.Features, Get.Applications and Use.Tracking still hide the names of their etc patterns there, like
+    -- /sdcard/etc/permissions, leave them too if apps make such files
+    if group == 'Get.Sensors' and string.find(plain, '^/sdcard/') then
+        return false
     end
     -- Resolved once, when needed: getCanonicalPath reads the file system
     local resolved
@@ -778,8 +814,70 @@ function before(hook, param)
     return true, path
 end
 
--- File.list of a folder with hidden files: without their names
+-- Whether a path is of a feature file of the system, by the path or the path it leads to, like with /../ or relative
+-- to the root; not the same names in a folder of the app, nor in /sdcard/etc, shared storage apps can write to
+function featurefile(path, param)
+    local function found(text)
+        if string.find(text, '^/sdcard/') then
+            return false
+        end
+        for _, pattern in ipairs(FEATURE_FILES) do
+            if string.find(text, pattern) then
+                return true
+            end
+        end
+        return false
+    end
+    -- Resolved only with etc/ or the descriptor of a folder in the path, like /proc/self/fd/57/handheld_core_hardware.xml,
+    -- since the filter also passes every path with // and /./
+    local plain = unrooted(path)
+    local linked = string.find(plain, 'etc/', 1, true) ~= nil or string.find(plain, '/fd/', 1, true) ~= nil
+    return found(plain) or (linked and found(resolve(plain, param)))
+end
+
+-- The text of a feature file without the features whose names start with the prefix, and the number left out; as
+-- long as the file, which stat and File.length give, by spaces after the root element, which XML allows (like
+-- font_config). shortcut: only empty elements, <feature name="..." />, which the files of AOSP and of makers have,
+-- upgrade when a device declares a feature as <feature name="..."></feature>.
+function withoutfeatures(text, prefix)
+    local count = 0
+    local result = string.gsub(text, '%s*<feature%s[^>]*/>', function(element)
+        local name = string.match(element, '%sname%s*=%s*"([^"]*)"') or string.match(element, "%sname%s*=%s*'([^']*)'")
+        if name ~= nil and string.sub(name, 1, string.len(prefix)) == prefix then
+            count = count + 1
+            return ''
+        end
+        return nil
+    end)
+    if #result < #text then
+        result = result .. string.rep(' ', #text - #result)
+    end
+    return result, count
+end
+
+-- A feature file the app opened, without the features the group hides (see FEATURES); a hidden file did not open.
+-- Only when opened for reading: the text of a file opened for writing cannot be read, and replacing its descriptor
+-- would lose what the app writes. The flags are the second argument of both BlockGuardOs.open and
+-- UnixNativeDispatcher.open.
+function featuretext(hook, param)
+    local prefix = FEATURES[about(hook).group]
+    if prefix == nil or bit32.band(param:getArgument(1), O_ACCMODE) ~= 0 or param:getException() ~= nil or
+            param:getResult() == nil or not featurefile(pathof(param), param) then
+        return false
+    end
+    local text, count = withoutfeatures(param:getFileText(), prefix)
+    if count == 0 then
+        return false
+    end
+    param:setFileText(text)
+    return true, tostring(count)
+end
+
+-- File.list of a folder with hidden files: without their names; a feature file opened: without hidden features
 function after(hook, param)
+    if about(hook).method == 'open' then
+        return featuretext(hook, param)
+    end
     if about(hook).method ~= 'list0' or param:getException() ~= nil then
         return false
     end

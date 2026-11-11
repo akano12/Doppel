@@ -31,6 +31,7 @@ import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.system.Os;
 import android.system.OsConstants;
+import android.system.StructStat;
 import android.util.Log;
 import android.webkit.WebView;
 
@@ -526,7 +527,7 @@ public class XParam {
                 throw ex;
             }
         } else
-            fake = oldFile(this.context.getCacheDir(), bytes);
+            fake = oldFile(this.context.getCacheDir(), bytes, sameSize(opened, bytes.length));
         if (opened instanceof Integer) {
             this.param.setResult(ParcelFileDescriptor.dup(fake).detachFd());
             Os.close(fake);
@@ -537,11 +538,26 @@ public class XParam {
         }
     }
 
+    // Whether the hooked method opened a regular file as long as the text, like a feature file of the system padded to
+    // its length, unlike the files of /proc, which have no length
+    private static boolean sameSize(Object opened, int length) throws Throwable {
+        if (length == 0)
+            return false;
+        if (opened instanceof Integer)
+            try (ParcelFileDescriptor pfd = ParcelFileDescriptor.fromFd((Integer) opened)) {
+                return sameSize(pfd.getFileDescriptor(), length);
+            }
+        StructStat stat = Os.fstat((FileDescriptor) opened);
+        return OsConstants.S_ISREG(stat.st_mode) && stat.st_size == length;
+    }
+
     // Before Android 11, without files in memory: a pipe, which holds at least a page without a reader, like for
-    // the small files of /proc; a larger text, like the font configuration of tens of kB, in a file of the app
-    // which is removed right away, opened read-only like the file it replaces
-    static FileDescriptor oldFile(File folder, byte[] bytes) throws Throwable {
-        if (bytes.length <= 4096) {
+    // the small files of /proc; a larger text, like the font configuration of tens of kB, and the text of a regular
+    // file as long as the file (see sameSize) in a file of the app which is removed right away, opened read-only like
+    // the file it replaces, since fstat of a pipe gives a FIFO of no length, while stat of the path gives the file,
+    // and RandomAccessFile.length, which is fstat, would be 0
+    static FileDescriptor oldFile(File folder, byte[] bytes, boolean sameSize) throws Throwable {
+        if (bytes.length <= 4096 && !sameSize) {
             FileDescriptor[] pipe = Os.pipe();
             try {
                 for (int at = 0; at < bytes.length; )

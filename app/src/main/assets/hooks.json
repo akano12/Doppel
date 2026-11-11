@@ -84,6 +84,109 @@
     "optional": true,
     "luaScript": "@activitytransitionresult_extractresult"
   },
+  // The creators make the results of the extras of the intents of Play services also when the app reads them itself,
+  // like by SafeParcelableSerializer.deserializeFromBytes, and the activity of the snapshots of Awareness
+  // (DetectedActivityResponse), so every read agrees with extractResult.
+  // shortcut: in apps R8 shrank, the creator of the activity keeps the real result (see its script) and the one of the
+  // transitions, whose class R8 renames, does not install; the sleep events stay in their extras, a list of byte
+  // arrays, which needs the extras of the intents the app gets, unparcelled with the class loader of the app before
+  // Android 13; and DetectedActivityFence of Awareness follows the real activity, since fences of the fake unknown
+  // activity would need to be always or never true; do these when apps read them
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityRecognitionResult.createFromParcel",
+    "author": "akano12",
+    "className": "com.google.android.gms.location.ActivityRecognitionResult",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "com.google.android.gms.location.ActivityRecognitionResult",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@activityrecognitionresult_extractresult"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityTransitionResult.createFromParcel",
+    "author": "akano12",
+    "className": "com.google.android.gms.location.ActivityTransitionResult",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "com.google.android.gms.location.ActivityTransitionResult",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@activitytransitionresult_extractresult"
+  },
+  // The activity identification and conversions (transitions) of HMS Location Kit of Huawei, like those of Play
+  // services, also by their creators, which make them of the extras of the intents getDataFromIntent reads, so a read
+  // of the extra itself agrees. The rule Huawei documents for apps (-keep class com.huawei.hms.**{*;}) keeps these
+  // names in apps R8 minified, and so do the consumer rules of its LocationLiteSdk core from 2.1.0.300 (Location Kit
+  // 6.1); Location Kit 6.0 and older have none for the classes of com.huawei.hms.location.
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityIdentificationResponse.getDataFromIntent",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityIdentificationResponse",
+    "methodName": "getDataFromIntent",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "com.huawei.hms.location.ActivityIdentificationResponse",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@activityidentificationresponse_getdatafromintent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityConversionResponse.getDataFromIntent",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityConversionResponse",
+    "methodName": "getDataFromIntent",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "com.huawei.hms.location.ActivityConversionResponse",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@activityidentificationresponse_getdatafromintent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityIdentificationResponse.createFromParcel",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityIdentificationResponse",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "com.huawei.hms.location.ActivityIdentificationResponse",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@activityidentificationresponse_getdatafromintent"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityConversionResponse.createFromParcel",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityConversionResponse",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "com.huawei.hms.location.ActivityConversionResponse",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@activityidentificationresponse_getdatafromintent"
+  },
   // Get applications
   // https://developer.android.com/reference/android/app/ActivityManager.html
   // https://developer.android.com/reference/android/appwidget/AppWidgetManager.html
@@ -6974,6 +7077,39 @@
     ],
     "luaScript": "@location"
   },
+  // The location updates of a PendingIntent, which stay parcelled in the extras of the intent until the app reads them
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "Intent.createFromParcel/location",
+    "author": "akano12",
+    "className": "android.content.Intent",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@location"
+  },
+  // And when Android gives an intent to a component: of an update which starts the app, read before the hooks are there,
+  // and of onNewIntent, which has a CREATOR of its own (ReferrerIntent)
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "Intent.setExtrasClassLoader/location",
+    "author": "akano12",
+    "className": "android.content.Intent",
+    "methodName": "setExtrasClassLoader",
+    "parameterTypes": [
+      "java.lang.ClassLoader"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@location"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Location",
@@ -7038,13 +7174,94 @@
     "minSdk": 27,
     "luaScript": "@generic_block"
   },
+  // Geofences leave the app for Play services as the parcel of their request; the fences the app keeps have its region
   {
     "collection": "Privacy",
     "group": "Get.Location",
-    "name": "Geofence$Builder.setCircularRegion",
-    "author": "M66B",
-    "className": "com.google.android.gms.location.Geofence$Builder",
-    "methodName": "setCircularRegion",
+    "name": "GeofencingRequest.writeToParcel",
+    "author": "akano12",
+    "className": "com.google.android.gms.location.GeofencingRequest",
+    "methodName": "writeToParcel",
+    "parameterTypes": [
+      "android.os.Parcel",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@geofencingrequest_writetoparcel"
+  },
+  // The location fences of Awareness, which Play services evaluates on the real location like geofences
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationFence.in",
+    "author": "akano12",
+    "className": "com.google.android.gms.awareness.fence.LocationFence",
+    "methodName": "in",
+    "parameterTypes": [
+      "double",
+      "double",
+      "double",
+      "long"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@geofence$builder_setcircularregion"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationFence.entering",
+    "author": "akano12",
+    "className": "com.google.android.gms.awareness.fence.LocationFence",
+    "methodName": "entering",
+    "parameterTypes": [
+      "double",
+      "double",
+      "double"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@geofence$builder_setcircularregion"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationFence.exiting",
+    "author": "akano12",
+    "className": "com.google.android.gms.awareness.fence.LocationFence",
+    "methodName": "exiting",
+    "parameterTypes": [
+      "double",
+      "double",
+      "double"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@geofence$builder_setcircularregion"
+  },
+  // HMS Location Kit of Huawei: its geofences, and its own HWLocation, which it makes in the app of the JSON answers of
+  // HMS Core and of its own location service (updates, getLastLocation, getLastLocationWithAddress), of the parcels
+  // of LocationResult (LocationResult.extractResult of a PendingIntent) and in LocationResult.create, which its parsers
+  // of updates (versions 4.0.4 to 6.12 checked) and its dead reckoning (requestLocationUpdatesEx, 6.12 checked) end in,
+  // faked in place, so getHWLocationList and the Location copies of getLocations and getLastLocation agree; where the
+  // parser has its name (5.0.5 and 6.x) an update is faked twice, to the same values, so logged twice unless coarse.
+  // The rule Huawei documents for apps (-keep class com.huawei.hms.**{*;}) keeps these names in apps R8 minified, and
+  // so do the consumer rules of its LocationLiteSdk core from 2.1.0.300 (Location Kit 6.1); Location Kit 6.0 and older
+  // have none for the classes of com.huawei.hms.location.
+  // The places of its geocoder and the offline locations it finds of the cells and Wi-Fi networks the app gives it
+  // (getOfflineLocation) stay, since they are of what the app asks for, like those of the geocoder of Android.
+  // shortcut: Location Kit before 6.0, except 5.0.5, obfuscates the parser of LocationJsonUtil (in 4.0.4 and 5.0.0
+  // com.huawei.hms.support.api.a.c.c.a, in 5.1.0 com.huawei.hms.locationSdk.w0.a), so there getLastLocation and
+  // getLastLocationWithAddress stay real; hook those parsers by their names when apps use these versions.
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "Geofence$Builder.setRoundArea",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.Geofence$Builder",
+    "methodName": "setRoundArea",
     "parameterTypes": [
       "double",
       "double",
@@ -7053,6 +7270,72 @@
     "minSdk": 27,
     "optional": true,
     "luaScript": "@geofence$builder_setcircularregion"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationJsonUtil.parseLocationFromJsonObject",
+    "author": "akano12",
+    "className": "com.huawei.hms.support.api.location.common.LocationJsonUtil",
+    "methodName": "parseLocationFromJsonObject",
+    "parameterTypes": [
+      "org.json.JSONObject"
+    ],
+    "returnType": "com.huawei.hms.location.HWLocation",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "location.type",
+      "location.latitude",
+      "location.longitude",
+      "location.accuracy",
+      "location.key"
+    ],
+    "luaScript": "@location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationResult.createFromParcel",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.LocationResult",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "com.huawei.hms.location.LocationResult",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "location.type",
+      "location.latitude",
+      "location.longitude",
+      "location.accuracy",
+      "location.key"
+    ],
+    "luaScript": "@location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "LocationResult.create",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.LocationResult",
+    "methodName": "create",
+    "parameterTypes": [
+      "java.util.List"
+    ],
+    "returnType": "com.huawei.hms.location.LocationResult",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "location.type",
+      "location.latitude",
+      "location.longitude",
+      "location.accuracy",
+      "location.key"
+    ],
+    "luaScript": "@location"
   },
   {
     "collection": "Privacy",
@@ -8059,6 +8342,64 @@
     "minSdk": 27,
     "luaScript": "@generic_zero_value"
   },
+  // The lists of all sensors the getters above read, hidden, which any app can call by reflection on Android 8.1 and
+  // apps targeting 8.1 or lower on every version (max-target-o); empty, so Android itself answers getSensorList,
+  // getDefaultSensor, getSensors and getDynamicSensorList like a device without sensors.
+  // shortcut: the fields mFullSensorsList and mFullDynamicSensorsList of SystemSensorManager, which reflection reads
+  // the same way, keep the sensors, since hooks cannot change a field read; replace them when apps read them
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "SystemSensorManager.getFullSensorList",
+    "author": "akano12",
+    "className": "android.hardware.SystemSensorManager",
+    "methodName": "getFullSensorList",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "luaScript": "@generic_empty"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "SystemSensorManager.getFullDynamicSensorList",
+    "author": "akano12",
+    "className": "android.hardware.SystemSensorManager",
+    "methodName": "getFullDynamicSensorList",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "luaScript": "@generic_empty"
+  },
+  // The sensors of input devices, like the motion sensors of a game controller (InputDevice.getSensorManager), whose
+  // manager is not the system one the hooks above resolve to: its getDefaultSensor finds the sensor itself, and
+  // getSensorList, getDefaultSensor of wake-up sensors and getSensors read its getFullSensorList
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "InputSensorManager.getDefaultSensor",
+    "author": "akano12",
+    "className": "android.hardware.input.InputDeviceSensorManager$InputSensorManager",
+    "methodName": "getDefaultSensor",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.hardware.Sensor",
+    "minSdk": 31,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "InputSensorManager.getFullSensorList",
+    "author": "akano12",
+    "className": "android.hardware.input.InputDeviceSensorManager$InputSensorManager",
+    "methodName": "getFullSensorList",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 31,
+    "luaScript": "@generic_empty"
+  },
   // The sensor features (android.hardware.sensor.*), which Read.Features leaves to this group, see features
   {
     "collection": "Privacy",
@@ -8100,6 +8441,609 @@
     "returnType": "android.content.pm.FeatureInfo[]",
     "minSdk": 27,
     "luaScript": "@features"
+  },
+  // The files of the sensor features do not exist and the other feature files of the system are read without the
+  // sensor features, like for a device without sensors (see hardware_files)
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "BlockGuardOs.open/sensor_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "BlockGuardOs.stat/sensor_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "BlockGuardOs.lstat/sensor_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "BlockGuardOs.access/sensor_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.access/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.statvfs/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "statvfs",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.getxattr/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "getxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The calls which tell a file exists, like listing the attributes, changing them, the mode or the owner, which a file
+  // of a read-only partition refuses (EROFS), or linking it into another partition (EXDEV): a missing file gives
+  // ENOENT; setxattr and removexattr from Linux 6.11 and getxattr from 6.13 check their arguments first, and link
+  // throws for a null second path, which hardware_files leaves to Android
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.listxattr/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "listxattr",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.setxattr/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "setxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "byte[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.removexattr/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "removexattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.chmod/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.chown/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.lchown/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The first path is the file which must exist, the kernel looks it up first
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.link/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "link",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "BlockGuardOs.statvfs/sensor_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "statvfs",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 27,
+        "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystem.getBooleanAttributes0/sensor_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystem.canonicalize0/sensor_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystem.canonicalize0/native/sensor_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystem.checkAccess/sensor_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystem.getLastModifiedTime/sensor_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystem.list0/sensor_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "list0",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystem.getLength/sensor_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLength",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystem.getSpace/sensor_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getSpace",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.open/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.stat/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.stat/mode/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "int",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.lstat/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.access/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.exists/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "exists",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "boolean",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.opendir/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "opendir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystemProvider.newDirectoryStream/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "newDirectoryStream",
+    "parameterTypes": [
+      "java.nio.file.Path",
+      "java.nio.file.DirectoryStream$Filter"
+    ],
+    "returnType": "java.nio.file.DirectoryStream",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystemProvider.exists/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.realpath/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "realpath",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.readlink/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // Files.setPosixFilePermissions, setOwner and createLink, which give NoSuchFileException for a missing file, like
+  // the calls of Os
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.chmod/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.chown/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.lchown/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixNativeDispatcher.link/sensor_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "link",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "Os.readlink/sensor_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Sensors",
+    "name": "UnixFileSystem.createFileExclusively/sensor_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "createFileExclusively",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
   },
   // Dynamic sensors are never reported, the proximity sensor turns no screen off, and commands are refused, since pm list features prints the sensor features (sensors)
   {

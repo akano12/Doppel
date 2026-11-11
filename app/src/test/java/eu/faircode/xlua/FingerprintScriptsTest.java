@@ -649,6 +649,378 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(14).toboolean());
     }
 
+    // On Android 8.1 and 9 the SQL of a query of the media provider has the location columns NULL, like on Android 10,
+    // so the provider answers with its own cursor, also to aliases, expressions and duplicates, and its selection and
+    // sort order agree; aliases, types and strings of that name stay, and a * of the table gets the columns in place.
+    // A column stays for SQLite to resolve (NULLIF of itself), so one which is not there fails like without Doppel.
+    @Test
+    public void mediaQueriesHaveNullLocations() throws Exception {
+        Globals globals = Scripts.load("photo_location", STUBS + "\n" + Scripts.ARRAYOF);
+        String[][] columns = {{"latitude", "NULLIF(latitude, latitude) AS latitude"},
+                {"LATITUDE", "NULLIF(LATITUDE, LATITUDE) AS latitude"},
+                {"\"Latitude\"", "NULLIF(\"Latitude\", \"Latitude\") AS latitude"},
+                {"[longitude]", "NULLIF([longitude], [longitude]) AS longitude"},
+                {"`latitude`", "NULLIF(`latitude`, `latitude`) AS latitude"},
+                {"images.latitude", "NULLIF(images.latitude, images.latitude) AS latitude"},
+                {"main . \"images\".latitude", "NULLIF(main.\"images\".latitude, main.\"images\".latitude) AS latitude"},
+                {"bogus.latitude", "NULLIF(bogus.latitude, bogus.latitude) AS latitude"},
+                // SQLite takes a string next to a dot as a name
+                {"images.'latitude'", "NULLIF(images.'latitude', images.'latitude') AS latitude"},
+                {"'images'.latitude", "NULLIF('images'.latitude, 'images'.latitude) AS latitude"},
+                {"main.images.'longitude'", "NULLIF(main.images.'longitude', main.images.'longitude') AS longitude"},
+                {"'images'.*", "!'images'.*"}, {"'latitude'.x", "'latitude'.x"},
+                // A column of a subquery keeps its name
+                {"(SELECT f.'latitude' FROM files AS f LIMIT 1)", "(SELECT NULLIF(f.'latitude', f.'latitude') AS latitude " +
+                        "FROM files AS f LIMIT 1) AS \"(SELECT f.'latitude' FROM files AS f LIMIT 1)\""},
+                // A comment at the end stays, as it hides the rest of the SQL of the provider
+                {"(latitude)", "NULLIF(latitude, latitude) AS latitude"},
+                {"/* ' */ latitude -- '", "NULLIF(latitude, latitude) AS latitude -- '"},
+                {"latitude AS la", "NULLIF(latitude, latitude) AS la"}, {"latitude la", "NULLIF(latitude, latitude) la"},
+                {"latitude longitude", "NULLIF(latitude, latitude) longitude"},
+                // SQLite names an expression without an alias by its text
+                {"latitude+0", "NULLIF(latitude, latitude)+0 AS \"latitude+0\""},
+                {" latitude  +  0 ", "NULLIF(latitude, latitude)  +  0 AS \"latitude  +  0\""},
+                {"count(latitude)", "count(NULLIF(latitude, latitude)) AS \"count(latitude)\""},
+                {"latitude COLLATE NOCASE", "NULLIF(latitude, latitude) COLLATE NOCASE AS \"latitude COLLATE NOCASE\""},
+                {"CASE WHEN latitude IS NULL THEN 0 END",
+                        "CASE WHEN NULLIF(latitude, latitude) IS NULL THEN 0 END AS \"CASE WHEN latitude IS NULL THEN 0 END\""},
+                // ? takes digits only, like in SQLite, so ?THEN is ? and THEN
+                {"CASE WHEN ?THEN latitude END AS x", "CASE WHEN ?THEN NULLIF(latitude, latitude) END AS x"},
+                {"? latitude", "? latitude"}, {"?1 latitude", "?1 latitude"},
+                // SQLite names a column with a FROM of its own up to there, by the first SELECT of a compound
+                {"latitude FROM files UNION SELECT _id", "NULLIF(latitude, latitude) AS latitude FROM files UNION SELECT _id"},
+                {"latitude+0 FROM files", "NULLIF(latitude, latitude)+0 AS \"latitude+0\" FROM files"},
+                {"_id FROM files GROUP BY latitude, longitude --",
+                        "_id FROM files GROUP BY NULLIF(latitude, latitude), NULLIF(longitude, longitude) --"},
+                {"_id, latitude", "_id|NULLIF(latitude, latitude) AS latitude"}, {"_id latitude", "_id latitude"},
+                {"_id AS latitude", "_id AS latitude"},
+                {"CAST(_id AS latitude)", "CAST(_id AS latitude)"}, {"'latitude'", "'latitude'"}, {"latitudes", "latitudes"},
+                {":latitude", ":latitude"}, {"\"lat\"\"itude\"", "\"lat\"\"itude\""}, {"_id * 2", "_id * 2"},
+                {"count(*)", "count(*)"}, {"*", "!*"}, {"images.*", "!images.*"}, {"_id, *", "_id|!*"},
+                // Without the columns of the table, a * of a subquery is NULL
+                {"(SELECT * FROM files)", "(SELECT NULL FROM files) AS \"(SELECT * FROM files)\""}};
+        String projection = "local sql, inner = ...\n" +
+                "local items = {}\n" +
+                "local text = rewrite(sql, items, inner)\n" +
+                "local list = {}\n" +
+                "for i, item in ipairs(items) do list[i] = (item.star and '!' or '') .. item.text end\n" +
+                "return table.concat(list, '|'), text";
+        for (String[] c : columns) {
+            Varargs result = globals.load(projection, "test").invoke(LuaValue.valueOf(c[0]));
+            assertEquals(c[0], c[1], result.arg1().tojstring());
+            if (c[0].equals(c[1]))
+                assertEquals(c[0], result.arg(2).tojstring());
+        }
+        assertEquals(" NULLIF(latitude, latitude)  +  0 AS \"latitude  +  0\" ",
+                globals.get("rewrite").call(LuaValue.valueOf(" latitude  +  0 "), LuaValue.tableOf()).tojstring());
+
+        // Selections and sort orders, also of subqueries, of which a * is NULL without the columns of its table;
+        // arguments, strings and positions stay
+        String[][] where = {{"latitude IS NOT NULL", "NULLIF(latitude, latitude) IS NOT NULL"},
+                {"latitude BETWEEN ? AND ? AND _id = ?", "NULLIF(latitude, latitude) BETWEEN ? AND ? AND _id = ?"},
+                {"_id > ?AND latitude > 50", "_id > ?AND NULLIF(latitude, latitude) > 50"},
+                {"title = 'latitude' OR \"title\" LIKE ?", "title = 'latitude' OR \"title\" LIKE ?"},
+                {"_id IN (SELECT _id FROM files WHERE files.LATITUDE > 50)",
+                        "_id IN (SELECT _id FROM files WHERE NULLIF(files.LATITUDE, files.LATITUDE) > 50)"},
+                {"files.latitude > 0", "NULLIF(files.latitude, files.latitude) > 0"},
+                {"images.'latitude' > 50", "NULLIF(images.'latitude', images.'latitude') > 50"},
+                {"_id IN (SELECT _id FROM images AS i WHERE i.'latitude' > 0)",
+                        "_id IN (SELECT _id FROM images AS i WHERE NULLIF(i.'latitude', i.'latitude') > 0)"},
+                {"_id IN (SELECT x._id FROM (SELECT _id, latitude FROM files) AS x WHERE x.latitude IS NULL)",
+                        "_id IN (SELECT x._id FROM (SELECT _id, NULLIF(latitude, latitude) AS latitude FROM files) AS x " +
+                                "WHERE NULLIF(x.latitude, x.latitude) IS NULL)"},
+                {"max(_id, latitude) > 0", "max(_id, NULLIF(latitude, latitude)) > 0"},
+                {"EXISTS (SELECT * FROM files WHERE _id = 1)", "EXISTS (SELECT NULL FROM files WHERE _id = 1)"},
+                {"0) UNION SELECT * FROM files WHERE (1", "0) UNION SELECT NULL FROM files WHERE (1"},
+                {"latitude DESC, _id", "NULLIF(latitude, latitude) DESC, _id"}, {"12", "12"},
+                {"1) GROUP BY (bucket_id", "1) GROUP BY (bucket_id"}};
+        for (String[] c : where)
+            assertEquals(c[0], c[1], globals.get("rewrite").call(LuaValue.valueOf(c[0])).tojstring());
+
+        // A table without location columns, like audio, refuses them like on Android 10, also *; the SELECTs of the
+        // app, like subqueries and a UNION, still get NULL
+        String[][] inner = {{"latitude", "latitude"}, {"count(latitude)", "count(latitude)"}, {"*", "*"}, {"audio.*", "audio.*"},
+                {"(SELECT latitude FROM images LIMIT 1)",
+                        "(SELECT NULLIF(latitude, latitude) AS latitude FROM images LIMIT 1) " +
+                                "AS \"(SELECT latitude FROM images LIMIT 1)\""}};
+        for (String[] c : inner)
+            assertEquals(c[0], c[1], globals.load(projection, "test").invoke(LuaValue.valueOf(c[0]), LuaValue.TRUE).arg1().tojstring());
+        String[][] innerWhere = {{"latitude > 0 AND _id IN (SELECT _id FROM files WHERE (latitude > 0)) AND latitude < 1",
+                "latitude > 0 AND _id IN (SELECT _id FROM files WHERE (NULLIF(latitude, latitude) > 0)) AND latitude < 1"},
+                {"0) UNION SELECT latitude FROM files WHERE (1",
+                        "0) UNION SELECT NULLIF(latitude, latitude) AS latitude FROM files WHERE (1"},
+                {"latitude DESC", "latitude DESC"}};
+        for (String[] c : innerWhere)
+            assertEquals(c[0], c[1], globals.get("rewrite").call(LuaValue.valueOf(c[0]), LuaValue.NIL, LuaValue.TRUE).tojstring());
+        LuaValue rewrite = globals.get("rewrite");
+        assertTrue(rewrite.invoke(LuaValue.valueOf("latitude FROM files --"), LuaValue.NIL, LuaValue.TRUE).arg(2).toboolean());
+        assertFalse(rewrite.invoke(LuaValue.valueOf("(SELECT _id FROM files)"), LuaValue.NIL, LuaValue.TRUE).arg(2).toboolean());
+
+        String stubs = "local probes = {}\n" +
+                "local function bundleof(values)\n" +
+                "  local b = { values = values }\n" +
+                "  b.getString = function(self, k) return self.values[k] end\n" +
+                "  b.putString = function(self, k, v) self.values[k] = v end\n" +
+                "  b.getStringArray = function(self, k) return self.values[k] end\n" +
+                "  b.putStringArray = function(self, k, v) self.values[k] = v end\n" +
+                "  return b\n" +
+                "end\n" +
+                "luajava.newInstance = function(name, from)\n" +
+                "  local values = {}\n" +
+                "  for k, v in pairs(from ~= nil and from.values or {}) do values[k] = v end\n" +
+                "  return bundleof(values)\n" +
+                "end\n" +
+                "local proxy = luajava.createProxy\n" +
+                "luajava.createProxy = function(interface, methods)\n" +
+                "  if interface == 'android.database.Cursor' then return methods end\n" +
+                "  return proxy(interface, methods)\n" +
+                "end\n" +
+                "local function provider(...)\n" +
+                "  local names = arrayof(...)\n" +
+                "  return { query = function(self, uri, projection, args, signal)\n" +
+                "    table.insert(probes, tostring(projection) .. ' ' .. args:getString('android:query-arg-sql-selection'))\n" +
+                "    return { getColumnNames = function(self) return names end, close = function(self) end } end }\n" +
+                "end\n" +
+                "local function uri(authority, path)\n" +
+                "  path = path or '/external/images/media'\n" +
+                "  local segments = {}\n" +
+                "  for segment in string.gmatch(path, '[^/]+') do table.insert(segments, segment) end\n" +
+                "  return { getAuthority = function(self) return authority end, getPath = function(self) return path end,\n" +
+                "    getPathSegments = function(self)\n" +
+                "      return { size = function(self) return #segments end, get = function(self, i) return segments[i + 1] end } end }\n" +
+                "end\n" +
+                // The app op of storage and the grant of the uri, which the provider checks
+                "local access = { op = 0, grant = -1 }\n" +
+                "local context = { getPackageName = function(self) return 'com.example' end,\n" +
+                "  getSystemService = function(self, name) assert(name == 'appops')\n" +
+                "    return { checkOpNoThrow = function(self, op, uid, package)\n" +
+                "      assert(op == 'android:read_external_storage' and package == 'com.example') return access.op end } end,\n" +
+                "  checkUriPermission = function(self, uri, pid, uid, flags) assert(flags == 1) return access.grant end }\n" +
+                "local function joined(array)\n" +
+                "  if array == nil then return 'null' end\n" +
+                "  local list = {}\n" +
+                "  for i = 1, array['length'] do list[i] = tostring(array[i]) end\n" +
+                "  return table.concat(list, '|')\n" +
+                "end\n" +
+                "local function cursor()\n" +
+                "  return { getColumnIndex = function(self, n) return n == 'latitude' and 0 or -1 end,\n" +
+                "    getDouble = function(self, i) return 52.5 end }\n" +
+                "end\n" +
+                "local function query(this, authority, projection, bundle, path)\n" +
+                "  local p = paramof(cursor(), { [0] = uri(authority, path), [1] = projection, [2] = bundle })\n" +
+                "  p.this = this\n" +
+                "  p.getApplicationContext = function(self) return context end\n" +
+                "  before(hookof('query'), p)\n" +
+                "  return p\n" +
+                "end\n" +
+                "local photos = provider('_id', 'title', 'latitude', 'longitude')\n";
+
+        // No projection: the columns of the table, which the provider gives for no rows, and the cursor stays
+        Varargs result = Scripts.run(globals, stubs +
+                "local all = query(photos, 'media', nil, nil)\n" +
+                "local real = all.result\n" +
+                "local empty = query(photos, '0@media', arrayof(), nil)\n" +
+                "local mixed = query(photos, 'media', arrayof('*', 'latitude'), nil)\n" +
+                "return joined(all.args[1]), all.args[2], after(hookof('query'), all), all.result == real,\n" +
+                "  joined(empty.args[1]), joined(mixed.args[1]), table.concat(probes, ',')");
+        assertEquals("_id|title|NULL AS latitude|NULL AS longitude", result.arg1().tojstring());
+        assertTrue(result.arg(2).isnil());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("_id|title|NULL AS latitude|NULL AS longitude", result.arg(5).tojstring());
+        assertEquals("_id|title|NULL AS latitude|NULL AS longitude|NULLIF(latitude, latitude) AS latitude", result.arg(6).tojstring());
+        assertEquals("nil 0,nil 0,nil 0", result.arg(7).tojstring());
+
+        // The selection, sort order and sort columns in a copy of the Bundle, without asking the provider; other
+        // queries, tables without a location and other hooks stay
+        result = Scripts.run(globals, stubs +
+                "local bundle = bundleof({ ['android:query-arg-sql-selection'] = 'latitude IS NOT NULL',\n" +
+                "  ['android:query-arg-sql-selection-args'] = 'args', ['android:query-arg-sql-sort-order'] = 'latitude',\n" +
+                "  ['android:query-arg-sort-columns'] = arrayof('longitude', '_id') })\n" +
+                "local p = query(photos, 'media', arrayof('_id', 'latitude AS la'), bundle)\n" +
+                "local copy = p.args[2]\n" +
+                "local plain = arrayof('_id', 'title')\n" +
+                "local kept = query(photos, 'media', plain, bundleof({ ['android:query-arg-sql-selection'] = '_id = ?' }))\n" +
+                "local audio = query(provider('_id', 'title'), 'media', nil, nil)\n" +
+                "local other = query(photos, 'com.android.contacts', nil, nil)\n" +
+                "local exif = paramof(nil, {})\n" +
+                "exif.getArgument = function() error('no arguments') end\n" +
+                "return joined(p.args[1]), copy ~= bundle, copy.values['android:query-arg-sql-selection'],\n" +
+                "  copy.values['android:query-arg-sql-sort-order'], joined(copy.values['android:query-arg-sort-columns']),\n" +
+                "  copy.values['android:query-arg-sql-selection-args'], bundle.values['android:query-arg-sql-selection'],\n" +
+                "  kept.args[1] == plain, kept.args[2]:getString('android:query-arg-sql-selection'),\n" +
+                "  audio.args[1], other.args[1], before(hookof('getGpsDateTime'), exif), table.concat(probes, ',')");
+        assertEquals("_id|NULLIF(latitude, latitude) AS la", result.arg1().tojstring());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("NULLIF(latitude, latitude) IS NOT NULL", result.arg(3).tojstring());
+        assertEquals("NULLIF(latitude, latitude)", result.arg(4).tojstring());
+        assertEquals("NULLIF(longitude, longitude)|_id", result.arg(5).tojstring());
+        assertEquals("args", result.arg(6).tojstring());
+        assertEquals("latitude IS NOT NULL", result.arg(7).tojstring());
+        assertTrue(result.arg(8).toboolean());
+        assertEquals("_id = ?", result.arg(9).tojstring());
+        assertTrue(result.arg(10).isnil());
+        assertTrue(result.arg(11).isnil());
+        assertFalse(result.arg(12).toboolean());
+        // Only the query without a projection of the table without a location asked the provider
+        assertEquals("nil 0", result.arg(13).tojstring());
+
+        // A provider which gives no columns leaves the cursor to the proxy of after
+        result = Scripts.run(globals, stubs +
+                "local failing = { query = function(self) error('provider died') end }\n" +
+                "local p = query(failing, 'media', nil, nil)\n" +
+                "return p.args[1], after(hookof('query'), p), p.result.getDouble(0)");
+        assertTrue(result.arg1().isnil());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(0, result.arg(3).todouble(), 0);
+
+        // Without the app op of storage the provider gives no rows on /external/, named like the projection: the
+        // query stays, without a proxy; not on /internal/, and not with a grant of the uri
+        result = Scripts.run(globals, stubs +
+                "access.op = 1\n" +
+                "local plain = arrayof('_id', 'latitude')\n" +
+                "local bundle = bundleof({ ['android:query-arg-sql-selection'] = 'latitude IS NOT NULL' })\n" +
+                "local p = query(photos, 'media', plain, bundle)\n" +
+                "local all = query(photos, 'media', nil, nil)\n" +
+                "local internal = query(photos, 'media', arrayof('latitude'), nil, '/internal/images/media')\n" +
+                "access.grant = 0\n" +
+                "local granted = query(photos, 'media', arrayof('latitude'), nil)\n" +
+                "return p.args[1] == plain, p.args[2] == bundle, after(hookof('query'), p), p.set, all.args[1],\n" +
+                "  joined(internal.args[1]), joined(granted.args[1]), table.concat(probes, ',')");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).isnil());
+        assertEquals("NULLIF(latitude, latitude) AS latitude", result.arg(6).tojstring());
+        assertEquals("NULLIF(latitude, latitude) AS latitude", result.arg(7).tojstring());
+        assertEquals("", result.arg(8).tojstring());
+
+        // Only images, video and files (also of MTP) have the location columns, as the UriMatcher of the provider finds
+        // them; on others, like audio, only the SELECTs of the app get NULL, and no * is asked for
+        result = Scripts.run(globals, stubs +
+                "local audio = provider('_id', 'title')\n" +
+                "local p = query(audio, 'media', arrayof('latitude', '(SELECT latitude FROM images LIMIT 1)', '*'),\n" +
+                "  bundleof({ ['android:query-arg-sql-selection'] =\n" +
+                "    'latitude > 0 OR _id IN (SELECT _id FROM files WHERE latitude > 0)',\n" +
+                "    ['android:query-arg-sql-sort-order'] = 'latitude' }), '/external/audio/media')\n" +
+                "local all = query(audio, 'media', nil, nil, '/external/audio/media/5')\n" +
+                "local video = query(photos, 'media', arrayof('latitude'), nil, '/external/video/media/5')\n" +
+                "local files = query(photos, 'media', arrayof('latitude'), nil, '//external/file/')\n" +
+                "local references = query(photos, 'media', arrayof('latitude'), nil, '/external/object/5/references')\n" +
+                // A FROM of its own selects from another table, like files
+                "local from = query(audio, 'media', arrayof('latitude FROM files UNION SELECT _id'),\n" +
+                "  bundleof({ ['android:query-arg-sql-selection'] = 'latitude > 0' }), '/external/audio/media')\n" +
+                "return joined(p.args[1]), p.args[2].values['android:query-arg-sql-selection'],\n" +
+                "  p.args[2].values['android:query-arg-sql-sort-order'], all.args[1], joined(video.args[1]),\n" +
+                "  joined(files.args[1]), joined(references.args[1]), after(hookof('query'), p), table.concat(probes, ','),\n" +
+                "  joined(from.args[1]), from.args[2].values['android:query-arg-sql-selection']");
+        assertEquals("latitude|(SELECT NULLIF(latitude, latitude) AS latitude FROM images LIMIT 1) " +
+                "AS \"(SELECT latitude FROM images LIMIT 1)\"|*", result.arg1().tojstring());
+        assertEquals("latitude > 0 OR _id IN (SELECT _id FROM files WHERE NULLIF(latitude, latitude) > 0)",
+                result.arg(2).tojstring());
+        assertEquals("latitude", result.arg(3).tojstring());
+        assertTrue(result.arg(4).isnil());
+        assertEquals("NULLIF(latitude, latitude) AS latitude", result.arg(5).tojstring());
+        assertEquals("NULLIF(latitude, latitude) AS latitude", result.arg(6).tojstring());
+        assertEquals("latitude", result.arg(7).tojstring());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals("", result.arg(9).tojstring());
+        // Named by the first SELECT, like SQLite does; the selection on audio fails like without Doppel
+        assertEquals("NULLIF(latitude, latitude) AS latitude FROM files UNION SELECT _id", result.arg(10).tojstring());
+        assertEquals("NULLIF(latitude, latitude) > 0", result.arg(11).tojstring());
+
+        // ORDER BY sorts a bare name by an alias of the projection, where WHERE and GROUP BY take the column
+        result = Scripts.run(globals, stubs +
+                "local p = query(photos, 'media', arrayof('_id AS latitude'),\n" +
+                "  bundleof({ ['android:query-arg-sql-selection'] = '1) GROUP BY (latitude',\n" +
+                "    ['android:query-arg-sql-sort-order'] = 'LATITUDE COLLATE NOCASE DESC, images.latitude, latitude+0',\n" +
+                "    ['android:query-arg-sort-columns'] = arrayof('latitude', 'longitude') }))\n" +
+                "local mine = query(photos, 'media', arrayof('_id', 'latitude AS la'),\n" +
+                "  bundleof({ ['android:query-arg-sql-sort-order'] = 'latitude DESC' }))\n" +
+                "return p.args[2].values['android:query-arg-sql-selection'], p.args[2].values['android:query-arg-sql-sort-order'],\n" +
+                "  joined(p.args[2].values['android:query-arg-sort-columns']), mine.args[2].values['android:query-arg-sql-sort-order']");
+        assertEquals("1) GROUP BY (NULLIF(latitude, latitude)", result.arg1().tojstring());
+        assertEquals("LATITUDE COLLATE NOCASE DESC, NULLIF(images.latitude, images.latitude), NULLIF(latitude, latitude)+0",
+                result.arg(2).tojstring());
+        assertEquals("latitude|NULLIF(longitude, longitude)", result.arg(3).tojstring());
+        assertEquals("NULLIF(latitude, latitude) DESC", result.arg(4).tojstring());
+
+        // A * of a SELECT of the app over files, images or video gets the columns of that table on the volume of the
+        // uri, asked once, with the location columns NULL; a * of another table, like audio, stays; one of a join is NULL
+        result = Scripts.run(globals, stubs +
+                "local bind = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.net.Uri' then return { parse = function(self, text) return text end } end\n" +
+                "  return bind(name)\n" +
+                "end\n" +
+                "local asked = {}\n" +
+                "local tables = { query = function(self, uri, projection, args, signal)\n" +
+                "  table.insert(asked, uri)\n" +
+                "  return { getColumnNames = function(self) return arrayof('_id', 'latitude', 'title') end,\n" +
+                "    close = function(self) end } end }\n" +
+                "local p = query(tables, '0@media', arrayof('_id'), bundleof({ ['android:query-arg-sql-selection'] =\n" +
+                "  '_id IN (SELECT x._id FROM (SELECT * FROM files) AS x) OR EXISTS (SELECT * FROM main.files f WHERE _id = 1) ' ..\n" +
+                "  'OR _id IN (SELECT * FROM files, audio) OR EXISTS (SELECT * FROM audio)' }))\n" +
+                "local own = query(tables, 'media', arrayof('* FROM video --'), nil, '/internal/images/media')\n" +
+                "return p.args[2].values['android:query-arg-sql-selection'], joined(own.args[1]), table.concat(asked, ',')");
+        assertEquals("_id IN (SELECT x._id FROM (SELECT _id, NULL AS latitude, title FROM files) AS x) OR " +
+                "EXISTS (SELECT _id, NULL AS latitude, title FROM main.files f WHERE _id = 1) OR " +
+                "_id IN (SELECT NULL FROM files, audio) OR EXISTS (SELECT * FROM audio)", result.arg1().tojstring());
+        assertEquals("_id, NULL AS latitude, title FROM video --", result.arg(2).tojstring());
+        assertEquals("content://0@media/external/file,content://media/internal/video/media", result.arg(3).tojstring());
+
+        // An error of SQLite shows the SQL it compiled: the app gets the error of its own arguments, with the stack trace
+        // of its call; when its own SQL works the error stays, as its cursor gives the location, and so do other
+        // exceptions and queries
+        result = Scripts.run(globals, stubs +
+                "local seen = {}\n" +
+                "local opened = cursor()\n" +
+                "opened.close = function(self) self.closed = true end\n" +
+                "local function answering(fails)\n" +
+                "  return { query = function(self, uri, projection, args, signal)\n" +
+                "    table.insert(seen, joined(projection) .. ' ' .. args:getString('android:query-arg-sql-selection'))\n" +
+                "    if fails then return luajava.bindClass('java.lang.Integer'):parseInt('no such column: x') end\n" +
+                "    return opened\n" +
+                "  end }\n" +
+                "end\n" +
+                "local function refused(this, projection, class)\n" +
+                "  local p = query(this, 'media', projection, bundleof({ ['android:query-arg-sql-selection'] = 'x = 1' }))\n" +
+                "  local ex = luajava.new(luajava.bindClass('java.lang.IllegalStateException'), 'compiling: SELECT NULL AS latitude')\n" +
+                "  p.result = nil\n" +
+                "  p.getException = function(self) return ex end\n" +
+                "  p.isInstance = function(self, object, name)\n" +
+                "    return name == class and not string.find(tostring(object), 'LuaError', 1, true) end\n" +
+                "  return p, ex\n" +
+                "end\n" +
+                "local sqlite = 'android.database.sqlite.SQLiteException'\n" +
+                "local p, ex = refused(answering(true), arrayof('latitude'), sqlite)\n" +
+                "local faked = after(hookof('query'), p)\n" +
+                "local works = refused(answering(false), arrayof('latitude'), sqlite)\n" +
+                "local proxied = after(hookof('query'), works)\n" +
+                "local other = refused(answering(true), arrayof('latitude'), 'java.lang.SecurityException')\n" +
+                "local kept = refused(answering(true), arrayof('_id'), sqlite)\n" +
+                "local broken = refused({ query = function(self) error('a bug') end }, arrayof('latitude'), sqlite)\n" +
+                "return faked, p.result:toString(), p.result:getStackTrace()['length'], p.result:getStackTrace()[1]:toString(),\n" +
+                "  ex:getStackTrace()[1]:toString(), proxied, works.set, opened.closed, after(hookof('query'), other), other.set,\n" +
+                "  after(hookof('query'), kept), kept.set, after(hookof('query'), broken), broken.set, table.concat(seen, ',')");
+        assertFalse(result.arg1().toboolean());
+        assertEquals("java.lang.NumberFormatException: For input string: \"no such column: x\"", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toint() > 0);
+        assertEquals(result.arg(5).tojstring(), result.arg(4).tojstring());
+        assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
+        assertFalse(result.arg(10).toboolean());
+        assertFalse(result.arg(11).toboolean());
+        assertFalse(result.arg(12).toboolean());
+        assertFalse(result.arg(13).toboolean());
+        assertFalse(result.arg(14).toboolean());
+        // Asked with the projection and the Bundle of the app, only for the errors of SQLite after a change
+        assertEquals("latitude x = 1,latitude x = 1", result.arg(15).tojstring());
+    }
+
     @Test
     public void onlyTheOwnUser() throws Exception {
         Globals globals = load("user_profiles");

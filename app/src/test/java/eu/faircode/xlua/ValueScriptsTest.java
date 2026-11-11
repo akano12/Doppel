@@ -1074,6 +1074,100 @@ public class ValueScriptsTest {
         }
     }
 
+    // A geofence and a request of play-services-location, with the names R8 gives their fields; final in the library,
+    // which ART lets reflection set once accessible, unlike newer JDKs
+    public static final class Fence {
+        private String zza;
+        private double zzd;
+        private double zze;
+        private float zzf;
+
+        Fence(String id, double latitude, double longitude, float radius) {
+            zza = id;
+            zzd = latitude;
+            zze = longitude;
+            zzf = radius;
+        }
+    }
+
+    public static final class Request {
+        private final java.util.List<Object> zza;
+        private org.luaj.vm2.LuaTable parcel;
+        private int flags;
+
+        Request(Object... fences) {
+            zza = java.util.Arrays.asList(fences);
+        }
+
+        public void writeToParcel(org.luaj.vm2.LuaTable parcel, int flags) {
+            this.parcel = parcel;
+            this.flags = flags;
+        }
+    }
+
+    // Play services gets a copy of the request, read back from a parcel of it, with each fence at 0, 0 and 0.1 m, written
+    // without the hooks into the parcel of the call instead of the request of the app, which keeps the region it set and
+    // the library checked; a fence of other fields fails before anything is written, a null parcel throws like without the hook
+    @Test
+    public void geofencesLeaveAtZero() throws Exception {
+        Globals globals = load("geofencingrequest_writetoparcel");
+        String app = "local bind = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name ~= 'android.os.Parcel' then return bind(name) end\n" +
+                "  return { obtain = function(self)\n" +
+                "    scratch = { setDataPosition = function(self, position) self.position = position end,\n" +
+                "      recycle = function(self) self.recycled = true end }\n" +
+                "    return scratch end }\n" +
+                "end\n" +
+                "app = { writeToParcel = function(self, parcel, flags) parcel.request = self parcel.unhooked = unhooked end,\n" +
+                "  CREATOR = { createFromParcel = function(self, parcel)\n" +
+                "    return parcel.request == app and parcel.position == 0 and copy end } }\n" +
+                "parcel = {}\n";
+        Fence a = new Fence("a", 52.37, 4.89, 200f);
+        Fence b = new Fence("b", -33.87, 151.21, 50f);
+        Request copy = new Request(a, b);
+        globals.set("copy", CoerceJavaToLua.coerce(copy));
+        Varargs result = Scripts.run(globals, app + "local param = paramof(nil, { [0] = parcel, [1] = 3 }, app)\n" +
+                "return before(nil, param), param.set, param.result, scratch.unhooked, scratch.recycled, parcel");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).isnil());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertTrue(result.arg(6) == copy.parcel);
+        assertEquals(3, copy.flags);
+        for (Fence fence : new Fence[]{a, b}) {
+            assertEquals(0, fence.zzd, 0);
+            assertEquals(0, fence.zze, 0);
+            assertEquals(0.1f, fence.zzf, 0);
+        }
+        assertEquals("a", a.zza);
+
+        Request odd = new Request(new Object());
+        globals.set("copy", CoerceJavaToLua.coerce(odd));
+        result = Scripts.run(globals, app + "local param = paramof(nil, { [0] = parcel, [1] = 0 }, app)\n" +
+                "local ok, message = pcall(before, nil, param)\n" +
+                "return ok, message, param.set");
+        assertFalse(result.arg1().toboolean());
+        assertTrue(result.arg(2).tojstring(), result.arg(2).tojstring().contains("Geofence region unknown"));
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(odd.parcel == null);
+
+        // A request without one list of fences fails the same way
+        globals.set("copy", CoerceJavaToLua.coerce(new Fence("c", 1, 2, 3f)));
+        result = Scripts.run(globals, app + "local param = paramof(nil, { [0] = parcel, [1] = 0 }, app)\n" +
+                "local ok, message = pcall(before, nil, param)\n" +
+                "return ok, message, param.set");
+        assertFalse(result.arg1().toboolean());
+        assertTrue(result.arg(2).tojstring(), result.arg(2).tojstring().contains("Geofence list unknown"));
+        assertFalse(result.arg(3).toboolean());
+
+        assertFalse(Scripts.run(globals, "local param = paramof(nil, {}, app)\n" +
+                "return before(nil, param) or param.set").arg1().toboolean());
+    }
+
+    // The region the app gives a location fence of Awareness or the geofence builder of HMS is at 0, 0 with a radius of
+    // 0.1 m
     @Test
     public void geofenceAtZero() throws Exception {
         Varargs result = Scripts.run(load("geofence$builder_setcircularregion"),
@@ -1083,41 +1177,200 @@ public class ValueScriptsTest {
         assertEquals(0, result.arg(2).todouble(), 0);
         assertEquals(0, result.arg(3).todouble(), 0);
         assertEquals(0.1, result.arg(4).todouble(), 0);
+        // Values out of range stay, so the checks of the library throw with the value of the app; a radius of 0, which
+        // LocationFence takes, stays too, at 0, 0
+        Varargs invalid = Scripts.run(load("geofence$builder_setcircularregion"),
+                "local latitude = paramof(nil, { [0] = 91, [1] = 4.89, [2] = 100 })\n" +
+                        "local longitude = paramof(nil, { [0] = 52.37, [1] = 184.89, [2] = -1 })\n" +
+                        "local nan = paramof(nil, { [0] = 0 / 0, [1] = -180, [2] = 0 })\n" +
+                        "before(nil, latitude) before(nil, longitude) before(nil, nan)\n" +
+                        "return latitude.args[0], latitude.args[1], latitude.args[2], longitude.args[0], longitude.args[1],\n" +
+                        "  longitude.args[2], nan.args[0] ~= nan.args[0], nan.args[1], nan.args[2]");
+        assertEquals(91, invalid.arg(1).todouble(), 0);
+        assertEquals(0, invalid.arg(2).todouble(), 0);
+        assertEquals(0.1, invalid.arg(3).todouble(), 0);
+        assertEquals(0, invalid.arg(4).todouble(), 0);
+        assertEquals(184.89, invalid.arg(5).todouble(), 0);
+        assertEquals(-1, invalid.arg(6).todouble(), 0);
+        assertTrue(invalid.arg(7).toboolean());
+        assertEquals(0, invalid.arg(8).todouble(), 0);
+        assertEquals(0, invalid.arg(9).todouble(), 0);
     }
 
-    // The activity is unknown, in a mutable list like the one of Play services, at the time of the real result; when
-    // the members are missing, which R8 can remove, there is no result rather than the real one
+    // The activity is unknown, in a mutable list like the one of Play services, at the time of the real result, by the
+    // constructor the creator uses, and with the int fields of it, the detector id and in 10.0.1 and older the version
+    // code, whatever their order, each else the one of a new result, under extractResult and the creator alike; the
+    // extras and static fields are left out. When the members are missing, which R8 can remove, extractResult gives no
+    // result rather than the real one, and the creator, whose readers fail on none, leaves it; objects of other
+    // classes, of a creator R8 merged, stay
     @Test
     public void activityIsUnknown() throws Exception {
         Globals globals = load("activityrecognitionresult_extractresult");
-        Scripts.run(globals, "luajava = { new = function(class, ...) return { class = class, args = { ... } } end,\n" +
+        String result = "com.google.android.gms.location.ActivityRecognitionResult";
+        Scripts.run(globals, "luajava = { new = function(class, ...)\n" +
+                "    return { class = class, args = { ... }, n = select('#', ...) } end,\n" +
                 "  newInstance = function(name) local list = { class = name } list.add = function(self, v) self[#self + 1] = v end\n" +
-                "    return list end }");
-        Varargs result = Scripts.run(globals, "local real = { getTime = function(self) return 1000 end,\n" +
+                "    return list end }\n" +
+                "local base = paramof\n" +
+                "function paramof(...) local param = base(...)\n" +
+                "  param.findClass = function(self, name) return name end\n" +
+                "  param.isInstance = function(self, object, name) return object ~= nil and object.class == name end\n" +
+                "  return param end");
+        // The fields of 9.8.0 in the order of ART, by name, with the final version code after the detector id and a
+        // static int, then those of 10.0.1, where a version code which cannot be set comes before the detector id; each
+        // field sets a slot of its own in the fake, so the slots tell which ones were copied
+        Scripts.run(globals, "function field(name, type, modifiers, value, broken) return { getType = function(self) return type end,\n" +
+                "  getModifiers = function(self) return modifiers end, setAccessible = function(self, on) self.on = on end,\n" +
+                "  getInt = function(self, object) assert(self.on and object.real) return value end,\n" +
+                "  setInt = function(self, object, v) assert(self.on and object.n == 5 and not broken) object[name] = v end } end\n" +
+                "fields = { length = 7, field('ajD', 'java.util.List', 0, 'list'), field('ajE', 'long', 0, 1000),\n" +
+                "  field('ajF', 'long', 0, 500), field('ajG', 'int', 0, 7), field('extras', 'android.os.Bundle', 0, 'extras'),\n" +
+                "  field('mVersionCode', 'int', 18, 2), field('SHARED', 'int', 25, 9) }\n" +
+                "luajava.bindClass = function(name) assert(name == 'java.lang.Class')\n" +
+                "  return { getDeclaredFields = function(class) assert(class == '" + result + "') return fields end,\n" +
+                "    getName = function(type) return type end } end");
+        Varargs found = Scripts.run(globals, "local real = { class = '" + result + "', real = true,\n" +
+                "  getTime = function(self) return 1000 end, getElapsedRealtimeMillis = function(self) return 500 end }\n" +
+                "local param = paramof(real)\n" +
+                "after(hookof('extractResult'), param)\n" +
+                "local fake = param.result\n" +
+                "local creator = paramof(real)\n" +
+                "after(hookof('CREATOR:createFromParcel'), creator)\n" +
+                "local created = creator.result\n" +
+                "fields = { length = 3, field('mVersionCode', 'int', 18, 2, true), field('zzbiN', 'java.util.List', 0, 'list'),\n" +
+                "  field('zzbiQ', 'int', 0, 7) }\n" +
+                "local older = paramof(real)\n" +
+                "after(hookof('CREATOR:createFromParcel'), older)\n" +
+                "local later = older.result\n" +
+                "luajava.bindClass = function(name) error('hidden') end\n" +
+                "local unread = paramof({ class = '" + result + "', getTime = function(self) return 1000 end,\n" +
+                "  getElapsedRealtimeMillis = function(self) return 500 end })\n" +
+                "after(hookof('extractResult'), unread)\n" +
+                "return fake.n, fake.args[1][1].args[1], fake.args[2], fake.args[3], fake.args[4], fake.args[5],\n" +
+                "  fake.ajG, fake.mVersionCode, fake.extras == nil and fake.SHARED == nil and fake.ajE == nil,\n" +
+                "  unread.result.n, unread.result.args[4], unread.result.ajG, later.zzbiQ, later.mVersionCode,\n" +
+                "  created.n, created.ajG, created.mVersionCode, created.extras == nil and created.SHARED == nil");
+        assertEquals(5, found.arg(1).toint());
+        assertEquals(4, found.arg(2).toint());
+        assertEquals(1000, found.arg(3).toint());
+        assertEquals(500, found.arg(4).toint());
+        assertEquals(0, found.arg(5).toint());
+        assertTrue(found.arg(6).isnil());
+        assertEquals(7, found.arg(7).toint());
+        assertEquals(2, found.arg(8).toint());
+        assertTrue(found.arg(9).toboolean());
+        assertEquals(5, found.arg(10).toint());
+        assertEquals(0, found.arg(11).toint());
+        assertTrue(found.arg(12).isnil());
+        assertEquals(7, found.arg(13).toint());
+        assertTrue(found.arg(14).isnil());
+        assertEquals(5, found.arg(15).toint());
+        assertEquals(7, found.arg(16).toint());
+        assertEquals(2, found.arg(17).toint());
+        assertTrue(found.arg(18).toboolean());
+        Varargs results = Scripts.run(globals, "local real = { class = '" + result + "', getTime = function(self) return 1000 end,\n" +
                 "  getElapsedRealtimeMillis = function(self) return 500 end }\n" +
                 "local param = paramof(real)\n" +
-                "param.findClass = function(self, name) return name end\n" +
-                "local restricted = after(nil, param)\n" +
+                "local restricted = after(hookof('extractResult'), param)\n" +
                 "local fake = param.result\n" +
                 "local activities = fake.args[1]\n" +
                 "local detected = activities[1]\n" +
-                "local stripped = paramof({ getElapsedRealtimeMillis = function(self) return 500 end })\n" +
-                "stripped.findClass = function(self, name) return name end\n" +
-                "local none = after(nil, stripped)\n" +
+                "local creator = paramof(real)\n" +
+                "after(hookof('CREATOR:createFromParcel'), creator)\n" +
+                "local stripped = { class = '" + result + "', getElapsedRealtimeMillis = function(self) return 500 end }\n" +
+                "local extract = paramof(stripped)\n" +
+                "local none = after(hookof('extractResult'), extract)\n" +
+                "local kept = paramof(stripped)\n" +
+                "local other = paramof({ class = 'com.google.android.gms.location.DetectedActivity' })\n" +
                 "return restricted, fake.class, activities.class, #activities, detected.class, detected.args[1], detected.args[2],\n" +
-                "  fake.args[2], fake.args[3], none, stripped.result");
-        assertTrue(result.arg(1).toboolean());
-        assertEquals("com.google.android.gms.location.ActivityRecognitionResult", result.arg(2).tojstring());
-        assertEquals("java.util.ArrayList", result.arg(3).tojstring());
-        assertEquals(1, result.arg(4).toint());
-        assertEquals("com.google.android.gms.location.DetectedActivity", result.arg(5).tojstring());
-        assertEquals(4, result.arg(6).toint());
-        assertEquals(100, result.arg(7).toint());
-        assertEquals(1000, result.arg(8).toint());
-        assertEquals(500, result.arg(9).toint());
-        assertTrue(result.arg(10).toboolean());
-        assertTrue(result.arg(11).isnil());
-        check(globals, "return after_(nil, paramof(nil))", false, false, null);
+                "  fake.args[2], fake.args[3], fake.args[4], fake.n, none, extract.result, creator.result.class,\n" +
+                "  after(hookof('CREATOR:createFromParcel'), kept), kept.set, after(hookof('CREATOR:createFromParcel'), other), other.set");
+        assertTrue(results.arg(1).toboolean());
+        assertEquals(result, results.arg(2).tojstring());
+        assertEquals("java.util.ArrayList", results.arg(3).tojstring());
+        assertEquals(1, results.arg(4).toint());
+        assertEquals("com.google.android.gms.location.DetectedActivity", results.arg(5).tojstring());
+        assertEquals(4, results.arg(6).toint());
+        assertEquals(100, results.arg(7).toint());
+        assertEquals(1000, results.arg(8).toint());
+        assertEquals(500, results.arg(9).toint());
+        assertEquals(0, results.arg(10).toint());
+        assertEquals(5, results.arg(11).toint());
+        assertTrue(results.arg(12).toboolean());
+        assertTrue(results.arg(13).isnil());
+        assertEquals(result, results.arg(14).tojstring());
+        assertFalse(results.arg(15).toboolean());
+        assertFalse(results.arg(16).toboolean());
+        assertFalse(results.arg(17).toboolean());
+        assertFalse(results.arg(18).toboolean());
+        check(globals, "return after_(hookof('extractResult'), paramof(nil))", false, false, null);
+    }
+
+    // The activity of HMS is OTHERS at 100, in a mutable list, at the time of the real response, and its conversions are
+    // none; without the members there is no response rather than the real one, and an intent without one stays so; the
+    // creators fake the same, which getDataFromIntent then fakes the same again, and without the members keep the real
+    // response, since a creator never gives none
+    @Test
+    public void activityOfHmsIsOthers() throws Exception {
+        Globals globals = load("activityidentificationresponse_getdatafromintent");
+        String hms = "com.huawei.hms.location.";
+        Scripts.run(globals, "luajava = { new = function(class, ...) local args = { ... }\n" +
+                "    return { class = class, args = args, n = select('#', ...), getTime = function(self) return args[2] end,\n" +
+                "      getElapsedTimeFromReboot = function(self) return args[3] end } end,\n" +
+                "  newInstance = function(name) local list = { class = name } list.add = function(self, v) self[#self + 1] = v end\n" +
+                "    return list end }\n" +
+                "local base = paramof\n" +
+                "function paramof(...) local param = base(...)\n" +
+                "  param.isInstance = function(self, object, name) return object ~= nil and object.class == name end\n" +
+                "  return param end");
+        Varargs results = Scripts.run(globals, "local real = { class = '" + hms + "ActivityIdentificationResponse',\n" +
+                "  getTime = function(self) return 1000 end, getElapsedTimeFromReboot = function(self) return 500 end }\n" +
+                "local param = paramof(real)\n" +
+                "local restricted = after(hookof('getDataFromIntent'), param)\n" +
+                "local fake = param.result\n" +
+                "local datas = fake.args[1]\n" +
+                "local conversion = paramof({ class = '" + hms + "ActivityConversionResponse' })\n" +
+                "local converted = after(hookof('getDataFromIntent'), conversion)\n" +
+                "local bare = { class = '" + hms + "ActivityIdentificationResponse' }\n" +
+                "local stripped = paramof(bare)\n" +
+                "local none = after(hookof('getDataFromIntent'), stripped)\n" +
+                "local parcel = paramof(real)\n" +
+                "local created = after(hookof('CREATOR:createFromParcel'), parcel)\n" +
+                "local read = paramof(parcel.result)\n" +
+                "after(hookof('getDataFromIntent'), read)\n" +
+                "local kept = paramof(bare)\n" +
+                "return restricted, fake.class, datas.class, #datas, datas[1].class, datas[1].args[1], datas[1].args[2],\n" +
+                "  fake.args[2], fake.args[3], fake.n, converted, conversion.result.class, conversion.result.n,\n" +
+                "  none, stripped.set, stripped.result, created, parcel.result.args[1][1].args[1], read.result.class,\n" +
+                "  read.result.args[1][1].args[1], read.result.args[1][1].args[2], read.result.args[2], read.result.args[3],\n" +
+                "  after(hookof('CREATOR:createFromParcel'), kept), kept.set, kept.result == bare");
+        assertTrue(results.arg(1).toboolean());
+        assertEquals(hms + "ActivityIdentificationResponse", results.arg(2).tojstring());
+        assertEquals("java.util.ArrayList", results.arg(3).tojstring());
+        assertEquals(1, results.arg(4).toint());
+        assertEquals(hms + "ActivityIdentificationData", results.arg(5).tojstring());
+        assertEquals(104, results.arg(6).toint());
+        assertEquals(100, results.arg(7).toint());
+        assertEquals(1000, results.arg(8).toint());
+        assertEquals(500, results.arg(9).toint());
+        assertEquals(3, results.arg(10).toint());
+        assertTrue(results.arg(11).toboolean());
+        assertEquals(hms + "ActivityConversionResponse", results.arg(12).tojstring());
+        assertEquals(0, results.arg(13).toint());
+        assertTrue(results.arg(14).toboolean());
+        assertTrue(results.arg(15).toboolean());
+        assertTrue(results.arg(16).isnil());
+        assertTrue(results.arg(17).toboolean());
+        assertEquals(104, results.arg(18).toint());
+        assertEquals(hms + "ActivityIdentificationResponse", results.arg(19).tojstring());
+        assertEquals(104, results.arg(20).toint());
+        assertEquals(100, results.arg(21).toint());
+        assertEquals(1000, results.arg(22).toint());
+        assertEquals(500, results.arg(23).toint());
+        assertFalse(results.arg(24).toboolean());
+        assertFalse(results.arg(25).toboolean());
+        assertTrue(results.arg(26).toboolean());
+        check(globals, "return after_(hookof('getDataFromIntent'), paramof(nil))", false, false, null);
     }
 
     // The ids of AdServices are made of the zero id, an AdId with ad tracking limited and an AppSetId of the app's scope,
@@ -1142,17 +1395,19 @@ public class ValueScriptsTest {
         assertFalse(result.arg(7).toboolean());
     }
 
-    // The sleep events are none, the empty list of Play services, which cannot be changed
+    // The sleep events are none, in the list Play services gives for a delivered extra, by the real luajava:
+    // an unmodifiable ArrayList and not Collections.emptyList, which it gives only without the extra
     @Test
     public void sleepEventsAreNone() throws Exception {
         Globals globals = load("sleepevent_extractevents");
-        Scripts.run(globals, "luajava = { bindClass = function(name) return { emptyList = function(self) return 'empty' end } end }");
         Varargs result = Scripts.run(globals,
                 "local events = paramof({ isEmpty = function() return false end, size = function() return 2 end })\n" +
                         "local none = paramof({ isEmpty = function() return true end })\n" +
                         "return after(nil, events), events.result, after(nil, none)");
         assertTrue(result.arg(1).toboolean());
-        assertEquals("empty", result.arg(2).tojstring());
+        java.util.List<?> fake = (java.util.List<?>) result.arg(2).touserdata();
+        assertEquals(java.util.Collections.unmodifiableList(new java.util.ArrayList<>()).getClass(), fake.getClass());
+        assertTrue(fake.isEmpty());
         assertFalse(result.arg(3).toboolean());
     }
 

@@ -52,7 +52,7 @@ public class TempFileTest {
         char[] chars = new char[64 * 1024];
         Arrays.fill(chars, 'x');
         String text = new String(chars);
-        FileDescriptor fd = XParam.oldFile(folder, text.getBytes(StandardCharsets.UTF_8));
+        FileDescriptor fd = XParam.oldFile(folder, text.getBytes(StandardCharsets.UTF_8), false);
         try {
             // Read-only, like the file it replaces, and already removed
             try {
@@ -78,12 +78,37 @@ public class TempFileTest {
         char[] chars = new char[4096];
         Arrays.fill(chars, 'y');
         String text = new String(chars);
-        FileDescriptor fd = XParam.oldFile(null, text.getBytes(StandardCharsets.UTF_8));
+        FileDescriptor fd = XParam.oldFile(null, text.getBytes(StandardCharsets.UTF_8), false);
         try {
             assertTrue(OsConstants.S_ISFIFO(Os.fstat(fd).st_mode));
             assertEquals(text, Util.readText(new FileInputStream(fd)));
         } finally {
             Os.close(fd);
+        }
+    }
+
+    // A small text of a regular file as long as the file, like a feature file without the sensor features, in a
+    // removed file, of which fstat gives the length and lseek works, like for the file it replaces
+    @Test
+    public void smallTextOfAFileAsLong() throws Throwable {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        File folder = new File(context.getCacheDir(), "tempFileTest");
+        folder.mkdirs();
+
+        char[] chars = new char[3897];
+        Arrays.fill(chars, 'z');
+        String text = new String(chars);
+        FileDescriptor fd = XParam.oldFile(folder, text.getBytes(StandardCharsets.UTF_8), true);
+        try {
+            assertEquals(0, folder.list().length);
+            assertTrue(OsConstants.S_ISREG(Os.fstat(fd).st_mode));
+            assertEquals(chars.length, Os.fstat(fd).st_size);
+            assertEquals(chars.length, Os.lseek(fd, 0, OsConstants.SEEK_END));
+            Os.lseek(fd, 0, OsConstants.SEEK_SET);
+            assertEquals(text, Util.readText(new FileInputStream(fd)));
+        } finally {
+            Os.close(fd);
+            folder.delete();
         }
     }
 }

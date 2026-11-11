@@ -72,7 +72,8 @@ public class HookDefinitionsTest {
             "android.os.SystemProperties", "android.app.ContextImpl", "android.app.Instrumentation",
             "android.app.LoadedApk$ServiceDispatcher", "android.content.pm.PackageInstaller$SessionCallbackDelegate",
             "android.app.PendingIntent$FinishedDispatcher", "android.content.IntentSender$FinishedDispatcher",
-            "android.app.ActivityThread", "android.app.LoadedApk$ReceiverDispatcher"));
+            "android.app.ActivityThread", "android.app.LoadedApk$ReceiverDispatcher", "android.hardware.SystemSensorManager",
+            "android.hardware.input.InputDeviceSensorManager$InputSensorManager"));
 
     // The defaults XHook.fromJSONObject uses for missing attributes, see docs/DEFINE.md
     private static final Map<String, Object> DEFAULTS = new HashMap<>();
@@ -310,6 +311,10 @@ public class HookDefinitionsTest {
     private static final Set<String> APP_HOOKS_WITH_RESULT = new HashSet<>(Arrays.asList(
             "ActivityRecognitionResult.extractResult", "ActivityTransitionResult.extractResult",
             "SleepSegmentEvent.extractEvents", "SleepClassifyEvent.extractEvents",
+            "ActivityRecognitionResult.createFromParcel", "ActivityTransitionResult.createFromParcel",
+            "LocationJsonUtil.parseLocationFromJsonObject", "LocationResult.createFromParcel", "LocationResult.create",
+            "ActivityIdentificationResponse.getDataFromIntent", "ActivityConversionResponse.getDataFromIntent",
+            "ActivityIdentificationResponse.createFromParcel", "ActivityConversionResponse.createFromParcel",
             "AdvertisingIdClient$Info.getId", "HuaweiAdvertisingIdClient$Info.getId", "AppSetIdInfo.getId",
             "AdvertisingIdClient$Info.isLimitAdTrackingEnabled", "HuaweiAdvertisingIdClient$Info.isLimitAdTrackingEnabled",
             "Amplitude.getOptOut", "Amplitude.getOptOut/android", "AmplitudeClient.isOptedOut", "Branch.isTrackingDisabled",
@@ -1036,6 +1041,75 @@ public class HookDefinitionsTest {
                 ") @gnss_register 30-");
     }
 
+    // The regions of the location fences of Awareness and of the geofences of HMS, where the app sets them, and the
+    // locations HMS makes of its own, of JSON and of the parcels of its results, like those of a parcel, with
+    // the same settings, so they drift by the same key
+    // The regions of the location fences of Awareness and of the geofences of HMS, like the geofences of Play services,
+    // and the locations HMS makes of its own, of JSON, of the parcels of its results and in LocationResult.create, like
+    // those of a parcel, with the same settings, so they drift by the same key
+    @Test
+    public void regionsAndLocationsOfLibraries() throws Exception {
+        String fence = "com.google.android.gms.awareness.fence.LocationFence ";
+        String region = " @geofence$builder_setcircularregion 27- optional";
+        check("LocationFence.in", fence + "in(double,double,double,long)" + region);
+        check("LocationFence.entering", fence + "entering(double,double,double)" + region);
+        check("LocationFence.exiting", fence + "exiting(double,double,double)" + region);
+        check("Geofence$Builder.setRoundArea", "com.huawei.hms.location.Geofence$Builder setRoundArea(double,double,float)" + region);
+        check("LocationJsonUtil.parseLocationFromJsonObject", "com.huawei.hms.support.api.location.common.LocationJsonUtil " +
+                "parseLocationFromJsonObject(org.json.JSONObject) @location 27- optional");
+        check("LocationResult.createFromParcel", "com.huawei.hms.location.LocationResult " +
+                "CREATOR:createFromParcel(android.os.Parcel) @location 27- optional");
+        check("LocationResult.create", "com.huawei.hms.location.LocationResult create(java.util.List) @location 27- optional");
+        assertEquals("com.huawei.hms.location.LocationResult", hook("LocationResult.create").getString("returnType"));
+        for (String name : new String[]{"LocationJsonUtil.parseLocationFromJsonObject", "LocationResult.createFromParcel",
+                "LocationResult.create"})
+            assertEquals(name, hook("Location.createFromParcel").getJSONArray("settings").toString(),
+                    hook(name).getJSONArray("settings").toString());
+        for (String name : new String[]{"LocationFence.in", "LocationFence.entering", "LocationFence.exiting",
+                "Geofence$Builder.setRoundArea", "LocationJsonUtil.parseLocationFromJsonObject", "LocationResult.createFromParcel",
+                "LocationResult.create"})
+            assertEquals(name, "Get.Location", hook(name).getString("group"));
+    }
+
+    // The full lists of sensors, which the getters read and apps can call by reflection, are empty, so Android answers
+    // every getter from them; the manager of the sensors of an input device is not the system one, which the hooks of
+    // SensorManager resolve to (on Android 14 and later also getSensorList, which SystemSensorManager overrides), so it
+    // has its own hooks from Android 12, which has it
+    @Test
+    public void fullListsOfSensors() throws Exception {
+        check("SystemSensorManager.getFullSensorList", "android.hardware.SystemSensorManager getFullSensorList() @generic_empty 27-");
+        check("SystemSensorManager.getFullDynamicSensorList",
+                "android.hardware.SystemSensorManager getFullDynamicSensorList() @generic_empty 27-");
+        String input = "android.hardware.input.InputDeviceSensorManager$InputSensorManager ";
+        check("InputSensorManager.getDefaultSensor", input + "getDefaultSensor(int) @generic_null_value 31-");
+        check("InputSensorManager.getFullSensorList", input + "getFullSensorList() @generic_empty 31-");
+        for (String name : new String[]{"SystemSensorManager.getFullSensorList", "SystemSensorManager.getFullDynamicSensorList",
+                "InputSensorManager.getDefaultSensor", "InputSensorManager.getFullSensorList"})
+            assertEquals(name, "Get.Sensors", hook(name).getString("group"));
+    }
+
+    // The location updates of a PendingIntent, which stay parcelled in the extras of the intent
+    @Test
+    public void locationUpdatesOfIntents() throws Exception {
+        check("Intent.createFromParcel/location", "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +
+                "@location 27-");
+        assertEquals("Get.Location", hook("Intent.createFromParcel/location").getString("group"));
+        assertEquals("android", hook("Intent.createFromParcel/location").getString("excludePackages"));
+        // Also when Android gives the intent to a component, for an update which starts the app and for onNewIntent
+        check("Intent.setExtrasClassLoader/location", "android.content.Intent setExtrasClassLoader(java.lang.ClassLoader) " +
+                "@location 27-");
+        assertEquals("Get.Location", hook("Intent.setExtrasClassLoader/location").getString("group"));
+        assertEquals("android", hook("Intent.setExtrasClassLoader/location").getString("excludePackages"));
+    }
+
+    // Geofences get the fake region in the parcel of their request, not in the builder, of which the app reads it back
+    @Test
+    public void geofencesByTheirParcel() throws Exception {
+        check("GeofencingRequest.writeToParcel", "com.google.android.gms.location.GeofencingRequest writeToParcel(" +
+                "android.os.Parcel,int) @geofencingrequest_writetoparcel 27- optional");
+        assertNull(hook("Geofence$Builder.setCircularRegion"));
+    }
+
     // getLatLong, getAltitude and getGpsDateTime of ExifInterface read the GPS tags with the readers of tags,
     // whose hooks hide them first, so these must report or the location of photos is never in the log
     @Test
@@ -1378,6 +1452,23 @@ public class HookDefinitionsTest {
         for (String c : new String[]{"SleepSegmentEvent", "SleepClassifyEvent"})
             check(c + ".extractEvents", "com.google.android.gms.location." + c + " extractEvents(android.content.Intent) " +
                     "@sleepevent_extractevents 27- optional");
+        // The creators of the results of activity, also for the extras the app reads itself and for Awareness
+        for (String c : new String[]{"ActivityRecognitionResult", "ActivityTransitionResult"}) {
+            check(c + ".createFromParcel", "com.google.android.gms.location." + c + " CREATOR:createFromParcel(android.os.Parcel) @" +
+                    c.toLowerCase() + "_extractresult 27- optional");
+            assertEquals("Determine.Activity", hook(c + ".createFromParcel").getString("group"));
+        }
+        // The activity and its conversions of HMS, like those of Play services, also by their creators
+        for (String c : new String[]{"ActivityIdentificationResponse", "ActivityConversionResponse"}) {
+            check(c + ".getDataFromIntent", "com.huawei.hms.location." + c + " getDataFromIntent(android.content.Intent) " +
+                    "@activityidentificationresponse_getdatafromintent 27- optional");
+            check(c + ".createFromParcel", "com.huawei.hms.location." + c + " CREATOR:createFromParcel(android.os.Parcel) " +
+                    "@activityidentificationresponse_getdatafromintent 27- optional");
+            for (String method : new String[]{".getDataFromIntent", ".createFromParcel"}) {
+                assertEquals("Determine.Activity", hook(c + method).getString("group"));
+                assertEquals("com.huawei.hms.location." + c, hook(c + method).getString("returnType"));
+            }
+        }
     }
 
     // Permissions and their groups name the app which defines them (see package_resolve)
@@ -1826,6 +1917,25 @@ public class HookDefinitionsTest {
         for (String name : new String[]{"UnixNativeDispatcher.openat", "UnixNativeDispatcher.fstatat",
                 "UnixNativeDispatcher.unlinkat", "UnixNativeDispatcher.renameat"})
             assertEquals(name, "Read.Identifiers", hook(name + "/hardware_ids").getString("group"));
+    }
+
+    // The files of the sensor features are hidden by the same calls as the permission files of system apps, since
+    // both are files of a folder which stays; opening the other feature files reads them without the sensor features
+    @Test
+    public void sensorFilesByEveryPathCall() throws Exception {
+        int files = 0;
+        for (JSONObject hook : hooks)
+            if (hook.getString("name").endsWith("/privapp_files")) {
+                files++;
+                String name = hook.getString("name").replace("/privapp_files", "/sensor_files");
+                JSONObject sensors = hook(name);
+                assertNotNull(name, sensors);
+                assertEquals(name, "Get.Sensors", sensors.getString("group"));
+                for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk",
+                        "maxSdk", "optional", "luaScript"})
+                    assertEquals(name + " " + key, String.valueOf(hook.opt(key)), String.valueOf(sensors.opt(key)));
+            }
+        assertEquals(40, files);
     }
 
     // Commands by Os.execv and execve are refused in every group which refuses ProcessBuilder.start

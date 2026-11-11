@@ -186,7 +186,14 @@ public class XParamTest {
     // Before Android 11 a text larger than a pipe holds needs a file of the app, else it fails, which the hook reports
     @Test(expected = IllegalArgumentException.class)
     public void largeTextWithoutFolder() throws Throwable {
-        XParam.oldFile(null, new byte[4097]);
+        XParam.oldFile(null, new byte[4097], false);
+    }
+
+    // So does a small text of a regular file as long as the file, like tablet_core_hardware.xml (3897 bytes on Android
+    // 10) without the sensor features, which a pipe would turn into a FIFO of no length for fstat
+    @Test(expected = IllegalArgumentException.class)
+    public void smallTextOfAFileAsLongWithoutFolder() throws Throwable {
+        XParam.oldFile(null, new byte[3897], true);
     }
 
     @Test

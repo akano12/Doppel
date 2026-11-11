@@ -134,6 +134,8 @@ class XDatabase {
     static final String[][] RENAMED = new String[][]{
             // The NMEA listener of GpsStatus still works on Android 8.1 and 9
             {"LocationManager.addNmeaListener5", "LocationManager.addNmeaListener27"},
+            // Geofences get their fake region where they leave the app, so the app reads back the region it set
+            {"Geofence$Builder.setCircularRegion", "GeofencingRequest.writeToParcel"},
             {"TelephonyManager/getNetworkCountryIso", "TelephonyManager.getNetworkCountryIso"},
             {"TelephonyManager/getNetworkCountryIso.30", "TelephonyManager.getNetworkCountryIso.30"},
             {"TelephonyManager/getNetworkOperator", "TelephonyManager.getNetworkOperator"},

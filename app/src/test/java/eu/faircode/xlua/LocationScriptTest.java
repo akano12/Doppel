@@ -63,6 +63,45 @@ public class LocationScriptTest {
             "    setExtras = function(self, extras) self.extras = extras end,",
             "    toString = function(self) return self.latitude .. ',' .. self.longitude end }",
             "end",
+            // An HWLocation of HMS, of its JSON without a provider and the time since boot, with an address without a
+            // phone; getters and setters of the fields of the same names, with no has and remove methods, and extra info,
+            // a map
+            "function hwlocation(latitude, longitude)",
+            "  local hw = { Latitude = latitude, Longitude = longitude, Accuracy = 4, Altitude = 12, Speed = 1.5, Bearing = 90,",
+            "    BearingAccuracyDegrees = 5, VerticalAccuracyMeters = 3, SpeedAccuracyMetersPerSecond = 1, City = 'Amsterdam',",
+            "    Street = 'Dam 1', PostalCode = '1012', extra = { values = { satellites = 9, ['hw-address-city'] = 'Amsterdam' },",
+            "      keySet = function(self) local keys = {} for k in pairs(self.values) do keys[#keys + 1] = k end",
+            "        keys.length = #keys return { toArray = function() return keys end } end,",
+            "      remove = function(self, key) self.values[key] = nil end,",
+            "      isEmpty = function(self) return next(self.values) == nil end,",
+            "      clear = function(self) self.values = {} end },",
+            "    getTime = function(self) return 1700000000000 end,",
+            "    getProvider = function(self) return nil end,",
+            "    getElapsedRealtimeNanos = function(self) return 0 end,",
+            "    getExtraInfo = function(self) return self.extra end,",
+            "    toString = function(self) return 'HWLocation' end }",
+            "  for _, name in ipairs({ 'Latitude', 'Longitude', 'Accuracy', 'Altitude', 'Speed', 'Bearing', 'BearingAccuracyDegrees',",
+            "      'VerticalAccuracyMeters', 'SpeedAccuracyMetersPerSecond', 'CountryCode', 'CountryName', 'State', 'City',",
+            "      'County', 'Street', 'FeatureName', 'PostalCode', 'Phone', 'Url' }) do",
+            "    hw['get' .. name] = function(self) return self[name] end",
+            "    hw['set' .. name] = function(self, value) self[name] = value end",
+            "  end",
+            "  return hw",
+            "end",
+            // A LocationResult of HMS of a parcel, of HWLocations
+            "function resultof(...)",
+            "  local list = { ... }",
+            "  return { class = 'com.huawei.hms.location.LocationResult', getHWLocationList = function(self)",
+            "    return { size = function(self) return #list end, get = function(self, i) return list[i + 1] end } end }",
+            "end",
+            // The hooks of the script
+            "function hookof(class, method)",
+            "  return { getClassName = function(self) return class end, getMethodName = function(self) return method end }",
+            "end",
+            "LOCATION = hookof('android.location.Location', 'CREATOR:createFromParcel')",
+            "PARSE = hookof('com.huawei.hms.support.api.location.common.LocationJsonUtil', 'parseLocationFromJsonObject')",
+            "PARCEL = hookof('com.huawei.hms.location.LocationResult', 'CREATOR:createFromParcel')",
+            "CREATE = hookof('com.huawei.hms.location.LocationResult', 'create')",
             // XParam.uuidOf, a hash of the seed
             "local UUID = luajava.bindClass('java.util.UUID')",
             "local UTF8 = luajava.bindClass('java.nio.charset.StandardCharsets').UTF_8",
@@ -70,6 +109,7 @@ public class LocationScriptTest {
             "  return {",
             "    getResult = function(self) return result end,",
             "    getSetting = function(self, name) return settings[name] end,",
+            "    isInstance = function(self, object, name) return object ~= nil and object.class == name end,",
             "    uuidOf = function(self, seed)",
             "      return UUID:nameUUIDFromBytes(UTF8:encode(seed):array()):toString() end }",
             "end");
@@ -96,15 +136,15 @@ public class LocationScriptTest {
                         "  getAllProviders = function(self) return { contains = function(self, p) return p == 'vendor' end } end } end }\n" +
                         "local function paramwith(result) local param = paramof(result, {})\n" +
                         "  param.getApplicationContext = function(self) return context end return param end\n" +
-                        "local mine = after(nil, paramwith(own))\n" +
+                        "local mine = after(LOCATION, paramwith(own))\n" +
                         "local vendor = location(52.1, 4.3)\n" +
                         "vendor.provider = 'vendor'\n" +
                         "local fused = location(52.1, 4.3)\n" +
                         "fused.provider = 'fused'\n" +
                         "local picked = location(52.1, 4.3)\n" +
                         "picked.elapsed = 0\n" +
-                        "return mine, own.latitude, after(nil, paramwith(vendor)), vendor.latitude,\n" +
-                        "  after(nil, paramwith(fused)), fused.latitude, after(nil, paramwith(picked)), picked.latitude");
+                        "return mine, own.latitude, after(LOCATION, paramwith(vendor)), vendor.latitude,\n" +
+                        "  after(LOCATION, paramwith(fused)), fused.latitude, after(LOCATION, paramwith(picked)), picked.latitude");
         assertFalse(result.arg(1).toboolean());
         assertEquals(52.1, result.arg(2).todouble(), 0);
         assertTrue(result.arg(3).toboolean());
@@ -113,6 +153,111 @@ public class LocationScriptTest {
         assertEquals(0, result.arg(6).todouble(), 1e-4);
         assertFalse(result.arg(7).toboolean());
         assertEquals(52.1, result.arg(8).todouble(), 0);
+    }
+
+    // An HWLocation of HMS, of its JSON and in the results of its parcels and of LocationResult.create, whatever its
+    // provider and time since boot, is faked in place like a Location of the same fix, so the Location copies HMS makes
+    // of it agree; its address is empty, a field it has not stays none, and its extra info, which HMS copies to the
+    // extras, keeps what tells nothing of the place; one read again, like of a parcel the app wrote, stays the same
+    @Test
+    public void hmsLocationsAreFakedInPlace() {
+        String settings = "{ ['location.type'] = 'set', ['location.latitude'] = '10.5', ['location.longitude'] = '20', " +
+                "['location.key'] = 'a' }";
+        Varargs result = Scripts.run(globals,
+                "local settings = " + settings + "\n" +
+                        "local hw = hwlocation(52.37, 4.89)\n" +
+                        "local restricted = after(PARSE, paramof(hw, settings))\n" +
+                        "local fix = location(52.37, 4.89)\n" +
+                        "after(LOCATION, paramof(fix, settings))\n" +
+                        "local latitude, longitude = hw.Latitude, hw.Longitude\n" +
+                        "local first, second = hwlocation(52.37, 4.89), hwlocation(52.37, 4.89)\n" +
+                        "local updates = after(PARCEL, paramof(resultof(first, second), settings))\n" +
+                        "after(CREATE, paramof(resultof(hw), settings))\n" +
+                        "local created = hwlocation(52.37, 4.89)\n" +
+                        "local made = after(CREATE, paramof(resultof(created), settings))\n" +
+                        "return restricted, latitude - fix.latitude, longitude - fix.longitude, hw.Accuracy, hw.Altitude,\n" +
+                        "  hw.Speed, hw.Bearing, hw.BearingAccuracyDegrees, hw.City, hw.Street, hw.PostalCode, hw.Phone,\n" +
+                        "  hw.extra.values.satellites, hw.extra.values['hw-address-city'], hw.extra ~= nil, updates,\n" +
+                        "  first.Latitude - latitude, second.Longitude - longitude, hw.Latitude - latitude, hw.Longitude - longitude,\n" +
+                        "  made, created.Latitude - latitude, created.Longitude - longitude, created.City");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(0, result.arg(2).todouble(), 0);
+        assertEquals(0, result.arg(3).todouble(), 0);
+        assertEquals(4, result.arg(4).todouble(), 0);
+        for (int i = 5; i <= 8; i++)
+            assertEquals(0, result.arg(i).todouble(), 0);
+        for (int i = 9; i <= 11; i++)
+            assertEquals("", result.arg(i).tojstring());
+        assertTrue(result.arg(12).isnil());
+        assertEquals(9, result.arg(13).toint());
+        assertTrue(result.arg(14).isnil());
+        assertTrue(result.arg(15).toboolean());
+        assertTrue(result.arg(16).toboolean());
+        for (int i = 17; i <= 20; i++)
+            assertEquals(0, result.arg(i).todouble(), 0);
+        assertTrue(result.arg(21).toboolean());
+        assertEquals(0, result.arg(22).todouble(), 0);
+        assertEquals(0, result.arg(23).todouble(), 0);
+        assertEquals("", result.arg(24).tojstring());
+    }
+
+    // A coarse HWLocation is the center of the cell of a Location of the same fix, with the accuracy of the grid, without
+    // altitude, movement, extra info and address, and stays in its cell when read again
+    @Test
+    public void hmsLocationsAreCoarse() {
+        Varargs result = Scripts.run(globals,
+                "local hw = hwlocation(52.37, 4.89)\n" +
+                        "local restricted = after(PARSE, paramof(hw, " + COARSE + "))\n" +
+                        "local fix = location(52.37, 4.89)\n" +
+                        "after(LOCATION, paramof(fix, " + COARSE + "))\n" +
+                        "local latitude = hw.Latitude\n" +
+                        "return restricted, hw.Latitude - fix.latitude, hw.Longitude - fix.longitude, hw.Accuracy, hw.Altitude,\n" +
+                        "  hw.VerticalAccuracyMeters, hw.Speed, hw.SpeedAccuracyMetersPerSecond, hw.Bearing,\n" +
+                        "  hw.BearingAccuracyDegrees, hw.City, hw.extra:isEmpty(), after(PARSE, paramof(hw, " + COARSE + ")),\n" +
+                        "  hw.Latitude - latitude");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(0, result.arg(2).todouble(), 0);
+        assertEquals(0, result.arg(3).todouble(), 0);
+        assertEquals(10000, result.arg(4).todouble(), 0);
+        for (int i = 5; i <= 10; i++)
+            assertEquals(0, result.arg(i).todouble(), 0);
+        assertEquals("", result.arg(11).tojstring());
+        assertTrue(result.arg(12).toboolean());
+        assertFalse(result.arg(13).toboolean());
+        assertEquals(0, result.arg(14).todouble(), 0);
+    }
+
+    // The places the geocoder of HMS answers, which it makes of the same JSON, stay
+    @Test
+    public void hmsGeocoderPlacesStay() {
+        Varargs result = Scripts.run(globals,
+                "local util = 'com.huawei.hms.support.api.location.common.LocationJsonUtil'\n" +
+                        "function callers() return { length = 2,\n" +
+                        "  { getClassName = function() return util end,\n" +
+                        "    getMethodName = function() return 'parseLocationFromJsonObject' end },\n" +
+                        "  { getClassName = function() return util end,\n" +
+                        "    getMethodName = function() return 'parseHwLocationsFromJsonObject' end } }\n" +
+                        "end\n" +
+                        "local place = hwlocation(48.8584, 2.2945)\n" +
+                        "return after(PARSE, paramof(place, {})), place.Latitude, place.City");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals(48.8584, result.arg(2).todouble(), 0);
+        assertEquals("Amsterdam", result.arg(3).tojstring());
+    }
+
+    // R8 can merge the creator of LocationResult with those of the other classes of HMS, whose objects stay as they are,
+    // without an error: an HWLocation, like a place of the geocoder the app parcels, and a LocationAvailability
+    @Test
+    public void hmsOtherParcelsStay() {
+        Varargs result = Scripts.run(globals,
+                "local place = hwlocation(48.8584, 2.2945)\n" +
+                        "local availability = { isLocationAvailable = function(self) return true end }\n" +
+                        "return after(PARCEL, paramof(place, {})), place.Latitude, place.City,\n" +
+                        "  after(PARCEL, paramof(availability, {}))");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals(48.8584, result.arg(2).todouble(), 0);
+        assertEquals("Amsterdam", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
     }
 
     // Callbacks with cell info are registered for their other events, like the call state, and their method of the cell
@@ -153,7 +298,7 @@ public class LocationScriptTest {
         return Scripts.run(globals,
                 "local result = location(" + latitude + ", " + longitude + ")\n" +
                         "result.time = " + time + "\n" +
-                        "local restricted = after(nil, paramof(result, " + settings + "))\n" +
+                        "local restricted = after(LOCATION, paramof(result, " + settings + "))\n" +
                         "return restricted, result.latitude, result.longitude, result.accuracy");
     }
 
@@ -178,10 +323,10 @@ public class LocationScriptTest {
     public void realDetailsAreOfAStillDevice() {
         Varargs result = Scripts.run(globals,
                 "local result = location(52.37, 4.89)\n" +
-                        "after(nil, paramof(result, {}))\n" +
+                        "after(LOCATION, paramof(result, {}))\n" +
                         "local other = location(52.37, 4.89)\n" +
                         "other.extras.values = { noGPSLocation = 'real' }\n" +
-                        "after(nil, paramof(other, {}))\n" +
+                        "after(LOCATION, paramof(other, {}))\n" +
                         "return result.altitude, result.speed, result.bearing, result.extras.values.satellites,\n" +
                         "  result.extras.values.noGPSLocation, other.extras");
         assertEquals(0, result.arg(1).todouble(), 0);
@@ -294,11 +439,12 @@ public class LocationScriptTest {
     public void coarseAccuracyIsTheGrid() {
         Varargs result = Scripts.run(globals,
                 "local precise = location(52.1, 4.3)\n" +
-                        "after(nil, paramof(precise, { ['location.type'] = 'coarse', ['location.accuracy'] = '2000' }))\n" +
+                        "after(LOCATION, paramof(precise, { ['location.type'] = 'coarse', ['location.accuracy'] = '2000' }))\n" +
                         "local default = location(52.1, 4.3)\n" +
-                        "after(nil, paramof(default, { ['location.type'] = 'coarse' }))\n" +
+                        "after(LOCATION, paramof(default, { ['location.type'] = 'coarse' }))\n" +
                         "local set = location(52.1, 4.3)\n" +
-                        "after(nil, paramof(set, { ['location.type'] = 'set', ['location.latitude'] = '1', ['location.longitude'] = '2' }))\n" +
+                        "after(LOCATION, paramof(set, { ['location.type'] = 'set', ['location.latitude'] = '1',\n" +
+                        "  ['location.longitude'] = '2' }))\n" +
                         "return precise.accuracy, default.accuracy, set.accuracy, precise.altitude, precise.speed, precise.extras");
         assertEquals(2000, result.arg(1).todouble(), 0);
         assertEquals(10000, result.arg(2).todouble(), 0);
@@ -306,6 +452,210 @@ public class LocationScriptTest {
         assertTrue(result.arg(4).isnil());
         assertTrue(result.arg(5).isnil());
         assertTrue(result.arg(6).isnil());
+    }
+
+    // Intents and their extras as Android keeps them, with the parcel of the Java runtime: a value stays in the parcel
+    // until a read, which reads all values before Android 13 and only the one from Android 13, and a read of a location
+    // runs the hook of Location.CREATOR; a parcel has the classes of the values as UTF-16 and cannot be marshalled with
+    // a binder; the parcel of extras is in a field which Class lists (BaseBundle.mParcelledData) unless hidden is set;
+    // the hook of Location.CREATOR is there unless hooked is false
+    private static final String INTENT_STUBS = String.join("\n",
+            "real = luajava sdk = 34 reads = 0 writes = 0 hidden = false hooked = true MARKS = {}",
+            "UTF16 = real.bindClass('java.nio.charset.StandardCharsets').UTF_16LE",
+            "FIELD = { getName = function(self) return 'mParcelledData' end, setAccessible = function(self, on) end,",
+            "  get = function(self, bundle) return bundle.inparcel and 'parcel' or nil end }",
+            "luajava = { newInstance = real.newInstance, bindClass = function(name)",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+            "  if name == 'android.os.Parcel' then return { obtain = function() return parcelof() end } end",
+            "  if name == 'android.os.BaseBundle' then return 'BaseBundle' end",
+            "  if name == 'java.lang.Class' then return { getDeclaredFields = function(class) assert(class == 'BaseBundle')",
+            "    return hidden and { length = 0 } or { FIELD, length = 1 } end } end",
+            "  return real.bindClass(name) end }",
+            "function parcelof() return {",
+            "  marshall = function(self) assert(self.text ~= nil, 'not written')",
+            "    if self.binder then error('Tried to marshall a Parcel that contained Binder objects.') end",
+            "    return UTF16:encode(self.text):array() end,",
+            "  setDataPosition = function(self, position) end, recycle = function(self) end,",
+            "  readBundle = function(self, loader) return bundleof(self.values, self.binder, loader, true) end } end",
+            "function bundleof(values, binder, loader, inparcel)",
+            "  local bundle = { values = {}, binder = binder, loader = loader, inparcel = inparcel }",
+            "  for key, value in pairs(values) do bundle.values[key] = value end",
+            "  function bundle:getClassLoader() return self.loader end",
+            "  function bundle:setClassLoader(loader) self.loader = loader end",
+            "  function bundle:get(key)",
+            "    reads = reads + 1 readloader = self.loader self.inparcel = false",
+            "    for name, value in pairs(self.values) do",
+            "      if value.parcelled and (name == key or sdk < 33) then",
+            "        if value.broken then error('BadParcelableException') end",
+            "        local read = { class = value.class, locations = {} }",
+            "        for index, original in ipairs(value.locations) do",
+            "          local copy = location(original.latitude, original.longitude) copy.provider = original.provider",
+            "          if hooked then after(LOCATION, paramof(copy, {})) end",
+            "          read.locations[index] = copy",
+            "        end",
+            "        self.values[name] = read",
+            "      end",
+            "    end",
+            "    return self.values[key]",
+            "  end",
+            "  function bundle:writeToParcel(parcel, flags)",
+            "    local text = {} parcel.values = {} parcel.binder = self.binder writes = writes + 1",
+            "    for key, value in pairs(self.values) do",
+            "      text[#text + 1] = key .. '=' .. value.class",
+            "      parcel.values[key] = { class = value.class, parcelled = true, locations = value.locations, broken = value.broken }",
+            "    end",
+            "    parcel.text = table.concat(text, ';')",
+            "  end",
+            "  return bundle",
+            "end",
+            // An intent read from a parcel, or one the app made itself, with values of its own
+            "function intentof(values, binder, class, made)",
+            "  local intent = { extras = bundleof(values, binder, 'boot', not made), replaced = 0,",
+            "    class = class or 'android.content.Intent' }",
+            // The class of a real Intent as LuaJ gives it, or a subclass of the SDK in place of ReferrerIntent
+            "  function intent:getClass() return self.class == 'android.content.Intent' and",
+            "    real.newInstance(self.class):getClass() or real.bindClass(self.class) end",
+            "  function intent:getExtras() local e = self.extras return bundleof(e.values, e.binder, e.loader, e.inparcel) end",
+            "  function intent:setExtrasClassLoader(loader) self.extras.loader = loader end",
+            "  function intent:replaceExtras(bundle) self.replaced = self.replaced + 1",
+            "    self.extras = bundleof(bundle.values, bundle.binder, bundle.loader, bundle.inparcel) end",
+            "  return intent",
+            "end",
+            "function fix(latitude, provider) local fix = location(latitude, 4.3) fix.provider = provider or 'gps' return fix end",
+            "function parcelable(class, ...) return { class = class, parcelled = true, locations = { ... } } end",
+            "INTENT = { getClassName = function(self) return 'android.content.Intent' end,",
+            "  getMethodName = function(self) return 'CREATOR:createFromParcel' end }",
+            "LOADER = { getClassName = function(self) return 'android.content.Intent' end,",
+            "  getMethodName = function(self) return 'setExtrasClassLoader' end }",
+            "CONTEXT = { getClassLoader = function(self) return 'loader' end }",
+            "function intentparam(param)",
+            "  param.getValue = function(self, name, scope) assert(name == 'location.intent') return MARKS[scope] end",
+            "  param.putValue = function(self, name, value, scope) assert(name == 'location.intent') MARKS[scope] = value end",
+            "  return param",
+            "end",
+            "function fromparcel(intent) return intentparam({ getResult = function(self) return intent end,",
+            "  getApplicationContext = function(self) return CONTEXT end }) end",
+            // The answer, the number of replaced extras, their class loader and the latitudes of the extras, with * when
+            // read; of the hook of Intent.CREATOR, and of the one when Android gives the intent with the class loader
+            "function describe(restricted, intent)",
+            "  local keys, out = {}, { tostring(restricted), intent.replaced, tostring(intent.extras.loader) }",
+            "  for key in pairs(intent.extras.values) do keys[#keys + 1] = key end",
+            "  table.sort(keys)",
+            "  for _, key in ipairs(keys) do",
+            "    local value, latitudes = intent.extras.values[key], {}",
+            "    for _, fix in ipairs(value.locations) do latitudes[#latitudes + 1] = math.floor(fix.latitude + 0.5) end",
+            "    out[#out + 1] = key .. '=' .. table.concat(latitudes, ',') .. (value.parcelled and '' or '*')",
+            "  end",
+            "  return table.concat(out, ' ')",
+            "end",
+            "function check(version, values, binder)",
+            "  sdk = version",
+            "  local intent = intentof(values, binder)",
+            "  return describe(after(INTENT, fromparcel(intent)), intent)",
+            "end",
+            "function deliver(version, intent, loader)",
+            "  sdk = version",
+            "  intent:setExtrasClassLoader(loader)",
+            "  return describe(after(LOADER, intentparam({ getThis = function(self) return intent end,",
+            "    getArgument = function(self, index) assert(index == 0) return loader end })), intent)",
+            "end");
+
+    // A location update of a PendingIntent is faked in the extras of the intent, also in their parcel, which the app can
+    // marshal without reading them: parcelled again, like the extras of Android, with the class loader they had, read
+    // with the one of the app; the other extras stay parcelled from Android 13, extras without an update are not
+    // replaced, also with another location or a LocationRequest, and extras with a value the app cannot read stay as
+    // they are, like a location the app made itself
+    @Test
+    public void locationUpdatesOfIntentsAreFaked() throws Exception {
+        Scripts.run(globals, INTENT_STUBS);
+        String location = "parcelable('android.location.Location', fix(52))";
+        String place = "place = parcelable('com.example.Place')";
+        Varargs result = Scripts.run(globals,
+                "return check(34, { location = " + location + ", " + place + " }), readloader,\n" +
+                        "  check(34, { location = " + location + ", locations = parcelable('android.location.Location', " +
+                        "fix(52), fix(53)) }),\n" +
+                        "  check(30, { location = " + location + ", " + place + " }),\n" +
+                        "  check(34, { " + place + " }), reads,\n" +
+                        "  check(34, { location = " + location + " }, true), check(34, { " + place + " }, true),\n" +
+                        "  check(30, { location = " + location + " }, true),\n" +
+                        "  check(30, { location = " + location + ", other = { class = 'com.other.Value', parcelled = true, " +
+                        "locations = {}, broken = true } }),\n" +
+                        "  check(34, { location = parcelable('android.location.Location', fix(52, 'picker')) }),\n" +
+                        "  after(INTENT, fromparcel(nil)),\n" +
+                        "  after(INTENT, fromparcel({ getExtras = function(self) return nil end })),\n" +
+                        "  check(30, { mine = " + location + " }), check(34, { mine = " + location + " }),\n" +
+                        "  check(30, { request = parcelable('android.location.LocationRequest') }),\n" +
+                        "  check(34, { ['com.google.android.location.LOCATION'] = " + location + " })");
+        assertEquals("false 1 boot location=0 place=", result.arg(1).tojstring());
+        assertEquals("loader", result.arg(2).tojstring());
+        assertEquals("false 1 boot location=0 locations=0,0", result.arg(3).tojstring());
+        assertEquals("false 1 boot location=0 place=", result.arg(4).tojstring());
+        assertEquals("false 0 boot place=", result.arg(5).tojstring());
+        assertEquals(9, result.arg(6).toint());
+        assertEquals("false 1 boot location=0", result.arg(7).tojstring());
+        assertEquals("false 0 boot place=", result.arg(8).tojstring());
+        assertEquals("false 0 boot location=52", result.arg(9).tojstring());
+        assertEquals("false 0 boot location=52 other=", result.arg(10).tojstring());
+        assertEquals("false 1 boot location=52", result.arg(11).tojstring());
+        assertFalse(result.arg(12).toboolean());
+        assertFalse(result.arg(13).toboolean());
+        assertEquals("false 0 boot mine=52", result.arg(14).tojstring());
+        assertEquals("false 0 boot mine=52", result.arg(15).tojstring());
+        assertEquals("false 0 boot request=", result.arg(16).tojstring());
+        assertEquals("false 1 boot com.google.android.location.LOCATION=0", result.arg(17).tojstring());
+    }
+
+    // An update which starts the app is read before the hooks are there, so it is faked when Android gives the intent to
+    // the component, read with its class loader, which the extras keep, also none; once for each intent given, and
+    // again after the hook of Intent.CREATOR, so an intent it read before the hook of Location.CREATOR was there is
+    // faked too, but a subclass, like ReferrerIntent, each time it is parcelled, since its marks would be found by
+    // value; never extras the app put or read, which are not even written, nor without the field of the parcel, which
+    // an intent just read from its parcel does not need
+    @Test
+    public void locationUpdatesOfIntentsAreFakedWhenGiven() throws Exception {
+        Scripts.run(globals, INTENT_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local function update() return { location = parcelable('android.location.Location', fix(52)) } end\n" +
+                        "local cold = intentof(update())\n" +
+                        "local first = deliver(34, cold, 'split')\n" +
+                        "local loader, counts = readloader, reads .. '/' .. writes\n" +
+                        "local again = deliver(34, cold, 'split')\n" +
+                        "local recounts = reads .. '/' .. writes\n" +
+                        "local warm = intentof(update())\n" +
+                        "after(INTENT, fromparcel(warm))\n" +
+                        "local given = deliver(34, warm, 'split')\n" +
+                        "local referrer = intentof(update(), false, 'android.content.pm.LabeledIntent')\n" +
+                        "local referred = deliver(34, referrer, 'split') .. ' ' .. tostring(MARKS[referrer])\n" +
+                        "referrer.extras:get('location')\n" +
+                        "local read = deliver(34, referrer, 'split')\n" +
+                        "local mine = intentof({ location = { class = 'android.location.Location', locations = { fix(52) } } }, " +
+                        "false, nil, true)\n" +
+                        "local written = writes\n" +
+                        "local made = deliver(34, mine, 'split') .. ' ' .. (writes - written)\n" +
+                        "hidden = true\n" +
+                        "local unlisted = deliver(34, intentof(update()), 'split') .. ' ' .. (writes - written)\n" +
+                        "local parcel = check(34, update())\n" +
+                        "hidden = false\n" +
+                        "hooked = false\n" +
+                        "local early = intentof(update())\n" +
+                        "local unhooked = describe(after(INTENT, fromparcel(early)), early)\n" +
+                        "hooked = true\n" +
+                        "return first, loader, counts, again, recounts, deliver(30, intentof(update()), nil), given, referred, " +
+                        "read, made, unlisted, parcel, unhooked, deliver(34, early, 'split')");
+        assertEquals("false 1 split location=0", result.arg(1).tojstring());
+        assertEquals("split", result.arg(2).tojstring());
+        assertEquals("3/2", result.arg(3).tojstring());
+        assertEquals("false 1 split location=0", result.arg(4).tojstring());
+        assertEquals("3/2", result.arg(5).tojstring());
+        assertEquals("false 1 nil location=0", result.arg(6).tojstring());
+        assertEquals("false 2 split location=0", result.arg(7).tojstring());
+        assertEquals("false 1 split location=0 nil", result.arg(8).tojstring());
+        assertEquals("false 1 split location=0*", result.arg(9).tojstring());
+        assertEquals("false 0 split location=52* 0", result.arg(10).tojstring());
+        assertEquals("false 0 split location=52 0", result.arg(11).tojstring());
+        assertEquals("false 1 boot location=0", result.arg(12).tojstring());
+        assertEquals("false 1 boot location=52", result.arg(13).tojstring());
+        assertEquals("false 2 split location=0", result.arg(14).tojstring());
     }
 
     // The Android classes of the GNSS registrations, as Lua sees them

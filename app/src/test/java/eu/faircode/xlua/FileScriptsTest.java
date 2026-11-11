@@ -552,10 +552,15 @@ public class FileScriptsTest {
                         "  hidden(apps, '/system/etc/permissions/platform.xml'), hidden(apps, '/system/priv-app/Example'),\n" +
                         "  unlisted('Get.Applications', '/system/priv-app'), unlisted('Get.Applications', '/product/app'),\n" +
                         "  unlisted('Get.Applications', '/system/product/priv-app'), unlisted('Use.Tracking', '/system/app'),\n" +
-                        "  unlisted('Get.Applications', '/data/app')");
-        for (int i : new int[]{1, 2, 4, 5, 6, 7, 8, 10, 13, 14, 15, 17})
+                        "  unlisted('Get.Applications', '/data/app'),\n" +
+                        // The folder /odm/etc leads to without an odm partition, also where /vendor is a link to /system/vendor
+                        "  hidden(tracking, '/vendor/odm/etc/build.prop'), hidden(features, '/vendor/odm/etc/permissions'),\n" +
+                        "  hidden(features, '/system/vendor/odm/etc/sysconfig/a.xml'),\n" +
+                        "  hidden(apps, '/vendor/odm/etc/permissions/privapp-permissions-com.example.xml'),\n" +
+                        "  hidden(features, '/vendor/odm/app/etc/permissions')");
+        for (int i : new int[]{1, 2, 4, 5, 6, 7, 8, 10, 13, 14, 15, 17, 18, 19, 20, 21})
             assertTrue("result " + i, result.arg(i).toboolean());
-        for (int i : new int[]{3, 9, 11, 12, 16})
+        for (int i : new int[]{3, 9, 11, 12, 16, 22})
             assertFalse("result " + i, result.arg(i).toboolean());
     }
 
@@ -641,6 +646,140 @@ public class FileScriptsTest {
                         "  hidden(apps, '/system/etc/permissions/privapp-permissions-com.samsung.android.dialer.xml')");
         assertFalse(result.arg(1).toboolean());
         assertTrue(result.arg(2).toboolean());
+    }
+
+    // For Get.Sensors the files of the sensor features do not exist, also by the link /etc, in the folders of the
+    // SKU and by /vendor/odm/etc, which /odm/etc leads to without an odm partition, and are left out of listings; the
+    // other feature files stay and are read without the sensor features, with the other and unavailable ones and as
+    // long as before, also through the descriptor of their folder; files of the app with the same names stay as they
+    // are, also in the shared storage, so do files opened for writing, which could not be read and would lose what
+    // the app writes, and other groups
+    @Test
+    public void sensorFeatureFilesOfTheSystem() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/odm/etc/permissions/sku_X'] = '/vendor/odm/etc/permissions/sku_X'\n" +
+                        "LINKS['/sdcard/etc/permissions/../../../vendor/etc/permissions/android.hardware.sensor.light.xml'] =\n" +
+                        "  '/vendor/etc/permissions/android.hardware.sensor.light.xml'\n" +
+                        "local sensors = hookof('Get.Sensors')\n" +
+                        "local list = paramof('/vendor/etc/permissions', namesof('android.hardware.sensor.compass.xml',\n" +
+                        "  'handheld_core_hardware.xml', 'android.hardware.wifi.xml'))\n" +
+                        "after(hookof('Get.Sensors', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "local sku = paramof('/odm/etc/permissions/sku_X', namesof('android.hardware.sensor.barometer.xml',\n" +
+                        "  'a.xml'))\n" +
+                        "after(hookof('Get.Sensors', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), sku)\n" +
+                        "local odm = paramof('/vendor/odm/etc/permissions', namesof('android.hardware.sensor.light.xml',\n" +
+                        "  'a.xml'))\n" +
+                        "after(hookof('Get.Sensors', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), odm)\n" +
+                        "local canonical = missing(sensors, '/odm/etc/permissions/sku_X/android.hardware.sensor.barometer.xml')\n" +
+                        "return hidden(sensors, '/vendor/etc/permissions/android.hardware.sensor.accelerometer.xml'),\n" +
+                        "  hidden(sensors, '/etc/permissions/android.hardware.sensor.gyroscope.xml'),\n" +
+                        "  hidden(sensors, '/vendor/etc/permissions/handheld_core_hardware.xml'),\n" +
+                        "  hidden(sensors, '/vendor/etc/permissions/android.hardware.sensors.custom.xml'),\n" +
+                        "  hidden(sensors, '/vendor/etc/permissions'),\n" +
+                        "  hidden(sensors, '/data/user/0/com.example/files/etc/permissions/android.hardware.sensor.light.xml'),\n" +
+                        "  hidden(sensors, '/vendor/etc/permissions/sku_X/sub/android.hardware.sensor.light.xml'),\n" +
+                        "  list.result.length, list.result[1], list.result[2], sku.result.length, sku.result[1],\n" +
+                        "  hidden(sensors, '/odm/etc/permissions/sku_X/android.hardware.sensor.barometer.xml'),\n" +
+                        "  hidden(sensors, '/vendor/etc/permissions/sku_X/android.hardware.sensor.light.xml'),\n" +
+                        "  hidden(sensors, '/product/etc/permissions/sku_X/android.hardware.sensor.gyroscope.xml'),\n" +
+                        "  hidden(sensors, '/vendor/odm/etc/permissions/sku_X/android.hardware.sensor.barometer.xml'),\n" +
+                        "  hidden(sensors, '/vendor/odm/etc/permissions/android.hardware.sensor.light.xml'),\n" +
+                        "  canonical, hidden(sensors, canonical), odm.result.length, odm.result[1],\n" +
+                        "  hidden(sensors, '/sdcard/etc/permissions/../../../vendor/etc/permissions/' ..\n" +
+                        "    'android.hardware.sensor.light.xml'),\n" +
+                        "  hidden(sensors, '/sdcard/etc/permissions/android.hardware.sensor.light.xml'),\n" +
+                        "  hidden(sensors, '/proc/self/root/sdcard/etc/permissions/sku_X/android.hardware.sensor.light.xml')");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        for (int i = 3; i <= 7; i++)
+            assertFalse("result " + i, result.arg(i).toboolean());
+        assertEquals(2, result.arg(8).toint());
+        assertEquals("handheld_core_hardware.xml", result.arg(9).tojstring());
+        assertEquals("android.hardware.wifi.xml", result.arg(10).tojstring());
+        assertEquals(1, result.arg(11).toint());
+        assertEquals("a.xml", result.arg(12).tojstring());
+        for (int i = 13; i <= 17; i++)
+            assertTrue("result " + i, result.arg(i).toboolean());
+        // The canonical path of a hidden /odm file, which a device without an odm partition has by a link to /vendor/odm
+        assertEquals("/vendor/odm/etc/permissions/sku_X/android.hardware.sensor.barometer.xml", result.arg(18).tojstring());
+        assertTrue(result.arg(19).toboolean());
+        assertEquals(1, result.arg(20).toint());
+        assertEquals("a.xml", result.arg(21).tojstring());
+        assertTrue(result.arg(22).toboolean());
+        assertFalse(result.arg(23).toboolean());
+        assertFalse(result.arg(24).toboolean());
+
+        String text = String.join("\n",
+                "<permissions>",
+                "    <feature name=\"android.hardware.location.network\" />",
+                "    <feature name=\"android.hardware.sensor.accelerometer\" />",
+                "    <feature name=\"android.hardware.sensor.compass\"/>",
+                "    <feature name='android.hardware.sensor.gyroscope' notLowRam=\"true\" />",
+                "    <feature name=\"android.hardware.sensors.custom\" />",
+                "    <unavailable-feature name=\"android.hardware.sensor.light\" />",
+                "    <feature name=\"android.hardware.touchscreen\" />",
+                "</permissions>",
+                "");
+        Varargs read = Scripts.run(globals,
+                "LINKS['/sdcard/etc/permissions/../../../vendor/etc/permissions/a.xml'] = '/vendor/etc/permissions/a.xml'\n" +
+                        "LINKS['/proc/self/fd/57/handheld_core_hardware.xml'] = '/vendor/etc/permissions/handheld_core_hardware.xml'\n" +
+                        "LINKS['/proc/self/fd/58/a.xml'] = '/data/user/0/com.example/files/etc/permissions/a.xml'\n" +
+                        "local function opened(group, path, exception, flags)\n" +
+                        "  local param = paramof(path, 'fd', flags or 0)\n" +
+                        "  param.text = [[" + text + "]]\n" +
+                        "  param.getException = function(self) return exception end\n" +
+                        // As pread of a descriptor opened only for writing, EBADF
+                        "  param.getFileText = function(self) assert(bit32.band(flags or 0, 3) ~= 1, 'EBADF') return self.text end\n" +
+                        "  param.setFileText = function(self, value) self.text = value self.set = true end\n" +
+                        "  local restricted, count = after(hookof(group, 'libcore.io.BlockGuardOs', 'open'), param)\n" +
+                        "  return restricted, count, param.text, param.set == true\n" +
+                        "end\n" +
+                        "local restricted, count, read = opened('Get.Sensors', '/vendor/etc/permissions/handheld_core_hardware.xml')\n" +
+                        "local own = '/data/user/0/com.example/files/etc/permissions/a.xml'\n" +
+                        "return restricted, count, read, select(4, opened('Get.Sensors', own)),\n" +
+                        "  select(4, opened('Read.Features', '/vendor/etc/permissions/handheld_core_hardware.xml')),\n" +
+                        "  select(4, opened('Get.Sensors', '/vendor/etc/permissions/handheld_core_hardware.xml', 'ErrnoException')),\n" +
+                        "  select(3, opened('Get.Sensors', '/vendor/etc/permissions/sku_X/handheld_core_hardware.xml')),\n" +
+                        "  select(4, opened('Get.Sensors', '/odm/etc/sysconfig/sku_X/a.xml')),\n" +
+                        "  select(4, opened('Get.Sensors', '/vendor/etc/permissions/sku_X/sub/a.xml')),\n" +
+                        // O_RDWR, and O_WRONLY of which the text cannot be read
+                        "  select(4, opened('Get.Sensors', '/vendor/etc/permissions/handheld_core_hardware.xml', nil, 2)),\n" +
+                        "  select(4, opened('Get.Sensors', '/vendor/etc/permissions/handheld_core_hardware.xml', nil, 0x8041)),\n" +
+                        "  select(4, opened('Get.Sensors', '/sdcard/etc/permissions/probe.xml')),\n" +
+                        "  select(4, opened('Get.Sensors', '/sdcard/etc/permissions/../../../vendor/etc/permissions/a.xml')),\n" +
+                        "  select(4, opened('Get.Sensors', '/vendor/odm/etc/permissions/a.xml')),\n" +
+                        "  select(4, opened('Get.Sensors', '/proc/self/fd/57/handheld_core_hardware.xml')),\n" +
+                        "  select(4, opened('Get.Sensors', '/proc/self/fd/58/a.xml'))");
+        assertTrue(read.arg(1).toboolean());
+        assertEquals("3", read.arg(2).tojstring());
+        String expected = String.join("\n",
+                "<permissions>",
+                "    <feature name=\"android.hardware.location.network\" />",
+                "    <feature name=\"android.hardware.sensors.custom\" />",
+                "    <unavailable-feature name=\"android.hardware.sensor.light\" />",
+                "    <feature name=\"android.hardware.touchscreen\" />",
+                "</permissions>",
+                "");
+        assertEquals(expected + " ".repeat(text.length() - expected.length()), read.arg(3).tojstring());
+        assertFalse(read.arg(4).toboolean());
+        assertFalse(read.arg(5).toboolean());
+        assertFalse(read.arg(6).toboolean());
+        assertEquals(read.arg(3).tojstring(), read.arg(7).tojstring());
+        assertTrue(read.arg(8).toboolean());
+        for (int i = 9; i <= 12; i++)
+            assertFalse("read " + i, read.arg(i).toboolean());
+        for (int i = 13; i <= 15; i++)
+            assertTrue("read " + i, read.arg(i).toboolean());
+        assertFalse(read.arg(16).toboolean());
+
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Sensors'))").arg1().checktable().unpack());
+        for (String path : new String[]{"/vendor/etc/permissions", "/vendor/etc/permissions/handheld_core_hardware.xml",
+                "/etc/permissions/android.hardware.sensor.light.xml", "/system/etc/sysconfig/a.xml", "/vendor/./etc/permissions",
+                "/proc/self/fd/57/handheld_core_hardware.xml"})
+            assertTrue(path, filterMatches(filter, path));
+        assertFalse(filterMatches(filter, "/system/etc/hosts"));
+        assertFalse(filterMatches(filter, "/sys/class/sensors/light_sensor/light_cal"));
     }
 
     // Nothing is under a hidden permission file, for which the kernel would answer ENOTDIR and tell the file is there,
@@ -752,30 +891,49 @@ public class FileScriptsTest {
                         "after(features, system)\n" +
                         "local etc = paramof('/etc', namesof('permissions', 'sysconfig', 'fonts.xml'))\n" +
                         "after(features, etc)\n" +
-                        "return system.result.length, system.result[1], etc.result.length, etc.result[1]");
+                        "local odm = paramof('/vendor/odm/etc', namesof('build.prop', 'permissions', 'group'))\n" +
+                        "after(features, odm)\n" +
+                        "LINKS['/odm/etc'] = '/vendor/odm/etc'\n" +
+                        "local canonical = missing(features, '/odm/etc/permissions')\n" +
+                        "return system.result.length, system.result[1], etc.result.length, etc.result[1],\n" +
+                        "  odm.result.length, odm.result[1], odm.result[2], canonical, hidden(features, canonical)");
         assertEquals(1, result.arg(1).toint());
         assertEquals("fonts.xml", result.arg(2).tojstring());
         assertEquals(1, result.arg(3).toint());
         assertEquals("fonts.xml", result.arg(4).tojstring());
+        // /vendor/odm/etc, which /odm/etc leads to without an odm partition, and is the canonical path of its files
+        assertEquals(2, result.arg(5).toint());
+        assertEquals("build.prop", result.arg(6).tojstring());
+        assertEquals("group", result.arg(7).tojstring());
+        assertEquals("/vendor/odm/etc/permissions", result.arg(8).tojstring());
+        assertTrue(result.arg(9).toboolean());
 
         Globals tracking = Scripts.load("hardware_files", HARDWARE_STUBS);
         Varargs readable = Scripts.run(tracking,
                 "local file = luajava.newInstance\n" +
                         "luajava.newInstance = function(name, path)\n" +
                         "  if name == 'java.io.File' then return { exists = function() return true end,\n" +
-                        "    canRead = function() return path == '/etc/fstab.ranchu' end } end\n" +
+                        "    canRead = function() return path == '/etc/fstab.ranchu' or path == '/vendor/odm/etc/build.prop' end } end\n" +
                         "  return file(name, path)\n" +
                         "end\n" +
                         "local etc = paramof('/etc', namesof('fstab.ranchu', 'hosts'))\n" +
                         "etc.unhooked = function(self, fn) return fn() end\n" +
                         "after(hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), etc)\n" +
-                        "return etc.result.length, etc.result[1]");
+                        "local odm = paramof('/vendor/odm/etc', namesof('build.prop', 'group'))\n" +
+                        "odm.unhooked = function(self, fn) return fn() end\n" +
+                        "after(hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), odm)\n" +
+                        "return etc.result.length, etc.result[1], odm.result.length, odm.result[1]");
         assertEquals(1, readable.arg(1).toint());
         assertEquals("hosts", readable.arg(2).tojstring());
+        assertEquals(1, readable.arg(3).toint());
+        assertEquals("group", readable.arg(4).tojstring());
 
         Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Features'))").arg1().checktable().unpack());
         assertTrue(filterMatches(filter, "/etc"));
         assertTrue(filterMatches(filter, "/system/etc"));
+        assertTrue(filterMatches(filter, "/vendor/odm/etc"));
+        filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking'))").arg1().checktable().unpack());
+        assertTrue(filterMatches(filter, "/vendor/odm/etc"));
     }
 
     // File.list of the root leaves out a readable fstab file, the names of the root are /name and not //name
