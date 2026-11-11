@@ -423,12 +423,16 @@ public class DeviceValuesScriptTest {
                 "    writeInt = function(self, value) self.written[#self.written + 1] = tostring(value) end,",
                 "    setDataPosition = function(self, position) self.written[#self.written + 1] = '@' .. position end }",
                 "end",
-                "function connect(class)",
+                "values = {}",
+                "function connect(class, binder)",
                 "  proxy = nil",
-                "  local param = { args = { [0] = componentof(class), [1] = service } }",
+                "  local param = { args = { [0] = componentof(class), [1] = binder or service } }",
                 "  param.getArgument = function(self, index) return self.args[index] end",
                 "  param.setArgument = function(self, index, value) self.args[index] = value end",
-                "  return before({}, param), param.args[1] == service",
+                "  param.getValue = function(self, name, scope) return (values[scope] or {})[name] end",
+                "  param.putValue = function(self, name, value, scope)",
+                "    values[scope] = values[scope] or {} values[scope][name] = value end",
+                "  return before({}, param), param.args[1] == service, param.args[1]",
                 "end"));
         Varargs result = Scripts.run(globals,
                 "local restricted, same = connect('com.google.android.gms.ads.identifier.service.AdvertisingIdService')\n" +
@@ -450,6 +454,19 @@ public class DeviceValuesScriptTest {
         Varargs other = Scripts.run(globals, "return connect('com.example.Service')");
         assertFalse(other.arg(1).toboolean());
         assertTrue(other.arg(2).toboolean());
+
+        // The same binder of the service gets the same binder in front, so a second bind of a connection while it is
+        // connected calls nothing, like without it (doConnected compares the binders); another binder of the service,
+        // like after Play services restarted, gets one of its own. equals is left to the proxy, which equals only
+        // itself like a BinderProxy (see LuaReflectionTest.proxyMethodsWithoutFunctions).
+        Varargs again = Scripts.run(globals, "local adid = 'com.google.android.gms.ads.identifier.service.AdvertisingIdService'\n" +
+                "local first, second = select(3, connect(adid)), select(3, connect(adid))\n" +
+                "local restricted, same, restarted = connect(adid, { transact = service.transact })\n" +
+                "return restricted, rawequal(first, second), rawequal(first, restarted), first.equals");
+        assertTrue(again.arg(1).toboolean());
+        assertTrue(again.arg(2).toboolean());
+        assertFalse(again.arg(3).toboolean());
+        assertTrue(again.arg(4).isnil());
     }
 
     // The operator of the test network, like TelephonyManager;

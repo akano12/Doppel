@@ -45,18 +45,22 @@ public class CommandsExecScriptTest {
     private static final String STUBS = String.join("\n",
             "local bind, make, instance = luajava.bindClass, luajava.new, luajava.newInstance",
             // Absolute paths exist but these, and the link of the app leads into its native library folder
-            "local absent = { ['/system/bin/nothing'] = true, ['/system/bin/sh/x'] = true }",
+            "local absent = { ['/system/bin/nothing'] = true, ['/system/bin/sh/x'] = true, ['/system/bin/long'] = true,",
+            "  ['/system/bin/loop'] = true, ['/system/bin/io'] = true }",
+            "local errors = { ['/system/bin/long'] = 'ENAMETOOLONG (File name too long)',",
+            "  ['/system/bin/loop'] = 'ELOOP (Too many levels of symbolic links)', ['/system/bin/io'] = 'EIO (I/O error)' }",
             "local links = { ['" + LINK + "'] = '" + LIB + "/libtool.so' }",
-            // Os.stat fails like Android for a path through a file or a / after one, all files here
+            // Os.stat fails like Android for a path through a file or a / after one, all files here, and for the others
             "local os = { stat = function(self, path)",
             "  if string.find(path, '/system/bin/sh/', 1, true) == 1 or string.sub(path, -1) == '/' then",
             "    error('vm error: android.system.ErrnoException: stat failed: ENOTDIR (Not a directory)', 0)",
             "  end",
+            "  if errors[path] then error('vm error: android.system.ErrnoException: stat failed: ' .. errors[path], 0) end",
             "end }",
             "luajava.bindClass = function(name)",
             "  if name == 'java.io.File' then return 'file' end",
             "  if name == 'android.system.Os' then return os end",
-            "  if name == 'android.system.OsConstants' then return { ENOTDIR = 20 } end",
+            "  if name == 'android.system.OsConstants' then return { ENOTDIR = 20, ENAMETOOLONG = 36, ELOOP = 40, EIO = 5 } end",
             "  return bind(name)",
             "end",
             "luajava.new = function(class, ...)",
@@ -91,7 +95,7 @@ public class CommandsExecScriptTest {
             "  return restricted, thrown, line, program",
             "end",
             "function finish(builder)",
-            "  return after({}, { getThis = function(self) return builder end })",
+            "  return after({}, { getThis = function(self) return builder end, getException = function(self) end })",
             "end");
 
     // A list which shows the script other words than ProcessBuilder.start reads from it
@@ -130,19 +134,34 @@ public class CommandsExecScriptTest {
         return Arrays.asList(builder.command().toArray(new String[0]));
     }
 
-    // Like Linux_execv and Linux_execve of libcore, each with its own name
+    // The program the exec runs instead, which fails with the errno of the program of the app, so Linux_execv and
+    // Linux_execve of libcore throw their own exception, each with its own name
+    private String instead(String method, String program) {
+        Varargs result = exec(method, program);
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertEquals(program, result.arg(3).tojstring());
+        return result.arg(4).tojstring();
+    }
+
+    // The program ProcessBuilder.start runs instead, which fails with the errno of the program of the app
+    private String instead(ProcessBuilder builder) {
+        Varargs result = start(builder);
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        return words(builder).get(0);
+    }
+
     @Test
     public void execIsRefused() {
-        for (String method : new String[]{"execv", "execve"}) {
-            Varargs result = exec(method, "/system/bin/sh");
-            assertTrue(result.arg1().toboolean());
-            assertEquals(method + " 13", result.arg(2).tojstring());
-            assertEquals("/system/bin/sh", result.arg(3).tojstring());
-        }
-        assertTrue(exec("execv", "getprop").arg1().toboolean());
+        for (String method : new String[]{"execv", "execve"})
+            assertEquals("/dev/null", instead(method, "/system/bin/sh"));
         // A program which does not exist, like Android answers
-        assertEquals("execv 2", exec("execv", "/system/bin/nothing").arg(2).tojstring());
-        assertTrue(exec("execv", LIB + "-x/libtool.so").arg1().toboolean());
+        assertEquals("/proc/self/fd/-1", instead("execv", "/system/bin/nothing"));
+        assertEquals("/dev/null", instead("execv", LIB + "-x/libtool.so"));
+        // Which the hooks of Linux beneath Os, and of other groups, pass on
+        assertFalse(exec("execv", "/dev/null").arg1().toboolean());
+        assertFalse(exec("execve", "/proc/self/fd/-1").arg1().toboolean());
     }
 
     // Linux.execv and execve, beneath Os and Libcore.os, are methods of an object, unlike those of Os
@@ -151,27 +170,38 @@ public class CommandsExecScriptTest {
         Varargs result = globals.get("run").invoke(LuaValue.varargsOf(new LuaValue[]{
                 LuaValue.valueOf("execv"), CoerceJavaToLua.coerce(new Object()), LuaValue.valueOf("/system/bin/sh")}));
         assertTrue(result.arg1().toboolean());
-        assertEquals("execv 13", result.arg(2).tojstring());
+        assertEquals("/dev/null", result.arg(4).tojstring());
     }
 
-    // Like execv of Linux, which searches no PATH and fails for no path, and with the error of a path through a file
+    // Like execv of Linux, which searches no PATH (here no relative path exists) and fails for no path, and with the
+    // error of a path through a file, of a name too long and of too many links (CommandsBlockedScriptTest runs them)
     @Test
     public void execFailsLikeTheKernel() {
-        assertEquals("execv 2", exec("execv", "sh").arg(2).tojstring());
-        assertEquals("execve 2", exec("execve", "").arg(2).tojstring());
-        assertEquals("execv 20", exec("execv", "/system/bin/sh/x").arg(2).tojstring());
-        IOException ex = (IOException) start(new ProcessBuilder("/system/bin/sh/x")).arg(2).touserdata();
-        assertEquals("Cannot run program \"/system/bin/sh/x\": error=20, Not a directory", ex.getMessage());
-        // The working directory of the builder fails first, here a file
-        ex = (IOException) start(new ProcessBuilder("sh").directory(new File("/system/bin/sh"))).arg(2).touserdata();
-        assertEquals("Cannot run program \"sh\" (in directory \"/system/bin/sh\"): error=20, Not a directory",
-                ex.getMessage());
+        assertEquals("/proc/self/fd/-1", instead("execv", "sh"));
+        assertEquals("/proc/self/fd/-1", instead("execve", ""));
+        assertEquals("/dev/null/", instead("execv", "/system/bin/sh/x"));
+        assertEquals("/dev/null/", instead(new ProcessBuilder("/system/bin/sh/x")));
+        assertEquals("/" + "x".repeat(4095), instead("execv", "/system/bin/long"));
+        assertEquals("/proc/self/root".repeat(21), instead(new ProcessBuilder("/system/bin/loop")));
         // A / after a file, which java.io.File drops, also after a program of the app, which then does not run
         for (String program : new String[]{"/system/bin/sh/", LIB + "/libtool.so/"}) {
-            assertEquals("execv 20", exec("execv", program).arg(2).tojstring());
-            ex = (IOException) start(new ProcessBuilder(program)).arg(2).touserdata();
-            assertEquals("Cannot run program \"" + program + "\": error=20, Not a directory", ex.getMessage());
+            assertEquals("/dev/null/", instead("execv", program));
+            assertEquals("/dev/null/", instead(new ProcessBuilder(program)));
         }
+    }
+
+    // An errno with no program which fails with it gets the exception of the script, with its frames
+    @Test
+    public void otherErrorsAreMade() {
+        Varargs result = exec("execve", "/system/bin/io");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("execve 5", result.arg(2).tojstring());
+        assertEquals("/system/bin/io", result.arg(4).tojstring());
+        ProcessBuilder builder = new ProcessBuilder("/system/bin/io").directory(new File("/system"));
+        IOException ex = (IOException) start(builder).arg(2).touserdata();
+        assertEquals("Cannot run program \"/system/bin/io\" (in directory \"/system\"): error=5, I/O error", ex.getMessage());
+        assertEquals("error=5, I/O error", ex.getCause().getMessage());
+        assertEquals(Arrays.asList("/system/bin/io"), words(builder));
     }
 
     @Test
@@ -230,10 +260,11 @@ public class CommandsExecScriptTest {
         assertFalse(globals.get("finish").call(LuaValue.NIL).toboolean());
     }
 
+    // Start reads the program which fails instead of the one shown to the script
     @Test
     public void shownProgramIsRefused() {
-        ProcessBuilder builder = new ProcessBuilder(new Shown(Arrays.asList(LIB + "/libtool.so"), "/system/bin/sh"));
+        ProcessBuilder builder = new ProcessBuilder(new Shown(Arrays.asList(LIB + "/libtool.so"), "/system/bin/sh", "-c", "id"));
         assertTrue(start(builder).arg1().toboolean());
-        assertEquals(Arrays.asList("/system/bin/sh"), words(builder));
+        assertEquals(Arrays.asList("/dev/null", "-c", "id"), words(builder));
     }
 }

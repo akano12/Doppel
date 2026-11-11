@@ -8421,6 +8421,71 @@
     ],
     "luaScript": "@value_serial"
   },
+  // The binder proxy under Build.getSerial, hidden, which apps reach by reflection through the ServiceManager: getSerial,
+  // which Build.getSerial calls on Android 8.1 and 9 and the service still answers later, to the privileged and carrier
+  // apps and to apps targeting Android 9 or earlier with READ_PHONE_STATE ("unknown"), and getSerialForPackage, which
+  // Build.getSerial calls from Android 10, with the package, and from Android 11 the attribution tag too; when the
+  // service throws SecurityException, which it does for the other apps, that stays
+  // shortcut: the proxies of the telephony and telecom services (IPhoneSubInfo, ITelephony, ITelecomService), which
+  // apps reach the same way, are not hooked, so they give the real IMEI, IMSI and ICCID on Android 8.1 and 9, the SIM
+  // accounts on Android 8.1 to 10, which Android 12 checks, and the phone number on all versions, like a raw
+  // IBinder.transact (see the README); upgrade in the engine batch, with hooks of the proxies by the scripts of their
+  // TelephonyManager twins
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "IDeviceIdentifiersPolicyService.getSerial",
+    "author": "akano12",
+    "className": "android.os.IDeviceIdentifiersPolicyService$Stub$Proxy",
+    "methodName": "getSerial",
+    "parameterTypes": [
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@value_serial"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "IDeviceIdentifiersPolicyService.getSerialForPackage",
+    "author": "akano12",
+    "className": "android.os.IDeviceIdentifiersPolicyService$Stub$Proxy",
+    "methodName": "getSerialForPackage",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "maxSdk": 29,
+    "optional": true,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@value_serial"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "IDeviceIdentifiersPolicyService.getSerialForPackage/feature",
+    "author": "akano12",
+    "className": "android.os.IDeviceIdentifiersPolicyService$Stub$Proxy",
+    "methodName": "getSerialForPackage",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 30,
+    "optional": true,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@value_serial"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -8592,6 +8657,26 @@
     "author": "akano12",
     "description": "Identifiers in the system settings, like the device id the SDKs of Baidu share between apps",
     "className": "android.provider.Settings$System",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  // The cache of the settings of each table, which the getters above call and apps reach by reflection on the field
+  // sNameValueCache of Settings.Global, Secure and System (allowed to all apps), below the hooks of the getters
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Settings.NameValueCache.getStringForUser/oaid",
+    "author": "akano12",
+    "className": "android.provider.Settings$NameValueCache",
     "methodName": "getStringForUser",
     "parameterTypes": [
       "android.content.ContentResolver",
@@ -8899,6 +8984,47 @@
     "excludePackages": "android",
     "luaScript": "@identifier_services"
   },
+  // Hidden, with a Handler, which apps can call by reflection; they call Android itself, not the overloads above
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindServiceAsUser.handler/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "int",
+      "android.os.Handler",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Context.bindServiceAsUser.flags.handler/identifiers",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "bindServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.ServiceConnection",
+      "android.content.Context$BindServiceFlags",
+      "android.os.Handler",
+      "android.os.UserHandle"
+    ],
+    "returnType": "boolean",
+    "minSdk": 34,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -8959,6 +9085,117 @@
     "excludePackages": "android",
     "luaScript": "@identifier_services"
   },
+  // The hidden methods which return the provider itself, which apps can call by reflection; query, insert, delete,
+  // update and opening files of ContentResolver get the provider from them, so these answer like without the provider
+  // too, but change observers, notifications and getType do not (see identifier_services)
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.acquireProvider/identifiers",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireProvider",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.content.IContentProvider",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.acquireProvider.authority/identifiers",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireProvider",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.IContentProvider",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.acquireUnstableProvider/identifiers",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireUnstableProvider",
+    "parameterTypes": [
+      "android.net.Uri"
+    ],
+    "returnType": "android.content.IContentProvider",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ContentResolver.acquireUnstableProvider.authority/identifiers",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "acquireUnstableProvider",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.content.IContentProvider",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  // The hidden method of the app's process under the ones above, for a stable and an unstable provider, which the
+  // protected acquireProvider and acquireUnstableProvider with a context call; apps can call each by reflection
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "ActivityThread.acquireProvider/identifiers",
+    "author": "akano12",
+    "className": "android.app.ActivityThread",
+    "methodName": "acquireProvider",
+    "parameterTypes": [
+      "android.content.Context",
+      "java.lang.String",
+      "int",
+      "boolean"
+    ],
+    "returnType": "android.content.IContentProvider",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  // The binder proxy of the activity manager under that on Android 8.1 and 9, which apps reach by reflection through
+  // ActivityManager.getService and which answers null for an authority no provider has; from Android 10 it takes the
+  // package of the caller too and apps cannot reach it
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "IActivityManager.getContentProvider/identifiers",
+    "author": "akano12",
+    "className": "android.app.IActivityManager$Stub$Proxy",
+    "methodName": "getContentProvider",
+    "parameterTypes": [
+      "android.app.IApplicationThread",
+      "java.lang.String",
+      "int",
+      "boolean"
+    ],
+    "returnType": "android.app.ContentProviderHolder",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -8996,7 +9233,410 @@
     "excludePackages": "android",
     "luaScript": "@identifier_services"
   },
-  // Any service with the interface of an identifier service, also of packages not known (see identifier_services)
+  // PackageManager finds neither the identifier services which binding fails for nor the provider, like on a device
+  // without them (see identifier_services); also by the hidden methods for a user, which apps call by reflection
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.resolveService/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int"
+    ],
+    "returnType": "android.content.pm.ResolveInfo",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.resolveService/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveService",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.pm.PackageManager$ResolveInfoFlags"
+    ],
+    "returnType": "android.content.pm.ResolveInfo",
+    "minSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.resolveServiceAsUser/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.ResolveInfo",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.resolveServiceAsUser/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveServiceAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.pm.PackageManager$ResolveInfoFlags",
+      "int"
+    ],
+    "returnType": "android.content.pm.ResolveInfo",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.queryIntentServices/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "queryIntentServices",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.queryIntentServices/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "queryIntentServices",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.pm.PackageManager$ResolveInfoFlags"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.queryIntentServicesAsUser/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "queryIntentServicesAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.queryIntentServicesAsUser/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "queryIntentServicesAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.content.pm.PackageManager$ResolveInfoFlags",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getServiceInfo/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getServiceInfo",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "int"
+    ],
+    "returnType": "android.content.pm.ServiceInfo",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getServiceInfo/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getServiceInfo",
+    "parameterTypes": [
+      "android.content.ComponentName",
+      "android.content.pm.PackageManager$ComponentInfoFlags"
+    ],
+    "returnType": "android.content.pm.ServiceInfo",
+    "minSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getPackageInfo/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getPackageInfo/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$PackageInfoFlags"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getPackageInfo/versioned/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "android.content.pm.VersionedPackage",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getPackageInfo/versioned/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "android.content.pm.VersionedPackage",
+      "android.content.pm.PackageManager$PackageInfoFlags"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getPackageInfoAsUser/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfoAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getPackageInfoAsUser/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getPackageInfoAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$PackageInfoFlags",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getInstalledPackages/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getInstalledPackages",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getInstalledPackages/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getInstalledPackages",
+    "parameterTypes": [
+      "android.content.pm.PackageManager$PackageInfoFlags"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getInstalledPackagesAsUser/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getInstalledPackagesAsUser",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.getInstalledPackagesAsUser/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getInstalledPackagesAsUser",
+    "parameterTypes": [
+      "android.content.pm.PackageManager$PackageInfoFlags",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.resolveContentProvider/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveContentProvider",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.pm.ProviderInfo",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.resolveContentProvider/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveContentProvider",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$ComponentInfoFlags"
+    ],
+    "returnType": "android.content.pm.ProviderInfo",
+    "minSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.resolveContentProviderAsUser/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveContentProviderAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.ProviderInfo",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "PackageManager.resolveContentProviderAsUser/flags/identifiers",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "resolveContentProviderAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.content.pm.PackageManager$ComponentInfoFlags",
+      "int"
+    ],
+    "returnType": "android.content.pm.ProviderInfo",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@identifier_services"
+  },
+  // Any preinstalled service with the interface of an identifier service, also of packages not known (see
+  // identifier_services)
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -9123,6 +9763,8 @@
     "luaScript": "@generic_true_value"
   },
   // https://developer.android.com/design-for-safety/privacy-sandbox/reference/adservices/adid/AdId
+  // Android 12 has the classes of AdServices in the shared library android.ext.adservices of ExtServices, which apps
+  // load by uses-library, like androidx ads-adservices does, Android 13 in the framework
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -9132,7 +9774,7 @@
     "methodName": "getAdId",
     "parameterTypes": [],
     "returnType": "java.lang.String",
-    "minSdk": 33,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@advertisingidclient$info_getid"
   },
@@ -9145,7 +9787,7 @@
     "methodName": "isLimitAdTrackingEnabled",
     "parameterTypes": [],
     "returnType": "boolean",
-    "minSdk": 33,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@generic_true_value"
   },
@@ -9210,7 +9852,7 @@
     "methodName": "getId",
     "parameterTypes": [],
     "returnType": "java.lang.String",
-    "minSdk": 33,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@advertisingidclient$info_getid"
   },
@@ -9239,6 +9881,32 @@
     "name": "Settings.Secure.getStringForUser/android_id",
     "author": "akano12",
     "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.android_id"
+    ],
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  // The cache of the settings below Settings.Secure.getStringForUser (see Settings.NameValueCache.getStringForUser/oaid).
+  // It serves all tables, and only the secure one has the setting: the others give null, which stays.
+  // shortcut: the values the cache keeps (mValues, which reflection reads on Android 8.1 and in apps targeting it or
+  // older) and IContentProvider.call on the provider of ContentResolver.acquireProvider stay real, upgrade to hooks of
+  // ContentProviderProxy.call when apps are seen doing that.
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Settings.NameValueCache.getStringForUser/android_id",
+    "author": "akano12",
+    "className": "android.provider.Settings$NameValueCache",
     "methodName": "getStringForUser",
     "parameterTypes": [
       "android.content.ContentResolver",
@@ -9343,9 +10011,49 @@
     ],
     "luaScript": "@systemproperties_get"
   },
+  // The same properties in the property areas apps can read as files (/dev/__properties__), see XParam.setPropertyValues
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "BlockGuardOs.open/serial",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.open/serial",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "settings": [
+      "value.serial"
+    ],
+    "luaScript": "@systemproperties_get"
+  },
   // Files of /sys which name the hardware, like the unique id of the chip and the id of the SD card of Samsung phones:
-  // for the app they do not exist, with java.io, Os and java.nio.file; the script runs for the paths containing sys/ only,
-  // each variant hides the files of its group; not covered is a SecureDirectoryStream of a folder (see hardware_files)
+  // for the app they do not exist, with java.io, Os and java.nio.file; the script runs only for the paths containing
+  // sys/, or fd/ of the descriptor of a folder, each variant hides the files of its group, also to a
+  // SecureDirectoryStream of their folder (see hardware_files)
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -9448,6 +10156,194 @@
     "returnType": "byte[]",
     "minSdk": 27,
         "luaScript": "@hardware_files"
+  },
+  // The calls which tell a file exists, like listing the attributes, changing them, the mode or the owner, which
+  // a file of /sys refuses (EPERM, EACCES), linking it into a folder of the app (EXDEV), removing it (EACCES) or
+  // making a folder or a pipe by its name (EEXIST): a missing file gives ENOENT, and making by its name EACCES, like
+  // in a folder of /sys; the first path of link is the file which must exist, the kernel looks it up first. Of link
+  // and symlink also the new name, which gives EEXIST for a file which exists, and of rename both paths, which the
+  // script replaces by a missing name for the real call, since the filter sees only the first (see renaming)
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.listxattr/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "listxattr",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.setxattr/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "setxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "byte[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.removexattr/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "removexattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.chmod/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.chown/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.lchown/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.link/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "link",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.remove/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "remove",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.mkdir/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.mkfifo/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkfifo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.symlink/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Os.rename/hardware_ids",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "rename",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
   },
   {
     "collection": "Privacy",
@@ -9700,6 +10596,76 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  // The SecureDirectoryStream of a folder, which Files.newDirectoryStream gives, opens, removes and moves its files, also
+  // to read or change their attributes, and reads their attributes by the descriptor of the folder and their name, which
+  // the filter does not see, so the script checks their paths itself
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.openat/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "openat",
+    "parameterTypes": [
+      "int",
+      "byte[]",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.fstatat/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "fstatat",
+    "parameterTypes": [
+      "int",
+      "byte[]",
+      "int",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.unlinkat/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "unlinkat",
+    "parameterTypes": [
+      "int",
+      "byte[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.renameat/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "renameat",
+    "parameterTypes": [
+      "int",
+      "byte[]",
+      "int",
+      "byte[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
   // Files.exists of Android 17 asks the provider, where the boot image has UnixNativeDispatcher.exists inlined
   {
     "collection": "Privacy",
@@ -9743,6 +10709,116 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  // Files.setPosixFilePermissions, setOwner, createLink, createSymbolicLink, createDirectory and move with ATOMIC_MOVE,
+  // which give NoSuchFileException for a missing file and AccessDeniedException for making a folder in /sys, like the
+  // calls of Os; Files.delete looks the file up first (lstat), and so does move without ATOMIC_MOVE
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.chmod/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.chown/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.lchown/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.link/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "link",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.mkdir/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.symlink/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "byte[]",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "UnixNativeDispatcher.rename/hardware_ids",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "rename",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -9783,6 +10859,9 @@
     ],
     "returnType": "android.system.StructStatVfs",
     "minSdk": 27,
+    "settings": [
+      "value.android_id"
+    ],
     "luaScript": "@statvfs_fsid"
   },
   {
@@ -9791,6 +10870,39 @@
     "name": "Os.fstatvfs/fsid",
     "author": "akano12",
     "className": "android.system.Os",
+    "methodName": "fstatvfs",
+    "parameterTypes": [
+      "java.io.FileDescriptor"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 27,
+    "settings": [
+      "value.android_id"
+    ],
+    "luaScript": "@statvfs_fsid"
+  },
+  // The native methods beneath, which Libcore.os and Libcore.rawOs reach without Os, by reflection, on Android 8.1
+  // without any trick; Android 8.1 and 9 call them from BlockGuardOs directly, not through ForwardingOs
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Linux.statvfs/fsid",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
+    "methodName": "statvfs",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 27,
+    "luaScript": "@statvfs_fsid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Linux.fstatvfs/fsid",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
     "methodName": "fstatvfs",
     "parameterTypes": [
       "java.io.FileDescriptor"
@@ -9884,7 +10996,8 @@
     "luaScript": "@mac_address"
   },
   // The Bluetooth address of a connected keyboard, mouse, game controller or stylus, of Android 14 and later
-  // (hidden methods); without an address, like without the Bluetooth permission, Android gives none
+  // (hidden methods, both of which ask InputManagerGlobal, which apps can call too); without an address, like
+  // without the Bluetooth permission, Android gives none
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
@@ -9916,6 +11029,21 @@
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
+    "name": "InputManagerGlobal.getInputDeviceBluetoothAddress",
+    "author": "akano12",
+    "className": "android.hardware.input.InputManagerGlobal",
+    "methodName": "getInputDeviceBluetoothAddress",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 34,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
     "name": "NetworkInterface.getHardwareAddress",
     "author": "akano12",
     "className": "java.net.NetworkInterface",
@@ -9925,12 +11053,64 @@
     "minSdk": 27,
     "luaScript": "@mac_address"
   },
+  // The address of the own device of Wi-Fi Direct, which Android 8.1 and 9 give to apps in the broadcast
+  // THIS_DEVICE_CHANGED and as the owner of a group of which the device is the owner (see wifip2p_own_address)
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Intent.createFromParcel/identifiers",
+    "author": "akano12",
+    "className": "android.content.Intent",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@wifip2p_own_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "WifiP2pGroup.createFromParcel",
+    "author": "akano12",
+    "className": "android.net.wifi.p2p.WifiP2pGroup",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.net.wifi.p2p.WifiP2pGroup",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@wifip2p_own_address"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Identifiers",
     "name": "Settings.Secure.getStringForUser/mac",
     "author": "akano12",
     "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  // The cache below the getter (see Settings.NameValueCache.getStringForUser/android_id)
+  {
+    "collection": "Privacy",
+    "group": "Read.Identifiers",
+    "name": "Settings.NameValueCache.getStringForUser/mac",
+    "author": "akano12",
+    "className": "android.provider.Settings$NameValueCache",
     "methodName": "getStringForUser",
     "parameterTypes": [
       "android.content.ContentResolver",
@@ -10095,7 +11275,7 @@
       "java.lang.String",
       "boolean"
     ],
-    "minSdk": 33,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@adservices_id"
   },
@@ -10109,7 +11289,7 @@
       "java.lang.String",
       "int"
     ],
-    "minSdk": 33,
+    "minSdk": 31,
     "optional": true,
     "luaScript": "@adservices_id"
   },
@@ -12282,6 +13462,35 @@
     "minSdk": 27,
     "luaScript": "@generic_empty_text"
   },
+  // Hidden, the ICCID or EID of the card, like getIccId: the id of the card on Android 9, which apps for Android 8.1
+  // and before can call, and the card string on Android 10 and later, which apps reach past the hidden API limits
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "SubscriptionInfo.getCardId",
+    "author": "akano12",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getCardId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 28,
+    "maxSdk": 28,
+    "optional": true,
+    "luaScript": "@generic_empty_text"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "SubscriptionInfo.getCardString",
+    "author": "akano12",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "getCardString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "optional": true,
+    "luaScript": "@generic_empty_text"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Telephony",
@@ -12297,6 +13506,41 @@
       "value.phone_number"
     ],
     "luaScript": "@value_phone_number_nonnull"
+  },
+  // The text has the ICCID, the card string, the number and the group, like the getters (see operator_tostring)
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "SubscriptionInfo.toString/telephony",
+    "author": "akano12",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@operator_tostring"
+  },
+  // The fields of a SubscriptionInfo, which its parcel, its text and reflection give, with the ICCID and the number of
+  // the getters (see telephony_createfromparcel)
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "SubscriptionInfo.createFromParcel",
+    "author": "akano12",
+    "className": "android.telephony.SubscriptionInfo",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.telephony.SubscriptionInfo",
+    "minSdk": 27,
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@telephony_createfromparcel"
   },
   {
     "collection": "Privacy",
@@ -12484,7 +13728,8 @@
     ],
     "luaScript": "@value_device_id"
   },
-  // The software version of the IMEI (IMEISV), which tells the firmware of the modem; null, like not available
+  // The software version of the IMEI (IMEISV), which tells the firmware of the modem; the common first version 01, not the null
+  // of a phone without one
   {
     "collection": "Privacy",
     "group": "Read.Telephony",
@@ -12495,7 +13740,7 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 27,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@value_device_svn"
   },
   {
     "collection": "Privacy",
@@ -12510,7 +13755,7 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "optional": true,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@value_device_svn"
   },
   // The UUID of a group of subscriptions (like an eSIM and a SIM), the same for all apps; null, like not grouped
   {
@@ -12557,6 +13802,25 @@
       "value.phone_number"
     ],
     "luaScript": "@phone_account_address"
+  },
+  // The fields of a phone account, which its parcel and reflection give, with the addresses of the getters
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "PhoneAccount.createFromParcel",
+    "author": "akano12",
+    "className": "android.telecom.PhoneAccount",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.telecom.PhoneAccount",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@telephony_createfromparcel"
   },
   {
     "collection": "Privacy",
@@ -12723,6 +13987,27 @@
     "optional": true,
     "luaScript": "@generic_empty"
   },
+  // The binder proxy under the hidden TelecomManager.getPhoneAccountsForPackage, which asks for the app itself only;
+  // apps reach it by reflection through TelecomManager.getTelecomService() and can ask it for another package, like
+  // com.android.phone, which Android 8.1 to 11 answer without a permission until the security patch of bug 153995334
+  // (Android 9 to 11 hide the method from apps targeting Android 9 or later). No return type, since the patched
+  // Android 10 returns a ParceledListSlice, which the hook leaves (phone_accounts_package)
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "ITelecomService.getPhoneAccountsForPackage",
+    "author": "akano12",
+    "className": "com.android.internal.telecom.ITelecomService$Stub$Proxy",
+    "methodName": "getPhoneAccountsForPackage",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "minSdk": 27,
+    "maxSdk": 30,
+    "excludePackages": "android",
+    "optional": true,
+    "luaScript": "@phone_accounts_package"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Telephony",
@@ -12872,6 +14157,80 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 27,
+    "optional": true,
+    "luaScript": "@generic_null_value"
+  },
+  // The EID of the eSIM chip and the ICCID of the cards, which Android gives apps with carrier privileges and privileged
+  // apps (getUiccCardsInfo of PhoneInterfaceManager, getEid of EuiccController), and privileged apps also by the card id of
+  // a slot (getUiccSlotsInfo); others get a SecurityException, which stays.
+  // The answers are those of the copies Android gives an app without the privileges: no EID, and no ICCID before Android 13.
+  // From Android 13 the ICCID of a port is redacted, and none for apps with READ_PRIVILEGED_PHONE_STATE, which Android never
+  // gives a redacted one, also not by the ports of a slot (see uiccportinfo_iccid).
+  // shortcut: the parcel and the text (toString on debuggable builds) of a UiccCardInfo, UiccSlotInfo or UiccPortInfo keep the
+  // real EID and ICCIDs, upgrade to a CREATOR hook like telephony_createfromparcel when apps with these privileges are seen
+  // reading them.
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "EuiccManager.getEid",
+    "author": "akano12",
+    "className": "android.telephony.euicc.EuiccManager",
+    "methodName": "getEid",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 28,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "UiccCardInfo.getEid",
+    "author": "akano12",
+    "className": "android.telephony.UiccCardInfo",
+    "methodName": "getEid",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
+  // From Android 13 the ICCID of a card is the one of its first port (UiccPortInfo.getIccId below)
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "UiccCardInfo.getIccId",
+    "author": "akano12",
+    "className": "android.telephony.UiccCardInfo",
+    "methodName": "getIccId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 29,
+    "maxSdk": 32,
+    "luaScript": "@generic_null_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "UiccPortInfo.getIccId",
+    "author": "akano12",
+    "className": "android.telephony.UiccPortInfo",
+    "methodName": "getIccId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 33,
+    "luaScript": "@uiccportinfo_iccid"
+  },
+  // The card id of a slot is the EID of an active eSIM chip or an ICCID; none, like a slot gives before the records of its
+  // card are read (SystemApi, so not in the SDK)
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "UiccSlotInfo.getCardId",
+    "author": "akano12",
+    "className": "android.telephony.UiccSlotInfo",
+    "methodName": "getCardId",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 28,
     "optional": true,
     "luaScript": "@generic_null_value"
   },
@@ -13127,6 +14486,48 @@
     "collection": "Privacy",
     "group": "Read.Telephony",
     "name": "ContentProviderClient.query26/siminfo",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@contentresolver_query"
+  },
+  // The calls of the call log keep the account of their SIM, with the own number and until Android 13 the ICCID,
+  // which apps with the call log permission can read
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "ContentResolver.query26/call_log_account",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "settings": [
+      "value.phone_number"
+    ],
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Telephony",
+    "name": "ContentProviderClient.query26/call_log_account",
     "author": "akano12",
     "className": "android.content.ContentProviderClient",
     "methodName": "query",
@@ -16576,6 +17977,39 @@
       "long"
     ],
     "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@systemproperties_get"
+  },
+  // The same properties in the property areas apps can read as files (/dev/__properties__), see XParam.setPropertyValues
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "BlockGuardOs.open/operator",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Tracking",
+    "name": "UnixNativeDispatcher.open/operator",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
     "minSdk": 27,
     "luaScript": "@systemproperties_get"
   },

@@ -19,8 +19,9 @@
 -- address of each interface. NetworkInterface reads it, and apps which may use the APIs hidden by Android can call it
 -- themselves, which would bypass the hooks of NetworkInterface. Its entries are left out like those hooks leave out
 -- what they hide: the addresses of the device, loopback stays (network, see network_address), the interfaces of VPNs
--- (vpn, see vpn) and the hardware addresses (mac, see mac_address). Apps which may not use hidden APIs cannot call it;
--- then reflection does not find the fields here either, so the entries stay, like the original result.
+-- (vpn, see vpn) and the hardware addresses (mac, see mac_address), which go out of their entries while those stay.
+-- Apps which may not use hidden APIs cannot call it; then reflection does not find the fields here either, so the
+-- entries stay, like the original result.
 -- Not covered is Libcore.rawOs, the native getifaddrs, which the hooked one calls.
 
 -- The interfaces of VPNs, the same as vpn, which a unit test checks
@@ -37,7 +38,7 @@ function isvpninterface(name)
     return false
 end
 
--- Whether a variant leaves out an entry
+-- Whether a variant leaves out an entry (true), or the entry which takes its place
 local OUT = {
     network = function(entry)
         local address = entry.ifa_addr
@@ -46,8 +47,11 @@ local OUT = {
     vpn = function(entry)
         return isvpninterface(entry.ifa_name)
     end,
+    -- The entry stays like that of an interface without a hardware address (lo or sit0): an interface without
+    -- addresses (Wi-Fi off, dummy0 or p2p0) has only this entry, and NetworkInterface lists the names of the entries
     mac = function(entry)
-        return entry.hwaddr ~= nil
+        return entry.hwaddr ~= nil and luajava.new(entry:getClass(), entry.ifa_name, entry.ifa_flags, entry.ifa_addr,
+            entry.ifa_netmask, entry.ifa_broadaddr, nil)
     end,
 }
 
@@ -58,13 +62,18 @@ function after(hook, param)
         return false
     end
 
-    local kept = {}
+    local kept, changed = {}, false
     for index = 1, result['length'] do
-        if not out(result[index]) then
-            kept[#kept + 1] = result[index]
+        local entry = result[index]
+        local fake = out(entry)
+        if fake then
+            changed = true
+        end
+        if fake ~= true then
+            kept[#kept + 1] = fake or entry
         end
     end
-    if #kept == result['length'] then
+    if not changed then
         return false
     end
 

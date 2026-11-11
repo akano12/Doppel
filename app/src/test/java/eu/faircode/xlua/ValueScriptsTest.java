@@ -105,6 +105,18 @@ public class ValueScriptsTest {
         check(globals, "return after_(hookof('getImei'), paramof('real', {}, nil))", false, false, "real");
     }
 
+    // The software version of the IMEI is a common 2-digit one, not null, which a phone with a modem does not give;
+    // no version, the "0" of CDMA phones, the fake of the overload with a slot and the exception stay
+    @Test
+    public void deviceSoftwareVersionIsPlausible() throws Exception {
+        Globals globals = load("value_device_svn");
+        check(globals, "return after_(nil, paramof('23'))", true, true, "01");
+        check(globals, "return after_(nil, paramof(nil))", false, false, null);
+        check(globals, "return after_(nil, paramof('0'))", false, false, "0");
+        check(globals, "return after_(nil, paramof('01'))", false, false, "01");
+        check(globals, "return after_(nil, paramof('23', {}, nil, 'security'))", false, false, "23");
+    }
+
     // The address of the phone account of a SIM is its number (tel:): the fake number, else none; the accounts of the app
     // itself and other addresses, like sip: of calling apps, stay
     @Test
@@ -138,6 +150,223 @@ public class ValueScriptsTest {
                 .arg1().toboolean());
     }
 
+    // The phone accounts of another package, like the SIM accounts of com.android.phone, whose ids are the ICC IDs, are
+    // none; those of the app itself, an empty list and no list (the exception or ParceledListSlice of a patched Android) stay
+    @Test
+    public void phoneAccountsOfOtherPackagesAreNone() throws Exception {
+        Globals globals = load("phone_accounts_package");
+        Scripts.run(globals, "function listof(empty) return { isEmpty = function(self) return empty end } end\n" +
+                "function accountsof(result, pkg) local param = paramof(result, { [0] = pkg })\n" +
+                "  param.isInstance = function(self, object, name)\n" +
+                "    return name == 'java.util.List' and type(object) == 'table' and object.isEmpty ~= nil end\n" +
+                "  return param end");
+        for (String pkg : new String[]{"'com.android.phone'", "nil"}) {
+            Varargs other = Scripts.run(globals, "local param = accountsof(listof(false), " + pkg + ")\n" +
+                    "return after(nil, param), param.result");
+            assertTrue(pkg, other.arg(1).toboolean());
+            assertEquals(pkg, java.util.ArrayList.class, other.arg(2).checkuserdata().getClass());
+            assertTrue(pkg, ((java.util.List<?>) other.arg(2).checkuserdata()).isEmpty());
+        }
+        for (String stays : new String[]{"listof(false), 'com.example'", "listof(true), 'com.android.phone'",
+                "nil, 'com.android.phone'", "{ getList = function(self) end }, 'com.android.phone'"})
+            assertTrue(stays, Scripts.run(globals, "local param = accountsof(" + stays + ")\n" +
+                    "return after(nil, param) == false and param.set == false").arg1().toboolean());
+    }
+
+    // Parcels as lists of typed values, a position for each value, which a SubscriptionInfo and a PhoneAccount write and
+    // read like Android; a tail value stands for the fields after the faked ones, which are copied as they are
+    private static final String PARCELS = String.join("\n",
+            "parcels = {}",
+            "function parcelof() local p = { items = {}, pos = 0 } parcels[#parcels + 1] = p",
+            "  function p:put(kind, value) self.pos = self.pos + 1 self.items[self.pos] = { kind, value } end",
+            "  function p:get(kind) self.pos = self.pos + 1 local item = self.items[self.pos]",
+            "    assert(item ~= nil and item[1] == kind, kind) return item[2] end",
+            "  function p:writeInt(v) self:put('int', v) end function p:readInt() return self:get('int') end",
+            "  function p:writeString(v) self:put('string', v) end function p:readString() return self:get('string') end",
+            "  function p:dataPosition() return self.pos end function p:setDataPosition(pos) self.pos = pos end",
+            "  function p:dataSize() return #self.items end function p:recycle() self.recycled = true end",
+            "  function p:dataAvail() return #self.items - self.pos end function p:readParcelable(loader) return self:get('bitmap') end",
+            "  function p:createByteArray() return self:get('bytes') end function p:readLong() return self:get('long') end",
+            "  function p:appendFrom(other, offset, length)",
+            "    for i = offset + 1, offset + length do self.pos = self.pos + 1 self.items[self.pos] = other.items[i] end end",
+            "  return p end",
+            "function creatorof(kind) return { createFromParcel = function(self, p) return p:get(kind) end } end",
+            "function uriof(scheme, part) return { scheme = scheme, part = part,",
+            "  getScheme = function(self) return self.scheme end, getSchemeSpecificPart = function(self) return self.part end,",
+            "  toString = function(self) return self.scheme .. ':' .. self.part end,",
+            "  equals = function(self, other) return other ~= nil and self:toString() == other:toString() end,",
+            "  writeToParcel = function(self, p, flags) p:put('uri', self) end } end",
+            "function handleof(pkg) return { getComponentName = function(self)",
+            "  return { getPackageName = function(self) return pkg end } end } end",
+            // Writes and reads the fields like Android, a ROM writes a field of its own before the number; Android 9 writes
+            // the card id last, after the roaming, MCC, MNC, country, icon, embedded and access rules, Android 10 and
+            // later the card string there, with the MCC and MNC as text and more fields after it
+            "sdk = 27",
+            "function infoof(iccid, number, rom, card)",
+            "  local info = { iccid = iccid, number = number, rom = rom, card = card, icon = 'bitmap' }",
+            "  function info:getIccId() return self.iccid end function info:getNumber() return self.number end",
+            "  function info:writeToParcel(p, flags) p:writeInt(7) p:writeString(self.iccid) p:writeInt(0) p:put('text', 'SIM')",
+            "    p:put('text', 'Carrier') p:writeInt(1) p:writeInt(2) if self.rom then p:writeString('rom') end",
+            "    p:writeString(self.number)",
+            "    if sdk >= 28 then p:writeInt(0)",
+            "      if sdk == 28 then p:writeInt(204) p:writeInt(8) else p:writeString('204') p:writeString('08') end",
+            "      p:writeString('nl') p:put(self.icon, 'icon') p:writeInt(0) p:writeInt(self.rules and #self.rules or -1)",
+            "      for _, rule in ipairs(self.rules or {}) do p:writeInt(1) p:put('bytes', rule) p:writeString('pkg') p:put('long', 0) end",
+            "      p:writeString(self.card) end",
+            "    if sdk ~= 28 then p:writeString('tail') end end",
+            "  return info end",
+            "infos = { createFromParcel = function(self, p) assert(p:readInt() == 7) local iccid = p:readString()",
+            "  p:readInt() p:get('text') p:get('text') p:readInt() p:readInt() local info = infoof(iccid, p:readString())",
+            "  if sdk >= 28 then p:readInt() if sdk == 28 then p:readInt() p:readInt() else p:readString() p:readString() end",
+            "    p:readString() p:setDataPosition(p:dataPosition() + 1) p:readInt() local rules = p:readInt()",
+            "    if rules >= 0 then info.rules = {} end",
+            "    for i = 1, rules do assert(p:readInt() == 1) info.rules[i] = p:get('bytes') p:readString() p:get('long') end",
+            "    info.card = p:readString() end",
+            "  if sdk ~= 28 then assert(p:readString() == 'tail') end return info end }",
+            "function accountof(pkg, address, subscription)",
+            "  local phone = { handle = handleof(pkg), address = address, subscription = subscription }",
+            "  function phone:getAccountHandle() return self.handle end function phone:getAddress() return self.address end",
+            "  function phone:getSubscriptionAddress() return self.subscription end",
+            "  function phone:writeToParcel(p, flags) p:writeInt(1) p:put('handle', self.handle)",
+            "    for _, uri in ipairs({ self.address or false, self.subscription or false }) do",
+            "      if uri then p:writeInt(1) uri:writeToParcel(p, 0) else p:writeInt(0) end end",
+            "    p:writeString('tail') end",
+            "  return phone end",
+            "accounts = { createFromParcel = function(self, p) local handle = (p:readInt() ~= 0 and p:get('handle') or nil)",
+            "  local uris = {} for i = 1, 2 do if p:readInt() ~= 0 then uris[i] = p:get('uri') end end",
+            "  assert(p:readString() == 'tail') local phone = accountof(nil, uris[1], uris[2]) phone.handle = handle",
+            "  return phone end }",
+            "luajava = { bindClass = function(name)",
+            "  if name == 'android.os.Parcel' then return { obtain = function(self) return parcelof() end } end",
+            "  if name == 'android.text.TextUtils' then return { CHAR_SEQUENCE_CREATOR = creatorof('text') } end",
+            "  if name == 'android.telecom.PhoneAccountHandle' then return { CREATOR = creatorof('handle') } end",
+            "  if name == 'android.telephony.SubscriptionInfo' then return { CREATOR = infos } end",
+            "  if name == 'android.telecom.PhoneAccount' then return { CREATOR = accounts } end",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+            "  if name == 'android.graphics.Bitmap' then return { CREATOR = creatorof('bitmap') } end",
+            "  assert(name == 'android.net.Uri', name)",
+            "  return { CREATOR = creatorof('uri'), fromParts = function(self, scheme, part, fragment) return uriof(scheme, part) end }",
+            "end }",
+            "function recycled() for _, p in ipairs(parcels) do if not p.recycled then return false end end return #parcels > 0 end");
+
+    // A SubscriptionInfo is made again from its parcel with the ICCID and the number of the getters, the rest copied
+    @Test
+    public void subscriptionInfoFieldsAreFaked() throws Exception {
+        Globals globals = load("telephony_createfromparcel");
+        Scripts.run(globals, PARCELS);
+        String hook = "hookof('CREATOR:createFromParcel', 'android.telephony.SubscriptionInfo')";
+        Varargs made = Scripts.run(globals, "settings['value.phone_number'] = '+3100000'\n" +
+                "local param = paramof(infoof('8931440000000000001', '+31612345678'))\n" +
+                "return after(" + hook + ", param), param.result.iccid, param.result.number, recycled()");
+        assertTrue(made.arg(1).toboolean());
+        assertEquals("", made.arg(2).tojstring());
+        assertEquals("+3100000", made.arg(3).tojstring());
+        assertTrue(made.arg(4).toboolean());
+        // Without a fake number none, like the getter; no ICCID and no number stay, like an unknown layout
+        made = Scripts.run(globals, "settings = {}\n" +
+                "local param = paramof(infoof('8931440000000000001', '+31612345678'))\n" +
+                "return after(" + hook + ", param), param.result.number");
+        assertEquals("", made.arg(2).tojstring());
+        assertTrue(Scripts.run(globals, "local param = paramof(infoof('', nil))\n" +
+                "return after(" + hook + ", param) == false and param.set == false").arg1().toboolean());
+        assertTrue(Scripts.run(globals, "parcels = {} local param = paramof(infoof('8931440000000000001', '+31612345678', true))\n" +
+                "return after(" + hook + ", param) == false and param.set == false and recycled()").arg1().toboolean());
+    }
+
+    // On Android 9 and 10 the card id or card string of a SubscriptionInfo, which is the ICCID of a SIM card, is none like
+    // the ICCID, also with F of padding and with access rules; an EID, Android 8.1 (no card value) and 11 and a parcel
+    // which does not read like Android keep it, and its ICCID and number are faked all the same
+    @Test
+    public void subscriptionInfoCardOfSimIsFaked() throws Exception {
+        Globals globals = load("telephony_createfromparcel");
+        Scripts.run(globals, PARCELS);
+        String hook = "hookof('CREATOR:createFromParcel', 'android.telephony.SubscriptionInfo')";
+        String iccid = "8931440000000000001";
+        String eid = "89049032000000000000000000000001";
+        for (String[] c : new String[][]{
+                // The version, the card value, the access rules, the kind of the icon and the card value made
+                {"28", iccid, "nil", "bitmap", ""}, {"28", iccid + "ff", "{ 'hash' }", "bitmap", ""},
+                {"29", iccid, "nil", "bitmap", ""}, {"29", iccid, "{ 'hash', 'other' }", "bitmap", ""},
+                {"28", eid, "nil", "bitmap", eid}, {"29", eid, "nil", "bitmap", eid},
+                {"30", iccid, "nil", "bitmap", iccid}, {"28", iccid, "nil", "odd", iccid}}) {
+            String lua = "sdk = " + c[0] + " parcels = {} settings['value.phone_number'] = '+3100000'\n" +
+                    "local info = infoof('" + iccid + "', '+31612345678', nil, '" + c[1] + "')\n" +
+                    "info.rules = " + c[2] + " info.icon = '" + c[3] + "'\n" +
+                    "local param = paramof(info)\n" +
+                    "return after(" + hook + ", param), param.result.iccid, param.result.number, param.result.card,\n" +
+                    "  #(param.result.rules or {}) == #(info.rules or {}), recycled()";
+            Varargs made = Scripts.run(globals, lua);
+            assertTrue(lua, made.arg(1).toboolean());
+            assertEquals(lua, "", made.arg(2).tojstring());
+            assertEquals(lua, "+3100000", made.arg(3).tojstring());
+            assertEquals(lua, c[4], made.arg(4).tojstring());
+            assertTrue(lua, made.arg(5).toboolean());
+            assertTrue(lua, made.arg(6).toboolean());
+        }
+        // Android 8.1 has no card value
+        Varargs made = Scripts.run(globals, "sdk = 27\n" +
+                "local param = paramof(infoof('" + iccid + "', '+31612345678', nil, '" + iccid + "'))\n" +
+                "return after(" + hook + ", param), param.result.iccid, param.result.card");
+        assertTrue(made.arg(1).toboolean());
+        assertEquals("", made.arg(2).tojstring());
+        assertTrue(made.arg(3).isnil());
+        Scripts.run(globals, "sdk = 27");
+    }
+
+    // A phone account of a SIM is made again from its parcel with the addresses of the getters; the own ones stay
+    @Test
+    public void phoneAccountFieldsAreFaked() throws Exception {
+        Globals globals = load("telephony_createfromparcel");
+        Scripts.run(globals, PARCELS);
+        String hook = "hookof('CREATOR:createFromParcel', 'android.telecom.PhoneAccount')";
+        Varargs made = Scripts.run(globals, "settings['value.phone_number'] = '+3100000'\n" +
+                "local param = paramof(accountof('com.android.phone', uriof('tel', '+3161234'), uriof('tel', '+3161234')))\n" +
+                "local restricted = after(" + hook + ", param)\n" +
+                "return restricted, param.result:getAddress():toString(), param.result:getSubscriptionAddress():toString(),\n" +
+                "  param.result:getAccountHandle():getComponentName():getPackageName(), recycled()");
+        assertTrue(made.arg(1).toboolean());
+        assertEquals("tel:+3100000", made.arg(2).tojstring());
+        assertEquals("tel:+3100000", made.arg(3).tojstring());
+        assertEquals("com.android.phone", made.arg(4).tojstring());
+        assertTrue(made.arg(5).toboolean());
+        // No subscription address stays none
+        made = Scripts.run(globals, "local param = paramof(accountof('com.android.phone', uriof('tel', '+3161234'), nil))\n" +
+                "return after(" + hook + ", param), param.result:getAddress():toString(), param.result:getSubscriptionAddress()");
+        assertTrue(made.arg(1).toboolean());
+        assertEquals("tel:+3100000", made.arg(2).tojstring());
+        assertTrue(made.arg(3).isnil());
+        // The accounts of the app itself and other addresses stay
+        for (String phone : new String[]{"'com.example', uriof('tel', '+3161234')", "'org.voip', uriof('sip', 'alice@example.com')"})
+            assertTrue(phone, Scripts.run(globals, "local param = paramof(accountof(" + phone + ", nil))\n" +
+                    "return after(" + hook + ", param) == false and param.set == false").arg1().toboolean());
+        // One rule for the getters and the fields
+        assertEquals(Scripts.function("phone_account_address", "fakeaddress"),
+                Scripts.function("telephony_createfromparcel", "fakeaddress"));
+    }
+
+    // The ICCID of a port of a SIM card is redacted like for an app without carrier privileges, also of a port which
+    // is not active, which has none
+    @Test
+    public void iccIdOfPortIsRedacted() throws Exception {
+        Globals globals = load("uiccportinfo_iccid");
+        String redacted = "FFFFFFFFFFFFFFFFFFFF";
+        check(globals, "return after_(nil, paramof('8931440000000000001'))", true, true, redacted);
+        check(globals, "return after_(nil, paramof(nil))", true, true, redacted);
+        check(globals, "return after_(nil, paramof('" + redacted + "'))", false, false, redacted);
+        // An app with READ_PRIVILEGED_PHONE_STATE, which also gets the ports of the slots, never gets it redacted: none,
+        // like the card id of a slot; without it, or when the check fails, redacted
+        Scripts.run(globals, "function portof(iccid, granted) local param = paramof(iccid)\n" +
+                "  param.getApplicationContext = function(self) return { checkSelfPermission = function(self, name)\n" +
+                "    assert(unhooked) if granted == nil then error('dead') end\n" +
+                "    return (granted and name == 'android.permission.READ_PRIVILEGED_PHONE_STATE') and 0 or -1 end } end\n" +
+                "  return param end");
+        check(globals, "return after_(nil, portof('8931440000000000001', true))", true, true, null);
+        check(globals, "return after_(nil, portof('" + redacted + "', true))", true, true, null);
+        check(globals, "return after_(nil, portof(nil, true))", false, false, null);
+        check(globals, "return after_(nil, portof('8931440000000000001', false))", true, true, redacted);
+        check(globals, "return after_(nil, portof('8931440000000000001', nil))", true, true, redacted);
+    }
+
     // The own device of Wi-Fi Direct, of which apps get the anonymous address, has the name users give the device,
     // often with their own name, like device_name (see settingssecure_getstring); devices around keep theirs
     @Test
@@ -153,6 +382,66 @@ public class ValueScriptsTest {
         assertEquals("TV", other.arg(2).tojstring());
         assertFalse(Scripts.run(globals, "return after(nil, paramof({ deviceAddress = '02:00:00:00:00:00', deviceName = '' }, {}))")
                 .arg1().toboolean());
+    }
+
+    // Its address, which Android 8.1 and 9 give in the broadcast THIS_DEVICE_CHANGED and as the owner of a group of
+    // which the device is the owner, is anonymous, like Android 10 makes it; the owner of a group the device joined,
+    // other broadcasts and an empty address stay
+    @Test
+    public void ownWifiDirectAddressIsAnonymous() throws Exception {
+        Globals globals = load("wifip2p_own_address");
+        // An intent with only a copy of its extras, like Intent.getExtras, whose device is a new object, like one unparcelled
+        // from the copied parcel, so the change reaches the intent only with replaceExtras
+        Scripts.run(globals, String.join("\n",
+                "function intentof(action, device)",
+                "  local intent = { extras = { wifiP2pDevice = device } }",
+                "  function intent:getAction() return action end",
+                "  function intent:replaceExtras(bundle) self.extras = bundle.values end",
+                "  function intent:getExtras()",
+                "    if self.extras == nil then return nil end",
+                "    local bundle = { values = {} }",
+                "    for key, value in pairs(self.extras) do bundle.values[key] = { deviceAddress = value.deviceAddress } end",
+                "    function bundle:getParcelable(key) return self.values[key] end",
+                "    return bundle",
+                "  end",
+                "  return intent",
+                "end",
+                "function groupof(owner, device)",
+                "  return { isGroupOwner = function(self) return owner end, getOwner = function(self) return device end }",
+                "end",
+                "intent = hookof('createFromParcel', 'android.content.Intent')",
+                "group = hookof('createFromParcel', 'android.net.wifi.p2p.WifiP2pGroup')"));
+        Varargs own = Scripts.run(globals, "local device = { deviceAddress = '6a:11:22:33:44:55' }\n" +
+                "local result = intentof('android.net.wifi.p2p.THIS_DEVICE_CHANGED', device)\n" +
+                "local restricted, old, new = after(intent, paramof(result))\n" +
+                "return restricted, old, new, result.extras.wifiP2pDevice.deviceAddress, device.deviceAddress");
+        assertTrue(own.arg(1).toboolean());
+        assertEquals("6a:11:22:33:44:55", own.arg(2).tojstring());
+        assertEquals("02:00:00:00:00:00", own.arg(3).tojstring());
+        assertEquals("02:00:00:00:00:00", own.arg(4).tojstring());
+        // The extras of the intent itself are replaced, not unparcelled in place
+        assertEquals("6a:11:22:33:44:55", own.arg(5).tojstring());
+        Varargs owner = Scripts.run(globals, "local device = { deviceAddress = '6a:11:22:33:44:55' }\n" +
+                "return after(group, paramof(groupof(true, device))), device.deviceAddress");
+        assertTrue(owner.arg(1).toboolean());
+        assertEquals("02:00:00:00:00:00", owner.arg(2).tojstring());
+        Varargs joined = Scripts.run(globals, "local device = { deviceAddress = '6a:11:22:33:44:55' }\n" +
+                "return after(group, paramof(groupof(false, device))), device.deviceAddress");
+        assertFalse(joined.arg(1).toboolean());
+        assertEquals("6a:11:22:33:44:55", joined.arg(2).tojstring());
+        Varargs other = Scripts.run(globals, "local device = { deviceAddress = '6a:11:22:33:44:55' }\n" +
+                "return after(intent, paramof(intentof('android.net.wifi.p2p.PEERS_CHANGED', device))), device.deviceAddress");
+        assertFalse(other.arg(1).toboolean());
+        assertEquals("6a:11:22:33:44:55", other.arg(2).tojstring());
+        for (String address : new String[]{"''", "'02:00:00:00:00:00'", "nil"})
+            assertFalse(address, Scripts.run(globals, "return after(intent, paramof(intentof(" +
+                    "'android.net.wifi.p2p.THIS_DEVICE_CHANGED', { deviceAddress = " + address + " })))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return after(intent, paramof(intentof('android.net.wifi.p2p.THIS_DEVICE_CHANGED', nil)))")
+                .arg1().toboolean());
+        assertFalse(Scripts.run(globals, "local result = intentof('android.net.wifi.p2p.THIS_DEVICE_CHANGED', nil)\n" +
+                "result.extras = nil\nreturn after(intent, paramof(result))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return after(group, paramof(groupof(true, nil)))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return after(intent, paramof(nil))").arg1().toboolean());
     }
 
     @Test
@@ -173,6 +462,8 @@ public class ValueScriptsTest {
         check(globals, "return after_(nil, paramof(nil))", false, false, null);
         Scripts.run(globals, "settings['value.phone_number'] = '+3100000'");
         check(globals, "return after_(nil, paramof('+3161234'))", true, true, "+3100000");
+        // The fake already, of a SubscriptionInfo made again with it: not reported twice
+        check(globals, "return after_(nil, paramof('+3100000'))", false, false, "+3100000");
     }
 
     // The Widevine ids come from the fake Android ID, of the same length, zeros without one; other properties stay

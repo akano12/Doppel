@@ -16,13 +16,14 @@
 -- Copyright 2026 akano12
 
 -- Apps run programs like getprop, uname, pm, cat and su to read what the other hooks fake, so a restricted app
--- runs no program: the command fails like a program which may not run, before it starts, or like one which does not
--- exist when there is none. Runtime.exec starts processes with ProcessBuilder.start, and Os.execv and execve
--- replace the process with a program. The methods beneath them are hooked too, UNIXProcess.forkAndExec (of
--- ProcessImpl.start and the UNIXProcess constructor) and Linux.execv and execve, as an app can call those by
--- reflection, on Android 8.1 without any trick since it has no restrictions of hidden members. Programs in the native
--- library folder of the app still run: they come with its APK like its native libraries, which Doppel cannot hook
--- either; they are found by their canonical path, so a link to them runs too, but a copy elsewhere does not.
+-- runs no program: the command fails like a program which may not run, or like one which does not exist when there
+-- is none, with the error the kernel gives for its path, see failure. Runtime.exec starts processes with
+-- ProcessBuilder.start, and Os.execv and execve replace the process with a program. The methods beneath them are
+-- hooked too, UNIXProcess.forkAndExec (of ProcessImpl.start and the UNIXProcess constructor) and Linux.execv and
+-- execve, as an app can call those by reflection, on Android 8.1 without any trick since it has no restrictions of
+-- hidden members. Programs in the native library folder of the app still run: they come with its APK like its native
+-- libraries, which Doppel cannot hook either; they are found by their canonical path, so a link to them runs too, but
+-- a copy elsewhere does not.
 -- One reached by a link also runs by that path, so a link the app changes after the check cannot run another program.
 -- shortcut: File.canExecute and Os.access with X_OK still say yes for programs like sh, getprop and id, whose exec
 -- fails with EACCES, a pair a device without Doppel does not show for them; hook those too when an app is seen to
@@ -34,6 +35,41 @@ local EACCES = 13
 local ENOENT = 2
 local DENIED = 'Permission denied'
 local NOFILE = 'No such file or directory'
+
+-- The exec runs another program instead, which fails with the same error before anything of it is opened, so Android
+-- throws its own exception, with the frames of its own methods, like forkAndExec, and none of the script; for
+-- ProcessBuilder.start the redirects are still opened and the child process made, which changes to the working
+-- directory first, like for any program which fails to run. /dev/null is a device without the right to run, which
+-- the kernel refuses before SELinux sees it (EACCES), unlike a folder, which before Linux 5.9 is opened first and
+-- logged as a denial; /proc has no file descriptor -1 (ENOENT); /dev/null/ wants a folder of a device (ENOTDIR); a
+-- path of PATH_MAX bytes is refused before it is looked up (ENAMETOOLONG); /proc/self/root links to the root, so 21
+-- of them are 42 links, more than the 40 one path may follow (ELOOP). The numbers are those of OsConstants on arm and
+-- x86, which Android runs on.
+-- shortcut: another errno, which stat only gives for rare errors like EIO or ENOMEM, gets an exception made by the
+-- script, with its frames, and for ProcessBuilder.start without the redirects opened; add a program which fails with
+-- it when one is seen
+local FAILING = {
+    [EACCES] = '/dev/null',
+    [ENOENT] = '/proc/self/fd/-1',
+    [20] = '/dev/null/',
+    [36] = '/' .. string.rep('x', 4095),
+    [40] = string.rep('/proc/self/root', 21)
+}
+
+-- The program run instead for the errno, nil for another errno
+function instead(errno)
+    return FAILING[errno]
+end
+
+-- Whether the program is one run instead, which the hooks of the same method beneath, of other groups, pass on
+function failing(program)
+    for _, path in pairs(FAILING) do
+        if program == path then
+            return true
+        end
+    end
+    return false
+end
 
 -- The errno and text of a path which File.exists does not find, from Os.stat, which looks the path up like the exec:
 -- ENOTDIR through a file, ENAMETOOLONG, EACCES in a folder which may not be searched, ELOOP; else ENOENT, also when
@@ -52,11 +88,12 @@ function absent(path)
     return errno, text
 end
 
--- The errno and text of the exec of a program which is not let run, in the order the child of forkAndExec meets
--- them: the working directory dir (a file or a path), then the program, which may not run when it exists. Os.execv
--- and execve take it as a path, of the working directory of the process when relative, forkAndExec too when it has
--- a /, else when search is true a name in the folders of PATH, like execvp: EACCES when a folder gave it, else the
--- error of the last one. As the app sees the files, so a file other hooks hide, like su, does not exist either.
+-- The errno and text of the exec of a program which is not let run, which may not run when it exists. Os.execv and
+-- execve take it as a path, of the working directory of the process when relative, forkAndExec too when it has a /,
+-- of the working directory dir (a file or a path) when there is one, else when search is true a name in the folders
+-- of PATH, like execvp: EACCES when a folder gave it, else the error of the last one. As the app sees the files, so
+-- a file other hooks hide, like su, does not exist either. A working directory which does not work fails the real
+-- exec first, in the child of forkAndExec, whatever the program run instead.
 -- shortcut: the PATH rules are those of execvp of bionic, which ProcessBuilder uses unless the app set its
 -- environment; JDK_execvpe, used then, only differs for a name too long after a folder gave EACCES, so follow it
 -- when an app which sets the environment of a builder is seen to read that error
@@ -65,10 +102,6 @@ function failure(dir, program, search)
     local ok, errno, text = pcall(function()
         if type(dir) == 'string' then
             dir = luajava.new(class, dir)
-        end
-        if dir ~= nil and not dir:isDirectory() then
-            -- chdir fails first; with a / at the end stat fails for a file with ENOTDIR too
-            return absent(dir:getPath() .. '/')
         end
         if program == '' then
             return ENOENT, NOFILE
@@ -114,6 +147,9 @@ end
 -- its name, which breaks multi-call programs that pick their tool by that name, like toybox; keep the name of the
 -- link when an app is seen to rely on it
 function nativeprogram(param, dir, program)
+    -- shortcut: exec of a bare name is never a program of the app, and File resolves it against user.dir, not the
+    -- real working directory; check the name in the real working directory when an app is seen to change it into its
+    -- native library folder
     if not string.find(program, '/', 1, true) or string.sub(program, -1) == '/' then
         return nil
     end
@@ -153,69 +189,23 @@ function cstring(bytes)
     return (nul and string.sub(text, 1, nul - 1) or text)
 end
 
--- The FileNotFoundException of a file which does not open, from the text of the error, which is all pcall gives:
--- its message and, from Android 10 on, which opens files with IoBridge.open, the ErrnoException of open as cause
--- unless the path is invalid; nil for another error
-function unopened(err)
-    local message = string.match(tostring(err), '^vm error: java%.io%.FileNotFoundException: (.*)$')
-    if message == nil then
-        return nil
-    end
-    local ex = luajava.new(luajava.bindClass('java.io.FileNotFoundException'), message)
-    local name = string.match(message, ': open failed: (E%u+) %([^()]*%)$')
-    local known, errno = pcall(function()
-        return luajava.bindClass('android.system.OsConstants')[name]
-    end)
-    if name ~= nil and known and type(errno) == 'number' then
-        ex:initCause(luajava.newInstance('android.system.ErrnoException', 'open', errno))
-    end
-    return ex
-end
-
--- ProcessBuilder.start opens the files the builder redirects to before the exec, like ProcessImpl.start in this
--- order, so files written are created or truncated also when the program does not run; the exception of a file
--- which does not open comes before that of the exec, else nil
-function redirected(builder)
-    -- By the methods of Redirect: each redirect is of an anonymous class, whose methods reflection may not call
-    local Redirect = luajava.bindClass('java.lang.ProcessBuilder$Redirect')
-    local streams, thrown = {}, nil
-    pcall(function()
-        for index, redirect in ipairs({ builder:redirectInput(), builder:redirectOutput(), builder:redirectError() }) do
-            local file = Redirect.file(redirect)
-            if file ~= nil then
-                local ok, stream
-                if index == 1 then
-                    ok, stream = pcall(luajava.new, luajava.bindClass('java.io.FileInputStream'), file)
-                else
-                    ok, stream = pcall(luajava.new, luajava.bindClass('java.io.FileOutputStream'), file,
-                            Redirect.type(redirect):name() == 'APPEND')
-                end
-                if not ok then
-                    thrown = unopened(stream)
-                    return
-                end
-                streams[#streams + 1] = stream
-            end
-        end
-    end)
-    for _, stream in ipairs(streams) do
-        pcall(function()
-            stream:close()
-        end)
-    end
-    return thrown
+-- A path as a C string again, the bytes of the text, which ByteBuffer.wrap gets from Lua as they are, and a NUL
+function cbytes(path)
+    return luajava.bindClass('java.nio.ByteBuffer'):wrap(path .. '\0'):array()
 end
 
 -- The list of the app while its builder starts with a copy, see before and after
 local original
+-- The start of the message of ProcessBuilder.start for the program run instead, and for the program of the app
+local renamed
 
 function before(hook, param)
     local method = hook:getMethodName()
-    -- Os.execv and execve, static, and Linux.execv and execve, with the exception of the exec; Java throws for a
-    -- null program itself
+    -- Os.execv and execve, static, and Linux.execv and execve, whose exception does not name the program; Java throws
+    -- for a null program itself
     if method == 'execv' or method == 'execve' then
         local program = param:getArgument(0)
-        if program == nil then
+        if program == nil or failing(program) then
             return false
         end
         -- The path is apart from the arguments, so the program runs by the path checked and keeps its name
@@ -224,30 +214,38 @@ function before(hook, param)
             param:setArgument(0, path)
             return false
         end
-        param:setResult(luajava.newInstance('android.system.ErrnoException', method, (failure(nil, program, false))))
+        local errno = failure(nil, program, false)
+        if instead(errno) ~= nil then
+            param:setArgument(0, instead(errno))
+        else
+            param:setResult(luajava.newInstance('android.system.ErrnoException', method, errno))
+        end
         return true, program
     end
 
-    -- UNIXProcess.forkAndExec, with the exception of the exec, which the constructor and ProcessImpl.start pass on as
-    -- it is; the program, which is also its name, and the working directory are C strings; a null program is left to
-    -- Java. ProcessImpl.start opened the files of the redirects already.
+    -- UNIXProcess.forkAndExec, whose exception the constructor and ProcessImpl.start pass on as it is, the error of the
+    -- exec alone; the program, which is also its name, and the working directory are C strings; a null program is left
+    -- to Java
     if method == 'forkAndExec' then
         local program = cstring(param:getArgument(0))
         local dir = cstring(param:getArgument(5))
-        if program == nil then
+        if program == nil or failing(program) then
             return false
         end
         local path = nativeprogram(param, dir, program)
         if path ~= nil then
-            -- As a C string again, the bytes of the text, which ByteBuffer.wrap gets from Lua as they are, and a NUL;
-            -- only for another path, so the bytes of the app stay as they are
+            -- Only for another path, so the bytes of the app stay as they are
             if path ~= program then
-                param:setArgument(0, luajava.bindClass('java.nio.ByteBuffer'):wrap(path .. '\0'):array())
+                param:setArgument(0, cbytes(path))
             end
             return false
         end
         local errno, text = failure(dir, program, true)
-        param:setResult(luajava.new(luajava.bindClass('java.io.IOException'), 'error=' .. errno .. ', ' .. text))
+        if instead(errno) ~= nil then
+            param:setArgument(0, cbytes(instead(errno)))
+        else
+            param:setResult(luajava.new(luajava.bindClass('java.io.IOException'), 'error=' .. errno .. ', ' .. text))
+        end
         return true, program
     end
 
@@ -257,6 +255,8 @@ function before(hook, param)
         return false
     end
     -- The list can be one of the app, which shows other words here than start reads from it, so both read a copy
+    -- shortcut: another thread of the app sees the copy, and the program run instead, while start runs; upgrade when a
+    -- way to pass start other words than the builder has is found
     local copy = luajava.newInstance('java.util.ArrayList', command)
     original = command
     builder:command(copy)
@@ -269,7 +269,7 @@ function before(hook, param)
         end
         words[index] = args[index]
     end
-    if #words == 0 then
+    if #words == 0 or failing(words[1]) then
         return false
     end
     -- The first word is both the program and its name, so the program runs by the path checked
@@ -280,23 +280,41 @@ function before(hook, param)
         return false
     end
 
-    -- The exception of ProcessBuilder.start when the exec fails, with the cause of the exec or of a redirect
-    local exception = luajava.bindClass('java.io.IOException')
-    local cause = redirected(builder)
-    if cause == nil then
-        local errno, text = failure(dir, words[1], true)
-        cause = luajava.new(exception, 'error=' .. errno .. ', ' .. text)
+    local errno, text = failure(dir, words[1], true)
+    if instead(errno) ~= nil then
+        copy:set(0, instead(errno))
+        renamed = { 'Cannot run program "' .. instead(errno) .. '"', 'Cannot run program "' .. words[1] .. '"' }
+    else
+        local exception = luajava.bindClass('java.io.IOException')
+        local cause = luajava.new(exception, 'error=' .. errno .. ', ' .. text)
+        param:setResult(luajava.new(exception, 'Cannot run program "' .. words[1] .. '"' ..
+                (dir and ' (in directory "' .. dir:getPath() .. '")' or '') .. ': ' .. cause:getMessage(), cause))
     end
-    param:setResult(luajava.new(exception, 'Cannot run program "' .. words[1] .. '"' ..
-            (dir and ' (in directory "' .. dir:getPath() .. '")' or '') .. ': ' .. cause:getMessage(), cause))
     return true, table.concat(words, ' ')
 end
 
--- The builder has the list of the app again: used once more, it starts with the words the list has then
+-- The exception of ProcessBuilder.start names the program of the app, like after its own exec: the same class, stack
+-- trace and cause, like package_probe, else the message would have to be set by reflection on a hidden field; the
+-- builder has the list of the app again: used once more, it starts with the words the list has then
 function after(hook, param)
     if original ~= nil then
         param:getThis():command(original)
         original = nil
     end
+    local names = renamed
+    renamed = nil
+    if names == nil then
+        return false
+    end
+    local ex = param:getException()
+    if ex == nil or ex:getMessage() == nil or string.sub(ex:getMessage(), 1, #names[1]) ~= names[1] then
+        return false
+    end
+    local made = luajava.new(ex:getClass(), names[2] .. string.sub(ex:getMessage(), #names[1] + 1))
+    made:setStackTrace(ex:getStackTrace())
+    if ex:getCause() ~= nil then
+        made:initCause(ex:getCause())
+    end
+    param:setResult(made)
     return false
 end

@@ -199,6 +199,37 @@ function before(hook, param)
     return false
 end
 
+-- Puts the rows of the fake cursor in the result of a query, and returns the result then: the wrapper of ContentResolver
+-- and ContentProviderClient (CursorWrapperInner) stays, with the fake cursor in it, so the result is of the class of
+-- Android. It is a copy of replace in settingssecure_getstring, whose comment tells why and the shortcut, since a script
+-- cannot call the functions of another.
+function replace(param, result, fake)
+    if param:isInstance(result, 'android.database.CursorWrapper') then
+        local ok, done = pcall(function()
+            -- Lua sees a Class as its static members, so the methods of Class get the class as the object
+            local fields = luajava.bindClass('java.lang.Class').getDeclaredFields(luajava.bindClass('android.database.CursorWrapper'))
+            for index = 1, fields['length'] do
+                local field = fields[index]
+                if field:getName() == 'mCursor' then
+                    local inner = result:getWrappedCursor()
+                    field:setAccessible(true)
+                    field:set(result, fake)
+                    inner:close()
+                    return true
+                end
+            end
+            return false
+        end)
+        if ok and done then
+            return result
+        end
+    end
+    -- A cursor of another class, or a wrapper which Android does not let change, is replaced by the fake one itself
+    result:close()
+    param:setResult(fake)
+    return fake
+end
+
 -- The values of Gservices without the GSF id: of keys, also of all keys starting with a prefix,
 -- like android_ of content://com.google.android.gsf.gservices/prefix; the rows are a key and a value
 function gservices(param, cursor)
@@ -228,8 +259,7 @@ function gservices(param, cursor)
         cursor:moveToPosition(-1)
         return false
     end
-    cursor:close()
-    param:setResult(fake)
+    replace(param, cursor, fake)
     return true
 end
 
@@ -269,8 +299,7 @@ function siminfo(param, cursor)
             end
         end
     end
-    cursor:close()
-    param:setResult(fake)
+    replace(param, cursor, fake)
     return true
 end
 
@@ -287,6 +316,141 @@ function cell(cursor, index)
         return cursor:getString(index)
     end
     return nil
+end
+
+-- The calls of the call log keep the account of the SIM they were made with: its address (phone_account_address) is
+-- the own number, which Telecom takes from the account like getLine1Number, and its id (subscription_id) the ICCID of
+-- the SIM until Android 13 (PhoneUtils.makePstnPhoneAccountHandleWithPrefix), the subscription id from then on
+local CALL_LOG_SIM = 'com.android.phone/com.android.services.telephony.TelephonyConnectionService'
+
+-- A cell with a text, read like a cell of the cursor of the provider: a window converts it like the one of that
+-- cursor, like getLong of a text is strtoll of CursorWindow and getBlob its bytes with the zero at their end
+function cellof(text, method, ...)
+    local window = luajava.newInstance('android.database.CursorWindow', '')
+    window:setNumColumns(1)
+    window:allocRow()
+    window:putString(text, 0, 0)
+    local value = window[method](window, 0, 0, ...)
+    window:close()
+    return value
+end
+
+-- The columns of the account in the call log, also in an aggregate of the projection like MAX(subscription_id),
+-- which SQLiteQueryBuilder allows from Android 10 on, though not in a count of them, which holds no value of them
+local CALL_LOG_COLUMNS = { phone_account_address = true, subscription_id = true }
+local CALL_LOG_AGGREGATES = { avg = true, max = true, min = true, sum = true, total = true, group_concat = true }
+
+-- The calls of the SIMs with the fake number (value.phone_number, else empty like a SIM without a number) as the
+-- address of their account and an empty id instead of an ICCID, like SubscriptionInfo.getIccId gives it, by a proxy
+-- of the cursor of the provider, so the notification uri and the rest stay. The proxy goes in the wrapper of
+-- ContentResolver and ContentProviderClient (CursorWrapperInner, CursorWrapper.mCursor) like replace puts its fake
+-- cursor there, but the cursor of the provider stays open behind it, so the result is of the class of Android and
+-- releases the provider when the app closes it. Null stays null, and so do the subscription ids of Android 13 and
+-- later and the accounts of other apps, like calling apps.
+-- shortcut: getWrappedCursor gives the proxy instead of the cursor of the binder and getWindow none instead of the
+-- window of the real values, since the proxy is a Cursor only; upgrade to a cursor of a CursorWindow when apps check
+-- those
+-- shortcut: without the component column in the projection every call counts as one of a SIM; upgrade by adding the
+-- column to the query like the starred filter does, if apps query the address without it
+-- shortcut: a selection or sort order on these columns sees the real values; upgrade by checking the query arguments
+-- like the starred filter does
+-- shortcut: an aggregate gets the fake number or the empty id whatever the accounts of its calls, as text also for a
+-- sum; upgrade by aggregating the faked calls, if apps aggregate these columns
+-- shortcut: via_number, the second number of a SIM with more than one, stays real; upgrade by faking it on the calls
+-- of the SIMs, if carriers fill it
+-- shortcut: a long passes Lua as a double, exact up to 2^53, also in the other columns, like getLong of a called
+-- number of 17 digits; upgrade for larger ones
+function calllog(param, result)
+    -- The field of the wrapper, listed like replace does; the proxy reads the cursor in it, since the wrapper would then
+    -- read the proxy
+    local field = nil
+    if param:isInstance(result, 'android.database.CursorWrapper') then
+        pcall(function()
+            local fields = luajava.bindClass('java.lang.Class').getDeclaredFields(luajava.bindClass('android.database.CursorWrapper'))
+            for index = 1, fields['length'] do
+                if fields[index]:getName() == 'mCursor' then
+                    fields[index]:setAccessible(true)
+                    field = fields[index]
+                end
+            end
+        end)
+    end
+    local cursor = field and result:getWrappedCursor()
+    if cursor == nil then
+        field, cursor = nil, result
+    end
+    local names = cursor:getColumnNames()
+    local columns = {}
+    local aggregates = {}
+    local any = false
+    -- By name ignoring case like getColumnIndex, but every column, as a projection can have a column twice
+    for index = 1, cursor:getColumnCount() do
+        local name = string.lower(names[index])
+        local operator, column = string.match(name, '^([%a_]+)%((.+)%)$')
+        if CALL_LOG_COLUMNS[name] then
+            columns[index - 1] = name
+            any = true
+        elseif CALL_LOG_AGGREGATES[operator] and CALL_LOG_COLUMNS[column] then
+            columns[index - 1] = column
+            aggregates[index - 1] = true
+            any = true
+        end
+    end
+    -- Without calls there is nothing to fake, like after the call log hook emptied the cursor
+    if not any or cursor:getCount() == 0 then
+        return false
+    end
+    local component = cursor:getColumnIndex('subscription_component_name')
+    local number = param:getSetting('value.phone_number') or ''
+    -- The fake text of a cell, else nil; an ICCID is 19 or 20 digits, also with hex padding or as the float of a sum
+    -- (a text of %g), a subscription id is short; the component of an aggregate is the one of any of its calls
+    local function fakeof(index)
+        local value = (columns[index] ~= nil and cursor:getString(index) or nil)
+        if value == nil or (not aggregates[index] and component >= 0 and cursor:getString(component) ~= CALL_LOG_SIM) then
+            return nil
+        end
+        if columns[index] == 'phone_account_address' then
+            return number
+        end
+        if string.find(value, '%x%x%x%x%x%x%x%x%x%x') or cursor:getDouble(index) >= 1e10 then
+            return ''
+        end
+        return nil
+    end
+    -- The functions of the proxy get the arguments of the method only; the others call the method of the cursor
+    local methods = {}
+    for _, method in ipairs({ 'getString', 'getBlob', 'getLong', 'getInt', 'getShort', 'getDouble', 'getFloat',
+                              'copyStringToBuffer' }) do
+        methods[method] = function(index, ...)
+            -- A null buffer throws in the cursor like on Android, not in the window of cellof, which it would leave open
+            if method == 'copyStringToBuffer' and (...) == nil then
+                return cursor:copyStringToBuffer(index, nil)
+            end
+            local fake = fakeof(index)
+            if fake == nil then
+                return cursor[method](cursor, index, ...)
+            elseif method == 'getString' then
+                return fake
+            end
+            return cellof(fake, method, ...)
+        end
+    end
+    setmetatable(methods, { __index = function(_, method)
+        -- The proxy itself for equals and hashCode, like any object
+        if method == 'equals' or method == 'hashCode' then
+            return nil
+        end
+        return function(...)
+            return cursor[method](cursor, ...)
+        end
+    end })
+    local proxy = luajava.createProxy('android.database.Cursor', methods)
+    -- Else the proxy is the result, around the wrapper, which the app then still closes
+    if field == nil or not pcall(field.set, field, result, proxy) then
+        cursor = result
+        param:setResult(proxy)
+    end
+    return true
 end
 
 -- The rows which are (not) starred of a query whose selection the provider ignores, without the column before added,
@@ -314,8 +478,7 @@ function starredrows(param, cursor, starred)
         end
     end
     added = false
-    cursor:close()
-    param:setResult(fake)
+    replace(param, cursor, fake)
     return true
 end
 
@@ -338,6 +501,8 @@ function restricted(name, uri)
             (name == 'call_log' and authority == 'call_log') or
             (name == 'call_log' and authority == 'call_log_shadow') or
             (name == 'call_log' and authority == 'call_composer_locations') or
+            (name == 'call_log_account' and authority == 'call_log') or
+            (name == 'call_log_account' and authority == 'call_log_shadow') or
             (name == 'contacts' and authority == 'icc') or
             (name == 'contacts' and authority == 'com.android.simphonebook') or
             (name == 'contacts' and authority == 'contacts') or
@@ -470,8 +635,7 @@ function threadid(param, uri, cursor)
         local row = fake:newRow()
         row:add(luajava.newInstance('java.lang.Long', tonumber(string.sub(param:uuidOf(key), 1, 5), 16) + 1))
     end
-    cursor:close()
-    param:setResult(fake)
+    replace(param, cursor, fake)
     return true
 end
 
@@ -574,8 +738,7 @@ function properties(param, uri, cursor)
         cursor:moveToPosition(-1)
         return false
     end
-    cursor:close()
-    param:setResult(fake)
+    replace(param, cursor, fake)
     return true
 end
 
@@ -614,6 +777,9 @@ function after(hook, param)
     if name == 'siminfo' then
         return siminfo(param, cursor)
     end
+    if name == 'call_log_account' then
+        return calllog(param, cursor)
+    end
     if authority == 'mms-sms' and prefixof(uri) == 'threadID' then
         return threadid(param, uri, cursor)
     end
@@ -625,7 +791,6 @@ function after(hook, param)
     if authority == 'com.android.contacts' then
         pcall(extras, cursor, fake)
     end
-    cursor:close()
-    param:setResult(fake)
+    replace(param, cursor, fake)
     return true
 end

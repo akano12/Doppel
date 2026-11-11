@@ -17,7 +17,9 @@
 
 -- The text of the service state, of its network registrations and of subscriptions names the operator,
 -- which the getters fake (see test_network): the same fake values replace the real ones in the text, in
--- Use.Tracking like the getters; the network codes of subscriptions have a variant of their own (plmn).
+-- Use.Tracking like the getters; the network codes of subscriptions have a variant of their own (plmn), and their
+-- card, number and group one in Read.Telephony (telephony), so an app restricted only there cannot read them in
+-- the text.
 -- Values run up to the next label, because operator names can contain commas and spaces;
 -- empty values stay, like the getters keep them.
 
@@ -79,7 +81,43 @@ local SUBSCRIPTION_PLMN_NUMBERS = {
     { ' mnc ', '1', { ' isEmbedded ' } },
 }
 
--- Replaces the value after a label up to the nearest of the following labels
+-- The ICCID, the card string (the ICCID or EID of the card), the phone number and the group, like the getters in
+-- Read.Telephony: empty, the number set else empty, and no group
+function telephony(text, number)
+    local printed = function(value) return pii(number, value) end
+    local rules = {
+        { ' iccId=', '', { ' simSlotIndex=' } },
+        -- Android 10 and later
+        { ' cardString=', '', { ' cardId=' } },
+        -- Android 11 and later, and 10
+        { ' number=', printed, { ' dataRoaming=' } },
+        { ' mNumber=', printed, { ' dataRoaming=' } },
+        -- Android 14 and later, 11 to 13, and 10
+        { ' groupUuid=', 'null', { ' groupOwner=' } },
+        { ' groupUUID=', 'null', { ' isGroupDisabled=' } },
+        { ' mGroupUUID=', 'null', { ' mIsGroupDisabled=' } },
+    }
+    -- Android 9 ends with the ICCID or EID as the id of the card; the versions which print the card string print the
+    -- index of the card there, which is no identifier
+    if not string.find(text, ' cardString=', 1, true) then
+        table.insert(rules, { ' cardId=', '', { '}' } })
+    end
+    return rules
+end
+
+-- The number as Rlog.pii prints it, after what it printed for the real one: the number itself on debuggable builds,
+-- else a hash in brackets, which user builds hide, and nothing for no number
+function pii(number, shown)
+    if number == '' or string.sub(shown, 1, 1) ~= '[' then
+        return number
+    elseif shown == '[****]' then
+        return shown
+    end
+    local digest = luajava.bindClass('java.security.MessageDigest'):getInstance('SHA-1'):digest(number)
+    return '[' .. luajava.bindClass('java.util.Base64'):getUrlEncoder():withoutPadding():encodeToString(digest) .. ']'
+end
+
+-- Replaces the value after a label up to the nearest of the following labels; a fake can be made of the value
 function replace(text, label, fake, nexts)
     local _, last = string.find(text, label, 1, true)
     if last == nil then
@@ -96,6 +134,9 @@ function replace(text, label, fake, nexts)
         return text, false
     end
     local value = string.sub(text, last + 1, following - 1)
+    if type(fake) == 'function' then
+        fake = fake(value)
+    end
     -- An unknown carrier stays unknown, like getCarrierId keeps it
     if value == fake or value == '' or value == 'null' or (label == ' carrierId=' and value == '-1') then
         return text, false
@@ -110,12 +151,15 @@ function after(hook, param)
     end
 
     local class = hook:getClassName()
+    local variant = string.match(hook:getName(), '/(.*)$')
     local rules = SUBSCRIPTION
     if class == 'android.telephony.ServiceState' then
         rules = SERVICE_STATE
     elseif class == 'android.telephony.NetworkRegistrationInfo' then
         rules = REGISTRATION
-    elseif string.match(hook:getName(), '/(.*)$') == 'plmn' then
+    elseif variant == 'telephony' then
+        rules = telephony(result, param:getSetting('value.phone_number') or '')
+    elseif variant == 'plmn' then
         if string.find(result, ' mcc=', 1, true) then
             rules = SUBSCRIPTION_PLMN
         elseif string.find(result, 'mCountryIso=', 1, true) then

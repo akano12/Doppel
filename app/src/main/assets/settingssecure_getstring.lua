@@ -689,7 +689,8 @@ function provider(hook, param, group)
             elseif kind == 4 then
                 value = source:getBlob(index)
             end
-            if index == valueIndex and value ~= nil and hooked(key) then
+            -- The provider fills each column named value, also one asked for twice, which getColumnIndex does not tell
+            if columns[index + 1] == 'value' and value ~= nil and hooked(key) then
                 local hit, fakevalue = fakeany(param, group, key, value)
                 if hit then
                     changed = true

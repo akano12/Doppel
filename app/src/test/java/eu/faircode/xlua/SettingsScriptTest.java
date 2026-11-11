@@ -514,6 +514,18 @@ public class SettingsScriptTest {
         assertTrue(result.arg1().toboolean());
         assertEquals("0000000000000000", result.arg(2).tojstring());
 
+        // The provider fills each value column of a projection which names it twice: each is faked, and a setting
+        // which is missing has no row at all
+        result = query("identifiers", "uriof('settings', 'secure', 'android_id')", "'value', 'value'",
+                "{ '1234abcd1234abcd', '1234abcd1234abcd' }", "nil");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("0000000000000000,0000000000000000", result.arg(2).tojstring());
+        result = query("identifiers", "uriof('settings', 'secure')", "'name', 'value', 'value'",
+                "{ 'android_id', '1234abcd1234abcd', '1234abcd1234abcd' }, { 'pps_oaid', '4f3e2d1c-real', '4f3e2d1c-real' }, " +
+                        "{ 'adb_enabled', '1', '1' }", "nil");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("android_id,0000000000000000,0000000000000000;adb_enabled,1,1", result.arg(2).tojstring());
+
         // Without the name column, the selection tells the setting
         result = query("identifiers", "uriof('settings', 'secure')", "'value'", "{ '1234abcd1234abcd' }",
                 "{ getString = function(self, key) return \"name='android_id'\" end," +
@@ -685,6 +697,21 @@ public class SettingsScriptTest {
                 "return after(hookof('Settings.Secure.getStringForUser/android_id', " +
                 "'android.provider.Settings$Secure', 'getStringForUser'), param)");
         assertFalse(result.arg1().toboolean());
+    }
+
+    // The cache below the getters serves every table: the Android ID of the secure one is faked, the null of the others stays
+    @Test
+    public void cacheOfSettingsIsFaked() {
+        String call = "local param = paramof({ [0] = {}, [1] = 'android_id', [2] = 0 }, { ['value.android_id'] = 'fake1234fake1234' })\n" +
+                "param.getResult = function(self) return %s end\n" +
+                "param.setResult = function(self, value) self.result = value end\n" +
+                "local restricted = after(hookof('Settings.NameValueCache.getStringForUser/android_id', " +
+                "'android.provider.Settings$NameValueCache', 'getStringForUser'), param)\n" +
+                "return restricted, param.result";
+        Varargs result = run(String.format(call, "'1234abcd1234abcd'"));
+        assertTrue(result.arg1().toboolean());
+        assertEquals("fake1234fake1234", result.arg(2).tojstring());
+        assertFalse(run(String.format(call, "nil")).arg1().toboolean());
     }
 
     // call(authority, LIST_secure, null, null) of ContentResolver

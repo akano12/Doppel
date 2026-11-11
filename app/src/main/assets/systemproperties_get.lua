@@ -296,8 +296,12 @@ function typed(hook, param, key, result, method)
 end
 
 -- The properties of a variant, so its script runs for these only (see XCore.getFilter); the properties of the device
--- have patterns, its script checks the names itself; all of them start with ro. except the baseband
+-- have patterns, its script checks the names itself; all of them start with ro. except the baseband. The hooks of
+-- opening files run it for the property areas only.
 function filter(hook)
+    if hook:getMethodName() == 'open' then
+        return { '/dev/__properties__/*' }
+    end
     local name = string.match(hook:getName(), '/(.*)$')
     if name == 'serial' then
         local keys = {}
@@ -365,6 +369,47 @@ function isset(param, key)
     return not ok or value ~= ''
 end
 
+-- The property areas of /dev/__properties__, which apps can read as files where they can read the properties (see
+-- XParam.getProperties and setPropertyValues): the properties the variant fakes get the values get gives, of the serial
+-- also the ICC IDs and IMEIs of vendors by their names in the area. A property with an empty value stays, like for get.
+-- shortcut: the variants device, debugging and resources have no hooks of opening files, so the areas keep their real
+-- values, like ro.product.model, give them the hooks too if apps read the areas for them.
+function area(hook, param)
+    local name = string.match(hook:getName(), '/(.*)$')
+    local properties = param:getProperties()
+    local keys, values = {}, {}
+    for index = 1, properties['length'], 2 do
+        local key = properties[index]
+        local fake
+        if name == 'serial' and (iccid(key) or deviceid(key)) then
+            fake = ''
+        elseif name == 'serial' and SERIALS[key] ~= nil then
+            fake = param:getSetting('value.serial') or 'unknown'
+        elseif name == 'operator' and OPERATOR[key] ~= nil then
+            fake = operator(key, properties[index + 1])
+        end
+        if fake ~= nil then
+            keys[#keys + 1] = key
+            values[#values + 1] = fake
+        end
+    end
+    if #keys == 0 then
+        return false
+    end
+    local olds = param:setPropertyValues(keys, values)
+    local old, new = {}, {}
+    for index = 1, #keys do
+        if olds[index] ~= nil then
+            old[#old + 1] = olds[index]
+            new[#new + 1] = values[index]
+        end
+    end
+    if #old == 0 then
+        return false
+    end
+    return true, table.concat(old, ','), table.concat(new, ',')
+end
+
 function after(hook, param)
     -- The field Build.VERSION.SECURITY_PATCH of the property, without an argument; not set it stays empty
     if hook:getMethodName() == '#SECURITY_PATCH' then
@@ -375,6 +420,8 @@ function after(hook, param)
         end
         param:setResult(fake)
         return true, result, fake
+    elseif hook:getMethodName() == 'open' then
+        return area(hook, param)
     end
 
     -- The hooked methods are called for all properties, so check the name first

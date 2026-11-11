@@ -843,6 +843,18 @@ public class HookDefinitionsTest {
             check("UnixNativeDispatcher.open/" + variant,
                     "sun.nio.fs.UnixNativeDispatcher open(sun.nio.fs.UnixPath,int,int) @" + variant + " 27-");
         }
+        // The serials, ICC IDs, IMEIs and operators of systemproperties_get, in the group of their getters
+        for (String variant : new String[]{"serial", "operator"}) {
+            check("BlockGuardOs.open/" + variant, "libcore.io.BlockGuardOs open(java.lang.String,int,int) @systemproperties_get 27-");
+            check("UnixNativeDispatcher.open/" + variant,
+                    "sun.nio.fs.UnixNativeDispatcher open(sun.nio.fs.UnixPath,int,int) @systemproperties_get 27-");
+            String group = hook("SystemProperties.get/" + variant).getString("group");
+            for (String name : new String[]{"BlockGuardOs.open/", "UnixNativeDispatcher.open/"}) {
+                assertEquals(name + variant, group, hook(name + variant).getString("group"));
+                assertEquals(name + variant, hook("SystemProperties.get/" + variant).optJSONArray("settings") + "",
+                        hook(name + variant).optJSONArray("settings") + "");
+            }
+        }
     }
 
     // The identifier services of manufacturers are bound by each method binding services, and their providers are
@@ -869,6 +881,11 @@ public class HookDefinitionsTest {
         check("Context.bindServiceAsUser.flags/identifiers", "android.app.ContextImpl bindServiceAsUser(" + i +
                 "android.content.ServiceConnection,android.content.Context$BindServiceFlags,android.os.UserHandle) " +
                 "@identifier_services 34-");
+        check("Context.bindServiceAsUser.handler/identifiers", "android.app.ContextImpl bindServiceAsUser(" + i +
+                "android.content.ServiceConnection,int,android.os.Handler,android.os.UserHandle) @identifier_services 27- optional");
+        check("Context.bindServiceAsUser.flags.handler/identifiers", "android.app.ContextImpl bindServiceAsUser(" + i +
+                "android.content.ServiceConnection,android.content.Context$BindServiceFlags,android.os.Handler," +
+                "android.os.UserHandle) @identifier_services 34- optional");
         String r = "android.content.ContentResolver ";
         check("ContentResolver.acquireContentProviderClient/identifiers",
                 r + "acquireContentProviderClient(android.net.Uri) @identifier_services 27-");
@@ -882,10 +899,77 @@ public class HookDefinitionsTest {
                 "android.os.Bundle) @identifier_services 27-28");
         check("ContentResolver.call/oaid", r + "call(java.lang.String,java.lang.String,java.lang.String," +
                 "android.os.Bundle) @identifier_services 29-");
+        // The hidden methods giving the provider itself, which apps call by reflection and the others of ContentResolver
+        for (String[] acquire : new String[][]{{"acquireProvider/identifiers", "android.net.Uri"},
+                {"acquireProvider.authority/identifiers", "java.lang.String"},
+                {"acquireUnstableProvider/identifiers", "android.net.Uri"},
+                {"acquireUnstableProvider.authority/identifiers", "java.lang.String"}})
+            check("ContentResolver." + acquire[0], r + acquire[0].replaceAll("[./].*", "") + "(" + acquire[1] +
+                    ") @identifier_services 27- optional");
+        // And the method of the app's process under them, which their protected overloads with a context call
+        check("ActivityThread.acquireProvider/identifiers", "android.app.ActivityThread acquireProvider(android.content.Context," +
+                "java.lang.String,int,boolean) @identifier_services 27- optional");
+        // PackageManager finds neither the services nor the provider, by each overload, of which those of Android 13
+        // and later and the public ones call the others, and by the hidden ones for a user
+        String pm = "android.content.pm.PackageManager ";
+        String[][] lookups = {
+                {"resolveService", "android.content.Intent,int", "27-"},
+                {"resolveService/flags", "android.content.Intent,android.content.pm.PackageManager$ResolveInfoFlags", "33-"},
+                {"resolveServiceAsUser", "android.content.Intent,int,int", "27- optional"},
+                {"resolveServiceAsUser/flags", "android.content.Intent,android.content.pm.PackageManager$ResolveInfoFlags,int",
+                        "33- optional"},
+                {"queryIntentServices", "android.content.Intent,int", "27-"},
+                {"queryIntentServices/flags", "android.content.Intent,android.content.pm.PackageManager$ResolveInfoFlags", "33-"},
+                {"queryIntentServicesAsUser", "android.content.Intent,int,int", "27- optional"},
+                {"queryIntentServicesAsUser/flags",
+                        "android.content.Intent,android.content.pm.PackageManager$ResolveInfoFlags,int", "33- optional"},
+                {"getServiceInfo", "android.content.ComponentName,int", "27-"},
+                {"getServiceInfo/flags", "android.content.ComponentName,android.content.pm.PackageManager$ComponentInfoFlags",
+                        "33-"},
+                {"getPackageInfo", "java.lang.String,int", "27-"},
+                {"getPackageInfo/flags", "java.lang.String,android.content.pm.PackageManager$PackageInfoFlags", "33-"},
+                {"getPackageInfo/versioned", "android.content.pm.VersionedPackage,int", "27-"},
+                {"getPackageInfo/versioned/flags",
+                        "android.content.pm.VersionedPackage,android.content.pm.PackageManager$PackageInfoFlags", "33-"},
+                {"getPackageInfoAsUser", "java.lang.String,int,int", "27- optional"},
+                {"getPackageInfoAsUser/flags", "java.lang.String,android.content.pm.PackageManager$PackageInfoFlags,int",
+                        "33- optional"},
+                {"getInstalledPackages", "int", "27-"},
+                {"getInstalledPackages/flags", "android.content.pm.PackageManager$PackageInfoFlags", "33-"},
+                {"getInstalledPackagesAsUser", "int,int", "27- optional"},
+                {"getInstalledPackagesAsUser/flags", "android.content.pm.PackageManager$PackageInfoFlags,int", "33- optional"},
+                {"resolveContentProvider", "java.lang.String,int", "27-"},
+                {"resolveContentProvider/flags", "java.lang.String,android.content.pm.PackageManager$ComponentInfoFlags", "33-"},
+                {"resolveContentProviderAsUser", "java.lang.String,int,int", "27- optional"},
+                {"resolveContentProviderAsUser/flags",
+                        "java.lang.String,android.content.pm.PackageManager$ComponentInfoFlags,int", "33- optional"}};
+        for (String[] lookup : lookups)
+            check("PackageManager." + lookup[0] + "/identifiers", pm + lookup[0].replaceAll("/.*", "") + "(" + lookup[1] +
+                    ") @identifier_services " + lookup[2]);
+        // And the binder proxy under that on Android 8.1 and 9, which apps reach by reflection
+        check("IActivityManager.getContentProvider/identifiers", "android.app.IActivityManager$Stub$Proxy getContentProvider(" +
+                "android.app.IApplicationThread,java.lang.String,int,boolean) @identifier_services 27-28 optional");
+        // The binder proxy under Build.getSerial, of which getSerial still answers some apps from Android 10, when
+        // Build.getSerial calls getSerialForPackage, with the attribution tag too from Android 11
+        String serial = "android.os.IDeviceIdentifiersPolicyService$Stub$Proxy ";
+        check("IDeviceIdentifiersPolicyService.getSerial", serial + "getSerial() @value_serial 27- optional");
+        check("IDeviceIdentifiersPolicyService.getSerialForPackage", serial +
+                "getSerialForPackage(java.lang.String) @value_serial 29-29 optional");
+        check("IDeviceIdentifiersPolicyService.getSerialForPackage/feature", serial +
+                "getSerialForPackage(java.lang.String,java.lang.String) @value_serial 30- optional");
+        for (String name : new String[]{"getSerial", "getSerialForPackage", "getSerialForPackage/feature"})
+            assertEquals("[\"value.serial\"]", hook("IDeviceIdentifiersPolicyService." + name).getJSONArray("settings").toString());
         // Identifiers which manufacturers and SDKs keep in settings, in any table (see settingssecure_getstring)
         for (String table : new String[]{"Global", "Secure", "System"})
             check("Settings." + table + ".getStringForUser/oaid", "android.provider.Settings$" + table +
                     " getStringForUser(android.content.ContentResolver,java.lang.String,int) @settingssecure_getstring 27- optional");
+        // The cache of the settings below the getters, which apps call by reflection, for each variant of the identifiers
+        for (String variant : new String[]{"oaid", "android_id", "mac"}) {
+            check("Settings.NameValueCache.getStringForUser/" + variant, "android.provider.Settings$NameValueCache" +
+                    " getStringForUser(android.content.ContentResolver,java.lang.String,int) @settingssecure_getstring 27- optional");
+            assertEquals(hook("Settings.Secure.getStringForUser/" + variant).optString("settings"),
+                    hook("Settings.NameValueCache.getStringForUser/" + variant).optString("settings"));
+        }
         // Coosea: hidden methods of the keyguard manager, which other devices do not have
         for (String method : new String[]{"obtainOaid", "obtainAaid", "obtainVaid"})
             check("KeyguardManager." + method, "android.app.KeyguardManager " + method + "() @generic_null_value 27- optional");
@@ -984,6 +1068,11 @@ public class HookDefinitionsTest {
         check("TelecomManager.getCallCapablePhoneAccounts", t + "getCallCapablePhoneAccounts() @generic_empty 27-32");
         // Hidden, which apps for Android 9 and before can call; getUserSelectedOutgoingPhoneAccount without a permission
         check("TelecomManager.getCallCapablePhoneAccounts/disabled", t + "getCallCapablePhoneAccounts(boolean) @generic_empty 27-32 optional");
+        // The accounts of another package by the proxy of the service, which Android 8.1 to 11 give without a permission;
+        // without a return type, which the patched Android 10 changed
+        check("ITelecomService.getPhoneAccountsForPackage", "com.android.internal.telecom.ITelecomService$Stub$Proxy " +
+                "getPhoneAccountsForPackage(java.lang.String) @phone_accounts_package 27-30 optional");
+        assertFalse(hook("ITelecomService.getPhoneAccountsForPackage").has("returnType"));
         check("TelecomManager.getSimCallManager/user", t + "getSimCallManager(int) @generic_null_value 27-32 optional");
         check("TelecomManager.getDefaultOutgoingPhoneAccount", t + "getDefaultOutgoingPhoneAccount(java.lang.String) @generic_null_value 27-32");
         check("TelecomManager.getUserSelectedOutgoingPhoneAccount", t + "getUserSelectedOutgoingPhoneAccount() @generic_null_value 27-32");
@@ -992,6 +1081,17 @@ public class HookDefinitionsTest {
         // The number of a SIM is the address of its phone account
         for (String method : new String[]{"getAddress", "getSubscriptionAddress"})
             check("PhoneAccount." + method, "android.telecom.PhoneAccount " + method + "() @phone_account_address 27-");
+        // The fields of the accounts and the subscriptions, which their parcels give, with the values of the getters
+        // in the same processes as the getters
+        for (String type : new String[]{"android.telecom.PhoneAccount.getAddress", "android.telephony.SubscriptionInfo.getNumber"}) {
+            String className = type.substring(0, type.lastIndexOf('.'));
+            String simple = className.substring(className.lastIndexOf('.') + 1);
+            String name = simple + ".createFromParcel";
+            check(name, className + " CREATOR:createFromParcel(android.os.Parcel) @telephony_createfromparcel 27-");
+            assertEquals(name, className, hook(name).getString("returnType"));
+            assertEquals(name, hook(simple + type.substring(type.lastIndexOf('.'))).optString("excludePackages"),
+                    hook(name).optString("excludePackages"));
+        }
         // The carrier configuration of MMS with the user agent and profile, which can name the model
         check("SmsManager.getCarrierConfigValues", "android.telephony.SmsManager getCarrierConfigValues() @mms_useragent 27-");
         // Sends past the public methods of SmsManager: hidden ones up to Android 10, the hidden manager of MMS and
@@ -1056,10 +1156,27 @@ public class HookDefinitionsTest {
         // The name of the own device of Wi-Fi Direct
         check("WifiP2pDevice.createFromParcel", "android.net.wifi.p2p.WifiP2pDevice CREATOR:createFromParcel(android.os.Parcel) " +
                 "@wifip2pdevice_name 27-");
+        // Its address, which Android 10 and later make anonymous themselves
+        check("Intent.createFromParcel/identifiers", "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +
+                "@wifip2p_own_address 27-28");
+        check("WifiP2pGroup.createFromParcel", "android.net.wifi.p2p.WifiP2pGroup CREATOR:createFromParcel(android.os.Parcel) " +
+                "@wifip2p_own_address 27-28");
         // The network access identifier, which Android 9 and before give to apps with the phone state permission, also
         // by the hidden methods
         check("TelephonyManager.getNai", "android.telephony.TelephonyManager getNai() @generic_null_value 27-");
         check("TelephonyManager.getNai/slot", "android.telephony.TelephonyManager getNai(int) @generic_null_value 27- optional");
+        // The EID of the eSIM chip and the ICCIDs of the cards and their ports, which apps with carrier privileges get
+        check("EuiccManager.getEid", "android.telephony.euicc.EuiccManager getEid() @generic_null_value 28-");
+        check("UiccCardInfo.getEid", "android.telephony.UiccCardInfo getEid() @generic_null_value 29-");
+        check("UiccCardInfo.getIccId", "android.telephony.UiccCardInfo getIccId() @generic_null_value 29-32");
+        check("UiccPortInfo.getIccId", "android.telephony.UiccPortInfo getIccId() @uiccportinfo_iccid 33-");
+        // The card id of a slot, its EID or ICCID, which privileged apps get
+        check("UiccSlotInfo.getCardId", "android.telephony.UiccSlotInfo getCardId() @generic_null_value 28- optional");
+        // The software version of the IMEI, a common one instead of the null a phone with a modem does not give
+        check("TelephonyManager.getDeviceSoftwareVersion", "android.telephony.TelephonyManager getDeviceSoftwareVersion() " +
+                "@value_device_svn 27-");
+        check("TelephonyManager.getDeviceSoftwareVersion/slot", "android.telephony.TelephonyManager getDeviceSoftwareVersion(int) " +
+                "@value_device_svn 27- optional");
         // The type allocation code and manufacturer code of the fake IMEI and MEID, the SIM cards of the telephony provider
         // and the merged subscriber ids (the audit of Read.Telephony)
         check("TelephonyManager.getTypeAllocationCode", "android.telephony.TelephonyManager getTypeAllocationCode() @value_device_code 29-");
@@ -1068,6 +1185,11 @@ public class HookDefinitionsTest {
                 "android.os.CancellationSignal) @contentresolver_query 27-");
         check("ContentProviderClient.query26/siminfo", "android.content.ContentProviderClient query(android.net.Uri,java.lang.String[]," +
                 "android.os.Bundle,android.os.CancellationSignal) @contentresolver_query 27-");
+        // The account of the SIM in the calls of the call log, with the own number and the ICCID
+        check("ContentResolver.query26/call_log_account", "android.content.ContentResolver query(android.net.Uri,java.lang.String[]," +
+                "android.os.Bundle,android.os.CancellationSignal) @contentresolver_query 27-");
+        check("ContentProviderClient.query26/call_log_account", "android.content.ContentProviderClient query(android.net.Uri," +
+                "java.lang.String[],android.os.Bundle,android.os.CancellationSignal) @contentresolver_query 27-");
         // The asserts of batches, whose queries the provider runs itself, for each variant of the queries which are emptied
         for (String variant : new String[]{"calendars", "call_log", "contacts", "blockednumber", "mmssms", "voicemail"})
             check("ContentProviderOperation.Builder.build/" + variant, "android.content.ContentProviderOperation$Builder build() " +
@@ -1085,6 +1207,20 @@ public class HookDefinitionsTest {
                 "@generic_null_value 27- optional");
         check("TelephonyManager.getVoiceMailAlphaTag", "android.telephony.TelephonyManager getVoiceMailAlphaTag() " +
                 "@value_voicemail_tag 27-");
+        // The ids of AdServices, which Android 12 has by the shared library android.ext.adservices of ExtServices, with the
+        // constructors, which make the ids agree with the getters
+        String ad = "android.adservices.adid.AdId ";
+        check("AdId.getAdId", ad + "getAdId() @advertisingidclient$info_getid 31- optional");
+        check("AdId.isLimitAdTrackingEnabled", ad + "isLimitAdTrackingEnabled() @generic_true_value 31- optional");
+        check("AppSetId.getId", "android.adservices.appsetid.AppSetId getId() @advertisingidclient$info_getid 31- optional");
+        for (String name : new String[]{"AdId.constructor", "AppSetId.constructor"})
+            assertEquals(name, 31, hook(name).getInt("minSdk"));
+        // The ICCID by the hidden getters of the card, and in the text of a subscription with the number and the group
+        String sub = "android.telephony.SubscriptionInfo ";
+        check("SubscriptionInfo.getCardId", sub + "getCardId() @generic_empty_text 28-28 optional");
+        check("SubscriptionInfo.getCardString", sub + "getCardString() @generic_empty_text 29- optional");
+        check("SubscriptionInfo.toString/telephony", sub + "toString() @operator_tostring 27-");
+        assertEquals("Read.Telephony", hook("SubscriptionInfo.toString/telephony").getString("group"));
         // Media sessions of other apps, which notification listeners get
         String m = "android.media.session.MediaSessionManager ";
         check("MediaSessionManager.getActiveSessions", m + "getActiveSessions(android.content.ComponentName) @media_sessions 27-");
@@ -1205,6 +1341,9 @@ public class HookDefinitionsTest {
         check("BluetoothHidDevice.getConnectedDevices", "android.bluetooth.BluetoothHidDevice getConnectedDevices() @generic_empty 28-");
         check("BluetoothHidDevice.getDevicesMatchingConnectionStates", "android.bluetooth.BluetoothHidDevice " +
                 "getDevicesMatchingConnectionStates(int[]) @generic_empty 28-");
+        // The Bluetooth address of an input device, by the hidden method both getters ask
+        check("InputManagerGlobal.getInputDeviceBluetoothAddress", "android.hardware.input.InputManagerGlobal " +
+                "getInputDeviceBluetoothAddress(int) @generic_null_value 34- optional");
         check("PowerManager.getLocationPowerSaveMode", "android.os.PowerManager getLocationPowerSaveMode() @generic_zero_value 28-");
         check("NsdManager.registerServiceInfoCallback/discovery", "android.net.nsd.NsdManager registerServiceInfoCallback(" +
                 "android.net.nsd.DiscoveryRequest,java.util.concurrent.Executor,android.net.nsd.NsdManager$ServiceInfoCallback) " +
@@ -1556,6 +1695,9 @@ public class HookDefinitionsTest {
         check("Os.readlink/root", "android.system.Os readlink(" + s + ") @hardware_files 27-");
         // Opening su tells it exists, like for the other groups of hidden files
         check("BlockGuardOs.open/root", "libcore.io.BlockGuardOs open(" + s + ",int,int) @hardware_files 27-");
+        // The id of the file system by the native methods, which Libcore.os and Libcore.rawOs reach without Os
+        check("Linux.statvfs/fsid", "libcore.io.Linux statvfs(" + s + ") @statvfs_fsid 27-");
+        check("Linux.fstatvfs/fsid", "libcore.io.Linux fstatvfs(java.io.FileDescriptor) @statvfs_fsid 27-");
         check("UnixNativeDispatcher.open/root", "sun.nio.fs.UnixNativeDispatcher open(sun.nio.fs.UnixPath,int,int) @hardware_files 27-");
         check("UnixFileSystem.createFileExclusively/root", "java.io.UnixFileSystem createFileExclusively(" + s + ") @hardware_files 27-");
         check("Context.sendStickyBroadcast/hidden", "android.app.ContextImpl sendStickyBroadcast(" + i + ") @component_hidden 27-");
@@ -1638,6 +1780,52 @@ public class HookDefinitionsTest {
                 ") @hardware_files 27-");
         for (String name : new String[]{"Os.listxattr", "Os.chmod", "Os.link", "UnixNativeDispatcher.chmod"})
             assertEquals(name, "Get.Applications", hook(name + "/privapp_files").getString("group"));
+    }
+
+    // The same calls for the ids of /sys, and removing a hidden id and making a folder or a pipe by its name, which tell
+    // it exists (EACCES, EEXIST) where a missing name gives ENOENT and EACCES
+    @Test
+    public void hardwareIdsByEveryPathCall() throws Exception {
+        String s = "java.lang.String", p = "sun.nio.fs.UnixPath";
+        for (String name : new String[]{"Os.listxattr", "Os.setxattr", "Os.removexattr", "Os.chmod", "Os.chown", "Os.lchown",
+                "Os.link", "UnixNativeDispatcher.chmod", "UnixNativeDispatcher.chown", "UnixNativeDispatcher.lchown",
+                "UnixNativeDispatcher.link"}) {
+            JSONObject apps = hook(name + "/privapp_files"), ids = hook(name + "/hardware_ids");
+            assertNotNull(name, ids);
+            for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk", "luaScript"})
+                assertEquals(name + " " + key, apps.get(key).toString(), ids.get(key).toString());
+            assertEquals(name, "Read.Identifiers", ids.getString("group"));
+        }
+        check("Os.remove/hardware_ids", "android.system.Os remove(" + s + ") @hardware_files 27-");
+        check("Os.mkdir/hardware_ids", "android.system.Os mkdir(" + s + ",int) @hardware_files 27-");
+        check("Os.mkfifo/hardware_ids", "android.system.Os mkfifo(" + s + ",int) @hardware_files 27-");
+        check("UnixNativeDispatcher.mkdir/hardware_ids", "sun.nio.fs.UnixNativeDispatcher mkdir(" + p + ",int) @hardware_files 27-");
+        // A symbolic link by the name of a hidden id (EEXIST) and moving it (EACCES), where a missing name gives EACCES
+        // and ENOENT
+        check("Os.symlink/hardware_ids", "android.system.Os symlink(" + s + "," + s + ") @hardware_files 27-");
+        check("Os.rename/hardware_ids", "android.system.Os rename(" + s + "," + s + ") @hardware_files 27-");
+        check("UnixNativeDispatcher.symlink/hardware_ids", "sun.nio.fs.UnixNativeDispatcher symlink(byte[]," + p + ") @hardware_files 27-");
+        check("UnixNativeDispatcher.rename/hardware_ids", "sun.nio.fs.UnixNativeDispatcher rename(" + p + "," + p +
+                ") @hardware_files 27-");
+        for (String name : new String[]{"Os.remove", "Os.mkdir", "Os.mkfifo", "UnixNativeDispatcher.mkdir", "Os.symlink", "Os.rename",
+                "UnixNativeDispatcher.symlink", "UnixNativeDispatcher.rename"})
+            assertEquals(name, "Read.Identifiers", hook(name + "/hardware_ids").getString("group"));
+    }
+
+    // A SecureDirectoryStream opens the files of its folder and reads their attributes by the descriptor of the folder
+    // and their name, which the script checks itself, since the filter only compares paths
+    @Test
+    public void hardwareIdsOfASecureDirectoryStream() throws Exception {
+        check("UnixNativeDispatcher.openat/hardware_ids", "sun.nio.fs.UnixNativeDispatcher openat(int,byte[],int,int) @hardware_files 27-");
+        check("UnixNativeDispatcher.fstatat/hardware_ids",
+                "sun.nio.fs.UnixNativeDispatcher fstatat(int,byte[],int,sun.nio.fs.UnixFileAttributes) @hardware_files 27-");
+        // Removing and moving them by name (AOSP oreo-mr1 to main)
+        check("UnixNativeDispatcher.unlinkat/hardware_ids", "sun.nio.fs.UnixNativeDispatcher unlinkat(int,byte[],int) @hardware_files 27-");
+        check("UnixNativeDispatcher.renameat/hardware_ids",
+                "sun.nio.fs.UnixNativeDispatcher renameat(int,byte[],int,byte[]) @hardware_files 27-");
+        for (String name : new String[]{"UnixNativeDispatcher.openat", "UnixNativeDispatcher.fstatat",
+                "UnixNativeDispatcher.unlinkat", "UnixNativeDispatcher.renameat"})
+            assertEquals(name, "Read.Identifiers", hook(name + "/hardware_ids").getString("group"));
     }
 
     // Commands by Os.execv and execve are refused in every group which refuses ProcessBuilder.start

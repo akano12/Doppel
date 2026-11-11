@@ -49,6 +49,11 @@ public class InterfaceEntriesScriptTest {
             "luajava = { bindClass = function(name)",
             "  assert(name == 'java.lang.reflect.Array', name)",
             "  return { newInstance = function(self, type, length) assert(type == component) return { length = length } end }",
+            "end, new = function(type, name, flags, address, netmask, broadcast, hw)",
+            "  assert(type == component)",
+            "  local entry = entryof(name, address, hw)",
+            "  entry.ifa_flags, entry.ifa_netmask, entry.ifa_broadaddr = flags, netmask, broadcast",
+            "  return entry",
             "end }",
             "function entries()",
             "  return arrayof({",
@@ -68,7 +73,7 @@ public class InterfaceEntriesScriptTest {
             "    local entry = param.result[index]",
             "    kept[#kept + 1] = entry.ifa_name .. '=' .. (entry.ifa_addr and entry.ifa_addr.text or (entry.hwaddr and 'hw' or '-'))",
             "  end",
-            "  return restricted, table.concat(kept, ',')",
+            "  return restricted, table.concat(kept, ','), param.result",
             "end");
 
     private static Varargs run(String variant) throws Exception {
@@ -91,13 +96,24 @@ public class InterfaceEntriesScriptTest {
         assertEquals("wlan0=10.0.2.16,wlan0=fec0::d2bf,lo=127.0.0.1,lo=::1,wlan0=hw,dummy0=hw,lo=-", result.arg(2).tojstring());
     }
 
-    // The hardware addresses go, like NetworkInterface.getHardwareAddress (see mac_address)
+    // The hardware addresses go, like NetworkInterface.getHardwareAddress (see mac_address), and their entries stay:
+    // an interface without addresses (dummy0, or wlan0 with Wi-Fi off) has only this one and is still listed
     @Test
     public void hardwareAddressesAreLeftOut() throws Exception {
         Varargs result = run("mac");
         assertTrue(result.arg(1).toboolean());
-        assertEquals("tun0=192.0.2.1,wlan0=10.0.2.16,wlan0=fec0::d2bf,lo=127.0.0.1,lo=::1,tun0=-,lo=-",
+        assertEquals("tun0=192.0.2.1,wlan0=10.0.2.16,wlan0=fec0::d2bf,lo=127.0.0.1,lo=::1,tun0=-,wlan0=-,dummy0=-,lo=-",
                 result.arg(2).tojstring());
+
+        // With Wi-Fi off, wlan0 keeps its name and flags (down), only its hardware address goes
+        Varargs off = Scripts.run(Scripts.load("interface_entries", STUBS), String.join("\n",
+                "local link = entryof('wlan0', nil, { length = 6 })",
+                "link.ifa_flags = 4098",
+                "local restricted, kept, entries = run('mac', arrayof({ entryof('lo', addressof('127.0.0.1', true)), link }))",
+                "return restricted, kept, entries[2].ifa_flags"));
+        assertTrue(off.arg(1).toboolean());
+        assertEquals("lo=127.0.0.1,wlan0=-", off.arg(2).tojstring());
+        assertEquals(4098, off.arg(3).toint());
     }
 
     // Nothing to leave out, and fields which reflection does not find (hidden APIs not allowed to the app): all stay

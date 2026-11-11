@@ -32,8 +32,22 @@ function before(hook, param)
         return false
     end
 
-    -- Every method of IBinder and Object, since a proxy returns null for the others, which a boolean cannot be
-    param:setArgument(1, luajava.createProxy('android.os.IBinder', {
+    -- One binder for each binder of the service, for all threads, like the one BinderProxy Android keeps for it, so
+    -- a second bind of a connection while it is connected calls nothing, since doConnected finds the binder it has
+    -- (old.binder == service). The entry stays while the app runs, since the binder holds the binder of the service.
+    local binder = param:getValue('adid_service', service)
+    if binder ~= nil then
+        param:setArgument(1, binder)
+        return true
+    end
+
+    -- Every method of IBinder goes to the service, also hashCode and toString, since a proxy answers false, 0 or null
+    -- for the others. equals is left to the proxy, which equals only itself, like the BinderProxy of the service,
+    -- which keeps Object.equals.
+    -- shortcut: the binder is a java.lang.reflect.Proxy, so getClass and Proxy.isProxyClass tell it and
+    -- Parcel.writeStrongBinder writes null for it; upgrade by keeping the binder of the service and answering in
+    -- BinderProxy.transact, if a hook of every binder call of the app costs little enough
+    binder = luajava.createProxy('android.os.IBinder', {
         transact = function(code, data, reply, flags)
             if (code == GET_ID or code == IS_LIMITED) and reply ~= nil then
                 reply:writeNoException()
@@ -85,12 +99,11 @@ function before(hook, param)
         hashCode = function()
             return service:hashCode()
         end,
-        equals = function(other)
-            return service:equals(other)
-        end,
         toString = function()
             return service:toString()
         end
-    }))
+    })
+    param:putValue('adid_service', binder, service)
+    param:setArgument(1, binder)
     return true
 end

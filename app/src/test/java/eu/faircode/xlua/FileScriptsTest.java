@@ -500,6 +500,9 @@ public class FileScriptsTest {
                 "local present = { ['/system_ext/etc/build.prop'] = true, ['/system/build.prop'] = true,\n" +
                         "  ['/fstab.qcom'] = true, ['/fstab.ranchu'] = true }\n" +
                         "local readable = { ['/system_ext/etc/build.prop'] = true, ['/fstab.qcom'] = true }\n" +
+                        "present['/sys/block/mmcblk0/device/cid'] = true\n" +
+                        "present['/sys/devices/system/chip-id/unique_id'] = true\n" +
+                        "readable['/sys/devices/system/chip-id/unique_id'] = true\n" +
                         "local file = luajava.newInstance\n" +
                         "luajava.newInstance = function(name, path)\n" +
                         "  if name == 'java.io.File' then return { exists = function() return present[path] end,\n" +
@@ -514,7 +517,9 @@ public class FileScriptsTest {
                         "  hidden(hookof('Use.Tracking'), '/system_ext/etc/build.prop', param()),\n" +
                         "  hidden(hookof('Use.Tracking'), '/system/build.prop', param()),\n" +
                         "  hidden(hookof('Use.Tracking'), '/fstab.qcom', param()),\n" +
-                        "  hidden(hookof('Use.Tracking'), '/fstab.ranchu', param())");
+                        "  hidden(hookof('Use.Tracking'), '/fstab.ranchu', param()),\n" +
+                        "  hidden(hookof('Read.Identifiers'), '/sys/block/mmcblk0/device/cid', param()),\n" +
+                        "  hidden(hookof('Read.Identifiers'), '/sys/devices/system/chip-id/unique_id', param())");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
@@ -524,6 +529,9 @@ public class FileScriptsTest {
         // fstab at the root: hidden when the app can read it, else EACCES as for build.prop
         assertTrue(result.arg(6).toboolean());
         assertFalse(result.arg(7).toboolean());
+        // An id SELinux lets the app find but not read stays (EACCES), with the files of its folder; a readable one goes
+        assertFalse(result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
     }
 
     // The files of the system by the folders etc of partitions, not the same names in a folder of the app; the store
@@ -662,13 +670,14 @@ public class FileScriptsTest {
                         "local function h(hook, path) return hidden(hook, path, param(path)) end\n" +
                         "return h(apps, file .. '/a'), h(apps, file .. '/.'), h(apps, file .. '/a/b'),\n" +
                         "  h(apps, '/etc/permissions/privapp-permissions-com.example.xml/a'),\n" +
-                        "  stat.result.class, stat.result.args[1], stat.result.args[2],\n" +
+                        "  stat.early, stat.argument.index, stat.argument.value,\n" +
                         "  h(apps, '/system/etc/permissions/platform.xml/a'), h(hookof('Read.Network'), '/proc/net/arp/a')");
         for (int i = 1; i <= 4; i++)
             assertTrue("result " + i, result.arg(i).toboolean());
-        assertEquals("android.system.ErrnoException", result.arg(5).tojstring());
-        assertEquals("stat", result.arg(6).tojstring());
-        assertEquals(2, result.arg(7).toint());
+        // The real call fails with an empty path, like for a missing file
+        assertFalse(result.arg(5).toboolean());
+        assertEquals(0, result.arg(6).toint());
+        assertEquals("", result.arg(7).tojstring());
         assertFalse(result.arg(8).toboolean());
         assertFalse(result.arg(9).toboolean());
     }
@@ -691,6 +700,30 @@ public class FileScriptsTest {
                 "/system/app/.", "/system//priv-app"})
             assertTrue(folder, filterMatches(filter, folder));
         assertFalse(filterMatches(filter, "/system/app/Example/Example.apk"));
+    }
+
+    // A folder of system apps lists without names also through a descriptor of it, like /proc/self/fd/57 of
+    // /system/priv-app, for File.list and Files.newDirectoryStream, and by a path with /../; resolve follows them only
+    // with the param, like the real one; a descriptor of a folder of the app lists all names
+    @Test
+    public void foldersOfSystemAppsThroughDescriptors() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS + "\n" +
+                "function resolve(path, param) if param == nil then return path end return LINKS[path] or path end");
+        Varargs result = Scripts.run(globals,
+                "LINKS['/proc/self/fd/57'] = '/system/priv-app'\n" +
+                        "LINKS['/system/../system/priv-app'] = '/system/priv-app'\n" +
+                        "LINKS['/proc/self/fd/9'] = '/data/user/0/test.app/files'\n" +
+                        "local list = paramof('/proc/self/fd/57', namesof('Example', 'Other'))\n" +
+                        "after(hookof('Get.Applications', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "local stream = paramof('/proc/self/fd/57', nil, { accept = function(self, entry) return true end })\n" +
+                        "before(hookof('Get.Applications', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), stream)\n" +
+                        "return list.result.length, stream.argument.value.accept('/proc/self/fd/57/Example'),\n" +
+                        "  unlisted('Get.Applications', '/system/../system/priv-app', list),\n" +
+                        "  unlisted('Get.Applications', '/proc/self/fd/9', list)");
+        assertEquals(0, result.arg(1).toint());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
     }
 
     // The properties at the root of a partition are hidden from Use.Tracking like the ones in etc, and the filter passes them
@@ -776,7 +809,7 @@ public class FileScriptsTest {
                         "    canRead = function() return readable[path] == true end } end\n" +
                         "  return file(name, path)\n" +
                         "end\n" +
-                        "local chip = paramof('/odm/etc', nil, nil)\n" +
+                        "local chip = paramof('/odm/etc', nil, { accept = function(self, entry) return true end })\n" +
                         "chip.unhooked = function(self, fn) return fn() end\n" +
                         "before(hookof('Use.Tracking', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), chip)\n" +
                         "local accept = chip.argument.value.accept\n" +
@@ -811,8 +844,8 @@ public class FileScriptsTest {
                         "  hidden(hookof('Read.Network'), '/proc/sys/net/ipv4/ip_forward'),\n" +
                         "  hidden(hookof('Read.Network'), '/proc/thread-self/net/tcp')");
         assertEquals("*sys/*", result.arg(1).tojstring());
-        // With paths with /./ and //, see hardwareFilterOfOtherPaths
-        assertEquals(3, result.arg(2).toint());
+        // With paths with /./ and // and through descriptors, see hardwareFilterOfOtherPaths
+        assertEquals(4, result.arg(2).toint());
         boolean[] expected = {true, true, true, true, false, false, false, false,
                 true, true, true, true, true, false, false, false,
                 true, true, true, false, false};
@@ -977,6 +1010,9 @@ public class FileScriptsTest {
                         "local function run(group, class, method, path)\n" +
                         "  local param = makingparam(path)\n" +
                         "  before(hookof(group, class, method), param)\n" +
+                        "  if not param.early then\n" +
+                        "    return 'argument ' .. param.argument.index .. ':[' .. param.argument.value .. ']'\n" +
+                        "  end\n" +
                         "  return param.result.class .. ':' .. tostring(param.result.args[1])\n" +
                         "end\n" +
                         "return run('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', 'realpath', id),\n" +
@@ -988,7 +1024,8 @@ public class FileScriptsTest {
                         "  run('Read.Debugging', 'java.io.UnixFileSystem', 'createFileExclusively', '/data/local/su')");
         assertEquals("sun.nio.fs.UnixException:2", result.arg(1).tojstring());
         assertEquals("sun.nio.fs.UnixException:2", result.arg(2).tojstring());
-        assertEquals("android.system.ErrnoException:readlink", result.arg(3).tojstring());
+        // The real call fails, with an empty path, like for a missing file (see hiddenFileAttributesAnswerLikeAMissingFile)
+        assertEquals("argument 0:[]", result.arg(3).tojstring());
         assertEquals("java.io.IOException:Permission denied", result.arg(4).tojstring());
         assertEquals("java.io.IOException:No such file or directory", result.arg(5).tojstring());
         // On a read-only partition the kernel answers EROFS before the permissions
@@ -1007,6 +1044,9 @@ public class FileScriptsTest {
                         "local function run(class, method, path, flags)\n" +
                         "  local param = makingparam(path, flags)\n" +
                         "  before(hookof('Get.Applications', class, method), param)\n" +
+                        "  if not param.early then\n" +
+                        "    return 'argument ' .. param.argument.index .. ':[' .. param.argument.value .. ']'\n" +
+                        "  end\n" +
                         "  return param.result.class .. ':' .. tostring(param.result.args[#param.result.args])\n" +
                         "end\n" +
                         "local os, nio, io = 'libcore.io.BlockGuardOs', 'sun.nio.fs.UnixNativeDispatcher', 'java.io.UnixFileSystem'\n" +
@@ -1017,16 +1057,17 @@ public class FileScriptsTest {
                         "  run(io, 'createFileExclusively', '/apex/com.android.foo/etc/permissions/privapp-permissions-a.xml')");
         assertEquals("android.system.ErrnoException:30", result.arg(1).tojstring());
         assertEquals("android.system.ErrnoException:30", result.arg(2).tojstring());
-        assertEquals("android.system.ErrnoException:2", result.arg(3).tojstring());
+        assertEquals("argument 0:[]", result.arg(3).tojstring());
         assertEquals("sun.nio.fs.UnixException:30", result.arg(4).tojstring());
-        assertEquals("android.system.ErrnoException:2", result.arg(5).tojstring());
+        assertEquals("argument 0:[]", result.arg(5).tojstring());
         assertEquals("java.io.IOException:Read-only file system", result.arg(6).tojstring());
         assertEquals("java.io.IOException:Read-only file system", result.arg(7).tojstring());
     }
 
-    // Reading or changing the attributes of a hidden file and linking it run with an empty path, which Android answers
-    // like a missing file in its own order: libcore checks for null arguments first, Linux 6.11 and later (6.13 for
-    // getxattr) the arguments, older kernels the path; the other calls get ENOENT, and files not hidden keep their path
+    // Reading or changing the attributes of a hidden file and its mode run with an empty path, and linking it with a
+    // name of its folder which does not exist, which Android answers like a missing file in its own order and with its
+    // own exception, without the frames of the hook: libcore checks for null arguments first, Linux 6.11 and later
+    // (6.13 for getxattr) the arguments, older kernels the path; files not hidden keep their path
     @Test
     public void hiddenFileAttributesAnswerLikeAMissingFile() throws Exception {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
@@ -1045,11 +1086,117 @@ public class FileScriptsTest {
                         "  run('setxattr', '/system/etc/permissions/platform.xml'), run('link'), run('getxattr')");
         assertEquals("true:0:[]", result.arg(1).tojstring());
         assertEquals("true:0:[]", result.arg(2).tojstring());
-        assertEquals("true:android.system.ErrnoException:chmod:2", result.arg(3).tojstring());
-        assertEquals("true:android.system.ErrnoException:listxattr:2", result.arg(4).tojstring());
+        assertEquals("true:0:[]", result.arg(3).tojstring());
+        assertEquals("true:0:[]", result.arg(4).tojstring());
         assertEquals("false:unchanged", result.arg(5).tojstring());
-        assertEquals("true:0:[]", result.arg(6).tojstring());
+        assertTrue(result.arg(6).tojstring(),
+                result.arg(6).tojstring().startsWith("true:0:[/system/etc/permissions/privapp-permissions-com.example.xml~"));
         assertEquals("true:0:[]", result.arg(7).tojstring());
+    }
+
+    // Making a folder or a pipe by the name of a hidden id fails like for a missing name in a folder of /sys, which
+    // apps cannot write (EACCES), by Os and java.nio, and under a hidden file like in a folder which does not exist;
+    // removing it and changing its mode fail like for a missing file (ENOENT)
+    @Test
+    public void makingByTheNameOfAHiddenFile() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local id = '/sys/devices/system/chip-id/unique_id'\n" +
+                        "local function run(class, method, path)\n" +
+                        "  local param = makingparam(path)\n" +
+                        "  before(hookof('Read.Identifiers', class, method), param)\n" +
+                        "  if not param.early then\n" +
+                        "    return 'argument ' .. param.argument.index .. ':[' .. param.argument.value .. ']'\n" +
+                        "  end\n" +
+                        "  return param.result.class .. ':' .. table.concat(param.result.args, ':')\n" +
+                        "end\n" +
+                        "local os, nio = 'android.system.Os', 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        "return run(os, 'mkdir', id), run(os, 'mkfifo', id), run(nio, 'mkdir', id), run(os, 'mkdir', id .. '/a'),\n" +
+                        "  run(nio, 'mkdir', id .. '/a'), run(os, 'remove', id), run(nio, 'chmod', id)");
+        assertEquals("android.system.ErrnoException:mkdir:13", result.arg(1).tojstring());
+        assertEquals("android.system.ErrnoException:mkfifo:13", result.arg(2).tojstring());
+        assertEquals("sun.nio.fs.UnixException:13", result.arg(3).tojstring());
+        assertEquals("argument 0:[]", result.arg(4).tojstring());
+        assertEquals("sun.nio.fs.UnixException:2", result.arg(5).tojstring());
+        assertEquals("argument 0:[]", result.arg(6).tojstring());
+        assertEquals("sun.nio.fs.UnixException:2", result.arg(7).tojstring());
+    }
+
+    // link, symlink and rename of a hidden id run with a name of its folder which does not exist in place of the id, so
+    // Android answers like for a missing name, in the order of Linux (EXDEV of link to another file system, EACCES in
+    // /sys, ENOENT of rename); under a hidden file the stand-in is in a folder which does not exist. The hooks have no
+    // filter, which sees only the first path; the target of symlink, which the kernel does not look up, and other paths
+    // stay, and so does a null path, for which libcore throws
+    @Test
+    public void linkingAndRenamingAHiddenFile() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local id, own = '/sys/devices/system/chip-id/unique_id', '/data/user/0/test.app/files/a'\n" +
+                        // A name with ~ which exists, so the next one is taken
+                        "local present = { [id .. '~'] = true }\n" +
+                        "local make = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path)\n" +
+                        "  if name ~= 'java.io.File' then return make(name, path) end\n" +
+                        "  return { exists = function() return present[path] == true end,\n" +
+                        "    toPath = function() return 'path:' .. path end }\n" +
+                        "end\n" +
+                        "local function run(class, method, first, second)\n" +
+                        "  local args = { [0] = first, second }\n" +
+                        "  local param = makingparam(first)\n" +
+                        "  param.getArgument = function(self, index) return args[index] end\n" +
+                        "  param.setArgument = function(self, index, value) args[index] = value end\n" +
+                        "  local restricted, old = before(hookof('Read.Identifiers', class, method), param)\n" +
+                        "  return tostring(restricted) .. ' ' .. tostring(old) .. ' ' .. tostring(args[0]) .. ' ' .. tostring(args[1])\n" +
+                        "end\n" +
+                        "local os, nio = 'android.system.Os', 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        "local function nofilter(method) return filter(hookof('Read.Identifiers', os, method)) == nil end\n" +
+                        "return run(os, 'symlink', 'x', id), run(nio, 'symlink', 'x', id), run(os, 'link', own, id),\n" +
+                        "  run(os, 'link', id, own), run(nio, 'link', own, id), run(os, 'rename', id, '/sys/devices/system/chip-id/x'),\n" +
+                        "  run(nio, 'rename', id, id .. '/a'), run(os, 'symlink', id, own), run(os, 'link', own, own .. 'b'),\n" +
+                        "  run(os, 'link', own, nil), nofilter('link'), nofilter('symlink'), nofilter('rename'), nofilter('mkdir')");
+        String id = "/sys/devices/system/chip-id/unique_id", own = "/data/user/0/test.app/files/a";
+        assertEquals("true " + id + " x " + id + "~~", result.arg(1).tojstring());
+        assertEquals("true " + id + " x path:" + id + "~~", result.arg(2).tojstring());
+        assertEquals("true " + id + " " + own + " " + id + "~~", result.arg(3).tojstring());
+        assertEquals("true " + id + " " + id + "~~ " + own, result.arg(4).tojstring());
+        assertEquals("true " + id + " " + own + " path:" + id + "~~", result.arg(5).tojstring());
+        assertEquals("true " + id + " " + id + "~~ /sys/devices/system/chip-id/x", result.arg(6).tojstring());
+        assertEquals("true " + id + " path:" + id + "~~ path:" + id + "~~/a", result.arg(7).tojstring());
+        assertEquals("false nil " + id + " " + own, result.arg(8).tojstring());
+        assertEquals("false nil " + own + " " + own + "b", result.arg(9).tojstring());
+        assertEquals("false nil " + own + " nil", result.arg(10).tojstring());
+        for (int i = 11; i <= 13; i++)
+            assertTrue("result " + i, result.arg(i).toboolean());
+        assertFalse(result.arg(14).toboolean());
+    }
+
+    // Opening a hidden id with O_CREAT, like FileOutputStream, RandomAccessFile rw and Files.newOutputStream and
+    // createFile do, fails like for a missing name in a folder of /sys (EACCES), not ENOENT, which Linux never gives for
+    // a name it makes in a folder which exists; without O_CREAT, and in a hidden folder, the file is not there (ENOENT)
+    @Test
+    public void openingToMakeAHiddenFile() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local id = '/sys/devices/system/chip-id/unique_id'\n" +
+                        "local function run(group, class, path, flags)\n" +
+                        "  local param = makingparam(path, flags)\n" +
+                        "  before(hookof(group, class, 'open'), param)\n" +
+                        "  if not param.early then\n" +
+                        "    return 'argument ' .. param.argument.index .. ':[' .. param.argument.value .. ']'\n" +
+                        "  end\n" +
+                        "  return param.result.class .. ':' .. table.concat(param.result.args, ':')\n" +
+                        "end\n" +
+                        "local ids, os, nio = 'Read.Identifiers', 'libcore.io.BlockGuardOs', 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        // O_WRONLY | O_CREAT | O_TRUNC, O_RDWR | O_CREAT, O_WRONLY | O_CREAT | O_EXCL, O_RDONLY
+                        "return run(ids, os, id, 577), run(ids, os, id, 66), run(ids, nio, id, 577), run(ids, nio, id, 193),\n" +
+                        "  run(ids, os, id, 0), run('Use.Tracking', os, id, 577)");
+        assertEquals("android.system.ErrnoException:open:13", result.arg(1).tojstring());
+        assertEquals("android.system.ErrnoException:open:13", result.arg(2).tojstring());
+        assertEquals("sun.nio.fs.UnixException:13", result.arg(3).tojstring());
+        assertEquals("sun.nio.fs.UnixException:13", result.arg(4).tojstring());
+        assertEquals("argument 0:[]", result.arg(5).tojstring());
+        // Use.Tracking hides the folder of the chip too
+        assertEquals("argument 0:[]", result.arg(6).tojstring());
     }
 
     // The hooks see a file which does not exist: an error of the kernel, no attributes or no names
@@ -1073,14 +1220,15 @@ public class FileScriptsTest {
                         "local stat = paramof(id)\n" +
                         "before(hookof(ids, nio, 'stat', 'void'), stat)\n" +
                         "local other = paramof('/sys/devices/system/chip-id/product_id')\n" +
-                        "return restricted, old, open.result.class, open.result.args[1], open.result.args[2],\n" +
+                        "return restricted, old, open.early, open.argument.index, open.argument.value,\n" +
                         "  attributes.result, list.early, list.result == nil, exists.result == false, mode.result == 0,\n" +
                         "  stat.result.class, stat.result.args[1], before(hookof(ids), other), other.early");
         assertTrue(result.arg(1).toboolean());
         assertEquals("/sys/devices/system/chip-id/unique_id", result.arg(2).tojstring());
-        assertEquals("android.system.ErrnoException", result.arg(3).tojstring());
-        assertEquals("open", result.arg(4).tojstring());
-        assertEquals(2, result.arg(5).toint());
+        // Opened by the real call with an empty path, which fails with the ENOENT of Android
+        assertFalse(result.arg(3).toboolean());
+        assertEquals(0, result.arg(4).toint());
+        assertEquals("", result.arg(5).tojstring());
         assertEquals(0, result.arg(6).toint());
         assertTrue(result.arg(7).toboolean());
         assertTrue(result.arg(8).toboolean());
@@ -1116,7 +1264,7 @@ public class FileScriptsTest {
                         "return access.early, access.result, modified.early, modified.result, other.early, resolved,\n" +
                         "  hidden(hookof(ids), '/proc/self/root/sys/devices/system/chip-id/unique_id'),\n" +
                         "  hidden(hookof(ids), 'sys/devices/system/chip-id/unique_id'),\n" +
-                        "  hidden(hookof(ids), '/data/../sys/class/sec/sdinfo/data'), os.result.class, os.result.args[2]");
+                        "  hidden(hookof(ids), '/data/../sys/class/sec/sdinfo/data'), os.early, os.argument.value");
         assertTrue(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
@@ -1128,9 +1276,9 @@ public class FileScriptsTest {
         assertTrue(result.arg(7).toboolean());
         assertTrue(result.arg(8).toboolean());
         assertTrue(result.arg(9).toboolean());
-        // Os.access of apps throws like for a file which does not exist
-        assertEquals("android.system.ErrnoException", result.arg(10).tojstring());
-        assertEquals(2, result.arg(11).toint());
+        // Os.access of apps throws like for a file which does not exist, by the real call with an empty path
+        assertFalse(result.arg(10).toboolean());
+        assertEquals("", result.arg(11).tojstring());
     }
 
     // File.list of a folder with hidden files: without their names, with the link of a name resolved
@@ -1227,7 +1375,8 @@ public class FileScriptsTest {
     }
 
     // Files.newDirectoryStream: a filter in front of the one of the app leaves out the names of hidden files,
-    // for a hidden folder nothing is done (opendir fails)
+    // for a hidden folder nothing is done (opendir fails), and neither without a filter, for which Android throws
+    // NullPointerException
     @Test
     public void hardwareListing() throws Exception {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
@@ -1245,7 +1394,7 @@ public class FileScriptsTest {
                         "  filter.accept('/sys/devices/system/chip-id/unique_id'),\n" +
                         "  filter.accept('/sys/devices/system/chip-id/product_id'),\n" +
                         "  filter.accept('/sys/devices/system/chip-id/revision'),\n" +
-                        "  none.argument.value.accept('/sys/devices/system/chip-id/revision'),\n" +
+                        "  none.argument == nil,\n" +
                         "  before(hookof('Use.Tracking', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), tsp),\n" +
                         "  tsp.argument == nil, tsp.early");
         assertFalse(result.arg(1).toboolean());
@@ -1262,23 +1411,231 @@ public class FileScriptsTest {
     }
 
     // The filter of the hooks (XCore.Filter, which compares the path as the app gives it) lets the script run for
-    // paths with /./, // or (to su and Magisk) /../, which the script resolves, and for the folders of su, of which
-    // File.list leaves su out
+    // paths with /./, // or (to su and Magisk) /../, and through the descriptor of a folder, which the script resolves,
+    // and for the folders of su, of which File.list leaves su out
     @Test
     public void hardwareFilterOfOtherPaths() throws Exception {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
         String[][] cases = {
                 {"Read.Debugging", "/system/./bin/./su", "/./sbin/./su", "/system//xbin/su", "/system/xbin", "/sbin",
                         "/vendor/../data/adb", "/vendor/../system/app/Superuser.apk"},
-                {"Use.Tracking", "/proc//scsi/scsi", "/proc/bus/./input/devices", "/sys/devices/system/chip-id"},
-                {"Read.Identifiers", "/sys/./devices/system/chip-id/unique_id", "/.//sys/block/mmcblk0/device/cid"},
-                {"Read.Network", "/proc/./net/arp"}};
+                {"Use.Tracking", "/proc//scsi/scsi", "/proc/bus/./input/devices", "/sys/devices/system/chip-id",
+                        "/proc/self/fd/57/vulnerabilities/meltdown"},
+                {"Read.Identifiers", "/sys/./devices/system/chip-id/unique_id", "/.//sys/block/mmcblk0/device/cid",
+                        "/proc/self/fd/57/cid", "/proc/thread-self/fd/57/cid", "/proc/123/task/124/fd/9/unique_id",
+                        "/dev/fd/57/devices/system/chip-id/unique_id", "proc/self/fd/57/cid"},
+                {"Read.Network", "/proc/./net/arp", "/proc/self/fd/7/tcp"}};
         for (String[] group : cases) {
             Varargs values = Scripts.run(globals, "return filter(hookof('" + group[0] + "'))").arg1().checktable().unpack();
             Object filter = xcoreFilter(values);
             for (int i = 1; i < group.length; i++)
                 assertTrue(group[0] + " " + group[i], filterMatches(filter, group[i]));
             assertFalse(group[0], filterMatches(filter, "/data/user/0/test.app/files/x"));
+        }
+    }
+
+    // A path through the descriptor of a folder, like /proc/self/fd/57/cid of the folder of the SD card, counts by the
+    // file it leads to, each time: the app can close the descriptor and open another folder by the same number
+    @Test
+    public void hardwarePathsThroughDescriptors() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local ids = hookof('Read.Identifiers')\n" +
+                        "LINKS['/proc/self/fd/57/cid'] = '/data/user/0/test.app/files/cid'\n" +
+                        "LINKS['/dev/fd/58/devices/system/chip-id/unique_id'] = '/sys/devices/system/chip-id/unique_id'\n" +
+                        "local first = hidden(ids, '/proc/self/fd/57/cid')\n" +
+                        "LINKS['/proc/self/fd/57/cid'] = '/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid'\n" +
+                        "return first, hidden(ids, '/proc/self/fd/57/cid'),\n" +
+                        "  hidden(ids, '/dev/fd/58/devices/system/chip-id/unique_id')");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+    }
+
+    // The fonts of the maker through the descriptor of their folder are hidden like by their own path; the descriptor
+    // of a file the app holds, like one another app shared with it, is the real file, which is open already, while a
+    // path on through the descriptor of a folder still counts by the file it leads to
+    @Test
+    public void hardwareDescriptorsOfFontsAndOpenFiles() throws Exception {
+        Globals globals = Scripts.load("hardware_files", APPS_STUBS + "\nfunction sdkversion() return 29 end");
+        Varargs result = Scripts.run(globals,
+                "LINKS['/proc/self/fd/57/SamsungOne.ttf'] = '/system/fonts/SamsungOne.ttf'\n" +
+                        "LINKS['/proc/self/fd/57/Roboto-Regular.ttf'] = '/system/fonts/Roboto-Regular.ttf'\n" +
+                        "for _, link in ipairs({ '/proc/self/fd/9', '/dev/fd/9', '/proc/self/task/123/fd/9', '/proc/self/fd/10/a' }) do\n" +
+                        "  LINKS[link] = '/data/user/0/com.hidden/files/a'\n" +
+                        "end\n" +
+                        "local tracking, apps = hookof('Use.Tracking'), hookof('Get.Applications')\n" +
+                        "local function h(hook, path) return hidden(hook, path, appsparam(path)) end\n" +
+                        "local list = appsparam('/proc/self/fd/57', namesof('SamsungOne.ttf', 'Roboto-Regular.ttf'))\n" +
+                        "after(hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "return h(tracking, '/proc/self/fd/57/SamsungOne.ttf'), h(tracking, '/proc/self/fd/57/Roboto-Regular.ttf'),\n" +
+                        "  list.result.length, list.result[1], h(apps, '/proc/self/fd/9'), h(apps, '/dev/fd/9'),\n" +
+                        "  h(apps, '/proc/self/task/123/fd/9'), h(apps, '/proc/self/fd/10/a')");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals(1, result.arg(3).toint());
+        assertEquals("Roboto-Regular.ttf", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+    }
+
+    // The cid of an SD card the user inserts while the app runs is hidden then, though its path was asked for before
+    // the card was there, when it led nowhere; the answer for a file which exists is kept
+    @Test
+    public void hardwareFileWhichComesLater() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local present = { ['/sys/devices/system/cpu/present'] = true }\n" +
+                        "local file = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path)\n" +
+                        "  if name == 'java.io.File' then return { exists = function() return present[path] == true end,\n" +
+                        "    canRead = function() return present[path] == true end } end\n" +
+                        "  return file(name, path)\n" +
+                        "end\n" +
+                        "local param = { unhooked = function(self, f) return f() end }\n" +
+                        "local ids = hookof('Read.Identifiers')\n" +
+                        "local counts = {}\n" +
+                        "local original = matched\n" +
+                        "matched = function(group, path, param)\n" +
+                        "  counts[path] = (counts[path] or 0) + 1 return original(group, path, param)\n" +
+                        "end\n" +
+                        "local cid, cpu = '/sys/block/mmcblk1/device/cid', '/sys/devices/system/cpu/present'\n" +
+                        "local before = hidden(ids, cid, param)\n" +
+                        "LINKS[cid] = '/sys/devices/platform/11120000.dwmmc0/mmc_host/mmc1/mmc1:aaaa/cid'\n" +
+                        "present[cid] = true\n" +
+                        "return before, hidden(ids, cid, param), hidden(ids, cpu, param), hidden(ids, cpu, param),\n" +
+                        "  counts[cid], counts[cpu]");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        // The cid was asked for again, since its first answer was not kept, the cpu file once
+        assertEquals(2, result.arg(5).toint());
+        assertEquals(1, result.arg(6).toint());
+    }
+
+    // A SecureDirectoryStream opens the files of its folder and reads their attributes by the descriptor of the folder
+    // and their name, which count by the folder the descriptor leads to, or by themselves when absolute: a hidden id is
+    // missing (ENOENT), and making it fails like in /sys (EACCES); the files of the app by the same calls, other files
+    // and a descriptor which leads nowhere stay, and the hooks have no filter, which compares only paths
+    @Test
+    public void hardwareFilesOfASecureDirectoryStream() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local folders = { [57] = '/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001',\n" +
+                        "  [58] = '/data/user/0/test.app/files/mmc0:0001' }\n" +
+                        "local bind, make = luajava.bindClass, luajava.newInstance\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name ~= 'android.system.Os' then return bind(name) end\n" +
+                        "  return { statvfs = function(self, folder) return { f_flag = 1024 } end,\n" +
+                        "    readlink = function(self, link)\n" +
+                        "      return folders[tonumber(string.match(link, '^/proc/self/fd/(%d+)$'))]\n" +
+                        "    end }\n" +
+                        "end\n" +
+                        // The name as bytes, a text here
+                        "luajava.newInstance = function(name, ...)\n" +
+                        "  if name == 'java.lang.String' then return ... end\n" +
+                        "  return make(name, ...)\n" +
+                        "end\n" +
+                        "local function run(method, dfd, name, flags)\n" +
+                        "  local param = makingparam(nil)\n" +
+                        "  param.getArgument = function(self, index) return ({ [0] = dfd, name, flags or 0, 0 })[index] end\n" +
+                        "  local hook = hookof('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', method)\n" +
+                        "  local restricted, path = before(hook, param)\n" +
+                        "  if not param.early then\n" +
+                        "    return tostring(restricted)\n" +
+                        "  end\n" +
+                        "  return param.result.class .. ':' .. param.result.args[1] .. ':' .. path\n" +
+                        "end\n" +
+                        "return run('openat', 57, 'cid'), run('fstatat', 57, 'cid'), run('openat', 57, 'cid', 577),\n" +
+                        "  run('openat', 57, 'type'), run('openat', 58, 'cid'), run('fstatat', 59, 'cid'),\n" +
+                        "  run('openat', 59, '/sys/devices/system/chip-id/unique_id'),\n" +
+                        "  filter(hookof('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', 'openat')) == nil,\n" +
+                        "  filter(hookof('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', 'fstatat')) == nil");
+        String cid = "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid";
+        assertEquals("sun.nio.fs.UnixException:2:" + cid, result.arg(1).tojstring());
+        assertEquals("sun.nio.fs.UnixException:2:" + cid, result.arg(2).tojstring());
+        assertEquals("sun.nio.fs.UnixException:13:" + cid, result.arg(3).tojstring());
+        assertEquals("false", result.arg(4).tojstring());
+        assertEquals("false", result.arg(5).tojstring());
+        assertEquals("false", result.arg(6).tojstring());
+        assertEquals("sun.nio.fs.UnixException:2:/sys/devices/system/chip-id/unique_id", result.arg(7).tojstring());
+        assertTrue(result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
+    }
+
+    // A SecureDirectoryStream removing a hidden id by its name gets ENOENT, like for a missing name in /sys; moving it
+    // runs with a name of its folder which does not exist in place of the id, absolute, so Android answers in the order of
+    // Linux, like EXDEV to the folder of the app; the files of the app stay, and the hooks have no filter
+    @Test
+    public void hardwareFilesRemovedAndMovedByASecureDirectoryStream() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local folders = { [57] = '/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001',\n" +
+                        "  [58] = '/data/user/0/test.app/files/mmc0:0001' }\n" +
+                        "local bind, make = luajava.bindClass, luajava.newInstance\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name ~= 'android.system.Os' then return bind(name) end\n" +
+                        "  return { statvfs = function(self, folder) return { f_flag = 1024 } end,\n" +
+                        "    readlink = function(self, link)\n" +
+                        "      return folders[tonumber(string.match(link, '^/proc/self/fd/(%d+)$'))]\n" +
+                        "    end }\n" +
+                        "end\n" +
+                        "luajava.newInstance = function(name, ...)\n" +
+                        "  if name == 'java.lang.String' then return ... end\n" +
+                        // Stand-ins do not exist, ids can be read
+                        "  if name == 'java.io.File' then\n" +
+                        "    return { exists = function() return false end, canRead = function() return true end }\n" +
+                        "  end\n" +
+                        "  return make(name, ...)\n" +
+                        "end\n" +
+                        "local function run(method, ...)\n" +
+                        "  local args = { [0] = ... }\n" +
+                        "  for index, value in ipairs({ select(2, ...) }) do args[index] = value end\n" +
+                        "  local param = makingparam(nil)\n" +
+                        "  param.getArgument = function(self, index) return args[index] end\n" +
+                        "  param.setArgument = function(self, index, value) args[index] = value end\n" +
+                        "  local hook = hookof('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', method)\n" +
+                        "  local restricted, path = before(hook, param)\n" +
+                        "  if param.early then\n" +
+                        "    return param.result.class .. ':' .. param.result.args[1] .. ':' .. path\n" +
+                        "  end\n" +
+                        "  return tostring(restricted) .. ' ' .. tostring(args[1]) .. ' ' .. tostring(args[3])\n" +
+                        "end\n" +
+                        "local function nofilter(method)\n" +
+                        "  return filter(hookof('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', method)) == nil\n" +
+                        "end\n" +
+                        "return run('unlinkat', 57, 'cid', 0), run('unlinkat', 57, 'type', 0), run('unlinkat', 58, 'cid', 0),\n" +
+                        "  run('renameat', 57, 'cid', 58, 'cid'), run('renameat', 58, 'cid', 57, 'cid'),\n" +
+                        "  run('renameat', 58, 'cid', 58, 'b'), nofilter('unlinkat'), nofilter('renameat')");
+        String cid = "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid";
+        assertEquals("sun.nio.fs.UnixException:2:" + cid, result.arg(1).tojstring());
+        assertEquals("false type nil", result.arg(2).tojstring());
+        assertEquals("false cid nil", result.arg(3).tojstring());
+        assertEquals("true " + cid + "~ cid", result.arg(4).tojstring());
+        assertEquals("true cid " + cid + "~", result.arg(5).tojstring());
+        assertEquals("false cid b", result.arg(6).tojstring());
+        assertTrue(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+    }
+
+    // The script compares the paths of openat and fstatat with the filter of the group itself, like XCore.Filter
+    @Test
+    public void hardwareFilterOfPathsOfDescriptors() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        String[] paths = {"/sys/devices/system/chip-id/unique_id", "/data/user/0/test.app/files/x", "/system/xbin/su",
+                "/system/xbin", "/proc/self/root/sbin/su", "/vendor/../data/adb", "/system/etc/permissions/a.xml",
+                "/storage/emulated/0/Android/media/com.example", "/etc", "/", "/proc/net/tcp", "/proc/self/fd/57/cid",
+                "/system//xbin/su", "/data/misc/user/0/cacerts-added/a.0", "/system/fonts/Roboto.ttf", "system/xbin",
+                "sys/devices/system/chip-id/unique_id", "../data/adb", "/proc/self/fd/9"};
+        for (String group : new String[]{"Read.Identifiers", "Use.Tracking", "Read.Biometrics", "Read.Network", "Read.VPN",
+                "Read.Debugging", "Read.Features", "Get.Applications"}) {
+            Object filter = xcoreFilter(Scripts.run(globals, "return paths('" + group + "')").arg1().checktable().unpack());
+            for (String path : paths)
+                assertEquals(group + " " + path, filterMatches(filter, path),
+                        Scripts.run(globals, "return filtered('" + group + "', '" + path + "')").arg1().toboolean());
         }
     }
 
@@ -1337,7 +1694,7 @@ public class FileScriptsTest {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
         Varargs result = Scripts.run(globals,
                 "local hook = hookof('Read.Identifiers', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream')\n" +
-                        "local chip = paramof('/sys/devices/system/chip-id', nil, nil)\n" +
+                        "local chip = paramof('/sys/devices/system/chip-id', nil, { accept = function(self, entry) return true end })\n" +
                         "before(hook, chip)\n" +
                         "local cached = 0\n" +
                         "local original = matched\n" +
@@ -1360,7 +1717,7 @@ public class FileScriptsTest {
                         "local original = resolve\n" +
                         "resolve = function(path) resolved = resolved + 1 return original(path) end\n" +
                         "local hook = hookof('Use.Tracking', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream')\n" +
-                        "local fonts = paramof('/system/fonts', nil, nil)\n" +
+                        "local fonts = paramof('/system/fonts', nil, { accept = function(self, entry) return true end })\n" +
                         "before(hook, fonts)\n" +
                         "local start = resolved\n" +
                         "local roboto = fonts.argument.value.accept('/system/fonts/Roboto-Regular.ttf')\n" +

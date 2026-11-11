@@ -24,6 +24,8 @@ import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
+import org.luaj.vm2.lib.jse.JsePlatform;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -71,6 +73,8 @@ public class ContentResolverScriptTest {
             "function paramof(uri, where, args, settings)",
             "  local arguments = { [0] = uri, [2] = bundleof(where, args) }",
             "  return { arguments = arguments,",
+            // The cursors of the stand-ins are no CursorWrapper
+            "    isInstance = function(self, object, name) return false end,",
             "    getArgument = function(self, index) return arguments[index] end,",
             "    setArgument = function(self, index, value) arguments[index] = value end,",
             "    getResult = function(self) return self.result end,",
@@ -104,14 +108,35 @@ public class ContentResolverScriptTest {
             "    if value == nil then return 0 elseif type(value) == 'number' then return 1 else return 3 end",
             "  end",
             "  function cursor:getLong(index) return self.rows[self.position + 1][index + 1] end",
+            // A text read as a double, like strtod of CursorWindow, which reads no number as 0
+            "  function cursor:getDouble(index) return tonumber(self.rows[self.position + 1][index + 1]) or 0 end",
+            "  function cursor:getColumnIndex(name)",
+            "    for index, column in ipairs(self.columns) do if column == name then return index - 1 end end",
+            "    return -1",
+            "  end",
             "  function cursor:close() self.closed = true end",
             // The extras of the provider, nil for none, and those a MatrixCursor was given
             "  function cursor:getExtras() return self.extras end",
             "  function cursor:setExtras(extras) self.extras = extras end",
             "  return cursor",
             "end",
-            // A new Bundle, also a copy of one, and a MatrixCursor
-            "luajava = { newInstance = function(name, columns)",
+            // A new Bundle, also a copy of one, a MatrixCursor, a CursorWindow which tells what it was asked for a
+            // text, and a proxy of a cursor, whose functions get the arguments only
+            "windows = 0",
+            "made = 0",
+            "luajava = { createProxy = function(name, methods) assert(name == 'android.database.Cursor') return methods end,",
+            "  newInstance = function(name, columns)",
+            "  if name == 'android.database.CursorWindow' then",
+            "    made = made + 1",
+            "    local window = {}",
+            "    function window:copyStringToBuffer(row, column, buffer) assert(buffer ~= nil, 'window without buffer') end",
+            "    function window:setNumColumns(count) assert(count == 1) end",
+            "    function window:allocRow() end",
+            "    function window:putString(text, row, column) self.text = text end",
+            "    function window:getLong(row, column) return 'getLong ' .. self.text end",
+            "    function window:close() windows = windows + 1 end",
+            "    return window",
+            "  end",
             "  if name == 'android.os.Bundle' then",
             "    local copy = bundleof()",
             "    if columns ~= nil then for key, value in pairs(columns.values) do copy.values[key] = value end end",
@@ -464,13 +489,16 @@ public class ContentResolverScriptTest {
                         "param.this = { query = function(self, uri, ...) queried = uri return cursorof({ 'key', 'value' }, real) end }\n" +
                         "local cursor = cursorof(arrayof(" + projection + "), " + rows + ")\n" +
                         "param.result = cursor\n" +
+                        // Like replace of a cursor which is no wrapper, so that the cursor of the provider went to it
+                        "local given\n" +
+                        "replace = function(param, result, fake) given = result result:close() param:setResult(fake) end\n" +
                         "local restricted = after(hook, param)\n" +
                         "assert(queried == param.arguments[0])\n" +
                         "if not restricted then\n" +
-                        "  assert(param.result == cursor and not cursor.closed and cursor.position == -1)\n" +
+                        "  assert(param.result == cursor and not cursor.closed and cursor.position == -1 and given == nil)\n" +
                         "  return 'kept'\n" +
                         "end\n" +
-                        "assert(cursor.closed and param.result ~= cursor)\n" +
+                        "assert(given == cursor and cursor.closed and param.result ~= cursor)\n" +
                         "local values = {}\n" +
                         "for _, row in ipairs(param.result.rows) do\n" +
                         "  local cells = {}\n" +
@@ -755,6 +783,104 @@ public class ContentResolverScriptTest {
         assertTrue(result.arg(4).toboolean());
     }
 
+    // ContentResolver and ContentProviderClient wrap the cursor of Gservices in a class of their own, which the app can
+    // check: it stays, with the rows without the GSF id in it, and releases the provider when the app closes it, like on
+    // Android; replace is the one of the settings script, with its stand-ins of the wrapper
+    @Test
+    public void gservicesKeepsTheWrapperOfAndroid() throws Exception {
+        assertEquals(Scripts.function("settingssecure_getstring", "replace"), Scripts.function("contentresolver_query", "replace"));
+        SettingsScriptTest.Rows rows = new SettingsScriptTest.Rows();
+        SettingsScriptTest.Inner wrapper = new SettingsScriptTest.Inner(rows);
+        SettingsScriptTest.Rows fake = new SettingsScriptTest.Rows();
+        globals.set("wrapper", CoerceJavaToLua.coerce(wrapper));
+        globals.set("fake", CoerceJavaToLua.coerce(fake));
+        // The stand-in of luajava hides the one of LuaJ, which binds the classes here
+        globals.set("java", JsePlatform.standardGlobals().get("luajava"));
+        Varargs result = Scripts.run(globals,
+                "luajava.bindClass = function(name)\n" +
+                        "  if name == 'android.database.CursorWrapper' then\n" +
+                        "    return java.bindClass('eu.faircode.xlua.SettingsScriptTest$Wrapper')\n" +
+                        "  end\n" +
+                        "  return java.bindClass(name)\n" +
+                        "end\n" +
+                        "local param = paramof()\n" +
+                        "param.isInstance = function(self, object, name) return name == 'android.database.CursorWrapper' end\n" +
+                        "return replace(param, wrapper, fake) == wrapper, param.result == nil");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(fake, wrapper.getWrappedCursor());
+        assertTrue(rows.closed);
+        assertFalse(wrapper.closed);
+        assertFalse(fake.closed);
+
+        // Gservices hands the cursor of the provider and the rows without the GSF id to it
+        result = Scripts.run(globals,
+                "local hook = hookof('ContentResolver.query26/gsf_id')\n" +
+                        "local param = paramof(urlof('com.google.android.gsf.gservices', nil))\n" +
+                        "local cursor = cursorof({ 'key', 'value' }, { { 'android_id', '1234567890' } })\n" +
+                        "param.result = cursor\n" +
+                        "local given, rows\n" +
+                        "replace = function(param, result, fake) given = result rows = fake.rows return result end\n" +
+                        "return after(hook, param), given == cursor, param.result == cursor, #rows, rows[1][1], rows[1][2] == nil");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(1, result.arg(4).toint());
+        assertEquals("android_id", result.arg(5).tojstring());
+        assertTrue(result.arg(6).toboolean());
+    }
+
+    // The other fakes of providers stay in the wrapper of Android too: after hands the cursor of the provider to replace
+    // still open, so having read the count and the extras from it, with the rows of the fake, for the OAID and the
+    // Facebook attribution id (no rows), a count of contacts with the extras of the provider, the SIM cards, the thread
+    // of recipients and the starred contacts of a phone lookup; the time zone properties are checked by properties
+    @Test
+    public void fakesKeepTheWrapperOfAndroid() {
+        String[][] queries = {
+                // The hook, the uri, the settings, the projection, the cursor of the provider, the rows of the fake
+                // and whether it has the extras of the provider
+                {"ContentResolver.query26/oaid", "urlof('com.miui.idprovider', '/oaid')", "{}", "nil",
+                        "cursorof({ 'oaid' }, { { 'real' } })", "0", "false"},
+                {"ContentProviderClient.query26/oaid", "urlof('0@com.huawei.hwid.pps.apiprovider', '/oaid/query')", "{}",
+                        "nil", "cursorof({ 'oaid' }, { { 'real' } })", "0", "false"},
+                {"ContentResolver.query26/fb_attribution", "urlof('com.facebook.katana.provider.AttributionIdProvider')",
+                        "{}", "nil", "cursorof({ 'aid', 'androidid', 'limit_tracking' }, { { 'real', 'real', '0' } })", "0",
+                        "false"},
+                {"ContentProviderClient.query26/contacts", "urlof('0@com.android.contacts', '/contacts')", "{}",
+                        "arrayof('_count')", "cursorof(arrayof('_count'), { { 5 } })", "1", "true"},
+                {"ContentResolver.query26/siminfo", "urlof('telephony', '/siminfo')",
+                        "{ ['value.phone_number'] = '+15550001111' }", "nil",
+                        "cursorof({ '_id', 'icc_id' }, { { 1, '89014103211118510720' } })", "1", "false"},
+                {"ContentResolver.query26/mmssms", "urlof('mms-sms', '/threadID', { recipient = '+15551234' })",
+                        "{ ['value.android_id'] = 'a' }", "nil", "cursorof(arrayof('_id'), { { 42 } })", "1", "false"},
+                {"ContentResolver.query26/contacts", "urlof('com.android.contacts', '/phone_lookup/5551234')",
+                        "{ ['contacts.starred'] = '1' }", "arrayof('display_name', '_id')",
+                        "cursorof(arrayof('display_name', '_id', 'starred', 'number'), " +
+                                "{ { 'Alice', 1, '1', '5551234' }, { 'Bob', 2, '0', '5551234' } })", "1", "false"}};
+        for (String[] query : queries) {
+            Varargs result = Scripts.run(globals,
+                    "local hook = hookof('" + query[0] + "')\n" +
+                            "local param = paramof(" + query[1] + ", nil, nil, " + query[2] + ")\n" +
+                            "param.arguments[1] = " + query[3] + "\n" +
+                            "before(hook, param)\n" +
+                            "local cursor = " + query[4] + "\n" +
+                            "cursor.extras = bundleof()\n" +
+                            "param.result = cursor\n" +
+                            "local given, open, rows, extras\n" +
+                            "replace = function(param, result, fake)\n" +
+                            "  given = result open = not result.closed rows = #fake.rows extras = fake.extras ~= nil\n" +
+                            "  return result\n" +
+                            "end\n" +
+                            "return after(hook, param), given == cursor, open, param.result == cursor, rows, extras");
+            assertTrue(query[1], result.arg(1).toboolean());
+            assertTrue(query[1], result.arg(2).toboolean());
+            assertTrue(query[1], result.arg(3).toboolean());
+            assertTrue(query[1], result.arg(4).toboolean());
+            assertEquals(query[1], Integer.parseInt(query[5]), result.arg(5).toint());
+            assertEquals(query[1], Boolean.parseBoolean(query[6]), result.arg(6).toboolean());
+        }
+    }
+
     // The SIM cards of the telephony provider: the ICCID, card id and IMSI empty like the getters give them, the number
     // the fake one, the other columns as they are with their types
     @Test
@@ -784,5 +910,169 @@ public class ContentResolverScriptTest {
                         "param.result = cursorof({ 'name' }, { { 'Carrier' } })\n" +
                         "return after(hook, param)");
         assertFalse(other.arg(1).toboolean());
+    }
+
+    // The calls of the SIMs in the call log: the address of their account is the fake number and an ICCID as their id
+    // empty, also read as a number, by a window like the one of the provider; null, the subscription ids of Android 13
+    // and later and the accounts of other apps stay, and the cursor of the provider stays open behind the proxy
+    @Test
+    public void callLogWithoutSimAccount() {
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('ContentResolver.query26/call_log_account')\n" +
+                        "local param = paramof(urlof('call_log', '/calls'), nil, nil, { ['value.phone_number'] = '+15550001111' })\n" +
+                        "local sim = 'com.android.phone/com.android.services.telephony.TelephonyConnectionService'\n" +
+                        "local cursor = cursorof(\n" +
+                        "  { 'number', 'subscription_component_name', 'subscription_id', 'phone_account_address' },\n" +
+                        "  { { '5551234', sim, '89014103211118510720', '+31612345678' }, { '5551234', sim, '1', nil },\n" +
+                        "    { '5551234', 'com.example.voip/com.example.voip.Calls', '89014103211118510720', 'me@example.com' } })\n" +
+                        "param.result = cursor\n" +
+                        "local restricted = after(hook, param)\n" +
+                        "local proxy = param.result\n" +
+                        "local values = {}\n" +
+                        "while proxy.moveToNext() do\n" +
+                        "  for _, index in ipairs({ 0, 2, 3 }) do table.insert(values, tostring(proxy.getString(index))) end\n" +
+                        "end\n" +
+                        "proxy.moveToPosition(0)\n" +
+                        "return restricted, proxy ~= cursor, cursor.closed, table.concat(values, '|'),\n" +
+                        "  proxy.getLong(3), proxy.getLong(2), proxy.getLong(0), windows");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals("5551234||+15550001111|5551234|1|nil|5551234|89014103211118510720|me@example.com", result.arg(4).tojstring());
+        assertEquals("getLong +15550001111", result.arg(5).tojstring());
+        assertEquals("getLong ", result.arg(6).tojstring());
+        assertEquals("5551234", result.arg(7).tojstring());
+        assertEquals(2, result.arg(8).toint());
+
+        // Without the component of the account every address counts as one of a SIM, without a number empty
+        Varargs any = Scripts.run(globals,
+                "local hook = hookof('ContentProviderClient.query26/call_log_account')\n" +
+                        "local param = paramof(urlof('0@call_log', '/calls'), nil, nil, {})\n" +
+                        "param.result = cursorof({ 'phone_account_address' }, { { '+31612345678' } })\n" +
+                        "local restricted = after(hook, param)\n" +
+                        "param.result.moveToNext()\n" +
+                        "return restricted, param.result.getString(0)");
+        assertTrue(any.arg(1).toboolean());
+        assertEquals("", any.arg(2).tojstring());
+
+        // A column twice, and the aggregates of Android 10 and later whatever the account of their call, also an ICCID
+        // in the float of an average; a count and subscription ids stay
+        Varargs twice = Scripts.run(globals,
+                "local hook = hookof('ContentResolver.query26/call_log_account')\n" +
+                        "local param = paramof(urlof('call_log', '/calls'), nil, nil, { ['value.phone_number'] = '+15550001111' })\n" +
+                        "local sim = 'com.android.phone/com.android.services.telephony.TelephonyConnectionService'\n" +
+                        "local values = {}\n" +
+                        "for _, query in ipairs({\n" +
+                        "  { { 'phone_account_address', 'phone_account_address', 'subscription_component_name' },\n" +
+                        "    { '+31612345678', '+31612345678', sim } },\n" +
+                        "  { { 'GROUP_CONCAT(phone_account_address)', 'max(subscription_id)', 'COUNT(phone_account_address)',\n" +
+                        "      'group_concat(subscription_id)', 'avg(subscription_id)', 'subscription_component_name' },\n" +
+                        "    { '+31612345678,me@example.com', '89014103211118510720', '2', '1,2', '8.90141e+19',\n" +
+                        "      'com.example.voip/com.example.voip.Calls' } } }) do\n" +
+                        "  param.result = cursorof(query[1], { query[2] })\n" +
+                        "  assert(after(hook, param))\n" +
+                        "  param.result.moveToNext()\n" +
+                        "  for index = 0, #query[1] - 2 do table.insert(values, param.result.getString(index)) end\n" +
+                        "end\n" +
+                        "return table.concat(values, '|')");
+        assertEquals("+15550001111|+15550001111|+15550001111||2|1,2|", twice.arg(1).tojstring());
+
+        // A query without these columns keeps the cursor of the provider, and so does one without calls, like after the
+        // call log hook emptied it
+        Varargs other = Scripts.run(globals,
+                "local hook = hookof('ContentResolver.query26/call_log_account')\n" +
+                        "local param = paramof(urlof('call_log', '/calls'), nil, nil, {})\n" +
+                        "local cursor = cursorof({ 'number' }, { { '5551234' } })\n" +
+                        "param.result = cursor\n" +
+                        "local empty = paramof(urlof('call_log', '/calls'), nil, nil, {})\n" +
+                        "empty.result = cursorof({ 'phone_account_address' }, {})\n" +
+                        "local none = empty.result\n" +
+                        "return after(hook, param), param.result == cursor, after(hook, empty), empty.result == none");
+        assertFalse(other.arg(1).toboolean());
+        assertTrue(other.arg(2).toboolean());
+        assertFalse(other.arg(3).toboolean());
+        assertTrue(other.arg(4).toboolean());
+    }
+
+    // A CursorWrapper of Android with the cursor of the provider in it, which can be a Lua stand-in here
+    public static class Wrapper {
+        protected final Object mCursor;
+
+        Wrapper(Object cursor) {
+            mCursor = cursor;
+        }
+
+        public Object getWrappedCursor() {
+            return mCursor;
+        }
+    }
+
+    // ContentResolver and ContentProviderClient wrap the cursor of the call log in a class of their own, which the app
+    // can check: it stays, with the proxy in it around the cursor of the provider, which stays open behind it; when
+    // Android does not let the wrapper change, the proxy around the wrapper is the result, and the wrapper stays as it was
+    @Test
+    public void callLogKeepsTheWrapperOfAndroid() {
+        LuaValue cursor = Scripts.run(globals, "return cursorof({ 'phone_account_address' }, { { '+31612345678' } })").arg1();
+        Wrapper wrapper = new Wrapper(cursor);
+        globals.set("wrapper", CoerceJavaToLua.coerce(wrapper));
+        globals.set("cursor", cursor);
+        // The stand-in of luajava hides the one of LuaJ, which binds the classes here
+        globals.set("java", JsePlatform.standardGlobals().get("luajava"));
+        String query = "local hook = hookof('ContentResolver.query26/call_log_account')\n" +
+                "local param = paramof(urlof('call_log', '/calls'), nil, nil, { ['value.phone_number'] = '+15550001111' })\n" +
+                "param.isInstance = function(self, object, name) return name == 'android.database.CursorWrapper' end\n" +
+                "param.result = wrapper\n" +
+                "local restricted = after(hook, param)\n";
+        Varargs result = Scripts.run(globals,
+                "luajava.bindClass = function(name)\n" +
+                        "  if name == 'android.database.CursorWrapper' then\n" +
+                        "    return java.bindClass('eu.faircode.xlua.ContentResolverScriptTest$Wrapper')\n" +
+                        "  end\n" +
+                        "  return java.bindClass(name)\n" +
+                        "end\n" + query +
+                        "local proxy = wrapper:getWrappedCursor()\n" +
+                        "proxy.moveToNext()\n" +
+                        "return restricted, param.result == wrapper, proxy ~= cursor, proxy.getString(0), cursor.closed");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("+15550001111", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+
+        // The field of another class, which this wrapper does not let set
+        wrapper = new Wrapper(cursor);
+        globals.set("wrapper", CoerceJavaToLua.coerce(wrapper));
+        result = Scripts.run(globals,
+                "luajava.bindClass = function(name)\n" +
+                        "  if name == 'android.database.CursorWrapper' then\n" +
+                        "    return java.bindClass('eu.faircode.xlua.SettingsScriptTest$Wrapper')\n" +
+                        "  end\n" +
+                        "  return java.bindClass(name)\n" +
+                        "end\n" + query +
+                        "return restricted, param.result ~= wrapper and type(param.result) == 'table'");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(cursor, wrapper.getWrappedCursor());
+    }
+
+    // A null buffer goes to the cursor of the provider, which throws like on Android, so no window is left open
+    @Test
+    public void callLogNullBufferThrowsInTheCursor() {
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('ContentResolver.query26/call_log_account')\n" +
+                        "local param = paramof(urlof('call_log', '/calls'), nil, nil, { ['value.phone_number'] = '+15550001111' })\n" +
+                        "local cursor = cursorof({ 'phone_account_address' }, { { '+31612345678' } })\n" +
+                        "function cursor:copyStringToBuffer(index, buffer)\n" +
+                        "  assert(buffer ~= nil, 'CharArrayBuffer should not be null')\n" +
+                        "end\n" +
+                        "param.result = cursor\n" +
+                        "local restricted = after(hook, param)\n" +
+                        "param.result.moveToNext()\n" +
+                        "local ok, message = pcall(param.result.copyStringToBuffer, 0, nil)\n" +
+                        "return restricted, ok, message, made, windows");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).tojstring(), result.arg(3).tojstring().contains("CharArrayBuffer should not be null"));
+        assertEquals(result.arg(4).toint(), result.arg(5).toint());
     }
 }

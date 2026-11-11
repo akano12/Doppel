@@ -301,19 +301,63 @@ public class AuditFixesScriptTest {
         assertTrue(result.arg(7).toboolean());
     }
 
-    // The id of the file system goes, the sizes stay
+    // An id of a UUID is replaced by a fake of the seed and the real id, set in Java (XParam.fakeLong) with the width of
+    // the process; 0 stays, and so does the number of a block device: below 2^32 in a 64-bit process, without a stat,
+    // and equal to st_dev in a 32-bit one, by stat or fstat; a failed stat replaces it
     @Test
     public void fileSystemId() throws Exception {
         Globals globals = Scripts.load("statvfs_fsid", PARAM + "\n" +
-                "luajava = { newInstance = function(name, ...) return { args = { ... } } end }");
+                "wide = true\n" +
+                "devices = { ['/data/user/0/x'] = 66309, fd = 66309 }\n" +
+                "stats = 0\n" +
+                "luajava = { bindClass = function(name)\n" +
+                "  if name == 'android.os.Process' then return { is64Bit = function() return wide end } end\n" +
+                "  local function stat(self, file) stats = stats + 1\n" +
+                "    if devices[file] == nil then error('ENOENT') end return { st_dev = devices[file] } end\n" +
+                "  return { stat = stat, fstat = stat } end }\n" +
+                "function fs(fsid, file)\n" +
+                "  local param = paramof({ f_fsid = fsid }, { file })\n" +
+                "  param.getSetting = function(self, name) return name == 'value.android_id' and 'id' or nil end\n" +
+                "  param.unhooked = function(self, f) return f() end\n" +
+                "  param.fakeLong = function(self, object, name, seed, bits)\n" +
+                "    object[name] = seed .. '/' .. object[name] .. '/' .. bits; return object[name] end\n" +
+                "  return param\n" +
+                "end\n" +
+                "function run(method, fsid, file)\n" +
+                "  local param = fs(fsid, file)\n" +
+                "  local replaced = after(hookof(method), param)\n" +
+                "  return replaced, param.result.f_fsid\n" +
+                "end");
         Varargs result = Scripts.run(globals,
-                "local param = paramof({ f_fsid = 1234, f_blocks = 7 })\n" +
-                        "local none = paramof({ f_fsid = 0 })\n" +
-                        "return after(nil, param), param.result.args[9], param.result.args[3], after(nil, none)");
+                "local a, b = run('statvfs', -3215623475435463680, '/data/user/0/x')\n" +
+                        "local c, d = run('statvfs', 2 ^ 40, '/system')\n" +
+                        "local e, f = run('statvfs', 66309, '/data/user/0/x')\n" +
+                        "local g, h = run('statvfs', 0, '/proc')\n" +
+                        "local wideStats = stats\n" +
+                        "wide = false\n" +
+                        "local i, j = run('statvfs', 66309, '/data/user/0/x')\n" +
+                        "local k, l = run('fstatvfs', 66309, 'fd')\n" +
+                        "local m, n = run('statvfs', 12345678, '/data/user/0/x')\n" +
+                        "local o, p = run('statvfs', 66309, '/gone')\n" +
+                        "return a, b, c, d, e, f, g, h, wideStats, i, j, k, l, m, n, o, p, stats");
         assertTrue(result.arg(1).toboolean());
-        assertEquals(0, result.arg(2).toint());
-        assertEquals(7, result.arg(3).toint());
-        assertFalse(result.arg(4).toboolean());
+        assertEquals("id/-3215623475435463680/64", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("id/1099511627776/64", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals(66309, result.arg(6).toint());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals(0, result.arg(8).toint());
+        assertEquals(0, result.arg(9).toint());
+        assertFalse(result.arg(10).toboolean());
+        assertEquals(66309, result.arg(11).toint());
+        assertFalse(result.arg(12).toboolean());
+        assertEquals(66309, result.arg(13).toint());
+        assertTrue(result.arg(14).toboolean());
+        assertEquals("id/12345678/32", result.arg(15).tojstring());
+        assertTrue(result.arg(16).toboolean());
+        assertEquals("id/66309/32", result.arg(17).tojstring());
+        assertEquals(4, result.arg(18).toint());
     }
 
     // Asked about another user the service answers for a user which does not exist, for the own user as it is

@@ -130,13 +130,14 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 
 * **Read account name**: fake name, also in contacts and calendars
 * **Read biometric sensors**: no fingerprint sensor, face or iris unlock, also in the prompt of biometrics
-* **Read identifiers**: fake serial, Android ID, DRM id, advertising and app set ID, MAC addresses;
+* **Read identifiers**: fake serial, Android ID, DRM id, advertising and app set ID, MAC addresses, ids of file systems
+  made of their UUID;
   the permanent ids of the chip, SD card and storage in /sys do not exist, and neither do the advertising ids (OAID)
   of the services of device makers (Samsung, Lenovo, Asus, OPPO, OnePlus, realme, Honor, Huawei, Coolpad, Nubia,
   Freeme and 360, also any service with one of their interfaces), the ids they and SDKs keep in the settings
-  (Huawei, Honor, Xiaomi, OnePlus, Amazon Fire OS, Baidu), the SIM serial in their system properties and the id of
-  the file system
+  (Huawei, Honor, Xiaomi, OnePlus, Amazon Fire OS, Baidu) and the SIM serial in their system properties
 * **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more, also in the phone accounts of the SIMs
+  and in the calls of the call log
 * **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
   boot id and the folder times and inodes that tell when the device was set up; the hardware files in /sys and the
   property files of the partitions do not exist, nor do

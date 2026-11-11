@@ -20,19 +20,28 @@
 -- Android does not give for a SIM. The accounts of the app itself and other addresses, like sip: of calling apps, stay.
 function after(hook, param)
     local result = param:getResult()
-    if result == nil or result:getScheme() ~= 'tel' then
+    local fake = fakeaddress(param, param:getThis(), result)
+    if fake == nil then
         return false
     end
-    local handle = param:getThis():getAccountHandle()
+    param:setResult(fake)
+    return true, result:toString(), fake:getSchemeSpecificPart()
+end
+
+-- The fake address of a phone account, nil when the address stays; the same function as in telephony_createfromparcel,
+-- which a test compares
+function fakeaddress(param, account, address)
+    if address == nil or address:getScheme() ~= 'tel' then
+        return nil
+    end
+    local handle = account:getAccountHandle()
     if handle ~= nil and handle:getComponentName():getPackageName() == param:getPackageName() then
-        return false
+        return nil
     end
 
     local number = param:getSetting('value.phone_number') or ''
-    if result:getSchemeSpecificPart() == number then
-        return false
+    if address:getSchemeSpecificPart() == number then
+        return nil
     end
-    local fake = luajava.bindClass('android.net.Uri'):fromParts('tel', number, nil)
-    param:setResult(fake)
-    return true, result:toString(), number
+    return luajava.bindClass('android.net.Uri'):fromParts('tel', number, nil)
 end

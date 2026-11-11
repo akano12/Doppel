@@ -35,8 +35,10 @@ import static org.junit.Assert.assertTrue;
 // (XCore.Filter): the script runs only for the properties it can fake, not for all properties apps read
 public class SystemPropertiesFilterTest {
     private static final String STUBS = String.join("\n",
+            // The method of a name like SystemProperties.get/device
             "function hookof(name)",
-            "  return { getName = function(self) return name end }",
+            "  return { getName = function(self) return name end,",
+            "    getMethodName = function(self) return string.match(name, '^[^.]+%.([^./]+)') end }",
             "end");
 
     @Test

@@ -25,6 +25,10 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -39,6 +43,10 @@ public class OperatorTextScriptTest {
     private static final String OPERATOR = "SubscriptionInfo.toString/operator";
     // The network codes, in Use.Tracking
     private static final String PLMN = "SubscriptionInfo.toString/plmn";
+    // The ICCID, the card string, the number and the group, in Read.Telephony
+    private static final String TELEPHONY = "SubscriptionInfo.toString/telephony";
+    private static final String ICCID = "89014103211118510720";
+    private static final String GROUP = "6a2c5d1e-0c4b-4b8e-9f1a-2b3c4d5e6f70";
 
     private Globals globals;
 
@@ -47,18 +55,28 @@ public class OperatorTextScriptTest {
         globals = Scripts.load("operator_tostring", null);
     }
 
-    private Varargs after(String className, String name, String text) {
+    // The phone number set is the setting of the param, null for none
+    private Varargs after(String className, String name, String text, String number) {
         LuaValue hook = globals.load("local className, name = ...\n" +
                 "return { getClassName = function(self) return className end,\n" +
                 "    getName = function(self) return name end }").invoke(
                 LuaValue.valueOf(className), LuaValue.valueOf(name)).arg1();
-        LuaValue param = globals.load("local text = ...\n" +
+        LuaValue param = globals.load("local text, number = ...\n" +
                 "local param = { result = text }\n" +
                 "function param.getResult(self) return self.result end\n" +
                 "function param.setResult(self, value) self.result = value end\n" +
-                "return param").call(LuaValue.valueOf(text));
+                "function param.getSetting(self, name) if name == 'value.phone_number' then return number end end\n" +
+                "return param").call(LuaValue.valueOf(text), number == null ? LuaValue.NIL : LuaValue.valueOf(number));
         Varargs result = globals.get("after").invoke(hook, param);
         return LuaValue.varargsOf(result.arg1(), param.get("result"));
+    }
+
+    private Varargs after(String className, String name, String text) {
+        return after(className, name, text, null);
+    }
+
+    private String telephony(String text, String number) {
+        return after(SUBSCRIPTION, TELEPHONY, text, number).arg(2).tojstring();
     }
 
     private Varargs after(String className, String text) {
@@ -215,6 +233,84 @@ public class OperatorTextScriptTest {
         // Empty already, as apps without privileges get it, nothing changes
         String empty = "{id=1, iccId= simSlotIndex=0 displayName=unknown carrierName=unknown nameSource=0}";
         assertFalse(after(SUBSCRIPTION, OPERATOR, empty).arg1().toboolean());
+    }
+
+    // The ICCID, the card string, the number and the group, like the getters of Read.Telephony: Android 14 and later,
+    // of a debuggable build, which prints the ICCID and the number in full, like the emulator
+    @Test
+    public void subscriptionTelephony() {
+        String text = "[SubscriptionInfo: id=1 iccId=" + ICCID + " simSlotIndex=0 portIndex=0 isEmbedded=false carrierId=1 " +
+                "displayName=T-Mobile carrierName=T-Mobile isOpportunistic=false groupUuid=" + GROUP + " " +
+                "groupOwner=com.carrier.app isGroupDisabled=false displayNameSource=CARRIER iconTint=-16746133 " +
+                "number=+15555215554 dataRoaming=0 mcc=310 mnc=260 ehplmns=[310260] hplmns=[310260] cardString=" + ICCID +
+                " cardId=0 nativeAccessRules=null carrierConfigAccessRules=null countryIso=us profileClass=-1 " +
+                "mType=LOCAL_SIM areUiccApplicationsEnabled=true usageSetting=DEFAULT]";
+        // The index of the card stays, it is no identifier
+        String fake = text.replace(ICCID, "").replace(GROUP, "null");
+        assertEquals(fake.replace("+15555215554", ""), telephony(text, null));
+        assertEquals(fake.replace("+15555215554", "+15550100"), telephony(text, "+15550100"));
+        // With the other groups, like when all are restricted
+        assertEquals("[SubscriptionInfo: id=1 iccId= simSlotIndex=0 portIndex=0 isEmbedded=false carrierId=1911 " +
+                "displayName=unknown carrierName=unknown isOpportunistic=false groupUuid=null groupOwner= " +
+                "isGroupDisabled=false displayNameSource=CARRIER iconTint=-16746133 number=+15550100 dataRoaming=0 " +
+                "mcc=001 mnc=01 ehplmns=[] hplmns=[] cardString= cardId=0 nativeAccessRules=null " +
+                "carrierConfigAccessRules=null countryIso= profileClass=-1 mType=LOCAL_SIM " +
+                "areUiccApplicationsEnabled=true usageSetting=DEFAULT]", telephony(both(text), "+15550100"));
+        // Nothing to hide, like for apps without the permissions on Android 11 and later
+        String empty = "[SubscriptionInfo: id=1 iccId= simSlotIndex=0 groupUuid=null groupOwner= iconTint=0 number= " +
+                "dataRoaming=0 cardString= cardId=0 nativeAccessRules=null]";
+        assertFalse(after(SUBSCRIPTION, TELEPHONY, empty, "+15550100").arg1().toboolean());
+    }
+
+    // User builds print the first 9 digits of the ICCID and of the card string, and a number of the SIM as [****],
+    // also the fake one; builds which are neither user nor debuggable print a hash of the number
+    @Test
+    public void subscriptionTelephonyHidden() throws Exception {
+        String text = "[SubscriptionInfo: id=1 iccId=890141032[****] simSlotIndex=0 groupUuid=null groupOwner= " +
+                "iconTint=0 number=[****] dataRoaming=0 cardString=890141032[****] cardId=0 nativeAccessRules=null]";
+        String fake = "[SubscriptionInfo: id=1 iccId= simSlotIndex=0 groupUuid=null groupOwner= " +
+                "iconTint=0 number=[****] dataRoaming=0 cardString= cardId=0 nativeAccessRules=null]";
+        assertEquals(fake, telephony(text, "+15550100"));
+        assertEquals(fake.replace("[****]", ""), telephony(text, null));
+        assertEquals(" number=[" + hash("+15550100") + "] dataRoaming=0",
+                telephony(" number=[" + hash("+15555215554") + "] dataRoaming=0", "+15550100"));
+    }
+
+    // Like Rlog.pii prints a number on builds which are neither user nor debuggable
+    private static String hash(String number) throws Exception {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(
+                MessageDigest.getInstance("SHA-1").digest(number.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    // Android 11 to 13 print the group in capitals, 10 prints the number and the group as fields
+    @Test
+    public void subscriptionTelephonyAndroid10To13() {
+        String text = "{id=1 iccId=" + ICCID + " simSlotIndex=0 carrierId=1 displayName=T-Mobile carrierName=T-Mobile " +
+                "nameSource=0 iconTint=0 number=+15555215554 dataRoaming=0 iconBitmap=null mcc=310 mnc=260 countryIso=us " +
+                "isEmbedded=false nativeAccessRules=null cardString=" + ICCID + " cardId=0 portIndex=0 " +
+                "isOpportunistic=false groupUUID=" + GROUP + " isGroupDisabled=false profileClass=-1 " +
+                "ehplmns=[310260] hplmns=[310260] subscriptionType=0 groupOwner=null}";
+        String fake = text.replace(ICCID, "").replace(GROUP, "null");
+        assertEquals(fake.replace("+15555215554", "+15550100"), telephony(text, "+15550100"));
+        text = "{id=1, iccId=" + ICCID + " simSlotIndex=0 carrierId=1 displayName=T-Mobile carrierName=T-Mobile " +
+                "nameSource=0 iconTint=0 mNumber=+15555215554 dataRoaming=0 iconBitmap=null mcc 310 mnc 260mCountryIso=us " +
+                "isEmbedded false accessRules null cardString=" + ICCID + " cardId=0 isOpportunistic false " +
+                "mGroupUUID=" + GROUP + " mIsGroupDisabled=false profileClass=-1 ehplmns = [310260] hplmns = [310260] " +
+                "subscriptionType=0 mGroupOwner=null}";
+        fake = text.replace(ICCID, "").replace(GROUP, "null");
+        assertEquals(fake.replace("+15555215554", ""), telephony(text, null));
+    }
+
+    // Android 9 ends with the ICCID as the id of the card, Android 8.1 prints the ICCID only; neither prints the number
+    @Test
+    public void subscriptionTelephonyAndroid9() {
+        String text = "{id=1, iccId=" + ICCID + " simSlotIndex=0 displayName=T-Mobile carrierName=T-Mobile nameSource=0 " +
+                "iconTint=0 dataRoaming=0 iconBitmap=android.graphics.Bitmap@5e2de80 mcc 310 mnc 260 isEmbedded false " +
+                "accessRules null cardId=" + ICCID + "}";
+        assertEquals(text.replace(ICCID, ""), telephony(text, "+15550100"));
+        assertEquals(text.replace(ICCID, ""), telephony(text.replace(ICCID, "890141032[****]"), "+15550100"));
+        String old = text.substring(0, text.indexOf(" cardId=")) + "}";
+        assertEquals(old.replace(ICCID, ""), telephony(old, "+15550100"));
     }
 
     // Android 9 and before print the codes as numbers and no country

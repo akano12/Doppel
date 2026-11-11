@@ -45,6 +45,8 @@ public class FakeValuesAgreeTest {
             "  return { result = result,",
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value end,",
+            // The cursors of the stand-ins are no CursorWrapper
+            "    isInstance = function(self, object, name) return false end,",
             "    getArgument = function(self, index) return args[index + 1] end,",
             "    getSetting = function(self, name) return settings[name] end }",
             "end",
@@ -60,6 +62,28 @@ public class FakeValuesAgreeTest {
 
     private static String run(Globals globals, String lua) {
         return Scripts.run(globals, "return " + lua).arg1().tojstring();
+    }
+
+    // What a hook of opening files writes into a property area with these names and values, which the app reads as a
+    // file (see XParam.getProperties and setPropertyValues), as name=value, like the area lists them
+    private static String area(Globals globals, String hook, String settings, String... properties) {
+        StringBuilder listed = new StringBuilder();
+        for (String property : properties)
+            listed.append("'").append(property).append("', ");
+        return run(globals, "(function()\n" +
+                "  local param, set = paramof(nil, {}, " + settings + "), {}\n" +
+                "  param.getProperties = function(self)\n" +
+                "    local listed = { " + listed + "}\n" +
+                "    listed['length'] = #listed\n" +
+                "    return listed\n" +
+                "  end\n" +
+                "  param.setPropertyValues = function(self, names, values)\n" +
+                "    for index = 1, #names do set[#set + 1] = names[index] .. '=' .. values[index] end\n" +
+                "    return names\n" +
+                "  end\n" +
+                "  after(hookof('" + hook + "', 'open'), param)\n" +
+                "  return table.concat(set, ' ')\n" +
+                "end)()");
     }
 
     // The kernel release without the build, for Os.uname and the property os.version
@@ -146,24 +170,34 @@ public class FakeValuesAgreeTest {
                 Integer.parseInt(run(getters, "fakeof(nil, 'getMcc', 310)")));
         assertEquals(Integer.parseInt(run(getters, "fakeof(nil, 'getMncString', '260')")),
                 Integer.parseInt(run(getters, "fakeof(nil, 'getMnc', 260)")));
-        for (String key : new String[]{"gsm.operator.numeric", "gsm.sim.operator.numeric"})
+        for (String key : new String[]{"gsm.operator.numeric", "gsm.sim.operator.numeric"}) {
             assertEquals(key, operator, run(properties,
                     "fakeof('SystemProperties.get/operator', 'get', '310260', { '" + key + "' })"));
+            // The property areas the app reads as files, also with a list per SIM slot, like get
+            assertEquals(key, key + "=" + operator, area(properties, "BlockGuardOs.open/operator", "{}", key, "310260"));
+            String slots = run(properties, "fakeof('SystemProperties.get/operator', 'get', ',310260', { '" + key + "' })");
+            assertEquals(key, ",00101", slots);
+            assertEquals(key, key + "=" + slots, area(properties, "UnixNativeDispatcher.open/operator", "{}", key, ",310260"));
+        }
 
         String name = run(getters, "fakeof(nil, 'getNetworkOperatorName', 'T-Mobile')");
         for (String method : new String[]{"getSimOperatorName", "getOperatorAlphaLong", "getOperatorAlphaShort",
                 "getCarrierName", "getDisplayName"})
             assertEquals(method, name, run(getters, "fakeof(nil, '" + method + "', 'T-Mobile')"));
-        for (String key : new String[]{"gsm.operator.alpha", "gsm.sim.operator.alpha"})
+        for (String key : new String[]{"gsm.operator.alpha", "gsm.sim.operator.alpha"}) {
             assertEquals(key, name, run(properties,
                     "fakeof('SystemProperties.get/operator', 'get', 'T-Mobile', { '" + key + "' })"));
+            assertEquals(key, key + "=" + name, area(properties, "BlockGuardOs.open/operator", "{}", key, "T-Mobile"));
+        }
 
         String country = run(getters, "fakeof(nil, 'getCountryIso', 'us')");
         for (String method : new String[]{"getNetworkCountryIso", "getSimCountryIso"})
             assertEquals(method, country, run(getters, "fakeof(nil, '" + method + "', 'us')"));
-        for (String key : new String[]{"gsm.operator.iso-country", "gsm.sim.operator.iso-country"})
+        for (String key : new String[]{"gsm.operator.iso-country", "gsm.sim.operator.iso-country"}) {
             assertEquals(key, country, run(properties,
                     "fakeof('SystemProperties.get/operator', 'get', 'us', { '" + key + "' })"));
+            assertEquals(key, key + "=" + country, area(properties, "BlockGuardOs.open/operator", "{}", key, "us"));
+        }
 
         String carrier = run(getters, "fakeof(nil, 'getCarrierId', 1)");
 
@@ -187,6 +221,25 @@ public class FakeValuesAgreeTest {
                 " 'NetworkRegistrationInfo{ domain=PS rRplmn=310260 isUsingCarrierAggregation=false}', nil, nil," +
                 " 'android.telephony.NetworkRegistrationInfo')");
         assertTrue(registration, registration.contains(" rRplmn=" + operator + " "));
+    }
+
+    // The ICCID, the card string and the number of the getters (generic_empty_text, value_phone_number_nonnull)
+    // are the ones of the text of a subscription (operator_tostring), with and without a number set
+    @Test
+    public void subscriptionIdentifiers() throws Exception {
+        String iccId = run(load("generic_empty_text"), "fakeof(nil, 'getIccId', '89014103211118510720')");
+        Globals number = load("value_phone_number_nonnull");
+        Globals texts = load("operator_tostring");
+        for (String setting : new String[]{"nil", "''", "'+15550100'"}) {
+            String settings = "{ ['value.phone_number'] = " + setting + " }";
+            String fake = run(number, "fakeof(nil, 'getNumber', '+15555215554', {}, " + settings + ")");
+            String text = run(texts, "fakeof('SubscriptionInfo.toString/telephony', 'toString', '[SubscriptionInfo: id=1" +
+                    " iccId=89014103211118510720 simSlotIndex=0 iconTint=0 number=+15555215554 dataRoaming=0" +
+                    " cardString=89014103211118510720 cardId=0 countryIso=us]', {}, " + settings + "," +
+                    " 'android.telephony.SubscriptionInfo')");
+            assertTrue(text, text.contains(" iccId=" + iccId + " simSlotIndex=") && text.contains(" number=" + fake +
+                    " dataRoaming=") && text.contains(" cardString=" + iccId + " cardId="));
+        }
     }
 
     // The network name, the access point, the MAC address and the IP address of the getters
@@ -222,7 +275,14 @@ public class FakeValuesAgreeTest {
             assertEquals(setting, setting.equals("nil") ? "unknown" : "ABC123", expected);
             assertEquals(setting, expected, run(properties, "fakeof('SystemProperties.get/serial', 'get'," +
                     " 'R58M1234', { 'ro.serialno' }, " + settings + ")"));
+            for (String hook : new String[]{"BlockGuardOs.open/serial", "UnixNativeDispatcher.open/serial"})
+                assertEquals(setting, "ril.serialnumber=" + expected + " sys.serialnumber=" + expected,
+                        area(properties, hook, settings, "ril.serialnumber", "R58M1234", "persist.sys.locale", "de-DE",
+                                "sys.serialnumber", "R58M1234"));
         }
+        // Only the property areas run the script for the hooks of opening files
+        assertEquals("/dev/__properties__/*", run(properties, "filter(hookof('BlockGuardOs.open/serial', 'open'))[1]"));
+        assertEquals("", area(properties, "BlockGuardOs.open/serial", "{}", "persist.sys.locale", "de-DE"));
     }
 
     // Serial numbers of manufacturers in properties, which some ROMs set, are the serial of Build.getSerial; the serial
@@ -248,6 +308,12 @@ public class FakeValuesAgreeTest {
             assertEquals(key, "", run(properties, "fakeof('SystemProperties.get/serial', 'get', '490154203237518', { '" +
                     key + "' }, " + settings + ")"));
         }
+        // The same in the property areas, which only tell these names, and the serials of manufacturers
+        for (String key : new String[]{"ril.iccid.sim1", "gsm.sim.preiccid_0", "vendor.ril.ICCID", "persist.sys.imei1",
+                "ril.IMEI", "persist.vendor.radio.meid"})
+            assertEquals(key, key + "=", area(properties, "BlockGuardOs.open/serial", settings, key, "8949012345678901234"));
+        assertEquals("persist.radio.serialno=ABC123", area(properties, "UnixNativeDispatcher.open/serial", settings,
+                "persist.radio.serialno", "R58M1234", "persist.sys.timeinfo", "1700000000"));
         assertEquals("1700000000", run(properties, "fakeof('SystemProperties.get/serial', 'get', '1700000000', " +
                 "{ 'persist.sys.timeinfo' }, " + settings + ")"));
         // Not of other variants, and other properties stay

@@ -18,8 +18,8 @@
 -- The own device of Wi-Fi Direct, like requestDeviceInfo and the broadcast THIS_DEVICE_CHANGED give it, has the name
 -- users give the device, often with their own name, which the settings device_name and wifi_p2p_device_name hide
 -- (see settingssecure_getstring); its name is empty. It is told apart by its address, which Android hides from apps
--- since Android 10. shortcut: on Android 8.1 and 9 the own device has its real address and keeps its name; a check of
--- the broadcast would be needed for those.
+-- since Android 10. shortcut: on Android 8.1 and 9 the own device keeps its name, since it is unparcelled with its real
+-- address, which wifip2p_own_address makes anonymous only afterwards; a check of the broadcast would be needed for those.
 local ANONYMOUS = '02:00:00:00:00:00'
 
 function after(hook, param)

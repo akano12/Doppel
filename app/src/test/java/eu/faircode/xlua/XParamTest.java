@@ -34,10 +34,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -87,6 +89,53 @@ public class XParamTest {
             fail("Copied no fields");
         } catch (NoSuchFieldException ignored) {
         }
+    }
+
+    // Like a StructStatVfs, of which the fields are final, which ART lets reflection set once accessible; not final
+    // here, since newer JVMs warn about it and will refuse it
+    private static class StatVfs {
+        public long f_fsid;
+
+        StatVfs(long fsid) {
+            f_fsid = fsid;
+        }
+    }
+
+    private static long fake(long real, String seed, int bits) throws Throwable {
+        StatVfs vfs = new StatVfs(real);
+        long fake = XParam.fakeLong(vfs, StatVfs.class.getField("f_fsid"), seed, bits);
+        assertEquals(fake, vfs.f_fsid);
+        return fake;
+    }
+
+    // A fake long is exact past 2^53, which a Lua number is not: ids which differ in the low bits only, or of which
+    // the sign is set, like the id of a file system of a UUID, give their own fakes, the same for the same id and seed,
+    // and fit the width of a 32-bit process. In 64 bits they have the forms of bionic, which sign extends the low int:
+    // bit 31 clear, or bit 31 set and the high half all ones; both come out. The real ids are of /data, /system and
+    // /apex/com.android.art of an emulator of Android 14 (stat -f gives d3609fe8 04970d6b and so on).
+    @Test
+    public void fakeLong() throws Throwable {
+        long one = fake((1L << 60) + 1, "id", 64);
+        long two = fake((1L << 60) + 2, "id", 64);
+        long negative = fake(0xffffffffd3609fe8L, "id", 64);
+        assertNotEquals(one, two);
+        assertNotEquals(one, negative);
+        boolean set = false;
+        boolean clear = false;
+        for (long real : new long[]{0xffffffffd3609fe8L, 0xffffffff8cf62429L, 0x8b5c283902ba2bd9L, 1L << 40, 1})
+            for (int i = 0; i < 16; i++) {
+                long fake = fake(real, "id" + i, 64);
+                assertTrue(Long.toHexString(fake), (fake & 0x80000000L) == 0 || (fake >>> 32) == 0xffffffffL);
+                set |= (fake & 0x80000000L) != 0;
+                clear |= (fake & 0x80000000L) == 0 && (fake >>> 32) != 0;
+            }
+        assertTrue(set && clear);
+        assertEquals(one, fake((1L << 60) + 1, "id", 64));
+        assertNotEquals(one, fake((1L << 60) + 1, "other", 64));
+        assertNotEquals((1L << 60) + 1, one);
+        long narrow = fake(0x04970d6bL, "id", 32);
+        assertTrue(narrow > 0 && narrow < (1L << 32));
+        assertNotEquals(narrow, fake(0x04970d6cL, "id", 32));
     }
 
     // Like a Lua number returned to Java code expecting an Object
@@ -169,6 +218,9 @@ public class XParamTest {
         assertEquals(42, XParam.coerceValue(int.class, "42"));
         assertEquals(42L, XParam.coerceValue(long.class, "42"));
         assertEquals("42", XParam.coerceValue(String.class, "42"));
+        // A text of Lua, which luaj passes as a String, for a method which takes the bytes of a path, like renameat
+        Object path = CoerceLuaToJava.coerce(LuaValue.valueOf("/sys/a/cid~"), Object.class);
+        assertArrayEquals("/sys/a/cid~".getBytes(StandardCharsets.UTF_8), (byte[]) XParam.coerceValue(byte[].class, path));
     }
 
     private static ApplicationInfo app(int uid, int flags) {
@@ -462,5 +514,29 @@ public class XParamTest {
         ByteBuffer clean = areaOf(true, "persist.sys.timezone=Europe/London");
         assertEquals("Europe/London", XParam.replaceProperty(clean.array(), "persist.sys.timezone", "UTC", true));
         assertEquals(0, clean.get(128 + 20));
+    }
+
+    // The properties of a property area by their whole names, which scripts compare with patterns, like of the IMEIs of
+    // vendors, with their values, also empty ones; long values and files which are no property area give none
+    @Test
+    public void propertyAreaNames() {
+        ByteBuffer area = areaOf(true, "ril.serialnumber=R58M1234", "gsm.sim.preiccid_0=89490", "persist.sys.imei1=4901542",
+                "gsm.operator.numeric=310260,", "ril.iccid.sim1=", "gsm.operator.alpha=T-Mobile", "ril.a.b.c=d");
+        int info = new String(area.array(), StandardCharsets.ISO_8859_1).indexOf("ril.a.b.c\0") - 96;
+        area.putInt(info, area.getInt(info) | (1 << 16));
+        String[] properties = XParam.listProperties(area.array());
+        Map<String, String> found = new HashMap<>();
+        for (int i = 0; i < properties.length; i += 2)
+            assertNull(properties[i], found.put(properties[i], properties[i + 1]));
+        Map<String, String> expected = new HashMap<>();
+        expected.put("ril.serialnumber", "R58M1234");
+        expected.put("gsm.sim.preiccid_0", "89490");
+        expected.put("persist.sys.imei1", "4901542");
+        expected.put("gsm.operator.numeric", "310260,");
+        expected.put("ril.iccid.sim1", "");
+        expected.put("gsm.operator.alpha", "T-Mobile");
+        assertEquals(expected, found);
+        assertEquals(0, XParam.listProperties(new byte[]{1, 2, 3}).length);
+        assertEquals(0, XParam.listProperties(new byte[128 * 1024]).length);
     }
 }

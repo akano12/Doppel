@@ -26,9 +26,12 @@
 -- read, listed or found, with java.io, android.system.Os and java.nio.file. The paths are resolved first,
 -- so the links of /sys do not lead to the files either, like /sys/bus/mmc/devices/mmc0:0001/cid.
 -- Each variant hides the files of its group, and folders listed with java.nio.file leave the names of hidden files out.
--- Not covered are native code and the entries of a listed folder opened by a SecureDirectoryStream of java.nio
--- (Files.newDirectoryStream gives one, of which newByteChannel and getFileAttributeView use openat and fstatat
--- with a name relative to the folder), like a hidden file of a folder which is not hidden itself.
+-- A SecureDirectoryStream of java.nio, which Files.newDirectoryStream gives, opens, removes and moves the files of its
+-- folder and reads their attributes by the descriptor of the folder and their name (openat, unlinkat, renameat and
+-- fstatat, see atpath), which only the groups which hook those calls cover. Not covered is native code. The property
+-- areas of /dev/__properties__ have the fake values of the properties, see systemproperties_get.
+-- shortcut: a SecureDirectoryStream of a folder in the one of the stream (its newDirectoryStream) has no filter, so it
+-- lists the names of hidden files, which openat then does not find, hook its constructor to add a filter if apps do so.
 
 -- The files of each group, as patterns of the path; a pattern ending in / covers the files of a folder
 local FILES = {
@@ -180,28 +183,44 @@ function isvpninterface(name)
     return false
 end
 
--- The error of a file which does not exist, OsConstants.ENOENT, the error of making a file on a file system mounted
--- read-only, EROFS, the flag of open which makes the file, O_CREAT, and the flag of statvfs of a file system mounted
--- read-only, ST_RDONLY, the same on every Linux
+-- The error of a file which does not exist, OsConstants.ENOENT, the error of making a file in a folder the app cannot
+-- write, EACCES, and on a file system mounted read-only, EROFS, the flag of open which makes the file, O_CREAT, and
+-- the flag of statvfs of a file system mounted read-only, ST_RDONLY, the same on every Linux
 local ENOENT = 2
+local EACCES = 13
 local EROFS = 30
 local O_CREAT = 64
 local ST_RDONLY = 1
 
 -- The script runs for the files of /sys only (with net/ in the path for Read.Network and Read.VPN, see FILTERS for
 -- the others), also by other paths, like /proc/self/root/sys/..., /data/../sys/...
--- or sys/... relative to /, the folder apps run in; see XCore.getFilter. Not covered are links of apps themselves
--- to the files, which have paths without sys/.
+-- or sys/... relative to /, the folder apps run in; see XCore.getFilter. It also runs for the paths through the
+-- descriptor of a folder the app opened, like /proc/self/fd/57/cid and /dev/fd/57/cid, which name no folder of
+-- the group and which matched resolves. Not covered are links of apps themselves to the files, which have paths
+-- without sys/. The calls by the descriptor of a folder, openat, unlinkat, renameat and fstatat, have no path the
+-- filter could compare, and link, symlink, rename and renameat have a second path, which the filter does not see, so the
+-- script compares their paths itself (see atpath and renaming).
+local UNFILTERED = { openat = true, unlinkat = true, renameat = true, fstatat = true, link = true, symlink = true,
+                     rename = true }
+
 function filter(hook)
-    local group = hook:getGroup()
-    if group ~= 'Get.Applications' then
-        return FILTERS[group] or { '*sys/*', '*/./*', '*//*' }
+    if UNFILTERED[hook:getMethodName()] then
+        return nil
     end
-    -- The folders of APP_FOLDERS, only on the versions which need them, since apps use their own ones often
+    return paths(hook:getGroup())
+end
+
+-- The paths the script runs for in a group, which the filter gives the hooks
+function paths(group)
     local values = {}
-    for _, value in ipairs(FILTERS[group]) do
+    for _, value in ipairs(FILTERS[group] or { '*sys/*', '*/./*', '*//*' }) do
         values[#values + 1] = value
     end
+    values[#values + 1] = '*/fd/*'
+    if group ~= 'Get.Applications' then
+        return values
+    end
+    -- The folders of APP_FOLDERS, only on the versions which need them, since apps use their own ones often
     values[#values + 1] = '*Android/media*'
     if sdkversion() <= 29 then
         for _, value in ipairs({ '/data/data/*', '/data/user/*', '/data/user_de/*', '/data/misc/profiles/*',
@@ -253,9 +272,14 @@ end
 
 -- Whether paths are hidden for a group, per thread, since a script runs once per thread (see docs/DEFINE.md): files
 -- of /sys are read often, like the frequencies of the processors, and resolving their paths takes a system call.
--- The paths of /sys stay the same while the app runs; the cache starts over when it is full.
+-- A file which exists stays what it is while the app runs, but one which does not can come, like the cid of an SD card
+-- the user inserts, so only the answers for files which exist are kept; the cache starts over when it is full.
 local HIDDEN = {}
 local cached = 0
+
+-- The links of the descriptors of the app, like /proc/self/fd/9 of a file another app shared with it: the file is open
+-- already, only a path on through the descriptor of a folder leads to files the app could not open
+local DESCRIPTORS = { '^/?proc/[^/]+/fd/%d+/?$', '^/?proc/[^/]+/task/%d+/fd/%d+/?$', '^/?dev/fd/%d+/?$' }
 
 -- The group, class, method and return type of a hook, which do not change, without asking the hook each time
 local HOOKS = {}
@@ -298,12 +322,15 @@ end
 -- and nothing is hidden for a file which does not exist, like su on a phone without root
 -- Read.Network only hides opening its files (see FILES): of /proc/net apps can tell they exist, but not read them.
 -- The property files of the partitions and fstab are there on every device, so the ones apps cannot read, like
--- /system/build.prop of Android 14 (EACCES), stay as they are: hiding them would turn EACCES into ENOENT.
+-- /system/build.prop of Android 14 (EACCES), stay as they are: hiding them would turn EACCES into ENOENT. So do
+-- the ids of Read.Identifiers which SELinux lets apps find but not read: the id stays unknown, and the driver
+-- makes the file with the others of its folder, like cid with csd and date of an SD card.
 function reachable(group, path, param)
     local ok, exists = pcall(function()
         return param:unhooked(function()
             local file = luajava.newInstance('java.io.File', path)
-            if group == 'Read.Network' or string.find(path, 'build%.prop$') or string.find(path, '/fstab%.[^/]*$') then
+            if group == 'Read.Network' or group == 'Read.Identifiers' or string.find(path, 'build%.prop$') or
+                    string.find(path, '/fstab%.[^/]*$') then
                 return file:canRead()
             end
             return file:exists()
@@ -312,12 +339,30 @@ function reachable(group, path, param)
     return not ok or exists
 end
 
+-- Whether a file exists, without the hooks of the app; as if it did when that cannot be told, like reachable
+function present(path, param)
+    local ok, exists = pcall(function()
+        return param:unhooked(function()
+            return luajava.newInstance('java.io.File', path):exists()
+        end)
+    end)
+    return not ok or exists
+end
+
 -- Whether a file is one of the group of the hook which the app could reach: its path or the path it leads to matches
--- a pattern. The interfaces of VPNs come and go, the rest stays while the app runs.
+-- a pattern. The interfaces of VPNs come and go, and so does the folder of a descriptor, which the app can close and
+-- open again for another folder by the same number, and so do files which do not exist yet, see HIDDEN; the rest
+-- stays while the app runs.
 function hidden(hook, path, param)
     local group = about(hook).group
     if FILES[group] == nil then
         return false
+    end
+    local plain = unrooted(path)
+    for _, pattern in ipairs(DESCRIPTORS) do
+        if string.find(plain, pattern) then
+            return false
+        end
     end
     local key = group .. '|' .. path
     local known = HIDDEN[key]
@@ -334,7 +379,7 @@ function hidden(hook, path, param)
         local folder = string.match(path, '^(.+)/[^/]*$')
         found = folder ~= nil and hidden(hook, folder, param)
     end
-    if group == 'Read.VPN' then
+    if group == 'Read.VPN' or string.find(path, '/fd/', 1, true) or (not found and not present(path, param)) then
         return found
     end
     if cached >= 1000 then
@@ -395,7 +440,8 @@ function matched(group, path, param)
             return false
         end
     end
-    if group == 'Use.Tracking' and string.find(path, 'fonts', 1, true) then
+    -- Also through the descriptor of a folder, like /proc/self/fd/57/SamsungOne.ttf of /system/fonts
+    if group == 'Use.Tracking' and (string.find(path, 'fonts', 1, true) or string.find(path, '/fd/', 1, true)) then
         if brandfont(plain) then
             return true
         end
@@ -466,10 +512,15 @@ function making(hook, path, param)
     return (ok and readonly) and EROFS or nil
 end
 
--- The error of opening a hidden file: of making it when the flags make files (O_CREAT), else ENOENT
-function opening(hook, path, param)
-    if about(hook).method == 'open' and bit32.band(param:getArgument(1), O_CREAT) ~= 0 then
-        return making(hook, path, param) or ENOENT
+-- The error of a call on a hidden file: of making a file, a folder or a pipe by its name (open and openat with
+-- O_CREAT, mkdir, mkfifo) like a missing name in a folder of /sys, which apps cannot write (EACCES), unless making
+-- answers first, since Linux never gives ENOENT for a name it makes in a folder which exists; else of a name no
+-- lookup finds
+function failing(hook, path, param)
+    local method = about(hook).method
+    local flags = (method == 'open' and param:getArgument(1)) or (method == 'openat' and param:getArgument(2)) or 0
+    if method == 'mkdir' or method == 'mkfifo' or bit32.band(flags, O_CREAT) ~= 0 then
+        return making(hook, path, param) or EACCES
     end
     return ENOENT
 end
@@ -479,17 +530,110 @@ function pathof(param)
     return tostring(param:getArgument(0))
 end
 
+-- The path of openat, unlinkat, renameat and fstatat, by which a SecureDirectoryStream opens, removes and moves the
+-- files of its folder, also to read or change their attributes, and reads their attributes: the name of an argument,
+-- which is relative to the folder of the descriptor in the argument before it (its link in /proc/self/fd) unless it is
+-- absolute; nil when the folder is not known or the filter of the other hooks would not run the script for the path,
+-- like for the files of the app, which libraries remove this way
+function atpath(hook, param, index)
+    local path = luajava.newInstance('java.lang.String', param:getArgument(index))
+    if string.sub(path, 1, 1) ~= '/' then
+        local ok, folder = pcall(function()
+            return param:unhooked(function()
+                return luajava.bindClass('android.system.Os'):readlink('/proc/self/fd/' .. param:getArgument(index - 1))
+            end)
+        end)
+        if not ok or folder == nil then
+            return nil
+        end
+        path = (folder == '/' and '' or folder) .. '/' .. path
+    end
+    return filtered(about(hook).group, path) and path or nil
+end
+
+-- Whether the filter of a group runs the script for a path, like XCore.Filter compares it: a value ending in * is the
+-- start of the path, starting with * too a part of it, other values the path, also of the path without a link to the
+-- root in front and of a relative path from the root; paths with /.. always run the script
+function filtered(group, path)
+    local absolute = string.sub(path, 1, 1) == '/' and path or '/' .. path
+    if string.find(absolute, '/../', 1, true) or string.find(absolute, '/%.%.$') then
+        return true
+    end
+    for _, value in ipairs(paths(group)) do
+        local part, start = string.match(value, '^%*(.+)%*$'), string.match(value, '^(.*)%*$')
+        for _, text in ipairs({ path, unrooted(path), absolute }) do
+            if text == value or (part ~= nil and string.find(text, part, 1, true)) or
+                    (part == nil and start ~= nil and string.sub(text, 1, #start) == start) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- A path the kernel answers like a hidden one, which does not exist for the app: a name of its folder which does not
+-- exist, or that name in such a stand-in of its folder when the folder is hidden too
+function standin(hook, path, param)
+    local folder, name = string.match(path, '^(.*)/([^/]*)$')
+    if folder ~= nil and folder ~= '' and hidden(hook, folder, param) then
+        return standin(hook, folder, param) .. '/' .. name
+    end
+    local other = path .. '~'
+    while present(other, param) and #other < #path + 8 do
+        other = other .. '~'
+    end
+    return other
+end
+
+-- link, symlink, rename and renameat, which make a name or move a file: a hidden path, of the new name of link and
+-- symlink (symlink does not look its first path up) or either path of rename and renameat, is replaced by a stand-in, so
+-- the real call answers like for a missing name, in the order of Linux and with the exception and stack trace of
+-- Android: of a name which exists link and symlink give EEXIST before the errors of a missing one, EROFS, EXDEV of link
+-- to another file system, and EACCES in a folder of /sys; rename looks its first path up after EXDEV and EROFS (EACCES
+-- when it exists), so a SecureDirectoryStream moving a hidden id to the folder of the app gets EXDEV, as without it.
+-- The real call cannot make the stand-in, since apps cannot write the folders of the hidden names, or their file system
+-- has no links, like the shared storage.
+local RENAMED = { link = { 0, 1 }, symlink = { 1 }, rename = { 0, 1 }, renameat = { 1, 3 } }
+
+function renaming(hook, param)
+    local known = about(hook)
+    local renamed
+    for _, index in ipairs(RENAMED[known.method]) do
+        local path
+        if known.method == 'renameat' then
+            path = atpath(hook, param, index)
+        else
+            path = tostring(param:getArgument(index))
+            path = filtered(known.group, path) and path or nil
+        end
+        if path ~= nil and hidden(hook, path, param) then
+            local other = standin(hook, path, param)
+            -- The names of renameat are bytes, which XParam makes of a text (and absolute, so not of the descriptor)
+            if known.class == 'android.system.Os' or known.method == 'renameat' then
+                param:setArgument(index, other)
+            else
+                param:setArgument(index, luajava.newInstance('java.io.File', other):toPath())
+            end
+            renamed = renamed or path
+        end
+    end
+    if renamed == nil then
+        return false
+    end
+    return true, renamed
+end
+
 -- Files.newDirectoryStream, list and walk: the names of hidden files are left out by a filter in front of
 -- the one of the app; a hidden folder is not opened at all (see the hooks of UnixNativeDispatcher.opendir). Listing a folder of /sys is not
 -- reported, since nothing is hidden in most of them. The filter can run on another thread, which must not change
--- the tables of this one, so it does not use the cache.
+-- the tables of this one, so it does not use the cache. Without a filter Android throws NullPointerException.
 function listing(hook, param, folder)
-    if hidden(hook, folder, param) then
+    local original = param:getArgument(1)
+    if original == nil or hidden(hook, folder, param) then
         return false
     end
     local group = about(hook).group
-    local original = param:getArgument(1)
-    local none = unlisted(group, folder)
+    local none = unlisted(group, folder, param)
     param:setArgument(1, luajava.createProxy('java.nio.file.DirectoryStream$Filter', {
         accept = function(entry)
             -- Left out as File.list does, so a matched file the app cannot read stays listed, as Android lists it
@@ -497,7 +641,7 @@ function listing(hook, param, folder)
             if none or (matched(group, path, param) and reachable(group, path, param)) then
                 return false
             end
-            return original == nil or original:accept(entry)
+            return original:accept(entry)
         end
     }))
     return false
@@ -517,14 +661,15 @@ function truststore()
 end
 
 -- Whether the names of a folder are left out of a listing, the files themselves stay (see APPS)
-function unlisted(group, folder)
+function unlisted(group, folder, param)
     if group ~= 'Get.Applications' then
         return false
     end
-    -- The forms of a path which the file system lists the same, like /system/app/., /system//priv-app and /x/../app
+    -- The forms of a path which the file system lists the same, like /system/app/., /system//priv-app and /x/../app,
+    -- also the descriptor of the folder, like /proc/self/fd/57 of /system/priv-app, which only its resolved path names
     local plain = unrooted(folder)
-    if string.find(plain, '/../', 1, true) or string.find(plain, '/%.%.$') then
-        plain = resolve(plain)
+    if string.find(plain, '/../', 1, true) or string.find(plain, '/%.%.$') or string.find(plain, '/fd/', 1, true) then
+        plain = resolve(plain, param)
     end
     local previous
     repeat
@@ -541,27 +686,45 @@ function unlisted(group, folder)
 end
 
 function before(hook, param)
-    local path = pathof(param)
-    local class = about(hook).class
-    if class == 'sun.nio.fs.UnixFileSystemProvider' and about(hook).method == 'newDirectoryStream' then
+    local class, method = about(hook).class, about(hook).method
+    local path
+    if method == 'openat' or method == 'fstatat' or method == 'unlinkat' then
+        -- unlinkat of a hidden id: ENOENT (see failing), which Linux gives for a missing name before it checks the
+        -- permissions; the ids are in /sys, which is mounted read-write, so EROFS does not come first
+        path = atpath(hook, param, 1)
+        if path == nil then
+            return false
+        end
+    elseif RENAMED[method] then
+        return renaming(hook, param)
+    else
+        path = pathof(param)
+    end
+    if class == 'sun.nio.fs.UnixFileSystemProvider' and method == 'newDirectoryStream' then
         return listing(hook, param, path)
     end
     if not hidden(hook, path, param) or (string.find(path, 'cacerts', 1, true) and truststore()) then
         return false
     end
 
-    local method = about(hook).method
-    if (method == 'setxattr' or method == 'removexattr' or method == 'getxattr' or method == 'link') and
-            class == 'android.system.Os' then
-        -- Linux 6.11 and later check the name, value and flags of setxattr and removexattr before they look the path
-        -- up (EINVAL, ERANGE, E2BIG), 6.13 and later the name of getxattr (ERANGE), older kernels after, and libcore
-        -- throws NullPointerException for a null name, value or second path of link before the kernel runs. The real
-        -- call with an empty path, which no lookup finds (ENOENT), answers like for a missing file in that order.
-        param:setArgument(0, '')
-    elseif class == 'libcore.io.BlockGuardOs' or class == 'android.system.Os' then
-        -- Os.open, stat, lstat, access and readlink, which FileInputStream uses; Os.access and
-        -- Os.readlink of apps are hooked themselves, since the hooks of BlockGuardOs do not run for them (Android 14)
-        param:setResult(luajava.newInstance('android.system.ErrnoException', method, opening(hook, path, param)))
+    if class == 'libcore.io.BlockGuardOs' or class == 'android.system.Os' then
+        -- Os.open, stat, lstat, access and readlink, which FileInputStream uses, and the calls on the attributes, the
+        -- mode, the owner and links; Os.access and the others of apps are hooked themselves, since the hooks of
+        -- BlockGuardOs do not run for them (Android 14)
+        local errno = failing(hook, path, param)
+        if errno == ENOENT then
+            -- The real call with an empty path, which no lookup finds, answers like for a missing file: with the
+            -- exception Android makes, of which the stack trace is that of any missing file, without the frames of
+            -- the script, and in the order of Android, since Linux 6.11 and later check the name, value and flags of
+            -- setxattr and removexattr before they look the path up (EINVAL, ERANGE, E2BIG), 6.13 and later the name
+            -- of getxattr (ERANGE), older kernels after, and libcore throws NullPointerException for a null name
+            -- or value before the kernel runs
+            param:setArgument(0, '')
+        else
+            -- shortcut: the other errors (EACCES, EROFS) are made here, so their stack trace has the frames of the
+            -- script, make them by a real call of a path with the same error if apps compare traces
+            param:setResult(luajava.newInstance('android.system.ErrnoException', method, errno))
+        end
     elseif class == 'java.io.UnixFileSystem' then
         if method == 'canonicalize0' then
             -- File.getCanonicalPath and getCanonicalFile, which follow links: .. names another folder, . the
@@ -580,6 +743,8 @@ function before(hook, param)
         elseif method == 'createFileExclusively' then
             -- File.createNewFile: apps cannot make files in /sys, and not at all in a folder which does not exist
             -- or on a file system mounted read-only (see making)
+            -- shortcut: the exception is made here, with the frames of the script in its stack trace (see the errors
+            -- of Os above), make it by a real call too if apps compare traces
             local reasons = { [ENOENT] = 'No such file or directory', [EROFS] = 'Read-only file system' }
             param:setResult(luajava.newInstance('java.io.IOException',
                     reasons[making(hook, path, param)] or 'Permission denied'))
@@ -600,13 +765,14 @@ function before(hook, param)
             param:setResult(0)
         end
     else
-        -- java.nio.file: Files.exists, the mode of Files.isRegularFile, the rest throws like the kernel
+        -- java.nio.file: Files.exists, the mode of Files.isRegularFile, the rest throws like the kernel, with
+        -- UnixException, which has no stack trace
         if method == 'exists' then
             param:setResult(false)
         elseif method == 'stat' and about(hook).returnType == 'int' then
             param:setResult(0)
         else
-            param:setResult(luajava.newInstance('sun.nio.fs.UnixException', opening(hook, path, param)))
+            param:setResult(luajava.newInstance('sun.nio.fs.UnixException', failing(hook, path, param)))
         end
     end
     return true, path
@@ -627,7 +793,7 @@ function after(hook, param)
         return false
     end
     local kept = {}
-    if not unlisted(about(hook).group, folder) then
+    if not unlisted(about(hook).group, folder, param) then
         -- Of the root the path is /name, not //name, which the patterns of the root do not match
         for index = 1, names['length'] do
             if not hidden(hook, (folder == '/' and '' or folder) .. '/' .. names[index], param) then

@@ -27,6 +27,10 @@ function after(hook, param)
     if fake == nil then
         fake = ''
     end
+    -- Also the fake of a SubscriptionInfo made again with it (see telephony_createfromparcel), reported already
+    if result == fake then
+        return false
+    end
     param:setResult(fake)
     return true, result, fake
 end

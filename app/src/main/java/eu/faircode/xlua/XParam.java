@@ -50,8 +50,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
@@ -168,6 +172,31 @@ public class XParam {
         // The hidden API rules leave out the fields they refuse instead of failing, so nothing copied is a failure
         if (!copied)
             throw new NoSuchFieldException("No fields of " + type.getName());
+    }
+
+    // Replaces a long field of an object, also a final one, by random looking bits of the given width in the form of the
+    // f_fsid of bionic, the same for the same seed and value, never 0; in Java, since through Lua a long becomes a
+    // double, of which a fake would never have the high bits a real value has. Returns the fake for the log.
+    @SuppressWarnings("unused")
+    public String fakeLong(Object object, String name, String seed, int bits) throws Throwable {
+        return Long.toString(fakeLong(object, object.getClass().getField(name), seed, bits));
+    }
+
+    static long fakeLong(Object object, Field field, String seed, int bits) throws Throwable {
+        field.setAccessible(true);
+        ByteBuffer hash = ByteBuffer.wrap(MessageDigest.getInstance("SHA-256")
+                .digest((seed + "/" + field.getLong(object)).getBytes(StandardCharsets.UTF_8)));
+        // Bionic packs the two ints of the kernel like this, with the low one sign extended, so a real id of 64 bits has
+        // bit 31 clear, or bit 31 set and the high half all ones; 64 uniform bits would have neither form half the time
+        int low = hash.getInt();
+        int high = hash.getInt();
+        long fake = low | ((long) high << 32);
+        if (bits < Long.SIZE)
+            fake &= (1L << bits) - 1;
+        if (fake == 0)
+            fake = 1;
+        field.setLong(object, fake);
+        return fake;
     }
 
     // Processes of the system, like system server and system apps with the system uid, see all apps
@@ -564,6 +593,50 @@ public class XParam {
         return olds;
     }
 
+    // The names and values of the properties of the property area the hooked method opened, each name followed by its
+    // value, so a script can fake properties it knows by a pattern of their names with setPropertyValues; without the long
+    // values, which only ro. properties have, and none when the method failed or the file is no property area
+    @SuppressWarnings("unused")
+    public String[] getProperties() throws Throwable {
+        if (this.param.getThrowable() != null || this.param.getResult() == null)
+            return new String[0];
+        return listProperties(getFileBytes());
+    }
+
+    // The properties of the bytes of a property area, by the nodes of the trie (see replaceProperty): a node which ends a
+    // property has its offset, and a property has its whole name after its value; at most as many nodes as fit
+    static String[] listProperties(byte[] area) {
+        ByteBuffer buffer = ByteBuffer.wrap(area).order(ByteOrder.nativeOrder());
+        List<String> properties = new ArrayList<>();
+        try {
+            if (buffer.getInt(8) != AREA_MAGIC || buffer.getInt(12) != AREA_VERSION)
+                return new String[0];
+            Deque<Integer> nodes = new ArrayDeque<>();
+            nodes.push(0);
+            for (int steps = 0; !nodes.isEmpty() && steps <= area.length / NODE_PART; steps++) {
+                int at = AREA_DATA + nodes.pop();
+                int offset = buffer.getInt(at + 4);
+                int serial = (offset == 0 ? LONG_VALUE : buffer.getInt(AREA_DATA + offset));
+                if ((serial & LONG_VALUE) == 0) {
+                    int value = AREA_DATA + offset + 4;
+                    int name = value + VALUE_MAX;
+                    int end = name;
+                    while (area[end] != 0)
+                        end++;
+                    properties.add(new String(area, name, end - name, StandardCharsets.UTF_8));
+                    properties.add(new String(area, value, Math.min(serial >>> 24, VALUE_MAX - 1), StandardCharsets.UTF_8));
+                }
+                // The siblings before and after the node and its children
+                for (int link = 8; link <= 16; link += 4)
+                    if (buffer.getInt(at + link) != 0)
+                        nodes.push(buffer.getInt(at + link));
+            }
+        } catch (IndexOutOfBoundsException ignored) {
+            return new String[0];
+        }
+        return properties.toArray(new String[0]);
+    }
+
     // The layout of a property area (bionic system_properties/prop_area.h and prop_info.h, the same on Android 8.1 to 17):
     // a header of 128 bytes with the magic and the version, then the data, to which all offsets point. The data starts
     // with the root of a trie of the parts of the names between the dots: each node has the length of its part, the
@@ -755,6 +828,9 @@ public class XParam {
             return Float.parseFloat((String) value);
         else if (value instanceof String && double.class.equals(type))
             return Double.parseDouble((String) value);
+        else if (value instanceof String && byte[].class.equals(type))
+            // A path for a method which takes its bytes, like UnixNativeDispatcher.renameat, in the encoding of UnixPath
+            return ((String) value).getBytes(StandardCharsets.UTF_8);
 
         return value;
     }
