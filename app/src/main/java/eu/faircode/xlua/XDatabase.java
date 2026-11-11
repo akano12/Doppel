@@ -252,7 +252,10 @@ class XDatabase {
             "LauncherApps.registerPackageInstallerSessionCallback",
             // The media provider decides by the permission alone whether a photo has its location, so the URI the hook
             // gave back changed nothing but was not the one of Android; the readers of the tags are hooked
-            "MediaStore.setRequireOriginal"
+            "MediaStore.setRequireOriginal",
+            // The account types tell only which apps are installed, which AccountManager.getAuthenticatorTypes/apps of
+            // Get.Applications hides; with Read.Account alone PackageManager shows the apps whose types it left out
+            "AccountManager.getAuthenticatorTypes"
     };
 
     // Settings of all users and apps which no script reads anymore, removed on each start, see upgrade

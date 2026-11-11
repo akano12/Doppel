@@ -95,6 +95,10 @@ function after(hook, param)
         if removed then
             if action == 'android.net.wifi.CONFIGURED_NETWORKS_CHANGE' then
                 extras:putBoolean('multipleChanges', true)
+            elseif action == 'android.intent.action.NEW_OUTGOING_CALL' then
+                -- Android sends the number also as the result data of the broadcast, which receiver_resultdata hides
+                param:putValue('call.outgoing', intent:getStringExtra('android.intent.extra.PHONE_NUMBER'),
+                        param:getApplicationContext())
             end
             intent:replaceExtras(extras)
         end
@@ -273,10 +277,11 @@ function after(hook, param)
     elseif name == 'message' and (action == 'android.provider.Telephony.SMS_RECEIVED' or
             action == 'android.provider.Telephony.SMS_DELIVER' or
             action == 'android.intent.action.DATA_SMS_RECEIVED') then
-        local objectClass = luajava.bindClass('java.lang.Object')
-        local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-        local objectArray = arrayClass:newInstance(objectClass, 0)
-        intent:putExtra('pdus', objectArray)
+        -- No messages, in the byte[][] of the messages Android sends (InboundSmsHandler), so the typed getter of
+        -- Android 13 finds them
+        -- shortcut: a broadcast without messages, which Android never sends, drop it once a hook of the dispatch exists
+        local pdus = luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('[B'), 0)
+        intent:putExtra('pdus', pdus)
         return true
     elseif name == 'message' and (action == 'android.provider.Telephony.WAP_PUSH_RECEIVED' or
             action == 'android.provider.Telephony.WAP_PUSH_DELIVER') then
@@ -298,7 +303,8 @@ function after(hook, param)
         intent:replaceExtras(extras)
         return true
     elseif name == 'timezone' and action == 'android.intent.action.TIMEZONE_CHANGED' then
-        -- The new time zone of the device, which the fake one replaces, like timezone (setting value.timezone)
+        -- The new time zone of the device, which the fake one replaces, like timezone (setting value.timezone), for
+        -- the broadcasts which still reach a receiver (see receiver_skip)
         local extras = intent:getExtras()
         if extras == nil or not extras:containsKey('time-zone') then
             return false

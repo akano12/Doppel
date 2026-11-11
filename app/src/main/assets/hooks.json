@@ -6450,6 +6450,20 @@
     "minSdk": 27,
     "luaScript": "@contentresolver_query"
   },
+  // The asserts of batches (applyBatch), whose queries the provider runs itself, select nothing
+  {
+    "collection": "Privacy",
+    "group": "Get.Calendars",
+    "name": "ContentProviderOperation.Builder.build/calendars",
+    "author": "akano12",
+    "className": "android.content.ContentProviderOperation$Builder",
+    "methodName": "build",
+    "parameterTypes": [
+    ],
+    "returnType": "android.content.ContentProviderOperation",
+    "minSdk": 27,
+    "luaScript": "@contentresolver_query"
+  },
   // The call state of a phone state listener, with the number of an incoming call
   {
     "collection": "Privacy",
@@ -6482,6 +6496,33 @@
     "minSdk": 27,
     "excludePackages": "android",
     "luaScript": "@intent_createfromparcel"
+  },
+  // The number of an outgoing call is also the result data of its broadcast, read in onReceive or after goAsync
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "BroadcastReceiver.getResultData/call_log",
+    "author": "akano12",
+    "className": "android.content.BroadcastReceiver",
+    "methodName": "getResultData",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@receiver_resultdata"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "PendingResult.getResultData/call_log",
+    "author": "akano12",
+    "className": "android.content.BroadcastReceiver$PendingResult",
+    "methodName": "getResultData",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@receiver_resultdata"
   },
   // Get call log
   // https://developer.android.com/reference/android/provider/CallLog.html
@@ -6516,6 +6557,103 @@
       "android.os.CancellationSignal"
     ],
     "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "luaScript": "@contentresolver_query"
+  },
+  // Call composer pictures (CallLog.CALL_COMPOSER_PICTURE_URI), which CallLogProvider opens as of Android 12
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "ContentResolver.openAssetFileDescriptor/call_log",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "openAssetFileDescriptor",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.content.res.AssetFileDescriptor",
+    "minSdk": 31,
+    "luaScript": "@contentresolver_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "ContentResolver.openTypedAssetFileDescriptor/call_log",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "openTypedAssetFileDescriptor",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.content.res.AssetFileDescriptor",
+    "minSdk": 31,
+    "luaScript": "@contentresolver_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "ContentProviderClient.openFile/call_log",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "openFile",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.os.ParcelFileDescriptor",
+    "minSdk": 31,
+    "luaScript": "@contentresolver_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "ContentProviderClient.openAssetFile/call_log",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "openAssetFile",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.content.res.AssetFileDescriptor",
+    "minSdk": 31,
+    "luaScript": "@contentresolver_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "ContentProviderClient.openTypedAssetFile/call_log",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "openTypedAssetFile",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.content.res.AssetFileDescriptor",
+    "minSdk": 31,
+    "luaScript": "@contentresolver_open"
+  },
+  // The asserts of batches (applyBatch), whose queries the provider runs itself, select nothing
+  {
+    "collection": "Privacy",
+    "group": "Get.Call.log",
+    "name": "ContentProviderOperation.Builder.build/call_log",
+    "author": "akano12",
+    "className": "android.content.ContentProviderOperation$Builder",
+    "methodName": "build",
+    "parameterTypes": [
+    ],
+    "returnType": "android.content.ContentProviderOperation",
     "minSdk": 27,
     "luaScript": "@contentresolver_query"
   },
@@ -6594,6 +6732,103 @@
       "android.os.CancellationSignal"
     ],
     "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "luaScript": "@contentresolver_query"
+  },
+  // BlockedNumberContract.isBlocked asks the provider by call, number by number
+  {
+    "collection": "Privacy",
+    "group": "Get.Contacts",
+    "name": "ContentResolver.call.uri/blockednumber",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@blockednumber_call"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Contacts",
+    "name": "ContentResolver.call/blockednumber",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "luaScript": "@blockednumber_call"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Contacts",
+    "name": "ContentProviderClient.call/blockednumber",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@blockednumber_call"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Contacts",
+    "name": "ContentProviderClient.call.authority/blockednumber",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "luaScript": "@blockednumber_call"
+  },
+  // The asserts of batches (applyBatch), whose queries the provider runs itself, select nothing
+  {
+    "collection": "Privacy",
+    "group": "Get.Contacts",
+    "name": "ContentProviderOperation.Builder.build/contacts",
+    "author": "akano12",
+    "className": "android.content.ContentProviderOperation$Builder",
+    "methodName": "build",
+    "parameterTypes": [
+    ],
+    "returnType": "android.content.ContentProviderOperation",
+    "minSdk": 27,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Contacts",
+    "name": "ContentProviderOperation.Builder.build/blockednumber",
+    "author": "akano12",
+    "className": "android.content.ContentProviderOperation$Builder",
+    "methodName": "build",
+    "parameterTypes": [
+    ],
+    "returnType": "android.content.ContentProviderOperation",
     "minSdk": 27,
     "luaScript": "@contentresolver_query"
   },
@@ -7581,6 +7816,9 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 27,
+    "settings": [
+      "value.android_id"
+    ],
     "luaScript": "@contentresolver_query"
   },
   {
@@ -7629,6 +7867,9 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 27,
+    "settings": [
+      "value.android_id"
+    ],
     "luaScript": "@contentresolver_query"
   },
   {
@@ -7645,6 +7886,33 @@
       "android.os.CancellationSignal"
     ],
     "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "luaScript": "@contentresolver_query"
+  },
+  // The asserts of batches (applyBatch), whose queries the provider runs itself, select nothing
+  {
+    "collection": "Privacy",
+    "group": "Get.Messages",
+    "name": "ContentProviderOperation.Builder.build/mmssms",
+    "author": "akano12",
+    "className": "android.content.ContentProviderOperation$Builder",
+    "methodName": "build",
+    "parameterTypes": [
+    ],
+    "returnType": "android.content.ContentProviderOperation",
+    "minSdk": 27,
+    "luaScript": "@contentresolver_query"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Messages",
+    "name": "ContentProviderOperation.Builder.build/voicemail",
+    "author": "akano12",
+    "className": "android.content.ContentProviderOperation$Builder",
+    "methodName": "build",
+    "parameterTypes": [
+    ],
+    "returnType": "android.content.ContentProviderOperation",
     "minSdk": 27,
     "luaScript": "@contentresolver_query"
   },
@@ -7943,6 +8211,25 @@
     "excludePackages": "android",
     "luaScript": "@account_createfromparcel"
   },
+  // The name of an account as text, in the result of the chooser of accounts and the broadcast of a removed account
+  {
+    "collection": "Privacy",
+    "group": "Read.Account",
+    "name": "Intent.createFromParcel/account",
+    "author": "akano12",
+    "className": "android.content.Intent",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 27,
+    "settings": [
+      "value.email"
+    ],
+    "excludePackages": "android",
+    "luaScript": "@account_createfromparcel"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Account",
@@ -7982,19 +8269,6 @@
       "value.email"
     ],
     "luaScript": "@account_columns"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Account",
-    "name": "AccountManager.getAuthenticatorTypes",
-    "author": "akano12",
-    "description": "The account types of other apps, which tell they are installed",
-    "className": "android.accounts.AccountManager",
-    "methodName": "getAuthenticatorTypes",
-    "parameterTypes": [],
-    "returnType": "android.accounts.AuthenticatorDescription[]",
-    "minSdk": 27,
-    "luaScript": "@account_authenticators"
   },
   {
     "collection": "Privacy",
@@ -8043,7 +8317,7 @@
   // Read clipboard
   // https://developer.android.com/reference/android/content/ClipboardManager.html
   // The clipboard manager, not the parcels of clip data, which are also of drag and drop, like the app's own drags,
-  // and of intents; getText and the other methods read the primary clip
+  // and of intents; getText reads the primary clip
   {
     "collection": "Privacy",
     "group": "Read.Clipboard",
@@ -8065,6 +8339,34 @@
     "methodName": "getPrimaryClipDescription",
     "parameterTypes": [],
     "returnType": "android.content.ClipDescription",
+    "minSdk": 27,
+    "luaScript": "@clipboard_getprimaryclip"
+  },
+  // The clips the app sets itself and their times, which it gets back like without Doppel; setText calls it too
+  {
+    "collection": "Privacy",
+    "group": "Read.Clipboard",
+    "name": "ClipboardManager.setPrimaryClip",
+    "author": "akano12",
+    "className": "android.content.ClipboardManager",
+    "methodName": "setPrimaryClip",
+    "parameterTypes": [
+      "android.content.ClipData"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@clipboard_getprimaryclip"
+  },
+  // Whether the real clip has text, which Android answers itself, not from getPrimaryClip
+  {
+    "collection": "Privacy",
+    "group": "Read.Clipboard",
+    "name": "ClipboardManager.hasText",
+    "author": "akano12",
+    "className": "android.content.ClipboardManager",
+    "methodName": "hasText",
+    "parameterTypes": [],
+    "returnType": "boolean",
     "minSdk": 27,
     "luaScript": "@clipboard_getprimaryclip"
   },
@@ -11421,7 +11723,7 @@
     "returnType": "java.util.List",
     "minSdk": 27,
     "excludePackages": "android",
-    "luaScript": "@generic_empty"
+    "luaScript": "@media_sessions"
   },
   {
     "collection": "Privacy",
@@ -11436,7 +11738,7 @@
     "returnType": "java.util.List",
     "minSdk": 37,
     "excludePackages": "android",
-    "luaScript": "@generic_empty"
+    "luaScript": "@media_sessions"
   },
   {
     "collection": "Privacy",
@@ -11452,7 +11754,7 @@
     "returnType": "java.util.List",
     "minSdk": 37,
     "excludePackages": "android",
-    "luaScript": "@generic_empty"
+    "luaScript": "@media_sessions"
   },
   {
     "collection": "Privacy",
@@ -11464,6 +11766,20 @@
     "parameterTypes": [],
     "returnType": "java.util.List",
     "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@media_sessions"
+  },
+  // The same sessions from the service of Android 12 and later, which needs no permission either
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaCommunicationManager.getSession2Tokens",
+    "author": "akano12",
+    "className": "android.media.MediaCommunicationManager",
+    "methodName": "getSession2Tokens",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 31,
     "excludePackages": "android",
     "luaScript": "@generic_empty"
   },
@@ -11507,7 +11823,7 @@
     "returnType": "void",
     "minSdk": 33,
     "excludePackages": "android",
-    "luaScript": "@generic_block"
+    "luaScript": "@media_session_listener"
   },
   {
     "collection": "Privacy",
@@ -11522,7 +11838,7 @@
     "returnType": "void",
     "minSdk": 29,
     "excludePackages": "android",
-    "luaScript": "@generic_block"
+    "luaScript": "@media_session_listener"
   },
   {
     "collection": "Privacy",
@@ -11538,7 +11854,7 @@
     "returnType": "void",
     "minSdk": 29,
     "excludePackages": "android",
-    "luaScript": "@generic_block"
+    "luaScript": "@media_session_listener"
   },
   {
     "collection": "Privacy",
@@ -11554,7 +11870,7 @@
     "returnType": "void",
     "minSdk": 27,
     "excludePackages": "android",
-    "luaScript": "@generic_block"
+    "luaScript": "@media_session_listener"
   },
   {
     "collection": "Privacy",
@@ -11571,7 +11887,31 @@
     "returnType": "void",
     "minSdk": 27,
     "excludePackages": "android",
-    "luaScript": "@generic_block"
+    "luaScript": "@media_session_listener"
+  },
+  // Hidden, for a user, which the two above call up to Android 11 and which RemoteController (registerRemoteController
+  // of AudioManager) calls itself; from Android 12 RemoteController calls the one with a handler, and the one for a
+  // user is private and takes an executor. It goes to Android like the two above, which would else not get the
+  // exceptions of Android up to Android 11
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "MediaSessionManager.addOnActiveSessionsChangedListener/user",
+    "author": "akano12",
+    "className": "android.media.session.MediaSessionManager",
+    "methodName": "addOnActiveSessionsChangedListener",
+    "parameterTypes": [
+      "android.media.session.MediaSessionManager$OnActiveSessionsChangedListener",
+      "android.content.ComponentName",
+      "int",
+      "android.os.Handler"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 30,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@media_session_listener"
   },
   {
     "collection": "Privacy",
@@ -11588,7 +11928,7 @@
     "returnType": "void",
     "minSdk": 37,
     "excludePackages": "android",
-    "luaScript": "@generic_block"
+    "luaScript": "@media_session_listener"
   },
   {
     "collection": "Privacy",
@@ -11606,7 +11946,7 @@
     "returnType": "void",
     "minSdk": 37,
     "excludePackages": "android",
-    "luaScript": "@generic_block"
+    "luaScript": "@media_session_listener"
   },
   {
     "collection": "Privacy",
@@ -11618,6 +11958,48 @@
     "parameterTypes": [
     ],
     "returnType": "android.app.Notification",
+    "minSdk": 27,
+    "luaScript": "@statusbarnotification_getnotification"
+  },
+  // The text of a StatusBarNotification has the one of its notification, which the field gives, not getNotification
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "StatusBarNotification.toString",
+    "author": "akano12",
+    "className": "android.service.notification.StatusBarNotification",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@statusbarnotification_getnotification"
+  },
+  // A parcel of a StatusBarNotification has the notification of the field, which Notification.CREATOR reads back
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "StatusBarNotification.writeToParcel",
+    "author": "akano12",
+    "className": "android.service.notification.StatusBarNotification",
+    "methodName": "writeToParcel",
+    "parameterTypes": [
+      "android.os.Parcel",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@statusbarnotification_getnotification"
+  },
+  // The group key has the group of the app, which the fake has not
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "StatusBarNotification.getGroupKey",
+    "author": "akano12",
+    "className": "android.service.notification.StatusBarNotification",
+    "methodName": "getGroupKey",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
     "minSdk": 27,
     "luaScript": "@statusbarnotification_getnotification"
   },
@@ -11670,6 +12052,62 @@
     "optional": true,
     "luaScript": "@generic_null_value"
   },
+  // The channel of a conversation has the id of the conversation
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "NotificationListenerService.Ranking.getChannel",
+    "author": "akano12",
+    "className": "android.service.notification.NotificationListenerService$Ranking",
+    "methodName": "getChannel",
+    "parameterTypes": [],
+    "returnType": "android.app.NotificationChannel",
+    "minSdk": 30,
+    "luaScript": "@statusbarnotification_getnotification"
+  },
+  // Accessibility services get the notifications of all apps in events; system server reads the events of all apps
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "AccessibilityEvent.initFromParcel",
+    "author": "akano12",
+    "className": "android.view.accessibility.AccessibilityEvent",
+    "methodName": "initFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@statusbarnotification_getnotification"
+  },
+  // Events for services are sealed, so the notification of an event is replaced by its getter and in toString
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "AccessibilityRecord.getParcelableData",
+    "author": "akano12",
+    "className": "android.view.accessibility.AccessibilityRecord",
+    "methodName": "getParcelableData",
+    "parameterTypes": [],
+    "returnType": "android.os.Parcelable",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@statusbarnotification_getnotification"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Notifications",
+    "name": "AccessibilityEvent.toString",
+    "author": "akano12",
+    "className": "android.view.accessibility.AccessibilityEvent",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@statusbarnotification_getnotification"
+  },
   // Read sync data
   // https://developer.android.com/reference/android/content/ContentResolver.html#getCurrentSyncs()
   {
@@ -11683,7 +12121,7 @@
     ],
     "returnType": "android.content.SyncInfo",
     "minSdk": 27,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@sync_activity"
   },
   {
     "collection": "Privacy",
@@ -11696,7 +12134,137 @@
     ],
     "returnType": "java.util.List",
     "minSdk": 27,
-    "luaScript": "@generic_empty"
+    "luaScript": "@sync_activity"
+  },
+  // The same syncs by other ways: of an account, waiting, for a user (hidden), periodic, and the status listener;
+  // the ones of the accounts of the app itself stay in all of them, also in getCurrentSyncs
+  {
+    "collection": "Privacy",
+    "group": "Read.Sync",
+    "name": "ContentResolver.getCurrentSyncsAsUser",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "getCurrentSyncsAsUser",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@sync_activity"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Sync",
+    "name": "ContentResolver.isSyncActive",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "isSyncActive",
+    "parameterTypes": [
+      "android.accounts.Account",
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@sync_activity"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Sync",
+    "name": "ContentResolver.isSyncPending",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "isSyncPending",
+    "parameterTypes": [
+      "android.accounts.Account",
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@sync_activity"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Sync",
+    "name": "ContentResolver.isSyncPendingAsUser",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "isSyncPendingAsUser",
+    "parameterTypes": [
+      "android.accounts.Account",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@sync_activity"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Sync",
+    "name": "ContentResolver.getPeriodicSyncs",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "getPeriodicSyncs",
+    "parameterTypes": [
+      "android.accounts.Account",
+      "java.lang.String"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "luaScript": "@sync_activity"
+  },
+  // Hidden, the status of an account, which tells whether it waits like isSyncPending
+  {
+    "collection": "Privacy",
+    "group": "Read.Sync",
+    "name": "ContentResolver.getSyncStatus",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "getSyncStatus",
+    "parameterTypes": [
+      "android.accounts.Account",
+      "java.lang.String"
+    ],
+    "returnType": "android.content.SyncStatusInfo",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@sync_activity"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Sync",
+    "name": "ContentResolver.getSyncStatusAsUser",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "getSyncStatusAsUser",
+    "parameterTypes": [
+      "android.accounts.Account",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.content.SyncStatusInfo",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@sync_activity"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Sync",
+    "name": "ContentResolver.addStatusChangeListener",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "addStatusChangeListener",
+    "parameterTypes": [
+      "int",
+      "android.content.SyncStatusObserver"
+    ],
+    "returnType": "java.lang.Object",
+    "minSdk": 27,
+    "luaScript": "@sync_activity"
   },
   // Read telephony data
   // https://developer.android.com/reference/android/telephony/SubscriptionInfo.html
@@ -13188,7 +13756,7 @@
     ],
     "returnType": "void",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13206,7 +13774,7 @@
     ],
     "returnType": "void",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13225,7 +13793,7 @@
     ],
     "returnType": "void",
     "minSdk": 31,
-    "luaScript": "@generic_block"
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13243,7 +13811,7 @@
     ],
     "returnType": "void",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13261,7 +13829,7 @@
     ],
     "returnType": "void",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13280,7 +13848,7 @@
     ],
     "returnType": "void",
     "minSdk": 30,
-    "luaScript": "@generic_block"
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13299,7 +13867,7 @@
     ],
     "returnType": "void",
     "minSdk": 30,
-    "luaScript": "@generic_block"
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13319,7 +13887,7 @@
     ],
     "returnType": "void",
     "minSdk": 30,
-    "luaScript": "@generic_block"
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13336,8 +13904,8 @@
       "android.app.PendingIntent"
     ],
     "returnType": "void",
-    "minSdk": 28,
-    "luaScript": "@generic_block"
+    "minSdk": 27,
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13359,7 +13927,7 @@
     "returnType": "void",
     "minSdk": 28,
     "optional": true,
-    "luaScript": "@generic_block"
+    "luaScript": "@sms_send"
   },
   {
     "collection": "Privacy",
@@ -13380,6 +13948,436 @@
     ],
     "returnType": "void",
     "minSdk": 28,
+    "optional": true,
+    "luaScript": "@sms_send"
+  },
+  // Hidden sends up to Android 10, which call telephony themselves, not the methods above; apps reach them by
+  // reflection, Android 8.1 without limits on hidden methods, 9 and 10 for apps of older target versions
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "SmsManager.sendTextMessageWithSelfPermissions",
+    "author": "akano12",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendTextMessageWithSelfPermissions",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "SmsManager.sendDataMessageWithSelfPermissions",
+    "author": "akano12",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendDataMessageWithSelfPermissions",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "short",
+      "byte[]",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  // A stored draft or failed message, sent again
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "SmsManager.sendStoredTextMessage",
+    "author": "akano12",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendStoredTextMessage",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "SmsManager.sendStoredMultipartTextMessage",
+    "author": "akano12",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendStoredMultipartTextMessage",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.util.ArrayList",
+      "java.util.ArrayList"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "SmsManager.sendStoredMultimediaMessage",
+    "author": "akano12",
+    "className": "android.telephony.SmsManager",
+    "methodName": "sendStoredMultimediaMessage",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.os.Bundle",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  // The hidden manager of MMS (getSystemService("mms")), which sendMultimediaMessage calls from Android 11
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "MmsManager.sendMultimediaMessage",
+    "author": "akano12",
+    "className": "android.telephony.MmsManager",
+    "methodName": "sendMultimediaMessage",
+    "parameterTypes": [
+      "int",
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.app.PendingIntent",
+      "long"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "optional": true,
+    "luaScript": "@generic_block"
+  },
+  // The binder proxies under the sends above, hidden, which apps reach by reflection with ISms$Stub.asInterface of
+  // ServiceManager.getService("isms"), or IMms of "imms": on Android 8.1 without limits on hidden methods, from 9 for
+  // apps targeting 8.1 or lower only (the dark greylist of 9, max-target-o from 10). From Android 11 the methods of ISms
+  // and sendMessage of IMms have other parameters, which the limits on hidden methods keep from all apps, so only
+  // sendStoredMessage stays.
+  // shortcut: generic_block skips the call, like the hidden sends above, so an app without SEND_SMS gets no
+  // SecurityException and a sent intent gets nothing; sms_send reads the arguments of SmsManager, extend it to the
+  // ones of the proxies when an app is seen to probe them.
+  // shortcut: an app which gets past the limits on hidden methods reaches the methods of Android 11 and later, like
+  // one with IBinder.transact (README); hook them too when apps are seen to.
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "ISms.sendDataForSubscriber",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.ISms$Stub$Proxy",
+    "methodName": "sendDataForSubscriber",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "int",
+      "byte[]",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "ISms.sendDataForSubscriberWithSelfPermissions",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.ISms$Stub$Proxy",
+    "methodName": "sendDataForSubscriberWithSelfPermissions",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "int",
+      "byte[]",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "ISms.sendTextForSubscriber",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.ISms$Stub$Proxy",
+    "methodName": "sendTextForSubscriber",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "ISms.sendTextForSubscriberWithSelfPermissions",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.ISms$Stub$Proxy",
+    "methodName": "sendTextForSubscriberWithSelfPermissions",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "ISms.sendTextForSubscriberWithOptions",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.ISms$Stub$Proxy",
+    "methodName": "sendTextForSubscriberWithOptions",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent",
+      "boolean",
+      "int",
+      "boolean",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 28,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "ISms.sendMultipartTextForSubscriber",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.ISms$Stub$Proxy",
+    "methodName": "sendMultipartTextForSubscriber",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "java.util.List",
+      "java.util.List",
+      "java.util.List",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "ISms.sendMultipartTextForSubscriberWithOptions",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.ISms$Stub$Proxy",
+    "methodName": "sendMultipartTextForSubscriberWithOptions",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "java.util.List",
+      "java.util.List",
+      "java.util.List",
+      "boolean",
+      "int",
+      "boolean",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 28,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "ISms.sendStoredText",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.ISms$Stub$Proxy",
+    "methodName": "sendStoredText",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "android.net.Uri",
+      "java.lang.String",
+      "android.app.PendingIntent",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "ISms.sendStoredMultipartText",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.ISms$Stub$Proxy",
+    "methodName": "sendStoredMultipartText",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "android.net.Uri",
+      "java.lang.String",
+      "java.util.List",
+      "java.util.List"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "IMms.sendMessage",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.IMms$Stub$Proxy",
+    "methodName": "sendMessage",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "android.net.Uri",
+      "java.lang.String",
+      "android.os.Bundle",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "IMms.sendStoredMessage",
+    "author": "akano12",
+    "className": "com.android.internal.telephony.IMms$Stub$Proxy",
+    "methodName": "sendStoredMessage",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "android.net.Uri",
+      "android.os.Bundle",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_block"
+  },
+  // The default dialer sends visual voicemail commands as SMS to any number, by TelephonyManager or by the hidden
+  // VisualVoicemailService.sendVisualVoicemailSms, which both call the hidden method of the subscription
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "TelephonyManager.sendVisualVoicemailSms",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "sendVisualVoicemailSms",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "java.lang.String",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Send.Messages",
+    "name": "TelephonyManager.sendVisualVoicemailSmsForSubscriber",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "sendVisualVoicemailSmsForSubscriber",
+    "parameterTypes": [
+      "int",
+      "java.lang.String",
+      "int",
+      "java.lang.String",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
     "optional": true,
     "luaScript": "@generic_block"
   },
@@ -20282,6 +21280,27 @@
     ],
     "luaScript": "@systemproperties_get"
   },
+  // What get(key, default) calls, and from Android 11 get(key) too, which apps reach by reflection
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "SystemProperties.native_get.default/timezone",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "settings": [
+      "value.timezone"
+    ],
+    "luaScript": "@systemproperties_get"
+  },
   // The broadcast of a time zone change has the new zone (extra time-zone)
   {
     "collection": "Privacy",
@@ -20347,10 +21366,114 @@
     "excludePackages": "android",
     "luaScript": "@commands_blocked"
   },
+  // The broadcast of a time zone change does not reach the receivers of the manifest and the registered ones, since
+  // the fake zone does not change (see receiver_skip); ReceiverDispatcher gets the sender too from Android 14
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "ActivityThread.handleReceiver/timezone",
+    "author": "akano12",
+    "className": "android.app.ActivityThread",
+    "methodName": "handleReceiver",
+    "parameterTypes": [
+      "android.app.ActivityThread$ReceiverData"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "ReceiverDispatcher.performReceive/timezone",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ReceiverDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "ReceiverDispatcher.performReceive.sender/timezone",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ReceiverDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "boolean",
+      "int",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
+  // The zone in the property area apps can read as a file (/dev/__properties__), see XParam.setPropertyValues
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "BlockGuardOs.open/timezone",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "settings": [
+      "value.timezone"
+    ],
+    "luaScript": "@timezone"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "UnixNativeDispatcher.open/timezone",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "settings": [
+      "value.timezone"
+    ],
+    "luaScript": "@timezone"
+  },
   // Read languages of the device
   // https://developer.android.com/reference/android/os/LocaleList#getDefault()
   // Setting value.locale (like en-US,de-DE), default en-US. The defaults are set once to the fake ones,
-  // by the field of the last list the system set (from Android 7); the setters keep the fake
+  // by the field of the last list the system set (from Android 7); the setters keep the fake when the system
+  // sets the defaults again, what the app sets itself stays unless it has all the languages of the device or is
+  // the first one as the locale
   {
     "collection": "Privacy",
     "group": "Read.Locale",
@@ -20459,6 +21582,94 @@
     ],
     "luaScript": "@locale"
   },
+  // The default language of text to speech, which the engine gives from the language of the device: what
+  // TextToSpeech.getDefaultLanguage and getDefaultVoice give and the language it speaks when the app sets none.
+  // The interface of the engines is hidden.
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "ITextToSpeechService.getClientDefaultLanguage",
+    "author": "akano12",
+    "className": "android.speech.tts.ITextToSpeechService$Stub$Proxy",
+    "methodName": "getClientDefaultLanguage",
+    "parameterTypes": [],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "optional": true,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  // The languages of the keyboards (subtypes): only those of the fake languages; the one in use becomes an enabled
+  // one with a fake language, else null like a keyboard without subtypes, and the one used last null
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "InputMethodManager.getCurrentInputMethodSubtype",
+    "author": "akano12",
+    "className": "android.view.inputmethod.InputMethodManager",
+    "methodName": "getCurrentInputMethodSubtype",
+    "parameterTypes": [],
+    "returnType": "android.view.inputmethod.InputMethodSubtype",
+    "minSdk": 27,
+    "settings": [
+      "value.locale"
+    ],
+    "excludePackages": "android",
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "InputMethodManager.getLastInputMethodSubtype",
+    "author": "akano12",
+    "className": "android.view.inputmethod.InputMethodManager",
+    "methodName": "getLastInputMethodSubtype",
+    "parameterTypes": [],
+    "returnType": "android.view.inputmethod.InputMethodSubtype",
+    "minSdk": 27,
+    "settings": [
+      "value.locale"
+    ],
+    "excludePackages": "android",
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "InputMethodManager.getEnabledInputMethodSubtypeList",
+    "author": "akano12",
+    "className": "android.view.inputmethod.InputMethodManager",
+    "methodName": "getEnabledInputMethodSubtypeList",
+    "parameterTypes": [
+      "android.view.inputmethod.InputMethodInfo",
+      "boolean"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "settings": [
+      "value.locale"
+    ],
+    "excludePackages": "android",
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "InputMethodManager.getShortcutInputMethodsAndSubtypes",
+    "author": "akano12",
+    "className": "android.view.inputmethod.InputMethodManager",
+    "methodName": "getShortcutInputMethodsAndSubtypes",
+    "parameterTypes": [],
+    "returnType": "java.util.Map",
+    "minSdk": 27,
+    "settings": [
+      "value.locale"
+    ],
+    "excludePackages": "android",
+    "luaScript": "@locale"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Locale",
@@ -20531,6 +21742,27 @@
     ],
     "returnType": "java.lang.String",
     "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  // What get(key, default) calls, and from Android 11 get(key) too, which apps reach by reflection
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "SystemProperties.native_get.default/locale",
+    "author": "akano12",
+    "className": "android.os.SystemProperties",
+    "methodName": "native_get",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
     "usage": false,
     "settings": [
       "value.locale"
@@ -20710,6 +21942,46 @@
     ],
     "excludePackages": "android",
     "luaScript": "@settingssecure_getstring"
+  },
+  // The language and the region of sale in the property areas apps can read as files (/dev/__properties__),
+  // see XParam.setPropertyValues
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "BlockGuardOs.open/locale",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Locale",
+    "name": "UnixNativeDispatcher.open/locale",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "settings": [
+      "value.locale"
+    ],
+    "luaScript": "@locale"
   },
   // Read VPN state
   // https://developer.android.com/reference/android/net/NetworkCapabilities#TRANSPORT_VPN
@@ -23277,6 +24549,63 @@
     "name": "Os.execve/commands",
     "author": "akano12",
     "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  // The methods beneath, which apps can call by reflection, on Android 8.1 without any trick: forkAndExec runs the
+  // program for ProcessImpl.start and the UNIXProcess constructor, Linux.execv and execve for Os and Libcore.os
+  {
+    "collection": "Privacy",
+    "group": "Run.Commands",
+    "name": "UNIXProcess.forkAndExec/commands",
+    "author": "akano12",
+    "className": "java.lang.UNIXProcess",
+    "methodName": "forkAndExec",
+    "parameterTypes": [
+      "byte[]",
+      "byte[]",
+      "int",
+      "byte[]",
+      "int",
+      "byte[]",
+      "int[]",
+      "boolean"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Run.Commands",
+    "name": "Linux.execv/commands",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Run.Commands",
+    "name": "Linux.execve/commands",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
     "methodName": "execve",
     "parameterTypes": [
       "java.lang.String",

@@ -71,7 +71,8 @@ public class HookDefinitionsTest {
     private static final Set<String> HIDDEN = new HashSet<>(Arrays.asList(
             "android.os.SystemProperties", "android.app.ContextImpl", "android.app.Instrumentation",
             "android.app.LoadedApk$ServiceDispatcher", "android.content.pm.PackageInstaller$SessionCallbackDelegate",
-            "android.app.PendingIntent$FinishedDispatcher", "android.content.IntentSender$FinishedDispatcher"));
+            "android.app.PendingIntent$FinishedDispatcher", "android.content.IntentSender$FinishedDispatcher",
+            "android.app.ActivityThread", "android.app.LoadedApk$ReceiverDispatcher"));
 
     // The defaults XHook.fromJSONObject uses for missing attributes, see docs/DEFINE.md
     private static final Map<String, Object> DEFAULTS = new HashMap<>();
@@ -825,6 +826,25 @@ public class HookDefinitionsTest {
                 "int,android.os.Bundle) @component_hidden 27-");
     }
 
+    // The broadcast of a time zone change is left out where both kinds of receivers get it, with the signature of
+    // ReceiverDispatcher of each version (AOSP oreo-mr1 to android13-release, android14-release to main), and the
+    // property areas are faked for both ways of opening files
+    @Test
+    public void timeZoneBroadcastAndPropertyAreas() throws Exception {
+        String args = "android.content.Intent,int,java.lang.String,android.os.Bundle,boolean,boolean,";
+        check("ActivityThread.handleReceiver/timezone",
+                "android.app.ActivityThread handleReceiver(android.app.ActivityThread$ReceiverData) @receiver_skip 27-");
+        check("ReceiverDispatcher.performReceive/timezone",
+                "android.app.LoadedApk$ReceiverDispatcher performReceive(" + args + "int) @receiver_skip 27-33");
+        check("ReceiverDispatcher.performReceive.sender/timezone", "android.app.LoadedApk$ReceiverDispatcher performReceive(" +
+                args + "boolean,int,int,java.lang.String) @receiver_skip 34-");
+        for (String variant : new String[]{"timezone", "locale"}) {
+            check("BlockGuardOs.open/" + variant, "libcore.io.BlockGuardOs open(java.lang.String,int,int) @" + variant + " 27-");
+            check("UnixNativeDispatcher.open/" + variant,
+                    "sun.nio.fs.UnixNativeDispatcher open(sun.nio.fs.UnixPath,int,int) @" + variant + " 27-");
+        }
+    }
+
     // The identifier services of manufacturers are bound by each method binding services, and their providers are
     // acquired or called by their Uri or name (see identifier_services); like the hooks of hidden apps
     @Test
@@ -974,6 +994,65 @@ public class HookDefinitionsTest {
             check("PhoneAccount." + method, "android.telecom.PhoneAccount " + method + "() @phone_account_address 27-");
         // The carrier configuration of MMS with the user agent and profile, which can name the model
         check("SmsManager.getCarrierConfigValues", "android.telephony.SmsManager getCarrierConfigValues() @mms_useragent 27-");
+        // Sends past the public methods of SmsManager: hidden ones up to Android 10, the hidden manager of MMS and
+        // visual voicemail
+        String sms = "android.telephony.SmsManager ", pi = "android.app.PendingIntent";
+        check("SmsManager.sendTextMessageWithSelfPermissions", sms + "sendTextMessageWithSelfPermissions(java.lang.String," +
+                "java.lang.String,java.lang.String," + pi + "," + pi + ",boolean) @generic_block 27-29 optional");
+        check("SmsManager.sendDataMessageWithSelfPermissions", sms + "sendDataMessageWithSelfPermissions(java.lang.String," +
+                "java.lang.String,short,byte[]," + pi + "," + pi + ") @generic_block 27-29 optional");
+        check("SmsManager.sendStoredTextMessage", sms + "sendStoredTextMessage(android.net.Uri,java.lang.String," + pi + "," + pi +
+                ") @generic_block 27-29 optional");
+        check("SmsManager.sendStoredMultipartTextMessage", sms + "sendStoredMultipartTextMessage(android.net.Uri,java.lang.String," +
+                "java.util.ArrayList,java.util.ArrayList) @generic_block 27-29 optional");
+        check("SmsManager.sendStoredMultimediaMessage", sms + "sendStoredMultimediaMessage(android.net.Uri,android.os.Bundle," + pi +
+                ") @generic_block 27-29 optional");
+        // Hidden on Android 8.1, where privileged and carrier apps can call it already, public from Android 9
+        check("SmsManager.sendTextMessageWithoutPersisting", sms + "sendTextMessageWithoutPersisting(java.lang.String," +
+                "java.lang.String,java.lang.String," + pi + "," + pi + ") @sms_send 27-");
+        check("MmsManager.sendMultimediaMessage", "android.telephony.MmsManager sendMultimediaMessage(int,android.net.Uri," +
+                "java.lang.String,android.os.Bundle," + pi + ",long) @generic_block 30- optional");
+        String tm = "android.telephony.TelephonyManager ";
+        check("TelephonyManager.sendVisualVoicemailSms", tm + "sendVisualVoicemailSms(java.lang.String,int,java.lang.String," + pi +
+                ") @generic_block 27-");
+        check("TelephonyManager.sendVisualVoicemailSmsForSubscriber", tm + "sendVisualVoicemailSmsForSubscriber(int," +
+                "java.lang.String,int,java.lang.String," + pi + ") @generic_block 27- optional");
+        // The binder proxies under them, which apps may call up to Android 10 (sendStoredMessage of MMS on all versions);
+        // the methods of the proxies have other parameters from Android 11
+        String isms = "com.android.internal.telephony.ISms$Stub$Proxy ", str = "java.lang.String,", lst = "java.util.List,";
+        String binderData = "(int," + str + str + str + "int,byte[]," + pi + "," + pi + ") @generic_block 27-29 optional";
+        String binderText = "(int," + str + str + str + str + pi + "," + pi + ",boolean";
+        String binderParts = "(int," + str + str + str + lst + lst + lst + "boolean";
+        String binderOptions = ",int,boolean,int) @generic_block 28-29 optional";
+        check("ISms.sendDataForSubscriber", isms + "sendDataForSubscriber" + binderData);
+        check("ISms.sendDataForSubscriberWithSelfPermissions", isms + "sendDataForSubscriberWithSelfPermissions" + binderData);
+        check("ISms.sendTextForSubscriber", isms + "sendTextForSubscriber" + binderText + ") @generic_block 27-29 optional");
+        check("ISms.sendTextForSubscriberWithSelfPermissions", isms + "sendTextForSubscriberWithSelfPermissions" + binderText +
+                ") @generic_block 27-29 optional");
+        check("ISms.sendTextForSubscriberWithOptions", isms + "sendTextForSubscriberWithOptions" + binderText + binderOptions);
+        check("ISms.sendMultipartTextForSubscriber", isms + "sendMultipartTextForSubscriber" + binderParts +
+                ") @generic_block 27-29 optional");
+        check("ISms.sendMultipartTextForSubscriberWithOptions", isms + "sendMultipartTextForSubscriberWithOptions" + binderParts +
+                binderOptions);
+        check("ISms.sendStoredText", isms + "sendStoredText(int," + str + "android.net.Uri," + str + pi + "," + pi +
+                ") @generic_block 27-29 optional");
+        check("ISms.sendStoredMultipartText", isms + "sendStoredMultipartText(int," + str + "android.net.Uri," + str + lst +
+                "java.util.List) @generic_block 27-29 optional");
+        String imms = "com.android.internal.telephony.IMms$Stub$Proxy ";
+        check("IMms.sendMessage", imms + "sendMessage(int," + str + "android.net.Uri," + str + "android.os.Bundle," + pi +
+                ") @generic_block 27-29 optional");
+        check("IMms.sendStoredMessage", imms + "sendStoredMessage(int," + str + "android.net.Uri,android.os.Bundle," + pi +
+                ") @generic_block 27- optional");
+        for (String name : new String[]{"SmsManager.sendTextMessageWithSelfPermissions", "MmsManager.sendMultimediaMessage",
+                "TelephonyManager.sendVisualVoicemailSms", "TelephonyManager.sendVisualVoicemailSmsForSubscriber",
+                "ISms.sendDataForSubscriber", "ISms.sendDataForSubscriberWithSelfPermissions", "ISms.sendTextForSubscriber",
+                "ISms.sendTextForSubscriberWithSelfPermissions", "ISms.sendTextForSubscriberWithOptions",
+                "ISms.sendMultipartTextForSubscriber", "ISms.sendMultipartTextForSubscriberWithOptions", "ISms.sendStoredText",
+                "ISms.sendStoredMultipartText", "IMms.sendMessage", "IMms.sendStoredMessage"}) {
+            assertEquals(name, "Send.Messages", hook(name).getString("group"));
+            if (name.startsWith("I"))
+                assertEquals(name, "android", hook(name).getString("excludePackages"));
+        }
         // The name of the own device of Wi-Fi Direct
         check("WifiP2pDevice.createFromParcel", "android.net.wifi.p2p.WifiP2pDevice CREATOR:createFromParcel(android.os.Parcel) " +
                 "@wifip2pdevice_name 27-");
@@ -989,28 +1068,110 @@ public class HookDefinitionsTest {
                 "android.os.CancellationSignal) @contentresolver_query 27-");
         check("ContentProviderClient.query26/siminfo", "android.content.ContentProviderClient query(android.net.Uri,java.lang.String[]," +
                 "android.os.Bundle,android.os.CancellationSignal) @contentresolver_query 27-");
+        // The asserts of batches, whose queries the provider runs itself, for each variant of the queries which are emptied
+        for (String variant : new String[]{"calendars", "call_log", "contacts", "blockednumber", "mmssms", "voicemail"})
+            check("ContentProviderOperation.Builder.build/" + variant, "android.content.ContentProviderOperation$Builder build() " +
+                    "@contentresolver_query 27-");
+        // Whether a number is blocked, which the provider answers by call, like the uri and the client before Android 10
+        String call = "java.lang.String,java.lang.String,android.os.Bundle) @blockednumber_call ";
+        check("ContentResolver.call.uri/blockednumber", "android.content.ContentResolver call(android.net.Uri," + call + "27-28");
+        check("ContentResolver.call/blockednumber", "android.content.ContentResolver call(java.lang.String," + call + "29-");
+        check("ContentProviderClient.call/blockednumber", "android.content.ContentProviderClient call(" + call + "27-28");
+        check("ContentProviderClient.call.authority/blockednumber", "android.content.ContentProviderClient call(java.lang.String," +
+                call + "29-");
+        for (String name : new String[]{"ContentResolver.call/blockednumber", "ContentProviderClient.call/blockednumber"})
+            assertEquals(name, "Get.Contacts", hook(name).getString("group"));
         check("TelephonyManager.getMergedSubscriberIds", "android.telephony.TelephonyManager getMergedSubscriberIds() " +
                 "@generic_null_value 27- optional");
         check("TelephonyManager.getVoiceMailAlphaTag", "android.telephony.TelephonyManager getVoiceMailAlphaTag() " +
                 "@value_voicemail_tag 27-");
         // Media sessions of other apps, which notification listeners get
         String m = "android.media.session.MediaSessionManager ";
-        check("MediaSessionManager.getActiveSessions", m + "getActiveSessions(android.content.ComponentName) @generic_empty 27-");
-        check("MediaSessionManager.getActiveSessionsForPackage", m + "getActiveSessionsForPackage(java.lang.String) @generic_empty 37-");
+        check("MediaSessionManager.getActiveSessions", m + "getActiveSessions(android.content.ComponentName) @media_sessions 27-");
+        check("MediaSessionManager.getActiveSessionsForPackage", m + "getActiveSessionsForPackage(java.lang.String) @media_sessions 37-");
         check("MediaSessionManager.getActiveSessionsForPackage/listener", m + "getActiveSessionsForPackage(java.lang.String," +
-                "android.content.ComponentName) @generic_empty 37-");
-        check("MediaSessionManager.getSession2Tokens", m + "getSession2Tokens() @generic_empty 29-");
+                "android.content.ComponentName) @media_sessions 37-");
+        check("MediaSessionManager.getSession2Tokens", m + "getSession2Tokens() @media_sessions 29-");
+        // The same tokens from the service of Android 12, which MediaSessionManager asks itself from then on
+        check("MediaCommunicationManager.getSession2Tokens", "android.media.MediaCommunicationManager getSession2Tokens() " +
+                "@generic_empty 31-");
+        assertEquals("Read.Notifications", hook("MediaCommunicationManager.getSession2Tokens").getString("group"));
         check("MediaSessionManager.getMediaKeyEventSessionPackageName", m + "getMediaKeyEventSessionPackageName() @generic_empty_text 33-");
+        // Listeners of the sessions are not added, the call still goes to Android (see media_session_listener)
         String l = "android.media.session.MediaSessionManager$OnActiveSessionsChangedListener";
         check("MediaSessionManager.addOnActiveSessionsChangedListener", m + "addOnActiveSessionsChangedListener(" + l +
-                ",android.content.ComponentName) @generic_block 27-");
+                ",android.content.ComponentName) @media_session_listener 27-");
         check("MediaSessionManager.addOnActiveSessionsChangedListener/handler", m + "addOnActiveSessionsChangedListener(" + l +
-                ",android.content.ComponentName,android.os.Handler) @generic_block 27-");
+                ",android.content.ComponentName,android.os.Handler) @media_session_listener 27-");
+        // Hidden, which the two above and RemoteController call up to Android 11
+        check("MediaSessionManager.addOnActiveSessionsChangedListener/user", m + "addOnActiveSessionsChangedListener(" + l +
+                ",android.content.ComponentName,int,android.os.Handler) @media_session_listener 27-30 optional");
         check("MediaSessionManager.addOnActiveSessionsForPackageChangedListener", m + "addOnActiveSessionsForPackageChangedListener(" +
-                "java.lang.String,java.util.concurrent.Executor," + l + ") @generic_block 37-");
+                "java.lang.String,java.util.concurrent.Executor," + l + ") @media_session_listener 37-");
         check("MediaSessionManager.addOnActiveSessionsForPackageChangedListener/listener", m +
                 "addOnActiveSessionsForPackageChangedListener(java.lang.String,java.util.concurrent.Executor," +
-                "android.content.ComponentName," + l + ") @generic_block 37-");
+                "android.content.ComponentName," + l + ") @media_session_listener 37-");
+        String t2 = "android.media.session.MediaSessionManager$OnSession2TokensChangedListener";
+        check("MediaSessionManager.addOnSession2TokensChangedListener", m + "addOnSession2TokensChangedListener(" + t2 +
+                ") @media_session_listener 29-");
+        check("MediaSessionManager.addOnSession2TokensChangedListener/handler", m + "addOnSession2TokensChangedListener(" + t2 +
+                ",android.os.Handler) @media_session_listener 29-");
+        check("MediaSessionManager.addOnMediaKeyEventSessionChangedListener", m + "addOnMediaKeyEventSessionChangedListener(" +
+                "java.util.concurrent.Executor,android.media.session.MediaSessionManager$OnMediaKeyEventSessionChangedListener) " +
+                "@media_session_listener 33-");
+        // Syncs which run or wait, of other apps, which getCurrentSyncs hides, and the other ways to them
+        String resolver = "android.content.ContentResolver ";
+        String account = "android.accounts.Account,java.lang.String";
+        check("ContentResolver.getCurrentSync", resolver + "getCurrentSync() @sync_activity 27-");
+        check("ContentResolver.getCurrentSyncs", resolver + "getCurrentSyncs() @sync_activity 27-");
+        check("ContentResolver.getCurrentSyncsAsUser", resolver + "getCurrentSyncsAsUser(int) @sync_activity 27- optional");
+        check("ContentResolver.isSyncActive", resolver + "isSyncActive(" + account + ") @sync_activity 27-");
+        check("ContentResolver.isSyncPending", resolver + "isSyncPending(" + account + ") @sync_activity 27-");
+        check("ContentResolver.isSyncPendingAsUser", resolver + "isSyncPendingAsUser(" + account + ",int) @sync_activity 27- optional");
+        check("ContentResolver.getPeriodicSyncs", resolver + "getPeriodicSyncs(" + account + ") @sync_activity 27-");
+        // The script changes the status itself, which system server has of the sync storage
+        check("ContentResolver.getSyncStatus", resolver + "getSyncStatus(" + account + ") @sync_activity 27- optional");
+        check("ContentResolver.getSyncStatusAsUser", resolver + "getSyncStatusAsUser(" + account + ",int) @sync_activity 27- optional");
+        for (String name : new String[]{"ContentResolver.getSyncStatus", "ContentResolver.getSyncStatusAsUser"})
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
+        check("ContentResolver.addStatusChangeListener", resolver + "addStatusChangeListener(int,android.content.SyncStatusObserver) " +
+                "@sync_activity 27-");
+        // Messages are not sent, calls Android refuses without sending still go to Android (see sms_send)
+        String s = "android.telephony.SmsManager ";
+        String text = "java.lang.String,java.lang.String,java.lang.String,android.app.PendingIntent,android.app.PendingIntent";
+        String parts = "java.lang.String,java.lang.String,java.util.List,java.util.List,java.util.List";
+        String arrays = "java.lang.String,java.lang.String,java.util.ArrayList,java.util.ArrayList,java.util.ArrayList";
+        String mms = "android.content.Context,android.net.Uri,java.lang.String,android.os.Bundle,android.app.PendingIntent";
+        check("SmsManager.sendTextMessage", s + "sendTextMessage(" + text + ") @sms_send 27-");
+        check("SmsManager.sendTextMessage/id", s + "sendTextMessage(" + text + ",long) @sms_send 30-");
+        check("SmsManager.sendTextMessage/options", s + "sendTextMessage(" + text + ",int,boolean,int) @sms_send 28- optional");
+        check("SmsManager.sendTextMessageWithoutPersisting", s + "sendTextMessageWithoutPersisting(" + text + ") @sms_send 27-");
+        check("SmsManager.sendMultipartTextMessage", s + "sendMultipartTextMessage(" + arrays + ") @sms_send 27-");
+        check("SmsManager.sendMultipartTextMessage/id", s + "sendMultipartTextMessage(" + parts + ",long) @sms_send 30-");
+        check("SmsManager.sendMultipartTextMessage/attribution", s + "sendMultipartTextMessage(" + parts +
+                ",java.lang.String,java.lang.String) @sms_send 30-");
+        check("SmsManager.sendMultipartTextMessage/options", s + "sendMultipartTextMessage(" + arrays +
+                ",int,boolean,int) @sms_send 28- optional");
+        check("SmsManager.sendDataMessage", s + "sendDataMessage(java.lang.String,java.lang.String,short,byte[]," +
+                "android.app.PendingIntent,android.app.PendingIntent) @sms_send 27-");
+        check("SmsManager.sendMultimediaMessage", s + "sendMultimediaMessage(" + mms + ") @sms_send 27-");
+        check("SmsManager.sendMultimediaMessage/id", s + "sendMultimediaMessage(" + mms + ",long) @sms_send 31-");
+        // The text of notifications of listeners, the channels of conversations and the notifications of accessibility events
+        String sn = "@statusbarnotification_getnotification ";
+        check("StatusBarNotification.toString", "android.service.notification.StatusBarNotification toString() " + sn + "27-");
+        check("StatusBarNotification.writeToParcel", "android.service.notification.StatusBarNotification " +
+                "writeToParcel(android.os.Parcel,int) " + sn + "27-");
+        check("StatusBarNotification.getGroupKey", "android.service.notification.StatusBarNotification getGroupKey() " + sn + "27-");
+        check("NotificationListenerService.Ranking.getChannel", "android.service.notification.NotificationListenerService$Ranking " +
+                "getChannel() " + sn + "30-");
+        check("AccessibilityEvent.initFromParcel", "android.view.accessibility.AccessibilityEvent initFromParcel(android.os.Parcel) " +
+                sn + "27-");
+        assertEquals("android", hook("AccessibilityEvent.initFromParcel").getString("excludePackages"));
+        check("AccessibilityRecord.getParcelableData", "android.view.accessibility.AccessibilityRecord getParcelableData() " +
+                sn + "27-");
+        assertEquals("android", hook("AccessibilityRecord.getParcelableData").getString("excludePackages"));
+        check("AccessibilityEvent.toString", "android.view.accessibility.AccessibilityEvent toString() " + sn + "27-");
+        assertEquals("android", hook("AccessibilityEvent.toString").getString("excludePackages"));
         // Install sessions and package changes name other apps
         String i = "android.content.pm.PackageInstaller ";
         check("PackageInstaller.getAllSessions", i + "getAllSessions() @install_sessions 27-");
@@ -1054,9 +1215,27 @@ public class HookDefinitionsTest {
                     "@intent_createfromparcel 27-");
             assertEquals(variant[1], hook("Intent.createFromParcel/" + variant[0]).getString("group"));
         }
+        // The number of an outgoing call as the result data of its broadcast, also after goAsync
+        for (String receiver : new String[]{"BroadcastReceiver", "BroadcastReceiver$PendingResult"}) {
+            String name = receiver.replace("BroadcastReceiver$", "") + ".getResultData/call_log";
+            check(name, "android.content." + receiver + " getResultData() @receiver_resultdata 27-");
+            assertEquals("Get.Call.log", hook(name).getString("group"));
+        }
         check("TelephonyManager.listen/call_log", "android.telephony.TelephonyManager listen(android.telephony.PhoneStateListener," +
                 "int) @telephonymanager_listen 27-");
         assertEquals("Get.Call.log", hook("TelephonyManager.listen/call_log").getString("group"));
+        // Call composer pictures, which CallLogProvider opens as of Android 12
+        String file = "(android.net.Uri,java.lang.String,android.os.CancellationSignal) @contentresolver_open 31-";
+        String typed = "(android.net.Uri,java.lang.String,android.os.Bundle,android.os.CancellationSignal) @contentresolver_open 31-";
+        check("ContentResolver.openAssetFileDescriptor/call_log", "android.content.ContentResolver openAssetFileDescriptor" + file);
+        check("ContentResolver.openTypedAssetFileDescriptor/call_log",
+                "android.content.ContentResolver openTypedAssetFileDescriptor" + typed);
+        check("ContentProviderClient.openFile/call_log", "android.content.ContentProviderClient openFile" + file);
+        check("ContentProviderClient.openAssetFile/call_log", "android.content.ContentProviderClient openAssetFile" + file);
+        check("ContentProviderClient.openTypedAssetFile/call_log", "android.content.ContentProviderClient openTypedAssetFile" + typed);
+        for (String method : new String[]{"ContentResolver.openAssetFileDescriptor", "ContentResolver.openTypedAssetFileDescriptor",
+                "ContentProviderClient.openFile", "ContentProviderClient.openAssetFile", "ContentProviderClient.openTypedAssetFile"})
+            assertEquals(method, "Get.Call.log", hook(method + "/call_log").getString("group"));
         for (String c : new String[]{"SleepSegmentEvent", "SleepClassifyEvent"})
             check(c + ".extractEvents", "com.google.android.gms.location." + c + " extractEvents(android.content.Intent) " +
                     "@sleepevent_extractevents 27- optional");
@@ -1108,6 +1287,10 @@ public class HookDefinitionsTest {
                 "@clipboard_getprimaryclip 27-");
         check("ClipboardManager.getPrimaryClipDescription", "android.content.ClipboardManager getPrimaryClipDescription() " +
                 "@clipboard_getprimaryclip 27-");
+        // The clips the app sets itself, which it gets back, and whether the real clip has text, which Android answers
+        check("ClipboardManager.setPrimaryClip", "android.content.ClipboardManager setPrimaryClip(android.content.ClipData) " +
+                "@clipboard_getprimaryclip 27-");
+        check("ClipboardManager.hasText", "android.content.ClipboardManager hasText() @clipboard_getprimaryclip 27-");
     }
 
     // Other ways to apps hidden by Get.Applications: from the version which has the method, ordered and sticky
@@ -1415,6 +1598,10 @@ public class HookDefinitionsTest {
         // The default account of contacts is answered from Android 16
         check("ContentResolver.call/defaultaccount", "android.content.ContentResolver call(" + s + "," + s + "," + s +
                 ",android.os.Bundle) @contacts_default_account 36-");
+        // The name of an account as text in the result of the chooser of accounts and the broadcast of a removed account
+        check("Intent.createFromParcel/account", "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +
+                "@account_createfromparcel 27-");
+        assertEquals("Read.Account", hook("Intent.createFromParcel/account").getString("group"));
         // The NSD module of Android 13 can have these, like registerServiceInfoCallback/discovery
         check("NsdManager.stopServiceResolution", "android.net.nsd.NsdManager stopServiceResolution(" +
                 "android.net.nsd.NsdManager$ResolveListener) @nsdmanager_listener 33- optional");
@@ -1470,16 +1657,21 @@ public class HookDefinitionsTest {
         assertEquals(13, groups);
     }
 
-    // The methods beneath ProcessBuilder.start and Os.execv and execve, which apps can call by reflection
+    // The methods beneath ProcessBuilder.start and Os.execv and execve, which apps can call by reflection, for the
+    // hidden apps and for commands themselves
     @Test
     public void programsBeneathTheWaysToRun() throws Exception {
         String s = "java.lang.String";
-        check("UNIXProcess.forkAndExec/packages", "java.lang.UNIXProcess forkAndExec(byte[],byte[],int,byte[],int,byte[],int[],boolean) " +
-                "@commands_blocked 27-");
-        check("Linux.execv/packages", "libcore.io.Linux execv(" + s + "," + s + "[]) @commands_blocked 27-");
-        check("Linux.execve/packages", "libcore.io.Linux execve(" + s + "," + s + "[]," + s + "[]) @commands_blocked 27-");
-        for (String name : new String[]{"UNIXProcess.forkAndExec/packages", "Linux.execv/packages", "Linux.execve/packages"})
-            assertEquals("Get.Applications", hook(name).getString("group"));
+        String[][] groups = {{"packages", "Get.Applications"}, {"commands", "Run.Commands"}};
+        for (String[] group : groups) {
+            String suffix = "/" + group[0];
+            check("UNIXProcess.forkAndExec" + suffix,
+                    "java.lang.UNIXProcess forkAndExec(byte[],byte[],int,byte[],int,byte[],int[],boolean) @commands_blocked 27-");
+            check("Linux.execv" + suffix, "libcore.io.Linux execv(" + s + "," + s + "[]) @commands_blocked 27-");
+            check("Linux.execve" + suffix, "libcore.io.Linux execve(" + s + "," + s + "[]," + s + "[]) @commands_blocked 27-");
+            for (String name : new String[]{"UNIXProcess.forkAndExec", "Linux.execv", "Linux.execve"})
+                assertEquals(group[1], hook(name + suffix).getString("group"));
+        }
     }
 
     // The other ways to the values of fingerprints: the pages of memory, the methods behind SystemProperties.get, the
@@ -1496,6 +1688,24 @@ public class HookDefinitionsTest {
             check("SystemProperties.native_get/" + variant, "android.os.SystemProperties native_get(" + s +
                     ") @systemproperties_get 27- optional");
         check("SystemProperties.native_get/locale", "android.os.SystemProperties native_get(" + s + ") @locale 27- optional");
+        // native_get(key, default), which apps for Android 9 and before reach by reflection; a name with .default/,
+        // so the scripts keep the default of a property which is not set
+        check("SystemProperties.native_get.default/timezone", "android.os.SystemProperties native_get(" + s + "," + s +
+                ") @systemproperties_get 27- optional");
+        check("SystemProperties.native_get.default/locale", "android.os.SystemProperties native_get(" + s + "," + s +
+                ") @locale 27- optional");
+        check("ITextToSpeechService.getClientDefaultLanguage", "android.speech.tts.ITextToSpeechService$Stub$Proxy " +
+                "getClientDefaultLanguage() @locale 27- optional");
+        // The languages of the keyboards, by the same methods on all versions
+        String imm = "android.view.inputmethod.InputMethodManager ";
+        check("InputMethodManager.getCurrentInputMethodSubtype", imm + "getCurrentInputMethodSubtype() @locale 27-");
+        check("InputMethodManager.getLastInputMethodSubtype", imm + "getLastInputMethodSubtype() @locale 27-");
+        check("InputMethodManager.getEnabledInputMethodSubtypeList", imm + "getEnabledInputMethodSubtypeList(" +
+                "android.view.inputmethod.InputMethodInfo,boolean) @locale 27-");
+        check("InputMethodManager.getShortcutInputMethodsAndSubtypes", imm + "getShortcutInputMethodsAndSubtypes() @locale 27-");
+        for (String name : new String[]{"getCurrentInputMethodSubtype", "getLastInputMethodSubtype",
+                "getEnabledInputMethodSubtypeList", "getShortcutInputMethodsAndSubtypes"})
+            assertEquals(name, "Read.Locale", hook("InputMethodManager." + name).getString("group"));
         check("ResourcesImpl.updateConfigurationImpl", "android.content.res.ResourcesImpl updateConfigurationImpl(" +
                 "android.content.res.Configuration,android.util.DisplayMetrics,android.content.res.CompatibilityInfo,boolean) " +
                 "@display_panel 34- optional");
@@ -1588,5 +1798,9 @@ public class HookDefinitionsTest {
             assertTrue(name + " is not excluded from android", Arrays.asList(hook(name).optString("excludePackages", "")
                     .split(",")).contains("android"));
         assertEquals("Get.Applications", hook("AccountManager.getAuthenticatorTypes/apps").getString("group"));
+        // The account types are left out only with the apps they tell are installed, not by Read.Account alone
+        for (JSONObject hook : hooks)
+            if ("getAuthenticatorTypes".equals(hook.optString("methodName")))
+                assertEquals(hook.getString("name"), "Get.Applications", hook.getString("group"));
     }
 }

@@ -112,6 +112,15 @@ public class LuaReflectionTest {
         assertEquals("[0, 0, 0]", result.tojstring());
     }
 
+    // An array of byte[] by the name of its class, like the empty messages of an SMS (see intent_createfromparcel)
+    @Test
+    public void byteArrayClassByName() {
+        Globals globals = JsePlatform.standardGlobals();
+        Object pdus = globals.load("return luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('[B'), 0)")
+                .call().touserdata();
+        assertEquals(byte[][].class, pdus.getClass());
+    }
+
     public interface Checker {
         boolean check(int value);
         long count();

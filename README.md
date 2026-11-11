@@ -156,8 +156,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   an app saves, like an edited copy, is saved without it
 * **Get sensors**: hide them, also as features of the device, and dynamic sensors, like the head tracker of headphones; the proximity sensor cannot turn the screen off
 * **Read languages**: fake languages, *Languages* in *Fake values*, default en-US, also in system properties
-  and the settings; no region of sale (Samsung, Xiaomi). The app keeps the language chosen for it and its
-  texts; the language of its configuration stays real
+  and the settings; no region of sale (Samsung, Xiaomi); only keyboard languages of the fake ones. The app keeps
+  the language chosen for it and its texts; the language of its configuration stays real
 * **Read time zone**: fake time zone, *Time zone* in *Fake values*, default UTC
 
 </details>
@@ -226,8 +226,9 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary>What Doppel cannot do</summary>
 
 * Xposed cannot hook native code: audio recorded with OpenSL ES, like WhatsApp does, and files read natively
-  are not restricted. Native code also sees the real codecs, GPU, processors, fonts and sensors, and can start processes
-  itself, which are not refused. Apps reading the bytes of photos themselves still find their location.
+  are not restricted. Native code also sees the real system properties, codecs, GPU, processors, fonts and sensors,
+  and can start processes itself, which are not refused. Apps reading the bytes of photos themselves still find their
+  location.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
   The Firebase, Segment, Amazon and Facebook SDKs store the opt-outs and consents *Use analytics* sets, so collection

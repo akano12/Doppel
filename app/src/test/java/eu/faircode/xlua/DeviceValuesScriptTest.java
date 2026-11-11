@@ -1381,6 +1381,42 @@ public class DeviceValuesScriptTest {
         }
     }
 
+    // From Android 11 get(key) calls native_get(key), which calls native_get(key, ''), as get(key, default) calls
+    // native_get(key, default) on all versions: the innermost hook fakes, the others see the fake; a property which is
+    // not set gives the default, which stays
+    @Test
+    public void nativeGetWithDefaultIsFakedFirst() throws Exception {
+        Globals globals = load("systemproperties_get");
+        Varargs result = Scripts.run(globals,
+                "PROPERTIES = { ['persist.sys.timezone'] = 'Europe/Berlin' }\n" +
+                        "local hook = hookof('SystemProperties.native_get.default/timezone', 'native_get')\n" +
+                        "local restricted, fake = run(hook, paramof('Europe/Berlin', { [0] = 'persist.sys.timezone', [1] = '' }))\n" +
+                        "local native = run(hookof('SystemProperties.native_get/timezone', 'native_get'), " +
+                        "paramof(fake, { [0] = 'persist.sys.timezone' }))\n" +
+                        "local get = run(hookof('SystemProperties.get/timezone', 'get'), " +
+                        "paramof(fake, { [0] = 'persist.sys.timezone' }))\n" +
+                        "local defaulted, other = run(hook, paramof('Europe/Berlin', { [0] = 'persist.sys.timezone', [1] = 'd' }))\n" +
+                        "local again = run(hookof('SystemProperties.get.default/timezone', 'get'), " +
+                        "paramof(other, { [0] = 'persist.sys.timezone', [1] = 'd' }))\n" +
+                        "PROPERTIES = {}\n" +
+                        "local unset, empty = run(hook, paramof('', { [0] = 'persist.sys.timezone', [1] = '' }))\n" +
+                        "local kept, default = run(hook, paramof('d', { [0] = 'persist.sys.timezone', [1] = 'd' }))\n" +
+                        "return restricted, fake, native, get, defaulted, other, again, unset, empty, kept, default, " +
+                        "filter(hook)[1]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("UTC", result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("UTC", result.arg(6).tojstring());
+        assertFalse(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals("", result.arg(9).tojstring());
+        assertFalse(result.arg(10).toboolean());
+        assertEquals("d", result.arg(11).tojstring());
+        assertEquals("persist.sys.timezone", result.arg(12).tojstring());
+    }
+
     // Input devices by id and luajava for the lookups, which must not run the hooks (see XParam.unhooked)
     private static final String INPUT = String.join("\n",
             Scripts.ARRAYOF,
@@ -1545,11 +1581,20 @@ public class DeviceValuesScriptTest {
         assertTrue(result.arg(5).toboolean());
     }
 
-    // TimeZone.setDefault keeps the fake zone, also when the default is reset with null; the ICU zone is one of ICU
+    // TimeZone.setDefault keeps the fake zone when the default is reset with null, like the system does, but a zone the app
+    // sets itself stays and the getters give it back, like on a device without Doppel; the ICU zone is one of ICU
     @Test
     public void timeZoneStaysFake() throws Exception {
         Globals globals = load("timezone");
-        Varargs result = Scripts.run(globals, "local param = paramof(nil, {})\n" +
+        // The values the script keeps, see XParam.putValue
+        Scripts.run(globals, "VALUES = {}\n" +
+                "function valuesof(param)\n" +
+                "  param.putValue = function(self, name, value, scope) assert(scope ~= nil) VALUES[name] = value end\n" +
+                "  param.getValue = function(self, name, scope) assert(scope ~= nil) return VALUES[name] end\n" +
+                "  return param\n" +
+                "end\n" +
+                "function zoneof(id) return luajava.bindClass('java.util.TimeZone'):getTimeZone(id) end");
+        Varargs result = Scripts.run(globals, "local param = valuesof(paramof(nil, {}))\n" +
                 "param.setArgument = function(self, index, value) self.zone = value end\n" +
                 "local restricted, old, new = before(hookof('TimeZone.setDefault', 'setDefault'), param)\n" +
                 "return restricted, old, new, param.zone:getID()");
@@ -1558,12 +1603,39 @@ public class DeviceValuesScriptTest {
         assertEquals("UTC", result.arg(3).tojstring());
         assertEquals("UTC", result.arg(4).tojstring());
         assertFalse(Scripts.run(globals, "return before(hookof('TimeZone.setDefault', 'setDefault'), " +
-                "paramof(nil, { [0] = luajava.bindClass('java.util.TimeZone'):getTimeZone('UTC') }))").arg1().toboolean());
+                "valuesof(paramof(nil, { [0] = zoneof('UTC') })))").arg1().toboolean());
+
+        // A zone the app sets, like a zone of its server to show the times of the server in
+        result = Scripts.run(globals, "local param = valuesof(paramof(nil, { [0] = zoneof('America/New_York') }))\n" +
+                "param.setArgument = function(self, index, value) error('replaced') end\n" +
+                "local set = before(hookof('TimeZone.setDefault', 'setDefault'), param)\n" +
+                "local own = valuesof(paramof(zoneof('America/New_York'), {}))\n" +
+                "local kept = after(hookof('TimeZone.getDefault', 'getDefault', 'java.util.TimeZone'), own)\n" +
+                // Another zone, which the app did not set, is still replaced
+                "local other = valuesof(paramof(zoneof('Europe/Berlin'), {}))\n" +
+                "local replaced = after(hookof('TimeZone.getDefault', 'getDefault', 'java.util.TimeZone'), other)\n" +
+                "return set, kept, own.result:getID(), replaced, other.result:getID()");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals("America/New_York", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("UTC", result.arg(5).tojstring());
+
+        // After a reset with null the zone the app set before is replaced again
+        result = Scripts.run(globals, "local reset = valuesof(paramof(nil, {}))\n" +
+                "reset.setArgument = function(self, index, value) end\n" +
+                "local restricted = before(hookof('TimeZone.setDefault', 'setDefault'), reset)\n" +
+                "local param = valuesof(paramof(zoneof('America/New_York'), {}))\n" +
+                "return restricted, after(hookof('TimeZone.getDefault', 'getDefault', 'java.util.TimeZone'), param), " +
+                "param.result:getID()");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("UTC", result.arg(3).tojstring());
 
         result = Scripts.run(globals, "luajava = { bindClass = function(name)\n" +
                 "  assert(name == 'android.icu.util.TimeZone', name)\n" +
                 "  return { getTimeZone = function(self, id) return 'icu ' .. id end } end }\n" +
-                "local param = paramof({ getID = function(self) return 'Europe/Berlin' end }, {})\n" +
+                "local param = valuesof(paramof({ getID = function(self) return 'Europe/Berlin' end }, {}))\n" +
                 "param.getSetting = function(self, name) assert(name == 'value.timezone') return 'Europe/Amsterdam' end\n" +
                 "local restricted, old, new = after(hookof('TimeZone.getDefault', 'getDefault', 'android.icu.util.TimeZone'), param)\n" +
                 "return restricted, old, new, param.result");

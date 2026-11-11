@@ -29,36 +29,54 @@ function fakezone(param)
     return luajava.bindClass('java.util.TimeZone'):getTimeZone(fakeid(param))
 end
 
--- TimeZone.setDefault: keep the fake zone when the app or the system
--- (on a time zone change) sets or resets the default
+-- Only the property areas run the script of the hooks of opening files (see XCore.getFilter)
+function filter(hook)
+    if hook:getMethodName() == 'open' then
+        return { '/dev/__properties__/*' }
+    end
+    return nil
+end
+
+-- TimeZone.setDefault: the system resets the default with null, at the start and on a time zone change, which gives the
+-- zone of the device, so null gives the fake zone. A zone the app sets itself stays, like on a device without Doppel,
+-- and its id is kept for the getters, which give back the zone the app set, even the zone of the device (the app knows
+-- that one already); any other zone is replaced, like the real zone the process had before the hooks.
 function before(hook, param)
     if hook:getMethodName() ~= 'setDefault' then
         return false
     end
 
-    local id = fakeid(param)
     local zone = param:getArgument(0)
-    if zone ~= nil and zone:getID() == id then
+    if zone ~= nil then
+        param:putValue('timezone.app', zone:getID(), param:getApplicationContext())
         return false
     end
 
+    param:putValue('timezone.app', nil, param:getApplicationContext())
+    local id = fakeid(param)
     param:setArgument(0, fakezone(param))
-    if zone == nil then
-        return true, nil, id
-    else
-        return true, zone:getID(), id
-    end
+    return true, nil, id
 end
 
 function after(hook, param)
     local method = hook:getMethodName()
     if method == 'setDefault' then
         return false
+    elseif method == 'open' then
+        -- The property of the zone in the property area apps can read as a file, like SystemProperties.get
+        -- (systemproperties_get): timezone_prop from Android 14, before that with other properties
+        local id = fakeid(param)
+        local old = param:setPropertyValues({ 'persist.sys.timezone' }, { id })[1]
+        if old == nil then
+            return false
+        end
+        return true, old, id
     end
 
     local result = param:getResult()
     local id = fakeid(param)
-    if result ~= nil and result:getID() == id then
+    if result ~= nil and (result:getID() == id
+            or result:getID() == param:getValue('timezone.app', param:getApplicationContext())) then
         return false
     end
 

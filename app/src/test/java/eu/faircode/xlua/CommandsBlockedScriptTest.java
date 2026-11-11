@@ -30,13 +30,16 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 // The script of the hooks of ProcessBuilder.start and UNIXProcess.forkAndExec, with a real builder and files, and Lua
@@ -49,12 +52,13 @@ public class CommandsBlockedScriptTest {
             "  local param = {",
             "    getThis = function(self) return this end,",
             "    getArgument = function(self, index) return args[index] end,",
+            "    setArgument = function(self, index, value) args[index] = value end,",
             "    getApplicationContext = function(self)",
             "      return { getApplicationInfo = function(self) return info end }",
             "    end,",
             "    setResult = function(self, value) thrown = value end }",
             "  local restricted, line = before({ getMethodName = function(self) return method end }, param)",
-            "  return restricted, thrown, line",
+            "  return restricted, thrown, line, args[0]",
             "end",
             "function start(builder, folder) return call('start', builder, {}, folder) end",
             "function fork(program, dir, folder) return call('forkAndExec', {}, { [0] = program, [5] = dir }, folder) end");
@@ -74,18 +78,25 @@ public class CommandsBlockedScriptTest {
     }
 
     private Varargs start(File dir, String... command) {
-        ProcessBuilder builder = new ProcessBuilder(Arrays.asList(command)).directory(dir);
+        return invoke(new ProcessBuilder(Arrays.asList(command)).directory(dir));
+    }
+
+    private Varargs invoke(ProcessBuilder builder) {
         return globals.get("start").invoke(CoerceJavaToLua.coerce(builder), CoerceJavaToLua.coerce(lib.getPath()));
     }
 
     // The exception which the hook makes ProcessBuilder.start throw, null when the command runs
     private IOException refused(File dir, String... command) {
-        Varargs result = start(dir, command);
+        return refused(new ProcessBuilder(Arrays.asList(command)).directory(dir));
+    }
+
+    private IOException refused(ProcessBuilder builder) {
+        Varargs result = invoke(builder);
         if (!result.arg1().toboolean()) {
             assertTrue(result.arg(2).isnil());
             return null;
         }
-        assertEquals(String.join(" ", command), result.arg(3).tojstring());
+        assertEquals(String.join(" ", builder.command()), result.arg(3).tojstring());
         return (IOException) result.arg(2).touserdata();
     }
 
@@ -156,6 +167,16 @@ public class CommandsBlockedScriptTest {
         assertNull(forked(lib.getPath(), "./libtool.so"));
         // Not by its name only, which PATH finds
         assertTrue(forked(lib.getPath(), "libtool.so") != null);
+        // By a link, which runs by the path checked, a C string again, so a link changed after the check runs no other
+        File link = new File(files, "tool");
+        Files.createSymbolicLink(link.toPath(), program.toPath());
+        Varargs result = globals.get("fork").invoke(cstring(link.getPath()), LuaValue.NIL, CoerceJavaToLua.coerce(lib.getPath()));
+        assertFalse(result.arg1().toboolean());
+        assertArrayEquals((program.getCanonicalPath() + "\0").getBytes(), (byte[]) result.arg(4).touserdata());
+        // With no link on the path the bytes of the app stay
+        LuaValue bytes = cstring(program.getCanonicalPath());
+        result = globals.get("fork").invoke(bytes, LuaValue.NIL, CoerceJavaToLua.coerce(lib.getPath()));
+        assertTrue(result.arg(4).touserdata() == bytes.touserdata());
     }
 
     @Test
@@ -165,11 +186,73 @@ public class CommandsBlockedScriptTest {
         assertTrue(result.arg(2).isnil());
     }
 
+    // Like Android, no program does not exist even as a folder, and a working directory which does not exist fails
+    // before the program is looked for
+    @Test
+    public void noProgramAndNoDirectoryDoNotExist() {
+        assertEquals("Cannot run program \"\": error=2, No such file or directory", refused(null, "").getMessage());
+        assertEquals("Cannot run program \"\" (in directory \"" + files.getPath() + "\"): error=2, No such file or directory",
+                refused(files, "").getMessage());
+        Assume.assumeTrue(new File("/bin/sh").exists());
+        File none = new File(temp.getRoot(), "none");
+        assertEquals("Cannot run program \"sh\" (in directory \"" + none.getPath() + "\"): error=2, No such file or directory",
+                refused(none, "sh", "-c", "id").getMessage());
+    }
+
     @Test
     public void directoryIsInTheMessage() {
         Assume.assumeTrue(new File("/bin/sh").exists());
         assertEquals("Cannot run program \"sh\" (in directory \"" + files.getPath() + "\"): error=13, Permission denied",
                 refused(files, "sh", "-c", "uname -a").getMessage());
+    }
+
+    // Like ProcessImpl.start, the files the builder redirects to are opened before the exec fails: written ones are
+    // created, or truncated unless appended to, and one which does not open fails the start with its exception
+    @Test
+    public void redirectsOpenBeforeTheExec() throws Exception {
+        Assume.assumeTrue(new File("/bin/sh").exists());
+        File out = new File(files, "out");
+        File log = new File(files, "log");
+        Files.write(log.toPath(), "kept".getBytes());
+        ProcessBuilder builder = new ProcessBuilder("sh", "-c", "id").redirectOutput(out)
+                .redirectError(ProcessBuilder.Redirect.appendTo(log));
+        assertEquals("Cannot run program \"sh\": error=13, Permission denied", refused(builder).getMessage());
+        assertTrue(out.exists());
+        assertEquals("kept", new String(Files.readAllBytes(log.toPath())));
+        Files.write(out.toPath(), "old".getBytes());
+        assertTrue(refused(new ProcessBuilder("sh").redirectOutput(out)) != null);
+        assertEquals(0, out.length());
+
+        // Files which do not open fail like the Java running the test, which opens them before it starts a process:
+        // the input first, a folder written to, and before a working directory which does not exist
+        File none = new File(files, "none");
+        for (ProcessBuilder failing : new ProcessBuilder[]{
+                new ProcessBuilder("sh").redirectInput(none).redirectOutput(files),
+                new ProcessBuilder("sh").redirectError(files).directory(none)}) {
+            IOException ex = refused(failing);
+            IOException stock = assertThrows(IOException.class, failing::start);
+            assertEquals(stock.getMessage(), ex.getMessage());
+            assertEquals(FileNotFoundException.class, ex.getCause().getClass());
+            assertEquals(stock.getCause().getMessage(), ex.getCause().getMessage());
+        }
+        assertFalse(none.exists());
+    }
+
+    // The exception of a redirect which does not open on Android, which pcall gives as text: from Android 10 on
+    // with the ErrnoException of open as cause, before with the message of OpenJDK only
+    @Test
+    public void unopenedRedirectsHaveTheirCause() {
+        LuaValue unopened = globals.get("unopened");
+        String message = "/data/user/0/com.example/files/in: open failed: ENOENT (No such file or directory)";
+        FileNotFoundException ex = (FileNotFoundException) unopened.call(
+                "vm error: java.io.FileNotFoundException: " + message).touserdata();
+        assertEquals(message, ex.getMessage());
+        assertTrue(ex.getCause() instanceof android.system.ErrnoException);
+        message = "/data/user/0/com.example/files/in (No such file or directory)";
+        ex = (FileNotFoundException) unopened.call("vm error: java.io.FileNotFoundException: " + message).touserdata();
+        assertEquals(message, ex.getMessage());
+        assertNull(ex.getCause());
+        assertTrue(unopened.call("vm error: java.lang.SecurityException: denied").isnil());
     }
 
     @Test
@@ -188,10 +271,23 @@ public class CommandsBlockedScriptTest {
         assertNull(refused(null, link.getPath()));
         assertNull(refused(files, "./tool"));
         assertNull(refused(lib, "./libtool.so"));
+        // Which runs by the path checked, so a link changed after the check does not run another program
+        ProcessBuilder builder = new ProcessBuilder(link.getPath(), "-v").directory(files);
+        assertTrue(globals.get("start").invoke(CoerceJavaToLua.coerce(builder), CoerceJavaToLua.coerce(lib.getPath())).isnil(2));
+        assertEquals(Arrays.asList(program.getCanonicalPath(), "-v"), builder.command());
+        // With no link on the path the first word stays, since it is also the name of the program
+        builder = new ProcessBuilder("./libtool.so").directory(real.getCanonicalFile());
+        assertTrue(globals.get("start").invoke(CoerceJavaToLua.coerce(builder), CoerceJavaToLua.coerce(lib.getPath())).isnil(2));
+        assertEquals(Arrays.asList("./libtool.so"), builder.command());
         // Not by its name only, which PATH finds, nor by a path out of the folder
         assertTrue(refused(lib, "libtool.so") != null);
         assertTrue(refused(null, lib.getPath() + "/../arm64-x/libtool.so") != null);
         assertTrue(refused(null, lib.getPath() + "-x/libtool.so") != null);
+        // Nor by a path which the exec does not walk, whose canonical path drops .. after a folder which does not exist
+        assertEquals("Cannot run program \"" + lib.getPath() + "/none/../libtool.so\": error=2, No such file or directory",
+                refused(null, lib.getPath() + "/none/../libtool.so").getMessage());
+        // Nor with a / at the end, which java.io.File drops; the stand-in of Os.stat gives no ENOTDIR (CommandsExecScriptTest)
+        assertTrue(refused(null, program.getPath() + "/") != null);
         // Nor a copy of a program in the files of the app
         File copy = new File(files, "getprop");
         Files.copy(program.toPath(), copy.toPath());
@@ -203,5 +299,6 @@ public class CommandsBlockedScriptTest {
     public void invalidCommandsAreLeftToJava() {
         assertFalse(start(null).arg1().toboolean());
         assertFalse(start(null, "getprop", null).arg1().toboolean());
+        assertFalse(start(null, "ls", "a\u0000b").arg1().toboolean());
     }
 }

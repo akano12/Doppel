@@ -105,7 +105,24 @@ public class FakeValuesAgreeTest {
                     "'Europe/Berlin', { 'persist.sys.timezone' }, " + settings + ")"));
             assertEquals(setting, expected, run(intent, "fakeof('Intent.createFromParcel/timezone', nil, " +
                     "intentof('Europe/Berlin'), {}, " + settings + "):zone()"));
+            // The property in the property area the app reads as a file (see XParam.setPropertyValues)
+            assertEquals(setting, "1 persist.sys.timezone=" + expected + " true Europe/Berlin " + expected, run(timezone,
+                    "(function()\n" +
+                    "  local param, set = paramof(nil, {}, " + settings + ")\n" +
+                    "  param.setPropertyValues = function(self, names, values)\n" +
+                    "    set = #names .. ' ' .. names[1] .. '=' .. values[1] return { 'Europe/Berlin' } end\n" +
+                    "  local restricted, old, new = after(hookof('BlockGuardOs.open/timezone', 'open'), param)\n" +
+                    "  return set .. ' ' .. tostring(restricted) .. ' ' .. old .. ' ' .. new\n" +
+                    "end)()"));
         }
+        // Only the property areas run the script for the hooks of opening files, the other hooks all calls
+        assertEquals("/dev/__properties__/*", run(timezone, "filter(hookof('BlockGuardOs.open/timezone', 'open'))[1]"));
+        assertEquals("nil", run(timezone, "filter(hookof('TimeZone.getDefault', 'getDefault'))"));
+        assertEquals("false", run(timezone, "(function()\n" +
+                "  local param = paramof(nil, {}, {})\n" +
+                "  param.setPropertyValues = function(self, names, values) return {} end\n" +
+                "  return after(hookof('BlockGuardOs.open/timezone', 'open'), param)\n" +
+                "end)()"));
     }
 
     // The test network (MCC 001, MNC 01), no country like Android gives for MCC 001, unknown names and the carrier id
@@ -439,7 +456,7 @@ public class FakeValuesAgreeTest {
                     name + "'), paramof(cursorof(), { uriof('" + authority + "') }, {})))"));
             pairs++;
         }
-        assertEquals(6, pairs);
+        assertEquals(5, pairs);
     }
 
     // The advertising id of Play services is zeros, from the client library and from the service

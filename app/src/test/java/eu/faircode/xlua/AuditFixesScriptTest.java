@@ -395,12 +395,15 @@ public class AuditFixesScriptTest {
                 "luajava = { createProxy = function(interface, methods) return methods end, newInstance = real.newInstance,\n" +
                 "  bindClass = real.bindClass }\n" +
                 "function owntypes() return { ['own.type'] = true } end\n" +
+                "function fakeof(param) return param:getSetting('value.email') end\n" +
                 "function cursorof(type, name) return {\n" +
                 "  getColumnIndex = function(self, column)\n" +
                 "    return ({ account_name = 0, account_type = 1 })[column] or -1 end,\n" +
                 "  getString = function(self, index) return index == 0 and name or type end,\n" +
                 "  getBlob = function(self, index) return 'blob ' .. name end,\n" +
-                "  copyStringToBuffer = function(self, index, buffer) buffer.copied = name end } end\n" +
+                "  copyStringToBuffer = function(self, index, buffer)\n" +
+                "    if buffer == nil then error('CharArrayBuffer should not be null') end\n" +
+                "    buffer.copied = name end } end\n" +
                 "function uriof(authority) return { getAuthority = function(self) return authority end } end\n" +
                 "function queried(authority, cursor)\n" +
                 "  local param = paramof(cursor, { uriof(authority) })\n" +
@@ -425,12 +428,215 @@ public class AuditFixesScriptTest {
                         "fake.copyStringToBuffer(0, buffer)\n" +
                         "own.copyStringToBuffer(0, ownBuffer)\n" +
                         "return fake.getBlob(0), buffer.sizeCopied, buffer.data, own.getBlob(0), ownBuffer.copied");
-        // The proxy coerces the text to the byte[] of getBlob
-        assertEquals("fake@example.com", new String((byte[]) CoerceLuaToJava.coerce(result.arg(1), byte[].class)));
+        // The proxy coerces the text to the byte[] of getBlob, which ends with the 0 of a text in a CursorWindow
+        assertEquals("fake@example.com\0", new String((byte[]) CoerceLuaToJava.coerce(result.arg(1), byte[].class)));
         assertEquals(16, result.arg(2).toint());
-        assertEquals("fake@example.com", new String((char[]) result.arg(3).touserdata()));
+        // A buffer without an array gets one of 64 chars, like CursorWindow allocates
+        char[] chars = (char[]) result.arg(3).touserdata();
+        assertEquals(64, chars.length);
+        assertEquals("fake@example.com", new String(chars, 0, 16));
         assertEquals("blob mine@example.com", result.arg(4).tojstring());
         assertEquals("mine@example.com", result.arg(5).tojstring());
+
+        // An array which is long enough is filled in place, a short one is replaced; no buffer is the error of the cursor
+        result = Scripts.run(globals,
+                "local _, fake = queried('com.android.contacts', cursorof('com.google', 'real@example.com'))\n" +
+                        "local Array = luajava.bindClass('java.lang.reflect.Array')\n" +
+                        "local Character = luajava.bindClass('java.lang.Character')\n" +
+                        "local long, short = Array:newInstance(Character.TYPE, 100), Array:newInstance(Character.TYPE, 4)\n" +
+                        "local buffer, other = { data = long }, { data = short }\n" +
+                        "fake.copyStringToBuffer(0, buffer)\n" +
+                        "fake.copyStringToBuffer(0, other)\n" +
+                        "local ok, message = pcall(fake.copyStringToBuffer, 0, nil)\n" +
+                        "return buffer.data == long, buffer.data, other.data == short, other.data['length'], ok, message");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("fake@example.com", new String((char[]) result.arg(2).touserdata(), 0, 16));
+        assertFalse(result.arg(3).toboolean());
+        assertEquals(64, result.arg(4).toint());
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(6).tojstring().contains("CharArrayBuffer should not be null"));
+    }
+
+    // Columns which do not tell the type of their account: the names of the accounts of the app, of LOCAL calendars, of
+    // the local account and of the SIM accounts of contacts stay; directories of contacts have the name as accountName
+    // with accountType, and calendars have the address of the account as the organizer and the attendee of events too
+    @Test
+    public void accountColumnsWithoutTheirType() throws Exception {
+        Globals globals = Scripts.load("account_columns", PARAM + "\n" +
+                "luajava = { createProxy = function(interface, methods) return methods end }\n" +
+                "function owntypes() return { ['own.type'] = true } end\n" +
+                "function fakeof(param) return param:getSetting('value.email') end\n" +
+                "function ownnames(param, own) return { ['mine@example.com'] = false } end\n" +
+                "function localaccount() return 'Device', 'local.type' end\n" +
+                "function simaccounts() return { ['sim.type'] = true }, { SIM1 = true } end\n" +
+                "function calendarnames(param, uri, keep)\n" +
+                "  return { ['real@example.com'] = not keep('com.google') and 'com.google', probe = not keep('LOCAL'),\n" +
+                "    ['mine@example.com'] = not keep('own.type') and 'own.type' } end\n" +
+                "function cursorof(columns, ...) local values = { ... } return {\n" +
+                "  getColumnIndex = function(self, column) return columns[column] or -1 end,\n" +
+                "  getString = function(self, index) return values[index + 1] end } end\n" +
+                "function uriof(authority) return { getAuthority = function(self) return authority end } end\n" +
+                "function queried(authority, columns, ...)\n" +
+                "  local param = paramof(cursorof(columns, ...), { uriof(authority) })\n" +
+                "  param.getSetting = function(self, name) return 'fake@example.com' end\n" +
+                "  return after(nil, param) and param.result\n" +
+                "end");
+        Varargs result = Scripts.run(globals,
+                "local contacts, calendar = 'com.android.contacts', 'com.android.calendar'\n" +
+                        "local raw = { account_name = 0 }\n" +
+                        "local directory = { accountName = 0, accountType = 1 }\n" +
+                        "local calendars = { account_name = 0, ownerAccount = 1 }\n" +
+                        "return queried(contacts, raw, 'mine@example.com').getString(0),\n" +
+                        "  queried(contacts, raw, 'real@example.com').getString(0),\n" +
+                        "  queried(contacts, raw, 'Device').getString(0),\n" +
+                        "  queried(contacts, directory, 'real@example.com', 'com.google').getString(0),\n" +
+                        "  queried(contacts, directory, 'Device', 'local.type').getString(0),\n" +
+                        "  queried(calendar, { account_name = 0, account_type = 1 }, 'probe', 'LOCAL').getString(0),\n" +
+                        "  queried(calendar, calendars, 'probe', 'probe').getString(1),\n" +
+                        "  queried(calendar, calendars, 'real@example.com', 'real@example.com').getString(1),\n" +
+                        "  queried(contacts, { organizer = 0 }, 'real@example.com'),\n" +
+                        "  queried(contacts, raw, 'SIM1').getString(0),\n" +
+                        "  queried(contacts, { account_name = 0, account_type = 1 }, 'SIM1', 'sim.type').getString(0),\n" +
+                        "  queried(calendar, { account_name = 0, account_type = 1 }, 'SIM1', 'sim.type').getString(0)");
+        assertEquals("mine@example.com", result.arg(1).tojstring());
+        assertEquals("fake@example.com", result.arg(2).tojstring());
+        assertEquals("Device", result.arg(3).tojstring());
+        assertEquals("fake@example.com", result.arg(4).tojstring());
+        assertEquals("Device", result.arg(5).tojstring());
+        assertEquals("probe", result.arg(6).tojstring());
+        assertEquals("probe", result.arg(7).tojstring());
+        assertEquals("fake@example.com", result.arg(8).tojstring());
+        assertFalse(result.arg(9).toboolean());
+        assertEquals("SIM1", result.arg(10).tojstring());
+        assertEquals("SIM1", result.arg(11).tojstring());
+        // SIM accounts are of contacts only
+        assertEquals("fake@example.com", result.arg(12).tojstring());
+
+        // The owner, the organizer and the attendee are the fake address when they are the address of an account, but a
+        // row of a calendar of the app keeps them, also when an account has the same address; a delegated calendar has
+        // another person as its owner, who stays, like the organizer and the attendee who are that person
+        result = Scripts.run(globals,
+                "local calendar = 'com.android.calendar'\n" +
+                        "local events = { ownerAccount = 0, organizer = 1, account_type = 2 }\n" +
+                        "local mine = queried(calendar, events, 'real@example.com', 'real@example.com', 'com.google')\n" +
+                        "local other = queried(calendar, events, 'real@example.com', 'friend@example.com', 'com.google')\n" +
+                        "local own = queried(calendar, events, 'real@example.com', 'real@example.com', 'own.type')\n" +
+                        "local attendees = { attendeeEmail = 0 }\n" +
+                        "return own.getString(0), own.getString(1),\n" +
+                        "  queried(calendar, { account_name = 0, account_type = 1 }, 'real@example.com', 'own.type').getString(0),\n" +
+                        "  mine.getString(0), mine.getString(1), other.getString(0), other.getString(1),\n" +
+                        "  queried(calendar, attendees, 'real@example.com').getString(0),\n" +
+                        "  queried(calendar, attendees, 'friend@example.com').getString(0),\n" +
+                        "  queried(calendar, attendees, 'mine@example.com').getString(0),\n" +
+                        "  queried(calendar, { calendar_displayName = 0 }, 'real@example.com').getString(0),\n" +
+                        "  queried(calendar, events, 'friend@example.com', 'friend@example.com', 'com.google').getString(0),\n" +
+                        "  queried(calendar, events, 'friend@example.com', 'friend@example.com', 'com.google').getString(1),\n" +
+                        "  queried(calendar, { account_name = 0, account_type = 1, ownerAccount = 2 },\n" +
+                        "    'real@example.com', 'com.google', 'friend@example.com').getString(0),\n" +
+                        "  queried(calendar, { account_name = 0, account_type = 1, ownerAccount = 2 },\n" +
+                        "    'real@example.com', 'com.google', 'friend@example.com').getString(2)");
+        assertEquals("real@example.com", result.arg(1).tojstring());
+        assertEquals("real@example.com", result.arg(2).tojstring());
+        assertEquals("real@example.com", result.arg(3).tojstring());
+        assertEquals("fake@example.com", result.arg(4).tojstring());
+        assertEquals("fake@example.com", result.arg(5).tojstring());
+        assertEquals("fake@example.com", result.arg(6).tojstring());
+        assertEquals("friend@example.com", result.arg(7).tojstring());
+        assertEquals("fake@example.com", result.arg(8).tojstring());
+        assertEquals("friend@example.com", result.arg(9).tojstring());
+        assertEquals("mine@example.com", result.arg(10).tojstring());
+        assertEquals("fake@example.com", result.arg(11).tojstring());
+        assertEquals("friend@example.com", result.arg(12).tojstring());
+        assertEquals("friend@example.com", result.arg(13).tojstring());
+        assertEquals("fake@example.com", result.arg(14).tojstring());
+        assertEquals("friend@example.com", result.arg(15).tojstring());
+    }
+
+    // The names of the calendars come from their provider, those of the accounts of the app from AccountManager and the
+    // SIM accounts of contacts from their provider, all without the hooks; a name of an account and of a kept calendar
+    // both is faked, with the type of the account; the owner of a delegated calendar, another person, is no account
+    @Test
+    public void accountColumnsLookups() throws Exception {
+        Globals globals = Scripts.load("account_columns", PARAM + "\n" +
+                "sdk = 31\n" +
+                "luajava = { bindClass = function(name) return {\n" +
+                "  SDK_INT = sdk,\n" +
+                "  getSimAccounts = function(self, resolver) return sims(resolver) end,\n" +
+                "  parse = function(self, text) return text end,\n" +
+                "  get = function(self, context) return { getAccountsByType = function(self, type)\n" +
+                "    return { length = 1, { name = type .. '@example.com' } } end } end } end }\n" +
+                "local rows = { { 'shared', 'LOCAL', 'real@example.com' }, { 'real@example.com', 'LOCAL', 'real@example.com' },\n" +
+                "  { 'real@example.com', 'com.google', 'real@example.com' },\n" +
+                "  { 'real@example.com', 'com.google', 'friend@example.com' },\n" +
+                "  { 'probe', 'LOCAL', 'probe' }, { 'mine', 'own.type', 'mine' } }\n" +
+                "function lookup(param)\n" +
+                "  param.getApplicationContext = function(self)\n" +
+                "    return { getContentResolver = function(self) return 'resolver' end } end\n" +
+                "  param.unhooked = function(self, fn) self.inside = true; local value = fn(); self.inside = false; return value end\n" +
+                "  return param\n" +
+                "end\n" +
+                "function resolverof(param) return { query = function(self, uri, projection, extras, signal)\n" +
+                "  param.queried, param.queriedInside = uri, param.inside\n" +
+                "  local position = 0\n" +
+                "  return { getColumnIndex = function(self, column)\n" +
+                "      return ({ account_name = 0, account_type = 1, ownerAccount = 2 })[column] end,\n" +
+                "    moveToNext = function(self) position = position + 1; return rows[position] ~= nil end,\n" +
+                "    getString = function(self, index) return rows[position][index + 1] end,\n" +
+                "    close = function(self) param.closed = true end } end } end");
+        Varargs result = Scripts.run(globals,
+                "local param = lookup(paramof())\n" +
+                        "param.getThis = function(self) return resolverof(param) end\n" +
+                        "local uri = { getAuthority = function(self) return '0@com.android.calendar' end }\n" +
+                        "local names = calendarnames(param, uri, function(type) return type == 'LOCAL' or type == 'own.type' end)\n" +
+                        "local own = ownnames(lookup(paramof()), { ['own.type'] = true })\n" +
+                        "local none = ownnames(lookup(paramof()), {})\n" +
+                        "local failing = lookup(paramof())\n" +
+                        "failing.getThis = function(self) return { query = function() error('DeadObjectException') end } end\n" +
+                        "local unknown = calendarnames(failing, uri, function() return false end)\n" +
+                        "return param.queried, param.queriedInside, param.closed, names['real@example.com'], names.shared,\n" +
+                        "  names.probe, names.mine, own['own.type@example.com'], next(none), next(unknown),\n" +
+                        "  names['friend@example.com']");
+        assertEquals("content://0@com.android.calendar/calendars", result.arg(1).tojstring());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("com.google", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(5).isboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(6).isboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertTrue(result.arg(8).isboolean());
+        assertFalse(result.arg(8).toboolean());
+        assertTrue(result.arg(9).isnil());
+        // A provider which fails gives no names, without an error
+        assertTrue(result.arg(10).isnil());
+        // The owner of a delegated calendar is not marked, so it stays like any other address
+        assertTrue(result.arg(11).isnil());
+
+        // A provider which fails or Android before 12, which does not list them, gives no SIM accounts, without an error
+        result = Scripts.run(globals,
+                "local param = lookup(paramof())\n" +
+                        "function sims(resolver)\n" +
+                        "  param.simResolver, param.simInside = resolver, param.inside\n" +
+                        "  local accounts = { { 'SIM1', 'sim.type' }, { 'SIM2', 'sim.type' } }\n" +
+                        "  return { size = function(self) return #accounts end, get = function(self, index)\n" +
+                        "    local account = accounts[index + 1]\n" +
+                        "    return { getAccountName = function(self) return account[1] end,\n" +
+                        "      getAccountType = function(self) return account[2] end } end } end\n" +
+                        "local types, names = simaccounts(param)\n" +
+                        "sims = function() error('SecurityException') end\n" +
+                        "local failedTypes, failedNames = simaccounts(lookup(paramof()))\n" +
+                        "sdk = 30\n" +
+                        "local oldTypes, oldNames = simaccounts(paramof())\n" +
+                        "return param.simResolver, param.simInside, types['sim.type'], names.SIM1, names.SIM2,\n" +
+                        "  next(failedTypes), next(failedNames), next(oldTypes), next(oldNames)");
+        assertEquals("resolver", result.arg(1).tojstring());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        for (int index = 6; index <= 9; index++)
+            assertTrue(result.arg(index).isnil());
     }
 
     // The search domains of a VPN are text, nothing when they go; its routes are a list

@@ -29,7 +29,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 // The default account for new contacts, returned as plain strings by queryDefaultAccountForNewContacts
-// (assets/contacts_default_account.lua), has its name replaced with the fake email, its type kept
+// (assets/contacts_default_account.lua), has its name replaced with the fake of its Account, its type kept; an account
+// of a type of the app itself (own.type) keeps its name
 public class ContactsDefaultAccountScriptTest {
     private static final String STUBS = String.join("\n",
             "function bundleof(name, type)",
@@ -38,12 +39,23 @@ public class ContactsDefaultAccountScriptTest {
             "    getString = function(self, key) return self.values[key] end,",
             "    putString = function(self, key, value) self.values[key] = value end }",
             "end",
+            // The names of the accounts of a type the app can see, in the order of Android
+            "live, values = {}, {}",
+            "luajava = { bindClass = function(name) return { get = function(self, context) return {",
+            "  getAccountsByType = function(self, type) local accounts = { length = #live }",
+            "    for index, name in ipairs(live) do accounts[index] = { name = name, type = type } end",
+            "    return accounts end } end } end }",
             "function paramof(authority, method, bundle, email)",
             "  local args = { [0] = authority, [1] = method }",
             "  return { result = bundle,",
             "    getArgument = function(self, index) return args[index] end,",
             "    getResult = function(self) return self.result end,",
-            "    getSetting = function(self, key) if key == 'value.email' then return email end end }",
+            "    getSetting = function(self, key) if key == 'value.email' then return email end end,",
+            "    getApplicationContext = function(self) return 'context' end,",
+            "    getValue = function(self, name)",
+            "      if name == 'account.types' then return { ['own.type'] = true } end return values[name] end,",
+            "    putValue = function(self, name, value) values[name] = value end,",
+            "    unhooked = function(self, fn) return fn() end }",
             "end",
             "function run(authority, method, name, type, email)",
             "  local bundle = (name == nil and type == nil) and nil or bundleof(name, type)",
@@ -73,6 +85,25 @@ public class ContactsDefaultAccountScriptTest {
         assertEquals("fake@example.com", result.arg(3).tojstring());
         assertEquals("fake@example.com", result.arg(4).tojstring());
         assertEquals("com.google", result.arg(5).tojstring());
+    }
+
+    // A second account of the type gets the second fake, like its Account
+    @Test
+    public void secondAccountGetsItsNumber() {
+        Scripts.run(globals, "live = { 'me@gmail.com', 'work@gmail.com' }");
+        Varargs result = run("'com.android.contacts', 'queryDefaultAccountForNewContacts', " +
+                "'work@gmail.com', 'com.google', 'fake@example.com'");
+        assertEquals("work@gmail.com", result.arg(2).tojstring());
+        assertEquals("fake2@example.com", result.arg(4).tojstring());
+    }
+
+    @Test
+    public void ownTypeKeepsName() {
+        Varargs result = run("'com.android.contacts', 'queryDefaultAccountForNewContacts', " +
+                "'me@own.example', 'own.type', 'fake@example.com'");
+        assertFalse(result.arg1().toboolean());
+        assertEquals("me@own.example", result.arg(4).tojstring());
+        assertEquals("own.type", result.arg(5).tojstring());
     }
 
     @Test

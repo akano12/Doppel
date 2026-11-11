@@ -334,30 +334,250 @@ public class ValueScriptsTest {
                 "return after(hookof('queryUsageStats'), paramof(list))").arg1().toboolean());
     }
 
+    // The script of accounts with a stand-in of AccountManager, which has an account type of the app and one of Google,
+    // and the names of the accounts of each type the app can see in live (none by default, 'error' when the lookup
+    // fails), the hooks of Account and Intent, and a context of the app with its class loader
+    private static Globals accounts() throws Exception {
+        Globals globals = load("account_createfromparcel");
+        Scripts.run(globals, "reads, lookups, live = 0, 0, {}\n" +
+                "manager = { getAuthenticatorTypes = function(self) assert(unhooked, 'hooked lookup') reads = reads + 1\n" +
+                "  return arrayof({ packageName = 'com.example', type = 'com.example.account' },\n" +
+                "    { packageName = 'com.google.android.gms', type = 'com.google' }) end,\n" +
+                "  getAccountsByType = function(self, type) assert(unhooked, 'hooked lookup') lookups = lookups + 1\n" +
+                "    if live == 'error' then error('SecurityException') end\n" +
+                "    local accounts = {}\n" +
+                "    for index, name in ipairs(live[type] or {}) do accounts[index] = { name = name, type = type } end\n" +
+                "    return arrayof(table.unpack(accounts)) end }\n" +
+                "app = { getClassLoader = function(self) return 'loader' end }\n" +
+                "luajava = { createProxy = function(interface, methods) return methods end,\n" +
+                "  bindClass = function(name) assert(name == 'android.accounts.AccountManager', name)\n" +
+                "  return { get = function(self, context) assert(context == app) return manager end } end }\n" +
+                "local paramof_ = paramof\n" +
+                "function paramof(...) local param = paramof_(...)\n" +
+                "  param.getApplicationContext = function(self) return app end return param end\n" +
+                "account_ = hookof('CREATOR:createFromParcel', 'android.accounts.Account')\n" +
+                "intent_ = hookof('CREATOR:createFromParcel', 'android.content.Intent')");
+        return globals;
+    }
+
     // Accounts of other apps get the fake name, the accounts of the app itself keep theirs; the types are read once
     @Test
     public void accountNamesOfOtherApps() throws Exception {
-        Globals globals = load("account_createfromparcel");
-        Scripts.run(globals, "reads = 0\n" +
-                "manager = { getAuthenticatorTypes = function(self) assert(unhooked, 'hooked lookup') reads = reads + 1\n" +
-                "  return arrayof({ packageName = 'com.example', type = 'com.example.account' },\n" +
-                "    { packageName = 'com.google.android.gms', type = 'com.google' }) end }\n" +
-                "luajava = { bindClass = function(name) assert(name == 'android.accounts.AccountManager', name)\n" +
-                "  return { get = function(self, context) assert(context == 'context') return manager end } end }");
+        Globals globals = accounts();
         Varargs result = Scripts.run(globals, "local google = { type = 'com.google', name = 'me@gmail.com' }\n" +
                 "local own = { type = 'com.example.account', name = 'me' }\n" +
-                "local faked = after(nil, paramof(google))\n" +
-                "local kept = after(nil, paramof(own))\n" +
+                "local faked = after(account_, paramof(google))\n" +
+                "local kept = after(account_, paramof(own))\n" +
                 "settings['value.email'] = 'set@example.com'\n" +
                 "local other = { type = 'com.google', name = 'other@gmail.com' }\n" +
-                "after(nil, paramof(other))\n" +
+                "after(account_, paramof(other))\n" +
                 "return faked, google.name, kept, own.name, other.name, reads");
         assertTrue(result.arg(1).toboolean());
         assertEquals("private@example.com", result.arg(2).tojstring());
         assertFalse(result.arg(3).toboolean());
         assertEquals("me", result.arg(4).tojstring());
-        assertEquals("set@example.com", result.arg(5).tojstring());
+        assertEquals("set2@example.com", result.arg(5).tojstring());
         assertEquals(1, result.arg(6).toint());
+    }
+
+    // Android never gives two equal accounts, so each account of other apps gets its own name: the fake email for the
+    // first one the app sees, then a number in front of the @, the same again for the same account; a fake stays, like
+    // the name of an Account the app parcelled itself, also into a later process, and is not reported
+    @Test
+    public void accountsOfATypeGetTheirOwnNames() throws Exception {
+        String names = "local names = {}\n" +
+                "for _, name in ipairs({ ... }) do\n" +
+                "  local account = { type = 'com.google', name = name }\n" +
+                "  names[#names + 1] = tostring(after(account_, paramof(account))) .. ' ' .. account.name\n" +
+                "end\n" +
+                "return table.concat(names, ', ')";
+        Globals globals = accounts();
+        assertEquals("true private@example.com, true private2@example.com, true private@example.com, " +
+                        "false private2@example.com, false private7@example.com, true private3@example.com, " +
+                        "true private4@example.com",
+                Scripts.run(globals, "return (function(...)\n" + names + "\nend)('a@gmail.com', 'b@gmail.com', " +
+                        "'a@gmail.com', 'private2@example.com', 'private7@example.com', 'privatex@example.com', " +
+                        "'private@example.com.org')").tojstring());
+        // Without an @ the number goes at the end
+        globals = accounts();
+        Scripts.run(globals, "settings['value.email'] = 'nobody'");
+        assertEquals("true nobody, true nobody2, false nobody2",
+                Scripts.run(globals, "return (function(...)\n" + names + "\nend)('a@gmail.com', 'b@gmail.com', " +
+                        "'nobody2')").tojstring());
+    }
+
+    // The numbers follow the order of the accounts the app can see, also in a process which first sees a later account
+    // alone, like the result of the chooser; a name Android does not list gets a number after them; the accounts of
+    // each type are numbered apart; a lookup which fails numbers in the order the process sees the names
+    @Test
+    public void accountsAreNumberedInTheOrderOfAndroid() throws Exception {
+        String names = "local names = {}\n" +
+                "for _, name in ipairs({ ... }) do\n" +
+                "  local type, real = string.match(name, '^(.-) (.*)$')\n" +
+                "  local account = { type = type, name = real }\n" +
+                "  after(account_, paramof(account))\n" +
+                "  names[#names + 1] = account.name\n" +
+                "end\n" +
+                "return table.concat(names, ', ') .. ' ' .. lookups";
+        String run = "return (function(...)\n" + names + "\nend)";
+        Globals globals = accounts();
+        Scripts.run(globals, "live = { ['com.google'] = { 'a@gmail.com', 'b@gmail.com' }, " +
+                "['org.other'] = { 'c@other.org' } }");
+        assertEquals("private2@example.com, private@example.com, private@example.com, private3@example.com 3",
+                Scripts.run(globals, run + "('com.google b@gmail.com', 'com.google a@gmail.com', " +
+                        "'org.other c@other.org', 'com.google gone@gmail.com')").tojstring());
+        globals = accounts();
+        Scripts.run(globals, "live = 'error'");
+        assertEquals("private@example.com, private2@example.com 2",
+                Scripts.run(globals, run + "('com.google b@gmail.com', 'com.google a@gmail.com')").tojstring());
+    }
+
+    // The raw contacts and calendars of an account and the default account of contacts have the fake name of the Account
+    // of the account, also of a second account, in a copy of the function of the fakes
+    @Test
+    public void accountNamesAreTheSameInEachScript() throws Exception {
+        String fakeof = Scripts.function("account_createfromparcel", "fakeof");
+        assertEquals(fakeof, Scripts.function("account_columns", "fakeof"));
+        assertEquals(fakeof, Scripts.function("contacts_default_account", "fakeof"));
+        Globals globals = accounts();
+        Scripts.run(globals, "after(account_, paramof({ type = 'com.google', name = 'a@gmail.com' }))\n" +
+                "after(account_, paramof({ type = 'com.google', name = 'b@gmail.com' }))");
+        Globals columns = load("account_columns");
+        Globals contacts = load("contacts_default_account");
+        // The values of the process, in the stand-ins of the parameter, are shared by the scripts
+        for (Globals other : new Globals[]{columns, contacts}) {
+            other.set("paramof", globals.get("paramof"));
+            other.set("luajava", globals.get("luajava"));
+        }
+        // A device without the local account and the SIM accounts of contacts, which are tested apart (AuditFixesScriptTest)
+        Scripts.run(columns, "function localaccount() return nil, nil end\nfunction simaccounts() return {}, {} end");
+        Varargs result = Scripts.run(columns, "local function rowof(name, type) return {\n" +
+                "  getColumnIndex = function(self, column) return ({ account_name = 0, account_type = 1 })[column] or -1 end,\n" +
+                "  getString = function(self, index) return index == 0 and name or type end,\n" +
+                "  getBlob = function(self, index) return name end } end\n" +
+                "local uri = { getAuthority = function(self) return 'com.android.contacts' end }\n" +
+                "local b = paramof(rowof('b@gmail.com', 'com.google'), { [0] = uri })\n" +
+                "local a = paramof(rowof('a@gmail.com', 'com.google'), { [0] = uri })\n" +
+                "local own = paramof(rowof('me', 'com.example.account'), { [0] = uri })\n" +
+                "after(nil, b) after(nil, a) after(nil, own)\n" +
+                "return b.result.getString(0), b.result.getBlob(0), a.result.getString(0), own.result.getString(0)");
+        assertEquals("private2@example.com", result.arg(1).tojstring());
+        // The bytes end with the 0 of a text in a CursorWindow
+        assertEquals("private2@example.com\0", result.arg(2).tojstring());
+        assertEquals("private@example.com", result.arg(3).tojstring());
+        assertEquals("me", result.arg(4).tojstring());
+        assertEquals("private2@example.com", Scripts.run(contacts, "local values = { account_name = 'b@gmail.com', " +
+                "account_type = 'com.google' }\n" +
+                "local bundle = { getString = function(self, key) return values[key] end,\n" +
+                "  putString = function(self, key, value) values[key] = value end }\n" +
+                "after(nil, paramof(bundle, { [0] = 'com.android.contacts', [1] = 'queryDefaultAccountForNewContacts' }))\n" +
+                "return values.account_name").tojstring());
+    }
+
+    // The owner of a calendar is not always an account: the id of a holiday calendar stays and takes no number, so the
+    // next account still gets the second fake, like its Account; an owner, organizer or attendee which is the name of
+    // an account gets the fake of that account, also in a row without its type
+    @Test
+    public void calendarOwnersWhichAreNoAccounts() throws Exception {
+        Globals globals = accounts();
+        Globals columns = load("account_columns");
+        columns.set("paramof", globals.get("paramof"));
+        columns.set("accounts_", globals.get("luajava"));
+        // The hook of Account, in the script of accounts
+        columns.set("account_", globals.get("account_"));
+        columns.set("accountafter", globals.get("after"));
+        String holiday = "en.usa#holiday@group.v.calendar.google.com";
+        Varargs result = Scripts.run(columns, "luajava = { createProxy = accounts_.createProxy, bindClass = function(name)\n" +
+                "  if name == 'android.net.Uri' then return { parse = function(self, text) return text end } end\n" +
+                "  return accounts_.bindClass(name) end }\n" +
+                "local function cursorof(columns, rows) local position = rows.at or 0 return {\n" +
+                "  getColumnIndex = function(self, column) return columns[column] or -1 end,\n" +
+                "  moveToNext = function(self) position = position + 1 return rows[position] ~= nil end,\n" +
+                "  getString = function(self, index) return rows[position][index + 1] end,\n" +
+                "  close = function(self) end } end\n" +
+                // The calendars of the provider: one of a, a holiday calendar a subscribed to, and one of b
+                "local calendars = { { 'a@gmail.com', 'com.google', 'a@gmail.com' },\n" +
+                "  { 'a@gmail.com', 'com.google', '" + holiday + "' }, { 'b@gmail.com', 'com.google', 'b@gmail.com' } }\n" +
+                "local provider = { query = function(self, uri) assert(uri == 'content://com.android.calendar/calendars', uri)\n" +
+                "  return cursorof({ account_name = 0, account_type = 1, ownerAccount = 2 }, calendars) end }\n" +
+                "local uri = { getAuthority = function(self) return 'com.android.calendar' end }\n" +
+                "local function queried(columns, ...)\n" +
+                "  local param = paramof(cursorof(columns, { at = 1, { ... } }), { [0] = uri }, provider)\n" +
+                "  after(nil, param) return param.result end\n" +
+                "local row = queried({ account_name = 0, account_type = 1, ownerAccount = 2 }, 'a@gmail.com', 'com.google',\n" +
+                "  '" + holiday + "')\n" +
+                "local name, owner = row.getString(0), row.getString(2)\n" +
+                "local b = { type = 'com.google', name = 'b@gmail.com' }\n" +
+                "accountafter(account_, paramof(b))\n" +
+                "local event = queried({ ownerAccount = 0, organizer = 1 }, 'b@gmail.com', 'b@gmail.com')\n" +
+                "local attendee = queried({ attendeeEmail = 0 }, 'a@gmail.com')\n" +
+                "return name, owner, b.name, event.getString(0), event.getString(1), attendee.getString(0)");
+        assertEquals("private@example.com", result.arg(1).tojstring());
+        assertEquals(holiday, result.arg(2).tojstring());
+        assertEquals("private2@example.com", result.arg(3).tojstring());
+        assertEquals("private2@example.com", result.arg(4).tojstring());
+        assertEquals("private2@example.com", result.arg(5).tojstring());
+        assertEquals("private@example.com", result.arg(6).tojstring());
+    }
+
+    // The name of an account as text in the result of the chooser of accounts and in the broadcast of a removed account
+    // gets the fake of its Account; the accounts of the app itself and other intents stay, and the extras of other
+    // intents are not read; a copy of the extras is read with the class loader of the app, and stays when it cannot be
+    // read
+    @Test
+    public void accountNamesInIntents() throws Exception {
+        String intents = "function intentof(action, name, type, component, broken)\n" +
+                "  local values = { authAccount = name, accountType = type }\n" +
+                "  return { values = values, reads = 0,\n" +
+                "    getAction = function(self) return action end,\n" +
+                "    getComponent = function(self) return component end,\n" +
+                "    getData = function(self) return nil end,\n" +
+                "    getExtras = function(self)\n" +
+                "      self.reads = self.reads + 1\n" +
+                "      local copy = { authAccount = values.authAccount, accountType = values.accountType }\n" +
+                "      return { copy = copy,\n" +
+                "        setClassLoader = function(_, loader) copy.loader = loader end,\n" +
+                "        getString = function(_, key) assert(copy.loader == 'loader', 'read without the class loader')\n" +
+                "          if broken then error('BadParcelableException') end return copy[key] end,\n" +
+                "        putString = function(_, key, value) copy[key] = value end }\n" +
+                "    end,\n" +
+                "    replaceExtras = function(self, extras) values.authAccount = extras.copy.authAccount end }\n" +
+                "end\n" +
+                "function check(intent)\n" +
+                "  local restricted = after(intent_, paramof(intent))\n" +
+                "  return tostring(restricted) .. ' ' .. tostring(intent.values.authAccount) .. ' ' .. intent.reads\n" +
+                "end";
+        Globals globals = accounts();
+        Scripts.run(globals, intents);
+        String removed = "'android.accounts.action.ACCOUNT_REMOVED'";
+        Varargs result = Scripts.run(globals, "local first = { type = 'com.google', name = 'a@gmail.com' }\n" +
+                "after(account_, paramof(first))\n" +
+                "local chosen = check(intentof(nil, 'b@gmail.com', 'com.google'))\n" +
+                "local account = { type = 'com.google', name = 'b@gmail.com' }\n" +
+                "after(account_, paramof(account))\n" +
+                "return chosen, account.name, check(intentof(" + removed + ", 'a@gmail.com', 'com.google')),\n" +
+                "  check(intentof(nil, 'me', 'com.example.account')),\n" +
+                "  check(intentof('android.intent.action.VIEW', 'c@gmail.com', 'com.google')),\n" +
+                "  check(intentof(nil, 'c@gmail.com', 'com.google', 'component')),\n" +
+                "  check(intentof(nil, 'c@gmail.com', 'com.google', nil, true)),\n" +
+                "  check(intentof(nil, 'c@gmail.com', nil)), check(intentof(nil, nil, nil)),\n" +
+                "  tostring(after(intent_, paramof(nil)))");
+        assertEquals("true private2@example.com 1", result.arg(1).tojstring());
+        assertEquals("private2@example.com", result.arg(2).tojstring());
+        assertEquals("true private@example.com 1", result.arg(3).tojstring());
+        assertEquals("false me 1", result.arg(4).tojstring());
+        assertEquals("false c@gmail.com 0", result.arg(5).tojstring());
+        assertEquals("false c@gmail.com 0", result.arg(6).tojstring());
+        assertEquals("false c@gmail.com 1", result.arg(7).tojstring());
+        assertEquals("false c@gmail.com 1", result.arg(8).tojstring());
+        assertEquals("false nil 1", result.arg(9).tojstring());
+        assertEquals("false", result.arg(10).tojstring());
+        // The broadcast of the removal of the second of two accounts starts a process which saw no account yet:
+        // Android lists only the first one, which keeps its fake, and the removed one gets the next
+        globals = accounts();
+        Scripts.run(globals, intents + "\nlive = { ['com.google'] = { 'a@gmail.com' } }");
+        assertEquals("true private2@example.com 1",
+                Scripts.run(globals, "return check(intentof(" + removed + ", 'b@gmail.com', 'com.google'))").tojstring());
     }
 
     // The account types of hidden apps are left out, those of visible apps stay
@@ -389,6 +609,7 @@ public class ValueScriptsTest {
         Globals globals = load("clipboard_getprimaryclip");
         Scripts.run(globals, "function clipof(count)\n" +
                 "  return { getItemCount = function(self) return count end,\n" +
+                "    getDescription = function(self) return { getTimestamp = function(self) return 0 end } end,\n" +
                 "    newPlainText = function(self, label, text) return label .. ':' .. text end }\n" +
                 "end");
         check(globals, "return after_(hookof('getPrimaryClip'), paramof(clipof(1)))", true, true, "text:Private");

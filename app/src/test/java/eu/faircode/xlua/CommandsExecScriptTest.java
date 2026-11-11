@@ -26,6 +26,8 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -38,19 +40,35 @@ import static org.junit.Assert.assertTrue;
 // Android as texts, so unlike CommandsBlockedScriptTest it needs no links, which Windows does not allow every user
 public class CommandsExecScriptTest {
     private static final String LIB = "/data/app/com.example/lib/arm64";
+    private static final String LINK = "/data/user/0/com.example/files/tool";
 
     private static final String STUBS = String.join("\n",
             "local bind, make, instance = luajava.bindClass, luajava.new, luajava.newInstance",
+            // Absolute paths exist but these, and the link of the app leads into its native library folder
+            "local absent = { ['/system/bin/nothing'] = true, ['/system/bin/sh/x'] = true }",
+            "local links = { ['" + LINK + "'] = '" + LIB + "/libtool.so' }",
+            // Os.stat fails like Android for a path through a file or a / after one, all files here
+            "local os = { stat = function(self, path)",
+            "  if string.find(path, '/system/bin/sh/', 1, true) == 1 or string.sub(path, -1) == '/' then",
+            "    error('vm error: android.system.ErrnoException: stat failed: ENOTDIR (Not a directory)', 0)",
+            "  end",
+            "end }",
             "luajava.bindClass = function(name)",
             "  if name == 'java.io.File' then return 'file' end",
+            "  if name == 'android.system.Os' then return os end",
+            "  if name == 'android.system.OsConstants' then return { ENOTDIR = 20 } end",
             "  return bind(name)",
             "end",
             "luajava.new = function(class, ...)",
             "  if class ~= 'file' then return make(class, ...) end",
             "  local path = ...",
-            "  return { isAbsolute = function(self) return true end,",
-            "    getCanonicalPath = function(self) return path end,",
-            "    exists = function(self) return path ~= '/system/bin/nothing' end }",
+            "  local absolute = string.sub(path, 1, 1) == '/'",
+            "  return { isAbsolute = function(self) return absolute end,",
+            "    getPath = function(self) return path end,",
+            "    getAbsolutePath = function(self) return path end,",
+            "    isDirectory = function(self) return false end,",
+            "    getCanonicalPath = function(self) return links[path] or path end,",
+            "    exists = function(self) return absolute and not absent[path] end }",
             "end",
             "luajava.newInstance = function(name, ...)",
             "  if name ~= 'android.system.ErrnoException' then return instance(name, ...) end",
@@ -63,13 +81,14 @@ public class CommandsExecScriptTest {
             "  local param = {",
             "    getThis = function(self) return builder end,",
             "    getArgument = function(self, index) return program end,",
+            "    setArgument = function(self, index, value) program = value end,",
             "    getApplicationContext = function(self)",
             "      return { getApplicationInfo = function(self) return info end }",
             "    end,",
             "    setResult = function(self, value) thrown = value end }",
             "  local hook = { getMethodName = function(self) return method end }",
             "  local restricted, line = before(hook, param)",
-            "  return restricted, thrown, line",
+            "  return restricted, thrown, line, program",
             "end",
             "function finish(builder)",
             "  return after({}, { getThis = function(self) return builder end })",
@@ -135,11 +154,42 @@ public class CommandsExecScriptTest {
         assertEquals("execv 13", result.arg(2).tojstring());
     }
 
+    // Like execv of Linux, which searches no PATH and fails for no path, and with the error of a path through a file
+    @Test
+    public void execFailsLikeTheKernel() {
+        assertEquals("execv 2", exec("execv", "sh").arg(2).tojstring());
+        assertEquals("execve 2", exec("execve", "").arg(2).tojstring());
+        assertEquals("execv 20", exec("execv", "/system/bin/sh/x").arg(2).tojstring());
+        IOException ex = (IOException) start(new ProcessBuilder("/system/bin/sh/x")).arg(2).touserdata();
+        assertEquals("Cannot run program \"/system/bin/sh/x\": error=20, Not a directory", ex.getMessage());
+        // The working directory of the builder fails first, here a file
+        ex = (IOException) start(new ProcessBuilder("sh").directory(new File("/system/bin/sh"))).arg(2).touserdata();
+        assertEquals("Cannot run program \"sh\" (in directory \"/system/bin/sh\"): error=20, Not a directory",
+                ex.getMessage());
+        // A / after a file, which java.io.File drops, also after a program of the app, which then does not run
+        for (String program : new String[]{"/system/bin/sh/", LIB + "/libtool.so/"}) {
+            assertEquals("execv 20", exec("execv", program).arg(2).tojstring());
+            ex = (IOException) start(new ProcessBuilder(program)).arg(2).touserdata();
+            assertEquals("Cannot run program \"" + program + "\": error=20, Not a directory", ex.getMessage());
+        }
+    }
+
     @Test
     public void execOfProgramsOfTheAppRuns() {
         Varargs result = exec("execve", LIB + "/libtool.so");
         assertFalse(result.arg1().toboolean());
         assertTrue(result.arg(2).isnil());
+    }
+
+    // A link runs the program it led to when checked, by its path, so changing the link after the check runs nothing else
+    @Test
+    public void programsOfTheAppRunByTheirPath() {
+        Varargs result = exec("execv", LINK);
+        assertFalse(result.arg1().toboolean());
+        assertEquals(LIB + "/libtool.so", result.arg(4).tojstring());
+        ProcessBuilder builder = new ProcessBuilder(LINK, "-v");
+        assertFalse(start(builder).arg1().toboolean());
+        assertEquals(Arrays.asList(LIB + "/libtool.so", "-v"), words(builder));
     }
 
     @Test

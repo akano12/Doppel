@@ -109,19 +109,30 @@ public class UserAgentClipScriptTest {
     // The fake clip and its description get the time of the real clip, which made clips do not have
     private static final String CLIP = String.join("\n",
             "function hookof(method) return { getMethodName = function(self) return method end } end",
-            "function paramof(result)",
+            "values, unhooked = {}, false",
+            "function paramof(result, exception, this, argument)",
             "  local param = { result = result }",
+            "  param.getArgument = function(self, index) assert(index == 0) return argument end",
             "  param.getResult = function(self) return self.result end",
             "  param.setResult = function(self, value) self.result = value end",
+            "  param.getException = function(self) return exception end",
+            "  param.getThis = function(self) return this end",
+            "  param.getApplicationContext = function(self) return 'context' end",
+            "  param.putValue = function(self, name, value, scope) assert(scope == 'context') values[name] = value end",
+            "  param.getValue = function(self, name, scope) assert(scope == 'context') return values[name] end",
+            "  param.unhooked = function(self, fn) unhooked = true local value = fn() unhooked = false return value end",
             "  return param",
             "end",
-            "function descriptionof(timestamp)",
+            "function descriptionof(timestamp, label)",
             "  return { timestamp = timestamp, getTimestamp = function(self) return self.timestamp end,",
-            "    setTimestamp = function(self, value) self.timestamp = value end }",
+            "    setTimestamp = function(self, value) self.timestamp = value end, getLabel = function(self) return label or 'x' end,",
+            "    getMimeTypeCount = function(self) return 1 end, getMimeType = function(self, i) return 'text/plain' end }",
             "end",
-            "function clipof(timestamp)",
-            "  local description = descriptionof(timestamp)",
+            "function clipof(timestamp, text, label)",
+            "  local description = descriptionof(timestamp, label)",
+            "  local item = { getText = function(self) return text or 'hello' end, getUri = function(self) return nil end }",
             "  return { getItemCount = function(self) return 1 end, getDescription = function(self) return description end,",
+            "    getItemAt = function(self, i) assert(i == 0) return item end,",
             "    newPlainText = function(self, label, text) return clipof(0) end }",
             "end",
             "luajava = { bindClass = function(name) return { newPlainText = function(self, label, text) return clipof(0) end } end }");
@@ -146,5 +157,62 @@ public class UserAgentClipScriptTest {
                 "return after(hookof('getPrimaryClipDescription'), param)");
         assertTrue(result.arg1().toboolean());
         assertFalse(Scripts.run(globals, "return after(hookof('getPrimaryClipDescription'), paramof(nil))").arg1().toboolean());
+    }
+
+    // Android stamps a clip with the time during the call of setPrimaryClip, so the clip of a time within the app's
+    // own last call, which looks like the clip the app set, comes back as the app set it, like without Doppel; another
+    // clip of that time is faked; hasText of another clip has the text the fake clip has, while there is a clip
+    @Test
+    public void ownClipIsTheRealOne() throws Exception {
+        Globals globals = Scripts.load("clipboard_getprimaryclip", CLIP + "\n" + String.join("\n",
+                "clock = 0",
+                "now = function() return clock end",
+                "function set(from, to, clip, exception)",
+                "  clock = from before(hookof('setPrimaryClip'), paramof(nil, nil, nil, clip))",
+                "  clock = to return after(hookof('setPrimaryClip'), paramof(nil, exception, nil, clip))",
+                "end",
+                // Whether restricted and whether the real clip or description stayed
+                "function read(method, timestamp, text, label)",
+                "  local real = method == 'getPrimaryClipDescription' and descriptionof(timestamp, label)",
+                "    or clipof(timestamp, text, label)",
+                "  local param = paramof(real)",
+                "  return after(hookof(method), param), param.result == real",
+                "end",
+                "function hastext(result, timestamp, label)",
+                "  local manager = { getPrimaryClipDescription = function(self)",
+                "    assert(unhooked, 'hooked call') return timestamp and descriptionof(timestamp, label) end }",
+                "  local param = paramof(result, nil, manager)",
+                "  return after(hookof('hasText'), param), param.result",
+                "end"));
+        check(globals, "return set(100, 110, clipof(0))", false);
+        for (String method : new String[]{"getPrimaryClip", "getPrimaryClipDescription"}) {
+            for (int own : new int[]{100, 105, 110})
+                check(globals, "return read('" + method + "', " + own + ")", false, true);
+            for (int other : new int[]{99, 111})
+                check(globals, "return read('" + method + "', " + other + ")", true, false);
+            // A clip which another app sets after Android stamped the app's own one, within the call
+            check(globals, "return read('" + method + "', 105, nil, 'y')", true, false);
+        }
+        check(globals, "return read('getPrimaryClip', 105, 'other')", true, false);
+
+        // The app's own clip of an image keeps no text, another one has the fake text; no clip has none
+        check(globals, "return hastext(false, 105)", false, false);
+        check(globals, "return hastext(false, 105, 'y')", true, true);
+        check(globals, "return hastext(false, 200)", true, true);
+        check(globals, "return hastext(true, 200)", false, true);
+        check(globals, "return hastext(false, nil)", false, false);
+
+        // A call which Android refuses, like for no clip, sets no clip, so the one before stays the own one
+        check(globals, "return set(300, 310, clipof(0), 'refused')", false);
+        check(globals, "return set(400, 410, nil, 'refused')", false);
+        check(globals, "return read('getPrimaryClip', 305)", true, false);
+        check(globals, "return read('getPrimaryClip', 405)", true, false);
+        check(globals, "return read('getPrimaryClip', 105)", false, true);
+    }
+
+    private static void check(Globals globals, String lua, boolean... expected) {
+        Varargs result = Scripts.run(globals, lua);
+        for (int i = 0; i < expected.length; i++)
+            assertEquals(lua + " #" + (i + 1), expected[i], result.arg(i + 1).toboolean());
     }
 }

@@ -36,9 +36,17 @@ public class IntentScriptTest {
             "function hookof(name)",
             "  return { getName = function(self) return name end }",
             "end",
-            // The packages which stay visible besides the app itself, and whether the process is of the system
+            // The values scripts keep per scope, like XParam.putValue, which a test can share with another script
+            "context = {}",
+            "store = {}",
+            // The packages which stay visible besides the app itself, and whether the process is of the system;
+            // the result is the intent, or another value, which setResult replaces
             "function paramof(intent, visible, system, settings)",
             "  return { getResult = function(self) return intent end,",
+            "    setResult = function(self, value) self.replaced = { value = value } end,",
+            "    getApplicationContext = function(self) return context end,",
+            "    putValue = function(self, name, value, scope) store[scope] = store[scope] or {} store[scope][name] = value end,",
+            "    getValue = function(self, name, scope) return store[scope] and store[scope][name] end,",
             "    getPackageName = function(self) return 'com.example.app' end,",
             "    getUid = function(self) return 10001 end,",
             "    isPackageVisible = function(self, name)",
@@ -57,6 +65,7 @@ public class IntentScriptTest {
             "  function intent:getData() return self.data end",
             "  function intent:setData(uri) self.data = uri end",
             "  function intent:putExtra(name, value) self.extras[name] = value end",
+            "  function intent:getStringExtra(name) return self.extras[name] end",
             "  function intent:replaceExtras(bundle) self.extras = bundle.values end",
             "  function intent:getExtras()",
             "    if self.extras == nil then return nil end",
@@ -358,6 +367,31 @@ public class IntentScriptTest {
                 "  paramof(intentof('android.intent.action.PHONE_STATE', { state = 'IDLE' })))").arg1().toboolean());
     }
 
+    // The number of an outgoing call is also the result data of its broadcast (Telecom), which the app reads as none,
+    // like the extra; the data the app set itself and none stay (see receiver_resultdata). An app which passes the
+    // broadcast on with setResultData(getResultData()) so sets none, which cancels the call (shortcut there).
+    @Test
+    public void outgoingCallResultDataIsLeftOut() throws Exception {
+        Globals receiver = Scripts.load("receiver_resultdata", STUBS);
+        receiver.set("context", globals.get("context"));
+        receiver.set("store", globals.get("store"));
+        String read = "local param = paramof(%s)\n" +
+                "return after(hookof('BroadcastReceiver.getResultData/call_log'), param), param.replaced ~= nil,\n" +
+                "  param.replaced and param.replaced.value";
+        assertFalse(Scripts.run(receiver, String.format(read, "'+3161234'")).arg1().toboolean());
+        run("after(hookof('Intent.createFromParcel/call_log'), paramof(intentof('android.intent.action.NEW_OUTGOING_CALL',\n" +
+                "  { ['android.intent.extra.PHONE_NUMBER'] = '+3161234' })))");
+        Varargs number = Scripts.run(receiver, String.format(read, "'+3161234'"));
+        assertTrue(number.arg(1).toboolean());
+        assertTrue(number.arg(2).toboolean());
+        assertTrue(number.arg(3).isnil());
+        for (String data : new String[]{"'+3199999'", "nil"}) {
+            Varargs other = Scripts.run(receiver, String.format(read, data));
+            assertFalse(data, other.arg(1).toboolean());
+            assertFalse(data, other.arg(2).toboolean());
+        }
+    }
+
     // The battery level in steps of 10 percent of its scale, but at least 15 percent, like BatteryManager (see battery)
     @Test
     public void batteryLevelIsRounded() {
@@ -420,9 +454,12 @@ public class IntentScriptTest {
     public void dataMessageIsEmpty() {
         Varargs result = run(
                 "local intent = intentof('android.intent.action.DATA_SMS_RECEIVED', { pdus = { length = 1, 'pdu' } })\n" +
-                        "return after(hookof('Intent.createFromParcel/message'), paramof(intent)), intent.extras.pdus.length");
+                        "return after(hookof('Intent.createFromParcel/message'), paramof(intent)), intent.extras.pdus.length,\n" +
+                        "  intent.extras.pdus.type.name");
         assertTrue(result.arg(1).toboolean());
         assertEquals(0, result.arg(2).toint());
+        // A byte[][], like the messages Android sends, which getSerializableExtra(name, byte[][].class) finds
+        assertEquals("[B", result.arg(3).tojstring());
     }
 
     // The messages for the default SMS app are like the received ones
@@ -430,9 +467,11 @@ public class IntentScriptTest {
     public void deliveredMessagesAreEmpty() {
         Varargs sms = run(
                 "local intent = intentof('android.provider.Telephony.SMS_DELIVER', { pdus = { length = 1, 'pdu' } })\n" +
-                        "return after(hookof('Intent.createFromParcel/message'), paramof(intent)), intent.extras.pdus.length");
+                        "return after(hookof('Intent.createFromParcel/message'), paramof(intent)), intent.extras.pdus.length,\n" +
+                        "  intent.extras.pdus.type.name");
         assertTrue(sms.arg(1).toboolean());
         assertEquals(0, sms.arg(2).toint());
+        assertEquals("[B", sms.arg(3).tojstring());
 
         Varargs wap = run(
                 "local intent = intentof('android.provider.Telephony.WAP_PUSH_DELIVER', { data = 'pdu', address = '+31612345678' })\n" +
@@ -461,5 +500,58 @@ public class IntentScriptTest {
                         "after(hookof('Intent.createFromParcel/timezone'), paramof(intent))\n" +
                         "return intent.extras['time-zone']");
         assertEquals("UTC", utc.arg1().tojstring());
+    }
+
+    // The broadcast of a time zone change, which Android sends only when the zone changed, does not reach the receivers,
+    // since the fake zone stays the same (see receiver_skip): a receiver of the manifest is finished first, a registered
+    // one only when nothing goes back to Android, not of an ordered broadcast or, from Android 14, of one Android does
+    // not assume delivered; other broadcasts and other variants are delivered
+    @Test
+    public void timeZoneChangeIsNotDelivered() throws Exception {
+        Globals skip = Scripts.load("receiver_skip", STUBS + "\n" + String.join("\n",
+                "calls = {}",
+                "function dispatchof(name, method, count)",
+                "  return { getName = function(self) return name end, getMethodName = function(self) return method end,",
+                "    getParameterTypes = function(self) return { length = count } end }",
+                "end",
+                "function callof(args)",
+                "  return { getArgument = function(self, index) return args[index] end,",
+                "    setResult = function(self, value) calls[#calls + 1] = 'skip' end }",
+                "end",
+                "function dataof(action)",
+                "  return { intent = intentof(action, {}), finish = function(self) calls[#calls + 1] = 'finish' end }",
+                "end",
+                "function deliver(hook, args)",
+                "  calls = {}",
+                "  local skipped = before(hook, callof(args))",
+                "  return skipped, table.concat(calls, ',')",
+                "end",
+                "zone = 'android.intent.action.TIMEZONE_CHANGED'"));
+        String[][] cases = {
+                {"dispatchof('ActivityThread.handleReceiver/timezone', 'handleReceiver', 1), { [0] = dataof(zone) }",
+                        "true", "finish,skip"},
+                {"dispatchof('ActivityThread.handleReceiver/timezone', 'handleReceiver', 1), " +
+                        "{ [0] = dataof('android.intent.action.TIME_SET') }", "false", ""},
+                {"dispatchof('ActivityThread.handleReceiver/timezone', 'handleReceiver', 1), { [0] = nil }", "false", ""},
+                {"dispatchof('ActivityThread.handleReceiver/battery', 'handleReceiver', 1), { [0] = dataof(zone) }",
+                        "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive/timezone', 'performReceive', 7), " +
+                        "{ [0] = intentof(zone, {}), [4] = false, [5] = false }", "true", "skip"},
+                {"dispatchof('ReceiverDispatcher.performReceive/timezone', 'performReceive', 7), " +
+                        "{ [0] = intentof(zone, {}), [4] = true, [5] = false }", "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive/timezone', 'performReceive', 7), " +
+                        "{ [0] = intentof('android.intent.action.SCREEN_ON', {}), [4] = false }", "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive.sender/timezone', 'performReceive', 10), " +
+                        "{ [0] = intentof(zone, {}), [4] = false, [6] = true }", "true", "skip"},
+                {"dispatchof('ReceiverDispatcher.performReceive.sender/timezone', 'performReceive', 10), " +
+                        "{ [0] = intentof(zone, {}), [4] = false, [6] = false }", "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive.sender/timezone', 'performReceive', 10), " +
+                        "{ [0] = intentof(zone, {}), [4] = true, [6] = true }", "false", ""},
+        };
+        for (String[] test : cases) {
+            Varargs result = Scripts.run(skip, "return deliver(" + test[0] + ")");
+            assertEquals(test[0], Boolean.parseBoolean(test[1]), result.arg(1).toboolean());
+            assertEquals(test[0], test[2], result.arg(2).tojstring());
+        }
     }
 }

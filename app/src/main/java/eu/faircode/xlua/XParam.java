@@ -47,8 +47,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -451,22 +453,26 @@ public class XParam {
     // or its number, like java.nio opens files; the app still reads it from the start
     @SuppressWarnings("unused")
     public String getFileText() throws Throwable {
+        return new String(getFileBytes(), StandardCharsets.UTF_8);
+    }
+
+    private byte[] getFileBytes() throws Throwable {
         Object result = this.param.getResult();
         if (result instanceof Integer)
             // A descriptor of its own, which the reading does not move, like the one of the app
             try (ParcelFileDescriptor pfd = ParcelFileDescriptor.fromFd((Integer) result)) {
-                return readText(pfd.getFileDescriptor());
+                return readBytes(pfd.getFileDescriptor());
             }
-        return readText((FileDescriptor) result);
+        return readBytes((FileDescriptor) result);
     }
 
-    private static String readText(FileDescriptor fd) throws Throwable {
-        ByteArrayOutputStream text = new ByteArrayOutputStream();
+    private static byte[] readBytes(FileDescriptor fd) throws Throwable {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         byte[] buffer = new byte[4096];
         for (int n = Os.pread(fd, buffer, 0, buffer.length, 0); n > 0;
-             n = Os.pread(fd, buffer, 0, buffer.length, text.size()))
-            text.write(buffer, 0, n);
-        return text.toString(StandardCharsets.UTF_8.name());
+             n = Os.pread(fd, buffer, 0, buffer.length, bytes.size()))
+            bytes.write(buffer, 0, n);
+        return bytes.toByteArray();
     }
 
     // The app reads the text instead of the file the hooked method opened, without a file being kept:
@@ -474,8 +480,11 @@ public class XParam {
     // the contents of the file apart; the file which was opened is closed. java.nio gets the number of a descriptor.
     @SuppressWarnings("unused")
     public void setFileText(String text) throws Throwable {
+        setFileBytes(text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void setFileBytes(byte[] bytes) throws Throwable {
         Object opened = this.param.getResult();
-        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
         FileDescriptor fake;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             fake = Os.memfd_create("file", OsConstants.MFD_CLOEXEC);
@@ -532,6 +541,98 @@ public class XParam {
             //noinspection ResultOfMethodCallIgnored
             file.delete();
         }
+    }
+
+    // A property area the hooked method opened, a file of /dev/__properties__ which bionic maps in each process to read
+    // the system properties and which apps may read as a file too, with the values of properties replaced, read and
+    // written once; the old value of each, null when the method failed, the file is no property area or does not have
+    // the property, its value is empty or long, or nothing changed. shortcut: native code reads the areas bionic
+    // mapped, which keep the real values, upgrade when native code is hooked.
+    @SuppressWarnings("unused")
+    public String[] setPropertyValues(String[] names, String[] values) throws Throwable {
+        String[] olds = new String[names.length];
+        if (this.param.getThrowable() != null || this.param.getResult() == null)
+            return olds;
+        byte[] area = getFileBytes();
+        boolean backup = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
+        boolean changed = false;
+        for (int i = 0; i < names.length; i++)
+            if ((olds[i] = replaceProperty(area, names[i], values[i], backup)) != null)
+                changed = true;
+        if (changed)
+            setFileBytes(area);
+        return olds;
+    }
+
+    // The layout of a property area (bionic system_properties/prop_area.h and prop_info.h, the same on Android 8.1 to 17):
+    // a header of 128 bytes with the magic and the version, then the data, to which all offsets point. The data starts
+    // with the root of a trie of the parts of the names between the dots: each node has the length of its part, the
+    // offset of the property it ends, of its siblings before and after it in a binary tree, and of the tree of its
+    // children, then the part. A property has a serial, with the length of its value in the top byte, then the value.
+    private static final int AREA_MAGIC = 0x504f5250;
+    private static final int AREA_VERSION = 0xfc6ed0ab;
+    private static final int AREA_DATA = 128;
+    private static final int NODE_PART = 20;
+    private static final int VALUE_MAX = 92;
+    private static final int LONG_VALUE = 1 << 16;
+
+    // Replaces the value of a property in the bytes of a property area like Android sets it, also its length in the
+    // serial, without the bytes of an older, longer value after it. From Android 11 a copy of the value before the
+    // last change of a property of the area follows the root (the dirty backup area), which is the fake value too
+    // when there is one, so no older value is left. The old value, null as for setPropertyValues.
+    static String replaceProperty(byte[] area, String name, String value, boolean backup) {
+        ByteBuffer buffer = ByteBuffer.wrap(area).order(ByteOrder.nativeOrder());
+        byte[] fake = value.getBytes(StandardCharsets.UTF_8);
+        try {
+            if (fake.length >= VALUE_MAX || buffer.getInt(8) != AREA_MAGIC || buffer.getInt(12) != AREA_VERSION)
+                return null;
+            int node = 0;
+            for (String part : name.split("\\.", -1)) {
+                byte[] bytes = part.getBytes(StandardCharsets.UTF_8);
+                node = buffer.getInt(AREA_DATA + node + 16);
+                // Like bionic compares parts: shorter first, else by their bytes; at most as many steps as nodes fit
+                for (int steps = 0; node != 0; steps++) {
+                    int at = AREA_DATA + node;
+                    int length = buffer.getInt(at);
+                    int order = (bytes.length != length ? Integer.compare(bytes.length, length) :
+                            compareBytes(bytes, area, at + NODE_PART));
+                    if (order == 0)
+                        break;
+                    if (steps > area.length / NODE_PART)
+                        return null;
+                    node = buffer.getInt(at + (order < 0 ? 8 : 12));
+                }
+                if (node == 0)
+                    return null;
+            }
+            int offset = buffer.getInt(AREA_DATA + node + 4);
+            if (offset == 0)
+                return null;
+            int info = AREA_DATA + offset;
+            int serial = buffer.getInt(info);
+            int length = serial >>> 24;
+            if ((serial & LONG_VALUE) != 0 || length == 0 || length >= VALUE_MAX)
+                return null;
+            String old = new String(area, info + 4, length, StandardCharsets.UTF_8);
+            byte[] before = area.clone();
+            Arrays.fill(area, info + 4, info + 4 + VALUE_MAX, (byte) 0);
+            System.arraycopy(fake, 0, area, info + 4, fake.length);
+            buffer.putInt(info, (fake.length << 24) | (serial & 0xffffff));
+            int copy = AREA_DATA + NODE_PART;
+            if (backup && area[copy] != 0)
+                System.arraycopy(area, info + 4, area, copy, VALUE_MAX);
+            return (Arrays.equals(before, area) ? null : old);
+        } catch (IndexOutOfBoundsException ignored) {
+            return null;
+        }
+    }
+
+    // Like strncmp, which compares bytes without a sign
+    private static int compareBytes(byte[] part, byte[] area, int at) {
+        for (int i = 0; i < part.length; i++)
+            if (part[i] != area[at + i])
+                return Integer.compare(part[i] & 0xff, area[at + i] & 0xff);
+        return 0;
     }
 
     // The text of a file like the app reads it, with its hooks of opening files, like of /proc/meminfo;

@@ -30,8 +30,12 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -350,5 +354,113 @@ public class XParamTest {
         } catch (LuaError ignored) {
         }
         assertFalse(XCore.inService());
+    }
+
+    // A property area like bionic builds it (prop_area::add and find_property): the header, the root, from Android 11
+    // the backup of a value, then for each property the nodes of the parts of its name, each in the binary tree of its
+    // siblings, shorter parts first, and the property with its serial, its value and its name, all aligned to 4 bytes
+    private static ByteBuffer areaOf(boolean backup, String... properties) {
+        ByteBuffer area = ByteBuffer.allocate(128 * 1024).order(ByteOrder.nativeOrder());
+        area.putInt(8, 0x504f5250).putInt(12, 0xfc6ed0ab);
+        int used = 20 + (backup ? 92 : 0);
+        for (String property : properties) {
+            String name = property.substring(0, property.indexOf('='));
+            byte[] value = property.substring(name.length() + 1).getBytes(StandardCharsets.UTF_8);
+            int node = 0;
+            for (String part : name.split("\\.")) {
+                byte[] bytes = part.getBytes(StandardCharsets.UTF_8);
+                int link = 128 + node + 16;
+                while (true) {
+                    int child = area.getInt(link);
+                    if (child == 0) {
+                        area.putInt(link, used);
+                        area.putInt(128 + used, bytes.length);
+                        for (int i = 0; i < bytes.length; i++)
+                            area.put(128 + used + 20 + i, bytes[i]);
+                        node = used;
+                        used += (20 + bytes.length + 1 + 3) & ~3;
+                        break;
+                    }
+                    byte[] other = new byte[area.getInt(128 + child)];
+                    for (int i = 0; i < other.length; i++)
+                        other[i] = area.get(128 + child + 20 + i);
+                    int order = (bytes.length != other.length ? Integer.compare(bytes.length, other.length) :
+                            new String(bytes, StandardCharsets.UTF_8).compareTo(new String(other, StandardCharsets.UTF_8)));
+                    if (order == 0) {
+                        node = child;
+                        break;
+                    }
+                    link = 128 + child + (order < 0 ? 8 : 12);
+                }
+            }
+            area.putInt(128 + node + 4, used);
+            area.putInt(128 + used, value.length << 24);
+            for (int i = 0; i < value.length; i++)
+                area.put(128 + used + 4 + i, value[i]);
+            byte[] full = name.getBytes(StandardCharsets.UTF_8);
+            for (int i = 0; i < full.length; i++)
+                area.put(128 + used + 96 + i, full[i]);
+            used += (96 + full.length + 1 + 3) & ~3;
+        }
+        area.putInt(0, used);
+        return area;
+    }
+
+    private static boolean holds(ByteBuffer area, String text) {
+        return new String(area.array(), StandardCharsets.ISO_8859_1).contains(text);
+    }
+
+    // The value of a property in a property area, which apps can read as a file (/dev/__properties__), becomes the
+    // fake one, without older values after it or in the backup; other properties, parts of names and files which are
+    // no property area stay
+    @Test
+    public void propertyAreaValues() {
+        ByteBuffer area = areaOf(false, "persist.sys.usb.config=adb", "persist.sys.timezone=America/Argentina/Buenos_Aires",
+                "persist.sys.locale=de-DE", "sys.boot_completed=1", "persist.sys.a=b", "persist.sys.timezone_confidence=100",
+                "ro.build.id=AP1A", "persist.sys.language=", "persist.sys.zzzzzzzz=z");
+        byte[] other = areaOf(false, "persist.sys.usb.config=adb", "persist.sys.timezone=Europe/Kyiv",
+                "persist.sys.locale=de-DE", "sys.boot_completed=1", "persist.sys.a=b", "persist.sys.timezone_confidence=100",
+                "ro.build.id=AP1A", "persist.sys.language=", "persist.sys.zzzzzzzz=z").array();
+        assertEquals("America/Argentina/Buenos_Aires",
+                XParam.replaceProperty(area.array(), "persist.sys.timezone", "Europe/Kyiv", false));
+        // The same bytes as an area made with the fake value, its length in the serial too
+        assertArrayEquals(other, area.array());
+        assertFalse(holds(area, "Buenos"));
+        assertEquals("Europe/Kyiv", XParam.replaceProperty(area.array(), "persist.sys.timezone", "UTC", false));
+        assertNull("Nothing changed", XParam.replaceProperty(area.array(), "persist.sys.timezone", "UTC", false));
+        assertEquals("de-DE", XParam.replaceProperty(area.array(), "persist.sys.locale", "en-US", false));
+        assertEquals("100", XParam.replaceProperty(area.array(), "persist.sys.timezone_confidence", "100x", false));
+        assertEquals("z", XParam.replaceProperty(area.array(), "persist.sys.zzzzzzzz", "", false));
+        assertNull("Empty", XParam.replaceProperty(area.array(), "persist.sys.zzzzzzzz", "y", false));
+        assertNull("Empty", XParam.replaceProperty(area.array(), "persist.sys.language", "en", false));
+        for (String missing : new String[]{"persist.sys", "persist.sys.timezon", "persist.sys.timezone.x", "persist.sys.b",
+                "persist..timezone", "", "vendor.sys.timezone"})
+            assertNull(missing, XParam.replaceProperty(area.array(), missing, "UTC", false));
+        assertEquals("1", XParam.replaceProperty(area.array(), "sys.boot_completed", "0", false));
+        assertEquals("adb", XParam.replaceProperty(area.array(), "persist.sys.usb.config", "mtp", false));
+        assertEquals("AP1A", XParam.replaceProperty(area.array(), "ro.build.id", "UNKNOWN", false));
+        assertNull("Too long", XParam.replaceProperty(area.array(), "ro.build.id", new String(new char[92]).replace('\0', 'x'), false));
+
+        assertNull(XParam.replaceProperty(new byte[]{1, 2, 3}, "persist.sys.timezone", "UTC", false));
+        assertNull(XParam.replaceProperty(new byte[128 * 1024], "persist.sys.timezone", "UTC", false));
+        // A long value, of ro. properties only, is elsewhere
+        ByteBuffer flagged = areaOf(false, "persist.sys.timezone=Europe/Kyiv");
+        int info = new String(flagged.array(), StandardCharsets.ISO_8859_1).indexOf("persist.sys.timezone\0") - 96;
+        flagged.putInt(info, flagged.getInt(info) | (1 << 16));
+        assertNull("Long", XParam.replaceProperty(flagged.array(), "persist.sys.timezone", "UTC", false));
+
+        // Android 11: the backup holds the value before the last change, which becomes the fake one, unless it is empty
+        ByteBuffer backup = areaOf(true, "persist.sys.timezone=Europe/London");
+        byte[] berlin = "Europe/Berlin".getBytes(StandardCharsets.UTF_8);
+        for (int i = 0; i < berlin.length; i++)
+            backup.put(128 + 20 + i, berlin[i]);
+        assertEquals("Europe/London", XParam.replaceProperty(backup.array(), "persist.sys.timezone", "UTC", true));
+        assertFalse(holds(backup, "Berlin"));
+        assertFalse(holds(backup, "London"));
+        assertEquals("UTC", new String(backup.array(), 128 + 20, 3, StandardCharsets.UTF_8));
+        assertEquals(0, backup.get(128 + 20 + 3));
+        ByteBuffer clean = areaOf(true, "persist.sys.timezone=Europe/London");
+        assertEquals("Europe/London", XParam.replaceProperty(clean.array(), "persist.sys.timezone", "UTC", true));
+        assertEquals(0, clean.get(128 + 20));
     }
 }
