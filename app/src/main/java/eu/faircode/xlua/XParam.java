@@ -45,6 +45,7 @@ import java.io.InputStream;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -145,6 +146,26 @@ public class XParam {
     @SuppressWarnings("unused")
     public boolean isInstance(Object object, String className) throws ClassNotFoundException {
         return (object != null && findClass(className).isInstance(object));
+    }
+
+    // Copies the fields the class declares from one object to another, also into an object of a subclass, of which
+    // Lua does not see these fields; in Java, since through Lua a long becomes a double, which is not exact past 2^53
+    @SuppressWarnings("unused")
+    public void copyFields(String className, Object from, Object to) throws Exception {
+        copyFields(findClass(className), from, to);
+    }
+
+    static void copyFields(Class<?> type, Object from, Object to) throws Exception {
+        boolean copied = false;
+        for (Field field : type.getDeclaredFields())
+            if (!Modifier.isStatic(field.getModifiers())) {
+                field.setAccessible(true);
+                field.set(to, field.get(from));
+                copied = true;
+            }
+        // The hidden API rules leave out the fields they refuse instead of failing, so nothing copied is a failure
+        if (!copied)
+            throw new NoSuchFieldException("No fields of " + type.getName());
     }
 
     // Processes of the system, like system server and system apps with the system uid, see all apps
@@ -348,6 +369,16 @@ public class XParam {
             } catch (IllegalAccessException ignored) {
                 setFinalField(this.field, result);
             }
+    }
+
+    // The message of an exception, like of one without a constructor with a message (see package_probe): a private field
+    // of Throwable, which LuaJ does not see on a subclass; Android lets every app set it by reflection (unsupported API)
+    @SuppressWarnings("unused")
+    @SuppressLint("DiscouragedPrivateApi")
+    public void setMessage(Throwable ex, String message) throws Throwable {
+        Field field = Throwable.class.getDeclaredField("detailMessage");
+        field.setAccessible(true);
+        field.set(ex, message);
     }
 
     // Android 17 refuses reflection on static final fields for apps targeting it, their memory stays writable

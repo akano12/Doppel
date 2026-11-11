@@ -282,23 +282,40 @@ public class ValueScriptsTest {
                 "  paramof(nil, { [0] = 'listener', [1] = 16 }))").arg1().toboolean());
     }
 
-    // All events are read, so the app gets none
+    // The app asks for a time in the future, for which Android gives its own empty result
     @Test
-    public void usageEventsAreRead() throws Exception {
+    public void usageEventsAreEmpty() throws Exception {
         Globals globals = load("usageevents_query");
-        Scripts.run(globals, "luajava = { newInstance = function(name) return { class = name, isEmpty = function() return true end } end }\n" +
+        Scripts.run(globals, "luajava = { newInstance = function(name, ...)\n" +
+                "  local args = { ... }\n" +
+                "  return { class = name, args = args, isEmpty = function() return true end,\n" +
+                "    build = function(self) return { class = name, begin = args[1], finish = args[2] } end } end }\n" +
                 "system = false\n" +
                 "local plain = paramof\n" +
                 "function paramof(...) local param = plain(...) param.isSystem = function() return system end return param end\n" +
-                "function eventsof(count)\n" +
-                "  return { count = count, hasNextEvent = function(self) return self.count > 0 end,\n" +
-                "    getNextEvent = function(self, event) assert(event) self.count = self.count - 1 return true end }\n" +
+                "function query(...)\n" +
+                "  local param = paramof(nil, { [0] = select(1, ...), [1] = select(2, ...) })\n" +
+                "  return before(hookof('queryEvents'), param), param.set, param.args[0], param.args[1]\n" +
                 "end");
-        Varargs result = Scripts.run(globals, "local events = eventsof(3)\nreturn after(hookof('queryEvents'), paramof(events)), events.count");
-        assertTrue(result.arg1().toboolean());
-        assertEquals(0, result.arg(2).toint());
-        assertFalse(Scripts.run(globals, "return after(hookof('queryEvents'), paramof(eventsof(0)))").arg1().toboolean());
-        assertFalse(Scripts.run(globals, "return after(hookof('queryEvents'), paramof(nil))").arg1().toboolean());
+        Varargs times = Scripts.run(globals, "return query(1000, 2000)");
+        assertTrue(times.arg(1).toboolean());
+        assertTrue(times.arg(2).toboolean());
+        assertEquals(1e18, times.arg(3).todouble(), 0);
+        assertEquals(2e18, times.arg(4).todouble(), 0);
+        Varargs query = Scripts.run(globals, "local restricted, set, query = query({ class = 'app' })\n" +
+                "return restricted, set, query.class, query.begin, query.finish");
+        assertTrue(query.arg(1).toboolean());
+        assertTrue(query.arg(2).toboolean());
+        assertEquals("android.app.usage.UsageEventsQuery$Builder", query.arg(3).tojstring());
+        assertEquals(1e18, query.arg(4).todouble(), 0);
+        assertEquals(2e18, query.arg(5).todouble(), 0);
+        // A null query is left to the service, which throws for it
+        Varargs none = Scripts.run(globals, "return query(nil)");
+        assertFalse(none.arg(1).toboolean());
+        assertFalse(none.arg(2).toboolean());
+        // The result is not touched, nor are the statistics before the call
+        assertFalse(Scripts.run(globals, "return after(hookof('queryEvents'), paramof({}))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return before(hookof('queryUsageStats'), paramof(nil, { [0] = 4 }))").arg1().toboolean());
 
         // The statistics per app are empty; processes of the system see all apps, like the other app lists
         Varargs stats = Scripts.run(globals,
@@ -307,11 +324,14 @@ public class ValueScriptsTest {
                         "return after(hookof('queryUsageStats'), param), param.result.class");
         assertTrue(stats.arg(1).toboolean());
         assertEquals("java.util.ArrayList", stats.arg(2).tojstring());
-        Varargs system = Scripts.run(globals, "system = true\n" +
-                "local events = eventsof(3)\n" +
-                "return after(hookof('queryEvents'), paramof(events)), events.count");
+        assertFalse(Scripts.run(globals, "return after(hookof('queryUsageStats'), paramof({ isEmpty = function() return true end }))")
+                .arg1().toboolean());
+        Varargs system = Scripts.run(globals, "system = true\nreturn query(1000, 2000)");
         assertFalse(system.arg(1).toboolean());
-        assertEquals(3, system.arg(2).toint());
+        assertFalse(system.arg(2).toboolean());
+        assertEquals(1000, system.arg(3).toint());
+        assertFalse(Scripts.run(globals, "local list = { isEmpty = function() return false end }\n" +
+                "return after(hookof('queryUsageStats'), paramof(list))").arg1().toboolean());
     }
 
     // Accounts of other apps get the fake name, the accounts of the app itself keep theirs; the types are read once

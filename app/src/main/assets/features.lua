@@ -205,6 +205,70 @@ function applibraries(param)
     return names
 end
 
+-- Get.Applications: a shared library names the apps which use it (getDependentPackages, and on Android 15 and later
+-- getOptionalDependentPackages for an SDK library), with their version codes, and a static or SDK library names
+-- the app which declares it; a device without the hidden apps has neither. The lists of the dependents are those
+-- of the objects, which the app reads from a parcel, so they are filtered in place, and a list left empty becomes
+-- none again, like Android sends for a library without dependents. The builtin and dynamic libraries stay, only
+-- Android and system apps declare them, and Android lists them also when its visibility rules hide the system app
+-- from the app. A static or SDK library stays when the app can see the package which declares it or an app which
+-- uses it, like the app itself: the ApplicationInfo of that app names the library anyway.
+-- shortcut: a static or SDK library of the system which no visible app uses is hidden too, Android does not let
+-- the app look up the package which declares it; upgrade when the service can tell that package is of the system.
+-- shortcut: Android 11 lists all dependents, also the system apps its visibility rules hide from the app, which are
+-- hidden too, the app cannot look them up to tell them from hidden apps; upgrade with a lookup by the service.
+
+-- Removes the hidden apps from a list of dependents, through the methods of the list, which reflection on its
+-- iterator, a private class, may not reach; returns how many it had
+function hidedependents(list, param)
+    local items = list:toArray()
+    local shown = luajava.newInstance('java.util.ArrayList')
+    for index = 1, items['length'] do
+        if param:isPackageVisible(items[index]:getPackageName()) then
+            shown:add(items[index])
+        end
+    end
+    if shown:size() < items['length'] then
+        list:clear()
+        list:addAll(shown)
+    end
+    return items['length']
+end
+
+function hidelibraries(result, param)
+    local items = result:toArray()
+    local kept = luajava.newInstance('java.util.ArrayList')
+    -- The packages the libraries name: the one declaring each and its dependents
+    local named, shown = 0, 0
+    for index = 1, items['length'] do
+        local item = items[index]
+        local dependents = item:getDependentPackages()
+        local count = hidedependents(dependents, param)
+        if count > 0 and dependents:isEmpty() then
+            pcall(function() item.mDependentPackages = nil end)
+        end
+        local ok, optional = pcall(function() return item:getOptionalDependentPackages() end)
+        if ok then
+            hidedependents(optional, param)
+        end
+        named = named + 1 + count
+        local kind = item:getType()
+        local declaring = item:getDeclaringPackage()
+        if kind == TYPE_BUILTIN or kind == TYPE_DYNAMIC or not dependents:isEmpty() or
+                param:isPackageVisible(declaring and declaring:getPackageName()) then
+            kept:add(item)
+            shown = shown + 1 + dependents:size()
+        end
+    end
+    if shown == named then
+        return false
+    end
+    if kept:size() ~= items['length'] then
+        param:setResult(kept)
+    end
+    return true, tostring(named), tostring(shown)
+end
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
@@ -212,6 +276,9 @@ function after(hook, param)
     end
 
     local method = hook:getMethodName()
+    if (method == 'getSharedLibraries' or method == 'getSharedLibrariesAsUser') and hook:getGroup() == 'Get.Applications' then
+        return hidelibraries(result, param)
+    end
     if method == 'getSystemSharedLibraryNames' or method == 'getSharedLibraries' then
         -- A string array of names, or a list of SharedLibraryInfo
         local names = (method == 'getSystemSharedLibraryNames')

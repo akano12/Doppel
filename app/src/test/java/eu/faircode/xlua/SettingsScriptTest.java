@@ -23,6 +23,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -102,6 +103,9 @@ public class SettingsScriptTest {
             "      return (ok and ai ~= nil and (ai.uid == 10200 or ai.system == true))",
             "    end,",
             "    unhooked = function(self, fn) return fn() end,",
+            // The cursors of the stand-ins are no CursorWrapper, the resolver is the one of the test
+            "    isInstance = function(self, object, name) return false end,",
+            "    getThis = function(self) return resolver end,",
             "    getArgument = function(self, index) return arguments[index] end,",
             "    getSetting = function(self, name) return settings[name] end }",
             "end",
@@ -127,7 +131,9 @@ public class SettingsScriptTest {
             "    return listof()",
             "  end,",
             "  bindClass = function(name)",
-            "    if name == 'java.util.Locale' then return java.bindClass(name) end",
+            "    if name == 'java.util.Locale' or name == 'java.lang.Class' then return java.bindClass(name) end",
+            // The stand-in of CursorWrapper, which declares the cursor it wraps
+            "    if name == 'android.database.CursorWrapper' then return java.bindClass('eu.faircode.xlua.SettingsScriptTest$Wrapper') end",
             "    assert(name == 'android.content.res.Resources', name)",
             "    return { getSystem = function(self) return resources end }",
             "  end }",
@@ -515,11 +521,144 @@ public class SettingsScriptTest {
         assertTrue(result.arg1().toboolean());
         assertEquals("0000000000000000", result.arg(2).tojstring());
 
-        // All values without their names: there are none
+        // All values without their names, when the query again with the names fails: there are none
+        run("resolver = { query = function(self) error('OperationCanceledException') end }");
         result = query("identifiers", "uriof('settings', 'secure')", "'value'", "{ '1234abcd1234abcd' }, { '1' }", "nil");
         assertTrue(result.arg1().toboolean());
         assertEquals("", result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
+    }
+
+    // A query of all settings without the name column, which the hook runs again with the names last, unhooked
+    private void named(String rows) {
+        run("resolver = { query = function(self, uri, projection, queryArgs, signal)\n" +
+                "  queried = table.concat(projection, ',')\n" +
+                "  again = cursorof(arrayof('_id', 'value', 'name'), { " + rows + " })\n" +
+                "  return again\n" +
+                "end }");
+    }
+
+    // Without the names, Android gives a row for each setting: the settings of other apps stay, like on a device without
+    // the hook, instead of none
+    @Test
+    public void queriesOfAllValuesKeepTheirRows() {
+        named("{ 1, '1', 'adb_enabled' }, { 2, '30000', 'screen_off_timeout' }");
+        Varargs result = query("identifiers", "uriof('settings', 'secure')", "'_id', 'value'", "{ 1, '1' }, { 2, '30000' }", "nil");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("_id,value,name", run("return queried").arg1().tojstring());
+        assertTrue(run("return again.closed").arg1().toboolean());
+
+        // Only the rows of the faked settings change, one which is missing has none
+        named("{ 1, '1234abcd1234abcd', 'android_id' }, { 2, '4f3e2d1c-real', 'pps_oaid' }, { 3, '1', 'adb_enabled' }");
+        result = query("identifiers", "uriof('settings', 'secure')", "'_id', 'value'",
+                "{ 1, '1234abcd1234abcd' }, { 2, '4f3e2d1c-real' }, { 3, '1' }", "nil");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("1,0000000000000000;3,1", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(run("return again.closed").arg1().toboolean());
+    }
+
+    // The hooks of each group fake the same query: the next ones get the names of the rows the first one changed,
+    // which no longer match the rows of the provider
+    @Test
+    public void queriesOfAllValuesAreFakedByEachGroup() {
+        String services = "'com.third.reader/.Reader:com.google.android.marvin.talkback/.TalkBackService'";
+        named("{ 1, '1234abcd1234abcd', 'android_id' }, { 2, " + services + ", 'enabled_accessibility_services' }, " +
+                "{ 3, '1', 'adb_enabled' }");
+        Varargs result = run("local cursor = cursorof(arrayof('_id', 'value'), { { 1, '1234abcd1234abcd' }, " +
+                "{ 2, " + services + " }, { 3, '1' } })\n" +
+                "local param = paramof({ [0] = uriof('settings', 'secure') }, {})\n" +
+                "local values = {}\n" +
+                "param.putValue = function(self, name, value, scope)\n" +
+                "  values[scope] = values[scope] or {}\n" +
+                "  values[scope][name] = value\n" +
+                "end\n" +
+                "param.getValue = function(self, name, scope) return values[scope] and values[scope][name] end\n" +
+                "param.getResult = function(self) return self.result end\n" +
+                "param.setResult = function(self, value) self.result = value end\n" +
+                "param.result = cursor\n" +
+                "local count = 0\n" +
+                "local query = resolver.query\n" +
+                "resolver.query = function(...) count = count + 1 return query(...) end\n" +
+                "local restricted = {}\n" +
+                "for _, group in ipairs({ 'identifiers', 'debugging', 'applications' }) do\n" +
+                "  restricted[#restricted + 1] = tostring(after(hookof('ContentResolver.query/' .. group, " +
+                "'android.content.ContentResolver', 'query'), param))\n" +
+                "end\n" +
+                "local lines = {}\n" +
+                "for _, row in ipairs(param.result.rows) do lines[#lines + 1] = row[1] .. ',' .. row[2] end\n" +
+                "return table.concat(restricted, ','), table.concat(lines, ';'), count");
+        assertEquals("true,true,true", result.arg1().tojstring());
+        assertEquals("1,0000000000000000;2,com.google.android.marvin.talkback/.TalkBackService;3,0", result.arg(2).tojstring());
+        assertEquals(1, result.arg(3).toint());
+    }
+
+    // Stand-ins of CursorWrapper, which declares the cursor it wraps, of the CursorWrapperInner of ContentResolver
+    // and of a cursor, as Java objects for the reflection of the script
+    public static class Rows {
+        public boolean closed;
+
+        public void close() {
+            closed = true;
+        }
+    }
+
+    public static class Wrapper {
+        protected final Rows mCursor;
+
+        Wrapper(Rows cursor) {
+            mCursor = cursor;
+        }
+
+        public Rows getWrappedCursor() {
+            return mCursor;
+        }
+    }
+
+    public static class Inner extends Wrapper {
+        public boolean closed;
+
+        Inner(Rows cursor) {
+            super(cursor);
+        }
+
+        public void close() {
+            closed = true;
+            mCursor.close();
+        }
+    }
+
+    // ContentResolver and ContentProviderClient wrap the cursor of the provider in a class of their own, which the app
+    // can check: it stays, with the fake rows in it, and releases the provider when the app closes it, like on Android
+    @Test
+    public void fakeRowsAreInTheWrapperOfAndroid() {
+        Rows rows = new Rows();
+        Inner wrapper = new Inner(rows);
+        Rows fake = new Rows();
+        globals.set("wrapper", CoerceJavaToLua.coerce(wrapper));
+        globals.set("fake", CoerceJavaToLua.coerce(fake));
+        Varargs result = run("local param = paramof({}, {})\n" +
+                "param.isInstance = function(self, object, name) return name == 'android.database.CursorWrapper' end\n" +
+                "param.setResult = function(self, value) self.result = value end\n" +
+                "return replace(param, wrapper, fake) == wrapper, param.result == nil");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(fake, wrapper.getWrappedCursor());
+        assertTrue(rows.closed);
+        assertFalse(wrapper.closed);
+        assertFalse(fake.closed);
+
+        // A cursor of another class is replaced, like before
+        Inner other = new Inner(new Rows());
+        globals.set("wrapper", CoerceJavaToLua.coerce(other));
+        result = run("local param = paramof({}, {})\n" +
+                "param.setResult = function(self, value) self.result = value end\n" +
+                "return replace(param, wrapper, fake) == fake, param.result == fake");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(other.closed);
     }
 
     // call(authority, GET_secure, name, null) of ContentResolver returns a bundle with the value

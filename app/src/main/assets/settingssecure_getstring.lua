@@ -522,6 +522,53 @@ function listed(param, group, result)
     return true, table.concat(names, ',')
 end
 
+-- Puts the rows of the fake cursor in the result of a query, and returns the result then. ContentResolver and
+-- ContentProviderClient return the cursor of the provider in a wrapper of their own (CursorWrapperInner), which releases
+-- the provider when the app closes it: the wrapper stays, with the fake cursor in it (CursorWrapper.mCursor), so the result
+-- is of the class of Android. The fields are listed like LuaJ lists them, which Android does not report to StrictMode
+-- as a use of a hidden API, unlike getDeclaredField. shortcut: getWrappedCursor gives a MatrixCursor instead of the cursor
+-- of the binder and getWindow none, upgrade to a cursor of a CursorWindow when apps check those.
+function replace(param, result, fake)
+    if param:isInstance(result, 'android.database.CursorWrapper') then
+        local ok, done = pcall(function()
+            -- Lua sees a Class as its static members, so the methods of Class get the class as the object
+            local fields = luajava.bindClass('java.lang.Class').getDeclaredFields(luajava.bindClass('android.database.CursorWrapper'))
+            for index = 1, fields['length'] do
+                local field = fields[index]
+                if field:getName() == 'mCursor' then
+                    local inner = result:getWrappedCursor()
+                    field:setAccessible(true)
+                    field:set(result, fake)
+                    inner:close()
+                    return true
+                end
+            end
+            return false
+        end)
+        if ok and done then
+            return result
+        end
+    end
+    -- A cursor of another class, or a wrapper which Android does not let change, is replaced by the fake one itself
+    result:close()
+    param:setResult(fake)
+    return fake
+end
+
+-- The cursor of the same query with the name column last, for a query of all settings without it, which tells which value
+-- is which; nil when it fails, like when the app cancelled the query
+function named(param, columns)
+    local projection = {}
+    for index = 1, columns['length'] do
+        projection[index] = columns[index]
+    end
+    projection[#projection + 1] = 'name'
+    local ok, cursor = pcall(param.unhooked, param, function()
+        return param:getThis():query(param:getArgument(0), projection, param:getArgument(2), param:getArgument(3))
+    end)
+    return (ok and cursor or nil)
+end
+
 -- The methods of the settings provider which read settings
 local GETTERS = {
     GET_secure = true, GET_system = true, GET_global = true,
@@ -586,45 +633,61 @@ function provider(hook, param, group)
     end
     local segments = target:getPathSegments()
     local pathKey
+    -- The rows come from the cursor of the provider, or from the same query with the name column for all settings
+    -- without it; names are the settings of the rows a hook of another group already changed
+    local source = result
+    local names
     if segments:size() == 2 then
         pathKey = segments:get(1)
     elseif nameIndex < 0 then
         local selection
         pathKey, selection = selected(param)
-        -- All settings without their names: which value is which cannot be told, so there are none
         if selection == nil then
             if result:getCount() == 0 then
                 return false
             end
-            result:close()
-            param:setResult(luajava.newInstance('android.database.MatrixCursor', columns))
-            return true
+            names = param:getValue('settings.names', result)
+            if names == nil then
+                source = named(param, columns)
+                -- shortcut: which value is which cannot be told without the names, so there are none,
+                -- upgrade when apps query all values with a cancelled or failing signal
+                if source == nil then
+                    replace(param, result, luajava.newInstance('android.database.MatrixCursor', columns))
+                    return true
+                end
+                nameIndex = columns['length']
+            end
         end
     end
 
     local fakecursor = luajava.newInstance('android.database.MatrixCursor', columns)
     local changed = false
-    local position = result:getPosition()
-    result:moveToPosition(-1)
-    while result:moveToNext() do
+    local kept = {}
+    local position = source:getPosition()
+    source:moveToPosition(-1)
+    local row = 0
+    while source:moveToNext() do
+        row = row + 1
         local key = pathKey
-        if nameIndex >= 0 then
-            key = result:getString(nameIndex)
+        if names ~= nil then
+            key = names[row]
+        elseif nameIndex >= 0 then
+            key = source:getString(nameIndex)
         end
         -- A setting which is not set has no row
         local values = {}
         local missing = false
         for index = 0, columns['length'] - 1 do
             local value
-            local kind = result:getType(index)
+            local kind = source:getType(index)
             if kind == 1 then
-                value = result:getLong(index)
+                value = source:getLong(index)
             elseif kind == 2 then
-                value = result:getDouble(index)
+                value = source:getDouble(index)
             elseif kind == 3 then
-                value = result:getString(index)
+                value = source:getString(index)
             elseif kind == 4 then
-                value = result:getBlob(index)
+                value = source:getBlob(index)
             end
             if index == valueIndex and value ~= nil and hooked(key) then
                 local hit, fakevalue = fakeany(param, group, key, value)
@@ -637,20 +700,28 @@ function provider(hook, param, group)
             values[index] = value
         end
         if not missing then
-            local row = fakecursor:newRow()
+            kept[#kept + 1] = key
+            local fakerow = fakecursor:newRow()
             for index = 0, columns['length'] - 1 do
-                row:add(values[index])
+                fakerow:add(values[index])
             end
         end
     end
 
-    if not changed then
+    if source ~= result then
+        param:unhooked(function() source:close() end)
+    elseif not changed then
         result:moveToPosition(position)
+    end
+    if not changed then
         fakecursor:close()
         return false
     end
-    result:close()
-    param:setResult(fakecursor)
+    local faked = replace(param, result, fakecursor)
+    -- The hooks of the other groups get these rows, which have no names, and find their names here
+    if source ~= result or names ~= nil then
+        param:putValue('settings.names', kept, faked)
+    end
     return true
 end
 

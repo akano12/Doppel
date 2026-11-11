@@ -63,6 +63,60 @@ public class AuditFixesScriptTest {
         assertFalse(result.arg(6).toboolean());
     }
 
+    // The app which made a PendingIntent or IntentSender, like the alarm app of the next alarm clock, is unknown
+    // when it is hidden, like Android 13 and later answer: no package, uid -1 and the user the getter makes of it
+    @Test
+    public void creatorOfHiddenPendingIntentIsUnknown() throws Exception {
+        Globals globals = Scripts.load("pendingintent_creator", PARAM + "\n" +
+                "version = 34\n" +
+                "function sdkversion() return version end\n" +
+                "luajava = { bindClass = function(name)\n" +
+                "  assert(name == 'android.os.UserHandle', name)\n" +
+                "  return { getUserHandleForUid = function(self, uid) return 'UserHandle of ' .. uid end }\n" +
+                "end }\n" +
+                "function senderof(result, creator, visible)\n" +
+                "  local param = paramof(result, nil, visible)\n" +
+                "  local sender = { getCreatorPackage = function(self) assert(param.inside); return creator end }\n" +
+                "  param.getThis = function(self) return sender end\n" +
+                "  param.unhooked = function(self, fn) param.inside = true; local value = fn(); param.inside = false; return value end\n" +
+                "  return param\n" +
+                "end\n" +
+                "function creator(method, class, result, creator, visible)\n" +
+                "  local param = senderof(result, creator, visible)\n" +
+                "  local restricted, old, new = after(hookof(method, class), param)\n" +
+                "  return restricted, param.result, old, new\n" +
+                "end");
+        String pi = "'android.app.PendingIntent'", is = "'android.content.IntentSender'";
+        Varargs result = Scripts.run(globals, "return creator('getCreatorPackage', " + pi + ", 'com.alarm.hidden')");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertEquals("com.alarm.hidden", result.arg(3).tojstring());
+        assertTrue(Scripts.run(globals, "return creator('getTargetPackage', " + is + ", 'com.alarm.hidden')").arg(2).isnil());
+        result = Scripts.run(globals, "return creator('getCreatorUid', " + pi + ", 10123, 'com.alarm.hidden')");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(-1, result.arg(2).toint());
+        assertEquals("com.alarm.hidden", result.arg(3).tojstring());
+
+        // The user: the one Android makes of uid -1 for PendingIntent from Android 12, none before and for IntentSender
+        assertEquals("UserHandle of -1", Scripts.run(globals, "return creator('getCreatorUserHandle', " + pi +
+                ", 'UserHandle{10}', 'com.alarm.hidden')").arg(2).tojstring());
+        assertTrue(Scripts.run(globals, "return creator('getCreatorUserHandle', " + is +
+                ", 'UserHandle{10}', 'com.alarm.hidden')").arg(2).isnil());
+        Scripts.run(globals, "version = 30");
+        assertTrue(Scripts.run(globals, "return creator('getCreatorUserHandle', " + pi +
+                ", 'UserHandle{10}', 'com.alarm.hidden')").arg(2).isnil());
+
+        // Visible apps and the ones Android already hides (none, -1) stay
+        assertFalse(Scripts.run(globals, "return creator('getCreatorPackage', " + pi + ", 'com.android.deskclock', nil, " +
+                "'com.android.deskclock')").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return creator('getCreatorUid', " + pi + ", 10050, 'com.android.deskclock', " +
+                "'com.android.deskclock')").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return creator('getCreatorPackage', " + is + ", nil)").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return creator('getCreatorUid', " + pi + ", -1, nil)").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return creator('getCreatorUserHandle', " + is + ", 'UserHandle{0}', nil)")
+                .arg1().toboolean());
+    }
+
     // The certificate of the store which started the install goes with its name: none when that store is hidden,
     // like Android gives no signing info without the name (ComputerEngine.getInstallSourceInfo)
     @Test

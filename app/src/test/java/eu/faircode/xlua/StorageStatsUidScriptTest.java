@@ -28,8 +28,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-// A hidden uid gets zero storage stats (assets/storage_stats_uid.lua); the zero StorageStats is built from a
-// parcel of zero longs, stubbed here because Parcel and StorageStats are Android classes
+// A hidden uid gets zero storage stats (assets/storage_stats_uid.lua) once Android answered; the zero StorageStats is
+// built from a parcel of zero longs, stubbed here because Parcel and StorageStats are Android classes
 public class StorageStatsUidScriptTest {
     private static final String STUBS = String.join("\n",
             // A parcel which counts the zero longs written and a StorageStats built from them
@@ -44,17 +44,18 @@ public class StorageStatsUidScriptTest {
             "    readParcelable = function(self, loader) return self.written end,",
             "    recycle = function(self) end } end }",
             "end }",
-            "function paramof(uid, visible, system)",
+            "function paramof(uid, visible, system, exception)",
             "  return { result = nil, set = false,",
+            "    getException = function(self) return exception end,",
             "    isSystem = function(self) return system == true end,",
             "    isUidVisible = function(self, u) return visible[u] == true end,",
             "    getArgument = function(self, index) if index == 1 then return uid end end,",
             "    setResult = function(self, value) self.result = value self.set = true end }",
             "end",
-            "function run(uid, visible, system)",
+            "function run(uid, visible, system, exception)",
             "  longs = 0",
-            "  local param = paramof(uid, visible, system)",
-            "  local restricted = before({}, param)",
+            "  local param = paramof(uid, visible, system, exception)",
+            "  local restricted = after({}, param)",
             "  return restricted, param.set, tostring(param.result), longs",
             "end",
             "VISIBLE = { [10200] = true }");
@@ -79,6 +80,16 @@ public class StorageStatsUidScriptTest {
         assertEquals("android.app.usage.StorageStats", result.arg(3).tojstring());
         // At least as many longs as the most recent StorageStats reads
         assertTrue(result.arg(4).toint() >= 10);
+    }
+
+    // Android checks usage access and the user before it looks at the uid, so its SecurityException, like that of
+    // a caller without usage access, and its IOException of an unknown volume reach the app as they are
+    @Test
+    public void exceptionOfAndroidKept() {
+        assertTrue(globals.get("before").isnil());
+        Varargs result = run("10300, VISIBLE, false, 'SecurityException'");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
     }
 
     @Test

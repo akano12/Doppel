@@ -126,6 +126,15 @@ public class CommandsExecScriptTest {
         assertTrue(exec("execv", LIB + "-x/libtool.so").arg1().toboolean());
     }
 
+    // Linux.execv and execve, beneath Os and Libcore.os, are methods of an object, unlike those of Os
+    @Test
+    public void execOfLinuxIsRefused() {
+        Varargs result = globals.get("run").invoke(LuaValue.varargsOf(new LuaValue[]{
+                LuaValue.valueOf("execv"), CoerceJavaToLua.coerce(new Object()), LuaValue.valueOf("/system/bin/sh")}));
+        assertTrue(result.arg1().toboolean());
+        assertEquals("execv 13", result.arg(2).tojstring());
+    }
+
     @Test
     public void execOfProgramsOfTheAppRuns() {
         Varargs result = exec("execve", LIB + "/libtool.so");

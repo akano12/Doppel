@@ -181,7 +181,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 
 * **Get applications**: hide other apps, their components, widgets, install sessions and usage statistics, keyboards
   and accessibility services, also in the permission files of system apps and the folders of system apps; hidden apps
-  cannot be reached
+  cannot be reached, their providers cannot be observed, and they are not named as the maker of a PendingIntent, as
+  the default browser or as the users of a shared library
 * **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
 * **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable; the files of su and Magisk do not exist
 * **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers; the feature and permission files of the system do not exist. The features of the camera, microphone, sensors and biometric sensors are left to *Use camera*, *Record audio*, *Get sensors* and *Read biometric sensors*
@@ -238,6 +239,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   from these files inside the app. They differ per install, so restrict *Get applications* to hide other apps entirely.
 * The boot time is not faked: apps can work it out (the wall clock minus the time since boot) and use it to link
   each other until the device restarts. Hooks on these clocks do not reach compiled app code on Android 12 and newer.
+* Apps which call a service of Android with `IBinder.transact` and a parcel they build themselves get past the hooks,
+  which see the methods of Android only, like the lookups of *Get applications*.
 * Restricted apps can detect Doppel, but cannot change anything, see [the FAQ](FAQ.md#user-content-faq21).
 * Apps with root access can get around any restriction.
 

@@ -24,6 +24,8 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
+import java.util.HashMap;
+
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -37,9 +39,10 @@ import static org.junit.Assert.assertTrue;
 // and the exceptions are of the test, because those of Android are stubs in unit tests
 public class PackageScriptsTest {
     private static final String STUBS = String.join("\n",
-            "function hookof(name, method)",
+            "function hookof(name, method, class)",
             "  return { getName = function(self) return name end,",
-            "    getMethodName = function(self) return method end }",
+            "    getMethodName = function(self) return method end,",
+            "    getClassName = function(self) return class end }",
             "end",
             // A call with arguments, the packages and user ids which stay visible and the values of the process
             "function paramof(args, visible, values)",
@@ -59,6 +62,7 @@ public class PackageScriptsTest {
             "  function param:getApplicationContext() return values or {} end",
             "  function param:getValue(name, scope) return scope[name] end",
             "  function param:putValue(name, value, scope) scope[name] = value end",
+            "  function param:getSetting(name) return self.settings and self.settings[name] end",
             "  return param",
             "end",
             // A java.util.List and a Java array as Lua sees them
@@ -169,10 +173,12 @@ public class PackageScriptsTest {
         assertSame(genuine.getCause(), fake.getCause());
     }
 
-    // An exception without a constructor with a message: the app gets it as it is, without an error of the script
-    public static class SilentException extends Exception {
-        public SilentException() {
-            super("silent");
+    // An exception without a constructor with a message, like ServiceSpecificException, which takes a code too and which
+    // LuaJ would make with that constructor and no message: the app gets the exception itself, with the name it asked for,
+    // which Java sets (XParam.setMessage), without an error of the script
+    public static class CodedException extends Exception {
+        public CodedException(int code, String message) {
+            super(message);
         }
     }
 
@@ -185,10 +191,16 @@ public class PackageScriptsTest {
                         "before(hook, param)\n" +
                         "return param.args[0]").arg1().tojstring();
         assertTrue(substitute.startsWith("com.example.bank.x"));
-        globals.set("genuine", CoerceJavaToLua.coerce(new SilentException()));
-        Varargs result = Scripts.run(globals, "param.exception = genuine\nreturn after(hook, param), param.result");
+        CodedException genuine = new CodedException(1, "Package " + substitute + " not found");
+        globals.set("genuine", CoerceJavaToLua.coerce(genuine));
+        globals.set("xparam", CoerceJavaToLua.coerce(new XParam(null, PackageScriptsTest.class.getDeclaredField("STUBS"),
+                new HashMap<>())));
+        Varargs result = Scripts.run(globals, "param.exception = genuine\n" +
+                "function param:setMessage(ex, message) xparam:setMessage(ex, message) end\n" +
+                "return after(hook, param), param.result");
         assertFalse(result.arg(1).toboolean());
         assertTrue(result.arg(2).isnil());
+        assertEquals("Package com.example.bank not found", genuine.getMessage());
     }
 
     // AppOpsManager answers differently for a package of the uid: the package is the third argument of the
@@ -318,6 +330,116 @@ public class PackageScriptsTest {
         assertTrue(result.arg(6).toboolean());
     }
 
+    // Android moves the stream of a share to the clip data of the intent of an activity, with the permission to read it,
+    // here on the copy with the substitute; the intent of the app gets both, like without Doppel, also when the call failed
+    // after the move, and keeps its own clip data; other kinds of PendingIntent, which Android does not move, change nothing
+    @Test
+    public void streamOfShareMovesToIntentOfApp() throws Exception {
+        Varargs result = Scripts.run(load("package_probe"),
+                "local base = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, ...)\n" +
+                        "  if name == 'android.content.Intent' then\n" +
+                        "    local from = ...\n" +
+                        "    return intentof(from.package, from.clip, from.flags)\n" +
+                        "  end\n" +
+                        "  return base(name, ...)\n" +
+                        "end\n" +
+                        "function intentof(packageName, clip, flags)\n" +
+                        "  return { package = packageName, clip = clip, flags = flags,\n" +
+                        "    getComponent = function(self) return nil end,\n" +
+                        "    getSelector = function(self) return nil end,\n" +
+                        "    getPackage = function(self) return self.package end,\n" +
+                        "    setPackage = function(self, name) self.package = name return self end,\n" +
+                        "    getClipData = function(self) return self.clip end,\n" +
+                        "    setClipData = function(self, clip) self.clip = clip end,\n" +
+                        "    getFlags = function(self) return self.flags end,\n" +
+                        "    setFlags = function(self, flags) self.flags = flags return self end }\n" +
+                        "end\n" +
+                        // The intent of the app for WhatsApp, which is hidden, after the call with what Android did on the copy
+                        "function share(method, clip, failure)\n" +
+                        "  local intent = intentof('com.whatsapp', clip, 268435456)\n" + // FLAG_ACTIVITY_NEW_TASK
+                        "  local hook = hookof('PendingIntent.' .. method, method)\n" +
+                        "  local param = paramof({ [0] = 'context', [1] = 0, [2] = intent, [3] = 67108864 }, {})\n" +
+                        "  param.isInstance = function(self, object, name)\n" +
+                        "    return name == 'android.content.Intent' and type(object) == 'table' end\n" +
+                        "  before(hook, param)\n" +
+                        "  local copy = param.args[2]\n" +
+                        "  if method == 'getActivity' and copy.clip == nil then\n" +
+                        "    copy.clip = 'stream'\n" +
+                        "    copy.flags = copy.flags + 1\n" + // FLAG_GRANT_READ_URI_PERMISSION
+                        "  end\n" +
+                        "  param.exception = failure\n" +
+                        "  after(hook, param)\n" +
+                        "  return copy ~= intent and copy.package ~= 'com.whatsapp', intent.package, intent.clip, intent.flags\n" +
+                        "end\n" +
+                        "local failure = { getMessage = function(self) return nil end }\n" +
+                        "local substituted, packageName, clip, flags = share('getActivity', nil, nil)\n" +
+                        "local _, _, failedClip, failedFlags = share('getActivity', nil, failure)\n" +
+                        "local _, _, ownClip, ownFlags = share('getActivity', 'own', nil)\n" +
+                        "local _, _, broadcastClip, broadcastFlags = share('getBroadcast', nil, nil)\n" +
+                        "return substituted, packageName, clip, flags, failedClip, failedFlags, ownClip, ownFlags,\n" +
+                        "  broadcastClip, broadcastFlags");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.whatsapp", result.arg(2).tojstring());
+        assertEquals("stream", result.arg(3).tojstring());
+        assertEquals(268435457, result.arg(4).toint());
+        assertEquals("stream", result.arg(5).tojstring());
+        assertEquals(268435457, result.arg(6).toint());
+        assertEquals("own", result.arg(7).tojstring());
+        assertEquals(268435456, result.arg(8).toint());
+        assertTrue(result.arg(9).isnil());
+        assertEquals(268435456, result.arg(10).toint());
+    }
+
+    // The callback of a sent PendingIntent or IntentSender gets the intent Android sent with the names the app asked for,
+    // of its package, component and selector; other names stay
+    @Test
+    public void callbackIntentHasNamesOfApp() throws Exception {
+        Varargs result = Scripts.run(load("package_probe"),
+                "local base = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, ...)\n" +
+                        "  if name == 'android.content.ComponentName' then return componentof(...) end\n" +
+                        "  return base(name, ...)\n" +
+                        "end\n" +
+                        "function componentof(packageName, className)\n" +
+                        "  return { getPackageName = function(self) return packageName end,\n" +
+                        "    getClassName = function(self) return className end }\n" +
+                        "end\n" +
+                        "function intentof(packageName, component, selector)\n" +
+                        "  return { package = packageName, component = component, selector = selector,\n" +
+                        "    getPackage = function(self) return self.package end,\n" +
+                        "    setPackage = function(self, name) self.package = name return self end,\n" +
+                        "    getComponent = function(self) return self.component end,\n" +
+                        "    setComponent = function(self, component) self.component = component return self end,\n" +
+                        "    getSelector = function(self) return self.selector end }\n" +
+                        "end\n" +
+                        "function send(hook, intent)\n" +
+                        "  local param = paramof({ [0] = intent, [1] = 0, [2] = nil, [3] = nil }, {})\n" +
+                        "  param.settings = { ['package_probe.suffix'] = '.x123456789' }\n" +
+                        "  local restricted = before(hook, param)\n" +
+                        "  after(hook, param)\n" +
+                        "  return restricted\n" +
+                        "end\n" +
+                        "local pending = hookof('PendingIntent.FinishedDispatcher.performReceive', 'performReceive')\n" +
+                        "local sender = hookof('IntentSender.FinishedDispatcher.performReceive', 'performReceive')\n" +
+                        "local activity = intentof(nil, componentof('com.example.bank.x123456789', 'com.example.bank.Main'), nil)\n" +
+                        "local broadcast = intentof('com.example.bank.x123456789', nil, nil)\n" +
+                        "local selector = intentof('com.example.bank.x123456789', nil, nil)\n" +
+                        "local chooser = intentof(nil, nil, selector)\n" +
+                        "local other = intentof('com.example.app', componentof('com.example.app', 'com.example.app.Main'), nil)\n" +
+                        "return send(pending, activity), activity.component:getPackageName(), activity.component:getClassName(),\n" +
+                        "  send(pending, broadcast), broadcast.package, send(sender, chooser), selector.package,\n" +
+                        "  send(sender, other), other.package, other.component:getPackageName()");
+        for (int i : new int[]{1, 4, 6, 8})
+            assertFalse(String.valueOf(i), result.arg(i).toboolean());
+        assertEquals("com.example.bank", result.arg(2).tojstring());
+        assertEquals("com.example.bank.Main", result.arg(3).tojstring());
+        assertEquals("com.example.bank", result.arg(5).tojstring());
+        assertEquals("com.example.bank", result.arg(7).tojstring());
+        assertEquals("com.example.app", result.arg(9).tojstring());
+        assertEquals("com.example.app", result.arg(10).tojstring());
+    }
+
     // A permission of a user id which is not in use is denied, like the ones of hidden apps; visible ones stay
     @Test
     public void permissionOfHiddenUidIsDenied() throws Exception {
@@ -337,6 +459,37 @@ public class PackageScriptsTest {
         assertEquals(0, result.arg(4).toint());
         assertFalse(result.arg(5).toboolean());
         assertEquals(-1, result.arg(6).toint());
+    }
+
+    // The hidden checks of a uid which ask Android or the package manager themselves: the overload with a token
+    // (uid third) and ActivityManager.checkComponentPermission (uid second), which grants root, the system, no
+    // permission and the uid owning the component without asking, also for a user id which is not in use
+    @Test
+    public void componentPermissionOfHiddenUidIsDenied() throws Exception {
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local function check(method, args)\n" +
+                        "  local param = paramof(args, { [10050] = true })\n" +
+                        "  param.result = 0\n" +
+                        "  local restricted = after(hookof('Context.checkPermission', method), param)\n" +
+                        "  return restricted, param.result\n" +
+                        "end\n" +
+                        "local p = 'android.permission.INTERNET'\n" +
+                        "local token = { check('checkPermission', { [0] = p, [1] = 1, [2] = 10060, [3] = 'token' }) }\n" +
+                        "local hidden = { check('checkComponentPermission', { [0] = p, [1] = 10060, [2] = -1, [3] = true }) }\n" +
+                        "local visible = { check('checkComponentPermission', { [0] = p, [1] = 10050, [2] = -1, [3] = true }) }\n" +
+                        "local owner = { check('checkComponentPermission', { [0] = p, [1] = 1010060, [2] = 10060, [3] = true }) }\n" +
+                        "local none = { check('checkComponentPermission', { [0] = nil, [1] = 10060, [2] = -1, [3] = true }) }\n" +
+                        "local system = { check('checkComponentPermission', { [0] = p, [1] = 1001000, [2] = -1, [3] = true }) }\n" +
+                        "return token[1], token[2], hidden[1], hidden[2], visible[1], visible[2], owner[1], owner[2],\n" +
+                        "  none[1], none[2], system[1], system[2]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(-1, result.arg(2).toint());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(-1, result.arg(4).toint());
+        for (int i = 5; i <= 11; i += 2) {
+            assertFalse(String.valueOf(i), result.arg(i).toboolean());
+            assertEquals(String.valueOf(i), 0, result.arg(i + 1).toint());
+        }
     }
 
     // An array of targets is copied, the array of the app stays as it is
@@ -381,7 +534,8 @@ public class PackageScriptsTest {
         assertEquals("com.example.bank", ((Throwable) result.arg(4).touserdata()).getMessage());
     }
 
-    // The suffix is the same for the process, but random, so apps cannot ask for a substitute
+    // The suffix is random, so apps cannot ask for a substitute: the one of the app for the boot (see FakeIds), the same
+    // in every process of the app, else the same for the process
     @Test
     public void suffixIsRandom() throws Exception {
         Globals globals = load("package_probe");
@@ -393,6 +547,10 @@ public class PackageScriptsTest {
         assertTrue(one, one.matches("\\.x[0-9]{9}"));
         assertNotEquals(one, two);
         assertEquals(one, same);
+        String boot = Scripts.run(globals, "local param = paramof({}, {}, { ['package_probe.suffix'] = '" + one + "' })\n" +
+                "param.settings = { ['package_probe.suffix'] = '.x123456789' }\n" +
+                "return suffixof(param)").arg1().tojstring();
+        assertEquals(".x123456789", boot);
     }
 
     // A shared user id of a visible app, like of Google Play services, stays visible
@@ -423,13 +581,35 @@ public class PackageScriptsTest {
     public void linksResolveLikeWithoutHiddenApps() throws Exception {
         Globals globals = load("package_resolve");
         // The Android classes are stand-ins, like the rest of the stubs
-        String setup = "local base = luajava.newInstance\n" +
-                "luajava.newInstance = function(name, ...)\n" +
+        String setup = "local base, bind = luajava.newInstance, luajava.bindClass\n" +
+                "luajava.newInstance = function(name, from)\n" +
                 "  if name == 'android.content.Intent' then\n" +
                 "    return { setClassName = function(self, p, c) self.target = p .. '/' .. c return self end } end\n" +
-                "  return base(name, ...) end\n" +
-                "local function infoof(name, web) return { priority = 0, preferredOrder = 0, isDefault = true,\n" +
-                "  handleAllWebDataURI = web, activityInfo = { packageName = name, name = name .. '.Main' } } end\n" +
+                "  if name == 'android.os.Bundle' then return { values = {},\n" +
+                "    putBoolean = function(self, key, value) self.values[key] = value end } end\n" +
+                "  if name == 'android.content.pm.ResolveInfo' then\n" +
+                "    local copy = { copied = true } for key, value in pairs(from) do copy[key] = value end return copy end\n" +
+                "  return base(name, from) end\n" +
+                // The release of Android, the system apps and the default browser of the device (config_defaultBrowser)
+                "local sdk, system, priorities, config = 34, {}, {}\n" +
+                // A Parcel gives back a Bundle of its own with what was written to it
+                "local parcel\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                "  if name == 'android.os.Parcel' then return { obtain = function() parcel = {\n" +
+                "    writeBundle = function(self, bundle) self.bundle = bundle end,\n" +
+                "    setDataPosition = function(self, position) self.position = position end,\n" +
+                "    readBundle = function(self) assert(self.position == 0) return { read = true, values = self.bundle.values } end,\n" +
+                "    recycle = function(self) self.recycled = true end } return parcel end } end\n" +
+                "  return bind(name) end\n" +
+                "local context = { getResources = function() return {\n" +
+                "  getIdentifier = function(self, name, type, package)\n" +
+                "    assert(name == 'config_defaultBrowser' and type == 'string' and package == 'android')\n" +
+                "    return config and 17 or 0 end,\n" +
+                "  getString = function(self, id) assert(id == 17) return config end } end }\n" +
+                "local function infoof(name, web) return { priority = priorities[name] or 0, preferredOrder = 0,\n" +
+                "  isDefault = true, handleAllWebDataURI = web, activityInfo = { packageName = name, name = name .. '.Main',\n" +
+                "  exported = true, applicationInfo = { flags = (system[name] and 1 or 0) } } } end\n" +
                 "local candidates, default\n" +
                 "local queries = 0\n" +
                 // Of a link Android gives only the default app, which the hidden one can be, unless asked for all
@@ -443,14 +623,14 @@ public class PackageScriptsTest {
                 "    assert(intent.target == 'android/com.android.internal.app.ResolverActivity')\n" +
                 "    return { activityInfo = { packageName = 'android', name = 'com.android.internal.app.ResolverActivity'," +
                 " processName = 'system:ui' } } end }\n" +
-                "local function intentof(package) return { getComponent = function(self) return nil end,\n" +
-                "  getPackage = function(self) return package end } end\n" +
+                "local function intentof(package, scheme) return { getComponent = function(self) return nil end,\n" +
+                "  getPackage = function(self) return package end, getScheme = function(self) return scheme end } end\n" +
                 "local function resolve(intent, result, names, flags)\n" +
                 "  candidates = {}\n" +
-                "  for _, name in ipairs(names) do candidates[#candidates + 1] = infoof(name, true) end\n" +
+                "  for _, name in ipairs(names) do candidates[#candidates + 1] = infoof(name, name ~= 'com.whatsapp') end\n" +
                 "  default = (result ~= 'android' and result or nil)\n" +
                 "  local param = paramof({ [0] = intent, [1] = flags or 65536 }, { ['org.mozilla.firefox'] = true," +
-                " ['com.android.chrome'] = true })\n" +
+                " ['com.android.chrome'] = true }, context)\n" +
                 "  param.unhooked = function(self, fn) return fn() end\n" +
                 "  param.getThis = function(self) return pm end\n" +
                 "  param.result = infoof(result)\n" +
@@ -465,11 +645,38 @@ public class PackageScriptsTest {
         Varargs several = Scripts.run(globals, setup +
                 "local restricted, result = resolve(intentof(nil), 'com.hidden.browser'," +
                 " { 'com.hidden.browser', 'org.mozilla.firefox', 'com.android.chrome' })\n" +
-                "return restricted, result.activityInfo.name, result.activityInfo.processName, result.handleAllWebDataURI");
+                "return restricted, result.activityInfo.name, result.activityInfo.processName, result.handleAllWebDataURI,\n" +
+                "  result.activityInfo.metaData.values['android.dock_home'], result.activityInfo.metaData.read, parcel.recycled");
         assertTrue(several.arg(1).toboolean());
         assertEquals("com.android.internal.app.ResolverActivity", several.arg(2).tojstring());
         assertEquals("system:ui", several.arg(3).tojstring());
         assertTrue(several.arg(4).toboolean());
+        // The meta-data which shows it in car mode, parcelled like the one of the chooser of Android
+        assertTrue(several.arg(5).toboolean());
+        assertTrue(several.arg(6).toboolean());
+        assertTrue(several.arg(7).toboolean());
+        // Android 12 and later give the role of a hidden default browser to another one, which a link resolves to: the
+        // only system browser, else the default of the device when a system app or named with its certificate, unless
+        // another browser has a higher priority; none of them, or Android 11 and earlier, leave the chooser
+        String link = "local function browser(...)\n" +
+                "  local restricted, result = resolve(intentof(nil, 'https'), 'com.hidden.browser'," +
+                " { 'com.hidden.browser', 'org.mozilla.firefox', 'com.android.chrome' })\n" +
+                "  return result.activityInfo.packageName end\n";
+        String[][] browsers = {
+                {"", "android"},
+                {"system['com.android.chrome'] = true", "com.android.chrome"},
+                {"system['com.android.chrome'] = true system['org.mozilla.firefox'] = true", "android"},
+                {"system['com.android.chrome'] = true system['org.mozilla.firefox'] = true config = 'org.mozilla.firefox'",
+                        "org.mozilla.firefox"},
+                {"config = 'org.mozilla.firefox'", "android"},
+                {"config = 'org.mozilla.firefox:3082'", "org.mozilla.firefox"},
+                {"config = 'com.example.missing:3082'", "android"},
+                {"system['com.android.chrome'] = true priorities['org.mozilla.firefox'] = 1", "org.mozilla.firefox"},
+                {"system['com.android.chrome'] = true sdk = 30", "android"}};
+        for (String[] browser : browsers) {
+            Varargs result = Scripts.run(globals, setup + link + browser[0] + "\nreturn browser()");
+            assertEquals(browser[0], browser[1], result.arg1().tojstring());
+        }
         Varargs one = Scripts.run(globals, setup +
                 "local restricted, result = resolve(intentof(nil), 'com.hidden.browser'," +
                 " { 'com.hidden.browser', 'org.mozilla.firefox' })\n" +
@@ -492,6 +699,16 @@ public class PackageScriptsTest {
         assertTrue(chooser.arg(1).toboolean());
         assertEquals("org.mozilla.firefox", chooser.arg(2).tojstring());
         assertEquals(1, chooser.arg(3).toint());
+        // The chooser of Android for a hidden app which is no browser and two browsers is marked as a browser, like
+        // without that app, on a copy of it
+        String kept = "local restricted, result = resolve(intentof(nil), 'android', %s)\n" +
+                "return restricted, result.activityInfo.name, result.handleAllWebDataURI, result.copied";
+        Varargs marked = Scripts.run(globals, setup +
+                String.format(kept, "{ 'com.whatsapp', 'org.mozilla.firefox', 'com.android.chrome' }"));
+        assertTrue(marked.arg(1).toboolean());
+        assertEquals("com.android.internal.app.ResolverActivity", marked.arg(2).tojstring());
+        assertTrue(marked.arg(3).toboolean());
+        assertTrue(marked.arg(4).toboolean());
         Varargs app = Scripts.run(globals, setup +
                 "return resolve(intentof('com.whatsapp'), 'com.whatsapp', { 'com.whatsapp' })");
         assertTrue(app.arg(1).toboolean());
@@ -506,6 +723,78 @@ public class PackageScriptsTest {
                 "return restricted, result.activityInfo.packageName");
         assertFalse(own.arg(1).toboolean());
         assertEquals("android", own.arg(2).tojstring());
+    }
+
+    // A link which only a hidden app is approved for, like its verified links, of which Android gives only that app,
+    // also when asked for all: like without that app, the visible browsers, which a link of a host no app claims finds:
+    // the default one, else the only one, else the chooser; nothing without a visible browser
+    @Test
+    public void verifiedLinksOfHiddenAppsResolveToBrowsers() throws Exception {
+        Globals globals = load("package_resolve");
+        String setup = "local base = luajava.newInstance\n" +
+                "luajava.newInstance = function(name, from)\n" +
+                "  if name == 'android.content.Intent' then return { from = from,\n" +
+                "    setClassName = function(self, p, c) self.target = p .. '/' .. c return self end,\n" +
+                "    setDataAndType = function(self, data, type) self.data = data self.type = type return self end } end\n" +
+                "  if name == 'android.os.Bundle' then return { putBoolean = function() end } end\n" +
+                "  return base(name, from) end\n" +
+                "local bind = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Parcel' then return { obtain = function() return { writeBundle = function() end,\n" +
+                "    setDataPosition = function() end, readBundle = function() return {} end, recycle = function() end } end } end\n" +
+                "  return bind(name) end\n" +
+                "local function infoof(name, web) return { priority = 0, preferredOrder = 0, isDefault = true,\n" +
+                "  handleAllWebDataURI = web, activityInfo = { packageName = name, name = name .. '.Main' } } end\n" +
+                "local link = { getComponent = function() return nil end, getPackage = function() return nil end,\n" +
+                "  getAction = function() return 'android.intent.action.VIEW' end, getScheme = function() return 'https' end,\n" +
+                "  getType = function() return nil end, getData = function() return { buildUpon = function()\n" +
+                "    return { authority = function(self, host) self.host = host return self end,\n" +
+                "      build = function(self) return { host = self.host } end } end } end }\n" +
+                "local browsers, default, asked\n" +
+                // The link of the app gives only the approved app, whatever the flags
+                "local pm = { queryIntentActivities = function(self, intent, flags)\n" +
+                "    if intent == link then return listof({ infoof('com.twitter.android', false) }) end\n" +
+                "    assert(intent.from == link and intent.data.host == 'example.invalid' and intent.type == nil)\n" +
+                "    asked = flags\n" +
+                "    if default ~= nil and flags == 65536 then return listof({ infoof(default, true) }) end\n" +
+                "    local all = {}\n" +
+                "    for _, name in ipairs(browsers) do all[#all + 1] = infoof(name, name ~= 'com.example.app') end\n" +
+                "    return listof(all) end,\n" +
+                "  resolveActivity = function(self, intent, flags)\n" +
+                "    return { activityInfo = { packageName = 'android', name = 'com.android.internal.app.ResolverActivity' } } end }\n" +
+                "local function resolve(names, defaultBrowser)\n" +
+                "  browsers, default, asked = names, defaultBrowser, nil\n" +
+                "  local param = paramof({ [0] = link, [1] = 65536 }, { ['org.mozilla.firefox'] = true,\n" +
+                "    ['com.android.chrome'] = true, ['com.example.app'] = true })\n" +
+                "  param.unhooked = function(self, fn) return fn() end\n" +
+                "  param.getThis = function(self) return pm end\n" +
+                "  param.result = infoof('com.twitter.android', false)\n" +
+                "  local restricted = after(hookof('PackageManager.resolveActivity', 'resolveActivity'), param)\n" +
+                "  local info = param.result\n" +
+                "  return restricted, info and info.activityInfo.packageName, info and info.activityInfo.name, asked,\n" +
+                "    info and info.handleAllWebDataURI\n" +
+                "end\n";
+        Varargs chrome = Scripts.run(globals, setup +
+                "return resolve({ 'com.android.chrome', 'org.mozilla.firefox' }, 'com.android.chrome')");
+        assertTrue(chrome.arg(1).toboolean());
+        assertEquals("com.android.chrome", chrome.arg(2).tojstring());
+        assertEquals(65536, chrome.arg(4).toint());
+        Varargs chooser = Scripts.run(globals, setup + "return resolve({ 'com.android.chrome', 'org.mozilla.firefox' })");
+        assertTrue(chooser.arg(1).toboolean());
+        assertEquals("com.android.internal.app.ResolverActivity", chooser.arg(3).tojstring());
+        assertTrue(chooser.arg(5).toboolean());
+        Varargs only = Scripts.run(globals, setup + "return resolve({ 'org.mozilla.firefox' })");
+        assertEquals("org.mozilla.firefox", only.arg(2).tojstring());
+        // A hidden default browser leaves the others, an app of the reserved host is not a browser
+        Varargs hidden = Scripts.run(globals, setup +
+                "return resolve({ 'com.hidden.browser', 'org.mozilla.firefox' }, 'com.hidden.browser')");
+        assertEquals("org.mozilla.firefox", hidden.arg(2).tojstring());
+        assertEquals(196608, hidden.arg(4).toint());
+        Varargs claimed = Scripts.run(globals, setup + "return resolve({ 'com.example.app', 'org.mozilla.firefox' })");
+        assertEquals("org.mozilla.firefox", claimed.arg(2).tojstring());
+        Varargs none = Scripts.run(globals, setup + "return resolve({ 'com.hidden.browser' })");
+        assertTrue(none.arg(1).toboolean());
+        assertTrue(none.arg(2).isnil());
     }
 
     // MATCH_ALL once, also with the bits of a long, which bit32 would lose
@@ -528,15 +817,16 @@ public class PackageScriptsTest {
     @Test
     public void linksOfAHiddenDefaultBrowser() throws Exception {
         Globals globals = load("generic_filter_by_uid");
-        String run = "local function activity(uid) return { activityInfo = { applicationInfo = { uid = uid," +
-                " system = (uid == 10010) } } } end\n" +
+        String run = "local function activity(uid) return { activityInfo = { packageName = 'app' .. uid," +
+                " applicationInfo = { uid = uid, system = (uid == 10010) } } } end\n" +
                 "local asked\n" +
-                "local param = paramof({ [0] = 'link', [1] = %s }, {})\n" +
+                "local param = paramof({ [0] = 'link', [1] = %s }, { app10010 = true })\n" +
                 "param.result = listof({ activity(10060) })\n" +
                 "function param:unhooked(fn) return fn() end\n" +
                 "function param:getThis() return { queryIntentActivities = function(self, intent, flags)\n" +
                 "  assert(intent == 'link')\n" +
                 "  asked = (type(flags) == 'number' and flags or flags:getValue())\n" +
+                "  if asked == 65536 then return listof({ activity(10060) }) end\n" +
                 "  return listof({ activity(10010), activity(10060) }) end } end\n" +
                 "local restricted = after(hookof('%s'), param)\n" +
                 "return restricted, param.result:size(), param.result:get(0).activityInfo.applicationInfo.uid, asked";
@@ -559,6 +849,87 @@ public class PackageScriptsTest {
                         "after(hookof('PackageManager.queryIntentServices'), param)\n" +
                         "return param.result:size()");
         assertEquals(0, services.arg(1).toint());
+    }
+
+    // A link of hidden apps lists what resolveActivity resolves it to, like a device without them: the browsers of a
+    // link which only a hidden app is approved for, whatever the flags, and on Android 12 and later the one browser
+    // which gets the role of a hidden default browser; all visible browsers when resolveActivity gives the chooser
+    @Test
+    public void linksOfHiddenAppsListWhatTheyResolveTo() throws Exception {
+        for (String copy : new String[]{"visibleof", "fallback", "weblink", "unclaimed"})
+            assertEquals(copy, Scripts.function("package_resolve", copy), Scripts.function("generic_filter_by_uid", copy));
+        String setup = "local base, bind = luajava.newInstance, luajava.bindClass\n" +
+                "luajava.newInstance = function(name, from)\n" +
+                "  if name == 'android.content.Intent' then return { from = from,\n" +
+                "    setClassName = function(self) return self end,\n" +
+                "    setDataAndType = function(self, data, type) self.data = data return self end } end\n" +
+                "  if name == 'android.os.Bundle' then return { putBoolean = function() end } end\n" +
+                "  return base(name, from) end\n" +
+                "local sdk, approved, default = 34\n" +
+                "local browsers = { 'com.hidden.browser', 'com.android.chrome', 'org.mozilla.firefox' }\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                "  if name == 'android.os.Parcel' then return { obtain = function() return { writeBundle = function() end,\n" +
+                "    setDataPosition = function() end, readBundle = function() return {} end, recycle = function() end } end } end\n" +
+                "  return bind(name) end\n" +
+                // Chrome is the only system browser, which gets the browser role of a hidden one
+                "local function infoof(name) return { priority = 0, preferredOrder = 0, isDefault = true,\n" +
+                "  handleAllWebDataURI = (name ~= approved), activityInfo = { packageName = name, name = name .. '.Main',\n" +
+                "  exported = true, applicationInfo = { uid = 10060, flags = (name == 'com.android.chrome' and 1 or 0) } } } end\n" +
+                "local link = { getComponent = function() return nil end, getPackage = function() return nil end,\n" +
+                "  getAction = function() return 'android.intent.action.VIEW' end, getScheme = function() return 'https' end,\n" +
+                "  getType = function() return nil end, getData = function() return { buildUpon = function()\n" +
+                "    return { authority = function(self, host) self.host = host return self end,\n" +
+                "      build = function(self) return { host = self.host } end } end } end }\n" +
+                // The link gives only the approved app whatever the flags, else the default browser unless asked for all
+                "local pm = { queryIntentActivities = function(self, intent, flags)\n" +
+                "    local value = (type(flags) == 'number' and flags or flags:getValue())\n" +
+                "    if intent == link and approved ~= nil then return listof({ infoof(approved) }) end\n" +
+                "    assert(intent == link or intent.data.host == 'example.invalid')\n" +
+                "    if default ~= nil and value == 65536 then return listof({ infoof(default) }) end\n" +
+                "    local all = {}\n" +
+                "    for _, name in ipairs(browsers) do all[#all + 1] = infoof(name) end\n" +
+                "    return listof(all) end,\n" +
+                "  resolveActivity = function(self, intent, flags)\n" +
+                "    return { activityInfo = { packageName = 'android', name = 'com.android.internal.app.ResolverActivity' } } end }\n" +
+                "local function call(hook, result)\n" +
+                "  local param = paramof({ [0] = link, [1] = 65536 }, { ['com.android.chrome'] = true,\n" +
+                "    ['org.mozilla.firefox'] = true }, { getResources = function() return {\n" +
+                "    getIdentifier = function() return 0 end } end })\n" +
+                "  param.unhooked = function(self, fn) return fn() end\n" +
+                "  param.getThis = function(self) return pm end\n" +
+                "  param.result = result\n" +
+                "  return after(hook, param), param.result\n" +
+                "end\n" +
+                "local function listed()\n" +
+                "  local restricted, list = call(hookof('PackageManager.queryIntentActivities'), pm:queryIntentActivities(link, 65536))\n" +
+                "  local names = {}\n" +
+                "  for index = 0, list:size() - 1 do names[#names + 1] = list:get(index).activityInfo.packageName end\n" +
+                "  return table.concat(names, ','), restricted\n" +
+                "end\n" +
+                "local function resolved()\n" +
+                "  local restricted, info = call(hookof('PackageManager.resolveActivity', 'resolveActivity'),\n" +
+                "    pm:queryIntentActivities(link, 65536):get(0))\n" +
+                "  return info and info.activityInfo.packageName or '', restricted\n" +
+                "end\n";
+        // The apps approved for the host and the default browser; the list, and what resolveActivity gives
+        String[][] links = {
+                {"approved = 'com.twitter.android' default = 'com.android.chrome'", "com.android.chrome", "com.android.chrome"},
+                {"approved = 'com.twitter.android'", "com.android.chrome,org.mozilla.firefox", "android"},
+                {"approved = 'com.twitter.android' default = 'com.hidden.browser'", "com.android.chrome", "com.android.chrome"},
+                {"default = 'com.hidden.browser'", "com.android.chrome", "com.android.chrome"},
+                {"default = 'com.hidden.browser' sdk = 30", "com.android.chrome,org.mozilla.firefox", "android"},
+                {"approved = 'com.twitter.android' browsers = { 'com.hidden.browser' }", "", ""}};
+        Globals list = load("generic_filter_by_uid");
+        Globals resolve = load("package_resolve");
+        for (String[] link : links) {
+            Varargs listed = Scripts.run(list, setup + link[0] + "\nreturn listed()");
+            assertEquals(link[0], link[1], listed.arg(1).tojstring());
+            assertTrue(link[0], listed.arg(2).toboolean());
+            Varargs resolved = Scripts.run(resolve, setup + link[0] + "\nreturn resolved()");
+            assertEquals(link[0], link[2], resolved.arg(1).tojstring());
+            assertTrue(link[0], resolved.arg(2).toboolean());
+        }
     }
 
     // The activities of hidden apps are left out of both lists, which are filled by Android and of the app
@@ -715,6 +1086,115 @@ public class PackageScriptsTest {
         assertEquals(1, shared.arg(4).toint());
         assertEquals("com.example.shared", shared.arg(5).tojstring());
         assertFalse(shared.arg(6).toboolean());
+    }
+
+    // The binder proxies, which apps call by reflection, answer like the hooks above them; through those hooks both run,
+    // and the second leaves what the first answered. The own user id and those of the system keep their real answer.
+    // ApplicationPackageManager.getPackagesForUid leaves its call of the proxy to its own hook, see packagemanager.
+    @Test
+    public void binderProxiesOfHiddenUids() throws Exception {
+        String pm = "'android.content.pm.IPackageManager$Stub$Proxy'";
+        Varargs result = Scripts.run(load("package_resolve"),
+                "local frames = { length = 0 }\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name == 'java.lang.reflect.Array' then\n" +
+                        "    return { newInstance = function(self, type, length) return { length = length } end } end\n" +
+                        "  assert(name == 'java.lang.Thread', name)\n" +
+                        "  return { currentThread = function(self) return { getStackTrace = function(self) return frames end } end }\n" +
+                        "end\n" +
+                        "local function frameof(class, method)\n" +
+                        "  return { getClassName = function(self) return class end, getMethodName = function(self) return method end }\n" +
+                        "end\n" +
+                        "local visible = { [10001] = true, [1000] = true }\n" +
+                        "local function twice(proxy, wrapper, args, value)\n" +
+                        "  local param = paramof(args, visible)\n" +
+                        "  param.result = value\n" +
+                        "  local first = after(proxy, param)\n" +
+                        "  local second = after(wrapper, param)\n" +
+                        "  return first, second, param.result\n" +
+                        "end\n" +
+                        "local packages = hookof('IPackageManager.getPackagesForUid', 'getPackagesForUid', " + pm + ")\n" +
+                        "local name = hookof('IPackageManager.getNameForUid', 'getNameForUid', " + pm + ")\n" +
+                        "local signatures = hookof('IPackageManager.checkUidSignatures', 'checkUidSignatures', " + pm + ")\n" +
+                        "local packagesOuter = hookof('PackageManager.getPackagesForUid', 'getPackagesForUid')\n" +
+                        "local nameOuter = hookof('PackageManager.getNameForUid', 'getNameForUid')\n" +
+                        "local signaturesOuter = hookof('PackageManager.checkSignatures/uid', 'checkSignatures')\n" +
+                        "local r = {}\n" +
+                        "local function addall(a, b, c) r[#r + 1] = a; r[#r + 1] = b; r[#r + 1] = (c == nil and 'nil' or c) end\n" +
+                        // 1-3: a hidden uid, the proxy answers null and the hook of PackageManager leaves it
+                        "local a, b, c = twice(packages, packagesOuter, { [0] = 10060 }, arrayof('com.whatsapp'))\n" +
+                        "addall(a, b, c)\n" +
+                        // 4-6: the name of a hidden uid
+                        "a, b, c = twice(name, nameOuter, { [0] = 10060 }, 'com.whatsapp')\n" +
+                        "addall(a, b, c)\n" +
+                        // 7-9: the own and a hidden uid, like for a uid which is not in use
+                        "a, b, c = twice(signatures, signaturesOuter, { [0] = 10001, [1] = 10060 }, -3)\n" +
+                        "addall(a, b, c)\n" +
+                        // 10-12: the own uid and the system keep their names
+                        "a, b, c = twice(name, nameOuter, { [0] = 10001 }, 'com.example')\n" +
+                        "addall(a, b, c)\n" +
+                        "a, b, c = twice(name, nameOuter, { [0] = 1000 }, 'android.uid.system:1000')\n" +
+                        "addall(a, b, c)\n" +
+                        "a, b, c = twice(signatures, signaturesOuter, { [0] = 10001, [1] = 1000 }, -3)\n" +
+                        "addall(a, b, c)\n" +
+                        // 19-21: called through ApplicationPackageManager, below the frames of the cache, the proxy
+                        // leaves the call to the hook of PackageManager, which restricts it
+                        "frames = { length = 3, frameof('LSPHooker_', 'getPackagesForUid'),\n" +
+                        "  frameof('android.app.ApplicationPackageManager$1', 'recompute'),\n" +
+                        "  frameof('android.app.ApplicationPackageManager', 'getPackagesForUid') }\n" +
+                        "a, b, c = twice(packages, packagesOuter, { [0] = 10060 }, arrayof('com.whatsapp'))\n" +
+                        "addall(a, b, c)\n" +
+                        "return table.unpack(r)");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals("nil", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals("nil", result.arg(6).tojstring());
+        assertTrue(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals(-4, result.arg(9).toint());
+        for (int i = 10; i <= 16; i += 3) {
+            assertFalse(result.arg(i).toboolean());
+            assertFalse(result.arg(i + 1).toboolean());
+        }
+        assertEquals("com.example", result.arg(12).tojstring());
+        assertEquals("android.uid.system:1000", result.arg(15).tojstring());
+        assertEquals(-3, result.arg(18).toint());
+        assertFalse(result.arg(19).toboolean());
+        assertTrue(result.arg(20).toboolean());
+        assertEquals("nil", result.arg(21).tojstring());
+
+        // The own user id and the system through the proxy itself, also the packages of the system
+        Varargs own = Scripts.run(load("package_resolve"),
+                "local thread = { getStackTrace = function(self) return { length = 0 } end }\n" +
+                        "luajava.bindClass = function(name) return { currentThread = function(self) return thread end } end\n" +
+                        "local hook = hookof('IPackageManager.getPackagesForUid', 'getPackagesForUid', " + pm + ")\n" +
+                        "local own = paramof({ [0] = 10001 }, { [10001] = true, ['com.example'] = true })\n" +
+                        "own.result = arrayof('com.example')\n" +
+                        "local system = paramof({ [0] = 1000 }, { [1000] = true, ['android'] = true, ['com.android.settings'] = true })\n" +
+                        "system.result = arrayof('android', 'com.android.settings')\n" +
+                        "return after(hook, own), own.result[1], after(hook, system), system.result.length");
+        assertFalse(own.arg(1).toboolean());
+        assertEquals("com.example", own.arg(2).tojstring());
+        assertFalse(own.arg(3).toboolean());
+        assertEquals(2, own.arg(4).toint());
+
+        // The sync adapters of hidden apps through the proxy of the content service, which the hook of ContentResolver
+        // above it leaves then
+        Varargs sync = Scripts.run(load("package_resolve"),
+                "local function syncof(name) return { getPackageName = function(self) return name end } end\n" +
+                        "local param = paramof({}, { ['com.google.android.gms'] = true })\n" +
+                        "param.findClass = function(self, name) return name end\n" +
+                        "param.result = { length = 2, syncof('com.google.android.gms'), syncof('com.whatsapp') }\n" +
+                        "local proxy = after(hookof('IContentService.getSyncAdapterTypes', 'getSyncAdapterTypes',\n" +
+                        "  'android.content.IContentService$Stub$Proxy'), param)\n" +
+                        "local outer = after(hookof('ContentResolver.getSyncAdapterTypes', 'getSyncAdapterTypes'), param)\n" +
+                        "return proxy, outer, param.result['length'], param.result[1]:getPackageName()");
+        assertTrue(sync.arg(1).toboolean());
+        assertFalse(sync.arg(2).toboolean());
+        assertEquals(1, sync.arg(3).toint());
+        assertEquals("com.google.android.gms", sync.arg(4).tojstring());
     }
 
     // A permission which a hidden app defines, like the own permission of a messenger, is denied to the app like a
@@ -1069,23 +1549,105 @@ public class PackageScriptsTest {
         assertEquals(1, list.arg(2).toint());
         assertEquals("android", list.arg(3).tojstring());
 
-        // The permissions of a group of a hidden app: the group is not found, like getPermissionGroupInfo;
-        // those of a group of Android stay
-        String byGroup = "local param = paramof({ [0] = '%s', [1] = 0 }, { android = true })\n" +
+        // The permissions of a group of a hidden app: the group is looked up under a name no app defines, so the
+        // exception is of Android, like for getPermissionGroupInfo; those of a group of Android stay
+        String byGroup = "values = {}\n" +
+                "hook = hookof('PackageManager.queryPermissionsByGroup', 'queryPermissionsByGroup')\n" +
+                "param = paramof({ [0] = '%s', [1] = 0 }, { android = true }, values)\n" +
                 "param.result = listof({ { packageName = 'android' } })\n" +
                 "function param:unhooked(fn) return fn() end\n" +
                 "function param:getThis() return { getPermissionGroupInfo = function(self, name, flags)\n" +
+                "  assert(flags == 0)\n" +
+                "  if name ~= 'android.permission-group.CAMERA' and name ~= 'com.example.bank.permission-group.API' then\n" +
+                "    error('NameNotFoundException') end\n" +
                 "  return { packageName = (name == 'android.permission-group.CAMERA' and 'android' or 'com.example.bank') } end } end\n" +
-                "local restricted, old = after(hookof('PackageManager.queryPermissionsByGroup', 'queryPermissionsByGroup'), param)\n" +
-                "return restricted, old, param.result.exception, param.result.message";
+                "local restricted, old = before(hook, param)\n" +
+                "return restricted, old, param.args[0]";
         Varargs hidden = Scripts.run(globals, String.format(byGroup, "com.example.bank.permission-group.API"));
         assertTrue(hidden.arg(1).toboolean());
         assertEquals("com.example.bank", hidden.arg(2).tojstring());
-        assertEquals("android.content.pm.PackageManager$NameNotFoundException", hidden.arg(3).tojstring());
-        assertEquals("com.example.bank.permission-group.API", hidden.arg(4).tojstring());
-        Varargs camera = Scripts.run(globals, String.format(byGroup, "android.permission-group.CAMERA"));
+        String substitute = hidden.arg(3).tojstring();
+        assertTrue(substitute, substitute.matches("com\\.example\\.bank\\.permission-group\\.API\\.x[0-9]{9}"));
+        ProbeException genuine = new ProbeException(substitute);
+        globals.set("genuine", CoerceJavaToLua.coerce(genuine));
+        Varargs thrown = Scripts.run(globals, "param.exception = genuine\nreturn after(hook, param), param.result");
+        assertFalse(thrown.arg(1).toboolean()); // Reported by before
+        Throwable fake = (Throwable) thrown.arg(2).touserdata();
+        assertEquals(ProbeException.class, fake.getClass());
+        assertEquals("com.example.bank.permission-group.API", fake.getMessage());
+        assertArrayEquals(genuine.getStackTrace(), fake.getStackTrace());
+
+        Varargs camera = Scripts.run(globals, String.format(byGroup, "android.permission-group.CAMERA") +
+                ", after(hook, param)");
         assertFalse(camera.arg(1).toboolean());
-        assertTrue(camera.arg(3).isnil());
+        assertEquals("android.permission-group.CAMERA", camera.arg(3).tojstring());
+        assertFalse(camera.arg(4).toboolean());
+        // A group no app defines, and all permissions without a group, are asked as they are
+        Varargs none = Scripts.run(globals, String.format(byGroup, "com.example.UNDEFINED"));
+        assertFalse(none.arg(1).toboolean());
+        assertEquals("com.example.UNDEFINED", none.arg(3).tojstring());
+        Varargs ungrouped = Scripts.run(globals, "local param = paramof({ [1] = 0 }, {})\n" +
+                "return before(hookof('PackageManager.queryPermissionsByGroup', 'queryPermissionsByGroup'), param)");
+        assertFalse(ungrouped.arg(1).toboolean());
+        // The copies of the substitutes stay the same, so both scripts use the same suffix
+        assertEquals(Scripts.function("package_probe", "suffixof"), Scripts.function("package_resolve", "suffixof"));
+        assertEquals(Scripts.function("package_probe", "replace"), Scripts.function("package_resolve", "replace"));
+    }
+
+    // A permission or a group which a hidden app defines is looked up under a name no app defines, so Android itself
+    // throws, with its own stack trace instead of one of the script; other exceptions and other hooks stay
+    @Test
+    public void permissionLookupsThrowLikeAndroid() throws Exception {
+        Globals globals = load("package_resolve");
+        String lookup = "values = {}\n" +
+                "hook = hookof('PackageManager.%1$s', '%1$s')\n" +
+                "param = paramof({ [0] = '%2$s', [1] = 128 }, { android = true }, values)\n" +
+                "function param:unhooked(fn) return fn() end\n" +
+                "local function find(self, name, flags)\n" +
+                "  local owners = { ['com.example.bank.permission.C2D_MESSAGE'] = 'com.example.bank',\n" +
+                "    ['com.example.bank.permission-group.API'] = 'com.example.bank', ['android.permission.CAMERA'] = 'android' }\n" +
+                "  if owners[name] == nil then error('NameNotFoundException') end\n" +
+                "  return { packageName = owners[name] } end\n" +
+                "function param:getThis() return { getPermissionInfo = find, getPermissionGroupInfo = find } end\n" +
+                "local restricted, old = before(hook, param)\n" +
+                "return restricted, old, param.args[0], param.args[1]";
+        String[][] calls = {{"getPermissionInfo", "com.example.bank.permission.C2D_MESSAGE"},
+                {"getPermissionGroupInfo", "com.example.bank.permission-group.API"}};
+        for (String[] call : calls) {
+            Varargs before = Scripts.run(globals, String.format(lookup, call[0], call[1]));
+            assertTrue(call[0], before.arg(1).toboolean());
+            assertEquals(call[0], "com.example.bank", before.arg(2).tojstring());
+            String substitute = before.arg(3).tojstring();
+            assertTrue(substitute, substitute.startsWith(call[1] + ".x"));
+            assertEquals(call[0], 128, before.arg(4).toint());
+
+            ProbeException genuine = new ProbeException(substitute);
+            genuine.initCause(new RuntimeException("Remote stack trace"));
+            globals.set("genuine", CoerceJavaToLua.coerce(genuine));
+            Varargs after = Scripts.run(globals, "param.exception = genuine\nreturn after(hook, param), param.result");
+            assertFalse(call[0], after.arg(1).toboolean());
+            Throwable fake = (Throwable) after.arg(2).touserdata();
+            assertEquals(call[0], ProbeException.class, fake.getClass());
+            assertEquals(call[0], call[1], fake.getMessage());
+            assertArrayEquals(call[0], genuine.getStackTrace(), fake.getStackTrace());
+            assertSame(call[0], genuine.getCause(), fake.getCause());
+        }
+
+        // A permission of Android is asked as it is, and an exception for a name the app asked for stays
+        Varargs camera = Scripts.run(globals, String.format(lookup, "getPermissionInfo", "android.permission.CAMERA"));
+        assertFalse(camera.arg(1).toboolean());
+        assertEquals("android.permission.CAMERA", camera.arg(3).tojstring());
+        Varargs missing = Scripts.run(globals, String.format(lookup, "getPermissionInfo", "com.example.UNDEFINED"));
+        assertFalse(missing.arg(1).toboolean());
+        globals.set("genuine", CoerceJavaToLua.coerce(new ProbeException("com.example.UNDEFINED")));
+        Varargs stays = Scripts.run(globals, "param.exception = genuine\nreturn after(hook, param), param.result");
+        assertFalse(stays.arg(1).toboolean());
+        assertTrue(stays.arg(2).isnil());
+
+        // The other hooks of the script have nothing to look up
+        Varargs other = Scripts.run(globals, "local param = paramof({}, {})\n" +
+                "return before(hookof('ContentResolver.getSyncAdapterTypes', 'getSyncAdapterTypes'), param)");
+        assertFalse(other.arg(1).toboolean());
     }
 
     // Permission groups name the app which defines them too, like getAllPermissionGroups an app's own group

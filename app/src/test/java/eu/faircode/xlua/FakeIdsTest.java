@@ -134,6 +134,21 @@ public class FakeIdsTest {
         assertFalse(FakeIds.isId(FakeIds.LOCATION_KEY));
     }
 
+    // The suffix of the names package_probe looks hidden apps up under is of each app, the same for all its processes
+    // during a boot, whatever the modes, and has the form of the random one a process makes without the service
+    @Test
+    public void probeSuffixIsOfEachApp() {
+        Map<String, String> fixed = new HashMap<>();
+        fixed.put(FakeIds.ANDROID_ID + FakeIds.MODE, FakeIds.FIXED);
+        String one = FakeIds.getBootValues(SECRET, 0, "com.example", fixed, fixed).get(FakeIds.PROBE_SUFFIX);
+        assertTrue(one, one.matches("\\.x[0-9]{9}"));
+        assertEquals(one, FakeIds.getBootValues(SECRET, 0, "com.example", new HashMap<>(), new HashMap<>())
+                .get(FakeIds.PROBE_SUFFIX));
+        assertNotEquals(one, FakeIds.getBootValues(SECRET, 0, "com.other", fixed, fixed).get(FakeIds.PROBE_SUFFIX));
+        assertNotEquals(one, FakeIds.getBootValues(SECRET, 1, "com.example", fixed, fixed).get(FakeIds.PROBE_SUFFIX));
+        assertFalse(FakeIds.isId(FakeIds.PROBE_SUFFIX));
+    }
+
     @Test
     public void bootValues() {
         Map<String, String> global = new HashMap<>();

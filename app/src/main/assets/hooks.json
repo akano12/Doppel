@@ -206,6 +206,73 @@
     "excludePackages": "android",
     "luaScript": "@generic_filter_by_uid"
   },
+  // Shared libraries name the apps which use them and the apps which declare static and SDK libraries (see features)
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getSharedLibraries/apps",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSharedLibraries",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getSharedLibraries/flags/apps",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSharedLibraries",
+    "parameterTypes": [
+      "android.content.pm.PackageManager$PackageInfoFlags"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@features"
+  },
+  // The hidden methods for a user, which the public ones call, but which apps can call themselves by reflection;
+  // filtering twice, when a public method calls one, gives the same list (see features)
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getSharedLibrariesAsUser",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSharedLibrariesAsUser",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@features"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getSharedLibrariesAsUser/flags",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getSharedLibrariesAsUser",
+    "parameterTypes": [
+      "android.content.pm.PackageManager$PackageInfoFlags",
+      "int"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@features"
+  },
   // Checks for specific packages; own and system packages stay visible
   {
     "collection": "Privacy",
@@ -412,6 +479,39 @@
     "excludePackages": "android",
     "luaScript": "@package_resolve"
   },
+  // The binder proxy under the two above, hidden, which apps reach by reflection through ActivityThread.getPackageManager()
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getPackagesForUid",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getPackagesForUid",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getNameForUid",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getNameForUid",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
   // A permission names the app which defines it, like com.example.bank.permission.C2D_MESSAGE
   {
     "collection": "Privacy",
@@ -487,6 +587,21 @@
     "parameterTypes": [],
     "returnType": "android.content.SyncAdapterType[]",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
+  // The binder proxy under it, hidden, which apps reach by reflection through ContentResolver.getContentService()
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IContentService.getSyncAdapterTypes",
+    "author": "akano12",
+    "className": "android.content.IContentService$Stub$Proxy",
+    "methodName": "getSyncAdapterTypes",
+    "parameterTypes": [],
+    "returnType": "android.content.SyncAdapterType[]",
+    "minSdk": 27,
+    "optional": true,
     "excludePackages": "android",
     "luaScript": "@package_resolve"
   },
@@ -1213,6 +1328,152 @@
     "excludePackages": "android",
     "luaScript": "@provider_hidden"
   },
+  // Change observers and notifications by each public overload: the app calls them, and Android can compile the
+  // short overloads which they pass on to into them; also by the hidden registerContentObserver and notifyChange
+  // for a user, which apps can call by reflection, notifyChange from Android 9 when they target Android 8.1 or lower.
+  // shortcut: ContentService itself, which apps can reach by the hidden ContentResolver.getContentService, is not
+  // hooked, upgrade when apps use it to find hidden apps
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.registerContentObserver/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "registerContentObserver",
+    "parameterTypes": [
+      "android.net.Uri",
+      "boolean",
+      "android.database.ContentObserver"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.registerContentObserver.user/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "registerContentObserver",
+    "parameterTypes": [
+      "android.net.Uri",
+      "boolean",
+      "android.database.ContentObserver",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.notifyChange/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "notifyChange",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.database.ContentObserver"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.notifyChange.sync/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "notifyChange",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.database.ContentObserver",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.notifyChange.flags/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "notifyChange",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.database.ContentObserver",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.notifyChange.sync.user/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "notifyChange",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.database.ContentObserver",
+      "boolean",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.notifyChange.flags.user/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "notifyChange",
+    "parameterTypes": [
+      "android.net.Uri",
+      "android.database.ContentObserver",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ContentResolver.notifyChange.uris/hidden",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "notifyChange",
+    "parameterTypes": [
+      "java.util.Collection",
+      "android.database.ContentObserver",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@provider_hidden"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -1785,6 +2046,38 @@
     "excludePackages": "android",
     "luaScript": "@component_hidden"
   },
+  // Android removes a sticky broadcast which equals the intent, so it gets the same copy as when it was sent
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.removeStickyBroadcast/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "removeStickyBroadcast",
+    "parameterTypes": [
+      "android.content.Intent"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.removeStickyBroadcastAsUser/hidden",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "removeStickyBroadcastAsUser",
+    "parameterTypes": [
+      "android.content.Intent",
+      "android.os.UserHandle"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@component_hidden"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -2246,6 +2539,24 @@
     "excludePackages": "android",
     "luaScript": "@package_resolve"
   },
+  // The binder proxy under it, hidden, which apps reach by reflection through ActivityThread.getPackageManager()
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.checkUidSignatures",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "checkUidSignatures",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -2276,6 +2587,46 @@
     ],
     "returnType": "int",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
+  // The overload with the token of the caller, hidden, which asks Android itself until 11 and the one above from 12
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Context.checkPermission/token",
+    "author": "akano12",
+    "className": "android.app.ContextImpl",
+    "methodName": "checkPermission",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int",
+      "android.os.IBinder"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "maxSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@package_resolve"
+  },
+  // Hidden, which any app may call, and asks the package manager itself
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ActivityManager.checkComponentPermission",
+    "author": "akano12",
+    "className": "android.app.ActivityManager",
+    "methodName": "checkComponentPermission",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int",
+      "boolean"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "optional": true,
     "excludePackages": "android",
     "luaScript": "@package_resolve"
   },
@@ -2821,6 +3172,39 @@
     "minSdk": 27,
     "excludePackages": "android",
     "luaScript": "@default_app_filter"
+  },
+  // The default browser, system APIs, which Android tells without checking whether the app may see the browser
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PackageManager.getDefaultBrowserPackageNameAsUser",
+    "author": "akano12",
+    "className": "android.content.pm.PackageManager",
+    "methodName": "getDefaultBrowserPackageNameAsUser",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@default_browser"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "RoleManager.getBrowserRoleHolder",
+    "author": "akano12",
+    "className": "android.app.role.RoleManager",
+    "methodName": "getBrowserRoleHolder",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@default_browser"
   },
   {
     "collection": "Privacy",
@@ -3372,6 +3756,155 @@
     "excludePackages": "android",
     "luaScript": "@package_probe"
   },
+  // The callbacks of sent PendingIntents and IntentSenders get the intent Android sent, with the names the app asked for
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PendingIntent.FinishedDispatcher.performReceive",
+    "author": "akano12",
+    "className": "android.app.PendingIntent$FinishedDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IntentSender.FinishedDispatcher.performReceive",
+    "author": "akano12",
+    "className": "android.content.IntentSender$FinishedDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  // The app which made a PendingIntent or IntentSender the app was handed, like the alarm app of the next alarm
+  // clock (AlarmManager.getNextAlarmClock().getShowIntent())
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PendingIntent.getCreatorPackage",
+    "author": "akano12",
+    "className": "android.app.PendingIntent",
+    "methodName": "getCreatorPackage",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@pendingintent_creator"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PendingIntent.getTargetPackage",
+    "author": "akano12",
+    "className": "android.app.PendingIntent",
+    "methodName": "getTargetPackage",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@pendingintent_creator"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PendingIntent.getCreatorUid",
+    "author": "akano12",
+    "className": "android.app.PendingIntent",
+    "methodName": "getCreatorUid",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@pendingintent_creator"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "PendingIntent.getCreatorUserHandle",
+    "author": "akano12",
+    "className": "android.app.PendingIntent",
+    "methodName": "getCreatorUserHandle",
+    "parameterTypes": [],
+    "returnType": "android.os.UserHandle",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@pendingintent_creator"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IntentSender.getCreatorPackage",
+    "author": "akano12",
+    "className": "android.content.IntentSender",
+    "methodName": "getCreatorPackage",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@pendingintent_creator"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IntentSender.getTargetPackage",
+    "author": "akano12",
+    "className": "android.content.IntentSender",
+    "methodName": "getTargetPackage",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@pendingintent_creator"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IntentSender.getCreatorUid",
+    "author": "akano12",
+    "className": "android.content.IntentSender",
+    "methodName": "getCreatorUid",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@pendingintent_creator"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IntentSender.getCreatorUserHandle",
+    "author": "akano12",
+    "className": "android.content.IntentSender",
+    "methodName": "getCreatorUserHandle",
+    "parameterTypes": [],
+    "returnType": "android.os.UserHandle",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@pendingintent_creator"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -3805,6 +4338,19 @@
     "excludePackages": "android",
     "luaScript": "@network_stats_filter"
   },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "NetworkStats.hasNextBucket",
+    "author": "akano12",
+    "className": "android.app.usage.NetworkStats",
+    "methodName": "hasNextBucket",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@network_stats_filter"
+  },
   // The live wallpaper tells which app provides it
   {
     "collection": "Privacy",
@@ -3936,6 +4482,119 @@
     "returnType": "byte[]",
     "minSdk": 27,
         "luaScript": "@hardware_files"
+  },
+  // The calls which tell a file exists, like listing the attributes, changing them, the mode or the owner, which a file
+  // of a read-only partition refuses (EROFS), or linking it into another partition (EXDEV): a missing file gives
+  // ENOENT; setxattr and removexattr from Linux 6.11 and getxattr from 6.13 check their arguments first, and link
+  // throws for a null second path, which hardware_files leaves to Android
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.listxattr/privapp_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "listxattr",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.setxattr/privapp_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "setxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "byte[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.removexattr/privapp_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "removexattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.chmod/privapp_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.chown/privapp_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.lchown/privapp_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The first path is the file which must exist, the kernel looks it up first
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Os.link/privapp_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "link",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
   },
   {
     "collection": "Privacy",
@@ -4230,6 +4889,70 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  // Files.setPosixFilePermissions, setOwner and createLink, which give NoSuchFileException for a missing file, like
+  // the calls of Os
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.chmod/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.chown/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.lchown/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UnixNativeDispatcher.link/privapp_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "link",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -4340,6 +5063,63 @@
     "name": "Os.execve/packages",
     "author": "akano12",
     "className": "android.system.Os",
+    "methodName": "execve",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  // The methods beneath, which apps can call by reflection, on Android 8.1 without any trick: forkAndExec runs the
+  // program for ProcessImpl.start and the UNIXProcess constructor, Linux.execv and execve for Os and Libcore.os
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "UNIXProcess.forkAndExec/packages",
+    "author": "akano12",
+    "className": "java.lang.UNIXProcess",
+    "methodName": "forkAndExec",
+    "parameterTypes": [
+      "byte[]",
+      "byte[]",
+      "int",
+      "byte[]",
+      "int",
+      "byte[]",
+      "int[]",
+      "boolean"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Linux.execv/packages",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
+    "methodName": "execv",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@commands_blocked"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "Linux.execve/packages",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
     "methodName": "execve",
     "parameterTypes": [
       "java.lang.String",

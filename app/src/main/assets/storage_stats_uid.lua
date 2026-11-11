@@ -17,14 +17,17 @@
 
 -- With usage access (PACKAGE_USAGE_STATS) the storage used by a uid tells its apps are installed.
 -- StorageStatsManager.queryStatsForUid of a hidden uid returns zero stats, like a uid without installed packages,
--- which is what the system returns anyway (see package_probe for queryStatsForPackage). The zero StorageStats is
+-- which is what the system returns anyway (see package_probe for queryStatsForPackage). The call still goes to
+-- Android first, whose checks come before any package is looked up: a caller without usage access, a uid of another
+-- user without INTERACT_ACROSS_USERS and an unknown volume keep the SecurityException or IOException of Android,
+-- like for the uids of the system and of visible apps (StorageStatsService.queryStatsForUid). The zero StorageStats is
 -- read back from a parcel holding its class name and zero longs, the same bytes writeParcelable produces; the
 -- framework resolves its CREATOR, so neither the hidden empty constructor nor the non-public CREATOR class is
 -- reached from Lua. The surplus longs are ignored, the reader of each Android version takes only the fields it has.
 
-function before(hook, param)
+function after(hook, param)
     -- Processes of the system see all apps; the uid is the second argument (uuid, uid)
-    if param:isSystem() or param:isUidVisible(param:getArgument(1)) then
+    if param:getException() ~= nil or param:isSystem() or param:isUidVisible(param:getArgument(1)) then
         return false
     end
     local parcel = luajava.bindClass('android.os.Parcel'):obtain()

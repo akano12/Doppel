@@ -43,6 +43,10 @@ final class FakeIds {
     // Of the service only too: the key of the offsets of fake locations (location.lua), of each app, new each boot like
     // the offsets of the coarse locations of Android, so apps cannot compute them
     static final String LOCATION_KEY = "location.key";
+    // Of the service only too: the suffix of the names under which package_probe.lua looks up hidden apps, of each app,
+    // new each boot, so every process of the app uses the same names, like for a PendingIntent another process or a
+    // later start of the app looks up again
+    static final String PROBE_SUFFIX = "package_probe.suffix";
 
     // The setting of the mode of a value is its name with this suffix
     static final String MODE = ".mode";
@@ -128,6 +132,7 @@ final class FakeIds {
         if (!FIXED.equals(mode))
             result.put(DRM_ID, derive(secret, userid, BOOT.equals(mode) ? packageName : null, DRM_ID));
         result.put(LOCATION_KEY, derive(secret, userid, packageName, LOCATION_KEY));
+        result.put(PROBE_SUFFIX, derive(secret, userid, packageName, PROBE_SUFFIX));
         return result;
     }
 
@@ -160,6 +165,8 @@ final class FakeIds {
                 return digits + luhn(digits);
             case MEID:
                 return randomString(random, "0123456789ABCDEF", 14);
+            case PROBE_SUFFIX:
+                return ".x" + randomString(random, "0123456789", 9);
             default:
                 return null;
         }

@@ -635,6 +635,44 @@ public class FileScriptsTest {
         assertTrue(result.arg(2).toboolean());
     }
 
+    // Nothing is under a hidden permission file, for which the kernel would answer ENOTDIR and tell the file is there,
+    // also by a link to its folder; under a file which stays, and under the files of Read.Network, which stay there,
+    // the real call answers
+    @Test
+    public void pathsUnderHiddenFilesDoNotExist() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local file = '/system/etc/permissions/privapp-permissions-com.example.xml'\n" +
+                        "local present = { [file] = true, ['/etc/permissions/privapp-permissions-com.example.xml'] = true,\n" +
+                        "  ['/system/etc/permissions/platform.xml'] = true, ['/proc/net/arp'] = true }\n" +
+                        "local new = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path, ...)\n" +
+                        "  if name == 'java.io.File' then return { exists = function() return present[path] == true end,\n" +
+                        "    canRead = function() return present[path] == true end } end\n" +
+                        "  return new(name, path, ...)\n" +
+                        "end\n" +
+                        "local function param(path)\n" +
+                        "  local p = paramof(path)\n" +
+                        "  p.unhooked = function(self, fn) return fn() end\n" +
+                        "  return p\n" +
+                        "end\n" +
+                        "local apps = hookof('Get.Applications', 'libcore.io.BlockGuardOs', 'stat')\n" +
+                        "local stat = param(file .. '/a')\n" +
+                        "before(apps, stat)\n" +
+                        "local function h(hook, path) return hidden(hook, path, param(path)) end\n" +
+                        "return h(apps, file .. '/a'), h(apps, file .. '/.'), h(apps, file .. '/a/b'),\n" +
+                        "  h(apps, '/etc/permissions/privapp-permissions-com.example.xml/a'),\n" +
+                        "  stat.result.class, stat.result.args[1], stat.result.args[2],\n" +
+                        "  h(apps, '/system/etc/permissions/platform.xml/a'), h(hookof('Read.Network'), '/proc/net/arp/a')");
+        for (int i = 1; i <= 4; i++)
+            assertTrue("result " + i, result.arg(i).toboolean());
+        assertEquals("android.system.ErrnoException", result.arg(5).tojstring());
+        assertEquals("stat", result.arg(6).tojstring());
+        assertEquals(2, result.arg(7).toint());
+        assertFalse(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
+    }
+
     // The folders of system apps list without names by any form of their path, also by the compatibility links of
     // /system to the other partitions, which the filter passes too
     @Test
@@ -914,15 +952,30 @@ public class FileScriptsTest {
             assertTrue(path, filterMatches(filter, path));
     }
 
+    // The file systems statvfs says are mounted read-only (ST_RDONLY, here with ST_RELATIME), by the folder
+    private static final String READ_ONLY_STUBS = HARDWARE_STUBS + "\n" + String.join("\n",
+            "READONLY = { ['/system/xbin'] = true, ['/system/etc/permissions'] = true, ['/etc/permissions'] = true,",
+            "  ['/apex/com.android.foo/etc/permissions'] = true }",
+            "local bind = luajava.bindClass",
+            "luajava.bindClass = function(name)",
+            "  if name ~= 'android.system.Os' then return bind(name) end",
+            "  return { statvfs = function(self, folder) return { f_flag = READONLY[folder] and 1025 or 1024 } end }",
+            "end",
+            "function makingparam(path, flags)",
+            "  local param = paramof(path, nil, flags)",
+            "  param.unhooked = function(self, fn) return fn() end",
+            "  return param",
+            "end");
+
     // Resolving, reading the link of and making a hidden file fail like for a file which does not exist;
     // making one fails like in /sys, or like in a folder which does not exist when the group hides the folder
     @Test
     public void hardwareLinksAndMaking() throws Exception {
-        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
         Varargs result = Scripts.run(globals,
                 "local id = '/sys/devices/system/chip-id/unique_id'\n" +
                         "local function run(group, class, method, path)\n" +
-                        "  local param = paramof(path)\n" +
+                        "  local param = makingparam(path)\n" +
                         "  before(hookof(group, class, method), param)\n" +
                         "  return param.result.class .. ':' .. tostring(param.result.args[1])\n" +
                         "end\n" +
@@ -943,6 +996,62 @@ public class FileScriptsTest {
         assertEquals("java.io.IOException:Permission denied", result.arg(7).tojstring());
     }
 
+    // Opening a hidden file to make it on a file system mounted read-only fails like for a file which does not exist
+    // there, EROFS, which the kernel checks before the permissions, by any path to the folder; without O_CREAT, and
+    // under a hidden file, the file is not there (ENOENT)
+    @Test
+    public void makingOnReadOnlyFileSystems() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local file = '/system/etc/permissions/privapp-permissions-com.example.xml'\n" +
+                        "local function run(class, method, path, flags)\n" +
+                        "  local param = makingparam(path, flags)\n" +
+                        "  before(hookof('Get.Applications', class, method), param)\n" +
+                        "  return param.result.class .. ':' .. tostring(param.result.args[#param.result.args])\n" +
+                        "end\n" +
+                        "local os, nio, io = 'libcore.io.BlockGuardOs', 'sun.nio.fs.UnixNativeDispatcher', 'java.io.UnixFileSystem'\n" +
+                        // FileOutputStream (O_WRONLY | O_CREAT | O_TRUNC), RandomAccessFile rw (O_RDWR | O_CREAT), reading
+                        "return run(os, 'open', file, 577), run(os, 'open', file, 66), run(os, 'open', file, 0),\n" +
+                        "  run(nio, 'open', file, 577), run(os, 'open', file .. '/a', 577),\n" +
+                        "  run(io, 'createFileExclusively', '/etc/permissions/privapp-permissions-com.example.xml'),\n" +
+                        "  run(io, 'createFileExclusively', '/apex/com.android.foo/etc/permissions/privapp-permissions-a.xml')");
+        assertEquals("android.system.ErrnoException:30", result.arg(1).tojstring());
+        assertEquals("android.system.ErrnoException:30", result.arg(2).tojstring());
+        assertEquals("android.system.ErrnoException:2", result.arg(3).tojstring());
+        assertEquals("sun.nio.fs.UnixException:30", result.arg(4).tojstring());
+        assertEquals("android.system.ErrnoException:2", result.arg(5).tojstring());
+        assertEquals("java.io.IOException:Read-only file system", result.arg(6).tojstring());
+        assertEquals("java.io.IOException:Read-only file system", result.arg(7).tojstring());
+    }
+
+    // Reading or changing the attributes of a hidden file and linking it run with an empty path, which Android answers
+    // like a missing file in its own order: libcore checks for null arguments first, Linux 6.11 and later (6.13 for
+    // getxattr) the arguments, older kernels the path; the other calls get ENOENT, and files not hidden keep their path
+    @Test
+    public void hiddenFileAttributesAnswerLikeAMissingFile() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local function run(method, path)\n" +
+                        "  local param = paramof(path or '/system/etc/permissions/privapp-permissions-com.example.xml')\n" +
+                        "  local restricted = before(hookof('Get.Applications', 'android.system.Os', method), param)\n" +
+                        "  if param.early then\n" +
+                        "    return tostring(restricted) .. ':' .. param.result.class .. ':' .. param.result.args[1] .. ':' ..\n" +
+                        "      param.result.args[2]\n" +
+                        "  end\n" +
+                        "  return tostring(restricted) .. ':' .. (param.argument and param.argument.index .. ':[' ..\n" +
+                        "    param.argument.value .. ']' or 'unchanged')\n" +
+                        "end\n" +
+                        "return run('setxattr'), run('removexattr'), run('chmod'), run('listxattr'),\n" +
+                        "  run('setxattr', '/system/etc/permissions/platform.xml'), run('link'), run('getxattr')");
+        assertEquals("true:0:[]", result.arg(1).tojstring());
+        assertEquals("true:0:[]", result.arg(2).tojstring());
+        assertEquals("true:android.system.ErrnoException:chmod:2", result.arg(3).tojstring());
+        assertEquals("true:android.system.ErrnoException:listxattr:2", result.arg(4).tojstring());
+        assertEquals("false:unchanged", result.arg(5).tojstring());
+        assertEquals("true:0:[]", result.arg(6).tojstring());
+        assertEquals("true:0:[]", result.arg(7).tojstring());
+    }
+
     // The hooks see a file which does not exist: an error of the kernel, no attributes or no names
     @Test
     public void hardwareMissing() throws Exception {
@@ -950,7 +1059,7 @@ public class FileScriptsTest {
         Varargs result = Scripts.run(globals,
                 "local ids = 'Read.Identifiers'\n" +
                         "local id = '/sys/devices/system/chip-id/unique_id'\n" +
-                        "local open = paramof(id)\n" +
+                        "local open = paramof(id, nil, 0)\n" +
                         "local restricted, old = before(hookof(ids), open)\n" +
                         "local attributes = paramof(id)\n" +
                         "before(hookof(ids, 'java.io.UnixFileSystem', 'getBooleanAttributes0', 'int'), attributes)\n" +
@@ -1013,8 +1122,9 @@ public class FileScriptsTest {
         assertTrue(result.arg(3).toboolean());
         assertEquals(0, result.arg(4).toint());
         assertFalse(result.arg(5).toboolean());
-        // The hidden file matches without resolving, the other file is resolved once
-        assertEquals(1, result.arg(6).toint());
+        // The hidden file matches without resolving, the other file is resolved once, and so is each of its four
+        // folders, which could be a hidden file the path goes on through
+        assertEquals(5, result.arg(6).toint());
         assertTrue(result.arg(7).toboolean());
         assertTrue(result.arg(8).toboolean());
         assertTrue(result.arg(9).toboolean());

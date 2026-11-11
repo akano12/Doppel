@@ -671,6 +671,14 @@ public class DeviceValuesScriptTest {
             "    if name == 'android.content.res.Resources' then",
             "      return { getSystem = function(self) return resources end }",
             "    end",
+            // The SMS app of the role, which Telephony.Sms.getDefaultSmsPackage answers without the hooks
+            "    if name == 'android.provider.Telephony$Sms' then",
+            "      return { getDefaultSmsPackage = function(self, context)",
+            "        assert(inservice, 'with the hooks')",
+            "        smscontexts[#smscontexts + 1] = context",
+            "        return roleholder",
+            "      end }",
+            "    end",
             "    return { newInstance = function(self, class, size) return {} end }",
             "  end }",
             "function appparamof(result)",
@@ -684,9 +692,15 @@ public class DeviceValuesScriptTest {
             "    local ok, ai = pcall(pm.getApplicationInfo, pm, name, 0)",
             "    return (ok and ai ~= nil and (ai.uid == 10200 or ai.system == true))",
             "  end",
-            "  param.unhooked = function(self, fn) return fn() end",
+            "  param.unhooked = function(self, fn)",
+            "    inservice = true",
+            "    local value = fn()",
+            "    inservice = false",
+            "    return value",
+            "  end",
             "  return param",
             "end",
+            "smscontexts = {}",
             // A SharedLibraryInfo
             "function libraryof(name, type)",
             "  return { getName = function(self) return name end, getType = function(self) return type end,",
@@ -739,6 +753,176 @@ public class DeviceValuesScriptTest {
         assertTrue(result.arg(2).isnil());
     }
 
+    // Android 10 and later answer null for a hidden SMS app of the role, since the hooked list of SMS receivers
+    // does not have it: asked again without the hooks, it becomes the one of the system too
+    @Test
+    public void hiddenSmsAppOfTheRoleIsTheOneOfTheSystem() throws Exception {
+        Globals globals = load("default_app_filter");
+        Scripts.run(globals, APPS);
+        String call = "local param = appparamof(nil)\n" +
+                "param.getArgument = function(self, index) error('the context of the app is not used') end\n" +
+                "return run(hookof('Telephony.Sms.getDefaultSmsPackage', 'getDefaultSmsPackage'), param)";
+        Scripts.run(globals, "roleholder = 'com.third.hidden'");
+        Varargs result = Scripts.run(globals, call);
+        assertTrue(result.arg1().toboolean());
+        assertEquals("com.google.android.apps.messaging", result.arg(2).tojstring());
+        // With the context of the framework, not the one the app passed
+        assertTrue(Scripts.run(globals, "return smscontexts[1] == appparamof(nil):getApplicationContext()").arg1().toboolean());
+
+        // No SMS app, the app itself and a visible one stay null, like the framework answered
+        for (String holder : new String[]{"nil", "'com.example.app'", "'com.google.android.apps.messaging'"}) {
+            Scripts.run(globals, "roleholder = " + holder);
+            result = Scripts.run(globals, call);
+            assertFalse(holder, result.arg1().toboolean());
+            assertTrue(holder, result.arg(2).isnil());
+        }
+
+        // A call which threw keeps its exception, and a null phone app is not asked again
+        Scripts.run(globals, "roleholder = 'com.third.hidden'; smscontexts = {}");
+        result = Scripts.run(globals, "local param = appparamof(nil)\n" +
+                "param.getException = function(self) return 'SecurityException' end\n" +
+                "return run(hookof('Telephony.Sms.getDefaultSmsPackage', 'getDefaultSmsPackage'), param)");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(defaultApp(globals, "getDefaultDialerPackage", "nil").arg1().toboolean());
+        assertEquals(0, Scripts.run(globals, "return #smscontexts").arg1().toint());
+    }
+
+    // The browsers of the device as the package manager gives them, the configured default, the version and the
+    // app, which is com.example.app and may be a browser itself
+    private static final String BROWSERS = String.join("\n",
+            Scripts.ARRAYOF,
+            "function browserof(name, flags, all)",
+            "  return { handleAllWebDataURI = (all ~= false), activityInfo = { applicationInfo =",
+            "    { packageName = name, flags = flags, uid = (name == 'com.example.app' and 10200 or 10100) } } }",
+            "end",
+            "browsers = {}",
+            "configured = ''",
+            "version = 34",
+            "function sdkversion() return version end",
+            "local pm = {",
+            "  queryIntentActivities = function(self, intent, flags)",
+            "    assert(intent.action == 'android.intent.action.VIEW' and intent.data == 'http:' and",
+            "      intent.category == 'android.intent.category.BROWSABLE', intent.action)",
+            "    assert(flags == (version >= 30 and 0xF0000 or version == 29 and 0xE0000 or 0x20000), flags)",
+            "    return { toArray = function(self) return arrayof(table.unpack(browsers)) end }",
+            "  end,",
+            // The packages the package visibility rules hide from the app, which it cannot look up
+            "  getPackageInfo = function(self, name, flags)",
+            "    assert(flags == 0x2000, flags)",
+            "    if lookupfails[name] then error('NameNotFoundException: ' .. name) end",
+            "    return { packageName = name }",
+            "  end }",
+            "lookupfails = {}",
+            "local resources = {",
+            "  getIdentifier = function(self, name, type, package)",
+            "    return ((name == (version >= 29 and 'config_defaultBrowser' or 'default_browser')) and 7 or 0)",
+            "  end,",
+            "  getString = function(self, id) return configured end }",
+            "luajava = {",
+            "  newInstance = function(name, action, data)",
+            "    assert(name == 'android.content.Intent', name)",
+            "    return { action = action, data = data,",
+            "      addCategory = function(self, category) self.category = category; return self end }",
+            "  end,",
+            "  bindClass = function(name)",
+            "    if name == 'android.net.Uri' then return { parse = function(self, text) return text end } end",
+            "    assert(name == 'android.content.res.Resources', name)",
+            "    return { getSystem = function(self) return resources end }",
+            "  end }",
+            // Visible are the app itself and the apps of the system, FLAG_SYSTEM
+            "function visible(name)",
+            "  if name == 'com.example.app' then return true end",
+            "  for _, browser in ipairs(browsers) do",
+            "    local ai = browser.activityInfo.applicationInfo",
+            "    if ai.packageName == name then return ai.flags % 2 == 1 end",
+            "  end",
+            "  return name == 'com.android.htmlviewer'",
+            "end",
+            "function browserparamof(result)",
+            "  local param = paramof(result, {})",
+            "  param.getApplicationContext = function(self) return { getPackageManager = function(self) return pm end } end",
+            "  param.isVisible = function(self, ai) return visible(ai.packageName) end",
+            "  param.isPackageVisible = function(self, name) return visible(name) end",
+            "  param.isInstalledVisible = function(self, name) return visible(name) end",
+            "  return param",
+            "end",
+            "function browser(result) return run(nil, browserparamof(result)) end");
+
+    // A hidden default browser is the one of a device on which the user did not choose one, by the rules of the
+    // version: the configured one, else the only browser, of the system on Android 8.1 and 9, else from Android 12
+    // the only browser of the system
+    @Test
+    public void defaultBrowserIsTheOneOfTheSystem() throws Exception {
+        Globals globals = Scripts.load("default_browser", STUBS + "\n" + BROWSERS);
+        Scripts.run(globals, "browsers = { browserof('org.mozilla.firefox', 0), browserof('com.android.chrome', 1),\n" +
+                "browserof('com.example.links', 1, false) }");
+        Varargs result = Scripts.run(globals, "return browser('org.mozilla.firefox')");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("com.android.chrome", result.arg(2).tojstring());
+
+        // Browsers of the system, the app itself and none stay
+        assertFalse(Scripts.run(globals, "return browser('com.android.chrome')").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return browser('com.example.app')").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return browser(nil)").arg1().toboolean());
+
+        // Two browsers of the system: the configured one, also with the digest of its certificate, else none
+        Scripts.run(globals, "browsers[#browsers + 1] = browserof('com.sec.android.app.sbrowser', 1)");
+        assertTrue(Scripts.run(globals, "return browser('org.mozilla.firefox')").arg(2).isnil());
+        Scripts.run(globals, "configured = 'com.sec.android.app.sbrowser:0A1B'");
+        assertEquals("com.sec.android.app.sbrowser", Scripts.run(globals, "return browser('org.mozilla.firefox')").arg(2).tojstring());
+        // From Android 10 the configured one is a browser of the system
+        Scripts.run(globals, "configured = 'org.mozilla.firefox'");
+        assertTrue(Scripts.run(globals, "return browser('org.mozilla.firefox')").arg(2).isnil());
+
+        // The app itself is a browser too: from Android 12 the only one of the system, before none
+        Scripts.run(globals, "configured = ''; browsers = { browserof('org.mozilla.firefox', 0), browserof('com.android.chrome', 1),\n" +
+                "browserof('com.example.app', 0) }");
+        assertEquals("com.android.chrome", Scripts.run(globals, "return browser('org.mozilla.firefox')").arg(2).tojstring());
+        Scripts.run(globals, "version = 30");
+        assertTrue(Scripts.run(globals, "return browser('org.mozilla.firefox')").arg(2).isnil());
+
+        // Android 8.1 and 9: the only browser of the system, the configured one when it is installed
+        Scripts.run(globals, "version = 28");
+        assertEquals("com.android.chrome", Scripts.run(globals, "return browser('org.mozilla.firefox')").arg(2).tojstring());
+        Scripts.run(globals, "configured = 'com.android.htmlviewer'");
+        assertEquals("com.android.htmlviewer", Scripts.run(globals, "return browser('org.mozilla.firefox')").arg(2).tojstring());
+    }
+
+    // From Android 11 the app may be unable to look up the configured browser of the system, which Android tells all
+    // the same: it stays, and is the default of a device without a hidden browser too. One the app can look up stays
+    // only when it is of the system, and on Android 10 one the app cannot look up is not installed.
+    @Test
+    public void configuredBrowserTheAppCannotLookUpStays() throws Exception {
+        Globals globals = Scripts.load("default_browser", STUBS + "\n" + BROWSERS);
+        Scripts.run(globals, "browsers = {}; configured = 'com.android.chrome'\n" +
+                "lookupfails = { ['com.android.chrome'] = true, ['org.mozilla.firefox'] = true }");
+        assertFalse(Scripts.run(globals, "return browser('com.android.chrome')").arg1().toboolean());
+        Varargs result = Scripts.run(globals, "return browser('org.mozilla.firefox')");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("com.android.chrome", result.arg(2).tojstring());
+
+        Scripts.run(globals, "lookupfails = {}");
+        result = Scripts.run(globals, "return browser('com.android.chrome')");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+
+        Scripts.run(globals, "version = 29; lookupfails = { ['com.android.chrome'] = true }");
+        result = Scripts.run(globals, "return browser('com.android.chrome')");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+
+        // With the digest of a certificate the configured one may be an app the user installed or not be installed:
+        // it is hidden and is not the default of another hidden browser
+        Scripts.run(globals, "version = 34; configured = 'com.example.browser:0A1B'\n" +
+                "lookupfails = { ['com.example.browser'] = true, ['org.mozilla.firefox'] = true }");
+        result = Scripts.run(globals, "return browser('com.example.browser')");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        result = Scripts.run(globals, "return browser('org.mozilla.firefox')");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+    }
+
     // Both lists of shared libraries hide the vendor libraries of the system and keep the libraries of apps
     @Test
     public void sharedLibrariesAreFilteredAlike() throws Exception {
@@ -768,6 +952,91 @@ public class DeviceValuesScriptTest {
                 "return restricted, names(param.result)");
         assertTrue(result.arg1().toboolean());
         assertEquals("[android.test.base]", result.arg(2).tojstring());
+    }
+
+    // Get.Applications leaves the hidden apps out of the dependents of the shared libraries and drops the static and
+    // SDK libraries hidden apps declare, but not one a visible app uses; the builtin and dynamic ones stay whoever
+    // declares them, and a list of dependents left empty becomes none
+    @Test
+    public void sharedLibrariesHideHiddenApps() throws Exception {
+        Globals globals = load("features");
+        Scripts.run(globals, APPS);
+        Scripts.run(globals, String.join("\n",
+                // A list of VersionedPackage, which the script refills
+                "function packagesof(...)",
+                "  local list = listof()",
+                "  for _, name in ipairs({ ... }) do",
+                "    list:add({ getPackageName = function(self) return name end, toString = function(self) return name end })",
+                "  end",
+                "  list.isEmpty = function(self) return #self.items == 0 end",
+                "  list.clear = function(self) self.items = {} end",
+                "  list.addAll = function(self, other) for _, item in ipairs(other.items) do self:add(item) end end",
+                "  return list",
+                "end",
+                // Like SharedLibraryInfo: no dependents is an empty list, only Android 15 and later have optional ones
+                "function sharedof(name, type, declaring, dependents, optional)",
+                "  local library = libraryof(name, type)",
+                "  library.mDependentPackages = dependents",
+                "  library.getDependentPackages = function(self) return self.mDependentPackages or packagesof() end",
+                "  library.getDeclaringPackage = function(self) return { getPackageName = function(self) return declaring end } end",
+                "  if optional ~= nil then library.getOptionalDependentPackages = function(self) return optional end end",
+                "  return library",
+                "end",
+                "local visible = { ['android'] = true, ['com.example.app'] = true, ['com.android.dialer'] = true }",
+                "function sharedparamof(result)",
+                "  local param = appparamof(result)",
+                "  param.isPackageVisible = function(self, name) return visible[name] == true end",
+                "  return param",
+                "end",
+                "function sharedrun(result, method)",
+                "  local param = sharedparamof(result)",
+                "  method = method or 'getSharedLibraries'",
+                "  local restricted, old, new = after(hookof('PackageManager.' .. method, method,",
+                "    'android.content.pm.PackageManager', 'Get.Applications'), param)",
+                "  local shown = {}",
+                "  for index, library in ipairs(param.result.items) do",
+                "    shown[index] = library:getName() .. library:getDependentPackages():toString()",
+                "  end",
+                "  return restricted, table.concat(shown, ' '), old, new, param.result",
+                "end"));
+
+        Scripts.run(globals, "libraries = listof(" +
+                "sharedof('org.apache.http.legacy', 0, 'android', " +
+                "packagesof('com.example.app', 'com.android.dialer', 'com.example.bank')), " +
+                "sharedof('com.google.android.maps', 0, 'android', packagesof('com.example.bank')), " +
+                "sharedof('com.example.bank.library', 2, 'com.example.bank', packagesof('com.example.bank')), " +
+                "sharedof('com.example.trichrome', 2, 'com.example.trichrome', packagesof('com.example.app', 'com.example.bank')), " +
+                "sharedof('com.example.sdk', 3, 'com.android.dialer', packagesof('com.example.app', 'com.example.bank'), " +
+                "packagesof('com.example.bank')), " +
+                "sharedof('android.test.base', 0, 'android', nil), " +
+                // A system app which the visibility rules of Android hide declares it, a visible system app uses it
+                "sharedof('android.ext.shared', 1, 'com.example.extshared', packagesof('com.example.bank')), " +
+                "sharedof('com.example.chromelibrary', 2, 'com.example.chromelibrary', " +
+                "packagesof('com.android.dialer', 'com.example.bank')))");
+        // The hidden method for a user, which the public ones call
+        Varargs result = Scripts.run(globals, "first = { sharedrun(libraries, 'getSharedLibrariesAsUser') }\n" +
+                "return table.unpack(first)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("org.apache.http.legacy[com.example.app, com.android.dialer] com.google.android.maps[] " +
+                "com.example.trichrome[com.example.app] com.example.sdk[com.example.app] android.test.base[] " +
+                "android.ext.shared[] com.example.chromelibrary[com.android.dialer]", result.arg(2).tojstring());
+        assertEquals("20", result.arg(3).tojstring());
+        assertEquals("12", result.arg(4).tojstring());
+        // The public method, which called it, finds nothing more to hide
+        assertFalse(Scripts.run(globals, "return sharedrun(first[5])").arg1().toboolean());
+        // The emptied list is none again, the optional dependents an empty list, like Android sends them
+        assertTrue(Scripts.run(globals, "return libraries.items[2].mDependentPackages == nil").arg1().toboolean());
+        assertEquals("[]", Scripts.run(globals, "return libraries.items[5]:getOptionalDependentPackages():toString()")
+                .arg1().tojstring());
+
+        // Nothing hidden: the list stays the one of Android
+        Scripts.run(globals, "libraries = listof(sharedof('org.apache.http.legacy', 0, 'android', " +
+                "packagesof('com.example.app', 'com.android.dialer')), sharedof('com.example.sdk', 3, 'com.android.dialer', nil))");
+        result = Scripts.run(globals, "local restricted, shown, old, new, list = sharedrun(libraries)\n" +
+                "return restricted, shown, list == libraries");
+        assertFalse(result.arg1().toboolean());
+        assertEquals("org.apache.http.legacy[com.example.app, com.android.dialer] com.example.sdk[]", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
     }
 
     // Real FeatureInfo and arrays, the setting and the classes on the stack (callers of features)

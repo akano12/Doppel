@@ -18,24 +18,25 @@
 -- Apps run programs like getprop, uname, pm, cat and su to read what the other hooks fake, so a restricted app
 -- runs no program: the command fails like a program which may not run, before it starts, or like one which does not
 -- exist when there is none. Runtime.exec starts processes with ProcessBuilder.start, and Os.execv and execve
--- replace the process with a program. Programs in the
--- native library folder of the app still run: they come with its APK like its native libraries, which Doppel cannot
--- hook either; they are found by their canonical path, so a link to them runs too, but a copy elsewhere does not.
+-- replace the process with a program. The methods beneath them are hooked too, UNIXProcess.forkAndExec (of
+-- ProcessImpl.start and the UNIXProcess constructor) and Linux.execv and execve, as an app can call those by
+-- reflection, on Android 8.1 without any trick since it has no restrictions of hidden members. Programs in the native
+-- library folder of the app still run: they come with its APK like its native libraries, which Doppel cannot hook
+-- either; they are found by their canonical path, so a link to them runs too, but a copy elsewhere does not.
 
 -- The error of a program which may not run, OsConstants.EACCES, and of one which does not exist, ENOENT, the same
 -- on every Linux
 local EACCES = 13
 local ENOENT = 2
 
--- Whether the program does not exist, for which the exec fails with ENOENT: a path, of the working directory of the
--- builder when it is relative, else a name in the folders of PATH, which Java searches like execvp; as the app sees
--- the files, so a file other hooks hide, like su, does not exist either
-function missing(builder, program)
+-- Whether the program does not exist, for which the exec fails with ENOENT: a path, of the working directory dir
+-- (a file or a path) when it is relative, else a name in the folders of PATH, which Java searches like execvp; as the
+-- app sees the files, so a file other hooks hide, like su, does not exist either
+function missing(dir, program)
     local class = luajava.bindClass('java.io.File')
     local ok, exists = pcall(function()
         if string.find(program, '/', 1, true) then
             local file = luajava.new(class, program)
-            local dir = (builder ~= nil and builder:directory() or nil)
             if dir ~= nil and not file:isAbsolute() then
                 file = luajava.new(class, dir, program)
             end
@@ -52,12 +53,11 @@ function missing(builder, program)
 end
 
 -- Whether the program, a path with a /, is in the native library folder of the app; relative paths are files of the
--- working directory of the builder, else of the process
-function nativeprogram(param, builder, program)
+-- working directory dir (a file or a path), else of the process
+function nativeprogram(param, dir, program)
     if not string.find(program, '/', 1, true) then
         return false
     end
-    local dir = (builder ~= nil and builder:directory() or nil)
     local folder = param:getApplicationContext():getApplicationInfo().nativeLibraryDir
     if folder == nil then
         return false
@@ -73,22 +73,52 @@ function nativeprogram(param, builder, program)
     return (resolved and string.sub(paths[1], 1, #paths[2]) == paths[2])
 end
 
+-- The exception of UNIXProcess.forkAndExec when the exec fails, the cause of the one of ProcessBuilder.start
+function execfailure(dir, program)
+    return luajava.new(luajava.bindClass('java.io.IOException'), missing(dir, program) and
+            'error=2, No such file or directory' or 'error=13, Permission denied')
+end
+
+-- The text of a path which ProcessImpl passes on as a C string, its bytes up to the NUL it ends with
+function cstring(bytes)
+    if bytes == nil then
+        return nil
+    end
+    local text = luajava.newInstance('java.lang.String', bytes)
+    local nul = string.find(text, '\0', 1, true)
+    return (nul and string.sub(text, 1, nul - 1) or text)
+end
+
 -- The list of the app while its builder starts with a copy, see before and after
 local original
 
 function before(hook, param)
-    local builder = param:getThis()
-    -- Os.execv and execve, static, with the exception of the exec; Java throws for a null program itself
-    if builder == nil then
+    local method = hook:getMethodName()
+    -- Os.execv and execve, static, and Linux.execv and execve, with the exception of the exec; Java throws for a
+    -- null program itself
+    if method == 'execv' or method == 'execve' then
         local program = param:getArgument(0)
         if program == nil or nativeprogram(param, nil, program) then
             return false
         end
-        param:setResult(luajava.newInstance('android.system.ErrnoException', hook:getMethodName(),
+        param:setResult(luajava.newInstance('android.system.ErrnoException', method,
                 missing(nil, program) and ENOENT or EACCES))
         return true, program
     end
 
+    -- UNIXProcess.forkAndExec, with the exception of the exec, which the constructor and ProcessImpl.start pass on as
+    -- it is; the program and the working directory are C strings; a null program is left to Java
+    if method == 'forkAndExec' then
+        local program = cstring(param:getArgument(0))
+        local dir = cstring(param:getArgument(5))
+        if program == nil or nativeprogram(param, dir, program) then
+            return false
+        end
+        param:setResult(execfailure(dir, program))
+        return true, program
+    end
+
+    local builder = param:getThis()
     local command = builder:command()
     if command == nil then
         return false
@@ -106,15 +136,14 @@ function before(hook, param)
         end
         words[index] = args[index]
     end
-    if #words == 0 or nativeprogram(param, builder, words[1]) then
+    local dir = builder:directory()
+    if #words == 0 or nativeprogram(param, dir, words[1]) then
         return false
     end
 
     -- The exception of ProcessBuilder.start when the exec fails, with the cause of the exec
-    local dir = builder:directory()
     local exception = luajava.bindClass('java.io.IOException')
-    local cause = luajava.new(exception, missing(builder, words[1]) and 'error=2, No such file or directory' or
-            'error=13, Permission denied')
+    local cause = execfailure(dir, words[1])
     param:setResult(luajava.new(exception, 'Cannot run program "' .. words[1] .. '"' ..
             (dir and ' (in directory "' .. dir:getPath() .. '")' or '') .. ': ' .. cause:getMessage(), cause))
     return true, table.concat(words, ' ')

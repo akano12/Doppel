@@ -70,7 +70,8 @@ public class HookDefinitionsTest {
     // Hidden framework classes, which are not part of the SDK, and a class of which the hooked members are hidden
     private static final Set<String> HIDDEN = new HashSet<>(Arrays.asList(
             "android.os.SystemProperties", "android.app.ContextImpl", "android.app.Instrumentation",
-            "android.app.LoadedApk$ServiceDispatcher", "android.content.pm.PackageInstaller$SessionCallbackDelegate"));
+            "android.app.LoadedApk$ServiceDispatcher", "android.content.pm.PackageInstaller$SessionCallbackDelegate",
+            "android.app.PendingIntent$FinishedDispatcher", "android.content.IntentSender$FinishedDispatcher"));
 
     // The defaults XHook.fromJSONObject uses for missing attributes, see docs/DEFINE.md
     private static final Map<String, Object> DEFAULTS = new HashMap<>();
@@ -548,7 +549,8 @@ public class HookDefinitionsTest {
     }
 
     // The settings attribute declares the settings a script reads, which the values screen offers.
-    // Scripts shared by hooks can read a setting for some of the hooks only.
+    // Scripts shared by hooks can read a setting for some of the hooks only. The suffix of package_probe is a value
+    // of the service, new each boot (see FakeIds), which nobody sets.
     @Test
     public void settingsAreDeclared() throws Exception {
         Pattern pattern = Pattern.compile("getSetting\\('([^']+)'\\)");
@@ -561,6 +563,7 @@ public class HookDefinitionsTest {
                 Matcher m = pattern.matcher(read(new File(ASSETS, script.substring(1) + ".lua")));
                 while (m.find())
                     keys.add(m.group(1));
+                keys.remove(FakeIds.PROBE_SUFFIX);
                 read.put(script, keys);
                 declared.put(script, new HashSet<>());
             }
@@ -1032,6 +1035,10 @@ public class HookDefinitionsTest {
         check("UsageStatsManager.isAppInactive", "android.app.usage.UsageStatsManager isAppInactive(java.lang.String) @package_probe 27-");
         check("StorageStatsManager.queryStatsForPackage", "android.app.usage.StorageStatsManager queryStatsForPackage(" +
                 "java.util.UUID,java.lang.String,android.os.UserHandle) @package_probe 27-");
+        // So does the data usage by uid, by both ways to iterate it, which must agree
+        check("NetworkStats.getNextBucket", "android.app.usage.NetworkStats getNextBucket(android.app.usage.NetworkStats$Bucket) " +
+                "@network_stats_filter 27-");
+        check("NetworkStats.hasNextBucket", "android.app.usage.NetworkStats hasNextBucket() @network_stats_filter 27-");
         // The exact free space, Bluetooth input devices, battery saver, NSD by a request, sleep of Play services
         check("StorageManager.getAllocatableBytes", "android.os.storage.StorageManager getAllocatableBytes(java.util.UUID) @resources 27-");
         check("BluetoothHidDevice.getConnectedDevices", "android.bluetooth.BluetoothHidDevice getConnectedDevices() @generic_empty 28-");
@@ -1110,6 +1117,10 @@ public class HookDefinitionsTest {
         String s = "java.lang.String", b = "android.content.BroadcastReceiver,android.os.Handler,";
         check("PackageManager.getLaunchIntentSenderForPackage", "android.content.pm.PackageManager " +
                 "getLaunchIntentSenderForPackage(" + s + ") @package_probe 33-");
+        // The callbacks of sent PendingIntents and IntentSenders, of every version, get the names the app asked for
+        String f = "performReceive(android.content.Intent,int," + s + ",android.os.Bundle,boolean,boolean,int) @package_probe 27-";
+        check("PendingIntent.FinishedDispatcher.performReceive", "android.app.PendingIntent$FinishedDispatcher " + f);
+        check("IntentSender.FinishedDispatcher.performReceive", "android.content.IntentSender$FinishedDispatcher " + f);
         check("PackageManager.getTargetSdkVersion", "android.content.pm.PackageManager getTargetSdkVersion(" + s +
                 ") @package_probe 31-");
         check("Context.sendOrderedBroadcast.options/hidden", "android.app.ContextImpl sendOrderedBroadcast(" +
@@ -1165,6 +1176,26 @@ public class HookDefinitionsTest {
                 "@user_profiles 27-");
     }
 
+    // The shared libraries name the apps which use them and declare them: both overloads also in Get.Applications,
+    // with the script of Read.Features, which tells the groups apart (see features)
+    @Test
+    public void sharedLibrariesOfHiddenApps() throws Exception {
+        check("PackageManager.getSharedLibraries/apps", "android.content.pm.PackageManager getSharedLibraries(int) " +
+                "@features 27-");
+        check("PackageManager.getSharedLibraries/flags/apps", "android.content.pm.PackageManager getSharedLibraries(" +
+                "android.content.pm.PackageManager$PackageInfoFlags) @features 33-");
+        // The hidden methods for a user, which the public ones call and apps can call by reflection
+        check("PackageManager.getSharedLibrariesAsUser", "android.content.pm.PackageManager getSharedLibrariesAsUser(" +
+                "int,int) @features 27- optional");
+        check("PackageManager.getSharedLibrariesAsUser/flags", "android.content.pm.PackageManager getSharedLibrariesAsUser(" +
+                "android.content.pm.PackageManager$PackageInfoFlags,int) @features 33- optional");
+        for (String name : new String[]{"PackageManager.getSharedLibraries/apps", "PackageManager.getSharedLibraries/flags/apps",
+                "PackageManager.getSharedLibrariesAsUser", "PackageManager.getSharedLibrariesAsUser/flags"}) {
+            assertEquals(name, "Get.Applications", hook(name).getString("group"));
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
+        }
+    }
+
     // Ways to hidden apps the audit of Get.Applications found without a hook: hidden overloads apps can call by
     // reflection, newer public ones, binds and ordered broadcasts with a Handler or an app op, the current keyboard
     // of a user, the spell checker of a session and the certificate of the store which installed the app
@@ -1217,6 +1248,22 @@ public class HookDefinitionsTest {
                 {"acquireUnstableProvider.authority/hidden", s}})
             check("ContentResolver." + acquire[0], "android.content.ContentResolver " + acquire[0].replaceAll("[./].*", "") +
                     "(" + acquire[1] + ") @provider_hidden 27- optional");
+        String observer = "android.content.ContentResolver registerContentObserver(android.net.Uri,boolean," +
+                "android.database.ContentObserver";
+        check("ContentResolver.registerContentObserver/hidden", observer + ") @provider_hidden 27-");
+        check("ContentResolver.registerContentObserver.user/hidden", observer + ",int) @provider_hidden 27- optional");
+        String notify = "android.content.ContentResolver notifyChange(";
+        check("ContentResolver.notifyChange/hidden", notify + "android.net.Uri,android.database.ContentObserver) @provider_hidden 27-");
+        check("ContentResolver.notifyChange.sync/hidden", notify + "android.net.Uri,android.database.ContentObserver,boolean) " +
+                "@provider_hidden 27-");
+        check("ContentResolver.notifyChange.flags/hidden", notify + "android.net.Uri,android.database.ContentObserver,int) " +
+                "@provider_hidden 27-");
+        check("ContentResolver.notifyChange.sync.user/hidden", notify + "android.net.Uri,android.database.ContentObserver," +
+                "boolean,int) @provider_hidden 27- optional");
+        check("ContentResolver.notifyChange.flags.user/hidden", notify + "android.net.Uri,android.database.ContentObserver," +
+                "int,int) @provider_hidden 27- optional");
+        check("ContentResolver.notifyChange.uris/hidden", notify + "java.util.Collection,android.database.ContentObserver,int) " +
+                "@provider_hidden 30-");
         check("PackageManager.resolveServiceAsUser", "android.content.pm.PackageManager resolveServiceAsUser(" + i +
                 ",int,int) @package_resolve 27- optional");
         check("PackageManager.resolveServiceAsUser/flags", "android.content.pm.PackageManager resolveServiceAsUser(" + i +
@@ -1251,6 +1298,21 @@ public class HookDefinitionsTest {
         check("ActivityManager.getRunningTasks.27", "android.app.ActivityManager getRunningTasks(int) @generic_filter_by_uid 27-");
         check("PackageManager.getHomeActivities", "android.content.pm.PackageManager getHomeActivities(java.util.List) " +
                 "@generic_filter_by_uid 27- optional");
+    }
+
+    // The default browser, a system API of the package manager on all versions and of the role behind it from
+    // Android 12, and the app which made a PendingIntent or IntentSender, by each getter
+    @Test
+    public void defaultBrowserAndCreatorsOfIntents() throws Exception {
+        check("PackageManager.getDefaultBrowserPackageNameAsUser", "android.content.pm.PackageManager " +
+                "getDefaultBrowserPackageNameAsUser(int) @default_browser 27- optional");
+        check("RoleManager.getBrowserRoleHolder", "android.app.role.RoleManager getBrowserRoleHolder(int) @default_browser 31- optional");
+        for (String cls : new String[]{"android.app.PendingIntent", "android.content.IntentSender"})
+            for (String method : new String[]{"getCreatorPackage", "getTargetPackage", "getCreatorUid", "getCreatorUserHandle"}) {
+                String name = cls.substring(cls.lastIndexOf('.') + 1) + "." + method;
+                check(name, cls + " " + method + "() @pendingintent_creator 27-");
+                assertEquals(name, "android", hook(name).getString("excludePackages"));
+            }
     }
 
     // Other users by a handle, and the attribution and GPS tags of photos, which answer like the hooked siblings
@@ -1318,6 +1380,10 @@ public class HookDefinitionsTest {
                 ",android.os.Bundle) @component_hidden 31-");
         check("Context.sendStickyBroadcastAsUser/hidden", "android.app.ContextImpl sendStickyBroadcastAsUser(" + i +
                 ",android.os.UserHandle) @component_hidden 27-");
+        // Removing a sticky broadcast gets the same copy as sending it
+        check("Context.removeStickyBroadcast/hidden", "android.app.ContextImpl removeStickyBroadcast(" + i + ") @component_hidden 27-");
+        check("Context.removeStickyBroadcastAsUser/hidden", "android.app.ContextImpl removeStickyBroadcastAsUser(" + i +
+                ",android.os.UserHandle) @component_hidden 27-");
         check("AppOpsManager.checkPackage", "android.app.AppOpsManager checkPackage(int," + s + ") @package_probe 27-");
         check("AppOpsManager.checkOpNoThrow", "android.app.AppOpsManager checkOpNoThrow(" + s + ",int," + s + ") @package_probe 27-");
         check("AppOpsManager.unsafeCheckOpNoThrow", "android.app.AppOpsManager unsafeCheckOpNoThrow(" + s + ",int," + s +
@@ -1364,6 +1430,29 @@ public class HookDefinitionsTest {
         check("NetworkRequest.Builder.addTransportType", "android.net.NetworkRequest$Builder addTransportType(int) @vpn_request 27-");
     }
 
+    // The calls which look up the path of a hidden permission file of a system app before anything else: the
+    // attributes, the mode, the owner and a link to it, by android.system.Os and by java.nio.file
+    @Test
+    public void privappFilesByEveryPathCall() throws Exception {
+        String s = "java.lang.String", p = "sun.nio.fs.UnixPath";
+        check("Os.listxattr/privapp_files", "android.system.Os listxattr(" + s + ") @hardware_files 27-");
+        check("Os.setxattr/privapp_files", "android.system.Os setxattr(" + s + "," + s + ",byte[],int) @hardware_files 27-");
+        check("Os.removexattr/privapp_files", "android.system.Os removexattr(" + s + "," + s + ") @hardware_files 27-");
+        check("Os.chmod/privapp_files", "android.system.Os chmod(" + s + ",int) @hardware_files 27-");
+        check("Os.chown/privapp_files", "android.system.Os chown(" + s + ",int,int) @hardware_files 27-");
+        check("Os.lchown/privapp_files", "android.system.Os lchown(" + s + ",int,int) @hardware_files 27-");
+        check("Os.link/privapp_files", "android.system.Os link(" + s + "," + s + ") @hardware_files 27-");
+        check("UnixNativeDispatcher.chmod/privapp_files", "sun.nio.fs.UnixNativeDispatcher chmod(" + p + ",int) @hardware_files 27-");
+        check("UnixNativeDispatcher.chown/privapp_files", "sun.nio.fs.UnixNativeDispatcher chown(" + p +
+                ",int,int) @hardware_files 27-");
+        check("UnixNativeDispatcher.lchown/privapp_files", "sun.nio.fs.UnixNativeDispatcher lchown(" + p +
+                ",int,int) @hardware_files 27-");
+        check("UnixNativeDispatcher.link/privapp_files", "sun.nio.fs.UnixNativeDispatcher link(" + p + "," + p +
+                ") @hardware_files 27-");
+        for (String name : new String[]{"Os.listxattr", "Os.chmod", "Os.link", "UnixNativeDispatcher.chmod"})
+            assertEquals(name, "Get.Applications", hook(name + "/privapp_files").getString("group"));
+    }
+
     // Commands by Os.execv and execve are refused in every group which refuses ProcessBuilder.start
     @Test
     public void programsByEveryWayToRun() throws Exception {
@@ -1379,6 +1468,18 @@ public class HookDefinitionsTest {
                 assertEquals(hook.getString("group"), hook("Os.execve" + suffix).getString("group"));
             }
         assertEquals(13, groups);
+    }
+
+    // The methods beneath ProcessBuilder.start and Os.execv and execve, which apps can call by reflection
+    @Test
+    public void programsBeneathTheWaysToRun() throws Exception {
+        String s = "java.lang.String";
+        check("UNIXProcess.forkAndExec/packages", "java.lang.UNIXProcess forkAndExec(byte[],byte[],int,byte[],int,byte[],int[],boolean) " +
+                "@commands_blocked 27-");
+        check("Linux.execv/packages", "libcore.io.Linux execv(" + s + "," + s + "[]) @commands_blocked 27-");
+        check("Linux.execve/packages", "libcore.io.Linux execve(" + s + "," + s + "[]," + s + "[]) @commands_blocked 27-");
+        for (String name : new String[]{"UNIXProcess.forkAndExec/packages", "Linux.execv/packages", "Linux.execve/packages"})
+            assertEquals("Get.Applications", hook(name).getString("group"));
     }
 
     // The other ways to the values of fingerprints: the pages of memory, the methods behind SystemProperties.get, the
@@ -1464,6 +1565,17 @@ public class HookDefinitionsTest {
     public void secondAuditDefinitions() throws Exception {
         String s = "java.lang.String";
         check("Context.checkPermission", "android.app.ContextImpl checkPermission(" + s + ",int,int) @package_resolve 27-");
+        check("Context.checkPermission/token", "android.app.ContextImpl checkPermission(" + s + ",int,int,android.os.IBinder) " +
+                "@package_resolve 27-30");
+        check("ActivityManager.checkComponentPermission", "android.app.ActivityManager checkComponentPermission(" + s +
+                ",int,int,boolean) @package_resolve 27- optional");
+        // The binder proxies under the lookups of user ids and sync adapters, which apps call by reflection
+        String pm = "android.content.pm.IPackageManager$Stub$Proxy ";
+        check("IPackageManager.getPackagesForUid", pm + "getPackagesForUid(int) @package_resolve 27- optional");
+        check("IPackageManager.getNameForUid", pm + "getNameForUid(int) @package_resolve 27- optional");
+        check("IPackageManager.checkUidSignatures", pm + "checkUidSignatures(int,int) @package_resolve 27- optional");
+        check("IContentService.getSyncAdapterTypes", "android.content.IContentService$Stub$Proxy getSyncAdapterTypes() " +
+                "@package_resolve 27- optional");
         check("PackageManager.getPackageInfo/analytics", "android.content.pm.PackageManager getPackageInfo(" + s +
                 ",int) @analytics_metadata 27-");
         check("PackageManager.getPackageInfo/flags/analytics", "android.content.pm.PackageManager getPackageInfo(" + s +
@@ -1471,7 +1583,8 @@ public class HookDefinitionsTest {
         check("NetworkCapabilities.getTransportTypes", "android.net.NetworkCapabilities getTransportTypes() @vpn 27- optional");
         for (String name : new String[]{"UserManager.isUserRunning", "UserManager.isUserRunningOrStopping",
                 "UserManager.getUserRestrictions", "UserManager.isUserUnlocked", "UserManager.isQuietModeEnabled",
-                "ContentResolver.getSyncAdapterTypes", "Context.checkPermission"})
+                "ContentResolver.getSyncAdapterTypes", "Context.checkPermission", "IPackageManager.getPackagesForUid",
+                "IPackageManager.getNameForUid", "IPackageManager.checkUidSignatures", "IContentService.getSyncAdapterTypes"})
             assertTrue(name + " is not excluded from android", Arrays.asList(hook(name).optString("excludePackages", "")
                     .split(",")).contains("android"));
         assertEquals("Get.Applications", hook("AccountManager.getAuthenticatorTypes/apps").getString("group"));

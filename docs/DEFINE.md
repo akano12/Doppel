@@ -138,6 +138,8 @@ The functions of *param* ([all](../app/src/main/java/eu/faircode/xlua/XParam.jav
 * *getPackageName()*, *getUid()* and *isSystem()*: the app and whether it runs with a system uid (below 10000),
   like system server and Settings; preinstalled apps like Google Play services do not
 * *findClass(name)* and *isInstance(object, className)*: classes of the app, see remarks below
+* *copyFields(className, from, to)*: copies the fields the class declares from one object to another, also into an
+  object of a subclass, in Java, so a long stays exact, which through a Lua number (a double) it is not past 2^53
 * *isPackageVisible(packageName)*, *isUidVisible(uid)*, *isVisible(applicationInfo)* and *isInstalledVisible(packageName)*:
   whether another app is visible to the app, see the group *Get applications*
 * *getValue(name, scope)* and *putValue(name, value, scope)*: values kept with an object, see remarks below

@@ -19,6 +19,8 @@
 -- else it is the one of the system, like for an app which is hidden by the package visibility rules
 -- (see package_probe); apps compare the name without checking for null, a phone always has these.
 -- The app itself can still tell whether it is the default.
+-- Android 10 and later look up the SMS app of the role in the list of SMS receivers, which is hooked and does not
+-- have a hidden app, and answer null; so a null SMS app is asked again without the hooks.
 
 -- The default app of a device on which the user did not choose one: the dialer of the system, or the SMS app
 -- the configuration of the system names, else a system app which can be the default; nil when there is none.
@@ -77,6 +79,21 @@ end
 
 function after(hook, param)
     local result = param:getResult()
+    -- A call which threw keeps its exception
+    if result == nil and param:getException() == nil and hook:getMethodName() == 'getDefaultSmsPackage' then
+        -- With the context of the framework, since the one the app passed can be its own subclass, whose methods
+        -- would run without the hooks and see a second call; for an app uid the user is the one of the calling uid
+        -- on all versions (SmsApplication.getIncomingUserId), so the answer is the same.
+        -- shortcut: a context the app made for the real call to answer null, or a system app's context of another
+        -- user on Android 10 and before, still gets the SMS app of the system when a hidden app holds the role,
+        -- upgrade when an app is seen doing this
+        local ok, name = pcall(function()
+            return param:unhooked(function()
+                return luajava.bindClass('android.provider.Telephony$Sms'):getDefaultSmsPackage(param:getApplicationContext())
+            end)
+        end)
+        result = (ok and name or nil)
+    end
     if result == nil or result == param:getPackageName() then
         return false
     end

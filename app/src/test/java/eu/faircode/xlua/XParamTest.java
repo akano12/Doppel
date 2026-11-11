@@ -55,6 +55,36 @@ public class XParamTest {
     public static void run() {
     }
 
+    // Like NetworkStats.Bucket: private fields, a long among them, and constants
+    private static class Bucket {
+        @SuppressWarnings("unused")
+        public static final int STATE_ALL = -1;
+        private int uid;
+        private long end;
+    }
+
+    // Like a bucket of a subclass an app passes
+    private static class AppBucket extends Bucket {
+    }
+
+    // The fields of a class are copied exactly, a long past 2^53 too, which a Lua number is not, also into a subclass;
+    // a class of which reflection reaches no fields fails, like the hidden API rules leave them out
+    @Test
+    public void copyFields() throws Exception {
+        Bucket from = new Bucket();
+        from.uid = 10200;
+        from.end = (1L << 53) + 1;
+        Bucket to = new AppBucket();
+        XParam.copyFields(Bucket.class, from, to);
+        assertEquals(10200, to.uid);
+        assertEquals(9007199254740993L, to.end);
+        try {
+            XParam.copyFields(AppBucket.class, from, to);
+            fail("Copied no fields");
+        } catch (NoSuchFieldException ignored) {
+        }
+    }
+
     // Like a Lua number returned to Java code expecting an Object
     private static Object lua(double value) {
         return CoerceLuaToJava.coerce(LuaValue.valueOf(value), Object.class);
@@ -245,6 +275,14 @@ public class XParamTest {
             fail("Value for void");
         } catch (IllegalArgumentException ignored) {
         }
+    }
+
+    // The message of an exception, which scripts cannot set themselves (see package_probe)
+    @Test
+    public void exceptionMessage() throws Throwable {
+        Exception ex = new IllegalStateException("Package com.example.bank.x123456789 not found");
+        param().setMessage(ex, "Package com.example.bank not found");
+        assertEquals("Package com.example.bank not found", ex.getMessage());
     }
 
     @Test

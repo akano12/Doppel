@@ -25,6 +25,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
@@ -38,21 +39,25 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-// The script of the hooks of ProcessBuilder.start, with a real builder and files, and a Lua stand-in for the parameter
+// The script of the hooks of ProcessBuilder.start and UNIXProcess.forkAndExec, with a real builder and files, and Lua
+// stand-ins for the hook and the parameter
 public class CommandsBlockedScriptTest {
     private static final String STUBS = String.join("\n",
-            "function start(builder, folder)",
+            "function call(method, this, args, folder)",
             "  local thrown",
             "  local info = { nativeLibraryDir = folder }",
             "  local param = {",
-            "    getThis = function(self) return builder end,",
+            "    getThis = function(self) return this end,",
+            "    getArgument = function(self, index) return args[index] end,",
             "    getApplicationContext = function(self)",
             "      return { getApplicationInfo = function(self) return info end }",
             "    end,",
             "    setResult = function(self, value) thrown = value end }",
-            "  local restricted, line = before({}, param)",
+            "  local restricted, line = before({ getMethodName = function(self) return method end }, param)",
             "  return restricted, thrown, line",
-            "end");
+            "end",
+            "function start(builder, folder) return call('start', builder, {}, folder) end",
+            "function fork(program, dir, folder) return call('forkAndExec', {}, { [0] = program, [5] = dir }, folder) end");
 
     @Rule
     public TemporaryFolder temp = new TemporaryFolder();
@@ -84,6 +89,22 @@ public class CommandsBlockedScriptTest {
         return (IOException) result.arg(2).touserdata();
     }
 
+    // A path as ProcessImpl.start passes it on to UNIXProcess.forkAndExec, a C string, or null
+    private static LuaValue cstring(String path) {
+        return (path == null ? LuaValue.NIL : CoerceJavaToLua.coerce((path + "\0").getBytes()));
+    }
+
+    // The exception which the hook makes forkAndExec throw, null when the program runs
+    private IOException forked(String dir, String program) {
+        Varargs result = globals.get("fork").invoke(cstring(program), cstring(dir), CoerceJavaToLua.coerce(lib.getPath()));
+        if (!result.arg1().toboolean()) {
+            assertTrue(result.arg(2).isnil());
+            return null;
+        }
+        assertEquals(program, result.arg(3).tojstring());
+        return (IOException) result.arg(2).touserdata();
+    }
+
     // Programs which exist, here those of the computer running the test, fail like programs which may not run
     @Test
     public void commandsAreRefused() {
@@ -108,6 +129,40 @@ public class CommandsBlockedScriptTest {
         assertTrue(new File(files, "tool").createNewFile());
         assertEquals("Cannot run program \"./tool\" (in directory \"" + files.getPath() + "\"): error=13, Permission denied",
                 refused(files, "./tool").getMessage());
+    }
+
+    // ProcessImpl.start and the UNIXProcess constructor, which apps can call by reflection, pass on the exception of
+    // forkAndExec as it is: the error of the exec alone; the C strings end at their NUL, else /bin/sh would be missing
+    @Test
+    public void forkIsRefused() throws Exception {
+        Assume.assumeTrue(new File("/bin/sh").exists());
+        IOException ex = forked(null, "sh");
+        assertEquals("error=13, Permission denied", ex.getMessage());
+        assertNull(ex.getCause());
+        assertEquals("error=13, Permission denied", forked(null, "/bin/sh").getMessage());
+        assertEquals("error=2, No such file or directory", forked(null, "no_such_tool_12345").getMessage());
+        assertEquals("error=2, No such file or directory", forked(files.getPath(), "./tool").getMessage());
+        assertTrue(new File(files, "tool").createNewFile());
+        assertEquals("error=13, Permission denied", forked(files.getPath(), "./tool").getMessage());
+    }
+
+    @Test
+    public void forkOfProgramsOfTheAppRuns() throws Exception {
+        Assume.assumeTrue(File.separatorChar == '/');
+        assertTrue(lib.mkdir());
+        File program = new File(lib, "libtool.so");
+        assertTrue(program.createNewFile());
+        assertNull(forked(null, program.getPath()));
+        assertNull(forked(lib.getPath(), "./libtool.so"));
+        // Not by its name only, which PATH finds
+        assertTrue(forked(lib.getPath(), "libtool.so") != null);
+    }
+
+    @Test
+    public void forkOfNoProgramIsLeftToJava() {
+        Varargs result = globals.get("fork").invoke(LuaValue.NIL, LuaValue.NIL, CoerceJavaToLua.coerce(lib.getPath()));
+        assertFalse(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
     }
 
     @Test

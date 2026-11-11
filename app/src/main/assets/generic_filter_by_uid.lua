@@ -34,6 +34,79 @@ function matchall(flags)
     return luajava.bindClass('android.content.pm.PackageManager$ResolveInfoFlags'):of(value)
 end
 
+-- The next four functions are the same as in package_resolve, so a link lists the apps it resolves to (see best there)
+
+-- The visible apps of a query, only the browsers when asked; of all apps when none of them is visible, because of a
+-- link Android gives only the default browser unless asked for all, which leaves none when it is hidden. The second
+-- value is true for those of all apps, so the browsers of a link whose default browser is hidden.
+function visibleof(param, pm, intent, flags, browsers)
+    local visible = {}
+    for pass, asked in ipairs({ flags, matchall(flags) }) do
+        local all = param:unhooked(function()
+            return pm:queryIntentActivities(intent, asked)
+        end)
+        for index = 0, all:size() - 1 do
+            local info = all:get(index)
+            if param:isPackageVisible(info.activityInfo.packageName) and (not browsers or info.handleAllWebDataURI) then
+                visible[#visible + 1] = info
+            end
+        end
+        if #visible > 0 then
+            return visible, pass == 2
+        end
+    end
+    return visible, false
+end
+
+-- The browser which gets the role of a hidden default browser on Android 12 and later (see package_resolve)
+-- shortcut: the browsers of the link stand for those of http:, and the certificate of a default named with one is
+-- not checked, which only an app with the name of that browser and another key would fail
+function fallback(param, visible)
+    local holders, browsers, system, top = {}, {}, {}, 0
+    for _, info in ipairs(visible) do
+        local name = info.activityInfo.packageName
+        top = math.max(top, info.priority)
+        if info.handleAllWebDataURI and info.activityInfo.exported then
+            if holders[name] == nil then
+                browsers[#browsers + 1] = name
+                if info.activityInfo.applicationInfo.flags % 2 == 1 then -- ApplicationInfo.FLAG_SYSTEM
+                    system[#system + 1] = name
+                end
+            end
+            if holders[name] == nil or holders[name].priority < info.priority then
+                holders[name] = info
+            end
+        end
+    end
+    local holder = (#browsers == 1 and browsers[1]) or (#system == 1 and system[1]) or nil
+    if holder == nil then
+        local resources = param:getApplicationContext():getResources()
+        local id = resources:getIdentifier('config_defaultBrowser', 'string', 'android')
+        local name, certificate = string.match(id ~= 0 and resources:getString(id) or '', '^([^:]*)(:?)')
+        local info = holders[name]
+        if info ~= nil and (certificate ~= '' or info.activityInfo.applicationInfo.flags % 2 == 1) then
+            holder = name
+        end
+    end
+    local info = (holder ~= nil and holders[holder] or nil)
+    if info ~= nil and info.priority >= top then
+        return { info }
+    end
+    return visible
+end
+
+-- With a link of the web, which Android resolves to the apps approved for its host, else to the browsers
+function weblink(intent)
+    local scheme = intent:getScheme()
+    return scheme == 'http' or scheme == 'https'
+end
+
+-- The link for a host which no app claims, a name reserved for that (RFC 2606), which finds the browsers
+function unclaimed(intent)
+    local link = luajava.newInstance('android.content.Intent', intent)
+    return link:setDataAndType(intent:getData():buildUpon():authority('example.invalid'):build(), intent:getType())
+end
+
 -- PackageManager.getPreferredActivities fills two lists of the app, an activity and its filter at the same index, and
 -- returns their number, which is 0 whatever it found on Android itself: the hidden apps are left out of both
 function preferred(param, count)
@@ -214,19 +287,22 @@ function after(hook, param)
         param:setResult(nil)
     end
 
-    -- Of a link Android gives only the default browser unless asked for all: when it is hidden the visible apps of
-    -- all, like on a device without it (see package_resolve)
+    -- Of a link Android gives only the default browser unless asked for all, and only the apps approved for its host
+    -- whatever the flags: when they are hidden, the apps of a device without them, which resolveActivity resolves the
+    -- link to too: the browsers, of which on Android 12 and later the one which gets the role of a hidden default
+    -- browser (the same steps as best of package_resolve, with its shortcuts)
     -- shortcut: queryIntentActivitiesAsUser asks for the own user, which is the user of nearly every call
     if filtered and name == 'PackageManager.queryIntentActivities' and list:isEmpty() then
-        local pm, intent, flags = param:getThis(), param:getArgument(0), matchall(param:getArgument(1))
-        local all = param:unhooked(function()
-            return pm:queryIntentActivities(intent, flags)
-        end)
-        for index = 0, all:size() - 1 do
-            local item = all:get(index)
-            if param:isVisible(item.activityInfo.applicationInfo) then
-                list:add(item)
-            end
+        local pm, intent, flags = param:getThis(), param:getArgument(0), param:getArgument(1)
+        local visible, hidden = visibleof(param, pm, intent, flags)
+        if #visible == 0 and weblink(intent) then
+            visible, hidden = visibleof(param, pm, unclaimed(intent), flags, true)
+        end
+        if hidden and visible[2] ~= nil and luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 31 then
+            visible = fallback(param, visible)
+        end
+        for _, item in ipairs(visible) do
+            list:add(item)
         end
     end
 

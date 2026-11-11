@@ -180,11 +180,13 @@ function isvpninterface(name)
     return false
 end
 
--- The error of a file which does not exist, OsConstants.ENOENT, the same on every Linux
+-- The error of a file which does not exist, OsConstants.ENOENT, the error of making a file on a file system mounted
+-- read-only, EROFS, the flag of open which makes the file, O_CREAT, and the flag of statvfs of a file system mounted
+-- read-only, ST_RDONLY, the same on every Linux
 local ENOENT = 2
-
--- The partitions which are mounted read-only, like /system/xbin of su
-local READONLY = { system = true, vendor = true, product = true, system_ext = true, odm = true }
+local EROFS = 30
+local O_CREAT = 64
+local ST_RDONLY = 1
 
 -- The script runs for the files of /sys only (with net/ in the path for Read.Network and Read.VPN, see FILTERS for
 -- the others), also by other paths, like /proc/self/root/sys/..., /data/../sys/...
@@ -323,6 +325,15 @@ function hidden(hook, path, param)
         return known
     end
     local found = matched(group, path, param) and reachable(group, path, param)
+    -- Nothing is under a hidden file either, like .../privapp-permissions-com.example.xml/x or its /., for which the
+    -- kernel answers ENOTDIR, which would tell the file is there; a path with /../ counts by the file it leads to (see
+    -- matched), the files of Read.Network stay there, and the patterns of Read.VPN cover what is under its folders.
+    -- shortcut: a path on through a hidden file and back, like .../privapp-permissions-com.example.xml/../a.xml, still
+    -- answers ENOTDIR, check each name of such paths if apps probe like that.
+    if not found and group ~= 'Read.Network' and group ~= 'Read.VPN' and not string.find(path, '/../', 1, true) then
+        local folder = string.match(path, '^(.+)/[^/]*$')
+        found = folder ~= nil and hidden(hook, folder, param)
+    end
     if group == 'Read.VPN' then
         return found
     end
@@ -435,6 +446,34 @@ function missing(hook, path, param)
     return (folder == '/' and '' or folder) .. '/' .. name
 end
 
+-- The error of making a hidden file, which does not exist for the app, nil when the kernel would check the permissions:
+-- ENOENT when its folder is hidden too, EROFS when the folder is on a file system mounted read-only, like the
+-- partitions of the system and the APEX modules by any path, like /etc, a link to /system/etc, which the kernel
+-- checks before the permissions; the real statvfs, which SELinux lets every app call
+function making(hook, path, param)
+    local folder = luajava.newInstance('java.io.File', path):getParent()
+    if folder == nil then
+        return nil
+    end
+    if hidden(hook, folder, param) then
+        return ENOENT
+    end
+    local ok, readonly = pcall(function()
+        return param:unhooked(function()
+            return bit32.band(luajava.bindClass('android.system.Os'):statvfs(folder).f_flag, ST_RDONLY) ~= 0
+        end)
+    end)
+    return (ok and readonly) and EROFS or nil
+end
+
+-- The error of opening a hidden file: of making it when the flags make files (O_CREAT), else ENOENT
+function opening(hook, path, param)
+    if about(hook).method == 'open' and bit32.band(param:getArgument(1), O_CREAT) ~= 0 then
+        return making(hook, path, param) or ENOENT
+    end
+    return ENOENT
+end
+
 -- The path of the first argument: a text, a java.io.File or a path of java.nio, which print their path
 function pathof(param)
     return tostring(param:getArgument(0))
@@ -512,10 +551,17 @@ function before(hook, param)
     end
 
     local method = about(hook).method
-    if class == 'libcore.io.BlockGuardOs' or class == 'android.system.Os' then
+    if (method == 'setxattr' or method == 'removexattr' or method == 'getxattr' or method == 'link') and
+            class == 'android.system.Os' then
+        -- Linux 6.11 and later check the name, value and flags of setxattr and removexattr before they look the path
+        -- up (EINVAL, ERANGE, E2BIG), 6.13 and later the name of getxattr (ERANGE), older kernels after, and libcore
+        -- throws NullPointerException for a null name, value or second path of link before the kernel runs. The real
+        -- call with an empty path, which no lookup finds (ENOENT), answers like for a missing file in that order.
+        param:setArgument(0, '')
+    elseif class == 'libcore.io.BlockGuardOs' or class == 'android.system.Os' then
         -- Os.open, stat, lstat, access and readlink, which FileInputStream uses; Os.access and
         -- Os.readlink of apps are hooked themselves, since the hooks of BlockGuardOs do not run for them (Android 14)
-        param:setResult(luajava.newInstance('android.system.ErrnoException', method, ENOENT))
+        param:setResult(luajava.newInstance('android.system.ErrnoException', method, opening(hook, path, param)))
     elseif class == 'java.io.UnixFileSystem' then
         if method == 'canonicalize0' then
             -- File.getCanonicalPath and getCanonicalFile, which follow links: .. names another folder, . the
@@ -532,17 +578,11 @@ function before(hook, param)
             end
             param:setResult(missing(hook, path, param))
         elseif method == 'createFileExclusively' then
-            -- File.createNewFile: apps cannot make files in /sys, and not at all in a folder which does not exist;
-            -- the partitions of the system are mounted read-only, which the kernel checks first (EROFS)
-            local folder = luajava.newInstance('java.io.File', path):getParent()
-            local partition = string.match(unrooted(path), '^/([^/]+)/')
-            local reason = 'Permission denied'
-            if folder ~= nil and hidden(hook, folder, param) then
-                reason = 'No such file or directory'
-            elseif READONLY[partition] then
-                reason = 'Read-only file system'
-            end
-            param:setResult(luajava.newInstance('java.io.IOException', reason))
+            -- File.createNewFile: apps cannot make files in /sys, and not at all in a folder which does not exist
+            -- or on a file system mounted read-only (see making)
+            local reasons = { [ENOENT] = 'No such file or directory', [EROFS] = 'Read-only file system' }
+            param:setResult(luajava.newInstance('java.io.IOException',
+                    reasons[making(hook, path, param)] or 'Permission denied'))
         elseif method == 'list0' then
             -- File.list of a hidden folder: like of a folder which does not exist
             param:setResult(nil)
@@ -566,7 +606,7 @@ function before(hook, param)
         elseif method == 'stat' and about(hook).returnType == 'int' then
             param:setResult(0)
         else
-            param:setResult(luajava.newInstance('sun.nio.fs.UnixException', ENOENT))
+            param:setResult(luajava.newInstance('sun.nio.fs.UnixException', opening(hook, path, param)))
         end
     end
     return true, path
