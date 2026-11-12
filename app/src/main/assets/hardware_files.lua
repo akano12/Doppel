@@ -86,13 +86,25 @@ local FILES = {
     ['Read.Biometrics'] = {
         '/fingerprint/fingerprint$', '/fingerprint/fingerprint/', '/sec/tsp/fod_info$', '/sec/tsp/fod_pos$' },
     -- The files of /proc/net, a link to /proc/self/net, list the addresses, routes, neighbours and hardware addresses
-    -- of the interfaces and the addresses of the sockets, which SELinux lets apps read on Android 9 and before and
-    -- apps for those versions later; only opening them fails (hooks of open of Read.Network), that they exist tells nothing
+    -- of the interfaces and the addresses of the sockets, which SELinux lets all apps read on Android 9 and before, and
+    -- from Android 10 not the apps the user installs; they stay there, but reading them is denied (see denied)
     ['Read.Network'] = { '/proc/net/', '/proc/%d+/net/', '/proc/%d+/task/%d+/net/', '/proc/self/net/',
                          '/proc/thread%-self/net/' },
     -- The folders of the network interfaces of VPNs (see isvpninterface), of which apps could tell they exist on
-    -- Android 8.1; SELinux denies apps the folders on later versions and listing them on all
-    ['Read.VPN'] = { '^/sys/class/net/([^/]+)', '^/sys/devices/virtual/net/([^/]+)' },
+    -- Android 8.1; SELinux denies apps the folders on later versions and listing them on all. The files of /proc/net,
+    -- which name the interface of a VPN too, like tun0 in /proc/net/dev, are denied like for Read.Network (see before),
+    -- and the names of the interfaces in there and in /proc/sys/net, which apps can list and find on Android 9 and
+    -- before, do not exist: the file of each interface with IPv6 in dev_snmp6, its folders of xt_qtaguid/iface_stat
+    -- and of the settings of IPv4 and IPv6 (conf and neigh).
+    -- shortcut: Read.VPN hooks fewer calls than the other groups, so File.lastModified, createNewFile, mkdir, readlink
+    -- and the calls of a SecureDirectoryStream by the descriptor of its folder (openat, fstatat) still find the names,
+    -- add their hooks of the other groups to Read.VPN if apps probe the interfaces of VPNs like that
+    ['Read.VPN'] = { '^/sys/class/net/([^/]+)', '^/sys/devices/virtual/net/([^/]+)',
+                     '^/proc/net/dev_snmp6/([^/]+)', '^/proc/[^/]+/net/dev_snmp6/([^/]+)',
+                     '^/proc/[^/]+/task/%d+/net/dev_snmp6/([^/]+)', '^/proc/net/xt_qtaguid/iface_stat/([^/]+)',
+                     '^/proc/[^/]+/net/xt_qtaguid/iface_stat/([^/]+)',
+                     '^/proc/[^/]+/task/%d+/net/xt_qtaguid/iface_stat/([^/]+)',
+                     '^/proc/sys/net/ipv[46]/conf/([^/]+)', '^/proc/sys/net/ipv[46]/neigh/([^/]+)' },
     -- su of root managers, in the folders of programs of the system and the ones they used to install to,
     -- and the programs and folders of Magisk
     ['Read.Debugging'] = {
@@ -248,6 +260,9 @@ local O_CREAT = 64
 local O_ACCMODE = 3
 local ST_RDONLY = 1
 
+-- The texts of those errors, which java.io puts in its messages, the same as strerror of bionic
+local REASONS = { [ENOENT] = 'No such file or directory', [EACCES] = 'Permission denied', [EROFS] = 'Read-only file system' }
+
 -- The script runs for the files of /sys only (with net/ in the path for Read.Network and Read.VPN, see FILTERS for
 -- the others), also by other paths, like /proc/self/root/sys/..., /data/../sys/...
 -- or sys/... relative to /, the folder apps run in; see XCore.getFilter. It also runs for the paths through the
@@ -397,7 +412,7 @@ end
 -- Whether the app could reach a file: else the real call answers, since SELinux denies many paths whatever their
 -- name (EACCES), like all of /sys/class/net, and a fake answer for only the hidden names would tell the hook is there,
 -- and nothing is hidden for a file which does not exist, like su on a phone without root
--- Read.Network only hides opening its files (see FILES): of /proc/net apps can tell they exist, but not read them.
+-- Read.Network only denies reading its files (see denied): of /proc/net apps can tell they exist, but not read them.
 -- The property files of the partitions and fstab are there on every device, so the ones apps cannot read, like
 -- /system/build.prop of Android 14 (EACCES), stay as they are: hiding them would turn EACCES into ENOENT; the same for
 -- the manifests and SELinux contexts of vintf and the drivers of the GPU (EVERYWHERE, the files of every device). So do
@@ -435,10 +450,11 @@ end
 
 -- Whether a file is one of the group of the hook which the app could reach: its path or the path it leads to matches
 -- a pattern. The interfaces of VPNs come and go, and so does the folder of a descriptor, which the app can close and
--- open again for another folder by the same number, and so do files which do not exist yet, see HIDDEN; the rest
--- stays while the app runs.
-function hidden(hook, path, param)
-    local group = about(hook).group
+-- open again for another folder by the same number, and so do files which do not exist yet, see HIDDEN, and the files of
+-- /proc/net of an interface, like dev_snmp6/tun0; the rest stays while the app runs. The group is the one of the hook,
+-- unless another is given.
+function hidden(hook, path, param, group)
+    group = group or about(hook).group
     if FILES[group] == nil then
         return false
     end
@@ -453,17 +469,22 @@ function hidden(hook, path, param)
     if known ~= nil then
         return known
     end
-    local found = matched(group, path, param) and reachable(group, path, param)
+    local named = matched(group, path, param)
+    local found = named and reachable(group, path, param)
     -- Nothing is under a hidden file either, like .../privapp-permissions-com.example.xml/x or its /., for which the
     -- kernel answers ENOTDIR, which would tell the file is there; a path with /../ counts by the file it leads to (see
-    -- matched), the files of Read.Network stay there, and the patterns of Read.VPN cover what is under its folders.
+    -- matched), the files of Read.Network stay there, and of Read.VPN only the paths its patterns name are looked at,
+    -- like /proc/net/dev_snmp6/tun0/x under the file of tun0 or a missing tun0/x, which the app would make with EACCES,
+    -- under its folder, since the patterns cover what is under its folders.
     -- shortcut: a path on through a hidden file and back, like .../privapp-permissions-com.example.xml/../a.xml, still
     -- answers ENOTDIR, check each name of such paths if apps probe like that.
-    if not found and group ~= 'Read.Network' and group ~= 'Read.VPN' and not string.find(path, '/../', 1, true) then
+    if not found and group ~= 'Read.Network' and (named or group ~= 'Read.VPN') and
+            not string.find(path, '/../', 1, true) then
         local folder = string.match(path, '^(.+)/[^/]*$')
-        found = folder ~= nil and hidden(hook, folder, param)
+        found = folder ~= nil and hidden(hook, folder, param, group)
     end
-    if group == 'Read.VPN' or string.find(path, '/fd/', 1, true) or (not found and not present(path, param)) then
+    if group == 'Read.VPN' or string.find(path, '/fd/', 1, true) or (not found and not present(path, param)) or
+            (found and group == 'Read.Network') then
         return found
     end
     if cached >= 1000 then
@@ -705,14 +726,14 @@ function making(hook, path, param)
 end
 
 -- The error of a call on a hidden file: of making a file, a folder or a pipe by its name (open and openat with
--- O_CREAT, mkdir, mkfifo) like a missing name in a folder of /sys, which apps cannot write (EACCES), unless making
--- answers first, since Linux never gives ENOENT for a name it makes in a folder which exists; of removing it (remove)
--- EROFS on a file system mounted read-only, like the fonts of /system, which Linux checks before it looks the name up;
--- else of a name no lookup finds
+-- O_CREAT, which FileOutputStream always sets, mkdir, mkfifo) like a missing name in a folder of /sys, which apps
+-- cannot write (EACCES), unless making answers first, since Linux never gives ENOENT for a name it makes in a folder
+-- which exists; of removing it (remove) EROFS on a file system mounted read-only, like the fonts of /system, which
+-- Linux checks before it looks the name up; else of a name no lookup finds
 function failing(hook, path, param)
-    local method = about(hook).method
+    local class, method = about(hook).class, about(hook).method
     local flags = (method == 'open' and param:getArgument(1)) or (method == 'openat' and param:getArgument(2)) or 0
-    if method == 'mkdir' or method == 'mkfifo' or bit32.band(flags, O_CREAT) ~= 0 then
+    if method == 'mkdir' or method == 'mkfifo' or class == 'java.io.FileOutputStream' or bit32.band(flags, O_CREAT) ~= 0 then
         return making(hook, path, param) or EACCES
     elseif method == 'remove' then
         return making(hook, path, param) or ENOENT
@@ -819,8 +840,9 @@ function renaming(hook, param)
 end
 
 -- Files.newDirectoryStream, list and walk: the names of hidden files are left out by a filter in front of
--- the one of the app; a hidden folder is not opened at all (see the hooks of UnixNativeDispatcher.opendir). Listing a folder of /sys is not
--- reported, since nothing is hidden in most of them. The filter can run on another thread, which must not change
+-- the one of the app; a hidden folder is not opened at all (see the hooks of UnixNativeDispatcher.open, which a
+-- SecureDirectoryStream opens its folder with, and of opendir). Listing a folder of /sys is not reported, since nothing
+-- is hidden in most of them. The filter can run on another thread, which must not change
 -- the tables of this one, so it does not use the cache. Without a filter Android throws NullPointerException.
 function listing(hook, param, folder)
     local original = param:getArgument(1)
@@ -831,9 +853,11 @@ function listing(hook, param, folder)
     local none = unlisted(group, folder, param)
     param:setArgument(1, luajava.createProxy('java.nio.file.DirectoryStream$Filter', {
         accept = function(entry)
-            -- Left out as File.list does, so a matched file the app cannot read stays listed, as Android lists it
+            -- Left out as File.list does, so a matched file the app cannot read stays listed, as Android lists it;
+            -- of Read.VPN only the names of the interfaces of VPNs are looked up (see after)
             local path = tostring(entry)
-            if none or (matched(group, path, param) and reachable(group, path, param)) then
+            if none or ((group ~= 'Read.VPN' or isvpninterface(string.match(path, '[^/]+$'))) and
+                    matched(group, path, param) and reachable(group, path, param)) then
                 return false
             end
             return original:accept(entry)
@@ -882,6 +906,53 @@ function unlisted(group, folder, param)
     return false
 end
 
+-- The bit of reading of access, R_OK, the same on every Linux, and also FileSystem.ACCESS_READ of java.io, while
+-- ACCESS_OK, which File.exists asks, is 8
+local R_OK = 4
+
+-- A file of /proc/net, denied the way SELinux can deny reading a file: it is there and stat answers, but opening it and
+-- access for reading fail with EACCES, also File.canRead and Files.isReadable, which Linux checks the same way; the
+-- other calls, like access for whether it exists, get the real answer. A missing file would answer ENOENT, which Linux
+-- never gives for a file access finds.
+-- shortcut: the ErrnoException of Os is made here, with the frames of the script in its stack trace, like the other
+-- errors which are not ENOENT (see before), make it by a real call of a path with EACCES if apps compare traces
+function denied(hook, param, path)
+    local known = about(hook)
+    if known.method == 'access' or known.method == 'checkAccess' then
+        if bit32.band(param:getArgument(1), R_OK) == 0 then
+            return false
+        end
+    elseif known.method ~= 'open' then
+        return false
+    end
+    -- A folder, like /proc/net/stat, stays readable: File.list lists it natively, and Linux lists no folder which
+    -- File.canRead denies. The names in the folders stay too, of which dev_snmp6 and xt_qtaguid/iface_stat have one
+    -- per interface, which Read.VPN leaves out for the interfaces of VPNs only.
+    local ok, folder = pcall(function()
+        return param:unhooked(function()
+            return luajava.newInstance('java.io.File', path):isDirectory()
+        end)
+    end)
+    if ok and folder then
+        return false
+    end
+    -- A file of the interface of a VPN, like /proc/net/dev_snmp6/tun0, does not exist where Read.VPN is restricted too,
+    -- whichever of the hooks of the call runs first, since this one leaves the call to the other then: File.isFile asks
+    -- the hooks of the app (not unhooked), which those of Read.VPN answer false and those of this group do not hook.
+    -- It is false too when the interface went away, and the real call answers ENOENT.
+    if matched('Read.VPN', path, param) and not luajava.newInstance('java.io.File', path):isFile() then
+        return false
+    end
+    if known.class == 'java.io.UnixFileSystem' then
+        param:setResult(false)
+    elseif known.class == 'sun.nio.fs.UnixNativeDispatcher' then
+        param:setResult(luajava.newInstance('sun.nio.fs.UnixException', EACCES))
+    else
+        param:setResult(luajava.newInstance('android.system.ErrnoException', known.method, EACCES))
+    end
+    return true, path
+end
+
 function before(hook, param)
     local class, method = about(hook).class, about(hook).method
     local path
@@ -908,14 +979,24 @@ function before(hook, param)
     if class == 'sun.nio.fs.UnixFileSystemProvider' and method == 'newDirectoryStream' then
         return listing(hook, param, path)
     end
-    if not hidden(hook, path, param) or (string.find(path, 'cacerts', 1, true) and truststore()) then
+    -- Read.VPN denies the files of /proc/net like Read.Network, since on Android 9 and before they name the interface of
+    -- a VPN, its counters, addresses and routes, like tun0 in /proc/net/dev; the names of its interfaces in there, like
+    -- /proc/net/dev_snmp6/tun0, do not exist (ENOENT, not EACCES). The check of Read.Network leaves the links of the
+    -- descriptors of the app alone, like for Read.Network itself (see hidden).
+    local group = about(hook).group
+    local found = hidden(hook, path, param)
+    if group == 'Read.Network' and found or
+            group == 'Read.VPN' and not found and hidden(hook, path, param, 'Read.Network') then
+        return denied(hook, param, path)
+    end
+    if not found or (string.find(path, 'cacerts', 1, true) and truststore()) then
         return false
     end
 
     if class == 'libcore.io.BlockGuardOs' or class == 'android.system.Os' then
-        -- Os.open, stat, lstat, access and readlink, which FileInputStream uses, and the calls on the attributes, the
-        -- mode, the owner and links; Os.access and the others of apps are hooked themselves, since the hooks of
-        -- BlockGuardOs do not run for them (Android 14)
+        -- Os.open, stat, lstat, access and readlink, which FileInputStream uses (to open from Android 10, see below),
+        -- and the calls on the attributes, the mode, the owner and links; Os.access and the others of apps are hooked
+        -- themselves, since the hooks of BlockGuardOs do not run for them (Android 14)
         local errno = failing(hook, path, param)
         if errno == ENOENT then
             -- The real call with an empty path, which no lookup finds, answers like for a missing file: with the
@@ -933,6 +1014,13 @@ function before(hook, param)
             -- script, make them by a real call of a path with the same error if apps compare traces
             param:setResult(luajava.newInstance('android.system.ErrnoException', method, errno))
         end
+    elseif class == 'java.io.FileInputStream' or class == 'java.io.FileOutputStream' then
+        -- FileInputStream and FileOutputStream of Android 8.1 and 9, which open natively (open0), not by BlockGuardOs:
+        -- the exception of the native code, the path the app gave with the error
+        -- shortcut: the exception is made here, with the frames of the script in its stack trace (see the errors of Os
+        -- above), make it by a real call too if apps compare traces
+        param:setResult(luajava.newInstance('java.io.FileNotFoundException',
+                path .. ' (' .. REASONS[failing(hook, path, param)] .. ')'))
     elseif class == 'java.io.UnixFileSystem' then
         if method == 'canonicalize0' then
             -- File.getCanonicalPath and getCanonicalFile, which follow links: .. names another folder, . the
@@ -953,9 +1041,7 @@ function before(hook, param)
             -- or on a file system mounted read-only (see making)
             -- shortcut: the exception is made here, with the frames of the script in its stack trace (see the errors
             -- of Os above), make it by a real call too if apps compare traces
-            local reasons = { [ENOENT] = 'No such file or directory', [EROFS] = 'Read-only file system' }
-            param:setResult(luajava.newInstance('java.io.IOException',
-                    reasons[making(hook, path, param)] or 'Permission denied'))
+            param:setResult(luajava.newInstance('java.io.IOException', REASONS[making(hook, path, param) or EACCES]))
         elseif method == 'list0' then
             -- File.list of a hidden folder: like of a folder which does not exist
             param:setResult(nil)
@@ -1066,10 +1152,17 @@ function after(hook, param)
 
     local folder = pathof(param)
     local kept = {}
+    -- Of Read.VPN only the names of the interfaces of VPNs are looked up, like tun0 of /proc/net/dev_snmp6, since the
+    -- filter runs the script for folders of apps too, like a cache of Cronet, and each other name would read the file
+    -- system (see matched); the folder of an interface itself is not listed (see before).
+    -- shortcut: the names in the folder of a VPN interface through a descriptor opened natively, like /proc/self/fd/57
+    -- of /proc/sys/net/ipv4/conf/tun0, stay, look them up too if apps list such descriptors
+    local vpn = about(hook).group == 'Read.VPN'
     if not unlisted(about(hook).group, folder, param) then
         -- Of the root the path is /name, not //name, which the patterns of the root do not match
         for index = 1, names['length'] do
-            if not hidden(hook, (folder == '/' and '' or folder) .. '/' .. names[index], param) then
+            if (vpn and not isvpninterface(names[index])) or
+                    not hidden(hook, (folder == '/' and '' or folder) .. '/' .. names[index], param) then
                 table.insert(kept, names[index])
             end
         end

@@ -16,10 +16,21 @@
 -- Copyright 2026 akano12
 
 -- The LinkProperties of a VPN, which apps get for the active network with the interface of the network under it
--- (see vpn), still have the addresses of the tunnel, like 10.8.0.2/32, and the DNS servers of the VPN, which tell
--- there is a VPN, and its routes and search domains, which are the ones of the tunnel with the interface of the
--- network under it: they are left out, like Read.Network leaves them out for all networks (see network_address).
+-- (see vpn), still have the addresses of the tunnel, like 10.8.0.2/32, the DNS servers of the VPN, its routes,
+-- search domains and, from Android 11, the MTU of the tunnel, like 1420, which tell there is a VPN: they are the
+-- ones of the network under it, like on a device without a VPN, through the hooks, so Read.Network leaves out its
+-- addresses for all networks still (see network_address). Without that network they are left out, and the MTU is 0.
+-- The HTTP proxy a VPN can set from Android 10 (VpnService.Builder.setHttpProxy), often on 127.0.0.1, is null, like
+-- on a network without a proxy.
+-- The text of the VPN has the same ones, from the network found the same way (see vpn).
 -- LinkProperties gets the real ones when it checks, compares, copies or parcels itself.
+-- shortcut: the other fields stay the VPN's, in their getters and the text alike: the DHCP server, the private DNS,
+-- the P-CSCF servers, the TCP buffer sizes, the NAT64 prefix and the stacked links, so a VPN over IPv6-only mobile
+-- data has no NAT64 prefix; the hidden getAll* getters do include the links stacked on the network under it.
+-- Upgrade by delegating those getters too, with their part of the text, if apps are seen to check them.
+-- shortcut: ConnectivityManager.getDefaultProxy, the http.proxyHost property and Proxy.getDefaultHost still give the
+-- proxy of the VPN, since the app process sets the proxy of its connections from getDefaultProxy (ActivityThread),
+-- so hiding it would break proxied networking; upgrade if apps are seen to check them for a VPN.
 
 -- Whether a network interface is of a VPN, like vpn, which a test compares
 function isvpninterface(name)
@@ -59,13 +70,29 @@ function linkproperties()
     return false
 end
 
-function after(hook, param)
-    local result = param:getResult()
-    -- getDomains, the search domains of the VPN as text, like corp.example
-    local domains = (hook:getMethodName() == 'getDomains')
-    if result == nil or (not domains and result:isEmpty()) then
-        return false
+-- The LinkProperties of the network under the VPN, of which the hook of vpn gives the interface name for it, like
+-- rmnet_data0; nil when the hook keeps the name of the tunnel, which would find the VPN itself again
+function underlyingproperties(param, properties)
+    local name = properties:getInterfaceName()
+    if isvpninterface(name) then
+        return nil
     end
+    return param:unhooked(function()
+        local cm = param:getApplicationContext():getSystemService('connectivity')
+        local networks = cm:getAllNetworks()
+        for index = 1, networks['length'] do
+            local lp = cm:getLinkProperties(networks[index])
+            if lp ~= nil and lp:getInterfaceName() == name then
+                return lp
+            end
+        end
+        return nil
+    end)
+end
+
+function after(hook, param)
+    local method = hook:getMethodName()
+    local result = param:getResult()
     -- The real interface, which the hook of vpn would fake
     local properties = param:getThis()
     local name = param:unhooked(function()
@@ -74,10 +101,30 @@ function after(hook, param)
     if not isvpninterface(name) or linkproperties() then
         return false
     end
-    if domains then
-        param:setResult(nil)
-    else
-        param:setResult(luajava.newInstance('java.util.ArrayList'))
+    -- Also for an empty list or no search domains of the VPN, which the network under it can have; not for the HTTP
+    -- proxy, which is null, like in the text of the VPN (see vpn)
+    local ok, fake = pcall(function()
+        local lp = (method ~= 'getHttpProxy' and underlyingproperties(param, properties))
+        if not lp then
+            error('No network under the VPN')
+        end
+        return lp[method](lp)
+    end)
+    if not ok then
+        -- getDomains, the search domains as text, like corp.example, getHttpProxy, a ProxyInfo, and getMtu, a number
+        if method == 'getDomains' or method == 'getHttpProxy' then
+            fake = nil
+        elseif method == 'getMtu' then
+            fake = 0
+        elseif result:isEmpty() then
+            return false
+        else
+            fake = luajava.newInstance('java.util.ArrayList')
+        end
     end
+    if fake == result then
+        return false
+    end
+    param:setResult(fake)
     return true
 end

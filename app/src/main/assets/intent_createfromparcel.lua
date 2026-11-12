@@ -34,11 +34,21 @@ for kind, actions in pairs({
     end
 end
 
--- Extras left out of broadcasts, per variant and action: the Bluetooth devices around and their names and the name of
--- the device, which the hooks of Bluetooth hide, of each action of Bluetooth (network); on Android 8.1 the access point of the Wi-Fi state and the
--- network name of the connectivity (network); the number of a call (call_log)
-local BLUETOOTH = { 'android.bluetooth.device.extra.DEVICE', 'android.bluetooth.device.extra.NAME',
-    'android.bluetooth.adapter.extra.LOCAL_NAME' }
+-- Extras left out of broadcasts, per variant and action: the names of the Bluetooth devices around and the name of
+-- the device, which the hooks of Bluetooth hide, of each action of Bluetooth (network), whose device is a stand-in (see
+-- DEVICE); on Android 8.1 the access point of the Wi-Fi state and the network name of the connectivity (network); the
+-- number of a call (call_log)
+local BLUETOOTH = { 'android.bluetooth.device.extra.NAME', 'android.bluetooth.adapter.extra.LOCAL_NAME' }
+-- The device a broadcast of Bluetooth is about, which Android always sends with it, so receivers use it without a check:
+-- a device of the address Android gives for hidden ones, and the broadcast is marked, so it does not reach the receivers
+-- (see receiver_skip), like on a device without the devices around, which the hooks of Bluetooth hide
+local DEVICE = 'android.bluetooth.device.extra.DEVICE'
+local HIDDEN_ADDRESS = '02:00:00:00:00:00'
+-- The active device of Headset and A2DP, of which Android sends a null one also without devices (see wiredcleared)
+local HEADSET_ACTIVE = 'android.bluetooth.headset.profile.action.ACTIVE_DEVICE_CHANGED'
+local A2DP_ACTIVE = 'android.bluetooth.a2dp.profile.action.ACTIVE_DEVICE_CHANGED'
+-- The legacy network type of a VPN (ConnectivityManager.TYPE_VPN)
+local TYPE_VPN = 17
 local EXTRAS = {
     network = {
         ['android.net.wifi.STATE_CHANGE'] = { 'bssid' },
@@ -93,6 +103,35 @@ function extrasof(name, action)
     return actions[action]
 end
 
+-- Whether a broadcast of Bluetooth with a null device is one which Android sends also without devices: a wired headset
+-- which is attached clears the active device of Headset (Android 9 and later) and of A2DP (Android 9 and 10, which
+-- broadcast it also without an active one; A2dpService.removeActiveDevice returns without one from Android 11), like
+-- ActiveDeviceManager.wiredAudioDeviceConnected with its isWiredAudioHeadset. Android sends the other null devices only
+-- after a device was active, like when headphones turn off, so those are marked too. The audio devices are the ones
+-- the app gets, so with those of Record.Audio, which leave out a headset, it is marked, like on a device without one.
+-- shortcut: an active device which goes away while a wired headset is attached still arrives, and the null active
+-- device A2DP of Android 9 and 10 sends each time Bluetooth turns on or off is left out; upgrade if those can be told
+-- apart from the ones of devices
+function wiredcleared(action, param)
+    if action ~= HEADSET_ACTIVE and
+            (action ~= A2DP_ACTIVE or luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 30) then
+        return false
+    end
+    local ok, wired = pcall(function()
+        local info = luajava.bindClass('android.media.AudioDeviceInfo')
+        local types = { [info.TYPE_WIRED_HEADSET] = true, [info.TYPE_WIRED_HEADPHONES] = true, [info.TYPE_USB_HEADSET] = true }
+        local audio = param:getApplicationContext():getSystemService('audio')
+        local devices = audio:getDevices(luajava.bindClass('android.media.AudioManager').GET_DEVICES_ALL)
+        for index = 1, devices['length'] do
+            if types[devices[index]:getType()] then
+                return true
+            end
+        end
+        return false
+    end)
+    return ok and wired
+end
+
 function after(hook, param)
     local intent = param:getResult()
     if intent == nil then
@@ -117,6 +156,22 @@ function after(hook, param)
         for _, key in ipairs(remove) do
             if extras:containsKey(key) then
                 extras:remove(key)
+                removed = true
+            end
+        end
+        -- A null device, like the active device of a profile when none is, stays null
+        if remove == BLUETOOTH and extras:containsKey(DEVICE) then
+            local device = extras:getParcelable(DEVICE)
+            if device ~= nil then
+                local adapter = luajava.bindClass('android.bluetooth.BluetoothAdapter'):getDefaultAdapter()
+                if adapter == nil then
+                    extras:remove(DEVICE)
+                else
+                    extras:putParcelable(DEVICE, adapter:getRemoteDevice(HIDDEN_ADDRESS))
+                end
+            end
+            if device ~= nil or not wiredcleared(action, param) then
+                param:putValue('bluetooth.device', true, intent)
                 removed = true
             end
         end
@@ -371,6 +426,55 @@ function after(hook, param)
         end
         intent:replaceExtras(extras)
         return true, table.concat(old, ','), table.concat(new, ',')
+    elseif name == 'vpn' and action == 'android.net.conn.CONNECTIVITY_CHANGE' then
+        -- A VPN which connects or disconnects has a broadcast of the type VPN of its own (LegacyTypeTracker), which a
+        -- device without a VPN never sends. It becomes the broadcast of the network the VPN runs over connecting
+        -- (makeGeneralIntent with the state of sendLegacyNetworkBroadcast), which is what the sticky broadcast is
+        -- without a VPN; the network is the one Android reports as active, like vpn does. Its extras come from the
+        -- getters of its info, so they agree with the hooks of the info, like a network name Read.Network hides. It is
+        -- marked, so it reaches only a receiver which registers, as its first sticky broadcast (see receiver_skip).
+        local extras = intent:getExtras()
+        if extras == nil or extras:getInt('networkType', -1) ~= TYPE_VPN then
+            return false
+        end
+        param:putValue('vpn.connectivity', true, intent)
+        local ok, info = pcall(function()
+            return param:getApplicationContext():getSystemService('connectivity'):getActiveNetworkInfo()
+        end)
+        if not ok or info == nil then
+            -- The type of the info of the VPN, which the hooks of the info fake while it is connected
+            -- shortcut: without the permission to read the active network or without one, the sticky broadcast of a VPN
+            -- which disconnected, which a receiver reads when it registers, stays, since a connected network would tell
+            -- the app it is online and the info of a VPN which is not connected keeps its type; upgrade once the type
+            -- of the network below can be read after the VPN disconnected
+            local vpn = extras:getParcelable('networkInfo')
+            local networkType = (vpn ~= nil and vpn:getType() or TYPE_VPN)
+            if networkType == TYPE_VPN then
+                return false
+            end
+            extras:putInt('networkType', networkType)
+            intent:replaceExtras(extras)
+            return true, tostring(TYPE_VPN), tostring(networkType)
+        end
+        -- Connected without a reason, like sendLegacyNetworkBroadcast makes it; NetworkInfo.setDetailedState is in the SDK
+        -- only from Android 11, so it is called only when it changes the info
+        if not info:isConnected() or info:getReason() ~= nil then
+            info:setDetailedState(luajava.bindClass('android.net.NetworkInfo$DetailedState').CONNECTED, nil, info:getExtraInfo())
+        end
+        local networkType = info:getType()
+        extras:putParcelable('networkInfo', info)
+        extras:putInt('networkType', networkType)
+        for _, key in ipairs({ 'isFailover', 'reason', 'otherNetwork', 'noConnectivity' }) do
+            extras:remove(key)
+        end
+        local extra = info:getExtraInfo()
+        if extra == nil then
+            extras:remove('extraInfo')
+        else
+            extras:putString('extraInfo', extra)
+        end
+        intent:replaceExtras(extras)
+        return true, tostring(TYPE_VPN), tostring(networkType)
     else
         return false
     end

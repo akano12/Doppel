@@ -1181,6 +1181,32 @@ public class HookDefinitionsTest {
         assertTrue(hook("MediaMetadataRetriever.extractMetadata").optBoolean("usage", true));
     }
 
+    // The files of /proc/net are denied for reading, not missing (see hardware_files): Read.Network asks access for
+    // reading next to open, and Read.VPN, whose interfaces the files name, hooks open next to its calls of access
+    @Test
+    public void networkFilesDeniedByOpenAndAccess() throws Exception {
+        String s = "java.lang.String", p = "sun.nio.fs.UnixPath";
+        check("BlockGuardOs.access/network", "libcore.io.BlockGuardOs access(" + s + ",int) @hardware_files 27-");
+        check("Os.access/network", "android.system.Os access(" + s + ",int) @hardware_files 27-");
+        check("UnixFileSystem.checkAccess/network", "java.io.UnixFileSystem checkAccess(java.io.File,int) @hardware_files 27-");
+        check("UnixNativeDispatcher.access/network", "sun.nio.fs.UnixNativeDispatcher access(" + p + ",int) @hardware_files 27-");
+        check("BlockGuardOs.open/vpn_interfaces", "libcore.io.BlockGuardOs open(" + s + ",int,int) @hardware_files 27-");
+        check("UnixNativeDispatcher.open/vpn_interfaces", "sun.nio.fs.UnixNativeDispatcher open(" + p +
+                ",int,int) @hardware_files 27-");
+        // The names of VPN interfaces in /proc/net and /proc/sys/net are left out of listings; File.isFile, by which
+        // Read.Network leaves them to Read.VPN, is hooked too
+        check("UnixFileSystem.list0/vpn_interfaces", "java.io.UnixFileSystem list0(java.io.File) @hardware_files 27-");
+        check("UnixFileSystem.getBooleanAttributes0/vpn_interfaces", "java.io.UnixFileSystem getBooleanAttributes0(" + s +
+                ") @hardware_files 27-");
+        check("UnixFileSystemProvider.newDirectoryStream/vpn_interfaces", "sun.nio.fs.UnixFileSystemProvider newDirectoryStream(" +
+                "java.nio.file.Path,java.nio.file.DirectoryStream$Filter) @hardware_files 27-");
+        for (String name : new String[]{"BlockGuardOs.access", "Os.access", "UnixFileSystem.checkAccess", "UnixNativeDispatcher.access"})
+            assertEquals(name, "Read.Network", hook(name + "/network").getString("group"));
+        for (String name : new String[]{"BlockGuardOs.open", "UnixNativeDispatcher.open", "UnixFileSystem.list0",
+                "UnixFileSystemProvider.newDirectoryStream"})
+            assertEquals(name, "Read.VPN", hook(name + "/vpn_interfaces").getString("group"));
+    }
+
     // The entries of getifaddrs, which NetworkInterface reads, for each group of its hooks (see interface_entries)
     @Test
     public void interfaceEntriesForEachGroup() throws Exception {
@@ -1188,6 +1214,41 @@ public class HookDefinitionsTest {
             check("ForwardingOs.getifaddrs/" + variant[0], "libcore.io.ForwardingOs getifaddrs() @interface_entries 27- optional");
             assertEquals(variant[1], hook("ForwardingOs.getifaddrs/" + variant[0]).getString("group"));
         }
+        // The netlink sockets of the routing tables, by Os and by Linux beneath Libcore.os and Libcore.rawOs; not in
+        // system_server, which opens them itself on Android 8.1 and 9
+        for (String[] variant : new String[][]{{"network", "Read.Network"}, {"vpn", "Read.VPN"}})
+            for (String[] layer : new String[][]{{"Os", "android.system.Os"}, {"Linux", "libcore.io.Linux"}}) {
+                String name = layer[0] + ".socket/" + variant[0];
+                check(name, layer[1] + " socket(int,int,int) @interface_entries 27-");
+                assertEquals(variant[1], hook(name).getString("group"));
+                assertEquals("android", hook(name).getString("excludePackages"));
+            }
+    }
+
+    // The access points per channel, which the Wi-Fi module of Android 13 can have, and the link id of a Wi-Fi 7
+    // access point, whose MLD address and links are hidden
+    @Test
+    public void wifiChannelsAndLinks() throws Exception {
+        check("WifiManager.getChannelData", "android.net.wifi.WifiManager getChannelData(java.util.concurrent.Executor," +
+                "java.util.function.Consumer) @wifimanager_getchanneldata 33- optional");
+        check("WifiInfo.getApMloLinkId", "android.net.wifi.WifiInfo getApMloLinkId() @wifiinfo_ssid_bssid 33-");
+        for (String name : new String[]{"WifiManager.getChannelData", "WifiInfo.getApMloLinkId"})
+            assertEquals(name, "Read.Network", hook(name).getString("group"));
+    }
+
+    // Bluetooth LE scans answer like Android (see bluetooth_scan); a discovery is refused, since a started one needs broadcasts
+    @Test
+    public void bluetoothScans() throws Exception {
+        String s = "android.bluetooth.le.BluetoothLeScanner startScan(";
+        String a = "android.bluetooth.BluetoothAdapter ";
+        String filters = "java.util.List,android.bluetooth.le.ScanSettings,";
+        check("BluetoothLeScanner.startScan", s + "android.bluetooth.le.ScanCallback) @bluetooth_scan 27-");
+        check("BluetoothLeScanner.startScan/filters", s + filters + "android.bluetooth.le.ScanCallback) @bluetooth_scan 27-");
+        check("BluetoothLeScanner.startScan/pending", s + filters + "android.app.PendingIntent) @bluetooth_scan 27-");
+        check("BluetoothAdapter.startLeScan", a + "startLeScan(android.bluetooth.BluetoothAdapter$LeScanCallback) @bluetooth_scan 27-");
+        check("BluetoothAdapter.startLeScan/uuids", a + "startLeScan(java.util.UUID[]," +
+                "android.bluetooth.BluetoothAdapter$LeScanCallback) @bluetooth_scan 27-");
+        check("BluetoothAdapter.startDiscovery", a + "startDiscovery() @generic_block 27-");
     }
 
     // Routes to data of groups which other hooks of the groups leave open, found by an audit
@@ -1490,13 +1551,36 @@ public class HookDefinitionsTest {
         check("NsdManager.registerServiceInfoCallback/discovery", "android.net.nsd.NsdManager registerServiceInfoCallback(" +
                 "android.net.nsd.DiscoveryRequest,java.util.concurrent.Executor,android.net.nsd.NsdManager$ServiceInfoCallback) " +
                 "@nsdmanager_listener 33- optional");
-        // Broadcasts with Bluetooth devices and the network of Android 8.1, with the number of a call and with the carrier
+        // Broadcasts with Bluetooth devices and the network of Android 8.1, with the number of a call, with the carrier
+        // and of a VPN
         for (String[] variant : new String[][]{{"network", "Read.Network"}, {"call_log", "Get.Call.log"},
-                {"operator", "Use.Tracking"}}) {
+                {"operator", "Use.Tracking"}, {"vpn", "Read.VPN"}}) {
             check("Intent.createFromParcel/" + variant[0], "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +
                     "@intent_createfromparcel 27-");
             assertEquals(variant[1], hook("Intent.createFromParcel/" + variant[0]).getString("group"));
         }
+        // The broadcasts of Bluetooth about a device and of a VPN do not reach either kind of receiver, with the signature
+        // of ReceiverDispatcher of each version, like the time zone change
+        String args = "android.content.Intent,int,java.lang.String,android.os.Bundle,boolean,boolean,";
+        for (String[] variant : new String[][]{{"network", "Read.Network"}, {"vpn", "Read.VPN"}}) {
+            check("ActivityThread.handleReceiver/" + variant[0],
+                    "android.app.ActivityThread handleReceiver(android.app.ActivityThread$ReceiverData) @receiver_skip 27-");
+            check("ReceiverDispatcher.performReceive/" + variant[0],
+                    "android.app.LoadedApk$ReceiverDispatcher performReceive(" + args + "int) @receiver_skip 27-33");
+            check("ReceiverDispatcher.performReceive.sender/" + variant[0], "android.app.LoadedApk$ReceiverDispatcher " +
+                    "performReceive(" + args + "boolean,int,int,java.lang.String) @receiver_skip 34-");
+            for (String name : new String[]{"ActivityThread.handleReceiver/", "ReceiverDispatcher.performReceive/",
+                    "ReceiverDispatcher.performReceive.sender/"})
+                assertEquals(name + variant[0], variant[1], hook(name + variant[0]).getString("group"));
+        }
+        // The clients of a Wi-Fi Direct group, also by the hidden check and in its text
+        check("WifiP2pGroup.getClientList", "android.net.wifi.p2p.WifiP2pGroup getClientList() @generic_empty 27-");
+        check("WifiP2pGroup.isClientListEmpty",
+                "android.net.wifi.p2p.WifiP2pGroup isClientListEmpty() @generic_true_value 27- optional");
+        check("WifiP2pGroup.toString", "android.net.wifi.p2p.WifiP2pGroup toString() @network_tostring 27-");
+        for (String name : new String[]{"WifiP2pGroup.getClientList", "WifiP2pGroup.isClientListEmpty", "WifiP2pGroup.toString"})
+            assertEquals(name, "Read.Network", hook(name).getString("group"));
+        assertEquals("android", hook("WifiP2pGroup.isClientListEmpty").getString("excludePackages"));
         // The number of an outgoing call as the result data of its broadcast, also after goAsync
         for (String receiver : new String[]{"BroadcastReceiver", "BroadcastReceiver$PendingResult"}) {
             String name = receiver.replace("BroadcastReceiver$", "") + ".getResultData/call_log";
@@ -1579,6 +1663,34 @@ public class HookDefinitionsTest {
             assertEquals(name, className, hook(name).getString("returnType"));
             assertEquals(name, "Use.Tracking", hook(name).getString("group"));
         }
+    }
+
+    // The cells of a network scan, by the hidden form of Android 8.1 without an executor, the form of Android 9 and the
+    // one of Android 13 with a flag first, of which the callback is the last parameter, like of registerTelephonyCallback
+    @Test
+    public void networkScanGetsNoCells() throws Exception {
+        String scan = "android.telephony.NetworkScanRequest,java.util.concurrent.Executor," +
+                "android.telephony.TelephonyScanManager$NetworkScanCallback) @telephonymanager_registertelephonycallback ";
+        check("TelephonyManager.requestNetworkScan.27", "android.telephony.TelephonyManager requestNetworkScan(" +
+                "android.telephony.NetworkScanRequest,android.telephony.TelephonyScanManager$NetworkScanCallback) " +
+                "@telephonymanager_registertelephonycallback 27-27 optional");
+        check("TelephonyManager.requestNetworkScan", "android.telephony.TelephonyManager requestNetworkScan(" + scan + "28-");
+        check("TelephonyManager.requestNetworkScan.33", "android.telephony.TelephonyManager requestNetworkScan(int," + scan + "33-");
+        for (String name : new String[]{"TelephonyManager.requestNetworkScan.27", "TelephonyManager.requestNetworkScan.33"})
+            assertEquals(name, "Read.Network", hook(name).getString("group"));
+    }
+
+    // Up to Android 11 an app can make Android send the cell location again, which its listeners get then, empty
+    // (telephonymanager_listen), also by the system API of TelephonyManager; from Android 12 Android sends only a
+    // location which changed
+    @Test
+    public void cellLocationRequestUpToAndroid11() throws Exception {
+        check("CellLocation.requestLocationUpdate",
+                "android.telephony.CellLocation requestLocationUpdate() @telephonymanager_listen 27-30");
+        check("TelephonyManager.updateServiceLocation",
+                "android.telephony.TelephonyManager updateServiceLocation() @telephonymanager_listen 27-30 optional");
+        for (String name : new String[]{"CellLocation.requestLocationUpdate", "TelephonyManager.updateServiceLocation"})
+            assertEquals(name, "Read.Network", hook(name).getString("group"));
     }
 
     // From Android 14 QPR2, still SDK 34, the recognizer of apps is a SpeechRecognizerProxy which calls a
@@ -1907,8 +2019,10 @@ public class HookDefinitionsTest {
         check("Build.getFingerprintedPartitions", "android.os.Build getFingerprintedPartitions() @generic_empty 29-");
         check("LocationManager.registerGnssStatusCallback30", "android.location.LocationManager registerGnssStatusCallback(" +
                 "java.util.concurrent.Executor,android.location.GnssStatus$Callback) @gnss_register 30-");
+        check("LinkProperties.getMtu/vpn", "android.net.LinkProperties getMtu() @vpn_addresses 27-");
         check("LinkProperties.getLinkAddresses/vpn", "android.net.LinkProperties getLinkAddresses() @vpn_addresses 27-");
         check("LinkProperties.getDnsServers/vpn", "android.net.LinkProperties getDnsServers() @vpn_addresses 27-");
+        check("LinkProperties.getHttpProxy/vpn", "android.net.LinkProperties getHttpProxy() @vpn_addresses 29-");
         check("CarrierConfigManager.getConfigForSubId", "android.telephony.CarrierConfigManager getConfigForSubId(int) @mms_useragent 27-");
         check("UsageStatsManager.queryUsageStats", "android.app.usage.UsageStatsManager queryUsageStats(int,long,long) " +
                 "@usageevents_query 27-");
@@ -1931,11 +2045,39 @@ public class HookDefinitionsTest {
         check("NsdManager.registerServiceInfoCallback", "android.net.nsd.NsdManager registerServiceInfoCallback(" +
                 "android.net.nsd.NsdServiceInfo,java.util.concurrent.Executor,android.net.nsd.NsdManager$ServiceInfoCallback) " +
                 "@nsdmanager_listener 33- optional");
+        // The looper of a Wi-Fi Direct channel, on which wifi_discovery answers
+        check("WifiP2pManager.initialize", "android.net.wifi.p2p.WifiP2pManager initialize(android.content.Context," +
+                "android.os.Looper,android.net.wifi.p2p.WifiP2pManager$ChannelListener) @wifi_discovery 27-");
+        assertEquals("Read.Network", hook("WifiP2pManager.initialize").getString("group"));
         assertEquals("android.content.SyncAdapterType[]", hook("ContentResolver.getSyncAdapterTypes").getString("returnType"));
         assertEquals("android.net.NetworkRequest$Builder", hook("NetworkRequest.Builder.addTransportType").getString("returnType"));
         // A request for VPN networks is one for LoWPAN (see vpn_request); NetworkCapabilities.Builder, and
         // NetworkRequest.Builder(NetworkCapabilities), are system APIs, which apps cannot use
         check("NetworkRequest.Builder.addTransportType", "android.net.NetworkRequest$Builder addTransportType(int) @vpn_request 27-");
+        check("NetworkRequest.Builder.removeTransportType", "android.net.NetworkRequest$Builder removeTransportType(int) @vpn_request 27-");
+        // NetworkRequest compares the fields of the capabilities of a VPN, which lack NOT_VPN
+        check("NetworkRequest.canBeSatisfiedBy", "android.net.NetworkRequest canBeSatisfiedBy(android.net.NetworkCapabilities) @vpn 30-");
+        // The signal strength of the Wi-Fi network under a VPN, hidden before Android 10, and the subtype, extra info
+        // and roaming of the network under it
+        check("NetworkCapabilities.getSignalStrength", "android.net.NetworkCapabilities getSignalStrength() @vpn 27-");
+        check("NetworkInfo.getSubtype", "android.net.NetworkInfo getSubtype() @vpn 27-");
+        check("NetworkInfo.getSubtypeName", "android.net.NetworkInfo getSubtypeName() @vpn 27-");
+        check("NetworkInfo.getExtraInfo/vpn", "android.net.NetworkInfo getExtraInfo() @vpn 27-");
+        check("NetworkInfo.isRoaming", "android.net.NetworkInfo isRoaming() @vpn 27-");
+        // The local address of sockets through a VPN, by the methods of Read.Network
+        for (String name : new String[]{"Socket.getLocalAddress", "Socket.getLocalSocketAddress", "DatagramSocket.getLocalAddress",
+                "DatagramSocket.getLocalSocketAddress", "SocketAdaptor.getLocalAddress", "DatagramSocketAdaptor.getLocalAddress",
+                "SocketChannelImpl.getLocalAddress", "AsynchronousSocketChannelImpl.getLocalAddress",
+                "DatagramChannelImpl.getLocalAddress", "Os.getsockname"}) {
+            JSONObject network = hook(name);
+            JSONObject vpn = hook(name + "/vpn");
+            assertNotNull(name + "/vpn is not defined", vpn);
+            assertEquals(name, "Read.VPN", vpn.getString("group"));
+            assertEquals(name, "@vpn", vpn.getString("luaScript"));
+            for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk"})
+                assertEquals(name + " " + key, network.get(key).toString(), vpn.get(key).toString());
+            assertEquals(name, network.optBoolean("optional", false), vpn.optBoolean("optional", false));
+        }
     }
 
     // The calls which look up the path of a hidden permission file of a system app before anything else: the
@@ -2017,6 +2159,29 @@ public class HookDefinitionsTest {
             assertEquals(method, "Use.Tracking", hook("UnixFileStore." + method + "/hardware_model").getString("group"));
             assertEquals(method, "java.lang.String", hook("UnixFileStore." + method + "/hardware_model").getString("returnType"));
         }
+    }
+
+    // The folder of a VPN interface on Android 8.1 (and 9 in /sys/devices/virtual/net): its link and real path, which
+    // apps can read, and opening or making its files (EACCES), where a missing interface gives ENOENT, also by
+    // FileInputStream and FileOutputStream, which open natively there; listings of the folder fail with EACCES, which
+    // File.list answers with null like for a hidden folder, and the hooks of the listings of Read.VPN are for the names
+    // of the interfaces in /proc/net and /proc/sys/net (see networkFilesDeniedByOpenAndAccess)
+    @Test
+    public void vpnFoldersByEveryPathCall() throws Exception {
+        for (String name : new String[]{"Os.readlink", "UnixNativeDispatcher.readlink", "UnixNativeDispatcher.realpath",
+                "BlockGuardOs.open", "UnixNativeDispatcher.open", "UnixNativeDispatcher.opendir",
+                "UnixFileSystem.getLastModifiedTime", "UnixFileSystem.createFileExclusively"}) {
+            JSONObject root = hook(name + "/root"), vpn = hook(name + "/vpn_interfaces");
+            assertNotNull(name, vpn);
+            for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk", "luaScript"})
+                assertEquals(name + " " + key, root.get(key).toString(), vpn.get(key).toString());
+            assertEquals(name, "Read.VPN", vpn.getString("group"));
+        }
+        check("FileInputStream.open0/vpn_interfaces", "java.io.FileInputStream open0(java.lang.String) @hardware_files 27-28");
+        check("FileOutputStream.open0/vpn_interfaces",
+                "java.io.FileOutputStream open0(java.lang.String,boolean) @hardware_files 27-28");
+        for (String name : new String[]{"FileInputStream.open0", "FileOutputStream.open0"})
+            assertEquals(name, "Read.VPN", hook(name + "/vpn_interfaces").getString("group"));
     }
 
     // A SecureDirectoryStream opens the files of its folder and reads their attributes by the descriptor of the folder
@@ -2184,6 +2349,22 @@ public class HookDefinitionsTest {
             check(name, "android.net.LinkProperties " + getter[0] + "() @network_address 27-" + getter[1] + " optional");
             check(name + "/vpn", "android.net.LinkProperties " + getter[0] + "() @vpn_addresses 27-" + getter[1] + " optional");
         }
+    }
+
+    // The text of socket channels, which has their local address, and the values of an interface by ioctl
+    @Test
+    public void localAddressesOfChannelsAndInterfaces() throws Exception {
+        check("SocketChannelImpl.toString", "sun.nio.ch.SocketChannelImpl toString() @network_address 27- optional");
+        check("AsynchronousSocketChannelImpl.toString",
+                "sun.nio.ch.AsynchronousSocketChannelImpl toString() @network_address 27- optional");
+        check("ForwardingOs.ioctlInetAddress",
+                "libcore.io.ForwardingOs ioctlInetAddress(java.io.FileDescriptor,int,java.lang.String) @network_address 27- optional");
+    }
+
+    // The NAT64 prefix of the network is null, like it is left out of the text of LinkProperties (network_tostring)
+    @Test
+    public void nat64PrefixIsNull() throws Exception {
+        check("LinkProperties.getNat64Prefix", "android.net.LinkProperties getNat64Prefix() @generic_null_value 29-");
     }
 
     // The prompt of biometrics, the developer options in the system settings, the torch, the recordings and the

@@ -46,9 +46,16 @@ public class InterfaceEntriesScriptTest {
             "  for index, entry in ipairs(entries) do array[index] = entry end",
             "  return array",
             "end",
+            // The descriptors Os.close closed, and the exceptions made like ErrnoException
+            "closed = {}",
             "luajava = { bindClass = function(name)",
+            "  if name == 'android.system.Os' then",
+            "    return { close = function(self, fd) closed[#closed + 1] = fd end }",
+            "  end",
             "  assert(name == 'java.lang.reflect.Array', name)",
             "  return { newInstance = function(self, type, length) assert(type == component) return { length = length } end }",
+            "end, newInstance = function(name, method, errno)",
+            "  return { class = name, method = method, errno = errno }",
             "end, new = function(type, name, flags, address, netmask, broadcast, hw)",
             "  assert(type == component)",
             "  local entry = entryof(name, address, hw)",
@@ -66,7 +73,8 @@ public class InterfaceEntriesScriptTest {
             "  local param = { result = result or entries(),",
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value end }",
-            "  local hook = { getName = function(self) return 'ForwardingOs.getifaddrs/' .. variant end }",
+            "  local hook = { getName = function(self) return 'ForwardingOs.getifaddrs/' .. variant end,",
+            "    getMethodName = function(self) return 'getifaddrs' end }",
             "  local restricted = after(hook, param)",
             "  local kept = {}",
             "  for index = 1, param.result['length'] do",
@@ -74,6 +82,16 @@ public class InterfaceEntriesScriptTest {
             "    kept[#kept + 1] = entry.ifa_name .. '=' .. (entry.ifa_addr and entry.ifa_addr.text or (entry.hwaddr and 'hw' or '-'))",
             "  end",
             "  return restricted, table.concat(kept, ','), param.result",
+            "end",
+            // Os.socket or Linux.socket of a variant, after the real call gave the descriptor fd, or failed (nil)
+            "function socket(name, domain, type, protocol, fd)",
+            "  local param = { result = fd, args = { domain, type, protocol },",
+            "    getArgument = function(self, index) return self.args[index + 1] end,",
+            "    getResult = function(self) return self.result end,",
+            "    setResult = function(self, value) self.result = value end,",
+            "    unhooked = function(self, call) return call() end }",
+            "  local hook = { getName = function(self) return name end, getMethodName = function(self) return 'socket' end }",
+            "  return after(hook, param), param.result",
             "end");
 
     private static Varargs run(String variant) throws Exception {
@@ -125,6 +143,35 @@ public class InterfaceEntriesScriptTest {
             assertFalse(variant, only.arg(1).toboolean());
             Varargs hidden = Scripts.run(globals, "return run('" + variant + "', arrayof({ { ifa_name = 'lo', getClass = function(self) return component end } }))");
             assertFalse(variant, hidden.arg(1).toboolean());
+        }
+    }
+
+    // A netlink socket of the routing tables, of any type and flags, is closed again and fails with EACCES; other
+    // sockets and a socket the real call did not open stay as they are
+    @Test
+    public void routingSocketsAreRefused() throws Exception {
+        Globals globals = Scripts.load("interface_entries", STUBS);
+        // SOCK_RAW | SOCK_CLOEXEC and SOCK_DGRAM | SOCK_NONBLOCK
+        for (String name : new String[]{"Os.socket/network", "Linux.socket/network", "Os.socket/vpn", "Linux.socket/vpn"})
+            for (int type : new int[]{3 | 0x80000, 2 | 0x800}) {
+                Varargs result = Scripts.run(globals, "closed = {} local fd = {} local restricted, result = socket('" +
+                        name + "', 16, " + type + ", 0, fd) " +
+                        "return restricted, result.class, result.method, result.errno, #closed, closed[1] == fd");
+                assertTrue(name, result.arg(1).toboolean());
+                assertEquals("android.system.ErrnoException", result.arg(2).tojstring());
+                assertEquals("socket", result.arg(3).tojstring());
+                assertEquals(13, result.arg(4).toint());
+                assertEquals(1, result.arg(5).toint());
+                assertTrue(result.arg(6).toboolean());
+            }
+
+        // AF_INET, AF_UNIX, NETLINK_SOCK_DIAG, NETLINK_KOBJECT_UEVENT, and a call which failed (a wrong type)
+        for (String args : new String[]{"2, 1, 0, fd", "1, 1, 0, fd", "16, 2, 4, fd", "16, 2, 15, fd", "16, 1, 0, nil"}) {
+            Varargs result = Scripts.run(globals, "closed = {} local fd = {} local restricted, result = socket('Linux.socket/vpn', " +
+                    args + ") return restricted, result == fd, #closed");
+            assertFalse(args, result.arg(1).toboolean());
+            assertTrue(args, result.arg(2).toboolean() || args.endsWith("nil"));
+            assertEquals(args, 0, result.arg(3).toint());
         }
     }
 

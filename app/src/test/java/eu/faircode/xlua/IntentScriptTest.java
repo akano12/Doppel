@@ -78,6 +78,7 @@ public class IntentScriptTest {
             "    function bundle:getBoolean(key, default) local v = self.values[key] if v == nil then return default end return v end",
             "    bundle.getStringArray = bundle.getString",
             "    bundle.getIntArray = bundle.getString",
+            "    function bundle:getParcelable(key) local v = self.values[key] if v == NULL then return nil end return v end",
             "    function bundle:put(key, value) self.values[key] = value end",
             "    bundle.putInt = bundle.put",
             "    bundle.putString = bundle.put",
@@ -85,12 +86,25 @@ public class IntentScriptTest {
             "    bundle.putStringArray = bundle.put",
             "    bundle.putIntArray = bundle.put",
             "    bundle.putByteArray = bundle.put",
+            "    bundle.putParcelable = bundle.put",
             "    return bundle",
             "  end",
             "  return intent",
             "end",
+            // A null value of an extra, which a table cannot hold, and the version of Android
+            "NULL = {}",
+            "sdk = 34",
+            // The Bluetooth adapter, which a test can take away, and its devices by their address
+            "adapter = { getRemoteDevice = function(self, address) return 'device ' .. address end }",
             "luajava = { bindClass = function(name)",
             "  if name == 'android.net.Uri' then return { parse = function(self, text) return text end } end",
+            "  if name == 'android.bluetooth.BluetoothAdapter' then return { getDefaultAdapter = function(self) return adapter end } end",
+            "  if name == 'android.net.NetworkInfo$DetailedState' then return { CONNECTED = 'CONNECTED' } end",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+            "  if name == 'android.media.AudioManager' then return { GET_DEVICES_ALL = 3 } end",
+            "  if name == 'android.media.AudioDeviceInfo' then",
+            "    return { TYPE_WIRED_HEADSET = 3, TYPE_WIRED_HEADPHONES = 4, TYPE_USB_HEADSET = 22 }",
+            "  end",
             "  if name == 'java.lang.reflect.Array' then",
             "    return { newInstance = function(self, type, length) return { type = type, length = length } end }",
             "  end",
@@ -298,8 +312,9 @@ public class IntentScriptTest {
         assertTrue(battery.arg(2).toboolean());
     }
 
-    // Broadcasts of Bluetooth name the devices around, which the hooks of Bluetooth hide; on Android 8.1 the broadcasts
-    // of the Wi-Fi state and the connectivity have the access point (bssid) and the network name (extraInfo)
+    // Broadcasts of Bluetooth name the devices around, which the hooks of Bluetooth hide, and have a device of the address
+    // Android gives for hidden ones, since Android always sends one; on Android 8.1 the broadcasts of the Wi-Fi state and
+    // the connectivity have the access point (bssid) and the network name (extraInfo)
     @Test
     public void networkExtrasAreLeftOut() {
         String device = "['android.bluetooth.device.extra.DEVICE']";
@@ -309,14 +324,14 @@ public class IntentScriptTest {
                         "return after(hookof('Intent.createFromParcel/network'), paramof(intent)),\n" +
                         "  intent.extras" + device + ", intent.extras['android.bluetooth.device.extra.BOND_STATE']");
         assertTrue(bond.arg(1).toboolean());
-        assertTrue(bond.arg(2).isnil());
+        assertEquals("device 02:00:00:00:00:00", bond.arg(2).tojstring());
         assertEquals(12, bond.arg(3).toint());
         Varargs found = run(
                 "local intent = intentof('android.bluetooth.device.action.FOUND', { " + device + " = 'AA:BB',\n" +
                         "  ['android.bluetooth.device.extra.NAME'] = 'Headphones of Alice' })\n" +
                         "after(hookof('Intent.createFromParcel/network'), paramof(intent))\n" +
                         "return intent.extras" + device + ", intent.extras['android.bluetooth.device.extra.NAME']");
-        assertTrue(found.arg(1).isnil());
+        assertEquals("device 02:00:00:00:00:00", found.arg(1).tojstring());
         assertTrue(found.arg(2).isnil());
         // The name of the device, which BluetoothAdapter.getName hides
         Varargs name = run(
@@ -353,6 +368,230 @@ public class IntentScriptTest {
                 .arg1().toboolean());
         assertFalse(run("return after(hookof('Intent.createFromParcel/battery'),\n" +
                 "  paramof(intentof('android.bluetooth.device.action.FOUND', { " + device + " = 'AA:BB' })))").arg1().toboolean());
+    }
+
+    // receiver_skip with stand-ins of the dispatch of each kind, which reads the marks of this script (store) and the
+    // named globals of it
+    private Globals skipper(String... names) throws Exception {
+        Globals skip = Scripts.load("receiver_skip", STUBS + "\n" + String.join("\n",
+                "calls = {}",
+                "function dispatchof(name, method, count)",
+                "  return { getName = function(self) return name end, getMethodName = function(self) return method end,",
+                "    getParameterTypes = function(self) return { length = count } end }",
+                "end",
+                "function callof(args)",
+                "  return { getArgument = function(self, index) return args[index] end,",
+                "    getValue = function(self, name, scope) return store[scope] and store[scope][name] end,",
+                "    setResult = function(self, value) calls[#calls + 1] = 'skip' end }",
+                "end",
+                "function dataof(intent)",
+                "  return { intent = intent, finish = function(self) calls[#calls + 1] = 'finish' end }",
+                "end",
+                "function deliver(hook, args)",
+                "  calls = {}",
+                "  local skipped = before(hook, callof(args))",
+                "  return skipped, table.concat(calls, ',')",
+                "end"));
+        skip.set("store", globals.get("store"));
+        for (String name : names)
+            skip.set(name, globals.get(name));
+        return skip;
+    }
+
+    // Each case is the hook and the arguments of a dispatch, whether it is left out and what it did
+    private static void deliver(Globals skip, String[][] cases) {
+        for (String[] test : cases) {
+            Varargs result = Scripts.run(skip, "return deliver(" + test[0] + ")");
+            assertEquals(test[0], Boolean.parseBoolean(test[1]), result.arg(1).toboolean());
+            assertEquals(test[0], test[2], result.arg(2).tojstring());
+        }
+    }
+
+    // A broadcast of Bluetooth about a device does not reach the receivers (see receiver_skip), like on a device without
+    // the devices around: a receiver of the manifest is finished first, a registered one only when nothing goes back to
+    // Android, so an ordered broadcast still arrives, with the stand-in device; broadcasts of the adapter and the time zone
+    // variant are delivered, also without a Bluetooth adapter the device is left out
+    @Test
+    public void bluetoothDeviceBroadcastsAreNotDelivered() throws Exception {
+        run("connected = intentof('android.bluetooth.device.action.ACL_CONNECTED',\n" +
+                "  { ['android.bluetooth.device.extra.DEVICE'] = 'AA:BB', ['android.bluetooth.device.extra.TRANSPORT'] = 2 })\n" +
+                "adapterstate = intentof('android.bluetooth.adapter.action.STATE_CHANGED',\n" +
+                "  { ['android.bluetooth.adapter.extra.STATE'] = 12 })\n" +
+                "after(hookof('Intent.createFromParcel/network'), paramof(connected))\n" +
+                "after(hookof('Intent.createFromParcel/network'), paramof(adapterstate))");
+        assertEquals(2, run("return connected.extras['android.bluetooth.device.extra.TRANSPORT']").arg1().toint());
+        deliver(skipper("connected", "adapterstate"), new String[][]{
+                {"dispatchof('ActivityThread.handleReceiver/network', 'handleReceiver', 1), { [0] = dataof(connected) }",
+                        "true", "finish,skip"},
+                {"dispatchof('ActivityThread.handleReceiver/network', 'handleReceiver', 1), { [0] = dataof(adapterstate) }",
+                        "false", ""},
+                {"dispatchof('ActivityThread.handleReceiver/timezone', 'handleReceiver', 1), { [0] = dataof(connected) }",
+                        "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive/network', 'performReceive', 7), " +
+                        "{ [0] = connected, [4] = false, [5] = false }", "true", "skip"},
+                {"dispatchof('ReceiverDispatcher.performReceive/network', 'performReceive', 7), " +
+                        "{ [0] = connected, [4] = true, [5] = false }", "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive.sender/network', 'performReceive', 10), " +
+                        "{ [0] = connected, [4] = false, [6] = true }", "true", "skip"},
+                {"dispatchof('ReceiverDispatcher.performReceive.sender/network', 'performReceive', 10), " +
+                        "{ [0] = connected, [4] = false, [6] = false }", "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive.sender/network', 'performReceive', 10), " +
+                        "{ [0] = adapterstate, [4] = false, [6] = true }", "false", ""},
+        });
+        Varargs none = run("adapter = nil\n" +
+                "local intent = intentof('android.bluetooth.device.action.ACL_CONNECTED',\n" +
+                "  { ['android.bluetooth.device.extra.DEVICE'] = 'AA:BB' })\n" +
+                "return after(hookof('Intent.createFromParcel/network'), paramof(intent)),\n" +
+                "  intent.extras['android.bluetooth.device.extra.DEVICE'], store[intent]['bluetooth.device']");
+        assertTrue(none.arg(1).toboolean());
+        assertTrue(none.arg(2).isnil());
+        assertTrue(none.arg(3).toboolean());
+    }
+
+    // A null device, like when the active device of a profile goes away, stays null and is not delivered either (see
+    // receiver_skip), since Android sends it only after a device was active; but not the null active device which Android
+    // sends also without devices when a wired headset is attached, of Headset and of A2DP up to Android 10, while the
+    // audio devices have one; a lookup which fails marks it
+    @Test
+    public void nullBluetoothDevicesAreNotDelivered() throws Exception {
+        run("speaker = { getType = function(self) return 2 end }\n" +
+                "function context:getSystemService(name)\n" +
+                "  if name ~= 'audio' then return nil end\n" +
+                "  if audio == false then error('android.os.DeadObjectException') end\n" +
+                "  return { getDevices = function(self, flags) asked = flags return audio end }\n" +
+                "end\n" +
+                "function wired(type) return { length = 2, speaker, { getType = function(self) return type end } } end\n" +
+                "function read(profile)\n" +
+                "  last = intentof('android.bluetooth.' .. profile .. '.profile.action.ACTIVE_DEVICE_CHANGED',\n" +
+                "    { ['android.bluetooth.device.extra.DEVICE'] = NULL })\n" +
+                "  local restricted = after(hookof('Intent.createFromParcel/network'), paramof(last))\n" +
+                "  return restricted, last.extras['android.bluetooth.device.extra.DEVICE'] == NULL,\n" +
+                "    store[last] ~= nil and store[last]['bluetooth.device'] == true\n" +
+                "end");
+        // The version, the audio devices, the profile and whether it is marked
+        String[][] cases = {
+                {"34", "{ length = 1, speaker }", "headset", "true"},
+                {"34", "wired(3)", "a2dp", "true"},
+                {"34", "wired(4)", "headset", "false"},
+                {"29", "wired(22)", "a2dp", "false"},
+                {"29", "{ length = 1, speaker }", "a2dp", "true"},
+                {"29", "false", "headset", "true"},
+        };
+        for (String[] test : cases) {
+            String name = String.join(" ", test);
+            Varargs result = run("sdk = " + test[0] + " audio = " + test[1] + "\nreturn read('" + test[2] + "')");
+            assertEquals(name, Boolean.parseBoolean(test[3]), result.arg(1).toboolean());
+            assertTrue(name, result.arg(2).toboolean());
+            assertEquals(name, Boolean.parseBoolean(test[3]), result.arg(3).toboolean());
+        }
+        // All audio devices, like ActiveDeviceManager gets them
+        assertEquals(3, run("return asked").arg1().toint());
+        run("sdk = 34 audio = { length = 1, speaker } read('headset')");
+        deliver(skipper("last"), new String[][]{
+                {"dispatchof('ReceiverDispatcher.performReceive.sender/network', 'performReceive', 10), " +
+                        "{ [0] = last, [4] = false, [5] = false, [6] = true }", "true", "skip"},
+        });
+    }
+
+    // The connectivity broadcast of a VPN which connects or disconnects, of the type VPN (17), which a device without a VPN
+    // never sends, is the one of the network the VPN runs over connecting, the active network info the app gets, with
+    // its extras by its getters; without that info only the type is the one of Wi-Fi; other networks stay
+    @Test
+    public void vpnConnectivityIsOfTheNetworkBelow() {
+        run("wifi = { name = 'wifi', state = 'CONNECTED' }\n" +
+                "function wifi:isConnected() return self.state == 'CONNECTED' end\n" +
+                "function wifi:getReason() return self.reason end\n" +
+                "function wifi:getExtraInfo() return self.extra end\n" +
+                "function wifi:getType() return 1 end\n" +
+                "function wifi:setDetailedState(state, reason, extra) self.state = state self.reason = reason self.extra = extra end\n" +
+                "active = wifi\n" +
+                // The info of the VPN, whose type the hooks of NetworkInfo fake while it is connected
+                "connectedvpn = { name = 'vpn', getType = function(self) return 1 end }\n" +
+                "disconnectedvpn = { name = 'vpn disconnected', getType = function(self) return 17 end }\n" +
+                "function context:getSystemService(name)\n" +
+                "  return name == 'connectivity' and { getActiveNetworkInfo = function(self)\n" +
+                "    if active == false then error('java.lang.SecurityException') end return active end } or nil\n" +
+                "end\n" +
+                "function vpnof(extras, info)\n" +
+                "  extras.networkInfo = info or connectedvpn extras.networkType = 17 extras.inetCondition = 100\n" +
+                "  return intentof('android.net.conn.CONNECTIVITY_CHANGE', extras)\n" +
+                "end");
+        String read = "local intent = %s\n" +
+                "local restricted, old, new = after(hookof('Intent.createFromParcel/vpn'), paramof(intent))\n" +
+                "local e = intent.extras\n" +
+                "return restricted, old, new, e.networkInfo.name, e.networkType, e.extraInfo,\n" +
+                "  e.reason, e.isFailover, e.inetCondition, wifi.state, wifi.reason";
+        Varargs connect = run(String.format(read, "vpnof({ extraInfo = '' })"));
+        assertTrue(connect.arg(1).toboolean());
+        assertEquals("17", connect.arg(2).tojstring());
+        assertEquals("1", connect.arg(3).tojstring());
+        assertEquals("wifi", connect.arg(4).tojstring());
+        assertEquals(1, connect.arg(5).toint());
+        assertTrue(connect.arg(6).isnil());
+        assertEquals(100, connect.arg(9).toint());
+        // The disconnect of the VPN with its reason, while the info of Wi-Fi is blocked for the app and has a reason and the
+        // network name: connected without a reason, like Android broadcasts it
+        Varargs disconnect = run("wifi.state = 'BLOCKED' wifi.reason = 'connected' wifi.extra = '\"Home\"'\n" +
+                String.format(read, "vpnof({ extraInfo = '', reason = 'agentDisconnect', isFailover = true })"));
+        assertTrue(disconnect.arg(1).toboolean());
+        assertEquals("wifi", disconnect.arg(4).tojstring());
+        assertEquals(1, disconnect.arg(5).toint());
+        assertEquals("\"Home\"", disconnect.arg(6).tojstring());
+        assertTrue(disconnect.arg(7).isnil());
+        assertTrue(disconnect.arg(8).isnil());
+        assertEquals("CONNECTED", disconnect.arg(10).tojstring());
+        assertTrue(disconnect.arg(11).isnil());
+        // Without the permission to read the active network, or without one: the type the hooks of the info of a connected
+        // VPN give, while the broadcast of one which disconnected stays, since the info keeps its type then
+        for (String active : new String[]{"false", "nil"}) {
+            Varargs alone = run("active = " + active + "\n" + String.format(read, "vpnof({})"));
+            assertTrue(active, alone.arg(1).toboolean());
+            assertEquals(active, "vpn", alone.arg(4).tojstring());
+            assertEquals(active, 1, alone.arg(5).toint());
+            Varargs down = run("active = " + active + "\n" + String.format(read, "vpnof({ reason = 'agentDisconnect' }, disconnectedvpn)"));
+            assertFalse(active, down.arg(1).toboolean());
+            assertEquals(active, "vpn disconnected", down.arg(4).tojstring());
+            assertEquals(active, 17, down.arg(5).toint());
+            assertEquals(active, "agentDisconnect", down.arg(7).tojstring());
+        }
+        // A connectivity broadcast of another network
+        assertFalse(run("return after(hookof('Intent.createFromParcel/vpn'),\n" +
+                "  paramof(intentof('android.net.conn.CONNECTIVITY_CHANGE', { networkInfo = wifi, networkType = 1 })))")
+                .arg1().toboolean());
+    }
+
+    // The connectivity broadcast of a VPN is marked, also one which stays of the type VPN, so it reaches a registered
+    // receiver only as its first sticky broadcast when it registers (see receiver_skip), as the one of the network below;
+    // a receiver of the manifest never gets it so; ordered ones and, from Android 14, ones Android waits for are
+    // delivered; other networks are not marked
+    @Test
+    public void vpnConnectivityReachesOnlyNewReceivers() throws Exception {
+        Varargs marks = run("connect = intentof('android.net.conn.CONNECTIVITY_CHANGE',\n" +
+                "  { networkInfo = { getType = function(self) return 17 end }, networkType = 17 })\n" +
+                "wifi = intentof('android.net.conn.CONNECTIVITY_CHANGE', { networkType = 1 })\n" +
+                "local stays = after(hookof('Intent.createFromParcel/vpn'), paramof(connect))\n" +
+                "after(hookof('Intent.createFromParcel/vpn'), paramof(wifi))\n" +
+                "return stays, connect.extras.networkType, store[connect]['vpn.connectivity'], store[wifi] == nil");
+        assertFalse(marks.arg(1).toboolean());
+        assertEquals(17, marks.arg(2).toint());
+        assertTrue(marks.arg(3).toboolean());
+        assertTrue(marks.arg(4).toboolean());
+        String receive = "dispatchof('ReceiverDispatcher.performReceive/vpn', 'performReceive', 7), ";
+        String sender = "dispatchof('ReceiverDispatcher.performReceive.sender/vpn', 'performReceive', 10), ";
+        deliver(skipper("connect", "wifi"), new String[][]{
+                {"dispatchof('ActivityThread.handleReceiver/vpn', 'handleReceiver', 1), { [0] = dataof(connect) }",
+                        "true", "finish,skip"},
+                {"dispatchof('ActivityThread.handleReceiver/vpn', 'handleReceiver', 1), { [0] = dataof(wifi) }", "false", ""},
+                {receive + "{ [0] = connect, [4] = false, [5] = false }", "true", "skip"},
+                {receive + "{ [0] = connect, [4] = false, [5] = true }", "false", ""},
+                {receive + "{ [0] = connect, [4] = true, [5] = false }", "false", ""},
+                {receive + "{ [0] = wifi, [4] = false, [5] = false }", "false", ""},
+                {sender + "{ [0] = connect, [4] = false, [5] = false, [6] = true }", "true", "skip"},
+                {sender + "{ [0] = connect, [4] = false, [5] = true, [6] = true }", "false", ""},
+                {sender + "{ [0] = connect, [4] = false, [5] = false, [6] = false }", "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive/network', 'performReceive', 7), " +
+                        "{ [0] = connect, [4] = false, [5] = false }", "false", ""},
+        });
     }
 
     // The number of a call in the broadcasts of the call state and of outgoing calls, like the call log

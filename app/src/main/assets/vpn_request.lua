@@ -17,8 +17,9 @@
 
 -- A request for VPN networks, like NetworkRequest.Builder().addTransportType(TRANSPORT_VPN) for a callback when a VPN
 -- connects, which Android matches itself: for LoWPAN instead, which phones do not have, so it finds no network.
--- The hooks of vpn hide LoWPAN in the request like VPN (hasTransport, toString); NetworkRequest.getTransportTypes
--- (Android 12) is not hooked and shows it. NetworkCapabilities.Builder is a system API, which apps cannot use.
+-- removeTransportType(TRANSPORT_VPN) removes it again. The hooks of vpn show the request with VPN in place of LoWPAN,
+-- like the app made it (hasTransport, getTransportTypes, toString). NetworkCapabilities.Builder is a system API,
+-- which apps cannot use.
 
 local TRANSPORT_VPN = 4
 local TRANSPORT_LOWPAN = 6

@@ -139,6 +139,66 @@ public class AuditScriptsTest {
         assertTrue(result.arg(9).toboolean());
     }
 
+    // The addresses, DNS servers, routes, search domains and MTU of a VPN are the ones of the network under it, found by
+    // the interface the hook of vpn gives the VPN among the real names and read through the hooks, also where the VPN has
+    // none; without that network they are left out
+    @Test
+    public void vpnPropertiesOfNetworkUnder() throws Exception {
+        Globals globals = load("vpn_addresses");
+        Varargs result = Scripts.run(globals,
+                "local function list(name, empty) return { name = name, isEmpty = function() return empty end } end\n" +
+                        "local wifi = { getInterfaceName = function() return 'wlan0' end,\n" +
+                        "  getLinkAddresses = function() assert(not unhooked, 'unhooked') return list('wifi addresses') end,\n" +
+                        "  getDnsServers = function() return list('wifi dns') end,\n" +
+                        // Like Read.Network empties them
+                        "  getRoutes = function() return list('emptied', true) end,\n" +
+                        "  getDomains = function() return nil end,\n" +
+                        "  getMtu = function() return 1500 end }\n" +
+                        "local function tunnel(fake)\n" +
+                        "  return { getInterfaceName = function() return unhooked and 'tun0' or fake end }\n" +
+                        "end\n" +
+                        "local tun = tunnel('wlan0')\n" +
+                        // An IWLAN network, which the hooks name like the network under the VPN, listed first like in the
+                        // test of the text of the VPN (see NetworkScriptsTest)
+                        "local ims = { getInterfaceName = function() return unhooked and 'ipsec1' or 'wlan0' end }\n" +
+                        "local cm = { getAllNetworks = function() assert(unhooked, 'hooked')\n" +
+                        "    return { length = 3, 'ims', 'vpn', 'wifi' } end,\n" +
+                        "  getLinkProperties = function(self, network) return ({ ims = ims, vpn = tun })[network] or wifi end }\n" +
+                        "local context = { getSystemService = function(self, name) assert(name == 'connectivity') return cm end }\n" +
+                        "local function call(method, value, this)\n" +
+                        "  local param = paramof(value, {}, this or tun)\n" +
+                        "  param.getApplicationContext = function() return context end\n" +
+                        "  local restricted = after(hookof(method), param)\n" +
+                        "  local shown = (type(param.result) == 'table' and (param.result.name or param.result.class) or param.result)\n" +
+                        "  return tostring(restricted) .. ':' .. tostring(shown)\n" +
+                        "end\n" +
+                        "local none = tunnel('rmnet_data0')\n" +
+                        "local kept = tunnel('tun0')\n" +
+                        "return call('getLinkAddresses', list('tunnel addresses')), call('getDnsServers', list('', true)),\n" +
+                        "  call('getRoutes', list('tunnel routes')), call('getDomains', 'corp.example'), call('getDomains', nil),\n" +
+                        "  call('getMtu', 1420), call('getMtu', 1500), call('getLinkAddresses', list('wifi addresses'), wifi),\n" +
+                        "  call('getLinkAddresses', list('tunnel addresses'), none), call('getMtu', 1420, none),\n" +
+                        "  call('getDnsServers', list('', true), none), call('getDomains', 'corp.example', none),\n" +
+                        "  call('getRoutes', list('tunnel routes'), kept)");
+        assertEquals("true:wifi addresses", result.arg(1).tojstring());
+        // A VPN without DNS servers has the ones of the network under it too
+        assertEquals("true:wifi dns", result.arg(2).tojstring());
+        assertEquals("true:emptied", result.arg(3).tojstring());
+        assertEquals("true:nil", result.arg(4).tojstring());
+        assertEquals("false:nil", result.arg(5).tojstring());
+        assertEquals("true:1500", result.arg(6).tojstring());
+        assertEquals("false:1500", result.arg(7).tojstring());
+        // The network under the VPN itself
+        assertEquals("false:wifi addresses", result.arg(8).tojstring());
+        // Without the network of the interface the VPN has
+        assertEquals("true:java.util.ArrayList", result.arg(9).tojstring());
+        assertEquals("true:0", result.arg(10).tojstring());
+        assertEquals("false:", result.arg(11).tojstring());
+        assertEquals("true:nil", result.arg(12).tojstring());
+        // The hook of vpn keeps the name of the tunnel, which would find the VPN itself
+        assertEquals("true:java.util.ArrayList", result.arg(13).tojstring());
+    }
+
     // The addresses and DNS servers of a VPN are left out, by its real interface; other networks and the calls of
     // LinkProperties itself keep them
     @Test
@@ -162,6 +222,38 @@ public class AuditScriptsTest {
         assertFalse(result.arg(3).toboolean());
         assertFalse(result.arg(4).toboolean());
         assertFalse(result.arg(5).toboolean());
+    }
+
+    // The HTTP proxy of a VPN, a ProxyInfo without isEmpty, is null; other networks and the calls of LinkProperties
+    // itself keep it
+    @Test
+    public void vpnHttpProxy() throws Exception {
+        Globals globals = load("vpn_addresses");
+        Varargs result = Scripts.run(globals,
+                "local function properties(name)\n" +
+                        "  return { getInterfaceName = function() assert(unhooked, 'hooked') return name end }\n" +
+                        "end\n" +
+                        "local proxy = { getHost = function() return '127.0.0.1' end }\n" +
+                        "local vpn = paramof(proxy, {}, properties('tun0'))\n" +
+                        "local wifi = paramof(proxy, {}, properties('wlan0'))\n" +
+                        "local none = paramof(nil, {}, properties('tun0'))\n" +
+                        "local restricted = after(hookof('getHttpProxy'), vpn)\n" +
+                        "local kept = after(hookof('getHttpProxy'), wifi)\n" +
+                        "local absent = after(hookof('getHttpProxy'), none)\n" +
+                        "FRAMES = { length = 1, { getClassName = function() return 'android.net.LinkProperties' end,\n" +
+                        "  getMethodName = function() return 'isIdenticalHttpProxy' end } }\n" +
+                        "local own = paramof(proxy, {}, properties('tun0'))\n" +
+                        "return restricted, vpn.set, vpn.result, kept, wifi.set, absent, none.set,\n" +
+                        "  after(hookof('getHttpProxy'), own), own.set");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).isnil());
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
     }
 
     // Without a return type: false for a boolean result, else nothing, which the type check of XParam decides

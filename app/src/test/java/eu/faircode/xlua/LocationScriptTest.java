@@ -260,37 +260,144 @@ public class LocationScriptTest {
         assertFalse(result.arg(4).toboolean());
     }
 
-    // Callbacks with cell info are registered for their other events, like the call state, and their method of the cell
-    // info does not run (telephonymanager_registertelephonycallback); callbacks without cell events stay
+    // Callbacks with cells are registered as they are, for their other events too, like the call state, and their
+    // methods of the cells are hooked (telephonymanager_registertelephonycallback); callbacks without cells stay, and the
+    // callback of a network scan is known first, without the classes of TelephonyCallback, which Android 8.1 to 11 lack;
+    // the reset of the first location, which runs code of the app (the hashCode of the callback), comes after the hooks
     @Test
     public void telephonyCallbacksKeepTheirOtherEvents() throws Exception {
         Globals callbacks = Scripts.load("telephonymanager_registertelephonycallback", String.join("\n",
                 "hooked = {}",
-                "function hook(object, method, fun) hooked[#hooked + 1] = method end",
+                "function hook(object, method, fun) assert(fun == nocells) hooked[#hooked + 1] = method end",
                 // The callback is the last parameter: (executor, callback) and of Android 13 (flag, executor, callback)
                 "function hookof(count) return { getParameterTypes = function(self) return { length = count } end } end",
                 "function paramof(interfaces, index)",
                 "  local callback = {}",
                 "  return { result = 'none',",
                 "    getArgument = function(self, i) if i == index then return callback end return nil end,",
-                "    isInstance = function(self, object, name) return interfaces[name] == true end,",
+                "    isInstance = function(self, object, name)",
+                "      if interfaces.scan and name:find('TelephonyCallback') then error(name) end",
+                "      return interfaces[name] == true end,",
+                "    putValue = function(self, name, value, scope) assert(name == 'nocells' and scope == callback)",
+                "      self.reset = value end,",
                 "    setResult = function(self, value) self.result = value end }",
                 "end"));
         Varargs result = Scripts.run(callbacks,
                 "local param = paramof({ ['android.telephony.TelephonyCallback$CellInfoListener'] = true,\n" +
+                        "  ['android.telephony.TelephonyCallback$CellLocationListener'] = true,\n" +
+                        "  ['android.telephony.TelephonyCallback$RegistrationFailedListener'] = true,\n" +
+                        "  ['android.telephony.TelephonyCallback$BarringInfoListener'] = true,\n" +
                         "  ['android.telephony.TelephonyCallback$CallStateListener'] = true }, 2)\n" +
                         "local restricted = before(hookof(3), param)\n" +
-                        "local cell = paramof({}, 0)\n" +
-                        "skip('before', cell)\n" +
+                        "local cells = table.concat(hooked, ',')\n" +
+                        "hooked = {}\n" +
                         "local calls = paramof({ ['android.telephony.TelephonyCallback$CallStateListener'] = true }, 1)\n" +
-                        "return restricted, param.result, table.concat(hooked, ','), cell.result,\n" +
-                        "  before(hookof(2), calls), calls.result");
+                        "local quiet = before(hookof(2), calls)\n" +
+                        "local scan = paramof({ scan = true,\n" +
+                        "  ['android.telephony.TelephonyScanManager$NetworkScanCallback'] = true }, 2)\n" +
+                        "local scanned, scanhooked = before(hookof(3), scan), table.concat(hooked, ',')\n" +
+                        "hooked = {}\n" +
+                        "local thrown = paramof({ ['android.telephony.TelephonyCallback$CellLocationListener'] = true }, 1)\n" +
+                        "thrown.putValue = function() error('hashCode') end\n" +
+                        "return restricted, param.result, cells, quiet, calls.result, scanned, scanhooked, param.reset,\n" +
+                        "  before(hookof(2), thrown), table.concat(hooked, ',')");
         assertTrue(result.arg(1).toboolean());
+        // Registered as it is
         assertEquals("none", result.arg(2).tojstring());
-        assertEquals("onCellInfoChanged", result.arg(3).tojstring());
-        assertTrue(result.arg(4).isnil());
-        assertFalse(result.arg(5).toboolean());
-        assertEquals("none", result.arg(6).tojstring());
+        assertEquals("onCellInfoChanged,onCellLocationChanged,onRegistrationFailed,onBarringInfoChanged", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals("none", result.arg(5).tojstring());
+        assertTrue(result.arg(6).toboolean());
+        assertEquals("onResults", result.arg(7).tojstring());
+        // Each registration gets its first location again (nocells)
+        assertFalse(result.arg(8).isnil() || result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
+        assertEquals("onCellLocationChanged", result.arg(10).tojstring());
+    }
+
+    // The methods of the cells run, at the registration too, with the cells without their location: no cells in a list,
+    // the cell location made empty, the cell of a registration failure and of the barring info like Android gives them
+    // to apps without fine location; null stays, and when the argument cannot be made the method does not run; a
+    // registration gets one empty location, which Android does not send again while it stays the same
+    @Test
+    public void telephonyCallbacksGetNoCells() throws Exception {
+        Globals callbacks = Scripts.load("telephonymanager_registertelephonycallback", String.join("\n",
+                // The identity of an object, which a Lua table has in its text
+                "luajava = { newInstance = function(name) return { class = name } end,",
+                "  bindClass = function(name) assert(name == 'java.lang.System')",
+                "    return { identityHashCode = function(self, object) return tostring(object) end } end }",
+                "function valueof(class, value) value.class = class return value end",
+                "values = {}",
+                "function paramof(value, this)",
+                "  return { args = { [0] = value }, result = 'none', this = this or 'callback',",
+                "    getArgument = function(self, i) return self.args[i] end,",
+                "    setArgument = function(self, i, v) self.args[i] = v end,",
+                "    getThis = function(self) return self.this end,",
+                "    getApplicationContext = function(self) return 'context' end,",
+                "    getValue = function(self, name, scope) return values[scope] and values[scope][name] end,",
+                "    putValue = function(self, name, value, scope) values[scope] = values[scope] or {} values[scope][name] = value end,",
+                "    isInstance = function(self, object, name) return object.class == name end,",
+                "    setResult = function(self, value) self.result = value end }",
+                "end",
+                "function cells(value, when, this) local param = paramof(value, this) nocells(when or 'before', param)",
+                "  return param.args[0], param.result end",
+                "function locationof(cid)",
+                "  return valueof('android.telephony.CellLocation', { cid = cid, setStateInvalid = function(self) self.cid = -1 end })",
+                "end"));
+        Varargs result = Scripts.run(callbacks,
+                "local list = cells(valueof('java.util.List', {}))\n" +
+                        "local location = valueof('android.telephony.CellLocation', { cid = 1234,\n" +
+                        "  setStateInvalid = function(self) self.cid = -1 end })\n" +
+                        "local empty, ran = cells(location)\n" +
+                        // The hook of the other form of registerTelephonyCallback, on the same delivery
+                        "local _, same = cells(location)\n" +
+                        "local barring = cells(valueof('android.telephony.BarringInfo', {\n" +
+                        "  createLocationInfoSanitizedCopy = function(self) return 'barring without cell' end }))\n" +
+                        "local identity = cells(valueof('android.telephony.CellIdentityLte', {\n" +
+                        "  sanitizeLocationInfo = function(self) return 'cell without location' end }))\n" +
+                        "local none, noneran = cells(nil)\n" +
+                        "local refused = valueof('android.telephony.CellIdentityLte', {\n" +
+                        "  sanitizeLocationInfo = function(self) error('refused') end })\n" +
+                        "local kept, skipped = cells(refused)\n" +
+                        "local after = cells(valueof('java.util.List', {}), 'after')\n" +
+                        "return list.class, empty == location, location.cid, ran, barring, identity, none, noneran,\n" +
+                        "  kept == refused, skipped, after.class, same");
+        assertEquals("java.util.ArrayList", result.arg(1).tojstring());
+        // The location the callback got, of its own class, made empty
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(-1, result.arg(3).toint());
+        assertEquals("none", result.arg(4).tojstring());
+        assertEquals("barring without cell", result.arg(5).tojstring());
+        assertEquals("cell without location", result.arg(6).tojstring());
+        assertTrue(result.arg(7).isnil());
+        assertEquals("none", result.arg(8).tojstring());
+        // Refused, the method does not run rather than get the cell
+        assertTrue(result.arg(9).toboolean());
+        assertTrue(result.arg(10).isnil());
+        assertEquals("java.util.List", result.arg(11).tojstring());
+        assertEquals("none", result.arg(12).tojstring());
+
+        // The next location of the same callback does not run, that of another callback does, and after a new
+        // registration (before, which resets the value) the callback gets one again, once
+        result = Scripts.run(callbacks, "local handover = locationof(5678)\n" +
+                "local _, repeated = cells(handover)\n" +
+                "local other = locationof(5678)\n" +
+                "local _, otherran = cells(other, nil, 'other')\n" +
+                "values['callback'].nocells = false\n" +
+                "local again = locationof(5678)\n" +
+                "local _, againran = cells(again)\n" +
+                "local _, twice = cells(locationof(5678))\n" +
+                "return repeated, handover.cid, otherran, other.cid, againran, again.cid, twice");
+        assertTrue(result.arg(1).isnil());
+        assertEquals(5678, result.arg(2).toint());
+        assertEquals("none", result.arg(3).tojstring());
+        assertEquals(-1, result.arg(4).toint());
+        assertEquals("none", result.arg(5).tojstring());
+        assertEquals(-1, result.arg(6).toint());
+        assertTrue(result.arg(7).isnil());
+        // The copy in telephonymanager_listen, which is loaded apart, is the same
+        assertEquals(Scripts.function("telephonymanager_registertelephonycallback", "nocells"),
+                Scripts.function("telephonymanager_listen", "nocells"));
     }
 
     // Whether the script restricted a location and the location it left, of a fix at a time

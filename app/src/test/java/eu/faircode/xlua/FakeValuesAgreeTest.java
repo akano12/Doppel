@@ -270,11 +270,21 @@ public class FakeValuesAgreeTest {
         String ip = run(load("network_address"), "fakeof(nil, 'getIpAddress', 167772674)");
         assertEquals(0, Integer.parseInt(ip));
 
-        String text = run(load("network_tostring"), "wifiinfo('SSID: \"Home\", BSSID: aa:bb:cc:dd:ee:ff," +
+        // From Android 12 the text has the name of getSSID
+        Globals tostring = load("network_tostring");
+        Scripts.run(tostring, "local real = luajava\nsdk = 31\n" +
+                "luajava = setmetatable({ bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                "  return real.bindClass(name) end }, { __index = real })");
+        String text = run(tostring, "wifiinfo('SSID: \"Home\", BSSID: aa:bb:cc:dd:ee:ff," +
                 " MAC: 11:22:33:44:55:66, IP: /10.0.2.16, Security type: 0')");
         // The address 0 of the getter is no address, which Android prints as null
         assertTrue(text, text.startsWith("SSID: " + ssid + ", BSSID: " + bssid + ", MAC: " + mac + "," +
                 " IP: null,"));
+        // Before it the name of WifiSsid, which getSSID quotes
+        String old = run(tostring, "(function() sdk = 30 return wifiinfo('SSID: Home, BSSID: aa:bb:cc:dd:ee:ff," +
+                " MAC: 11:22:33:44:55:66') end)()");
+        assertEquals("SSID: " + ssid.substring(1, ssid.length() - 1) + ", BSSID: " + bssid + ", MAC: " + mac, old);
 
         // The Bluetooth address of the settings is a MAC address too, like BluetoothAdapter.getAddress
         assertEquals(mac, run(load("settingssecure_getstring"), "fakeof('Settings.Secure.getStringForUser/mac'," +

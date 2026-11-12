@@ -706,35 +706,134 @@ public class ValueScriptsTest {
             assertEquals("byte " + i, (byte) ~fakeDevice[i], fakeProvisioning[i]);
     }
 
-    // The cell location and cell info events are left out, the other events stay
+    // The events of the cells stay, so Android calls the listener at the registration too, and the methods which get
+    // the cells are hooked (nocells); the other events stay as they are
     @Test
-    public void listenWithoutCells() throws Exception {
+    public void listenKeepsTheCellEvents() throws Exception {
         Globals globals = load("telephonymanager_listen");
         Scripts.run(globals, "function listenof(variant)\n" +
                 "  return { getName = function(self) return 'TelephonyManager.listen' .. (variant and '/' .. variant or '') end }\n" +
                 "end\n" +
                 "function located(param, granted) param.getApplicationContext = function(self) return {\n" +
-                "  checkSelfPermission = function(self, name) return granted and 0 or -1 end } end return param end");
-        Varargs result = Scripts.run(globals, "local param = located(paramof(nil, { [0] = 'listener', [1] = 16 + 1024 + 1 }), true)\n" +
-                "return before(listenof(), param), param.args[1]");
+                "  checkSelfPermission = function(self, name) return granted and 0 or -1 end } end return param end\n" +
+                "function hooking() hooked = {}\n" +
+                "  hook = function(object, method, fn) assert(object == 'listener' and fn == nocells) hooked[#hooked + 1] = method end\n" +
+                "end\n" +
+                "function listen(events, granted)\n" +
+                "  local param = located(paramof(nil, { [0] = 'listener', [1] = events }), granted)\n" +
+                "  return before(listenof(), param), param.args[1], param.set, table.concat(hooked, ',')\n" +
+                "end\n" +
+                "hooking()");
+        Varargs result = Scripts.run(globals, "return listen(16 + 1024 + 1, true)");
         assertTrue(result.arg1().toboolean());
-        assertEquals(1, result.arg(2).toint());
-        check(globals, "return before_(listenof(), located(paramof(nil, { [0] = 'listener', [1] = 1 }), true))", false, false, null);
-        // Without a location permission the events stay, which Android refuses with a SecurityException
-        result = Scripts.run(globals, "local param = located(paramof(nil, { [0] = 'listener', [1] = 16 + 1 }), false)\n" +
-                "return before(listenof(), param), param.args[1]");
-        assertFalse(result.arg1().toboolean());
+        assertEquals(1041, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals("onCellLocationChanged,onCellInfoChanged", result.arg(4).tojstring());
+        check(globals, "hooking() return before_(listenof(), located(paramof(nil, { [0] = 'listener', [1] = 1 }), true))",
+                false, false, null);
+        // Without a location permission the methods are hooked too, which the app can be granted while registered;
+        // Android refuses the cell location and the cell info with a SecurityException then
+        result = Scripts.run(globals, "hooking() return listen(16 + 1, false)");
+        assertTrue(result.arg1().toboolean());
         assertEquals(17, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals("onCellLocationChanged", result.arg(4).tojstring());
+        // Each registration gets its first location again (nocells)
+        assertFalse(Scripts.run(globals, "values['listener'] = { nocells = true } listen(16, true)\n" +
+                "return values['listener'].nocells").arg1().toboolean());
+        // The reset runs code of the app, the hashCode of the listener, which can throw: the methods are hooked first
+        result = Scripts.run(globals, "hooking() local param = located(paramof(nil, { [0] = 'listener', [1] = 16 }), true)\n" +
+                "param.putValue = function() error('hashCode') end\n" +
+                "return before(listenof(), param), param.args[1], param.set, table.concat(hooked, ',')");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(16, result.arg(2).toint());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals("onCellLocationChanged", result.arg(4).tojstring());
 
-        // With the highest bit (LISTEN_BARRING_INFO) the events are a negative int, which must stay an int
-        for (int events : new int[]{0x80000010, 0x80000400}) {
-            globals.set("events", LuaValue.valueOf(events));
-            result = Scripts.run(globals, "local param = located(paramof(nil, { [0] = 'listener', [1] = events }), true)\n" +
-                    "return before(listenof(), param), param.args[1]");
+        // The events of privileged apps with the cell, the registration failure and the barring info, the highest bit,
+        // which makes the events a negative int; from Android 14 they need no location permission to register
+        globals.set("events", LuaValue.valueOf(0xC0000001));
+        for (boolean granted : new boolean[]{true, false}) {
+            result = Scripts.run(globals, "hooking() return listen(events, " + granted + ")");
             assertTrue(result.arg1().toboolean());
-            Object value = XParam.coerceValue(int.class, CoerceLuaToJava.coerce(result.arg(2), Object.class));
-            assertEquals(Integer.toHexString(events), Integer.MIN_VALUE, value);
+            assertEquals(0xC0000001, result.arg(2).toint());
+            assertFalse(result.arg(3).toboolean());
+            assertEquals("onRegistrationFailed,onBarringInfoChanged", result.arg(4).tojstring());
         }
+
+        // If a method cannot be hooked its event is left out, also the highest bit, and the events stay an int; without
+        // a location permission the cell location and the cell info stay, for the SecurityException
+        Scripts.run(globals, "hook = function() error('not hooked') end");
+        for (int[] events : new int[][]{{0x80000010, 0, 0x10}, {0x80000401, 1, 0x401}, {0xC0000400, 0, 0x400},
+                {0x40000011, 1, 0x11}, {0xC0000001, 1, 1}}) {
+            for (int denied = 0; denied < 2; denied++) {
+                globals.set("events", LuaValue.valueOf(events[0]));
+                result = Scripts.run(globals, "local param = located(paramof(nil, { [0] = 'listener', [1] = events }), " +
+                        (denied == 0) + ")\n" +
+                        "return before(listenof(), param), param.args[1]");
+                assertTrue(result.arg1().toboolean());
+                Object value = XParam.coerceValue(int.class, CoerceLuaToJava.coerce(result.arg(2), Object.class));
+                assertEquals(Integer.toHexString(events[0]) + " denied " + denied, events[1 + denied], value);
+            }
+        }
+    }
+
+    // Up to Android 11 Android sends the cell location again when an app asks for it (CellLocation.requestLocationUpdate),
+    // also when it stays the same, once to each listener: after a request the next location of each listener runs, made
+    // empty, the one after it does not, a delivery which runs twice runs twice, and a request older than 10 s lets none
+    // through; also by the system API TelephonyManager.updateServiceLocation; the hook of the request reads no argument,
+    // of which the methods have none
+    @Test
+    public void listenGetsTheLocationAgainWhenAsked() throws Exception {
+        Globals globals = load("telephonymanager_listen");
+        Scripts.run(globals, String.join("\n",
+                "now = 1000000",
+                // The identity of an object, which a Lua table has in its text
+                "luajava = { bindClass = function(name)",
+                "  if name == 'android.os.SystemClock' then return { elapsedRealtime = function(self) return now end } end",
+                "  assert(name == 'java.lang.System')",
+                "  return { identityHashCode = function(self, object) return tostring(object) end } end }",
+                "function request(name)",
+                "  local param = paramof(nil, {})",
+                "  param.getArgument = function(self, i) error('no argument ' .. i) end",
+                "  return before({ getName = function(self) return name or 'CellLocation.requestLocationUpdate' end }, param)",
+                "end",
+                "function register(listener)",
+                "  hook = function() end",
+                "  before({ getName = function(self) return 'TelephonyManager.listen' end },",
+                "    paramof(nil, { [0] = listener, [1] = 16 }))",
+                "end",
+                "function locationof() return { cid = 1234, setStateInvalid = function(self) self.cid = -1 end } end",
+                // The cell id the listener got, or nil when the method did not run
+                "function deliver(listener, location)",
+                "  location = location or locationof()",
+                "  local param = paramof('none', { [0] = location }, listener)",
+                "  param.isInstance = function(self, object, name) return name == 'android.telephony.CellLocation' end",
+                "  nocells('before', param)",
+                "  if param.result == nil then return nil end",
+                "  return param.args[0].cid",
+                "end"));
+        Varargs result = Scripts.run(globals, "register('a') register('b')\n" +
+                "local first, other, handover = deliver('a'), deliver('b'), deliver('a')\n" +
+                "local requested = request()\n" +
+                "local again = locationof()\n" +
+                "local resent, twice, next = deliver('a', again), deliver('a', again), deliver('a')\n" +
+                "local both, once = deliver('b'), deliver('b')\n" +
+                "now = now + 1 request('TelephonyManager.updateServiceLocation')\n" +
+                "local system = deliver('a')\n" +
+                "now = now + 1 request() now = now + 10001\n" +
+                "return first, other, handover, requested, resent, twice, next, both, once, deliver('a'), system");
+        assertEquals(-1, result.arg(1).toint());
+        assertEquals(-1, result.arg(2).toint());
+        assertTrue(result.arg(3).isnil());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals(-1, result.arg(5).toint());
+        assertEquals(-1, result.arg(6).toint());
+        assertTrue(result.arg(7).isnil());
+        assertEquals(-1, result.arg(8).toint());
+        assertTrue(result.arg(9).isnil());
+        assertTrue(result.arg(10).isnil());
+        assertEquals(-1, result.arg(11).toint());
     }
 
     // The call state (LISTEN_CALL_STATE, 32) comes with the number of an incoming call, like the call log: the listener

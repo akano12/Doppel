@@ -22,7 +22,8 @@
 -- (vpn, see vpn) and the hardware addresses (mac, see mac_address), which go out of their entries while those stay.
 -- Apps which may not use hidden APIs cannot call it; then reflection does not find the fields here either, so the
 -- entries stay, like the original result.
--- Not covered is Libcore.rawOs, the native getifaddrs, which the hooked one calls.
+-- Not covered is Libcore.rawOs, the native getifaddrs, which the hooked one calls, nor native code, which reads the
+-- same entries by netlink itself like the getifaddrs of bionic; Java may not open such a socket (see refused).
 
 -- The interfaces of VPNs, the same as vpn, which a unit test checks
 function isvpninterface(name)
@@ -55,7 +56,34 @@ local OUT = {
     end,
 }
 
+-- A netlink socket of the routing tables of the kernel (NETLINK_ROUTE), which apps open by Os.socket without hidden
+-- APIs, dumps the entries of getifaddrs and also the routes and the neighbors, the MAC of the router among them, of
+-- VPNs too. The parts of its messages are not left out here, so the socket is refused: socket fails with EACCES, which
+-- SELinux answers an isolated process, after the real call, so a call which Linux refuses anyway (a wrong type, no
+-- descriptor left) fails like on Android.
+-- shortcut: no device refuses this socket to an app, SELinux only refuses some requests on it with EACCES when they are
+-- sent (RTM_GETLINK, RTM_GETNEIGH), so an app can tell the hook is there, the exception made here has the frames of
+-- the script in its stack trace, and with Read.VPN alone the addresses and routes of the other interfaces go too;
+-- leave out the parts of the replies of the dumps instead if apps are seen to check it.
+local AF_NETLINK, NETLINK_ROUTE, EACCES = 16, 0, 13
+
+local function refused(param)
+    local fd = param:getResult()
+    if fd == nil or param:getArgument(0) ~= AF_NETLINK or param:getArgument(2) ~= NETLINK_ROUTE then
+        return false
+    end
+    param:unhooked(function()
+        luajava.bindClass('android.system.Os'):close(fd)
+    end)
+    param:setResult(luajava.newInstance('android.system.ErrnoException', 'socket', EACCES))
+    return true
+end
+
 function after(hook, param)
+    -- Os.socket, and Linux.socket beneath it for Libcore.os and Libcore.rawOs
+    if hook:getMethodName() == 'socket' then
+        return refused(param)
+    end
     local out = OUT[string.match(hook:getName(), '/(.*)$')]
     local result = param:getResult()
     if out == nil or result == nil then

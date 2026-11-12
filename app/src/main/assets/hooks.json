@@ -12381,6 +12381,38 @@
     "minSdk": 27,
     "luaScript": "@telephonymanager_listen"
   },
+  // Up to Android 11 Android sends the cell location again to every listener when an app asks for it, which needs no
+  // permission, also when it stays the same; a listener gets the empty one again then (nocells)
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "CellLocation.requestLocationUpdate",
+    "author": "akano12",
+    "className": "android.telephony.CellLocation",
+    "methodName": "requestLocationUpdate",
+    "parameterTypes": [
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 30,
+    "luaScript": "@telephonymanager_listen"
+  },
+  // The same request by the system API of TelephonyManager, which apps can call by reflection
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "TelephonyManager.updateServiceLocation",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "updateServiceLocation",
+    "parameterTypes": [
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 30,
+    "optional": true,
+    "luaScript": "@telephonymanager_listen"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -12406,6 +12438,23 @@
     "returnType": "java.util.List",
     "minSdk": 27,
     "luaScript": "@generic_empty"
+  },
+  // The number of access points per channel of the last scan; the Wi-Fi module of Android 13 can have it too
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiManager.getChannelData",
+    "author": "akano12",
+    "className": "android.net.wifi.WifiManager",
+    "methodName": "getChannelData",
+    "parameterTypes": [
+      "java.util.concurrent.Executor",
+      "java.util.function.Consumer"
+    ],
+    "returnType": "void",
+    "minSdk": 33,
+    "optional": true,
+    "luaScript": "@wifimanager_getchanneldata"
   },
   {
     "collection": "Privacy",
@@ -12482,6 +12531,19 @@
     "returnType": "android.net.MacAddress",
     "minSdk": 33,
     "luaScript": "@generic_null_value"
+  },
+  // Without the MLD address and the links, -1 like a connection without multi-link operation
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiInfo.getApMloLinkId",
+    "author": "akano12",
+    "className": "android.net.wifi.WifiInfo",
+    "methodName": "getApMloLinkId",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 33,
+    "luaScript": "@wifiinfo_ssid_bssid"
   },
   {
     "collection": "Privacy",
@@ -12710,6 +12772,19 @@
     "minSdk": 28,
     "luaScript": "@network_address"
   },
+  // The NAT64 prefix of the network, a system API on Android 10, which apps reach by reflection
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "LinkProperties.getNat64Prefix",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getNat64Prefix",
+    "parameterTypes": [],
+    "returnType": "android.net.IpPrefix",
+    "minSdk": 29,
+    "luaScript": "@generic_null_value"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -12794,6 +12869,58 @@
     "minSdk": 33,
     "luaScript": "@telephonymanager_registertelephonycallback"
   },
+  // The cells a network scan finds (carrier apps), which its callback gets as none, like a callback of the cell info
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "TelephonyManager.requestNetworkScan",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "requestNetworkScan",
+    "parameterTypes": [
+      "android.telephony.NetworkScanRequest",
+      "java.util.concurrent.Executor",
+      "android.telephony.TelephonyScanManager$NetworkScanCallback"
+    ],
+    "returnType": "android.telephony.NetworkScan",
+    "minSdk": 28,
+    "luaScript": "@telephonymanager_registertelephonycallback"
+  },
+  // Android 8.1 has only the form without an executor, hidden; from Android 9 it calls the one with an executor
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "TelephonyManager.requestNetworkScan.27",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "requestNetworkScan",
+    "parameterTypes": [
+      "android.telephony.NetworkScanRequest",
+      "android.telephony.TelephonyScanManager$NetworkScanCallback"
+    ],
+    "returnType": "android.telephony.NetworkScan",
+    "minSdk": 27,
+    "maxSdk": 27,
+    "optional": true,
+    "luaScript": "@telephonymanager_registertelephonycallback"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "TelephonyManager.requestNetworkScan.33",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "requestNetworkScan",
+    "parameterTypes": [
+      "int",
+      "android.telephony.NetworkScanRequest",
+      "java.util.concurrent.Executor",
+      "android.telephony.TelephonyScanManager$NetworkScanCallback"
+    ],
+    "returnType": "android.telephony.NetworkScan",
+    "minSdk": 33,
+    "luaScript": "@telephonymanager_registertelephonycallback"
+  },
   // Bluetooth scans reveal nearby beacons and devices, which locate the device like Wi-Fi scans
   {
     "collection": "Privacy",
@@ -12807,7 +12934,7 @@
     ],
     "returnType": "void",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@bluetooth_scan"
   },
   {
     "collection": "Privacy",
@@ -12823,7 +12950,7 @@
     ],
     "returnType": "void",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@bluetooth_scan"
   },
   {
     "collection": "Privacy",
@@ -12839,7 +12966,7 @@
     ],
     "returnType": "int",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@bluetooth_scan"
   },
   {
     "collection": "Privacy",
@@ -12853,7 +12980,7 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@bluetooth_scan"
   },
   {
     "collection": "Privacy",
@@ -12868,8 +12995,10 @@
     ],
     "returnType": "boolean",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@bluetooth_scan"
   },
+  // shortcut: startDiscovery answers false like with Bluetooth off, because true needs the broadcasts of a discovery
+  // which starts and finishes (ACTION_DISCOVERY_STARTED and FINISHED) and isDiscovering; fake them when an app relies on it
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -12956,6 +13085,69 @@
     "minSdk": 27,
     "excludePackages": "android",
     "luaScript": "@intent_createfromparcel"
+  },
+  // The broadcasts of Bluetooth about a device do not reach the receivers of the manifest and the registered ones, like
+  // on a device without the devices around (see receiver_skip); ReceiverDispatcher gets the sender too from Android 14
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "ActivityThread.handleReceiver/network",
+    "author": "akano12",
+    "className": "android.app.ActivityThread",
+    "methodName": "handleReceiver",
+    "parameterTypes": [
+      "android.app.ActivityThread$ReceiverData"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "ReceiverDispatcher.performReceive/network",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ReceiverDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "ReceiverDispatcher.performReceive.sender/network",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ReceiverDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "boolean",
+      "int",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
   },
   {
     "collection": "Privacy",
@@ -13283,6 +13475,23 @@
     "optional": true,
     "luaScript": "@nsdmanager_listener"
   },
+  // The looper of a Wi-Fi Direct channel, on which wifi_discovery answers its listeners like Android
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pManager.initialize",
+    "author": "akano12",
+    "className": "android.net.wifi.p2p.WifiP2pManager",
+    "methodName": "initialize",
+    "parameterTypes": [
+      "android.content.Context",
+      "android.os.Looper",
+      "android.net.wifi.p2p.WifiP2pManager$ChannelListener"
+    ],
+    "returnType": "android.net.wifi.p2p.WifiP2pManager$Channel",
+    "minSdk": 27,
+    "luaScript": "@wifi_discovery"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -13526,6 +13735,53 @@
     "minSdk": 27,
     "luaScript": "@network_tostring"
   },
+  // The clients of a Wi-Fi Direct group of which the device is the owner, which are devices around like the peers, also
+  // in the group of the broadcast CONNECTION_STATE_CHANGE and in copies, since the copy reads the getter; not for the
+  // system, whose Wi-Fi manages the clients of its groups by it (see network_tostring for the text).
+  // shortcut: of a group the device joined, the owner and the network name, which has the name of the owner, stay;
+  // upgrade once it is decided what owner a group of hidden devices has, which must not be null
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pGroup.getClientList",
+    "author": "akano12",
+    "className": "android.net.wifi.p2p.WifiP2pGroup",
+    "methodName": "getClientList",
+    "parameterTypes": [],
+    "returnType": "java.util.Collection",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@generic_empty"
+  },
+  // Hidden, which apps call by reflection, so it agrees with the empty clients
+  // shortcut: contains and removeClient, hidden without an exemption for apps, still find a client of a known address
+  // where an app can call them, like on Android 8.1; upgrade if an app is seen calling them
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pGroup.isClientListEmpty",
+    "author": "akano12",
+    "className": "android.net.wifi.p2p.WifiP2pGroup",
+    "methodName": "isClientListEmpty",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_true_value"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "WifiP2pGroup.toString",
+    "author": "akano12",
+    "className": "android.net.wifi.p2p.WifiP2pGroup",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@network_tostring"
+  },
   // The entries of getifaddrs of libcore, which NetworkInterface reads and apps allowed to use hidden APIs can call:
   // left out like the hooks of NetworkInterface leave out what they hide (see interface_entries)
   {
@@ -13539,6 +13795,43 @@
     "returnType": "android.system.StructIfaddrs[]",
     "minSdk": 27,
     "optional": true,
+    "luaScript": "@interface_entries"
+  },
+  // A netlink socket of the routing tables, which dumps the same entries and the routes, cannot be opened, by Os.socket
+  // and by Linux.socket beneath it for Libcore.os and Libcore.rawOs; system_server opens such sockets itself on 8.1
+  // and 9 (see interface_entries)
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "Os.socket/network",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "socket",
+    "parameterTypes": [
+      "int",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@interface_entries"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "Linux.socket/network",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
+    "methodName": "socket",
+    "parameterTypes": [
+      "int",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@interface_entries"
   },
   // The addresses of an interface by ioctl, like SIOCGIFADDR (see network_address)
@@ -13673,6 +13966,33 @@
     "optional": true,
     "luaScript": "@network_address"
   },
+  // The text of these channels has their local address, which they read from their field
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "SocketChannelImpl.toString",
+    "author": "akano12",
+    "className": "sun.nio.ch.SocketChannelImpl",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "AsynchronousSocketChannelImpl.toString",
+    "author": "akano12",
+    "className": "sun.nio.ch.AsynchronousSocketChannelImpl",
+    "methodName": "toString",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@network_address"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -13700,7 +14020,8 @@
     "minSdk": 27,
     "luaScript": "@network_address"
   },
-  // The files of /proc/net cannot be opened, with java.io and java.nio.file (see hardware_files)
+  // The files of /proc/net cannot be read, as if SELinux denied reading them: opening them and access for reading
+  // fail with EACCES, with java.io, android.system.Os and java.nio.file (see hardware_files)
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -13730,6 +14051,66 @@
       "int"
     ],
     "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "BlockGuardOs.access/network",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "Os.access/network",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "UnixFileSystem.checkAccess/network",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Network",
+    "name": "UnixNativeDispatcher.access/network",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
@@ -25550,6 +25931,19 @@
     "minSdk": 29,
     "luaScript": "@vpn"
   },
+  // The signal strength of the Wi-Fi network a VPN runs over, like the transport info; hidden before Android 10
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkCapabilities.getSignalStrength",
+    "author": "akano12",
+    "className": "android.net.NetworkCapabilities",
+    "methodName": "getSignalStrength",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
   {
     "collection": "Privacy",
     "group": "Read.VPN",
@@ -25573,6 +25967,20 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "luaScript": "@vpn"
+  },
+  // A VPN sets the MTU of its tunnel, like 1420, from Android 11 (Vpn.makeLinkProperties); getMtu is hidden before
+  // Android 10, but the text has the MTU, which is the one of the network under the VPN on all versions (see vpn)
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "LinkProperties.getMtu/vpn",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getMtu",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@vpn_addresses"
   },
   {
     "collection": "Privacy",
@@ -25620,6 +26028,19 @@
     "parameterTypes": [],
     "returnType": "java.lang.String",
     "minSdk": 27,
+    "luaScript": "@vpn_addresses"
+  },
+  // A VPN can set an HTTP proxy from Android 10 (VpnService.Builder.setHttpProxy)
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "LinkProperties.getHttpProxy/vpn",
+    "author": "akano12",
+    "className": "android.net.LinkProperties",
+    "methodName": "getHttpProxy",
+    "parameterTypes": [],
+    "returnType": "android.net.ProxyInfo",
+    "minSdk": 29,
     "luaScript": "@vpn_addresses"
   },
   {
@@ -25734,6 +26155,35 @@
   {
     "collection": "Privacy",
     "group": "Read.VPN",
+    "name": "NetworkRequest.Builder.removeTransportType",
+    "author": "akano12",
+    "className": "android.net.NetworkRequest$Builder",
+    "methodName": "removeTransportType",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.net.NetworkRequest$Builder",
+    "minSdk": 27,
+    "luaScript": "@vpn_request"
+  },
+  // NetworkRequest compares the fields of the capabilities, not through the hooked getters
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkRequest.canBeSatisfiedBy",
+    "author": "akano12",
+    "className": "android.net.NetworkRequest",
+    "methodName": "canBeSatisfiedBy",
+    "parameterTypes": [
+      "android.net.NetworkCapabilities"
+    ],
+    "returnType": "boolean",
+    "minSdk": 30,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
     "name": "ConnectivityManager.getNetworkInfo/type",
     "author": "akano12",
     "className": "android.net.ConnectivityManager",
@@ -25793,6 +26243,55 @@
     "minSdk": 27,
     "luaScript": "@vpn"
   },
+  // The subtype, extra info and roaming of the network a VPN runs over, like its type
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInfo.getSubtype",
+    "author": "akano12",
+    "className": "android.net.NetworkInfo",
+    "methodName": "getSubtype",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInfo.getSubtypeName",
+    "author": "akano12",
+    "className": "android.net.NetworkInfo",
+    "methodName": "getSubtypeName",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInfo.getExtraInfo/vpn",
+    "author": "akano12",
+    "className": "android.net.NetworkInfo",
+    "methodName": "getExtraInfo",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "NetworkInfo.isRoaming",
+    "author": "akano12",
+    "className": "android.net.NetworkInfo",
+    "methodName": "isRoaming",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
   {
     "collection": "Privacy",
     "group": "Read.VPN",
@@ -25816,6 +26315,86 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "luaScript": "@vpn"
+  },
+  // The connectivity broadcast of a VPN which connects or disconnects, of the type VPN, is the one of the network it runs
+  // over (see intent_createfromparcel)
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Intent.createFromParcel/vpn",
+    "author": "akano12",
+    "className": "android.content.Intent",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.content.Intent",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@intent_createfromparcel"
+  },
+  // It reaches the receivers only as the sticky broadcast a receiver gets when it registers, since a device without a VPN
+  // sends none when it connects or disconnects (see receiver_skip)
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "ActivityThread.handleReceiver/vpn",
+    "author": "akano12",
+    "className": "android.app.ActivityThread",
+    "methodName": "handleReceiver",
+    "parameterTypes": [
+      "android.app.ActivityThread$ReceiverData"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "ReceiverDispatcher.performReceive/vpn",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ReceiverDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "ReceiverDispatcher.performReceive.sender/vpn",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ReceiverDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "boolean",
+      "int",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
   },
   {
     "collection": "Privacy",
@@ -25871,6 +26450,134 @@
     "minSdk": 27,
     "luaScript": "@vpn"
   },
+  // The local address of sockets connected through a VPN is of the network it runs over (vpn), like in Read.Network
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Socket.getLocalAddress/vpn",
+    "author": "akano12",
+    "className": "java.net.Socket",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Socket.getLocalSocketAddress/vpn",
+    "author": "akano12",
+    "className": "java.net.Socket",
+    "methodName": "getLocalSocketAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "DatagramSocket.getLocalAddress/vpn",
+    "author": "akano12",
+    "className": "java.net.DatagramSocket",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "DatagramSocket.getLocalSocketAddress/vpn",
+    "author": "akano12",
+    "className": "java.net.DatagramSocket",
+    "methodName": "getLocalSocketAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "SocketAdaptor.getLocalAddress/vpn",
+    "author": "akano12",
+    "className": "sun.nio.ch.SocketAdaptor",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "DatagramSocketAdaptor.getLocalAddress/vpn",
+    "author": "akano12",
+    "className": "sun.nio.ch.DatagramSocketAdaptor",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.InetAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "SocketChannelImpl.getLocalAddress/vpn",
+    "author": "akano12",
+    "className": "sun.nio.ch.SocketChannelImpl",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "AsynchronousSocketChannelImpl.getLocalAddress/vpn",
+    "author": "akano12",
+    "className": "sun.nio.ch.AsynchronousSocketChannelImpl",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "DatagramChannelImpl.getLocalAddress/vpn",
+    "author": "akano12",
+    "className": "sun.nio.ch.DatagramChannelImpl",
+    "methodName": "getLocalAddress",
+    "parameterTypes": [],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@vpn"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Os.getsockname/vpn",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "getsockname",
+    "parameterTypes": [
+      "java.io.FileDescriptor"
+    ],
+    "returnType": "java.net.SocketAddress",
+    "minSdk": 27,
+    "luaScript": "@vpn"
+  },
   {
     "collection": "Privacy",
     "group": "Read.VPN",
@@ -25902,8 +26609,52 @@
     "optional": true,
     "luaScript": "@interface_entries"
   },
-  // The folders of VPN interfaces in /sys/class/net do not exist (see hardware_files): apps can only tell whether
-  // they exist, which java.io, android.system.Os and java.nio.file ask
+  // A netlink socket of the routing tables, which dumps the same entries and the routes, cannot be opened, by Os.socket
+  // and by Linux.socket beneath it for Libcore.os and Libcore.rawOs; system_server opens such sockets itself on 8.1
+  // and 9 (see interface_entries)
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Os.socket/vpn",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "socket",
+    "parameterTypes": [
+      "int",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@interface_entries"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Linux.socket/vpn",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
+    "methodName": "socket",
+    "parameterTypes": [
+      "int",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@interface_entries"
+  },
+  // The folders of VPN interfaces in /sys/class/net do not exist (see hardware_files): apps can tell whether they
+  // exist, which java.io, android.system.Os and java.nio.file ask, and on Android 8.1 (9 in /sys/devices/virtual/net)
+  // also resolve the path of the folder (Path.toRealPath) and read its link, open the folder and its files and make
+  // files by open, FileOutputStream and File.createNewFile, which SELinux denies (EACCES) where a missing interface
+  // gives ENOENT. FileInputStream and FileOutputStream of 8.1 and 9 open natively (open0), not by BlockGuardOs.open,
+  // which they use from Android 10. Listings stay: SELinux denies reading the folders of /sys, so File.list gives
+  // null for every name and listing /sys/class/net fails.
+  // shortcut: mkdir, mkfifo, remove, rename, link, symlink, chmod, chown and the attributes written there still answer
+  // EACCES or EPERM on 8.1, add the hooks of hardware_ids to this group if apps probe the folders like that.
   {
     "collection": "Privacy",
     "group": "Read.VPN",
@@ -26151,6 +26902,185 @@
     ],
     "returnType": "boolean",
     "minSdk": 37,
+    "luaScript": "@hardware_files"
+  },
+  // The files of /proc/net cannot be read either, since they name the interface of a VPN, and the files in the folders
+  // of VPN interfaces and the names of VPN interfaces in /proc/net and /proc/sys/net do not exist for opening them too,
+  // nor in listings by java.io and java.nio.file (see hardware_files)
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "BlockGuardOs.open/vpn_interfaces",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixNativeDispatcher.open/vpn_interfaces",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixFileSystem.list0/vpn_interfaces",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "list0",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixFileSystemProvider.newDirectoryStream/vpn_interfaces",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "newDirectoryStream",
+    "parameterTypes": [
+      "java.nio.file.Path",
+      "java.nio.file.DirectoryStream$Filter"
+    ],
+    "returnType": "java.nio.file.DirectoryStream",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "Os.readlink/vpn_interfaces",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixNativeDispatcher.readlink/vpn_interfaces",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixNativeDispatcher.opendir/vpn_interfaces",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "opendir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixFileSystem.getLastModifiedTime/vpn_interfaces",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixFileSystem.createFileExclusively/vpn_interfaces",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "createFileExclusively",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "UnixNativeDispatcher.realpath/vpn_interfaces",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "realpath",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "FileInputStream.open0/vpn_interfaces",
+    "author": "akano12",
+    "className": "java.io.FileInputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.VPN",
+    "name": "FileOutputStream.open0/vpn_interfaces",
+    "author": "akano12",
+    "className": "java.io.FileOutputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
     "luaScript": "@hardware_files"
   },
   {

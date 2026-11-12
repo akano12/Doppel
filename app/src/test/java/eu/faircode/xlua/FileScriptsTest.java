@@ -838,6 +838,152 @@ public class FileScriptsTest {
         assertTrue(result.arg(9).toboolean());
     }
 
+    // The files of /proc/net are denied the way SELinux can deny reading them, not missing: opening them and access
+    // for reading fail with EACCES, by Os, java.io and java.nio, while access for whether they exist, stat and the other
+    // calls answer for real; Read.VPN denies them too and keeps its folders of /sys missing. A folder of /proc/net, which
+    // File.list still lists, and a file the app cannot read, like on Android 10 and later, get the real answer.
+    @Test
+    public void networkFilesAreDeniedNotMissing() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local present = { ['/proc/net/arp'] = true, ['/proc/net/route'] = true, ['/proc/net/dev'] = true,\n" +
+                        "  ['/proc/self/net/dev'] = true, ['/proc/net/stat'] = true, ['/proc/net/tcp'] = true,\n" +
+                        "  ['/sys/class/net/tun0'] = true }\n" +
+                        "local readable = { ['/proc/net/arp'] = true, ['/proc/net/route'] = true, ['/proc/net/dev'] = true,\n" +
+                        "  ['/proc/self/net/dev'] = true, ['/proc/net/stat'] = true }\n" +
+                        "local new = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path, ...)\n" +
+                        "  if name == 'java.io.File' then return { exists = function() return present[path] == true end,\n" +
+                        "    canRead = function() return readable[path] == true end,\n" +
+                        "    isDirectory = function() return path == '/proc/net/stat' end } end\n" +
+                        "  return new(name, path, ...)\n" +
+                        "end\n" +
+                        "local results = {}\n" +
+                        "local function call(group, class, method, path, mode)\n" +
+                        "  local p = paramof(path, nil, mode)\n" +
+                        "  p.unhooked = function(self, fn) return fn() end\n" +
+                        "  local restricted = before(hookof(group, class, method), p)\n" +
+                        "  local value = p.result\n" +
+                        "  if type(value) == 'table' then value = value.class .. ' ' .. table.concat(value.args, ' ') end\n" +
+                        "  results[#results + 1] = (restricted and 'R' or '-') .. (p.early and 'E' or '-') ..\n" +
+                        "    (p.argument and 'A' or '-') .. ' ' .. tostring(value)\n" +
+                        "end\n" +
+                        "local os, io, nio = 'libcore.io.BlockGuardOs', 'java.io.UnixFileSystem', 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        "call('Read.Network', os, 'open', '/proc/net/arp', 0)\n" +
+                        "call('Read.Network', nio, 'open', '/proc/net/route', 0)\n" +
+                        "call('Read.Network', io, 'checkAccess', '/proc/net/arp', 4)\n" +
+                        "call('Read.Network', io, 'checkAccess', '/proc/net/arp', 8)\n" +
+                        "call('Read.Network', 'android.system.Os', 'access', '/proc/net/arp', 4)\n" +
+                        "call('Read.Network', os, 'access', '/proc/net/arp', 0)\n" +
+                        "call('Read.Network', nio, 'access', '/proc/net/arp', 4)\n" +
+                        "call('Read.Network', os, 'open', '/proc/net/stat', 0)\n" +
+                        "call('Read.Network', io, 'checkAccess', '/proc/net/stat', 4)\n" +
+                        "call('Read.Network', os, 'open', '/proc/net/tcp', 0)\n" +
+                        "call('Read.VPN', os, 'open', '/proc/net/dev', 0)\n" +
+                        "call('Read.VPN', io, 'checkAccess', '/proc/self/net/dev', 4)\n" +
+                        "call('Read.VPN', os, 'stat', '/proc/net/dev')\n" +
+                        "call('Read.VPN', io, 'getLength', '/proc/net/dev')\n" +
+                        "call('Read.VPN', io, 'checkAccess', '/proc/net/dev', 8)\n" +
+                        "call('Read.VPN', os, 'open', '/proc/net/tcp', 0)\n" +
+                        "call('Read.VPN', os, 'stat', '/sys/class/net/tun0')\n" +
+                        "return table.concat(results, '|')");
+        String[] expected = {
+                "RE- android.system.ErrnoException open 13", "RE- sun.nio.fs.UnixException 13", "RE- false", "--- nil",
+                "RE- android.system.ErrnoException access 13", "--- nil", "RE- sun.nio.fs.UnixException 13",
+                "--- nil", "--- nil", "--- nil",
+                "RE- android.system.ErrnoException open 13", "RE- false", "--- nil", "--- nil", "--- nil", "--- nil",
+                // The folder of a VPN interface stays missing, by the real call with an empty path
+                "R-A nil"};
+        assertEquals(String.join("|", expected), result.arg1().tojstring());
+    }
+
+    // Of Read.VPN the names of the interfaces of VPNs in /proc/net and /proc/sys/net do not exist, like tun0 of
+    // dev_snmp6, also under the file of tun0 (not ENOTDIR) and in listings, while the names of the other interfaces,
+    // like wlan0, stay and are denied like the other files of /proc/net. Read.Network leaves tun0 to the hooks of
+    // Read.VPN when those hide it, whichever runs first, and denies it when they do not. A file the app opened already,
+    // like /proc/self/fd/9 of /proc/net/dev, gets the real answer for both groups, and a file which went away too.
+    @Test
+    public void vpnInterfaceNamesAreMissing() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local present = { ['/proc/net/dev_snmp6'] = true, ['/proc/net/dev_snmp6/tun0'] = true,\n" +
+                        "  ['/proc/net/dev_snmp6/wlan0'] = true, ['/proc/net/xt_qtaguid/iface_stat/tun0/rx_bytes'] = true,\n" +
+                        "  ['/proc/sys/net/ipv4/conf/tun0'] = true, ['/proc/sys/net/ipv6/neigh/tun0'] = true,\n" +
+                        "  ['/proc/self/fd/9'] = true }\n" +
+                        "local readable = { ['/proc/net/dev_snmp6'] = true, ['/proc/net/dev_snmp6/tun0'] = true,\n" +
+                        "  ['/proc/net/dev_snmp6/wlan0'] = true, ['/proc/net/xt_qtaguid/iface_stat/tun0/rx_bytes'] = true,\n" +
+                        "  ['/proc/self/fd/9'] = true }\n" +
+                        "local folders = { ['/proc/net/dev_snmp6'] = true, ['/proc/sys/net/ipv4/conf/tun0'] = true,\n" +
+                        "  ['/proc/sys/net/ipv6/neigh/tun0'] = true }\n" +
+                        "LINKS['/proc/self/fd/9'] = '/proc/123/net/dev'\n" +
+                        "local vpn, unhooked = true, false\n" +
+                        "local new = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path, ...)\n" +
+                        "  if name == 'java.io.File' then return { exists = function() return present[path] == true end,\n" +
+                        "    canRead = function() return readable[path] == true end,\n" +
+                        "    isDirectory = function() return folders[path] == true end,\n" +
+                        // The hooks of Read.VPN, when it is restricted, answer false for its names
+                        "    isFile = function() return present[path] == true and not folders[path] and\n" +
+                        "      (unhooked or not vpn or not string.find(path, 'tun0', 1, true)) end } end\n" +
+                        "  return new(name, path, ...)\n" +
+                        "end\n" +
+                        "local results = {}\n" +
+                        "local function call(group, class, method, path, mode, names)\n" +
+                        "  local p = paramof(path, names, mode)\n" +
+                        "  p.unhooked = function(self, fn) unhooked = true local value = fn() unhooked = false return value end\n" +
+                        "  local restricted = (names and after or before)(hookof(group, class, method), p)\n" +
+                        "  local value = p.result\n" +
+                        "  if type(value) == 'table' and value.args then value = value.class .. ' ' .. table.concat(value.args, ' ')\n" +
+                        "  elseif type(value) == 'table' then value = table.concat(value, ' ') end\n" +
+                        "  results[#results + 1] = (restricted and 'R' or '-') .. (p.early and 'E' or '-') ..\n" +
+                        "    (p.argument and 'A' or '-') .. ' ' .. tostring(value)\n" +
+                        "end\n" +
+                        "local os, io, nio = 'libcore.io.BlockGuardOs', 'java.io.UnixFileSystem', 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        "call('Read.VPN', os, 'stat', '/proc/net/dev_snmp6/tun0')\n" +
+                        "call('Read.VPN', io, 'checkAccess', '/proc/net/dev_snmp6/tun0', 8)\n" +
+                        // File.isFile, which Read.Network asks the hooks of the app below
+                        "call('Read.VPN', io, 'getBooleanAttributes0', '/proc/net/dev_snmp6/tun0')\n" +
+                        "call('Read.VPN', os, 'open', '/proc/net/dev_snmp6/tun0', 0)\n" +
+                        "call('Read.VPN', nio, 'open', '/proc/net/dev_snmp6/tun0', 0)\n" +
+                        "call('Read.VPN', os, 'stat', '/proc/net/dev_snmp6/tun0/x')\n" +
+                        "call('Read.VPN', os, 'open', '/proc/net/xt_qtaguid/iface_stat/tun0/rx_bytes', 0)\n" +
+                        "call('Read.VPN', io, 'checkAccess', '/proc/sys/net/ipv4/conf/tun0', 8)\n" +
+                        "call('Read.VPN', io, 'checkAccess', '/proc/sys/net/ipv6/neigh/tun0', 8)\n" +
+                        "call('Read.VPN', io, 'list0', '/proc/sys/net/ipv4/conf/tun0')\n" +
+                        "call('Read.VPN', io, 'list0', '/proc/net/dev_snmp6')\n" +
+                        "call('Read.VPN', io, 'list0', '/proc/net/dev_snmp6', nil, namesof('lo', 'tun0', 'wlan0'))\n" +
+                        "call('Read.VPN', os, 'stat', '/proc/net/dev_snmp6/wlan0')\n" +
+                        "call('Read.VPN', os, 'open', '/proc/net/dev_snmp6/wlan0', 0)\n" +
+                        "call('Read.VPN', os, 'open', '/proc/self/fd/9', 0)\n" +
+                        "call('Read.Network', os, 'open', '/proc/self/fd/9', 0)\n" +
+                        "call('Read.Network', os, 'open', '/proc/net/dev_snmp6/tun0', 0)\n" +
+                        "vpn = false\n" +
+                        "call('Read.Network', os, 'open', '/proc/net/dev_snmp6/tun0', 0)\n" +
+                        "call('Read.Network', os, 'open', '/proc/net/dev_snmp6/wlan0', 0)\n" +
+                        "present['/proc/net/dev_snmp6/wlan0'], readable['/proc/net/dev_snmp6/wlan0'] = nil, nil\n" +
+                        "call('Read.Network', os, 'open', '/proc/net/dev_snmp6/wlan0', 0)\n" +
+                        "local stream = paramof('/proc/net/dev_snmp6', nil, { accept = function(self, entry) return true end })\n" +
+                        "stream.unhooked = function(self, fn) return fn() end\n" +
+                        "before(hookof('Read.VPN', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), stream)\n" +
+                        "local accept = stream.argument.value.accept\n" +
+                        "return table.concat(results, '|'), accept('/proc/net/dev_snmp6/tun0'), accept('/proc/net/dev_snmp6/lo')");
+        String[] expected = {
+                // Missing like a name no lookup finds: the real call with an empty path, false, UnixException ENOENT
+                "R-A nil", "RE- false", "RE- 0", "R-A nil", "RE- sun.nio.fs.UnixException 2", "R-A nil", "R-A nil",
+                "RE- false", "RE- false", "RE- nil",
+                // The folder of the names lists for real, without tun0
+                "--- nil", "RE- lo wlan0",
+                // wlan0 is there and denied
+                "--- nil", "RE- android.system.ErrnoException open 13",
+                // The link of a descriptor
+                "--- nil", "--- nil",
+                // Read.Network with Read.VPN, without it, wlan0, and wlan0 gone
+                "--- nil", "RE- android.system.ErrnoException open 13", "RE- android.system.ErrnoException open 13", "--- nil"};
+        assertEquals(String.join("|", expected), result.arg1().tojstring());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+    }
+
     // The files of the system by the folders etc of partitions, not the same names in a folder of the app; the store
     // of certificates still reads the ones of the user; of the folders of apps only the names go
     @Test
@@ -1743,6 +1889,59 @@ public class FileScriptsTest {
         // On a read-only partition the kernel answers EROFS before the permissions
         assertEquals("java.io.IOException:Read-only file system", result.arg(6).tojstring());
         assertEquals("java.io.IOException:Permission denied", result.arg(7).tojstring());
+    }
+
+    // The folder of a VPN interface on Android 8.1, whose link and real path apps can read and whose files they can open
+    // and make (EACCES), answers like an interface which does not exist (ENOENT), also for a name in it which does not
+    // exist and by FileInputStream and FileOutputStream, which open natively there and throw FileNotFoundException with
+    // the path and the error; another interface stays, and so does a folder the app cannot reach, like on Android 10
+    // and later
+    @Test
+    public void vpnFoldersAnswerLikeMissingInterfaces() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "PRESENT = { ['/sys/class/net/tun0'] = true, ['/sys/class/net/tun0/mtu'] = true,\n" +
+                        "  ['/sys/devices/virtual/net/tun0'] = true, ['/sys/class/net/wlan0'] = true }\n" +
+                        "local file = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path)\n" +
+                        "  local made = file(name, path)\n" +
+                        "  if name == 'java.io.File' then made.exists = function() return PRESENT[path] == true end end\n" +
+                        "  return made\n" +
+                        "end\n" +
+                        "local function run(class, method, path, flags)\n" +
+                        "  local param = makingparam(path, flags)\n" +
+                        "  before(hookof('Read.VPN', class, method), param)\n" +
+                        "  if param.early and type(param.result) == 'table' then\n" +
+                        "    return param.result.class .. ':' .. tostring(param.result.args[1])\n" +
+                        "  elseif param.early then\n" +
+                        "    return tostring(param.result)\n" +
+                        "  end\n" +
+                        "  local argument = param.argument\n" +
+                        "  return argument and 'argument ' .. argument.index .. ':[' .. argument.value .. ']' or 'real'\n" +
+                        "end\n" +
+                        "local os, block, nio, io = 'android.system.Os', 'libcore.io.BlockGuardOs', 'sun.nio.fs.UnixNativeDispatcher',\n" +
+                        "  'java.io.UnixFileSystem'\n" +
+                        "local fis, fos = 'java.io.FileInputStream', 'java.io.FileOutputStream'\n" +
+                        "local results = { run(os, 'readlink', '/sys/class/net/tun0'), run(nio, 'readlink', '/sys/class/net/tun0'),\n" +
+                        "  run(nio, 'realpath', '/sys/class/net/tun0'),\n" +
+                        "  run(block, 'open', '/sys/class/net/tun0/mtu', 0), run(nio, 'open', '/sys/class/net/tun0/mtu', 0),\n" +
+                        // FileOutputStream of the folder makes a name in /sys/class/net (EACCES), of a file in it the folder is missing
+                        "  run(fis, 'open0', '/sys/class/net/tun0/mtu'), run(fos, 'open0', '/sys/class/net/tun0', false),\n" +
+                        "  run(fos, 'open0', '/sys/class/net/tun0/x', false),\n" +
+                        "  run(nio, 'opendir', '/sys/devices/virtual/net/tun0'), run(io, 'getLastModifiedTime', '/sys/class/net/tun0'),\n" +
+                        // Os.open with O_WRONLY | O_CREAT | O_TRUNC and File.createNewFile of a name which does not exist
+                        "  run(block, 'open', '/sys/class/net/tun0/x', 577), run(io, 'createFileExclusively', '/sys/class/net/tun0/x'),\n" +
+                        "  run(os, 'readlink', '/sys/class/net/wlan0'), run(io, 'createFileExclusively', '/sys/class/net/wlan0/x') }\n" +
+                        "PRESENT = {}\n" +
+                        "results[#results + 1] = run(block, 'open', '/sys/class/net/tun0/mtu', 0)\n" +
+                        "results[#results + 1] = run(fis, 'open0', '/sys/class/net/tun0/mtu')\n" +
+                        "return table.concat(results, '|')");
+        String missing = "java.io.FileNotFoundException:/sys/class/net/tun0";
+        assertEquals(String.join("|", "argument 0:[]", "sun.nio.fs.UnixException:2", "sun.nio.fs.UnixException:2",
+                "argument 0:[]", "sun.nio.fs.UnixException:2", missing + "/mtu (No such file or directory)",
+                missing + " (Permission denied)", missing + "/x (No such file or directory)",
+                "sun.nio.fs.UnixException:2", "0", "argument 0:[]", "java.io.IOException:No such file or directory", "real", "real",
+                "real", "real"), result.arg1().tojstring());
     }
 
     // Opening a hidden file to make it on a file system mounted read-only fails like for a file which does not exist
