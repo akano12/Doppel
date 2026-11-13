@@ -203,9 +203,12 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Recording</b> · 3 groups</summary>
 
 * **Record audio**, **Record video**: prevent recording, also speech recognition; a started AudioRecord gives silence,
-  like a microphone another app took; of the audio devices only the speaker and the earpiece are left, also for calls;
-  *Record audio* also hides the microphone feature and connected headsets
-* **Use camera**: no camera, also not as a feature of the device, and no torch
+  like a microphone another app took; of the audio devices only the built-in ones without a microphone are left,
+  also for calls; *Record audio* also hides the microphone feature and connected headsets; a MediaRecorder recording
+  ends like one which got no data: `stop()` throws `stop failed.` (except for WebM, MPEG-2 TS and RTP), and an app
+  which does not catch it crashes
+* **Use camera**: no camera, also not as a feature of the device, and no torch; a MediaRecorder with the camera as
+  source throws `start failed.` at `start()`, like on a device without a camera
 
 </details>
 

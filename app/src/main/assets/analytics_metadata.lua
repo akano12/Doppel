@@ -25,18 +25,20 @@ local SDKS = {
       key = 'firebase_analytics_collection_deactivated', value = true },
     { classes = { 'com.google.firebase.crashlytics.CrashlyticsRegistrar',
                   'com.google.firebase.crashlytics.FirebaseCrashlytics' },
-      key = 'firebase_crashlytics_collection_enabled', value = false },
+      -- Also stored by setCrashlyticsCollectionEnabled, which Crashlytics reads first, see stored
+      key = 'firebase_crashlytics_collection_enabled', value = false, stored = 'getBoolean' },
     -- The traces of app starts, screens and network requests; deactivated cannot be turned on again by the app
     { classes = { 'com.google.firebase.perf.FirebasePerfRegistrar', 'com.google.firebase.perf.FirebasePerformance' },
       key = 'firebase_performance_collection_deactivated', value = true },
     -- Crashes, ANRs, breadcrumbs and performance spans; also when the app starts Sentry itself
     { classes = { 'io.sentry.android.core.SentryInitProvider', 'io.sentry.android.core.SentryAndroid' },
       key = 'io.sentry.enabled', value = false },
+    -- Both also stored as JSON by the setters of FacebookSdk (5.0 and later), which Facebook reads first, see stored
     { classes = { 'com.facebook.internal.FacebookInitProvider', 'com.facebook.FacebookSdk' },
-      key = 'com.facebook.sdk.AutoLogAppEventsEnabled', value = false },
+      key = 'com.facebook.sdk.AutoLogAppEventsEnabled', value = false, stored = 'getString' },
     -- The advertising id goes with the events, on when the key is absent
     { classes = { 'com.facebook.internal.FacebookInitProvider', 'com.facebook.FacebookSdk' },
-      key = 'com.facebook.sdk.AdvertiserIDCollectionEnabled', value = false }
+      key = 'com.facebook.sdk.AdvertiserIDCollectionEnabled', value = false, stored = 'getString' }
 }
 local GET_META_DATA = 128
 
@@ -58,7 +60,67 @@ function contains(param, sdk)
     return found
 end
 
+-- Only the keys of stored settings run the script for the getters of the preferences, see stored
+function filter(hook)
+    local method = hook:getMethodName()
+    if method ~= 'getBoolean' and method ~= 'getString' then
+        return nil
+    end
+    local keys = {}
+    for _, sdk in ipairs(SDKS) do
+        if sdk.stored == method then
+            keys[#keys + 1] = sdk.key
+        end
+    end
+    return keys
+end
+
+-- A setting the app stored in an earlier run beats the meta-data, since the SDK reads it first: the boolean of
+-- Crashlytics is answered with the fake value, and the JSON of Facebook, like {"value":true,"last_timestamp":0},
+-- as not stored, so Facebook reads the fake meta-data. A stored setting equal to the fake stays.
+-- shortcut: only getBoolean and getString of the preferences of Android by the key, not contains, getAll or
+-- preferences of the app's own implementation, upgrade when an SDK reads the setting another way.
+function stored(param, method)
+    local key = param:getArgument(0)
+    local result = param:getResult()
+    for _, sdk in ipairs(SDKS) do
+        if sdk.stored == method and sdk.key == key and contains(param, sdk) then
+            if method == 'getBoolean' then
+                -- A missing key gives the caller's default and another type throws, both like a device without Doppel
+                if result == sdk.value or result == nil or not param:getThis():contains(key) then
+                    return false
+                end
+                param:setResult(sdk.value)
+            else
+                if result == nil or not string.find(result, '"value":' .. tostring(not sdk.value), 1, true) then
+                    return false
+                end
+                param:setResult(param:getArgument(1))
+            end
+            return true, nil, key .. '=' .. tostring(sdk.value)
+        end
+    end
+    return false
+end
+
+-- A copy through a parcel, the way the package manager answers by binder: a bundle read back stays parcelled until it
+-- is read, as its text shows, and an application info keeps what its copy constructor loses, like the application
+-- classes by process from Android 13
+function parcelled(object)
+    local parcel = luajava.bindClass('android.os.Parcel'):obtain()
+    parcel:writeParcelable(object, 0)
+    parcel:setDataPosition(0)
+    local copy = parcel:readParcelable(nil)
+    parcel:recycle()
+    return copy
+end
+
 function after(hook, param)
+    local method = hook:getMethodName()
+    if method == 'getBoolean' or method == 'getString' then
+        return stored(param, method)
+    end
+
     local result = param:getResult()
     if result == nil or param:getArgument(0) ~= param:getPackageName() then
         return false
@@ -74,7 +136,7 @@ function after(hook, param)
     end
 
     -- The application info of a package info, which getApplicationInfo gives itself
-    local byPackage = hook:getMethodName() == 'getPackageInfo'
+    local byPackage = method == 'getPackageInfo'
     local info = result
     if byPackage then
         info = result.applicationInfo
@@ -83,9 +145,12 @@ function after(hook, param)
         end
     end
 
-    local metaData = luajava.newInstance('android.os.Bundle')
-    if info.metaData ~= nil then
-        metaData:putAll(info.metaData)
+    -- A copy, which unlike putAll leaves the meta-data of the info parcelled, also the fake given to the other overload
+    local metaData
+    if info.metaData == nil then
+        metaData = luajava.newInstance('android.os.Bundle')
+    else
+        metaData = luajava.newInstance('android.os.Bundle', info.metaData)
     end
     local changed = {}
     for _, sdk in ipairs(SDKS) do
@@ -99,19 +164,18 @@ function after(hook, param)
         return false
     end
 
-    local fake
-    if byPackage then
-        -- A copy through a parcel, because the package manager can cache the package info (see storage_stats_uid)
-        local parcel = luajava.bindClass('android.os.Parcel'):obtain()
-        parcel:writeParcelable(result, 0)
-        parcel:setDataPosition(0)
-        fake = parcel:readParcelable(nil)
-        parcel:recycle()
-        fake.applicationInfo.metaData = metaData
-    else
-        -- A copy, because the package manager can keep the application info in a cache
-        fake = luajava.newInstance('android.content.pm.ApplicationInfo', result)
-        fake.metaData = metaData
+    -- The same fake for the same info: from Android 11 the package manager answers from a cache, so the app gets the
+    -- same object again, with the changes it made to it; a new info, like before Android 11, gets a new fake
+    local fake = param:getValue('analytics.fake', result)
+    if fake == nil then
+        -- A copy, because the package manager can cache the info (see storage_stats_uid)
+        fake = parcelled(result)
+        if byPackage then
+            fake.applicationInfo.metaData = parcelled(metaData)
+        else
+            fake.metaData = parcelled(metaData)
+        end
+        param:putValue('analytics.fake', fake, result)
     end
     param:setResult(fake)
     return true, nil, table.concat(changed, ', ')

@@ -16113,6 +16113,89 @@
     "minSdk": 27,
     "luaScript": "@audio_record"
   },
+  // The audio the device plays, which a Visualizer captures with RECORD_AUDIO, is silence (see visualizer)
+  // https://developer.android.com/reference/android/media/audiofx/Visualizer
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Visualizer.getWaveForm",
+    "author": "akano12",
+    "className": "android.media.audiofx.Visualizer",
+    "methodName": "getWaveForm",
+    "parameterTypes": [
+      "byte[]"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@visualizer"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Visualizer.getFft",
+    "author": "akano12",
+    "className": "android.media.audiofx.Visualizer",
+    "methodName": "getFft",
+    "parameterTypes": [
+      "byte[]"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@visualizer"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Visualizer.getMeasurementPeakRms",
+    "author": "akano12",
+    "className": "android.media.audiofx.Visualizer",
+    "methodName": "getMeasurementPeakRms",
+    "parameterTypes": [
+      "android.media.audiofx.Visualizer$MeasurementPeakRms"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@visualizer"
+  },
+  // The hidden delivery of the captures to the listener, which the capture thread of Android calls
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Visualizer.postEventFromNative",
+    "author": "akano12",
+    "className": "android.media.audiofx.Visualizer",
+    "methodName": "postEventFromNative",
+    "parameterTypes": [
+      "java.lang.Object",
+      "int",
+      "int",
+      "int",
+      "java.lang.Object"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 29,
+    "optional": true,
+    "luaScript": "@visualizer"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Visualizer.postEventFromNative/data",
+    "author": "akano12",
+    "className": "android.media.audiofx.Visualizer",
+    "methodName": "postEventFromNative",
+    "parameterTypes": [
+      "java.lang.Object",
+      "int",
+      "int",
+      "byte[]"
+    ],
+    "returnType": "void",
+    "minSdk": 30,
+    "optional": true,
+    "luaScript": "@visualizer"
+  },
   // https://developer.android.com/reference/android/media/AudioManager.html
   // https://developer.android.com/reference/android/media/MediaRecorder.html
   {
@@ -16140,6 +16223,25 @@
     ],
     "returnType": "android.media.AudioDeviceInfo[]",
     "minSdk": 27,
+    "luaScript": "@audio_devices"
+  },
+  // Every device the app gets is made here (hidden, the same from Android 8.1 to 17): by getDevices, the device a
+  // record, track or player is routed to, the active microphones and the callbacks of the devices, which get the kept
+  // ones at the registration like Android posts them, and no call for a hidden device which comes or goes
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioManager.infoListFromPortList",
+    "author": "akano12",
+    "className": "android.media.AudioManager",
+    "methodName": "infoListFromPortList",
+    "parameterTypes": [
+      "java.util.ArrayList",
+      "int"
+    ],
+    "returnType": "android.media.AudioDeviceInfo[]",
+    "minSdk": 27,
+    "optional": true,
     "luaScript": "@audio_devices"
   },
   // A connected headset, which the devices leave out, is not on either (false, like a device without it)
@@ -16206,6 +16308,23 @@
     "minSdk": 31,
     "luaScript": "@audio_devices"
   },
+  // The listeners of the device for calls get the device of getCommunicationDevice instead of a hidden one, by its port
+  // id (hidden, the same from Android 12 to 17)
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "AudioManager.dispatchCommunicationDeviceChanged",
+    "author": "akano12",
+    "className": "android.media.AudioManager$CommunicationDeviceDispatcherStub",
+    "methodName": "dispatchCommunicationDeviceChanged",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@audio_devices"
+  },
   {
     "collection": "Privacy",
     "group": "Record.Audio",
@@ -16232,20 +16351,21 @@
     "minSdk": 33,
     "luaScript": "@audio_devices"
   },
+  // The device types the audio policy of the model declares: only the inputs the devices keep, like the devices and
+  // the microphone feature
   {
     "collection": "Privacy",
     "group": "Record.Audio",
-    "name": "AudioManager.registerAudioDeviceCallback",
-    "author": "M66B",
+    "name": "AudioManager.getSupportedDeviceTypes",
+    "author": "akano12",
     "className": "android.media.AudioManager",
-    "methodName": "registerAudioDeviceCallback",
+    "methodName": "getSupportedDeviceTypes",
     "parameterTypes": [
-      "android.media.AudioDeviceCallback",
-      "android.os.Handler"
+      "int"
     ],
-    "returnType": "void",
-    "minSdk": 27,
-    "luaScript": "@generic_block"
+    "returnType": "java.util.Set",
+    "minSdk": 35,
+    "luaScript": "@audio_devices"
   },
   {
     "collection": "Privacy",
@@ -16275,6 +16395,32 @@
     "returnType": "void",
     "minSdk": 27,
     "luaScript": "@mediarecorder_setsource"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "MediaRecorder.setOutputFormat.Audio",
+    "author": "akano12",
+    "className": "android.media.MediaRecorder",
+    "methodName": "setOutputFormat",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "MediaRecorder.prepare.Audio",
+    "author": "akano12",
+    "className": "android.media.MediaRecorder",
+    "methodName": "prepare",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@mediarecorder_startstop"
   },
   {
     "collection": "Privacy",
@@ -16401,6 +16547,57 @@
     "optional": true,
     "luaScript": "@speech_recognizer"
   },
+  // These end the silent session of startListening without an answer, like Android
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "SpeechRecognizer.cancel",
+    "author": "akano12",
+    "className": "android.speech.SpeechRecognizer",
+    "methodName": "cancel",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@speech_recognizer"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "SpeechRecognizerImpl.cancel",
+    "author": "akano12",
+    "className": "android.speech.SpeechRecognizerImpl",
+    "methodName": "cancel",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 34,
+    "optional": true,
+    "luaScript": "@speech_recognizer"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "SpeechRecognizer.destroy",
+    "author": "akano12",
+    "className": "android.speech.SpeechRecognizer",
+    "methodName": "destroy",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@speech_recognizer"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "SpeechRecognizerImpl.destroy",
+    "author": "akano12",
+    "className": "android.speech.SpeechRecognizerImpl",
+    "methodName": "destroy",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 34,
+    "optional": true,
+    "luaScript": "@speech_recognizer"
+  },
   // The microphone feature, which Read.Features leaves to this group, see features
   {
     "collection": "Privacy",
@@ -16443,6 +16640,716 @@
     "minSdk": 27,
     "luaScript": "@features"
   },
+  // The other feature files of the system are read without the microphone feature, and a file of its own does not
+  // exist, like for a device without a microphone (see hardware_files), but by FileInputStream and FileReader of
+  // Android 8.1 and 9, which open natively (open0) and read them in full (see featuretext there)
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "BlockGuardOs.open/microphone_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "BlockGuardOs.stat/microphone_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "BlockGuardOs.lstat/microphone_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "BlockGuardOs.access/microphone_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.access/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.statvfs/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "statvfs",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.getxattr/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "getxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The calls which tell a file exists, like listing the attributes, changing them, the mode or the owner, which a file
+  // of a read-only partition refuses (EROFS), or linking it into another partition (EXDEV): a missing file gives
+  // ENOENT; setxattr and removexattr from Linux 6.11 and getxattr from 6.13 check their arguments first, and link
+  // throws for a null second path, which hardware_files leaves to Android
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.listxattr/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "listxattr",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.setxattr/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "setxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "byte[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.removexattr/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "removexattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.chmod/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.chown/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.lchown/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The first path is the file which must exist, the kernel looks it up first
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.link/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "link",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "BlockGuardOs.statvfs/microphone_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "statvfs",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 27,
+        "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystem.getBooleanAttributes0/microphone_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystem.canonicalize0/microphone_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystem.canonicalize0/native/microphone_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystem.checkAccess/microphone_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystem.getLastModifiedTime/microphone_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystem.list0/microphone_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "list0",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystem.getLength/microphone_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLength",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystem.getSpace/microphone_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getSpace",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.open/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.stat/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.stat/mode/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "int",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.lstat/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.access/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.exists/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "exists",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "boolean",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.opendir/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "opendir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystemProvider.newDirectoryStream/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "newDirectoryStream",
+    "parameterTypes": [
+      "java.nio.file.Path",
+      "java.nio.file.DirectoryStream$Filter"
+    ],
+    "returnType": "java.nio.file.DirectoryStream",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystemProvider.exists/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.realpath/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "realpath",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.readlink/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // Files.setPosixFilePermissions, setOwner and createLink, which give NoSuchFileException for a missing file, like
+  // the calls of Os
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.chmod/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.chown/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.lchown/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.link/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "link",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.readlink/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixFileSystem.createFileExclusively/microphone_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "createFileExclusively",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "FileInputStream.open0/microphone_files",
+    "author": "akano12",
+    "className": "java.io.FileInputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "FileOutputStream.open0/microphone_files",
+    "author": "akano12",
+    "className": "java.io.FileOutputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.mkdir/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.mkfifo/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkfifo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "Os.symlink/microphone_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.mkdir/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Audio",
+    "name": "UnixNativeDispatcher.symlink/microphone_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "byte[]",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
   // Record video
   // https://developer.android.com/reference/android/media/MediaRecorder.html
   {
@@ -16458,6 +17365,32 @@
     "returnType": "void",
     "minSdk": 27,
     "luaScript": "@mediarecorder_setsource"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Video",
+    "name": "MediaRecorder.setOutputFormat.Video",
+    "author": "akano12",
+    "className": "android.media.MediaRecorder",
+    "methodName": "setOutputFormat",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Record.Video",
+    "name": "MediaRecorder.prepare.Video",
+    "author": "akano12",
+    "className": "android.media.MediaRecorder",
+    "methodName": "prepare",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@mediarecorder_startstop"
   },
   {
     "collection": "Privacy",
@@ -17877,6 +18810,37 @@
     "minSdk": 33,
     "luaScript": "@analytics_metadata"
   },
+  // The settings Crashlytics and Facebook stored for the app, which they read before the meta-data
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "SharedPreferences.getBoolean/analytics",
+    "author": "akano12",
+    "className": "android.app.SharedPreferencesImpl",
+    "methodName": "getBoolean",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@analytics_metadata"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Analytics",
+    "name": "SharedPreferences.getString/analytics",
+    "author": "akano12",
+    "className": "android.app.SharedPreferencesImpl",
+    "methodName": "getString",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@analytics_metadata"
+  },
   // https://dev.appsflyer.com/hc/docs/android-sdk-reference-appsflyerlib
   {
     "collection": "Privacy",
@@ -18369,6 +19333,133 @@
     "optional": true,
     "luaScript": "@camera_open"
   },
+  // The hidden setup of a camera, which every constructor calls, also the hidden ones apps reach by reflection, and
+  // cameraInitUnspecified after openUninitialized up to Android 11 (see camera_open)
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Camera.cameraInitVersion",
+    "author": "akano12",
+    "className": "android.hardware.Camera",
+    "methodName": "cameraInitVersion",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "maxSdk": 30,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Camera.cameraInit",
+    "author": "akano12",
+    "className": "android.hardware.Camera",
+    "methodName": "cameraInit",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 31,
+    "maxSdk": 34,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Camera.cameraInit/context",
+    "author": "akano12",
+    "className": "android.hardware.Camera",
+    "methodName": "cameraInit",
+    "parameterTypes": [
+      "int",
+      "android.content.Context",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 35,
+    "maxSdk": 36,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Camera.cameraInit/compat",
+    "author": "akano12",
+    "className": "android.hardware.Camera",
+    "methodName": "cameraInit",
+    "parameterTypes": [
+      "int",
+      "android.content.Context",
+      "android.content.res.CameraCompatibilityInfo"
+    ],
+    "returnType": "int",
+    "minSdk": 36,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera_open"
+  },
+  // The hidden overloads with a context, under the public ones from Android 15
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Camera.getCameraInfo/context",
+    "author": "akano12",
+    "className": "android.hardware.Camera",
+    "methodName": "getCameraInfo",
+    "parameterTypes": [
+      "int",
+      "android.content.Context",
+      "int",
+      "android.hardware.Camera$CameraInfo"
+    ],
+    "returnType": "void",
+    "minSdk": 35,
+    "maxSdk": 36,
+    "optional": true,
+    "luaScript": "@camera_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Camera.getCameraInfo/compat",
+    "author": "akano12",
+    "className": "android.hardware.Camera",
+    "methodName": "getCameraInfo",
+    "parameterTypes": [
+      "int",
+      "android.content.Context",
+      "android.content.res.CameraCompatibilityInfo",
+      "android.hardware.Camera$CameraInfo"
+    ],
+    "returnType": "void",
+    "minSdk": 36,
+    "optional": true,
+    "luaScript": "@camera_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Camera.getNumberOfCameras/context",
+    "author": "akano12",
+    "className": "android.hardware.Camera",
+    "methodName": "getNumberOfCameras",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "int",
+    "minSdk": 35,
+    "optional": true,
+    "luaScript": "@generic_zero_value"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Camera",
@@ -18403,6 +19494,139 @@
     "notify": true,
     "luaScript": "@camera2_open"
   },
+  // The hidden opening of a camera, which every openCamera calls, also the hidden and test ones apps reach by
+  // reflection, like openCameraForUid, after Android's checks of the arguments; it reads the characteristics of the
+  // id first, so an unknown id gets their error (see camera2_open)
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.openCameraDeviceUserAsync/handler",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "openCameraDeviceUserAsync",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.hardware.camera2.CameraDevice$StateCallback",
+      "android.os.Handler",
+      "int"
+    ],
+    "returnType": "android.hardware.camera2.CameraDevice",
+    "minSdk": 27,
+    "maxSdk": 27,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera2_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.openCameraDeviceUserAsync/uid",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "openCameraDeviceUserAsync",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.hardware.camera2.CameraDevice$StateCallback",
+      "java.util.concurrent.Executor",
+      "int"
+    ],
+    "returnType": "android.hardware.camera2.CameraDevice",
+    "minSdk": 28,
+    "maxSdk": 30,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera2_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.openCameraDeviceUserAsync/oom",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "openCameraDeviceUserAsync",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.hardware.camera2.CameraDevice$StateCallback",
+      "java.util.concurrent.Executor",
+      "int",
+      "int"
+    ],
+    "returnType": "android.hardware.camera2.CameraDevice",
+    "minSdk": 31,
+    "maxSdk": 35,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera2_open"
+  },
+  // Of Android 14 to 16, of which the last argument is the portrait override on 14 and the shared mode later; the
+  // first release of 15 has the next variant instead and its first quarterly release the one above (an offset of the
+  // OOM score and a rotation override), the later releases of 16 the one with a CameraCompatibilityInfo
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.openCameraDeviceUserAsync/flag",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "openCameraDeviceUserAsync",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.hardware.camera2.CameraDevice$StateCallback",
+      "java.util.concurrent.Executor",
+      "int",
+      "int",
+      "boolean"
+    ],
+    "returnType": "android.hardware.camera2.CameraDevice",
+    "minSdk": 34,
+    "maxSdk": 36,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera2_open"
+  },
+  // Of the first release of Android 15
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.openCameraDeviceUserAsync/rotation",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "openCameraDeviceUserAsync",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.hardware.camera2.CameraDevice$StateCallback",
+      "java.util.concurrent.Executor",
+      "int",
+      "int",
+      "int"
+    ],
+    "returnType": "android.hardware.camera2.CameraDevice",
+    "minSdk": 35,
+    "maxSdk": 35,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera2_open"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.openCameraDeviceUserAsync/compat",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "openCameraDeviceUserAsync",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.hardware.camera2.CameraDevice$StateCallback",
+      "java.util.concurrent.Executor",
+      "int",
+      "android.content.res.CameraCompatibilityInfo",
+      "boolean"
+    ],
+    "returnType": "android.hardware.camera2.CameraDevice",
+    "minSdk": 36,
+    "notify": true,
+    "optional": true,
+    "luaScript": "@camera2_open"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Camera",
@@ -18413,6 +19637,20 @@
     "parameterTypes": [],
     "returnType": "java.lang.String[]",
     "minSdk": 27,
+    "luaScript": "@generic_empty"
+  },
+  // The test variant, which apps reach by reflection
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.getCameraIdListNoLazy",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "getCameraIdListNoLazy",
+    "parameterTypes": [],
+    "returnType": "java.lang.String[]",
+    "minSdk": 30,
+    "optional": true,
     "luaScript": "@generic_empty"
   },
   {
@@ -18429,6 +19667,23 @@
     "minSdk": 27,
     "luaScript": "@camera2_open"
   },
+  // The test variant from Android 14, which apps reach by reflection
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.getCameraCharacteristics/portrait",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "getCameraCharacteristics",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "android.hardware.camera2.CameraCharacteristics",
+    "minSdk": 34,
+    "optional": true,
+    "luaScript": "@camera2_open"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Camera",
@@ -18442,6 +19697,35 @@
     "returnType": "android.hardware.camera2.CameraExtensionCharacteristics",
     "minSdk": 31,
     "luaScript": "@camera2_open"
+  },
+  // The setup of a camera checks the id against the real camera list first, see camera_setup
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.isCameraDeviceSetupSupported",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "isCameraDeviceSetupSupported",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 35,
+    "luaScript": "@camera_setup"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.getCameraDeviceSetup",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "getCameraDeviceSetup",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.hardware.camera2.CameraDevice$CameraDeviceSetup",
+    "minSdk": 35,
+    "luaScript": "@camera_setup"
   },
   {
     "collection": "Privacy",
@@ -18500,6 +19784,21 @@
     "minSdk": 30,
     "luaScript": "@generic_empty"
   },
+  // Android checks the ids against the real concurrent cameras first, see camera_setup
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CameraManager2.isConcurrentSessionConfigurationSupported",
+    "author": "akano12",
+    "className": "android.hardware.camera2.CameraManager",
+    "methodName": "isConcurrentSessionConfigurationSupported",
+    "parameterTypes": [
+      "java.util.Map"
+    ],
+    "returnType": "boolean",
+    "minSdk": 30,
+    "luaScript": "@camera_setup"
+  },
   {
     "collection": "Privacy",
     "group": "Use.Camera",
@@ -18513,7 +19812,7 @@
     ],
     "returnType": "void",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@camera2_register"
   },
   {
     "collection": "Privacy",
@@ -18528,7 +19827,7 @@
     ],
     "returnType": "void",
     "minSdk": 28,
-    "luaScript": "@generic_block"
+    "luaScript": "@camera2_register"
   },
   {
     "collection": "Privacy",
@@ -18543,7 +19842,7 @@
     ],
     "returnType": "void",
     "minSdk": 27,
-    "luaScript": "@generic_block"
+    "luaScript": "@camera2_register"
   },
   {
     "collection": "Privacy",
@@ -18558,7 +19857,57 @@
     ],
     "returnType": "void",
     "minSdk": 28,
+    "luaScript": "@camera2_register"
+  },
+  // The camcorder profiles of a camera by its id, which Android reads from the media profiles of the device and not
+  // from the camera: none for every id, like the overloads without an id, which go through getNumberOfCameras.
+  // shortcut: the media profiles file itself (/vendor/etc/media_profiles_V1_0.xml) still lists the profiles of each
+  // camera id, since Use.Camera has no file hooks; hide it with hardware_files if apps read it.
+  // https://developer.android.com/reference/android/media/CamcorderProfile
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CamcorderProfile.get/camera",
+    "author": "akano12",
+    "className": "android.media.CamcorderProfile",
+    "methodName": "get",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "android.media.CamcorderProfile",
+    "minSdk": 27,
+    "luaScript": "@camcorder_profile"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CamcorderProfile.hasProfile/camera",
+    "author": "akano12",
+    "className": "android.media.CamcorderProfile",
+    "methodName": "hasProfile",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
     "luaScript": "@generic_block"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "CamcorderProfile.getAll",
+    "author": "akano12",
+    "className": "android.media.CamcorderProfile",
+    "methodName": "getAll",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "android.media.EncoderProfiles",
+    "minSdk": 31,
+    "luaScript": "@generic_null_value"
   },
   {
     "collection": "Privacy",
@@ -18573,6 +19922,32 @@
     "returnType": "void",
     "minSdk": 27,
     "luaScript": "@mediarecorder_setsource"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "MediaRecorder.setOutputFormat.Camera",
+    "author": "akano12",
+    "className": "android.media.MediaRecorder",
+    "methodName": "setOutputFormat",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@mediarecorder_startstop"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "MediaRecorder.prepare.Camera",
+    "author": "akano12",
+    "className": "android.media.MediaRecorder",
+    "methodName": "prepare",
+    "parameterTypes": [],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@mediarecorder_startstop"
   },
   {
     "collection": "Privacy",
@@ -18676,6 +20051,716 @@
     "returnType": "android.content.pm.FeatureInfo[]",
     "minSdk": 27,
     "luaScript": "@features"
+  },
+  // The files of the camera features do not exist and the other feature files of the system are read without the
+  // camera features, like for a device without a camera (see hardware_files), but by FileInputStream and FileReader of
+  // Android 8.1 and 9, which open natively (open0) and read them in full (see featuretext there)
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "BlockGuardOs.open/camera_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "BlockGuardOs.stat/camera_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "BlockGuardOs.lstat/camera_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "BlockGuardOs.access/camera_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.access/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "access",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.statvfs/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "statvfs",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.getxattr/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "getxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The calls which tell a file exists, like listing the attributes, changing them, the mode or the owner, which a file
+  // of a read-only partition refuses (EROFS), or linking it into another partition (EXDEV): a missing file gives
+  // ENOENT; setxattr and removexattr from Linux 6.11 and getxattr from 6.13 check their arguments first, and link
+  // throws for a null second path, which hardware_files leaves to Android
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.listxattr/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "listxattr",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.setxattr/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "setxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "byte[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.removexattr/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "removexattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.chmod/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.chown/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.lchown/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The first path is the file which must exist, the kernel looks it up first
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.link/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "link",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "BlockGuardOs.statvfs/camera_files",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "statvfs",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStatVfs",
+    "minSdk": 27,
+        "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystem.getBooleanAttributes0/camera_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getBooleanAttributes0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystem.canonicalize0/camera_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystem.canonicalize0/native/camera_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "canonicalize0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystem.checkAccess/camera_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "checkAccess",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystem.getLastModifiedTime/camera_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystem.list0/camera_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "list0",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystem.getLength/camera_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLength",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystem.getSpace/camera_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getSpace",
+    "parameterTypes": [
+      "java.io.File",
+      "int"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.open/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.stat/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.stat/mode/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "stat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "int",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.lstat/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lstat",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixFileAttributes"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.access/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "access",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.exists/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "exists",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "boolean",
+    "minSdk": 31,
+    "optional": true,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.opendir/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "opendir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystemProvider.newDirectoryStream/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "newDirectoryStream",
+    "parameterTypes": [
+      "java.nio.file.Path",
+      "java.nio.file.DirectoryStream$Filter"
+    ],
+    "returnType": "java.nio.file.DirectoryStream",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystemProvider.exists/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixFileSystemProvider",
+    "methodName": "exists",
+    "parameterTypes": [
+      "java.nio.file.Path"
+    ],
+    "returnType": "boolean",
+    "minSdk": 37,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.realpath/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "realpath",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.readlink/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // Files.setPosixFilePermissions, setOwner and createLink, which give NoSuchFileException for a missing file, like
+  // the calls of Os
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.chmod/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.chown/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.lchown/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.link/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "link",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.readlink/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixFileSystem.createFileExclusively/camera_files",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "createFileExclusively",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "FileInputStream.open0/camera_files",
+    "author": "akano12",
+    "className": "java.io.FileInputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "FileOutputStream.open0/camera_files",
+    "author": "akano12",
+    "className": "java.io.FileOutputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.mkdir/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.mkfifo/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkfifo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "Os.symlink/camera_files",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.mkdir/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Use.Camera",
+    "name": "UnixNativeDispatcher.symlink/camera_files",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "byte[]",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
   },
   // Use tracking
   // https://developer.android.com/reference/android/os/Build.html

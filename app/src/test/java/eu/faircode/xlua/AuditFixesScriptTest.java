@@ -173,22 +173,80 @@ public class AuditFixesScriptTest {
         assertFalse(result.arg(6).toboolean());
     }
 
-    // Only the speaker and the earpiece stay: a device without an output does not exist, a headset names its owner
+    // Only the built-in devices without a microphone stay, like Android lists them on a phone without one: the speakers,
+    // the earpiece, the line of calls both ways, the FM tuner and the input of the remote submix every audio policy
+    // attaches; a device without an output does not exist, a headset names its owner, and the remote submix of an app
+    // which captures the sound of others tells that it does
     @Test
     public void builtInOutputsStay() throws Exception {
         Globals globals = Scripts.load("audio_devices", PARAM + "\n" + Scripts.ARRAYOF + "\n" +
                 "luajava = { bindClass = function(name) return {\n" +
                 "  newInstance = function(self, class, length) return { length = length } end } end }");
         Varargs result = Scripts.run(globals,
-                "local function device(sink, type) return { isSink = function() return sink end,\n" +
-                        "  getType = function() return type end } end\n" +
-                        "local param = paramof(arrayof(device(true, 2), device(false, 15), device(true, 8)))\n" +
-                        "local builtin = paramof(arrayof(device(true, 2)))\n" +
+                "local function device(sink, type, address) return { isSink = function() return sink end,\n" +
+                        "  getType = function() return type end, getAddress = function() return address or '0' end } end\n" +
+                        "local param = paramof(arrayof(device(true, 2), device(false, 15), device(true, 8), device(true, 18),\n" +
+                        "  device(false, 18), device(true, 24), device(false, 3), device(false, 16), device(false, 25),\n" +
+                        "  device(true, 25), device(false, 25, '12345:ap:0mix1:0')))\n" +
+                        "local builtin = paramof(arrayof(device(true, 1), device(true, 2), device(true, 18), device(true, 24),\n" +
+                        "  device(false, 18), device(false, 25)))\n" +
                         "local hook = { getMethodName = function() return 'getDevices' end }\n" +
-                        "return after(hook, param), param.result.length, after(hook, builtin)");
+                        "local restricted = after(hook, param)\n" +
+                        "local types = {}\n" +
+                        "for index = 1, param.result.length do\n" +
+                        "  local kept = param.result[index]\n" +
+                        "  types[index] = (kept:isSink() and 'out' or 'in') .. kept:getType()\n" +
+                        "end\n" +
+                        "local static = paramof(arrayof(device(true, 1), device(true, 8), device(false, 15)))\n" +
+                        "local list = { getMethodName = function() return 'infoListFromPortList' end }\n" +
+                        "return restricted, table.concat(types, ' '), after(hook, builtin), after(list, static), static.result.length");
         assertTrue(result.arg(1).toboolean());
-        assertEquals(1, result.arg(2).toint());
+        assertEquals("out2 out18 in18 out24 in16 in25", result.arg(2).tojstring());
         assertFalse(result.arg(3).toboolean());
+        // The static maker of the lists, which has no AudioManager
+        assertTrue(result.arg(4).toboolean());
+        assertEquals(1, result.arg(5).toint());
+    }
+
+    // The supported device types have only the inputs the devices keep, like the devices and the microphone feature;
+    // the outputs stay
+    @Test
+    public void supportedDeviceTypesHaveNoInput() throws Exception {
+        Globals globals = Scripts.load("audio_devices", PARAM);
+        Varargs result = Scripts.run(globals,
+                "local function typesof(...)\n" +
+                        "  local set = luajava.newInstance('java.util.HashSet')\n" +
+                        "  for _, type in ipairs({ ... }) do set:add(luajava.newInstance('java.lang.Integer', type)) end\n" +
+                        "  return set end\n" +
+                        "local hook = { getMethodName = function() return 'getSupportedDeviceTypes' end }\n" +
+                        "local inputs = paramof(typesof(15, 3), { 1 })\n" +
+                        "local real = inputs.result\n" +
+                        "local outputs = paramof(typesof(2, 3, 8), { 2 })\n" +
+                        "local none = paramof(typesof(), { 1 })\n" +
+                        "local mixed = paramof(typesof(15, 16, 18, 25, 3), { 1 })\n" +
+                        "local kept = paramof(typesof(16, 25), { 1 })\n" +
+                        "local function has(set, type) return set:contains(luajava.newInstance('java.lang.Integer', type)) end\n" +
+                        "return after(hook, inputs), inputs.result:size(), inputs.result ~= real, real:size(),\n" +
+                        "  inputs.result:add(luajava.newInstance('java.lang.Integer', 2)), after(hook, outputs), outputs.set,\n" +
+                        "  after(hook, none), after(hook, paramof(nil, { 1 })),\n" +
+                        "  after(hook, mixed), mixed.result:size(),\n" +
+                        "  has(mixed.result, 16) and has(mixed.result, 18) and has(mixed.result, 25),\n" +
+                        "  after(hook, kept), kept.set");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(0, result.arg(2).toint());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(2, result.arg(4).toint()); // The set of Android is left alone
+        assertTrue(result.arg(5).toboolean()); // A new set the app can change, like the HashSet of Android
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(7).isnil());
+        assertFalse(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
+        // The input types of the inputs getDevices keeps stay: the FM tuner, the line of calls and the remote submix
+        assertTrue(result.arg(10).toboolean());
+        assertEquals(3, result.arg(11).toint());
+        assertTrue(result.arg(12).toboolean());
+        assertFalse(result.arg(13).toboolean());
+        assertTrue(result.arg(14).isnil());
     }
 
     // A started record gives silence at the pace of its sample rate: zeros in whole frames, a blocking read waits for
@@ -261,8 +319,85 @@ public class AuditFixesScriptTest {
         assertFalse(result.arg(17).toboolean());
     }
 
+    // A Visualizer gives the silence of Android without audio: a waveform of 0x80 and an FFT of zeros up to the capture
+    // size, a peak and RMS of -96 dB, and the listener a silent array of its own instead of Android's, into which Android
+    // copies the next capture: like Android's one per Visualizer and kind of capture, refilled each time and replaced
+    // when the size changes; errors, exceptions and the event that the server died stay
+    @Test
+    public void visualizerGivesSilence() throws Exception {
+        Globals globals = Scripts.load("visualizer", PARAM);
+        Varargs result = Scripts.run(globals,
+                "local array, byte = luajava.bindClass('java.lang.reflect.Array'), luajava.bindClass('java.lang.Byte').TYPE\n" +
+                        "local function bytes(count)\n" +
+                        "  local data = array:newInstance(byte, count)\n" +
+                        "  for i = 1, count do data[i] = 7 end\n" +
+                        "  return data end\n" +
+                        "local visualizer = { getCaptureSize = function(self) return 8 end }\n" +
+                        "local values = {}\n" +
+                        "local function call(method, count, result, ...)\n" +
+                        "  local param = paramof(result, { ... })\n" +
+                        "  param.getThis = function() return visualizer end\n" +
+                        "  param.putValue = function(self, name, value, scope)\n" +
+                        "    values[scope] = values[scope] or {} values[scope][name] = value end\n" +
+                        "  param.getValue = function(self, name, scope) return values[scope] and values[scope][name] end\n" +
+                        "  local hook = { getMethodName = function() return method end,\n" +
+                        "    getParameterTypes = function() return { length = count } end }\n" +
+                        "  return before(hook, param), after(hook, param), param end\n" +
+                        "local wave, fft, failed = bytes(10), bytes(10), bytes(10)\n" +
+                        "local _, waved = call('getWaveForm', 1, 0, wave)\n" +
+                        "call('getFft', 1, 0, fft)\n" +
+                        "local _, refused = call('getWaveForm', 1, -3, failed)\n" +
+                        "local measurement = { mPeak = -1000, mRms = -2000 }\n" +
+                        "call('getMeasurementPeakRms', 1, 0, measurement)\n" +
+                        "local data = bytes(5)\n" +
+                        "local posted, unchanged, pcm = call('postEventFromNative', 4, nil, 'ref', 0, 44100, data)\n" +
+                        "local _, _, spectrum = call('postEventFromNative', 4, nil, 'ref', 1, 44100, data)\n" +
+                        "local _, _, old = call('postEventFromNative', 5, nil, 'ref', 0, 44100, 0, data)\n" +
+                        "local died = call('postEventFromNative', 4, nil, 'ref', 2, 0, nil)\n" +
+                        "local mine = pcm.arguments[4]\n" +
+                        "mine[2] = 9\n" +
+                        "local _, _, again = call('postEventFromNative', 4, nil, 'ref', 0, 44100, bytes(5))\n" +
+                        "local _, _, other = call('postEventFromNative', 4, nil, 'other', 0, 44100, bytes(5))\n" +
+                        "local _, _, larger = call('postEventFromNative', 4, nil, 'ref', 0, 44100, bytes(6))\n" +
+                        "return waved, wave[1], wave[8], wave[9], fft[1], fft[8], fft[10], refused, failed[1],\n" +
+                        "  measurement.mPeak, measurement.mRms, posted, unchanged, pcm.arguments[4] ~= data, pcm.arguments[4].length,\n" +
+                        "  pcm.arguments[4][1], pcm.arguments[4][5], data[1], spectrum.arguments[4][3], old.arguments[5][2], died,\n" +
+                        "  again.arguments[4] == mine, mine[2], spectrum.arguments[4] ~= mine, other.arguments[4] ~= mine,\n" +
+                        "  larger.arguments[4] ~= mine, larger.arguments[4].length, larger.arguments[4][6]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(-128, result.arg(2).toint());
+        assertEquals(-128, result.arg(3).toint());
+        assertEquals(7, result.arg(4).toint()); // Past the capture size
+        assertEquals(0, result.arg(5).toint());
+        assertEquals(0, result.arg(6).toint());
+        assertEquals(7, result.arg(7).toint());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals(7, result.arg(9).toint());
+        assertEquals(-9600, result.arg(10).toint());
+        assertEquals(-9600, result.arg(11).toint());
+        assertTrue(result.arg(12).toboolean());
+        assertFalse(result.arg(13).toboolean());
+        assertTrue(result.arg(14).toboolean());
+        assertEquals(5, result.arg(15).toint());
+        assertEquals(-128, result.arg(16).toint());
+        assertEquals(-128, result.arg(17).toint());
+        assertEquals(7, result.arg(18).toint()); // The array of Android is left alone
+        assertEquals(0, result.arg(19).toint());
+        assertEquals(-128, result.arg(20).toint()); // The Object argument of Android 8.1 to 10
+        assertFalse(result.arg(21).toboolean());
+        // The same array for the next capture of the same Visualizer, kind and size, refilled after the app wrote into it
+        assertTrue(result.arg(22).toboolean());
+        assertEquals(-128, result.arg(23).toint());
+        // Another kind of capture, another Visualizer and another size have arrays of their own
+        assertTrue(result.arg(24).toboolean());
+        assertTrue(result.arg(25).toboolean());
+        assertTrue(result.arg(26).toboolean());
+        assertEquals(6, result.arg(27).toint());
+        assertEquals(-128, result.arg(28).toint());
+    }
+
     // The devices for calls keep the speaker and the earpiece; a hidden device for calls or sound becomes the
-    // earpiece or the speaker, like Android chooses without it
+    // earpiece or the speaker, like Android chooses without it, while the speaker of sonification stays
     @Test
     public void builtInDevicesForCallsStay() throws Exception {
         Globals globals = Scripts.load("audio_devices", PARAM + "\n" + Scripts.ARRAYOF + "\n" +
@@ -272,7 +407,9 @@ public class AuditFixesScriptTest {
                 "    get = function(self, index) return self.items[index + 1] end,\n" +
                 "    add = function(self, item) self.items[#self.items + 1] = item end,\n" +
                 "    isEmpty = function(self) return #self.items == 0 end } end\n" +
-                "luajava = { newInstance = function(name) return listof() end }");
+                "luajava = { newInstance = function(name) return listof() end,\n" +
+                "  bindClass = function(name) assert(name == 'java.util.Collections')\n" +
+                "    return { unmodifiableList = function(self, list) list.unmodifiable = true return list end } end }");
         Varargs result = Scripts.run(globals,
                 "local function device(sink, type) return { isSink = function() return sink end,\n" +
                         "  getType = function() return type end } end\n" +
@@ -290,8 +427,11 @@ public class AuditFixesScriptTest {
                         "local same = call('getCommunicationDevice', speaker)\n" +
                         "local _, media = call('getAudioDevicesForAttributes', listof(headset), 1)\n" +
                         "local _, voice = call('getAudioDevicesForAttributes', listof(headset), 2)\n" +
+                        "local safe = device(true, 24)\n" +
+                        "local alarm, sonification = call('getAudioDevicesForAttributes', listof(safe), 4)\n" +
                         "return available:size(), available:get(1) == speaker, current == earpiece, same,\n" +
-                        "  media:size(), media:get(0) == speaker, voice:get(0) == earpiece");
+                        "  media:size(), media:get(0) == speaker, voice:get(0) == earpiece, alarm, sonification:get(0) == safe,\n" +
+                        "  available.unmodifiable, media.unmodifiable, voice.unmodifiable");
         assertEquals(2, result.arg(1).toint());
         assertTrue(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
@@ -299,6 +439,103 @@ public class AuditFixesScriptTest {
         assertEquals(1, result.arg(5).toint());
         assertTrue(result.arg(6).toboolean());
         assertTrue(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean()); // The speaker of sonification stays, like Android routes an alarm
+        assertTrue(result.arg(9).toboolean());
+        // Like Android, the devices for calls are an ArrayList, the devices for attributes unmodifiable
+        assertTrue(result.arg(10).isnil());
+        assertTrue(result.arg(11).toboolean());
+        assertTrue(result.arg(12).toboolean());
+    }
+
+    // The device lists leave out a hidden device already, so the device for calls or sound comes as none; the real one,
+    // asked without the hooks, tells a hidden device, which becomes the earpiece or the speaker, from no device at all
+    @Test
+    public void hiddenDeviceForCallsWhichTheListLeftOut() throws Exception {
+        Globals globals = Scripts.load("audio_devices", PARAM + "\n" + Scripts.ARRAYOF + "\n" +
+                "function listof(...)\n" +
+                "  local items = { ... }\n" +
+                "  return { items = items, size = function(self) return #self.items end,\n" +
+                "    get = function(self, index) return self.items[index + 1] end,\n" +
+                "    add = function(self, item) self.items[#self.items + 1] = item end,\n" +
+                "    isEmpty = function(self) return #self.items == 0 end } end\n" +
+                "luajava = { newInstance = function(name) return listof() end,\n" +
+                "  bindClass = function(name) assert(name == 'java.util.Collections')\n" +
+                "    return { unmodifiableList = function(self, list) list.unmodifiable = true return list end } end }");
+        Varargs result = Scripts.run(globals,
+                "local function device(sink, type) return { isSink = function() return sink end,\n" +
+                        "  getType = function() return type end } end\n" +
+                        "local earpiece, speaker, headset = device(true, 1), device(true, 2), device(true, 7)\n" +
+                        "local function hookof(method) return { getMethodName = function() return method end } end\n" +
+                        "local function call(method, result, real, usage)\n" +
+                        "  local param = paramof(result)\n" +
+                        "  local inside = false\n" +
+                        "  param.getThis = function() return {\n" +
+                        "    getDevices = function(self, flags) return arrayof(earpiece, speaker) end,\n" +
+                        "    getCommunicationDevice = function(self) assert(inside) return real end,\n" +
+                        "    getAudioDevicesForAttributes = function(self, attributes)\n" +
+                        "      assert(inside and attributes:getUsage() == usage) return real end } end\n" +
+                        "  param.unhooked = function(self, fn) inside = true; local value = fn(); inside = false; return value end\n" +
+                        "  param.getArgument = function() return { getUsage = function() return usage end } end\n" +
+                        "  return after(hookof(method), param), param.result end\n" +
+                        "local _, current = call('getCommunicationDevice', nil, headset)\n" +
+                        "local none, nothing = call('getCommunicationDevice', nil, nil)\n" +
+                        "local _, media = call('getAudioDevicesForAttributes', listof(), listof(headset), 1)\n" +
+                        "local _, voice = call('getAudioDevicesForAttributes', listof(), listof(headset), 2)\n" +
+                        "local empty, still = call('getAudioDevicesForAttributes', listof(), listof(), 1)\n" +
+                        "return current == earpiece, none, nothing, media:size(), media:get(0) == speaker,\n" +
+                        "  voice:get(0) == earpiece, empty, still:size(), media.unmodifiable, voice.unmodifiable");
+        assertTrue(result.arg(1).toboolean());
+        // No device for calls and no device for the sound stay so
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).isnil());
+        assertEquals(1, result.arg(4).toint());
+        assertTrue(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals(0, result.arg(8).toint());
+        assertTrue(result.arg(9).toboolean());
+        assertTrue(result.arg(10).toboolean());
+    }
+
+    // The listener of the device for calls gets the device getCommunicationDevice gives for a hidden one, the earpiece,
+    // else the speaker, a kept or no device as it is, and no call for the device it got last, like Android
+    @Test
+    public void communicationDeviceListenerGetsTheDeviceForCalls() throws Exception {
+        Globals globals = Scripts.load("audio_devices", PARAM + "\n" + Scripts.ARRAYOF);
+        Varargs result = Scripts.run(globals,
+                "local function device(id, type) return { isSink = function() return true end,\n" +
+                        "  getId = function() return id end, getType = function() return type end } end\n" +
+                        "local phone = arrayof(device(1, 1), device(2, 2), device(7, 7))\n" +
+                        "local tablet = arrayof(device(2, 2), device(7, 7))\n" +
+                        "local hook = hookof('dispatchCommunicationDeviceChanged')\n" +
+                        "local function stubof(devices)\n" +
+                        "  local values, inside = {}, false\n" +
+                        "  local manager = { getDevices = function(self, flags) assert(inside and flags == 2) return devices end }\n" +
+                        "  return function(id)\n" +
+                        "    local param = paramof(nil, { id })\n" +
+                        "    param.getApplicationContext = function() return { getSystemService = function(self, name)\n" +
+                        "      assert(name == 'audio') return manager end } end\n" +
+                        "    param.unhooked = function(self, fn) inside = true; local value = fn(); inside = false; return value end\n" +
+                        "    param.getThis = function() return values end\n" +
+                        "    param.putValue = function(self, name, value, scope) assert(scope == values) values[name] = value end\n" +
+                        "    param.getValue = function(self, name, scope) assert(scope == values) return values[name] end\n" +
+                        "    return before(hook, param), param:getArgument(0), param.set == true end end\n" +
+                        "local dispatch = stubof(phone)\n" +
+                        "local answers = {}\n" +
+                        "for _, id in ipairs({ 1, 7, 2, 7, 1, 0, 9 }) do\n" +
+                        "  local restricted, id, skipped = dispatch(id)\n" +
+                        "  answers[#answers + 1] = tostring(restricted) .. ' ' .. id .. (skipped and ' skipped' or '') end\n" +
+                        "local restricted, id = stubof(tablet)(7)\n" +
+                        "return table.concat(answers, ', '), restricted, id,\n" +
+                        "  before(hookof('getDevices'), paramof(arrayof())), after(hook, paramof(nil, { 7 }))");
+        // The earpiece of the hidden device comes after the earpiece, so no call; after the speaker it is the earpiece
+        assertEquals("false 1, true 7 skipped, false 2, true 1, true 1 skipped, false 0, false 9", result.arg(1).tojstring());
+        // Without an earpiece the speaker
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(2, result.arg(3).toint());
+        // The other hooks of the script have nothing to do before, the dispatch nothing after
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
     }
 
     // An id of a UUID is replaced by a fake of the seed and the real id, set in Java (XParam.fakeLong) with the width of

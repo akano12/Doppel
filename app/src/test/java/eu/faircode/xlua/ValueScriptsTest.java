@@ -1205,10 +1205,24 @@ public class ValueScriptsTest {
 
     // A camera the app cannot see is one the device does not have: the error of Android for the asked id, with the
     // message of Android, which the same method, or getCameraCharacteristics, gives once per process for an id no
-    // device has
+    // device has, and the error of the camera service as the cause when the message is of the service
     private static Globals camera(String characteristics) throws Exception {
         Globals globals = load("camera2_open");
-        Scripts.run(globals, "luajava = { newInstance = function(class, message) return class .. ': ' .. message end }\n" +
+        // An exception reads as its class, the values it was made with and its cause
+        Scripts.run(globals, "luajava = { newInstance = function(class, ...)\n" +
+                "  local args = { ... }\n" +
+                "  for index = 1, select('#', ...) do args[index] = tostring(args[index]) end\n" +
+                "  return setmetatable({ initCause = function(self, cause) self.cause = cause end },\n" +
+                "    { __tostring = function(self) return class .. '(' .. table.concat(args, ', ') .. ')' ..\n" +
+                "      (self.cause and (' caused by ' .. tostring(self.cause)) or '') end })\n" +
+                "end,\n" +
+                // The looper of the thread of the call, which openCamera takes for a null handler
+                "  bindClass = function(class) assert(class == 'android.os.Looper')\n" +
+                "    return { myLooper = function(self) return looper end } end }\n" +
+                "looper = 'looper'\n" +
+                // The hooks of the script, openCamera with two of them
+                "function hookof(name) return { getMethodName = function(self) return (string.gsub(name, '/.*', '')) end,\n" +
+                "  getName = function(self) return 'CameraManager2.' .. name end } end\n" +
                 "probes, values = 0, {}\n" +
                 "manager = { getCameraCharacteristics = function(self, id)\n" +
                 "  probes = probes + 1\n" +
@@ -1217,9 +1231,14 @@ public class ValueScriptsTest {
                 "  setTorchMode = function(self, id, on)\n" +
                 "    torch = on\n" +
                 "    error('vm error: java.lang.IllegalArgumentException: Camera ID \"' .. id .. '\" is a not valid camera ID', 0)\n" +
+                "  end,\n" +
+                "  getTorchStrengthLevel = function(self, id)\n" +
+                "    error('@camera2_open:43 vm error: android.hardware.camera2.CameraAccessException: CAMERA_ERROR (3): ' ..\n" +
+                "      'getTorchStrengthLevel:924: Unable to retrieve torch strength level for device ' .. id ..\n" +
+                "      ': No such file or directory (-2)', 0)\n" +
                 "  end }\n" +
-                "function cameraof(id)\n" +
-                "  return { args = { [0] = id },\n" +
+                "function cameraof(id, ...)\n" +
+                "  return { args = { [0] = id, ... },\n" +
                 "    getArgument = function(self, index) return self.args[index] end,\n" +
                 "    setResult = function(self, value) self.result = value end,\n" +
                 "    getApplicationContext = function(self) return values end,\n" +
@@ -1231,33 +1250,109 @@ public class ValueScriptsTest {
         return globals;
     }
 
+    // The exception of an unknown camera with the error of the camera service as its cause, which has the same text
+    private static String unknown(String text) {
+        return "java.lang.IllegalArgumentException(" + text + ") caused by android.os.ServiceSpecificException(3, " + text + ")";
+    }
+
     @Test
     public void cameraIsUnknown() throws Exception {
         Globals globals = camera("  error('vm error: java.lang.IllegalArgumentException: getCameraCharacteristics:851: " +
                 "Unable to retrieve camera characteristics for unknown device ' .. id .. ': No such file or directory (-2)', 0)");
         Varargs result = Scripts.run(globals,
-                "local first, second = cameraof('0'), cameraof('2')\n" +
-                        "return before(hookof('openCamera'), first), first.result, before(hookof('getCameraCharacteristics'), second),\n" +
-                        "  second.result, probes");
+                "local first, second = cameraof('0', 'callback', 'handler'), cameraof('2')\n" +
+                        "return before(hookof('openCamera'), first), tostring(first.result),\n" +
+                        "  before(hookof('getCameraCharacteristics'), second), tostring(second.result), probes");
         assertTrue(result.arg(1).toboolean());
-        assertEquals("java.lang.IllegalArgumentException: getCameraCharacteristics:851: Unable to retrieve camera " +
-                "characteristics for unknown device 0: No such file or directory (-2)", result.arg(2).tojstring());
+        assertEquals(unknown("getCameraCharacteristics:851: Unable to retrieve camera characteristics for unknown device 0: " +
+                "No such file or directory (-2)"), result.arg(2).tojstring());
         assertTrue(result.arg(3).toboolean());
-        assertEquals("java.lang.IllegalArgumentException: getCameraCharacteristics:851: Unable to retrieve camera " +
-                "characteristics for unknown device 2: No such file or directory (-2)", result.arg(4).tojstring());
+        assertEquals(unknown("getCameraCharacteristics:851: Unable to retrieve camera characteristics for unknown device 2: " +
+                "No such file or directory (-2)"), result.arg(4).tojstring());
         // The message is kept for the process, so the probe runs once
         assertEquals(1, result.arg(5).toint());
+    }
+
+    // The hidden open and characteristics call getCameraCharacteristics first, so they answer like it: the checks of
+    // openCamera for a null handler on a thread without a looper are not theirs
+    @Test
+    public void hiddenCameraOpenIsUnknown() throws Exception {
+        Globals globals = camera("  error('vm error: java.lang.IllegalArgumentException: Camera ' .. id .. ' is unknown', 0)");
+        Varargs result = Scripts.run(globals,
+                "looper = nil\n" +
+                        "local open, portrait = cameraof('3', 'callback', nil, 0), cameraof('4', false)\n" +
+                        "return before(hookof('openCameraDeviceUserAsync/handler'), open), tostring(open.result),\n" +
+                        "  before(hookof('getCameraCharacteristics/portrait'), portrait), tostring(portrait.result)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(unknown("Camera 3 is unknown"), result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(unknown("Camera 4 is unknown"), result.arg(4).tojstring());
     }
 
     // Without an error from the probe, the message is the one of Android's text for an unknown id
     @Test
     public void cameraIsUnknownWithoutProbeError() throws Exception {
         Varargs result = Scripts.run(camera("  return nil"),
-                "local param = cameraof('7')\n" +
-                        "return before(hookof('openCamera'), param), param.result");
+                "local param = cameraof('7', 'executor', 'callback')\n" +
+                        "return before(hookof('openCamera/executor'), param), tostring(param.result)");
         assertTrue(result.arg(1).toboolean());
-        assertEquals("java.lang.IllegalArgumentException: Camera id 7 does not match any currently connected camera device",
-                result.arg(2).tojstring());
+        assertEquals(unknown("Camera id 7 does not match any currently connected camera device"), result.arg(2).tojstring());
+    }
+
+    // A device without the camera service throws in CameraManager, with a message which names no id and no cause
+    @Test
+    public void cameraServiceIsMissing() throws Exception {
+        Varargs result = Scripts.run(camera("  error('vm error: java.lang.IllegalArgumentException: No cameras available on device', 0)"),
+                "local param = cameraof('0')\n" +
+                        "return before(hookof('getCameraCharacteristics'), param), tostring(param.result)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("java.lang.IllegalArgumentException(No cameras available on device)", result.arg(2).tojstring());
+    }
+
+    // When the cause cannot be made, the call still gets the exception, which keeps the real camera closed
+    @Test
+    public void cameraCauseCannotBeMade() throws Exception {
+        Globals globals = camera("  error('vm error: java.lang.IllegalArgumentException: Unknown camera ID ' .. id, 0)");
+        Varargs result = Scripts.run(globals, "local made = luajava.newInstance\n" +
+                "luajava.newInstance = function(class, ...)\n" +
+                "  if class == 'android.os.ServiceSpecificException' then error('refused') end\n" +
+                "  return made(class, ...)\n" +
+                "end\n" +
+                "local param = cameraof('0')\n" +
+                "return before(hookof('getCameraCharacteristics'), param), tostring(param.result)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("java.lang.IllegalArgumentException(Unknown camera ID 0)", result.arg(2).tojstring());
+    }
+
+    // Android checks the id, the callback and the executor before it looks for the camera, so a null one gets the
+    // error of the method itself, like a null handler on a thread without a looper; with a looper Android opens the
+    // camera, so the hook answers
+    @Test
+    public void cameraArgumentsAreChecked() throws Exception {
+        Globals globals = camera("  error('vm error: java.lang.IllegalArgumentException: Unknown camera ID ' .. id, 0)");
+        Varargs result = Scripts.run(globals,
+                "looper = nil\n" +
+                        "local calls = { { 'openCamera', cameraof(nil, 'callback', 'handler') },\n" +
+                        "  { 'openCamera', cameraof('0', nil, 'handler') }, { 'openCamera', cameraof('0', 'callback') },\n" +
+                        "  { 'openCamera/executor', cameraof(nil, 'executor', 'callback') },\n" +
+                        "  { 'openCamera/executor', cameraof('0', nil, 'callback') },\n" +
+                        "  { 'openCamera/executor', cameraof('0', 'executor') },\n" +
+                        "  { 'getCameraCharacteristics', cameraof(nil) }, { 'getTorchStrengthLevel', cameraof(nil) },\n" +
+                        "  { 'setTorchMode', cameraof(nil, true) } }\n" +
+                        "for _, call in ipairs(calls) do\n" +
+                        "  if before(hookof(call[1]), call[2]) or call[2].result ~= nil then return call[1] end\n" +
+                        "end\n" +
+                        "local given = cameraof('0', 'callback', 'handler')\n" +
+                        "local answered = before(hookof('openCamera'), given)\n" +
+                        "looper = 'looper'\n" +
+                        "local param = cameraof('0', 'callback')\n" +
+                        "return answered, tostring(given.result), before(hookof('openCamera'), param), tostring(param.result), probes");
+        // A call the hook answered is named instead
+        assertEquals("true", result.arg(1).tojstring());
+        assertEquals(unknown("Unknown camera ID 0"), result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(unknown("Unknown camera ID 0"), result.arg(4).tojstring());
+        assertEquals(1, result.arg(5).toint());
     }
 
     // The torch of a camera the app cannot see gets the error of the torch for an unknown id, which the probe asks
@@ -1266,12 +1361,53 @@ public class ValueScriptsTest {
     public void torchIsUnknown() throws Exception {
         Globals globals = camera("  error('not this probe')");
         Varargs result = Scripts.run(globals,
-                "local param = cameraof('0')\n" +
-                        "return before(hookof('setTorchMode'), param), param.result, torch, probes");
+                "local param = cameraof('0', true)\n" +
+                        "return before(hookof('setTorchMode'), param), tostring(param.result), torch, probes");
         assertTrue(result.arg(1).toboolean());
-        assertEquals("java.lang.IllegalArgumentException: Camera ID \"0\" is a not valid camera ID", result.arg(2).tojstring());
+        assertEquals(unknown("Camera ID \"0\" is a not valid camera ID"), result.arg(2).tojstring());
         assertFalse(result.arg(3).toboolean());
         assertEquals(0, result.arg(4).toint());
+    }
+
+    // The torch strength of an unknown camera is a CameraAccessException with the reason CAMERA_ERROR, which starts
+    // its message, of ERROR_INVALID_OPERATION of the camera service
+    @Test
+    public void torchStrengthIsUnknown() throws Exception {
+        Varargs result = Scripts.run(camera("  error('not this probe')"),
+                "local param = cameraof('0')\n" +
+                        "return before(hookof('getTorchStrengthLevel'), param), tostring(param.result), probes");
+        assertTrue(result.arg(1).toboolean());
+        String text = "getTorchStrengthLevel:924: Unable to retrieve torch strength level for device 0: No such file or directory (-2)";
+        assertEquals("android.hardware.camera2.CameraAccessException(3, " + text + ") caused by android.os.ServiceSpecificException(10, " +
+                text + ")", result.arg(2).tojstring());
+        assertEquals(0, result.arg(3).toint());
+    }
+
+    // An error of the probe which does not name its id, like of a camera service which is not up yet, is the answer of
+    // that call only, so the next call asks again and gets the error for an unknown camera
+    @Test
+    public void torchStrengthIsAskedAgainWhenTheServiceWasDown() throws Exception {
+        Varargs result = Scripts.run(camera("  error('not this probe')"),
+                "local real, asked = manager.getTorchStrengthLevel, 0\n" +
+                        "manager.getTorchStrengthLevel = function(self, id)\n" +
+                        "  asked = asked + 1\n" +
+                        "  if asked == 1 then\n" +
+                        "    error('vm error: android.hardware.camera2.CameraAccessException: CAMERA_DISCONNECTED (2): ' ..\n" +
+                        "      'Camera service is currently unavailable', 0)\n" +
+                        "  end\n" +
+                        "  return real(self, id)\n" +
+                        "end\n" +
+                        "local first, second = cameraof('0'), cameraof('0')\n" +
+                        "return before(hookof('getTorchStrengthLevel'), first), tostring(first.result),\n" +
+                        "  before(hookof('getTorchStrengthLevel'), second), tostring(second.result), asked");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("android.hardware.camera2.CameraAccessException(2, Camera service is currently unavailable)",
+                result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        String text = "getTorchStrengthLevel:924: Unable to retrieve torch strength level for device 0: No such file or directory (-2)";
+        assertEquals("android.hardware.camera2.CameraAccessException(3, " + text + ") caused by android.os.ServiceSpecificException(10, " +
+                text + ")", result.arg(4).tojstring());
+        assertEquals(2, result.arg(5).toint());
     }
 
     // The message of a Java exception in LuaJ has the form the probe reads, like the one of getCameraCharacteristics
@@ -1282,6 +1418,61 @@ public class ValueScriptsTest {
                         "return ok, string.match(tostring(err), 'java%.lang%.IllegalArgumentException: (.*)$')");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).isnil());
+    }
+
+    // The cause the script sets on an exception made with a message, like the error of the camera service, stays
+    @Test
+    public void javaExceptionKeepsTheCause() throws Exception {
+        Varargs result = Scripts.run(Scripts.load("camera2_open", null),
+                "local made = luajava.newInstance('java.lang.IllegalArgumentException', 'message')\n" +
+                        "local ok, cause = pcall(luajava.newInstance, 'java.lang.IllegalStateException', 'cause')\n" +
+                        "made:initCause(cause)\n" +
+                        "return ok, made:getMessage(), made:getCause():getMessage()");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("message", result.arg(2).tojstring());
+        assertEquals("cause", result.arg(3).tojstring());
+    }
+
+    // The setup of a camera the app cannot see gets the error of Android for an id missing from its camera list, for
+    // every id; a null id goes to Android, which refuses it first
+    @Test
+    public void cameraSetupIsUnknown() throws Exception {
+        Globals globals = load("camera_setup");
+        Scripts.run(globals, "luajava = { newInstance = function(class, message) return class .. ': ' .. message end }");
+        check(globals, "return before_(hookof('isCameraDeviceSetupSupported'), paramof(nil, { [0] = '0' }))", true, true,
+                "java.lang.IllegalArgumentException: Camera ID '0' not available on device.");
+        check(globals, "return before_(hookof('getCameraDeviceSetup'), paramof(nil, { [0] = '99' }))", true, true,
+                "java.lang.IllegalArgumentException: Camera ID '99' not available on device.");
+        check(globals, "return before_(hookof('isCameraDeviceSetupSupported'), paramof(nil, {}))", false, false, null);
+    }
+
+    // Concurrent sessions of cameras the app cannot see are not supported, like on a device without concurrent cameras;
+    // a null or empty map goes to Android, which refuses it first
+    @Test
+    public void concurrentSessionsAreNotSupported() throws Exception {
+        Globals globals = load("camera_setup");
+        Scripts.run(globals, "function mapof(size) return { size = function(self) return size end } end");
+        String hook = "hookof('isConcurrentSessionConfigurationSupported')";
+        Varargs result = Scripts.run(globals, "return before_(" + hook + ", paramof(nil, { [0] = mapof(2) }))");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(3).isboolean());
+        check(globals, "return before_(" + hook + ", paramof(nil, { [0] = mapof(0) }))", false, false, null);
+        check(globals, "return before_(" + hook + ", paramof(nil, {}))", false, false, null);
+    }
+
+    // A camera id has no camcorder profiles: get throws Android's error for a missing profile, while the errors of
+    // Android's checks of the quality and no profile stay
+    @Test
+    public void camcorderProfilesAreMissing() throws Exception {
+        Globals globals = load("camcorder_profile");
+        Scripts.run(globals, "luajava = { newInstance = function(class, message) return class .. ': ' .. message end }");
+        check(globals, "return after_(hookof('get'), paramof('profile'))", true, true,
+                "java.lang.RuntimeException: Error retrieving camcorder profile params");
+        check(globals, "return after_(hookof('get'), paramof(nil, {}, nil, 'java.lang.IllegalArgumentException'))", false, false,
+                null);
+        check(globals, "return after_(hookof('get'), paramof(nil))", false, false, null);
     }
 
     // The version of the camera hardware is not set, like on devices without it: get gives null for its key, also
@@ -1401,7 +1592,8 @@ public class ValueScriptsTest {
     }
 
     // An empty collection like Android's: unmodifiable of the same kind when Android's is, like the bonded Bluetooth
-    // devices (a set) and the devices of Wi-Fi Direct (a collection), else a new one which can be changed
+    // devices (a set) and the devices of Wi-Fi Direct (a collection), else a new one which can be changed, an ArraySet
+    // for an ArraySet
     @Test
     public void emptyCollectionsLikeAndroids() throws Exception {
         Globals globals = load("generic_empty");
@@ -1420,11 +1612,14 @@ public class ValueScriptsTest {
                         "return empty(of('java.util.Collections$UnmodifiableSet', { ['java.util.Set'] = true, [U] = true })),\n" +
                         "  empty(of('java.util.Collections$UnmodifiableCollection', { [U] = true })),\n" +
                         "  empty(of('java.util.Collections$UnmodifiableRandomAccessList', { ['java.util.List'] = true, [U] = true })),\n" +
-                        "  empty(of('java.util.ArrayList', { ['java.util.List'] = true }))");
+                        "  empty(of('java.util.ArrayList', { ['java.util.List'] = true })),\n" +
+                        "  empty(of('android.util.ArraySet', { ['java.util.Set'] = true, ['android.util.ArraySet'] = true }))");
         assertEquals("set of java.util.HashSet", result.arg(1).tojstring());
         assertEquals("collection of java.util.ArrayList", result.arg(2).tojstring());
         assertEquals("list of java.util.ArrayList", result.arg(3).tojstring());
         assertEquals("java.util.ArrayList", result.arg(4).tojstring());
+        // The concurrent camera ids, an ArraySet of Android, which prints {} when empty
+        assertEquals("android.util.ArraySet", result.arg(5).tojstring());
     }
 
     // Opt-outs by the last argument: false, also for null of a Boolean, and true; like setAnalyticsCollectionEnabled(enabled)
@@ -1826,6 +2021,49 @@ public class ValueScriptsTest {
             assertEquals(c[0], 1, result.arg(3).toint());
             assertEquals(c[0], Boolean.parseBoolean(c[2]), result.arg(4).toboolean());
         }
+    }
+
+    // The app's stop(false) of AppsFlyer, which resumes it, stops it: the method of the instance is hooked once, also
+    // stopTracking before version 6, and a null context is the app's; the app's own stop(true) stays as it is
+    @Test
+    public void appsFlyerStaysStopped() throws Exception {
+        Globals globals = load("analytics_getinstance");
+        Scripts.run(globals, "function hooking(fail) hooked = {}\n" +
+                "  hook = function(object, method, fn) if fail then error('not hooked') end\n" +
+                "    hooked[#hooked + 1] = method\n" +
+                "    local real = object[method]\n" +
+                "    object[method] = function(self, stop, context)\n" +
+                "      local param = paramof(nil, { [0] = stop, [1] = context })\n" +
+                "      fn('before', param) changed = param.set\n" +
+                "      return real(self, param.args[0], param.args[1]) end end\n" +
+                "end\n" +
+                "function sdkof(name) stops = {} return { [name] = function(self, stop, context)\n" +
+                "  stops[#stops + 1] = tostring(stop) .. ' ' .. tostring(context) end } end\n" +
+                "function started(sdk)\n" +
+                "  local h = hookof('getInstance', 'com.appsflyer.AppsFlyerLib')\n" +
+                "  return after(h, paramof(sdk)), after(h, paramof(sdk))\n" +
+                "end");
+        for (String name : new String[]{"stop", "stopTracking"}) {
+            Varargs result = Scripts.run(globals, "hooking() local sdk = sdkof('" + name + "')\n" +
+                    "local first, again = started(sdk)\n" +
+                    "sdk:" + name + "(false, 'activity') local resumed = changed\n" +
+                    "sdk:" + name + "(false, nil) sdk:" + name + "(true, 'activity')\n" +
+                    "return first, again, table.concat(hooked, ','), table.concat(stops, ','), resumed, changed");
+            assertTrue(name, result.arg(1).toboolean());
+            assertFalse(name, result.arg(2).toboolean());
+            assertEquals(name, name, result.arg(3).tojstring());
+            assertEquals(name, "true context,true activity,true context,true activity", result.arg(4).tojstring());
+            assertTrue(name, result.arg(5).toboolean());
+            assertFalse(name, result.arg(6).toboolean());
+        }
+        // After the method only before changes the call
+        assertFalse(Scripts.run(globals, "local param = paramof(nil, { [0] = false, [1] = 'activity' })\n" +
+                "stays('after', param) return param.set").arg1().toboolean());
+        // A method which cannot be hooked leaves the SDK stopped by getInstance
+        Varargs result = Scripts.run(globals, "hooking(true) local sdk = sdkof('stop')\n" +
+                "local first = started(sdk) return first, table.concat(stops, ',')");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("true context", result.arg(2).tojstring());
     }
 
     // Firebase Analytics gets all consent types denied, also when the app gives consent; Amazon no consent

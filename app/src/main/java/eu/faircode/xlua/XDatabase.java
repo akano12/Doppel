@@ -205,6 +205,9 @@ class XDatabase {
             {"Runtime.exec/commands", "ProcessBuilder.start/commands"},
             // The clipboard is read by the clipboard manager; parcels of clip data are also of drag and drop
             {"ClipData.createFromParcel", "ClipboardManager.getPrimaryClip"},
+            // The callbacks of audio devices are registered and get the devices the app may see, of infoListFromPortList,
+            // like Android calls them at the registration
+            {"AudioManager.registerAudioDeviceCallback", "AudioManager.infoListFromPortList"},
     };
 
     // Built-in hook names removed by this and former versions, without a definition which took over; their assignments

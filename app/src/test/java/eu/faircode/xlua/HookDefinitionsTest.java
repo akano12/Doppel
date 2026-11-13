@@ -73,7 +73,8 @@ public class HookDefinitionsTest {
             "android.app.LoadedApk$ServiceDispatcher", "android.content.pm.PackageInstaller$SessionCallbackDelegate",
             "android.app.PendingIntent$FinishedDispatcher", "android.content.IntentSender$FinishedDispatcher",
             "android.app.ActivityThread", "android.app.LoadedApk$ReceiverDispatcher", "android.hardware.SystemSensorManager",
-            "android.hardware.input.InputDeviceSensorManager$InputSensorManager"));
+            "android.hardware.input.InputDeviceSensorManager$InputSensorManager",
+            "android.app.SharedPreferencesImpl"));
 
     // The defaults XHook.fromJSONObject uses for missing attributes, see docs/DEFINE.md
     private static final Map<String, Object> DEFAULTS = new HashMap<>();
@@ -1767,6 +1768,8 @@ public class HookDefinitionsTest {
                 "android.content.Intent) @speech_recognizer 34- optional");
         check("SpeechRecognizerImpl.setRecognitionListener", "android.speech.SpeechRecognizerImpl setRecognitionListener(" +
                 "android.speech.RecognitionListener) @speech_recognizer 34- optional");
+        check("SpeechRecognizerImpl.cancel", "android.speech.SpeechRecognizerImpl cancel() @speech_recognizer 34- optional");
+        check("SpeechRecognizerImpl.destroy", "android.speech.SpeechRecognizerImpl destroy() @speech_recognizer 34- optional");
     }
 
     // The clipboard of the app is read by the clipboard manager; data of a parcel is also of drag and drop and of
@@ -2072,12 +2075,20 @@ public class HookDefinitionsTest {
         check("CameraCharacteristics.get", c + " get(" + c + "$Key) @camera_characteristics 28-");
         check("CameraCharacteristics.getKeys", c + " getKeys() @camera_characteristics 28-");
         check("CameraManager2.getConcurrentCameraIds", "android.hardware.camera2.CameraManager getConcurrentCameraIds() @generic_empty 30-");
-        check("CameraManager2.registerAvailabilityCallback/executor", "android.hardware.camera2.CameraManager " +
-                "registerAvailabilityCallback(java.util.concurrent.Executor,android.hardware.camera2.CameraManager$AvailabilityCallback) " +
-                "@generic_block 28-");
+        String cm = "android.hardware.camera2.CameraManager";
+        check("CameraManager2.registerAvailabilityCallback/handler", cm + " registerAvailabilityCallback(" + cm +
+                "$AvailabilityCallback,android.os.Handler) @camera2_register 27-");
+        check("CameraManager2.registerAvailabilityCallback/executor", cm + " registerAvailabilityCallback(" +
+                "java.util.concurrent.Executor," + cm + "$AvailabilityCallback) @camera2_register 28-");
+        check("CameraManager2.registerTorchCallback/handler", cm + " registerTorchCallback(" + cm +
+                "$TorchCallback,android.os.Handler) @camera2_register 27-");
+        check("CameraManager2.registerTorchCallback/executor", cm + " registerTorchCallback(" +
+                "java.util.concurrent.Executor," + cm + "$TorchCallback) @camera2_register 28-");
         check("SpeechRecognizer.setRecognitionListener", "android.speech.SpeechRecognizer setRecognitionListener(" +
                 "android.speech.RecognitionListener) @speech_recognizer 27-");
         check("SpeechRecognizer.startListening", "android.speech.SpeechRecognizer startListening(" + i + ") @speech_recognizer 27-");
+        check("SpeechRecognizer.cancel", "android.speech.SpeechRecognizer cancel() @speech_recognizer 27-");
+        check("SpeechRecognizer.destroy", "android.speech.SpeechRecognizer destroy() @speech_recognizer 27-");
         check("Display.getHdrCapabilities", "android.view.Display getHdrCapabilities() @display_panel 27-");
         check("Display.getDeviceProductInfo", "android.view.Display getDeviceProductInfo() @display_panel 31-");
         check("Display.toString", "android.view.Display toString() @display_panel 27-");
@@ -2314,23 +2325,51 @@ public class HookDefinitionsTest {
             assertEquals(name, "Read.Identifiers", hook(name + "/hardware_ids").getString("group"));
     }
 
-    // The files of the sensor features are hidden by the same calls as the permission files of system apps, since
-    // both are files of a folder which stays; opening the other feature files reads them without the sensor features
+    // The files of the sensor, camera and microphone features are hidden by the same calls as the permission files of
+    // system apps, since both are files of a folder which stays; opening the other feature files reads them without
+    // the features of the group
     @Test
     public void sensorFilesByEveryPathCall() throws Exception {
+        String[][] variants = {{"/sensor_files", "Get.Sensors"}, {"/camera_files", "Use.Camera"},
+                {"/microphone_files", "Record.Audio"}};
         int files = 0;
         for (JSONObject hook : hooks)
             if (hook.getString("name").endsWith("/privapp_files")) {
                 files++;
-                String name = hook.getString("name").replace("/privapp_files", "/sensor_files");
-                JSONObject sensors = hook(name);
-                assertNotNull(name, sensors);
-                assertEquals(name, "Get.Sensors", sensors.getString("group"));
-                for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk",
-                        "maxSdk", "optional", "luaScript"})
-                    assertEquals(name + " " + key, String.valueOf(hook.opt(key)), String.valueOf(sensors.opt(key)));
+                for (String[] variant : variants) {
+                    String name = hook.getString("name").replace("/privapp_files", variant[0]);
+                    JSONObject features = hook(name);
+                    assertNotNull(name, features);
+                    assertEquals(name, variant[1], features.getString("group"));
+                    for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk",
+                            "maxSdk", "optional", "luaScript"})
+                        assertEquals(name + " " + key, String.valueOf(hook.opt(key)), String.valueOf(features.opt(key)));
+                }
             }
         assertEquals(40, files);
+        // The camera and microphone files also by FileInputStream and FileOutputStream of Android 8.1 and 9, which open
+        // natively, and by making a folder, a pipe or a link by their name, which gave EEXIST where stat gave ENOENT
+        String[][] extras = {{"FileInputStream.open0", "/vpn_interfaces"}, {"FileOutputStream.open0", "/vpn_interfaces"},
+                {"Os.mkdir", "/hardware_model"}, {"Os.mkfifo", "/hardware_model"}, {"Os.symlink", "/hardware_model"},
+                {"UnixNativeDispatcher.mkdir", "/hardware_model"}, {"UnixNativeDispatcher.symlink", "/hardware_model"}};
+        for (String[] variant : new String[][]{variants[1], variants[2]})
+            for (String[] extra : extras) {
+                JSONObject source = hook(extra[0] + extra[1]), copy = hook(extra[0] + variant[0]);
+                assertNotNull(extra[0] + variant[0], copy);
+                assertEquals(extra[0] + variant[0], variant[1], copy.getString("group"));
+                for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk",
+                        "maxSdk", "optional", "luaScript"})
+                    assertEquals(extra[0] + variant[0] + " " + key, String.valueOf(source.opt(key)),
+                            String.valueOf(copy.opt(key)));
+            }
+        check("FileInputStream.open0/camera_files", "java.io.FileInputStream open0(java.lang.String) @hardware_files 27-28");
+        for (String[] variant : variants) {
+            int count = 0;
+            for (JSONObject hook : hooks)
+                if (hook.getString("name").endsWith(variant[0]))
+                    count++;
+            assertEquals(variant[0], variant[0].equals("/sensor_files") ? 40 : 47, count);
+        }
     }
 
     // Commands by Os.execv and execve are refused in every group which refuses ProcessBuilder.start
@@ -2550,8 +2589,73 @@ public class HookDefinitionsTest {
         check("AudioRecord.read/short", "android.media.AudioRecord read(short[],int,int) @audio_record 27-");
         check("AudioRecord.read/float/mode", "android.media.AudioRecord read(float[],int,int,int) @audio_record 27-");
         check("AudioRecord.read/buffer/mode", "android.media.AudioRecord read(java.nio.ByteBuffer,int,int) @audio_record 27-");
+        // A recorder starts only once prepared, and stops by its output format, which each group of a source sees,
+        // see mediarecorder_startstop
+        for (String group : new String[]{"Audio", "Video", "Camera"}) {
+            check("MediaRecorder.prepare." + group, "android.media.MediaRecorder prepare() @mediarecorder_startstop 27-");
+            check("MediaRecorder.setOutputFormat." + group,
+                    "android.media.MediaRecorder setOutputFormat(int) @mediarecorder_startstop 27-");
+        }
         check("AudioManager.getCommunicationDevice", "android.media.AudioManager getCommunicationDevice() @audio_devices 31-");
+        // The hidden dispatcher of the device for calls to the listeners of the app
+        check("AudioManager.dispatchCommunicationDeviceChanged", "android.media.AudioManager$CommunicationDeviceDispatcherStub " +
+                "dispatchCommunicationDeviceChanged(int) @audio_devices 31- optional");
+        check("AudioManager.getSupportedDeviceTypes", "android.media.AudioManager getSupportedDeviceTypes(int) @audio_devices 35-");
         check("AudioManager.isWiredHeadsetOn", "android.media.AudioManager isWiredHeadsetOn() @generic_block 27-");
+        // The hidden maker of every device list, of the routed devices and of the device callbacks, which run again
+        check("AudioManager.infoListFromPortList", "android.media.AudioManager infoListFromPortList(java.util.ArrayList,int) " +
+                "@audio_devices 27- optional");
+        assertNull(hook("AudioManager.registerAudioDeviceCallback"));
+        // The setup of a camera, which Android checks against the real camera list
+        check("CameraManager2.isCameraDeviceSetupSupported", "android.hardware.camera2.CameraManager isCameraDeviceSetupSupported(" +
+                s + ") @camera_setup 35-");
+        check("CameraManager2.getCameraDeviceSetup", "android.hardware.camera2.CameraManager getCameraDeviceSetup(" + s +
+                ") @camera_setup 35-");
+        String manager = "android.hardware.camera2.CameraManager ";
+        check("CameraManager2.isConcurrentSessionConfigurationSupported", manager +
+                "isConcurrentSessionConfigurationSupported(java.util.Map) @camera_setup 30-");
+        // The hidden opening, characteristics and list of camera2 and the hidden setup of the constructors of Camera,
+        // under every hidden and test variant apps reach by reflection, for each signature of Android 8.1 to 17
+        String open = manager + "openCameraDeviceUserAsync(" + s + ",android.hardware.camera2.CameraDevice$StateCallback,";
+        String executor = open + "java.util.concurrent.Executor,int";
+        String compat = "android.content.res.CameraCompatibilityInfo";
+        check("CameraManager2.openCameraDeviceUserAsync/handler", open + "android.os.Handler,int) @camera2_open 27-27 optional");
+        check("CameraManager2.openCameraDeviceUserAsync/uid", executor + ") @camera2_open 28-30 optional");
+        check("CameraManager2.openCameraDeviceUserAsync/oom", executor + ",int) @camera2_open 31-35 optional");
+        check("CameraManager2.openCameraDeviceUserAsync/flag", executor + ",int,boolean) @camera2_open 34-36 optional");
+        check("CameraManager2.openCameraDeviceUserAsync/rotation", executor + ",int,int) @camera2_open 35-35 optional");
+        check("CameraManager2.openCameraDeviceUserAsync/compat", executor + "," + compat + ",boolean) @camera2_open 36- optional");
+        for (String name : new String[]{"handler", "uid", "oom", "flag", "rotation", "compat"})
+            assertTrue(name, hook("CameraManager2.openCameraDeviceUserAsync/" + name).getBoolean("notify"));
+        check("CameraManager2.getCameraCharacteristics/portrait", manager + "getCameraCharacteristics(" + s +
+                ",boolean) @camera2_open 34- optional");
+        check("CameraManager2.getCameraIdListNoLazy", manager + "getCameraIdListNoLazy() @generic_empty 30- optional");
+        String camera = "android.hardware.Camera ";
+        String context = "android.content.Context";
+        check("Camera.cameraInitVersion", camera + "cameraInitVersion(int,int) @camera_open 27-30 optional");
+        check("Camera.cameraInit", camera + "cameraInit(int) @camera_open 31-34 optional");
+        check("Camera.cameraInit/context", camera + "cameraInit(int," + context + ",int) @camera_open 35-36 optional");
+        check("Camera.cameraInit/compat", camera + "cameraInit(int," + context + "," + compat + ") @camera_open 36- optional");
+        check("Camera.getCameraInfo/context", camera + "getCameraInfo(int," + context +
+                ",int,android.hardware.Camera$CameraInfo) @camera_open 35-36 optional");
+        check("Camera.getCameraInfo/compat", camera + "getCameraInfo(int," + context + "," + compat +
+                ",android.hardware.Camera$CameraInfo) @camera_open 36- optional");
+        check("Camera.getNumberOfCameras/context", camera + "getNumberOfCameras(" + context + ") @generic_zero_value 35- optional");
+        // The camcorder profiles of a camera by its id
+        String profile = "android.media.CamcorderProfile ";
+        check("CamcorderProfile.get/camera", profile + "get(int,int) @camcorder_profile 27-");
+        check("CamcorderProfile.hasProfile/camera", profile + "hasProfile(int,int) @generic_block 27-");
+        check("CamcorderProfile.getAll", profile + "getAll(" + s + ",int) @generic_null_value 31-");
+        // The captures of a Visualizer
+        String visualizer = "android.media.audiofx.Visualizer ";
+        check("Visualizer.getWaveForm", visualizer + "getWaveForm(byte[]) @visualizer 27-");
+        check("Visualizer.getFft", visualizer + "getFft(byte[]) @visualizer 27-");
+        check("Visualizer.getMeasurementPeakRms", visualizer +
+                "getMeasurementPeakRms(android.media.audiofx.Visualizer$MeasurementPeakRms) @visualizer 27-");
+        check("Visualizer.postEventFromNative", visualizer +
+                "postEventFromNative(java.lang.Object,int,int,int,java.lang.Object) @visualizer 27-29 optional");
+        check("Visualizer.postEventFromNative/data", visualizer +
+                "postEventFromNative(java.lang.Object,int,int,byte[]) @visualizer 30- optional");
         check("AppEventsLogger.activateApp/companion/app", "com.facebook.appevents.AppEventsLogger$Companion activateApp(" +
                 "android.app.Application) @generic_block 27- optional");
         check("Amplitude.getOptOut/android", "com.amplitude.android.Configuration getOptOut() @generic_true_value 27- optional");
@@ -2580,6 +2684,11 @@ public class HookDefinitionsTest {
                 ",int) @analytics_metadata 27-");
         check("PackageManager.getPackageInfo/flags/analytics", "android.content.pm.PackageManager getPackageInfo(" + s +
                 ",android.content.pm.PackageManager$PackageInfoFlags) @analytics_metadata 33-");
+        // The settings of Crashlytics and Facebook stored for the app, which they read before the meta-data
+        check("SharedPreferences.getBoolean/analytics", "android.app.SharedPreferencesImpl getBoolean(" + s +
+                ",boolean) @analytics_metadata 27-");
+        check("SharedPreferences.getString/analytics", "android.app.SharedPreferencesImpl getString(" + s + "," + s +
+                ") @analytics_metadata 27-");
         check("NetworkCapabilities.getTransportTypes", "android.net.NetworkCapabilities getTransportTypes() @vpn 27- optional");
         for (String name : new String[]{"UserManager.isUserRunning", "UserManager.isUserRunningOrStopping",
                 "UserManager.getUserRestrictions", "UserManager.isUserUnlocked", "UserManager.isQuietModeEnabled",

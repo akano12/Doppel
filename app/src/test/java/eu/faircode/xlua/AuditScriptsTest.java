@@ -104,28 +104,66 @@ public class AuditScriptsTest {
         assertEquals("*kernel/osrelease*", result.arg(6).tojstring());
     }
 
-    // Listening does not start; the listener the app set gets ERROR_INSUFFICIENT_PERMISSIONS on the main thread
+    // The stand-ins of speech recognition: the context of the app, which holds RECORD_AUDIO when granted is true, the
+    // SDK of Android, Handlers which keep what they post with its delay, to run or remove it, and values kept for each
+    // scope, read by valueof
+    private static final String SPEECH = String.join("\n",
+            "granted, SDK = false, 34",
+            "context = { checkSelfPermission = function(self, name)",
+            "  assert(name == 'android.permission.RECORD_AUDIO', name) return granted and 0 or -1 end }",
+            "local newInstance, bindClass = luajava.newInstance, luajava.bindClass",
+            "luajava.newInstance = function(name, ...)",
+            "  if name ~= 'android.os.Handler' then return newInstance(name, ...) end",
+            "  return { postDelayed = function(self, runnable, delay)",
+            "      table.insert(posted, { run = runnable.run, delay = delay, handler = self }) end,",
+            "    removeCallbacksAndMessages = function(self, token)",
+            "      assert(token == nil)",
+            "      for index = #posted, 1, -1 do if posted[index].handler == self then table.remove(posted, index) end end",
+            "    end }",
+            "end",
+            "luajava.bindClass = function(name)",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = SDK } end",
+            "  return bindClass(name)",
+            "end",
+            "stored = {}",
+            "function valueof(scope, name) return stored[scope] and stored[scope][name] end",
+            "function speechof(this, args)",
+            "  local param = paramof(nil, args or { [0] = 'intent' }, this)",
+            "  param.getApplicationContext = function() return context end",
+            "  param.putValue = function(self, name, value, scope)",
+            "    stored[scope] = stored[scope] or {} stored[scope][name] = value end",
+            "  param.getValue = function(self, name, scope) return valueof(scope, name) end",
+            "  return param",
+            "end",
+            "function listenerof(calls)",
+            "  return { onError = function(self, code) table.insert(calls, code) end,",
+            "    onReadyForSpeech = function(self, params) table.insert(calls, 'ready:' .. params.class) end }",
+            "end");
+
+    // Without RECORD_AUDIO listening does not start; the listener the app set gets ERROR_INSUFFICIENT_PERMISSIONS on the
+    // main thread, like from the recognition service of every Android version
     @Test
-    public void speechAnswersWithError() throws Exception {
+    public void speechWithoutPermissionAnswersWithError() throws Exception {
         Globals globals = load("speech_recognizer");
+        Scripts.run(globals, SPEECH);
         Varargs result = Scripts.run(globals,
                 "local recognizer = {}\n" +
-                        "local errors = {}\n" +
-                        "local listener = { onError = function(self, code) table.insert(errors, code) end }\n" +
-                        "local set = paramof(nil, { [0] = listener }, recognizer)\n" +
+                        "local calls = {}\n" +
+                        "local listener = listenerof(calls)\n" +
+                        "local set = speechof(recognizer, { [0] = listener })\n" +
                         "local kept = before(hookof('setRecognitionListener'), set)\n" +
-                        "local start = paramof(nil, { [0] = 'intent' }, recognizer)\n" +
+                        "local start = speechof(recognizer)\n" +
                         "local restricted = before(hookof('startListening'), start)\n" +
-                        "local count = #errors\n" +
+                        "local count = #calls\n" +
                         "posted[1].run()\n" +
-                        "local other = paramof(nil, { [0] = 'intent' }, {})\n" +
-                        "before(hookof('startListening'), other)\n" +
-                        // Kept weakly, not the listener itself; once collected nothing is posted
-                        "local reference = values['speech.listener'].value\n" +
+                        // Kept weakly, not the listener itself; once collected nobody is answered
+                        "local reference = valueof(recognizer, 'speech.listener')\n" +
                         "local weak = reference ~= listener and reference:get() == listener\n" +
                         "reference.referent = nil\n" +
-                        "before(hookof('startListening'), paramof(nil, { [0] = 'intent' }, recognizer))\n" +
-                        "return kept, set.set, restricted, start.set, count, errors[1], #posted, other.set, weak");
+                        "before(hookof('startListening'), speechof(recognizer))\n" +
+                        "posted[2].run()\n" +
+                        "return kept, set.set, restricted, start.set, count, calls[1], posted[1].delay, #calls, weak,\n" +
+                        "  valueof(recognizer, 'speech.session') == nil and valueof(context, 'speech.session') == nil");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
@@ -133,10 +171,99 @@ public class AuditScriptsTest {
         // Posted, not called during startListening, like Android
         assertEquals(0, result.arg(5).toint());
         assertEquals(9, result.arg(6).toint());
-        // Without a listener nothing is posted, listening still does not start
-        assertEquals(1, result.arg(7).toint());
-        assertTrue(result.arg(8).toboolean());
+        assertEquals(0, result.arg(7).toint());
+        assertEquals(1, result.arg(8).toint());
         assertTrue(result.arg(9).toboolean());
+        // No session, so nothing for cancel to end
+        assertTrue(result.arg(10).toboolean());
+    }
+
+    // With RECORD_AUDIO the microphone is silent: ready for speech, then ERROR_SPEECH_TIMEOUT after five seconds, to
+    // the listener set at that time; a second start during it is refused like by the recognition service of the
+    // version, a cancel or destroy ends it without an answer and still goes to Android, and destroy drops the listener
+    @Test
+    public void speechWithPermissionAnswersLikeSilence() throws Exception {
+        Globals globals = load("speech_recognizer");
+        Scripts.run(globals, SPEECH);
+        Varargs result = Scripts.run(globals,
+                "granted = true\n" +
+                        "local recognizer = {}\n" +
+                        "local calls, later = {}, {}\n" +
+                        "before(hookof('setRecognitionListener'), speechof(recognizer, { [0] = listenerof(calls) }))\n" +
+                        "local start = speechof(recognizer)\n" +
+                        "local restricted = before(hookof('startListening'), start)\n" +
+                        "local delays = posted[1].delay .. ',' .. posted[2].delay\n" +
+                        "posted[1].run()\n" +
+                        "before(hookof('startListening'), speechof(recognizer))\n" +
+                        "SDK = 33\n" +
+                        "before(hookof('startListening'), speechof(recognizer))\n" +
+                        "posted[3].run()\n" +
+                        "posted[4].run()\n" +
+                        "before(hookof('setRecognitionListener'), speechof(recognizer, { [0] = listenerof(later) }))\n" +
+                        "posted[2].run()\n" +
+                        "local ended = valueof(recognizer, 'speech.session') == nil and valueof(context, 'speech.session') == nil\n" +
+                        "local sequence = table.concat(calls, ',') .. '|' .. table.concat(later, ',')\n" +
+                        // Ended by cancel and by destroy before the answers
+                        "local function stopped(method)\n" +
+                        "  posted = {}\n" +
+                        "  before(hookof('startListening'), speechof(recognizer))\n" +
+                        "  local param = speechof(recognizer, {})\n" +
+                        "  local restricted = before(hookof(method), param)\n" +
+                        "  return tostring(restricted) .. ':' .. tostring(param.set) .. ':' .. #posted .. ':' ..\n" +
+                        "    tostring(valueof(recognizer, 'speech.session') == nil and valueof(context, 'speech.session') == nil) ..\n" +
+                        "    ':' .. tostring(valueof(recognizer, 'speech.listener') ~= nil)\n" +
+                        "end\n" +
+                        "local cancelled, destroyed = stopped('cancel'), stopped('destroy')\n" +
+                        // After destroy a start reaches no listener until one is set again
+                        "posted = {}\n" +
+                        "before(hookof('startListening'), speechof(recognizer))\n" +
+                        "for _, post in ipairs(posted) do post.run() end\n" +
+                        "return restricted, start.set, delays, sequence, ended, cancelled, destroyed,\n" +
+                        "  before(hookof('cancel'), speechof(recognizer, {})), #posted .. ':' .. table.concat(later, ',')");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("0,5000", result.arg(3).tojstring());
+        // ERROR_CLIENT (5) from Android 14, ERROR_RECOGNIZER_BUSY (8) before; the timeout to the listener set last
+        assertEquals("ready:android.os.Bundle,5,8|6", result.arg(4).tojstring());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("false:false:0:true:true", result.arg(6).tojstring());
+        assertEquals("false:false:0:true:false", result.arg(7).tojstring());
+        // Without a session cancel only goes to Android
+        assertFalse(result.arg(8).toboolean());
+        assertEquals("2:6", result.arg(9).tojstring());
+    }
+
+    // The app has one session at a time: a start of another recognizer during it gets ERROR_RECOGNIZER_BUSY (8) on every
+    // version, its cancel leaves the session running, and once the session ended the other recognizer can start one
+    @Test
+    public void speechOfAnotherRecognizerIsBusy() throws Exception {
+        Globals globals = load("speech_recognizer");
+        Scripts.run(globals, SPEECH);
+        Varargs result = Scripts.run(globals,
+                "granted = true\n" +
+                        "local first, second = {}, {}\n" +
+                        "local calls, others = {}, {}\n" +
+                        "before(hookof('setRecognitionListener'), speechof(first, { [0] = listenerof(calls) }))\n" +
+                        "before(hookof('setRecognitionListener'), speechof(second, { [0] = listenerof(others) }))\n" +
+                        "before(hookof('startListening'), speechof(first))\n" +
+                        "local restricted = {}\n" +
+                        "for _, sdk in ipairs({ 27, 33, 34 }) do\n" +
+                        "  SDK = sdk\n" +
+                        "  table.insert(restricted, tostring(before(hookof('startListening'), speechof(second))))\n" +
+                        "end\n" +
+                        "before(hookof('cancel'), speechof(second, {}))\n" +
+                        "local running = #posted .. ':' .. tostring(valueof(first, 'speech.session') ~= nil)\n" +
+                        "for _, post in ipairs(posted) do post.run() end\n" +
+                        "posted = {}\n" +
+                        "before(hookof('startListening'), speechof(second))\n" +
+                        "before(hookof('startListening'), speechof(first))\n" +
+                        "for _, post in ipairs(posted) do post.run() end\n" +
+                        "return table.concat(restricted, ','), running, table.concat(calls, ','), table.concat(others, ',')");
+        assertEquals("true,true,true", result.arg(1).tojstring());
+        assertEquals("5:true", result.arg(2).tojstring());
+        // The first is answered 8 too, not ERROR_CLIENT (5), while the second has the session
+        assertEquals("ready:android.os.Bundle,6,8", result.arg(3).tojstring());
+        assertEquals("8,8,8,ready:android.os.Bundle,6", result.arg(4).tojstring());
     }
 
     // The addresses, DNS servers, routes, search domains and MTU of a VPN are the ones of the network under it, found by

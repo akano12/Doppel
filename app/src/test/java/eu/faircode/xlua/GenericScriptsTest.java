@@ -95,6 +95,50 @@ public class GenericScriptsTest {
         }
     }
 
+    // The camera callbacks are skipped like on a device without cameras, but the call runs where Android throws
+    // before it registers: a null executor, a null Handler on a thread without a Looper, a null callback from Android 15
+    @Test
+    public void cameraCallbacksKeepTheChecksOfAndroid() throws Exception {
+        Globals globals = Scripts.load("camera2_register", String.join("\n",
+                "sdk = 34 looper = {}",
+                "luajava = { bindClass = function(name)",
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+                "  assert(name == 'android.os.Looper', name)",
+                "  return { myLooper = function(self) return looper end } end }",
+                "function register(types, args)",
+                "  types.length = #types",
+                "  local hook = { getParameterTypes = function(self) return types end }",
+                "  local param = { result = 'none', getArgument = function(self, index) return args[index + 1] end,",
+                "    setResult = function(self, value) self.result = value end }",
+                "  return tostring(before(hook, param)) .. ' ' .. tostring(param.result)",
+                "end",
+                "EX, H = 'java.util.concurrent.Executor', 'android.os.Handler'",
+                "CB = 'android.hardware.camera2.CameraManager$TorchCallback'"));
+        Varargs result = Scripts.run(globals, "local out = {}\n" +
+                "local function add(text) out[#out + 1] = text end\n" +
+                "add(register({ CB, H }, { {}, nil }))\n" +
+                "add(register({ CB, H }, { {}, {} }))\n" +
+                "add(register({ EX, CB }, { {}, {} }))\n" +
+                "add(register({ EX, CB }, { nil, {} }))\n" +
+                "add(register({ CB, H }, { nil, {} }))\n" +
+                "looper = nil\n" +
+                "add(register({ CB, H }, { {}, nil }))\n" +
+                "add(register({ CB, H }, { {}, {} }))\n" +
+                "sdk = 35\n" +
+                "add(register({ CB, H }, { nil, {} }))\n" +
+                "add(register({ EX, CB }, { {}, nil }))\n" +
+                "return table.concat(out, ', ')");
+        assertEquals(String.join(", ",
+                "true nil", // A null Handler on a thread with a Looper: skipped
+                "true nil", "true nil", // A Handler or an executor: skipped
+                "false none", // A null executor: IllegalArgumentException
+                "true nil", // A null callback up to Android 14, which Android only keeps
+                "false none", // A null Handler without a Looper: IllegalArgumentException
+                "true nil", // A Handler on a thread without a Looper: skipped
+                "false none", "false none"), // A null callback from Android 15: NullPointerException
+                result.arg(1).tojstring());
+    }
+
     @Test
     public void listsSetsAndArraysAreEmptied() throws Exception {
         Globals globals = load("generic_empty");

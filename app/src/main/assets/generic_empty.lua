@@ -30,8 +30,14 @@ function after(hook, param)
         if result:isEmpty() then
             return false
         end
-        fake = emptylike(param, result,
-                luajava.newInstance(param:isInstance(result, 'java.util.Set') and 'java.util.HashSet' or 'java.util.ArrayList'))
+        -- Android's ArraySet, like the concurrent camera ids, stays one, since its text is {} where a HashSet's is []
+        local kind = 'java.util.ArrayList'
+        if param:isInstance(result, 'android.util.ArraySet') then
+            kind = 'android.util.ArraySet'
+        elseif param:isInstance(result, 'java.util.Set') then
+            kind = 'java.util.HashSet'
+        end
+        fake = emptylike(param, result, luajava.newInstance(kind))
     else
         if result.length == 0 then
             return false

@@ -26,7 +26,8 @@
 -- read, listed or found, with java.io, android.system.Os and java.nio.file. The paths are resolved first,
 -- so the links of /sys do not lead to the files either, like /sys/bus/mmc/devices/mmc0:0001/cid.
 -- Each variant hides the files of its group, and folders listed with java.nio.file leave the names of hidden files out.
--- The feature files of the system which stay are read without the features the group hides (see FEATURES).
+-- The feature files of the system which stay are read without the features the group hides (see FEATURES), but by
+-- FileInputStream and FileReader of Android 8.1 and 9 (see featuretext).
 -- A SecureDirectoryStream of java.nio, which Files.newDirectoryStream gives, opens, removes and moves the files of its
 -- folder and reads their attributes by the descriptor of the folder and their name (openat, unlinkat, renameat and
 -- fstatat, see atpath), which only the groups which hook those calls cover. Not covered is native code. FileInputStream,
@@ -132,6 +133,8 @@ local FILES = {
     ['Read.Features'] = {},
     ['Get.Applications'] = {},
     ['Get.Sensors'] = {},
+    ['Use.Camera'] = {},
+    ['Record.Audio'] = {},
 }
 
 -- The folders etc of the system, so a copy of a Linux system an app unpacks in its own folder keeps its files:
@@ -157,6 +160,15 @@ for group, names in pairs({
     -- like /odm/etc/permissions/sku_X (in /vendor too from Android 11, in /product from Android 15), no deeper one.
     ['Get.Sensors'] = { 'permissions/android%.hardware%.sensor%.[^/]*$',
                         'permissions/sku_[^/]+/android%.hardware%.sensor%.[^/]*$' },
+    -- The same for the camera features, like android.hardware.camera.front.xml, of which AOSP has every one start with
+    -- android.hardware.camera and declare only camera features, and for the microphone, which AOSP declares in the
+    -- core files of the kind of device, like handheld_core_hardware.xml, a file of its own being one of a maker.
+    -- shortcut: a SecureDirectoryStream opens and stats these files by their name (openat, fstatat), which only the
+    -- hooks of Read.Identifiers cover, add those hooks to the groups of the feature files if apps read them that way
+    ['Use.Camera'] = { 'permissions/android%.hardware%.camera[^/]*$',
+                       'permissions/sku_[^/]+/android%.hardware%.camera[^/]*$' },
+    ['Record.Audio'] = { 'permissions/android%.hardware%.microphone%.xml$',
+                         'permissions/sku_[^/]+/android%.hardware%.microphone%.xml$' },
     -- The same for the biometric features, the files of AOSP of the fingerprint sensor (from Android 8.1) and of face
     -- unlock (from Android 10), and of iris unlock named the same way
     ['Read.Biometrics'] = { 'permissions/android%.hardware%.fingerprint%.xml$',
@@ -246,6 +258,8 @@ local FILTERS = {
                              '/system/product/priv-app', '/system/system_ext/app', '/system/system_ext/priv-app',
                              '/system/vendor/app', '/system/vendor/priv-app' },
     ['Get.Sensors'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
+    ['Use.Camera'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
+    ['Record.Audio'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
     ['Read.Biometrics'] = { '*sys/*', '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
 }
 
@@ -263,6 +277,7 @@ end
 -- The features of the system each group hides from the feature files which stay, like handheld_core_hardware.xml, the
 -- same as the hooks of the group in features and biometrics hide; a name ending in * covers the names starting with it
 local FEATURES = { ['Get.Sensors'] = { 'android.hardware.sensor.*' },
+                   ['Use.Camera'] = { 'android.hardware.camera*' }, ['Record.Audio'] = { 'android.hardware.microphone' },
                    ['Read.Biometrics'] = { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
                                            'android.hardware.biometrics.iris' } }
 
@@ -765,10 +780,10 @@ function matched(group, path, param)
         plain = resolve(plain, param)
     end
     -- A file the app makes itself in the shared storage, like /sdcard/etc/permissions/android.hardware.sensor.light.xml,
-    -- is no sensor or biometric feature file of the system, as for featurefile.
+    -- is no feature file of the system, of sensors, cameras, microphones or biometrics, as for featurefile.
     -- shortcut: Read.Features, Get.Applications and Use.Tracking still hide the names of their etc patterns there, like
     -- /sdcard/etc/permissions, leave them too if apps make such files
-    if (group == 'Get.Sensors' or group == 'Read.Biometrics') and string.find(plain, '^/sdcard/') then
+    if FEATURES[group] ~= nil and string.find(plain, '^/sdcard/') then
         return false
     end
     -- Resolved once, when needed: getCanonicalPath reads the file system
@@ -1325,6 +1340,9 @@ end
 -- Only when opened for reading: the text of a file opened for writing cannot be read, and replacing its descriptor
 -- would lose what the app writes. The flags are the second argument of both BlockGuardOs.open and
 -- UnixNativeDispatcher.open.
+-- shortcut: FileInputStream and FileReader of Android 8.1 and 9 open natively (open0), which returns no descriptor to
+-- replace, so they read these files in full, with the features of the group, while java.nio reads them without; replace
+-- the descriptor of the stream after open0 if apps read the feature files like that there
 function featuretext(hook, param)
     local names = FEATURES[about(hook).group]
     if names == nil or bit32.band(param:getArgument(1), O_ACCMODE) ~= 0 or param:getException() ~= nil or

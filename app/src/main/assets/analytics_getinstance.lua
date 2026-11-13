@@ -22,11 +22,12 @@
 local METHODS = {
     ['com.appsflyer.AppsFlyerLib'] = function(param, sdk)
         -- stopTracking before version 6
-        if type(sdk.stop) == 'function' then
-            sdk:stop(true, param:getApplicationContext())
-        else
-            sdk:stopTracking(true, param:getApplicationContext())
-        end
+        local name = (type(sdk.stop) == 'function' and 'stop' or 'stopTracking')
+        sdk[name](sdk, true, param:getApplicationContext())
+        -- The app's stop(false) is how AppsFlyer resumes, so it stops again (stays). Hooked by the instance with the
+        -- global hook function, since the method is abstract (5.4.0, 6.15.0) and implemented by AppsFlyerLibCore,
+        -- from version 6 by a class with a name R8 changes in each version
+        pcall(hook, sdk, name, stays)
     end,
     ['com.google.firebase.analytics.FirebaseAnalytics'] = function(param, sdk)
         sdk:setAnalyticsCollectionEnabled(false)
@@ -62,6 +63,17 @@ end
 
 function declined(param)
     return param:findClass('com.amazon.device.ads.AdRegistration$ConsentStatus').EXPLICIT_NO
+end
+
+-- stop(false, context) or stopTracking(false, context) of the app stops AppsFlyer like stop(true, context). A null
+-- context, with which stop(false) works, is the app's: stopTracking(true) of version 5 reads its preferences by it
+function stays(when, param)
+    if when == 'before' and param:getArgument(0) == false then
+        param:setArgument(0, true)
+        if param:getArgument(1) == nil then
+            param:setArgument(1, param:getApplicationContext())
+        end
+    end
 end
 
 -- Consent the app gives is replaced by none, like setAnalyticsCollectionEnabled: FirebaseAnalytics.setConsent,

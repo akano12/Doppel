@@ -1463,22 +1463,42 @@ public class NetworkScriptsTest {
     }
 
     // The parameters of the first script keep the values of both, like XParam; the hooks of the groups run
-    // in the given order, until one skips the method, like the backends
+    // in the given order, until one sets the result, like the backends; a call gives the group which set it,
+    // whether it reported, and the exception it throws
     private static final String RECORDER = String.join("\n",
             "function source(recorder, method, group, value)",
             "  before(hookof(method, nil, group), paramof(nil, { [0] = value }, recorder))",
             "end",
+            // Android's prepare or setOutputFormat, which succeeds or throws, seen by the hooks of the groups,
+            // which leave them to Android
+            "function android(recorder, method, groups, failed, value)",
+            "  for _, group in ipairs(groups) do",
+            "    local hook, param = control.hookof(method, nil, group), paramof(nil, { [0] = value }, recorder)",
+            "    param.getException = function(self) return failed end",
+            "    assert(control.before(hook, param) == false and not param.set)",
+            "    assert(control.after(hook, param) == false)",
+            "  end",
+            "end",
+            "function prepare(recorder, groups, failed) android(recorder, 'prepare', groups, failed) end",
             "function call(recorder, method, groups)",
             "  recorder.reset = function(self) self.resets = (self.resets or 0) + 1 end",
             "  for _, group in ipairs(groups) do",
             "    local param = paramof(nil, {}, recorder)",
             "    local restricted = control.before(control.hookof(method, nil, group), param)",
-            "    if param.set then return group, restricted end",
+            "    if param.set then return group, restricted, param.result end",
             "  end",
             "end",
             "ALL = { 'Use.Camera', 'Record.Video', 'Record.Audio' }");
 
-    // The media server opens the camera itself for the camera source; pause and resume would throw like stop
+    // The exception of a call of the recorder, of the class and with the message of Android's
+    private static void thrown(Class<? extends Throwable> type, String message, LuaValue value) {
+        Object ex = value.touserdata();
+        assertEquals(type, ex.getClass());
+        assertEquals(message, ((Throwable) ex).getMessage());
+    }
+
+    // The media server opens the camera at start, which fails like without a camera, also by default, whichever
+    // group's hook runs first; stop and pause then go to Android, which throws, and starting again is refused
     @Test
     public void recorderWithCameraDoesNotStart() throws Exception {
         Globals globals = load("mediarecorder_setsource");
@@ -1489,45 +1509,203 @@ public class NetworkScriptsTest {
                         "source(camera, 'setVideoSource', 'Use.Camera', 1)\n" +
                         "source(screen, 'setVideoSource', 'Use.Camera', 2)\n" +
                         "local camerao = { 'Use.Camera' }\n" +
-                        "local started, paused, stopped = call(camera, 'start', camerao), call(camera, 'pause', camerao),\n" +
-                        "  call(camera, 'stop', camerao)\n" +
-                        "return started, paused, stopped, call(camera, 'start', camerao), call(screen, 'start', camerao)");
+                        "prepare(camera, camerao) prepare(screen, camerao)\n" +
+                        "local started = { call(camera, 'start', camerao) }\n" +
+                        "local paused, stopped = call(camera, 'pause', camerao), call(camera, 'stop', camerao)\n" +
+                        "local again = { call(camera, 'start', camerao) }\n" +
+                        "return started[1], started[2], started[3], paused, stopped, again[2], again[3],\n" +
+                        "  call(screen, 'start', camerao)");
         assertEquals("Use.Camera", result.arg(1).tojstring());
-        assertEquals("Use.Camera", result.arg(2).tojstring());
-        assertEquals("Use.Camera", result.arg(3).tojstring());
+        assertTrue(result.arg(2).toboolean());
+        thrown(RuntimeException.class, "start failed.", result.arg(3));
         assertTrue(result.arg(4).isnil());
         assertTrue(result.arg(5).isnil());
+        assertFalse(result.arg(6).toboolean());
+        thrown(IllegalStateException.class, null, result.arg(7));
+        assertTrue(result.arg(8).isnil());
+
+        for (String order : new String[]{"'Record.Audio', 'Use.Camera'", "'Use.Camera', 'Record.Audio'"}) {
+            Varargs camcorder = Scripts.run(globals,
+                    "local camcorder = {}\n" +
+                            "source(camcorder, 'setVideoSource', 'Use.Camera', 0)\n" +
+                            "source(camcorder, 'setAudioSource', 'Record.Audio', 1)\n" +
+                            "prepare(camcorder, { " + order + " })\n" +
+                            "return call(camcorder, 'start', { " + order + " })");
+            thrown(RuntimeException.class, "start failed.", camcorder.arg(3));
+        }
     }
 
-    // The group of the restricted source reports and notifies, whichever hook runs first
+    // The group of the restricted source reports and notifies, whichever hook runs first; a recording without data
+    // fails to stop like on Android, which leaves the recorder in an error state
     @Test
     public void recorderIsBlockedByGroupOfSource() throws Exception {
         Globals globals = load("mediarecorder_setsource");
         globals.set("control", load("mediarecorder_startstop"));
         Scripts.run(globals, RECORDER);
         Varargs result = Scripts.run(globals,
-                "local voice, screen, video = {}, {}, {}\n" +
+                "local voice, screen, sound = {}, {}, {}\n" +
                         "source(voice, 'setAudioSource', 'Record.Audio', 1)\n" +
                         "source(screen, 'setVideoSource', 'Record.Video', 2)\n" +
                         "source(screen, 'setVideoSource', 'Use.Camera', 2)\n" +
-                        "source(video, 'setVideoSource', 'Use.Camera', 1)\n" +
-                        "source(video, 'setVideoSource', 'Record.Video', 1)\n" +
-                        "source(video, 'setAudioSource', 'Record.Audio', 1)\n" +
-                        "local voiceg, voicer = call(voice, 'start', ALL)\n" +
+                        "source(sound, 'setVideoSource', 'Use.Camera', 2)\n" +
+                        "source(sound, 'setVideoSource', 'Record.Video', 2)\n" +
+                        "source(sound, 'setAudioSource', 'Record.Audio', 1)\n" +
+                        "android(sound, 'setOutputFormat', ALL, nil, 1)\n" +
+                        "prepare(voice, ALL) prepare(screen, ALL) prepare(sound, ALL)\n" +
+                        "local voiceg, voicer, voicex = call(voice, 'start', ALL)\n" +
                         "local screeng = call(screen, 'start', ALL)\n" +
-                        "local pauseg = call(voice, 'pause', ALL)\n" +
-                        // The hook which skips stopping forgets the sources of the other groups
-                        "local stopg = call(video, 'stop', { 'Record.Audio', 'Use.Camera', 'Record.Video' })\n" +
-                        "return voiceg, voicer, screeng, pauseg, stopg, call(video, 'start', ALL)");
+                        "local pauseg, _, pausex = call(voice, 'pause', ALL)\n" +
+                        "local resumeg = call(voice, 'resume', ALL)\n" +
+                        "local soundg = call(sound, 'start', ALL)\n" +
+                        "local stop = { call(sound, 'stop', { 'Record.Audio', 'Use.Camera', 'Record.Video' }) }\n" +
+                        "local again = { call(sound, 'start', ALL) }\n" +
+                        "return voiceg, voicer, voicex, screeng, pauseg, pausex, resumeg, soundg,\n" +
+                        "  stop[1], stop[2], stop[3], again[1], again[3], call(sound, 'stop', ALL)");
         assertEquals("Record.Audio", result.arg(1).tojstring());
         assertTrue(result.arg(2).toboolean());
-        assertEquals("Record.Video", result.arg(3).tojstring());
-        assertEquals("Record.Audio", result.arg(4).tojstring());
+        assertTrue(result.arg(3).isnil());
+        assertEquals("Record.Video", result.arg(4).tojstring());
         assertEquals("Record.Audio", result.arg(5).tojstring());
         assertTrue(result.arg(6).isnil());
+        assertEquals("Record.Audio", result.arg(7).tojstring());
+        assertEquals("Record.Video", result.arg(8).tojstring());
+        assertEquals("Record.Audio", result.arg(9).tojstring());
+        assertTrue(result.arg(10).toboolean());
+        thrown(RuntimeException.class, "stop failed.", result.arg(11));
+        assertEquals("Record.Video", result.arg(12).tojstring());
+        thrown(IllegalStateException.class, null, result.arg(13));
+        assertTrue(result.arg(14).isnil());
+    }
+
+    // Android refuses start before prepare, also after a failed prepare, and while recording, without using the
+    // source; stop, pause and resume before start go to Android, which throws
+    @Test
+    public void recorderInAnotherStateThrowsLikeAndroid() throws Exception {
+        Globals globals = load("mediarecorder_setsource");
+        globals.set("control", load("mediarecorder_startstop"));
+        Scripts.run(globals, RECORDER);
+        Varargs result = Scripts.run(globals,
+                "local voice, audio = {}, { 'Record.Audio' }\n" +
+                        "source(voice, 'setAudioSource', 'Record.Audio', 1)\n" +
+                        "local early = { call(voice, 'start', audio) }\n" +
+                        "prepare(voice, audio, 'java.io.IOException')\n" +
+                        "local unprepared = { call(voice, 'start', audio) }\n" +
+                        "prepare(voice, audio)\n" +
+                        "local stopped, paused, resumed = call(voice, 'stop', audio), call(voice, 'pause', audio),\n" +
+                        "  call(voice, 'resume', audio)\n" +
+                        "local started = call(voice, 'start', audio)\n" +
+                        // Android refuses to prepare a recorder which is recording, which stays recording
+                        "prepare(voice, audio, 'java.lang.IllegalStateException')\n" +
+                        "local twice = { call(voice, 'start', audio) }\n" +
+                        // A recorder Android started itself, without a restricted source, is prepared no more
+                        "local reused = {}\n" +
+                        "prepare(reused, audio)\n" +
+                        "control.after(control.hookof('start', nil, 'Record.Audio'), paramof(nil, {}, reused))\n" +
+                        "source(reused, 'setAudioSource', 'Record.Audio', 1)\n" +
+                        "local stale = { call(reused, 'start', audio) }\n" +
+                        "return early[1], early[2], early[3], unprepared[3],\n" +
+                        "  stopped == nil and paused == nil and resumed == nil, started, twice[3], stale[3]");
+        assertEquals("Record.Audio", result.arg(1).tojstring());
+        assertFalse(result.arg(2).toboolean());
+        thrown(IllegalStateException.class, null, result.arg(3));
+        thrown(IllegalStateException.class, null, result.arg(4));
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("Record.Audio", result.arg(6).tojstring());
+        thrown(IllegalStateException.class, null, result.arg(7));
+        thrown(IllegalStateException.class, null, result.arg(8));
+    }
+
+    // The writers of RTP, MPEG-2 TS and WebM stop without data, after which the recorder can be set up again,
+    // like after a reset; a format Android refused, or one of another recorder, does not count. A recorder whose
+    // format the hooks did not see, like with them switched off, stops like before they were there
+    @Test
+    public void recorderOfWebmStops() throws Exception {
+        Globals globals = load("mediarecorder_setsource");
+        globals.set("control", load("mediarecorder_startstop"));
+        Scripts.run(globals, RECORDER);
+        Varargs result = Scripts.run(globals,
+                "local webm, refused, unseen, audio = {}, {}, {}, { 'Record.Audio' }\n" +
+                        "for _, recorder in ipairs({ webm, refused, unseen }) do\n" +
+                        "  source(recorder, 'setAudioSource', 'Record.Audio', 1)\n" +
+                        // Android refuses a second output format, so the first one stays
+                        "  if recorder == refused then android(recorder, 'setOutputFormat', audio, nil, 3) end\n" +
+                        "  if recorder ~= unseen then\n" +
+                        "    android(recorder, 'setOutputFormat', audio, recorder == refused and 'IllegalStateException' or nil, 9)\n" +
+                        "  end\n" +
+                        "  prepare(recorder, audio)\n" +
+                        "  call(recorder, 'start', audio)\n" +
+                        "end\n" +
+                        "local stop = { call(webm, 'stop', audio) }\n" +
+                        "local failed = { call(refused, 'stop', audio) }\n" +
+                        "local stopped = { call(unseen, 'stop', audio) }\n" +
+                        "return stop[1], stop[2], stop[3], webm.resets, call(webm, 'start', audio), failed[3], refused.resets,\n" +
+                        "  stopped[2], stopped[3], unseen.resets");
+        assertEquals("Record.Audio", result.arg(1).tojstring());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).isnil());
+        assertEquals(1, result.arg(4).toint());
+        assertTrue(result.arg(5).isnil());
+        thrown(RuntimeException.class, "stop failed.", result.arg(6));
+        assertTrue(result.arg(7).isnil());
+        assertTrue(result.arg(8).toboolean());
+        assertTrue(result.arg(9).isnil());
+        assertEquals(1, result.arg(10).toint());
+    }
+
+    // MPEG4Writer reports each empty track while it stops: the error listener gets track error 100 of the number of
+    // the track in the top four bits and ERROR_MALFORMED, on the recorder's handler, the video track first. The
+    // writers of AMR and WebM report nothing, and without the handler, which the hidden API rules refuse to most apps,
+    // nothing is posted either
+    @Test
+    public void recorderOfMpeg4ReportsEmptyTracks() throws Exception {
+        Globals globals = load("mediarecorder_setsource");
+        globals.set("control", load("mediarecorder_startstop"));
+        Scripts.run(globals, RECORDER);
+        Varargs result = Scripts.run(globals,
+                "local field = { getName = function(self) return 'mEventHandler' end, setAccessible = function(self, on) end,\n" +
+                        "  get = function(self, recorder) return recorder.handler end }\n" +
+                        "local fields = { length = 1, field }\n" +
+                        "local bind = control.luajava.bindClass\n" +
+                        "control.luajava.bindClass = function(name)\n" +
+                        "  if name == 'java.lang.Class' then\n" +
+                        "    return { getDeclaredFields = function(class)\n" +
+                        "      assert(class == 'android.media.MediaRecorder') return fields end }\n" +
+                        "  elseif name == 'android.media.MediaRecorder' then return name end\n" +
+                        "  return bind(name)\n" +
+                        "end\n" +
+                        "local function stop(format, video)\n" +
+                        "  local sent = {}\n" +
+                        "  local handler = { obtainMessage = function(self, what, arg1, arg2) return { what, arg1, arg2 } end,\n" +
+                        "    sendMessage = function(self, message) sent[#sent + 1] = table.concat(message, ' ') return true end }\n" +
+                        "  local recorder = { handler = handler }\n" +
+                        "  if video then source(recorder, 'setVideoSource', 'Record.Video', 2) end\n" +
+                        "  source(recorder, 'setAudioSource', 'Record.Audio', 1)\n" +
+                        "  android(recorder, 'setOutputFormat', ALL, nil, format)\n" +
+                        "  prepare(recorder, ALL)\n" +
+                        "  call(recorder, 'start', ALL)\n" +
+                        "  local _, _, thrown = call(recorder, 'stop', ALL)\n" +
+                        "  return thrown, table.concat(sent, ';')\n" +
+                        "end\n" +
+                        "local camcorder, voice, default, amr, webm = { stop(2, true) }, { stop(1) }, { stop(0) }, { stop(3) },\n" +
+                        "  { stop(9) }\n" +
+                        "fields = { length = 0 }\n" +
+                        "local hidden = { stop(2) }\n" +
+                        "return camcorder[1], camcorder[2], voice[2], default[2], amr[1], amr[2], webm[1], webm[2],\n" +
+                        "  hidden[1], hidden[2]");
+        thrown(RuntimeException.class, "stop failed.", result.arg(1));
+        assertEquals("100 268435556 -1007;100 536871012 -1007", result.arg(2).tojstring());
+        assertEquals("100 268435556 -1007", result.arg(3).tojstring());
+        assertEquals("100 268435556 -1007", result.arg(4).tojstring());
+        thrown(RuntimeException.class, "stop failed.", result.arg(5));
+        assertEquals("", result.arg(6).tojstring());
+        assertTrue(result.arg(7).isnil());
+        assertEquals("", result.arg(8).tojstring());
+        thrown(RuntimeException.class, "stop failed.", result.arg(9));
+        assertEquals("", result.arg(10).tojstring());
     }
 
     // A recorder is configured again after a reset, so an audio recording after a blocked camera recording starts
+    // once it is prepared again
     @Test
     public void recorderResetForgetsSources() throws Exception {
         Globals globals = load("mediarecorder_setsource");
@@ -1536,14 +1714,23 @@ public class NetworkScriptsTest {
         Varargs result = Scripts.run(globals,
                 "local recorder = {}\n" +
                         "source(recorder, 'setVideoSource', 'Use.Camera', 1)\n" +
+                        "prepare(recorder, { 'Use.Camera' })\n" +
                         "local blocked = call(recorder, 'start', { 'Use.Camera' })\n" +
                         "local param = paramof(nil, {}, recorder)\n" +
                         "local reset = control.before(control.hookof('reset', nil, 'Use.Camera'), param)\n" +
-                        "return blocked, reset, param.set, call(recorder, 'start', { 'Use.Camera' })");
+                        "local camera = call(recorder, 'start', { 'Use.Camera' })\n" +
+                        "source(recorder, 'setAudioSource', 'Record.Audio', 1)\n" +
+                        "local unprepared = { call(recorder, 'start', ALL) }\n" +
+                        "prepare(recorder, ALL)\n" +
+                        "local audio = { call(recorder, 'start', ALL) }\n" +
+                        "return blocked, reset, param.set, camera, unprepared[3], audio[1], audio[3]");
         assertEquals("Use.Camera", result.arg(1).tojstring());
         assertFalse(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
         assertTrue(result.arg(4).isnil());
+        thrown(IllegalStateException.class, null, result.arg(5));
+        assertEquals("Record.Audio", result.arg(6).tojstring());
+        assertTrue(result.arg(7).isnil());
     }
 
     @Test
@@ -1998,12 +2185,77 @@ public class NetworkScriptsTest {
                         "before(hookof('open', nil, nil, { length = 1 }), open)\n" +
                         "local restricted = before(hookof('open', nil, nil, { length = 0 }), default)\n" +
                         "return info.result:getMessage(), open.result:getMessage(), restricted, default.set, default.result");
-        assertEquals("Fail to get camera info", result.arg(1).tojstring());
+        assertEquals("Unknown camera ID", result.arg(1).tojstring());
         assertEquals("Fail to connect to camera service", result.arg(2).tojstring());
         // Camera.open() finds no camera facing back without cameras, like Android
         assertTrue(result.arg(3).toboolean());
         assertTrue(result.arg(4).toboolean());
         assertTrue(result.arg(5).isnil());
+    }
+
+    // The hidden setup of the constructors gives the errno of the camera service for an unknown id, from which the
+    // constructor throws Android's error: -EACCES for a normal connect, -ENODEV for the legacy connect of a HAL version,
+    // or -EPERM for it up to Android 10 without the CAMERA permission, which the service checks before the id there
+    @Test
+    public void cameraSetupGivesTheErrnoOfTheService() throws Exception {
+        Globals globals = load("camera_open");
+        Scripts.run(globals, "function contextof(granted) return { checkSelfPermission = function(self, name)\n" +
+                "  assert(name == 'android.permission.CAMERA') return granted and 0 or -1 end } end");
+        // The sdk, whether the app has CAMERA, then the errno of a normal, a legacy, an unspecified and a cameraInit setup
+        int[][] cases = {{29, 1, -13, -19, -19, -13}, {27, 0, -13, -1, -1, -13}, {29, 0, -13, -1, -1, -13},
+                {30, 0, -13, -19, -19, -13}, {30, 1, -13, -19, -19, -13}};
+        for (int[] c : cases) {
+            sdk(globals, c[0]);
+            Varargs result = Scripts.run(globals,
+                    "local context = contextof(" + (c[1] == 1) + ")\n" +
+                            "local normal, legacy, unspecified, init = paramof(nil, { [0] = 0, [1] = -2 }, nil, context),\n" +
+                            "  paramof(nil, { [0] = 0, [1] = 256 }, nil, context), paramof(nil, { [0] = 1, [1] = -1 }, nil, context),\n" +
+                            "  paramof(nil, { [0] = 0 }, nil, context)\n" +
+                            "return before(hookof('cameraInitVersion'), normal), normal.result,\n" +
+                            "  before(hookof('cameraInitVersion'), legacy), legacy.result,\n" +
+                            "  before(hookof('cameraInitVersion'), unspecified), unspecified.result,\n" +
+                            "  before(hookof('cameraInit'), init), init.result");
+            String what = c[0] + " " + c[1];
+            for (int i = 0; i < 4; i++) {
+                assertTrue(what, result.arg(2 * i + 1).toboolean());
+                assertEquals(what, c[2 + i], result.arg(2 * i + 2).toint());
+            }
+        }
+    }
+
+    // openLegacy answers like the constructor it calls: Android's own exception for a HAL version it does not support,
+    // the error of the legacy connect up to Android 11 and of the normal connect later; up to Android 10 the legacy
+    // connect of an app without the CAMERA permission is refused before the id, with no message of its own
+    @Test
+    public void openLegacyAnswersLikeItsConstructor() throws Exception {
+        Globals globals = load("camera_open");
+        // The sdk, the HAL version, whether the app has CAMERA and the message of the exception
+        String[][] cases = {
+                {"30", "255", "true", null}, {"30", "-2", "false", null}, {"30", "256", "true", "Camera initialization failed"},
+                {"27", "512", "true", "Camera initialization failed"},
+                {"27", "255", "false", null}, {"27", "256", "false", "Unknown camera error"},
+                {"29", "768", "false", "Unknown camera error"}, {"30", "256", "false", "Camera initialization failed"},
+                {"31", "256", "true", null}, {"31", "767", "false", null}, {"31", "768", "true", "Fail to connect to camera service"},
+                {"31", "768", "false", "Fail to connect to camera service"}, {"36", "768", "true", "Fail to connect to camera service"}};
+        for (String[] c : cases) {
+            sdk(globals, Integer.parseInt(c[0]));
+            Varargs result = Scripts.run(globals,
+                    "luajava.newInstance = function(name, message)\n" +
+                            "  return { name = name, getMessage = function() return message end } end\n" +
+                            "local context = { checkSelfPermission = function(self, name)\n" +
+                            "  assert(name == 'android.permission.CAMERA') return " + c[2] + " and 0 or -1 end }\n" +
+                            "local param = paramof(nil, { [0] = 0, [1] = " + c[1] + " }, nil, context)\n" +
+                            "local restricted = before(hookof('openLegacy'), param)\n" +
+                            "return restricted, param.set, param.result and param.result.name,\n" +
+                            "  param.result and param.result:getMessage()");
+            String what = c[0] + " " + c[1] + " " + c[2];
+            assertEquals(what, c[3] != null, result.arg(1).toboolean());
+            assertEquals(what, c[3] != null, result.arg(2).toboolean());
+            if (c[3] != null) {
+                assertEquals(what, "java.lang.RuntimeException", result.arg(3).tojstring());
+                assertEquals(what, c[3], result.arg(4).tojstring());
+            }
+        }
     }
 
     // Of extractResult and of the creator, which R8 can merge with the creators of other classes, whose objects stay
@@ -2035,19 +2287,38 @@ public class NetworkScriptsTest {
         assertFalse(result.arg(8).toboolean());
     }
 
-    // Bundles and application infos as Lua sees them
+    // Bundles and application infos as Lua sees them: a bundle read back from a parcel stays parcelled until it is
+    // read, putAll also reads the other bundle, and a parcel copies all fields of an info, also hidden ones
     private static final String ANALYTICS = String.join("\n",
-            "function bundleof()",
-            "  return { items = {},",
-            "    putAll = function(self, other) for k, v in pairs(other.items) do self.items[k] = v end end,",
-            "    containsKey = function(self, key) return self.items[key] ~= nil end,",
-            "    getBoolean = function(self, key) return self.items[key] == true end,",
-            "    putBoolean = function(self, key, value) self.items[key] = value end }",
+            "function bundleof(parcelled)",
+            "  return { items = {}, parcelled = parcelled,",
+            "    putAll = function(self, other)",
+            "      self.parcelled = false other.parcelled = false",
+            "      for k, v in pairs(other.items) do self.items[k] = v end end,",
+            "    containsKey = function(self, key) self.parcelled = false return self.items[key] ~= nil end,",
+            "    getBoolean = function(self, key) self.parcelled = false return self.items[key] == true end,",
+            "    putBoolean = function(self, key, value) self.parcelled = false self.items[key] = value end }",
+            "end",
+            "function copyof(object)",
+            "  if type(object) ~= 'table' then return object end",
+            "  local copy = {}",
+            "  for k, v in pairs(object) do copy[k] = copyof(v) end",
+            "  if object.items ~= nil then copy.parcelled = true end",
+            "  return copy",
             "end",
             "luajava = { newInstance = function(name, from)",
-            "  if name == 'android.os.Bundle' then return bundleof() end",
-            "  assert(name == 'android.content.pm.ApplicationInfo')",
-            "  return { copy = true, metaData = from.metaData }",
+            "  assert(name == 'android.os.Bundle', name)",
+            "  local bundle = bundleof(from and from.parcelled)",
+            "  for k, v in pairs(from and from.items or {}) do bundle.items[k] = v end",
+            "  return bundle",
+            "end,",
+            "bindClass = function(name)",
+            "  assert(name == 'android.os.Parcel', name)",
+            "  return { obtain = function() return {",
+            "    writeParcelable = function(self, object, flags) self.object = object end,",
+            "    setDataPosition = function(self, position) end,",
+            "    readParcelable = function(self, loader) return copyof(self.object) end,",
+            "    recycle = function(self) end } end }",
             "end }",
             "context = {}");
 
@@ -2063,7 +2334,7 @@ public class NetworkScriptsTest {
                         "local restricted = after(hookof('getApplicationInfo'), param)\n" +
                         "local other = paramof(info, { [0] = 'com.other', [1] = 128 }, nil, context)\n" +
                         "local flags = paramof(info, { [0] = 'com.example', [1] = 0 }, nil, context)\n" +
-                        "return restricted, param.result.copy, info.metaData.items.firebase_crashlytics_collection_enabled,\n" +
+                        "return restricted, param.result ~= info, info.metaData.items.firebase_crashlytics_collection_enabled,\n" +
                         "  param.result.metaData.items.firebase_crashlytics_collection_enabled,\n" +
                         "  param.result.metaData.items['com.google.android.geo.API_KEY'],\n" +
                         "  param.result.metaData.items.firebase_analytics_collection_deactivated,\n" +
@@ -2108,15 +2379,6 @@ public class NetworkScriptsTest {
         Scripts.run(globals, ANALYTICS);
         Varargs result = Scripts.run(globals,
                 "classes['com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar'] = true\n" +
-                        "parcel = { copies = 0, writeParcelable = function(self, object) self.object = object end,\n" +
-                        "  setDataPosition = function(self, position) end,\n" +
-                        "  readParcelable = function(self, loader)\n" +
-                        "    local info = self.object.applicationInfo\n" +
-                        "    return { applicationInfo = { metaData = info.metaData } } end,\n" +
-                        "  recycle = function(self) end }\n" +
-                        "luajava.bindClass = function(name)\n" +
-                        "  assert(name == 'android.os.Parcel', name)\n" +
-                        "  return { obtain = function() return parcel end } end\n" +
                         "local info = { applicationInfo = { metaData = bundleof() } }\n" +
                         "info.applicationInfo.metaData:putBoolean('com.google.android.geo.API_KEY', true)\n" +
                         "local param = paramof(info, { [0] = 'com.example', [1] = 128 }, nil, context)\n" +
@@ -2137,6 +2399,149 @@ public class NetworkScriptsTest {
         assertTrue(result.arg(6).toboolean());
         assertFalse(result.arg(7).toboolean());
         assertFalse(result.arg(8).toboolean());
+    }
+
+    // The fake meta-data is parcelled like a binder answer, whose text shows only its size until it is read, and the
+    // real one stays parcelled, also when nothing changes; the application info is copied through a parcel too,
+    // which keeps the application classes by process that its copy constructor loses from Android 13
+    @Test
+    public void analyticsMetaDataStaysParcelled() throws Exception {
+        Globals globals = load("analytics_metadata");
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
+                "classes['com.google.firebase.crashlytics.CrashlyticsRegistrar'] = true\n" +
+                        "local function get(method, info)\n" +
+                        "  local param = paramof(info, { [0] = 'com.example', [1] = 128 }, nil, context)\n" +
+                        "  local restricted = after(hookof(method), param)\n" +
+                        "  return param.result, restricted\n" +
+                        "end\n" +
+                        "local info = { classNamesByProcess = 'by process', metaData = bundleof(true) }\n" +
+                        "local fake, restricted = get('getApplicationInfo', info)\n" +
+                        "local first = fake.metaData.parcelled\n" +
+                        "local again, outer = get('getApplicationInfo', fake)\n" +
+                        "local pkg = { applicationInfo = { metaData = bundleof(true) } }\n" +
+                        "local packed = get('getPackageInfo', pkg)\n" +
+                        "local off = bundleof()\n" +
+                        "off:putBoolean('firebase_crashlytics_collection_enabled', false)\n" +
+                        "off.parcelled = true\n" +
+                        "local same = { metaData = off }\n" +
+                        "local kept, changed = get('getApplicationInfo', same)\n" +
+                        "return restricted, first, info.metaData.parcelled, fake.classNamesByProcess,\n" +
+                        "  outer, rawequal(again, fake), fake.metaData.parcelled,\n" +
+                        "  packed.applicationInfo.metaData.parcelled, pkg.applicationInfo.metaData.parcelled,\n" +
+                        "  changed, rawequal(kept, same), off.parcelled");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean()); // The real one is not read
+        assertEquals("by process", result.arg(4).tojstring());
+        // The fake given to the other overload of Android 13 and later is not read either
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+        assertTrue(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
+        // Already off in the manifest: the real info, still parcelled
+        assertFalse(result.arg(10).toboolean());
+        assertTrue(result.arg(11).toboolean());
+        assertTrue(result.arg(12).toboolean());
+    }
+
+    // Android 11 and later answer the same cached info again, so the fake is the same object for the same info,
+    // and a new one for a new info; a fake given to the other overload stays as it is
+    @Test
+    public void analyticsFakeIsTheSameForTheSameInfo() throws Exception {
+        Globals globals = load("analytics_metadata");
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
+                "classes['com.google.firebase.crashlytics.CrashlyticsRegistrar'] = true\n" +
+                        "local function get(info)\n" +
+                        "  local param = paramof(info, { [0] = 'com.example', [1] = 128 }, nil, context)\n" +
+                        "  local restricted = after(hookof('getApplicationInfo'), param)\n" +
+                        "  return param.result, restricted\n" +
+                        "end\n" +
+                        "local info = { metaData = bundleof() }\n" +
+                        "local first = get(info)\n" +
+                        "local second = get(info)\n" +
+                        "local fresh = get({ metaData = bundleof() })\n" +
+                        "local again, restricted = get(first)\n" +
+                        "return rawequal(first, second), first ~= info, rawequal(first, fresh),\n" +
+                        "  info.metaData.items.firebase_crashlytics_collection_enabled, rawequal(again, first), restricted");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertTrue(result.arg(4).isnil()); // The cached original is not changed
+        assertTrue(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+    }
+
+    // A setting the app stored before beats the meta-data: Crashlytics reads a boolean, Facebook JSON, which is then
+    // not stored, so it reads the fake meta-data; only these keys run the script, the package manager hooks all calls;
+    // a key that is not stored gives the caller's default, and one of another type its exception, like stock
+    @Test
+    public void storedAnalyticsSettingsAreOff() throws Exception {
+        Globals globals = load("analytics_metadata");
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
+                "classes['com.google.firebase.crashlytics.CrashlyticsRegistrar'] = true\n" +
+                        "classes['com.facebook.FacebookSdk'] = true\n" +
+                        "local function get(method, key, value, default, stored)\n" +
+                        "  local prefs = { contains = function(self, name) return stored ~= false and name == key end }\n" +
+                        "  local param = paramof(value, { [0] = key, [1] = default }, prefs, context)\n" +
+                        "  local restricted = after(hookof(method), param)\n" +
+                        "  return restricted, param.result\n" +
+                        "end\n" +
+                        "local crash = 'firebase_crashlytics_collection_enabled'\n" +
+                        "local log = 'com.facebook.sdk.AutoLogAppEventsEnabled'\n" +
+                        "local id = 'com.facebook.sdk.AdvertiserIDCollectionEnabled'\n" +
+                        "local on = '{\"value\":true,\"last_timestamp\":1700000000000}'\n" +
+                        "local off = '{\"value\":false,\"last_timestamp\":1700000000000}'\n" +
+                        "local r1, v1 = get('getBoolean', crash, true, true)\n" +
+                        "local r2, v2 = get('getBoolean', crash, false, true)\n" +
+                        "local r3, v3 = get('getString', log, on, '')\n" +
+                        "local r4, v4 = get('getString', id, on, '')\n" +
+                        "local r5, v5 = get('getString', log, off, '')\n" +
+                        "local r6, v6 = get('getString', log, '', '')\n" +
+                        "local r7, v7 = get('getBoolean', 'other', true, true)\n" +
+                        "local r8, v8 = get('getString', crash, on, '')\n" +
+                        "local r9, v9 = get('getBoolean', crash, true, true, false)\n" +
+                        "local r10, v10 = get('getBoolean', crash, nil, true)\n" +
+                        "local keys = filter(hookof('getString'))\n" +
+                        "return r1, v1, r2, v2, r3, v3, r4, v4, r5, v5, r6, r7, v7, r8,\n" +
+                        "  table.concat(filter(hookof('getBoolean')), ','), table.concat(keys, ','),\n" +
+                        "  filter(hookof('getApplicationInfo')), filter(hookof('getPackageInfo')), r9, v9, r10, v10");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).isnil());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean()); // Stored off stays
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("", result.arg(6).tojstring());
+        assertTrue(result.arg(7).toboolean());
+        assertEquals("", result.arg(8).tojstring());
+        assertFalse(result.arg(9).toboolean());
+        assertEquals("{\"value\":false,\"last_timestamp\":1700000000000}", result.arg(10).tojstring());
+        assertFalse(result.arg(11).toboolean()); // Nothing stored
+        assertFalse(result.arg(12).toboolean()); // Another key
+        assertTrue(result.arg(13).toboolean());
+        assertFalse(result.arg(14).toboolean()); // The key of another getter
+        assertEquals("firebase_crashlytics_collection_enabled", result.arg(15).tojstring());
+        assertEquals("com.facebook.sdk.AutoLogAppEventsEnabled,com.facebook.sdk.AdvertiserIDCollectionEnabled",
+                result.arg(16).tojstring());
+        assertTrue(result.arg(17).isnil());
+        assertTrue(result.arg(18).isnil());
+        assertFalse(result.arg(19).toboolean()); // Not stored: the caller's default, like contains says
+        assertTrue(result.arg(20).toboolean());
+        assertFalse(result.arg(21).toboolean()); // Stored as another type: the exception stays
+        assertTrue(result.arg(22).isnil());
+
+        // Without the SDK in the app the stored setting stays
+        Globals none = load("analytics_metadata");
+        Scripts.run(none, ANALYTICS);
+        Varargs stays = Scripts.run(none,
+                "local param = paramof(true, { [0] = 'firebase_crashlytics_collection_enabled', [1] = true }, nil, context)\n" +
+                        "return after(hookof('getBoolean'), param), param.result");
+        assertFalse(stays.arg(1).toboolean());
+        assertTrue(stays.arg(2).toboolean());
     }
 
     // Facebook logs events and sends the advertising id with them unless the meta-data turns them off

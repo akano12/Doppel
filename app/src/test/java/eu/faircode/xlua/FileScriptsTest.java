@@ -3069,4 +3069,144 @@ public class FileScriptsTest {
         assertEquals(id, XParam.uuid("boot\ntest.app"));
         assertNotEquals(id, XParam.uuid("boot\nother.app"));
     }
+
+    // For Use.Camera the files of the camera features do not exist, also in the folders of the SKU, and are left out of
+    // listings, for Record.Audio a file of the microphone feature; the other feature files are read without the
+    // features of the group, the camera ones by the start of their names and the microphone by its whole name, the
+    // same as features hides, also when the groups of features read the same file one after the other, which keeps it
+    // as long as before; the files of the other group and of the app in the shared storage stay
+    @Test
+    public void cameraAndMicrophoneFeatureFilesOfTheSystem() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local camera, audio = hookof('Use.Camera'), hookof('Record.Audio')\n" +
+                        "local list = paramof('/vendor/etc/permissions', namesof('android.hardware.camera.front.xml',\n" +
+                        "  'handheld_core_hardware.xml', 'android.hardware.camera.xml', 'android.hardware.microphone.xml'))\n" +
+                        "after(hookof('Use.Camera', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "local mics = paramof('/vendor/etc/permissions', namesof('android.hardware.microphone.xml',\n" +
+                        "  'android.hardware.camera.xml'))\n" +
+                        "after(hookof('Record.Audio', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), mics)\n" +
+                        "return hidden(camera, '/vendor/etc/permissions/android.hardware.camera.front.xml'),\n" +
+                        "  hidden(camera, '/etc/permissions/android.hardware.camera.xml'),\n" +
+                        "  hidden(camera, '/odm/etc/permissions/sku_X/android.hardware.camera.raw.xml'),\n" +
+                        "  hidden(audio, '/vendor/etc/permissions/android.hardware.microphone.xml'),\n" +
+                        "  hidden(camera, '/vendor/etc/permissions/handheld_core_hardware.xml'),\n" +
+                        "  hidden(camera, '/vendor/etc/permissions/android.hardware.microphone.xml'),\n" +
+                        "  hidden(audio, '/vendor/etc/permissions/android.hardware.camera.front.xml'),\n" +
+                        "  hidden(audio, '/vendor/etc/permissions/handheld_core_hardware.xml'),\n" +
+                        "  hidden(camera, '/vendor/etc/permissions'),\n" +
+                        "  hidden(camera, '/sdcard/etc/permissions/android.hardware.camera.front.xml'),\n" +
+                        "  hidden(audio, '/sdcard/etc/permissions/android.hardware.microphone.xml'),\n" +
+                        "  list.result.length, list.result[1], list.result[2], mics.result.length, mics.result[1]");
+        for (int i = 1; i <= 4; i++)
+            assertTrue("result " + i, result.arg(i).toboolean());
+        for (int i = 5; i <= 11; i++)
+            assertFalse("result " + i, result.arg(i).toboolean());
+        assertEquals(2, result.arg(12).toint());
+        assertEquals("handheld_core_hardware.xml", result.arg(13).tojstring());
+        assertEquals("android.hardware.microphone.xml", result.arg(14).tojstring());
+        assertEquals(1, result.arg(15).toint());
+        assertEquals("android.hardware.camera.xml", result.arg(16).tojstring());
+
+        String text = String.join("\n",
+                "<permissions>",
+                "    <feature name=\"android.hardware.camera\" />",
+                "    <feature name=\"android.hardware.camera.any\"/>",
+                "    <feature name=\"android.hardware.microphone\" />",
+                "    <feature name=\"android.hardware.microphone.array\" />",
+                "    <feature name=\"android.hardware.sensor.compass\" />",
+                "    <unavailable-feature name=\"android.hardware.camera.front\" />",
+                "    <feature name=\"android.hardware.touchscreen\" />",
+                "</permissions>",
+                "");
+        Varargs read = Scripts.run(globals,
+                "local param = paramof('/vendor/etc/permissions/handheld_core_hardware.xml', 'fd', 0)\n" +
+                        "param.text = [[" + text + "]]\n" +
+                        "param.getFileText = function(self) return self.text end\n" +
+                        "param.setFileText = function(self, value) self.text = value end\n" +
+                        "local function opened(group)\n" +
+                        "  return select(2, after(hookof(group, 'libcore.io.BlockGuardOs', 'open'), param))\n" +
+                        "end\n" +
+                        "local cameras = opened('Use.Camera')\n" +
+                        "local microphones = opened('Record.Audio')\n" +
+                        "local sensors = opened('Get.Sensors')\n" +
+                        "return cameras, microphones, sensors, param.text, opened('Use.Camera')");
+        assertEquals("2", read.arg(1).tojstring());
+        assertEquals("1", read.arg(2).tojstring());
+        assertEquals("1", read.arg(3).tojstring());
+        String expected = String.join("\n",
+                "<permissions>",
+                "    <feature name=\"android.hardware.microphone.array\" />",
+                "    <unavailable-feature name=\"android.hardware.camera.front\" />",
+                "    <feature name=\"android.hardware.touchscreen\" />",
+                "</permissions>",
+                "");
+        assertEquals(expected + " ".repeat(text.length() - expected.length()), read.arg(4).tojstring());
+        assertTrue(read.arg(5).isnil());
+
+        for (String group : new String[]{"Use.Camera", "Record.Audio"}) {
+            Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('" + group + "'))").arg1().checktable().unpack());
+            for (String path : new String[]{"/vendor/etc/permissions", "/vendor/etc/permissions/handheld_core_hardware.xml",
+                    "/etc/permissions/android.hardware.camera.xml", "/system/etc/sysconfig/a.xml", "/vendor/./etc/permissions",
+                    "/proc/self/fd/57/handheld_core_hardware.xml"})
+                assertTrue(group + " " + path, filterMatches(filter, path));
+            assertFalse(group, filterMatches(filter, "/system/etc/hosts"));
+            assertFalse(group, filterMatches(filter, "/sys/class/video4linux/video0/name"));
+        }
+    }
+
+    // A camera or microphone feature file is not there for FileInputStream of Android 8.1 and 9, which opens natively
+    // (ENOENT with the path, like a missing file), and making it, a folder or a pipe by its name fails like for a missing
+    // name on the read-only /vendor (EROFS), not EEXIST, by FileOutputStream, Os and java.nio; symlink runs with a name
+    // which does not exist; a feature file which stays opens
+    @Test
+    public void cameraAndMicrophoneFeatureFilesByOpenAndMaking() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "READONLY['/vendor/etc/permissions'] = true\n" +
+                        "local make = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, ...)\n" +
+                        "  local path = ...\n" +
+                        "  if name ~= 'java.io.File' then return make(name, ...) end\n" +
+                        "  return { getParent = function() return string.match(path, '^(.*)/[^/]*$') end,\n" +
+                        "    exists = function() return not string.find(path, '~$') end,\n" +
+                        "    toPath = function() return 'path:' .. path end }\n" +
+                        "end\n" +
+                        "local function run(group, class, method, first, second)\n" +
+                        "  local args = { [0] = first, second }\n" +
+                        "  local param = makingparam(first)\n" +
+                        "  param.getArgument = function(self, index) return args[index] end\n" +
+                        "  param.setArgument = function(self, index, value) args[index] = value end\n" +
+                        "  before(hookof(group, class, method), param)\n" +
+                        "  if param.early then\n" +
+                        "    return param.result.class .. ':' .. table.concat(param.result.args, ':')\n" +
+                        "  end\n" +
+                        "  return tostring(args[0]) .. ' ' .. tostring(args[1])\n" +
+                        "end\n" +
+                        "local camera = '/vendor/etc/permissions/android.hardware.camera.front.xml'\n" +
+                        "local microphone = '/vendor/etc/permissions/android.hardware.microphone.xml'\n" +
+                        "local fis, fos, os, nio = 'java.io.FileInputStream', 'java.io.FileOutputStream', 'android.system.Os',\n" +
+                        "  'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        "return run('Use.Camera', fis, 'open0', camera), run('Use.Camera', fos, 'open0', camera, false),\n" +
+                        "  run('Use.Camera', os, 'mkdir', camera, 493), run('Use.Camera', os, 'mkfifo', camera, 420),\n" +
+                        "  run('Use.Camera', nio, 'mkdir', camera, 493), run('Use.Camera', os, 'symlink', 'x', camera),\n" +
+                        "  run('Use.Camera', nio, 'symlink', 'x', camera), run('Record.Audio', fis, 'open0', microphone),\n" +
+                        "  run('Record.Audio', fos, 'open0', microphone, false), run('Record.Audio', os, 'mkdir', microphone, 493),\n" +
+                        "  run('Record.Audio', nio, 'symlink', 'x', microphone),\n" +
+                        "  run('Use.Camera', fis, 'open0', '/vendor/etc/permissions/handheld_core_hardware.xml')");
+        String camera = "/vendor/etc/permissions/android.hardware.camera.front.xml";
+        String microphone = "/vendor/etc/permissions/android.hardware.microphone.xml";
+        assertEquals("java.io.FileNotFoundException:" + camera + " (No such file or directory)", result.arg(1).tojstring());
+        assertEquals("java.io.FileNotFoundException:" + camera + " (Read-only file system)", result.arg(2).tojstring());
+        assertEquals("android.system.ErrnoException:mkdir:30", result.arg(3).tojstring());
+        assertEquals("android.system.ErrnoException:mkfifo:30", result.arg(4).tojstring());
+        assertEquals("sun.nio.fs.UnixException:30", result.arg(5).tojstring());
+        assertEquals("x " + camera + "~", result.arg(6).tojstring());
+        assertEquals("x path:" + camera + "~", result.arg(7).tojstring());
+        assertEquals("java.io.FileNotFoundException:" + microphone + " (No such file or directory)", result.arg(8).tojstring());
+        assertEquals("java.io.FileNotFoundException:" + microphone + " (Read-only file system)", result.arg(9).tojstring());
+        assertEquals("android.system.ErrnoException:mkdir:30", result.arg(10).tojstring());
+        assertEquals("x path:" + microphone + "~", result.arg(11).tojstring());
+        assertEquals("/vendor/etc/permissions/handheld_core_hardware.xml nil", result.arg(12).tojstring());
+    }
 }
