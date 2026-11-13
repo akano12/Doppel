@@ -84,6 +84,16 @@ public class LuaDouble extends LuaNumber {
 		this.v = d;
 	}
 
+	/** A Java long a double cannot hold, which keeps its low bits for Java when a script passes it on unchanged */
+	public static final class ExactLong extends LuaDouble {
+		public final long l;
+
+		public ExactLong(long l) {
+			super(l);
+			this.l = l;
+		}
+	}
+
 	public int hashCode() {
 		long l = Double.doubleToLongBits(v + 1);
 		return ((int)(l>>32)) + (int) l;

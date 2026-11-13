@@ -1578,6 +1578,7 @@ public class FingerprintScriptsTest {
                         "  for index = 1, count do p.args[index - 1] = args[index] end\n" +
                         "  p.set = false\n" +
                         "  p.setResult = function(self, value) self.set = true thrown = value end\n" +
+                        "  p.getThis = function(self) return manager end\n" +
                         "  p.getValue = function(self, name, scope) return values[name] and values[name][scope] end\n" +
                         "  p.putValue = function(self, name, value, scope)\n" +
                         "    values[name] = values[name] or {}\n" +
@@ -1595,9 +1596,18 @@ public class FingerprintScriptsTest {
                         "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
                         "  assert(name == 'android.os.Looper')\n" +
                         "  return { getMainLooper = function(self) return 'main' end } end\n" +
-                        "sdk = 34\n" +
+                        "sdk = 34 manager = 'activity'\n" +
+                        // A map of Java by equals, here by the key of a listener, like two equal objects
                         "luajava.newInstance = function(name, looper)\n" +
                         "  if name == 'java.util.HashMap' then return 'empty' end\n" +
+                        "  if name == 'java.util.concurrent.ConcurrentHashMap' then\n" +
+                        "    local entries = {}\n" +
+                        "    local function key(listener) return listener.key or listener end\n" +
+                        "    return { containsKey = function(self, listener) return entries[key(listener)] ~= nil end,\n" +
+                        "      put = function(self, listener, value) entries[key(listener)] = value end,\n" +
+                        "      remove = function(self, listener)\n" +
+                        "        local value = entries[key(listener)] entries[key(listener)] = nil return value end }\n" +
+                        "  end\n" +
                         "  if name == 'java.lang.IllegalArgumentException' then return 'IllegalArgumentException: ' .. looper end\n" +
                         "  assert(name == 'android.os.Handler' and looper == 'main')\n" +
                         "  return { post = function(self, runnable) posted[#posted + 1] = runnable end }\n" +
@@ -1668,6 +1678,42 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
+
+        // Android keeps the listeners by equals (ArrayMap): another object equal to an added one is added already and
+        // removes it, after which removing the first one throws
+        result = Scripts.run(globals,
+                "local first = { key = 'same', toString = function(self) return 'E' end }\n" +
+                        "local second = { key = 'same', toString = function(self) return 'E' end }\n" +
+                        "call('addThermalStatusListener', first)\n" +
+                        "local again, set = call('addThermalStatusListener', second)\n" +
+                        "local refused = thrown\n" +
+                        "local _, removed = call('removeThermalStatusListener', second)\n" +
+                        "local _, gone = call('removeThermalStatusListener', first)\n" +
+                        "posted = {}\n" +
+                        "return again, set, refused, removed, gone");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("IllegalArgumentException: Listener already registered: E", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+
+        // Each PowerManager keeps its own listeners, like the one of an activity and the one of the application: a
+        // listener added to one is not added to the other, so removing it there throws, and adding it there is no repeat
+        result = Scripts.run(globals,
+                "call('addThermalStatusListener', listener)\n" +
+                        "manager = 'application'\n" +
+                        "local _, removed = call('removeThermalStatusListener', listener)\n" +
+                        "local _, added = call('addThermalStatusListener', listener)\n" +
+                        "local refused = thrown\n" +
+                        "call('removeThermalStatusListener', listener)\n" +
+                        "manager = 'activity'\n" +
+                        "local _, mine = call('removeThermalStatusListener', listener)\n" +
+                        "posted = {}\n" +
+                        "return removed, added, refused, mine");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).isnil());
+        assertTrue(result.arg(4).toboolean());
 
         // Android throws for null itself, the other hooks of the script do nothing before the call
         result = Scripts.run(globals,

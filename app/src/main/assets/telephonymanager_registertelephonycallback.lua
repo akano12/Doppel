@@ -48,8 +48,9 @@ function before(h, param)
             restricted = true
         end
     end
-    -- Android sends the first location again at each registration (see nocells). After the hooks, since the callback
-    -- is the key, of which hashCode and equals are of the app and can throw
+    -- Android sends the first location again at each registration (see nocells). Kept by the identity of the callback,
+    -- so hashCode and equals of the app do not run; after the hooks and in a pcall, since the log of debug builds names
+    -- the callback by its toString, which is of the app and can throw
     pcall(param.putValue, param, 'nocells', false, callback)
     return restricted
 end

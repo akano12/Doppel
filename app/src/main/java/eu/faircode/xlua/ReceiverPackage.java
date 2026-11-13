@@ -20,12 +20,16 @@
 
 package eu.faircode.xlua;
 
+import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.util.Log;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -107,9 +111,52 @@ public class ReceiverPackage extends BroadcastReceiver {
             return false;
         }
         Data.clearApp(context, packageName, uid, false);
-        if (Data.getSettingBoolean(context, Util.getUserId(uid), "global", "restrict_new_apps"))
+        int userid = Util.getUserId(uid);
+        if (Data.getSettingBoolean(context, userid, "global", "restrict_new_apps")) {
             Data.initApp(context, packageName, uid);
+            // Opened right after it was installed, before this broadcast came, the app runs already without hooks,
+            // which it asked for before they were assigned, so it is stopped, like when the user restricts an app;
+            // an app which is not running is not, since a device without Doppel would not stop it. A failed stop
+            // does not keep the notification of the new app.
+            // shortcut: what the first run did stays, like identifiers it stored, and a process which asked for its
+            // hooks after they were written, or which is not in the LSPosed scope, is stopped too; record the queries
+            // the service refused to tell these apart when it matters
+            try {
+                if (runs(context.getSystemService(ActivityManager.class).getRunningAppProcesses(), packageName, uid) &&
+                        Data.hasAssignments(context, packageName, uid)) {
+                    ApplicationInfo ai = Util.getApplicationInfo(
+                            Util.createContextForUser(context, userid).getPackageManager(), packageName, 0);
+                    if (stopsAutomatically(ai.flags, Data.getSetting(context, userid, packageName, "forcestop"))) {
+                        Log.i(TAG, "Stopping new app pkg=" + packageName + " uid=" + uid);
+                        XApp app = new XApp();
+                        app.packageName = packageName;
+                        app.uid = uid;
+                        Data.forceStop(context, app);
+                    }
+                }
+            } catch (Throwable ex) {
+                XCore.log(ex);
+            }
+        }
         return true;
+    }
+
+    // Whether a process of the app runs: a list which is null has none, and a process of another package with the same
+    // uid is not of the app, which Android would not stop with it
+    static boolean runs(List<ActivityManager.RunningAppProcessInfo> processes, String packageName, int uid) {
+        if (processes != null)
+            for (ActivityManager.RunningAppProcessInfo process : processes)
+                if (process.uid == uid && process.pkgList != null && Arrays.asList(process.pkgList).contains(packageName))
+                    return true;
+        return false;
+    }
+
+    // Like when the user restricts an app: never a persistent app and, unless the user set so, no system app,
+    // see XProvider.getApps and XApp.stopsAutomatically
+    static boolean stopsAutomatically(int flags, String forceStop) {
+        boolean persistent = ((flags & ApplicationInfo.FLAG_PERSISTENT) != 0);
+        boolean system = ((flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
+        return !persistent && (forceStop == null ? !system : Boolean.parseBoolean(forceStop));
     }
 
     // Hidden PackageManager.MATCH_ANY_USER (Android 8 and later): installed for any user, which system server may ask;

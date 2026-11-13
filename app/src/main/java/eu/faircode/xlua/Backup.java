@@ -20,6 +20,7 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.util.Log;
@@ -258,15 +259,22 @@ class Backup {
                 continue;
             }
             String packageName = jrestriction.getString("package");
-            int uid;
+            ApplicationInfo ai;
             try {
-                uid = Util.getApplicationInfo(pm, packageName, 0).uid;
+                ai = Util.getApplicationInfo(pm, packageName, 0);
             } catch (PackageManager.NameNotFoundException ignored) {
                 result.missing.add(packageName);
                 continue;
             }
+            int uid = ai.uid;
             XApp app = Data.getApp(context, packageName, uid);
             if (app == null) {
+                // Installed, but not listed because its restrictions would never be installed
+                try {
+                    if (XProvider.inSystemServerOnly(pm, ai))
+                        continue;
+                } catch (PackageManager.NameNotFoundException ignored) {
+                }
                 result.missing.add(packageName);
                 continue;
             }

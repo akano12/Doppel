@@ -25,6 +25,7 @@ import java.lang.reflect.Array;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.luaj.vm2.LuaDouble;
 import org.luaj.vm2.LuaString;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -177,7 +178,8 @@ public class CoerceLuaToJava {
 			case TARGET_TYPE_CHAR: return Character.valueOf((char) value.toint() );
 			case TARGET_TYPE_SHORT: return Short.valueOf((short) value.toint() );
 			case TARGET_TYPE_INT: return Integer.valueOf((int) value.toint() );
-			case TARGET_TYPE_LONG: return Long.valueOf((long) value.todouble() );
+			case TARGET_TYPE_LONG:
+				return Long.valueOf(value instanceof LuaDouble.ExactLong? ((LuaDouble.ExactLong) value).l: (long) value.todouble() );
 			case TARGET_TYPE_FLOAT: return Float.valueOf((float) value.todouble() );
 			case TARGET_TYPE_DOUBLE: return Double.valueOf((double) value.todouble() );
 			default: return null;

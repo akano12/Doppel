@@ -315,14 +315,10 @@ function parcelled(extras)
 end
 
 -- Whether the intent was given already, for when apps set the class loader again, and marks it; not when it is read
--- from its parcel, so the pass when Android gives it can fake what that read could not. Only of the class Intent
--- itself, since the marks are found by equality, which a ReferrerIntent (onNewIntent) has by value from Android 14,
--- the same for each update to an activity, and an intent of a class of the app may have too.
+-- from its parcel, so the pass when Android gives it can fake what that read could not. The marks are kept by the
+-- identity of the intent (see XParam.putValue), so a ReferrerIntent (onNewIntent), which from Android 14 equals the
+-- one of each other update to an activity by value, is marked by itself too.
 function seen(param, intent)
-    -- Lua sees a Class as its static members, so the classes are compared, not their names
-    if intent:getClass() ~= luajava.bindClass('android.content.Intent') then
-        return false
-    end
     if param:getValue('location.intent', intent) ~= nil then
         return true
     end

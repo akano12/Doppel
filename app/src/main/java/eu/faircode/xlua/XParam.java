@@ -47,6 +47,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.lang.ref.Reference;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -61,11 +64,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -81,8 +85,13 @@ public class XParam {
     // The length of the file the hooked method opened, once read, see setFileBytes
     private long fileLength = -1;
 
-    // Values scripts keep per scope, like per object, see putValue and getValue
-    private static final Map<Object, Map<String, Object>> scopedValues = new WeakHashMap<>();
+    // Values scripts keep per scope, like per object, see putValue and getValue: by identity, like Android tells the
+    // listeners of an app apart (NsdManager by SparseArray.indexOfValue), so hashCode and equals of the app do not run
+    // in a hook; weakly, so a scope does not keep its object
+    private static final Map<Scope, Map<String, Object>> scopedValues = new HashMap<>();
+    private static final ReferenceQueue<Object> scopesGone = new ReferenceQueue<>();
+    // The scope of null, which is a scope too
+    private static final Object NO_SCOPE = new Object();
 
     // See isPackageVisible and isUidVisible
     private static final Map<String, Boolean> visiblePackages = new ConcurrentHashMap<>();
@@ -398,7 +407,7 @@ public class XParam {
 
         if (this.field == null)
             if (result instanceof Throwable)
-                this.param.setThrowable((Throwable) result);
+                this.param.setThrowable(withoutHookFrames((Throwable) result));
             else
                 this.param.setResult(result);
         else if (result instanceof Throwable)
@@ -410,6 +419,54 @@ public class XParam {
             } catch (IllegalAccessException ignored) {
                 setFinalField(this.field, result);
             }
+    }
+
+    // The frames of the hook which made a throwable of a script: of Doppel, LuaJ and the hook frameworks whose names are
+    // not obfuscated, and of the reflection which luajava makes it by
+    private static final String[] HOOK_FRAMES = {"eu.faircode.xlua.", "org.luaj.", "de.robv.android.xposed.",
+            "io.github.libxposed.", "org.lsposed.", "org.matrix.vector."};
+    private static final String[] REFLECTION_FRAMES = {"java.lang.reflect.", "jdk.internal.reflect.", "sun.reflect."};
+
+    // A throwable a script makes records the frames of the script, the engine and the hook framework when it is made,
+    // which name LuaJ and Doppel; the app gets it, also its causes, without them, like with the frames of the hooked
+    // method down, and a throwable with only frames of its own, like the copy of package_probe, as it is.
+    // shortcut: the frames Android has above the caller, like the native libcore.io.Linux.open of an ErrnoException, stay
+    // missing, the hooker frame and obfuscated frames of the framework stay, and frames of the app's own classes in the
+    // packages of the frameworks go too, upgrade when apps compare them.
+    static Throwable withoutHookFrames(Throwable ex) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable each = ex; each != null && seen.add(each); each = each.getCause()) {
+            StackTraceElement[] frames = each.getStackTrace();
+            StackTraceElement[] kept = withoutHookFrames(frames);
+            if (kept.length != frames.length)
+                each.setStackTrace(kept);
+        }
+        return ex;
+    }
+
+    // Without the frames of the hook, and the frames of reflection right above them, which made the throwable, like
+    // Constructor.newInstance; the reflection of the app, like Method.invoke calling the hooked method, stays
+    static StackTraceElement[] withoutHookFrames(StackTraceElement[] frames) {
+        List<StackTraceElement> kept = new ArrayList<>();
+        boolean hookBelow = false;
+        for (int i = frames.length - 1; i >= 0; i--) {
+            String name = frames[i].getClassName();
+            if (startsWith(name, HOOK_FRAMES) || (hookBelow && startsWith(name, REFLECTION_FRAMES)))
+                hookBelow = true;
+            else {
+                hookBelow = false;
+                kept.add(frames[i]);
+            }
+        }
+        Collections.reverse(kept);
+        return kept.toArray(new StackTraceElement[0]);
+    }
+
+    private static boolean startsWith(String name, String[] prefixes) {
+        for (String prefix : prefixes)
+            if (name.startsWith(prefix))
+                return true;
+        return false;
     }
 
     // The message of an exception, like of one without a constructor with a message (see package_probe): a private field
@@ -497,19 +554,20 @@ public class XParam {
 
     private byte[] getFileBytes() throws Throwable {
         Object result = this.param.getResult();
-        byte[] bytes;
-        if (result instanceof Integer)
-            // A descriptor of its own, which the reading does not move, like the one of the app
-            try (ParcelFileDescriptor pfd = ParcelFileDescriptor.fromFd((Integer) result)) {
-                bytes = readBytes(pfd.getFileDescriptor());
-            }
-        else
-            bytes = readBytes((FileDescriptor) result);
+        // Quietly, since the reads of Doppel are no disk reads of the app (see quietly)
+        byte[] bytes = quietly(() -> {
+            if (result instanceof Integer)
+                // A descriptor of its own, which the reading does not move, like the one of the app
+                try (ParcelFileDescriptor pfd = ParcelFileDescriptor.fromFd((Integer) result)) {
+                    return readBytes(pfd.getFileDescriptor());
+                }
+            return readBytes((FileDescriptor) result);
+        });
         this.fileLength = bytes.length;
         return bytes;
     }
 
-    private static byte[] readBytes(FileDescriptor fd) throws Throwable {
+    private static byte[] readBytes(FileDescriptor fd) throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         byte[] buffer = new byte[4096];
         for (int n = Os.pread(fd, buffer, 0, buffer.length, 0); n > 0;
@@ -521,7 +579,8 @@ public class XParam {
     // The app reads the text instead of the file the hooked method opened, without a file being kept:
     // the method returns a file in memory, or before Android 11 a removed file or a pipe (see oldFile), of which the app
     // cannot tell the contents of the file apart, nor but for a pipe by the hooks of faked_files its stat, size and link
-    // (see unfakeFile); the file which was opened is closed. java.nio gets the number of a descriptor.
+    // (see unfakeFile); the fake takes the number of the file which was opened, which is closed (see renumbered), also for
+    // java.nio, which gets the number of a descriptor.
     @SuppressWarnings("unused")
     public void setFileText(String text) throws Throwable {
         setFileBytes(text.getBytes(StandardCharsets.UTF_8));
@@ -536,6 +595,8 @@ public class XParam {
         } catch (Throwable ignored) {
             // The app still reads the text, only the descriptor tells the fake apart, like before
         }
+        if (quietly(() -> renumbered(opened, fake, this.param.args)))
+            return;
         if (opened instanceof Integer) {
             this.param.setResult(ParcelFileDescriptor.dup(fake).detachFd());
             Os.close(fake);
@@ -544,6 +605,91 @@ public class XParam {
             this.param.setResult(fake);
             Os.close((FileDescriptor) opened);
         }
+    }
+
+    // The fake in place of the file opened (dup2, which closes that), with its number and its flags, like close-on-exec,
+    // which dup2 clears, so the next file the app opens gets the number it would without the fake, the next free one;
+    // false when the number cannot be read or moved, then the fake keeps a number of its own, like before.
+    // shortcut: on Android 9 and 10 the fake of a file opened with O_CLOEXEC keeps a number of its own (see movable); a
+    // fake in memory is open for reading and writing (F_GETFL, a write succeeds), since reopening it read-only by
+    // /proc/self/fd needs the SELinux open permission of the files in memory of apps; native code can map a fake but a
+    // pipe, and /proc/self/fdinfo tells the inode of each; upgrade when apps open files of /proc with O_CLOEXEC on
+    // Android 9 and 10 or check how a file of /proc is open.
+    // NewApi: Os.fcntlInt is public from Android 11 and hidden on Android 8.1, which checks no hidden APIs (see hasFcntl).
+    @SuppressLint("NewApi")
+    private static boolean renumbered(Object opened, FileDescriptor fake, Object[] args) throws Exception {
+        int sdk = Build.VERSION.SDK_INT;
+        if (!movable(sdk, args, OsConstants.O_CLOEXEC))
+            return false;
+        boolean fcntl = hasFcntl(sdk);
+        int flags = 0;
+        FileDescriptor replaced;
+        try {
+            int number;
+            if (opened instanceof Integer) {
+                number = (Integer) opened;
+                if (fcntl) {
+                    // A descriptor object for the number, given back without closing it
+                    ParcelFileDescriptor pfd = ParcelFileDescriptor.adoptFd(number);
+                    try {
+                        flags = Os.fcntlInt(pfd.getFileDescriptor(), OsConstants.F_GETFD, 0);
+                    } finally {
+                        pfd.detachFd();
+                    }
+                }
+            } else {
+                Method getInt = descriptorNumber();
+                if (getInt == null)
+                    return false;
+                number = (int) getInt.invoke(opened);
+                if (fcntl)
+                    flags = Os.fcntlInt((FileDescriptor) opened, OsConstants.F_GETFD, 0);
+            }
+            replaced = Os.dup2(fake, number);
+        } catch (Exception ex) {
+            // Nothing changed, the descriptors are as they were
+            XLog.w(TAG, "Renumber: " + ex);
+            return false;
+        }
+        try {
+            if (flags != 0)
+                Os.fcntlInt(replaced, OsConstants.F_SETFD, flags);
+        } finally {
+            Os.close(fake);
+        }
+        return true;
+    }
+
+    // Whether fcntl, which reads and sets the flags of a descriptor, may be called: Android 8.1 has it as a hidden API but
+    // checks no hidden APIs, Android 11 makes it public, and Android 9 and 10 refuse it to apps (not in the light
+    // greylist of Android 9, greylist-max-o of Android 10), which would fail to link the call (NoSuchMethodError)
+    private static boolean hasFcntl(int sdk) {
+        return (sdk < Build.VERSION_CODES.P || sdk >= Build.VERSION_CODES.R);
+    }
+
+    // Whether the fake can take the number of the file opened with its flags: always with fcntl; without it only when the
+    // hooked open had no O_CLOEXEC in its flags (the argument before the mode, which libcore and java.nio pass to the
+    // kernel as they are), since a descriptor just opened is close-on-exec only by that flag, and dup2 clears it
+    static boolean movable(int sdk, Object[] args, int cloexec) {
+        if (hasFcntl(sdk))
+            return true;
+        Object flags = (args.length < 2 ? null : args[args.length - 2]);
+        return (flags instanceof Integer && ((Integer) flags & cloexec) == 0);
+    }
+
+    // The hidden FileDescriptor.getInt$, found by listing the methods, which Android does not report as a use of a hidden
+    // API (see storage_times); null without it, like in the tests
+    private static volatile Method descriptorNumber;
+    private static volatile boolean descriptorNumberKnown = false;
+
+    private static Method descriptorNumber() {
+        if (!descriptorNumberKnown) {
+            for (Method method : FileDescriptor.class.getDeclaredMethods())
+                if (method.getName().equals("getInt$") && method.getParameterTypes().length == 0)
+                    descriptorNumber = method;
+            descriptorNumberKnown = true;
+        }
+        return descriptorNumber;
     }
 
     // The fake with the text: a file in memory, before Android 11 a removed file of the app or a pipe (see oldFile)
@@ -986,10 +1132,14 @@ public class XParam {
     public void putValue(String name, Object value, Object scope) {
         if (BuildConfig.DEBUG)
             Log.i(TAG, "Put value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + text(value) + " @" + text(scope));
+        Object key = (scope == null ? NO_SCOPE : scope);
         synchronized (scopedValues) {
-            if (!scopedValues.containsKey(scope))
-                scopedValues.put(scope, new HashMap<>());
-            scopedValues.get(scope).put(name, value);
+            for (Reference<?> gone; (gone = scopesGone.poll()) != null; )
+                scopedValues.remove(gone);
+            Map<String, Object> values = scopedValues.get(new Scope(key, null));
+            if (values == null)
+                scopedValues.put(new Scope(key, scopesGone), values = new HashMap<>());
+            values.put(name, value);
         }
     }
 
@@ -997,12 +1147,35 @@ public class XParam {
     public Object getValue(String name, Object scope) {
         Object value;
         synchronized (scopedValues) {
-            Map<String, Object> values = scopedValues.get(scope);
+            Map<String, Object> values = scopedValues.get(new Scope(scope == null ? NO_SCOPE : scope, null));
             value = (values == null ? null : values.get(name));
         }
         if (BuildConfig.DEBUG)
             Log.i(TAG, "Get value " + this.getPackageName() + ":" + this.getUid() + " " + name + "=" + text(value) + " @" + text(scope));
         return value;
+    }
+
+    // An object as a scope of values: the same object, by identity, while it is there; a scope whose object is gone is
+    // only itself, so it can be removed
+    private static final class Scope extends WeakReference<Object> {
+        private final int hash;
+
+        Scope(Object scope, ReferenceQueue<Object> queue) {
+            super(scope, queue);
+            this.hash = System.identityHashCode(scope);
+        }
+
+        @Override
+        public int hashCode() {
+            return this.hash;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            Object scope;
+            return (this == other ||
+                    (other instanceof Scope && (scope = get()) != null && scope == ((Scope) other).get()));
+        }
     }
 
     // The value converted to the type, of which it must be an instance; null for a primitive would crash the app,

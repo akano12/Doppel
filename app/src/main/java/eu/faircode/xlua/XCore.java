@@ -28,6 +28,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -59,15 +60,18 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 
 // Hook engine, independent of the hooking framework
 class XCore {
@@ -326,6 +330,11 @@ class XCore {
                 serve(call, "Call " + arg,
                         () -> XProvider.call(context, arg, extras, caller == XProvider.CALLER_PERMITTED));
             }
+
+            @Override
+            void after(XCall call) {
+                withoutHookFrames(call);
+            }
         });
 
         // Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder)
@@ -362,19 +371,66 @@ class XCore {
                 serve(call, "Query " + column, () -> XProvider.query(context, method, selection,
                         caller == XProvider.CALLER_PERMITTED));
             }
+
+            @Override
+            void after(XCall call) {
+                withoutHookFrames(call);
+            }
         });
     }
 
-    // Whom the service answers; when the service fails, like with a database which cannot be opened, which it logged,
-    // the caller gets no answer, which Data reports as an error, instead of the error of the settings provider, which
-    // hooked apps take for having no assignments, so they would run without hooks without any error
+    // Android 9 and later send the first five frames of a SecurityException of system server to the caller, also to
+    // apps outside the scope, where the frames of the hook would follow those of the settings provider: they are left
+    // out, so its caller, a method of ContentProvider or its Transport, follows like on a device without Doppel
+    private static void withoutHookFrames(XCall call) {
+        if (!call.hasThrowable())
+            return;
+        Throwable ex = call.getThrowable();
+        List<StackTraceElement> frames = new ArrayList<>(Arrays.asList(ex.getStackTrace()));
+        String cls = call.method.getDeclaringClass().getName();
+        for (int i = 0; i < frames.size(); i++)
+            if (cls.equals(frames.get(i).getClassName()) && call.method.getName().equals(frames.get(i).getMethodName())) {
+                for (int j = i + 1; j < frames.size(); j++)
+                    if (frames.get(j).getClassName().startsWith("android.content.ContentProvider")) {
+                        frames.subList(i + 1, j).clear();
+                        ex.setStackTrace(frames.toArray(new StackTraceElement[0]));
+                        break;
+                    }
+                return;
+            }
+    }
+
+    // Whom the service answers. When the service fails, like with a database which cannot be opened, which it logged and
+    // told the user about, system server, the app and the apps the service last answered as apps with assignments get no
+    // answer, which Data reports as an error, instead of the error of the settings provider, which hooked apps take for
+    // having no assignments; all other apps get the error of the settings provider, like without Doppel.
+    // shortcut: a restricted app the service did not answer since the boot gets the error of the settings provider, so
+    // its process logs that it has no assigned hooks instead of the error (it runs without hooks either way); upgrade to
+    // assigned uids kept outside the database if that log matters
     private static int answers(XCall call, Context context) {
+        int uid = Binder.getCallingUid();
         try {
-            return XProvider.answers(context);
+            return answered(uid, XProvider.answers(context));
         } catch (RemoteException ignored) {
-            call.setResult(null);
+            if (wasAssigned(uid) || XProvider.hasPermission(context))
+                call.setResult(null);
             return XProvider.CALLER_NONE;
         }
+    }
+
+    // The callers the service last answered as apps with assignments, by uid, see answers
+    private static final Set<Integer> assignedCallers = ConcurrentHashMap.newKeySet();
+
+    static int answered(int uid, int caller) {
+        if (caller == XProvider.CALLER_ASSIGNED)
+            assignedCallers.add(uid);
+        else
+            assignedCallers.remove(uid);
+        return caller;
+    }
+
+    static boolean wasAssigned(int uid) {
+        return assignedCallers.contains(uid);
     }
 
     // ContentProvider.getContext()
@@ -389,13 +445,10 @@ class XCore {
     void hookApplication(final String packageName, ClassLoader classLoader) throws Throwable {
         final int uid = Process.myUid();
 
-        // Instrumentation.newApplication is called by LoadedApk.makeApplication(Inner) on all versions
-        // https://android.googlesource.com/platform/frameworks/base/+/169aeafb2d97b810ae123ad036d0c58336961c55%5E%21/#F1
-        Class<?> clsInstrumentation = Class.forName("android.app.Instrumentation", false, classLoader);
         // The hooks are installed before the application is made, with the context it gets: making it runs
         // attachBaseContext of the app, where apps can start threads, like Facebook does, and hooking methods
         // which other threads run meanwhile can make them fail, like with arguments which are null
-        backend.hookAll(clsInstrumentation, "newApplication", new XBackend.Callback() {
+        XBackend.Callback callback = new XBackend.Callback() {
             private boolean made = false;
 
             @Override
@@ -435,7 +488,40 @@ class XCore {
                     log(ex);
                 }
             }
-        });
+        };
+
+        // LoadedApk.makeApplication(Inner) of Android 11 and later gives the context to the network security config
+        // right before Instrumentation.newApplication makes the application, so a hook there returns before the code of
+        // the app runs. In a hook of newApplication the constructor, static initializer and attachBaseContext of the
+        // app's Application run inside the hook, with its frames (eu.faircode.xlua.ModernBackend) on their stack.
+        // https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/core/java/android/app/LoadedApk.java
+        // shortcut: this hook was not yet seen to fire on a device (Android 11 to 17), and one which is installed but never
+        // fires leaves the app without any hook and without an error; the boot image cannot inline the call into
+        // makeApplication(Inner) under Vector, which deoptimizes those methods in every process (VectorInlinedCallers.kt
+        // on Vector master; the installed LSPosed 2.2.1 was not read); fall back to newApplication when a probe on a
+        // device shows it does not fire
+        try {
+            Class<?> clsConfig = XResolver.resolveClass("android.security.net.config.NetworkSecurityConfigProvider", classLoader);
+            // The hooks are installed when it returned, so the network security config is made without them, like before
+            backend.hook(clsConfig.getDeclaredMethod("handleNewApplication", Context.class), new XBackend.Callback() {
+                @Override
+                void after(XCall call) throws Throwable {
+                    callback.before(call);
+                }
+            });
+            return;
+        } catch (ClassNotFoundException | NoSuchMethodException ignored) {
+        } catch (Throwable ex) {
+            // Hooked like before Android 11, else the app would run without any hook
+            log(ex);
+        }
+
+        // shortcut: Android 8.1 to 10 call nothing between createAppContext and newApplication, so with the modern API
+        // (Android 8.1 to 10) the Application is made inside the hook; hook the end of createAppContext if that matters
+        // Instrumentation.newApplication is called by LoadedApk.makeApplication(Inner) on all versions
+        // https://android.googlesource.com/platform/frameworks/base/+/169aeafb2d97b810ae123ad036d0c58336961c55%5E%21/#F1
+        Class<?> clsInstrumentation = XResolver.resolveClass("android.app.Instrumentation", classLoader);
+        backend.hookAll(clsInstrumentation, "newApplication", callback);
     }
 
     private void hookPackage(final String packageName, int uid, final Context context) throws Throwable {
@@ -511,7 +597,7 @@ class XCore {
     // Hook the method or field of the definition
     private void install(Context context, XHook hook, Prototype script, Map<String, String> settings) throws Throwable {
         ClassLoader loader = context.getClassLoader();
-        Class<?> cls = Class.forName(hook.getResolvedClassName(), false, loader);
+        Class<?> cls = XResolver.resolveClass(hook.getResolvedClassName(), loader);
 
         Class<?>[] paramTypes = XResolver.resolveClasses(hook.getParameterTypes(), loader);
         Class<?> returnType = (hook.getReturnType() == null ? null : XResolver.resolveClass(hook.getReturnType(), loader));
@@ -571,9 +657,15 @@ class XCore {
             private void execute(XCall call, String function) {
                 if (inService())
                     return;
-                if (filter != null && (call.args == null || call.args.length == 0 ||
-                        !filter.matches(filterValue(call.args[0]))))
+                try {
+                    if (filter != null && (call.args == null || call.args.length == 0 ||
+                            !filter.matches(filterValue(call.args[0]))))
+                        return;
+                } catch (Throwable ex) {
+                    // The getPath of the app's own subclass of File failed: the method answers like without Doppel,
+                    // which reads the path itself, failing the same way, or natively the field of File
                     return;
+                }
                 try {
                     // Initialize the Lua runtime once per thread
                     Globals globals = threadGlobals.get();
@@ -701,8 +793,16 @@ class XCore {
         }
     }
 
-    // The value of an argument for a filter: texts, and the path of files and of paths of java.nio,
-    // without running code of the app; null for other values
+    // The value of an argument for a filter: texts, and the path of files and of paths of java.nio; null for other
+    // values. The path of a subclass of File is what its getPath gives, which is code of the app and can fail.
+    // shortcut: an app's subclass of File whose getPath gives another text than its field path is filtered, and restricted
+    // by the scripts (tostring of the File), by what getPath gives, while the natives of UnixFileSystem read the field:
+    // list0, getLastModifiedTime0 and getSpace0, and checkAccess0 and getLength0 of Android 8.1 and 9. From Android 10
+    // checkAccess and getLength call getPath themselves, so the path the file system uses depends on the method and the
+    // version. The field itself is not the blocker: LSPosed and Vector make the dex of the module trusted, so the hidden
+    // API rules let the module read it. Each filtered hook also calls the app's getPath before and after the method, which
+    // the app can count. Choose the path per method and version, for the filter and the scripts alike, if apps get around
+    // the hooks of files this way
     static String filterValue(Object value) {
         if (value instanceof String)
             return (String) value;
@@ -832,25 +932,32 @@ class XCore {
         }
     }
 
-    // The libraries of scripts (see JsePlatform, and debug in debug builds), once per thread,
-    // because loading them takes much longer than running a script
-    private static final ThreadLocal<Globals> libraries = ThreadLocal.withInitial(() -> {
-        Globals globals = JsePlatform.standardGlobals();
-        if (BuildConfig.DEBUG)
-            globals.load(new DebugLib());
-        return globals;
-    });
+    // The libraries of scripts (see JsePlatform, and debug in debug builds), once per process, made on first use:
+    // loading them takes much longer than running a script, so with libraries per thread the first hooked call
+    // of each thread would be slower than the next ones; the built-in scripts only read them, and the call stacks
+    // of DebugLib are per Java thread
+    // shortcut: a user's script which calls xpcall, sets globals in a chunk it loads or changes a library table
+    // shares that with the other threads; make the error function of LuaThread per Java thread, like the call
+    // stacks, and the library tables read-only if such scripts matter
+    private static class Libraries {
+        static final Globals globals = JsePlatform.standardGlobals();
+
+        static {
+            if (BuildConfig.DEBUG)
+                globals.load(new DebugLib());
+        }
+    }
 
     // The globals of a hook on the current thread, with the functions the script defines
     private static Globals getGlobals(Context context, XHook hook, Prototype script, Map<String, String> settings) {
-        LuaLocals globals = new LuaLocals(libraries.get());
+        LuaLocals globals = new LuaLocals(Libraries.globals);
         globals.rawset("log", new LuaLog(context.getPackageName(), context.getApplicationInfo().uid, hook.getId()));
-        globals.rawset("hook", new LuaHook(context, hook.getId(), settings));
+        globals.rawset("hook", new LuaHook(context, hook.getId(), settings, globals));
         new LuaClosure(script, globals).call();
         return globals;
     }
 
-    // Scripts can define functions, but no other globals; the libraries are shared by the hooks of a thread
+    // Scripts can define functions, but no other globals; the libraries are shared by all hooks
     private static class LuaLocals extends Globals {
         LuaLocals(Globals libraries) {
             // Same runtime, so errors have a traceback in debug builds; closures read only these fields
@@ -890,20 +997,22 @@ class XCore {
     // hook(object, method, function, args...): hook the methods with a name which the class of an object
     // declares or inherits from a super class
     private static class LuaHook extends VarArgFunction {
-        // Dynamic hooks are installed on classes, so install each one only once,
-        // also when objects of several subclasses inherit the method
-        private static final Set<String> installed = new HashSet<>();
+        // Dynamic hooks are installed on classes, so install each one only once, also when objects of several
+        // subclasses inherit the method; by class, not name, since another class loader can have a class of the
+        // same name, and weakly, so the set keeps no class the app drops
+        private static final Map<Class<?>, Set<String>> installed = new WeakHashMap<>();
 
         private final Context context;
         private final String hookId;
         private final Map<String, String> settings;
-        // The libraries of the installing thread, see execute
-        private final Globals runtime = libraries.get();
+        // The globals of the script on the installing thread, see execute
+        private final Globals runtime;
 
-        LuaHook(Context context, String hookId, Map<String, String> settings) {
+        LuaHook(Context context, String hookId, Map<String, String> settings, Globals runtime) {
             this.context = context;
             this.hookId = hookId;
             this.settings = settings;
+            this.runtime = runtime;
         }
 
         @Override
@@ -912,18 +1021,18 @@ class XCore {
             String m = args.arg(2).checkjstring();
             final LuaValue fun = args.arg(3).checkfunction();
 
-            String key = hookId + "/" + cls.getName() + "." + m;
+            String key = hookId + "/" + m;
             List<Method> methods = new ArrayList<>();
             synchronized (installed) {
-                if (!installed.add(key))
+                if (!installed(cls).add(key))
                     return LuaValue.NIL;
 
                 // Not an error, which would stop the script, which can hook other methods next
                 List<Method> resolved = XResolver.resolveMethods(cls, m);
                 if (resolved.isEmpty())
-                    XLog.w(TAG, "Dynamic hook " + key + " not found");
+                    XLog.w(TAG, "Dynamic hook " + hookId + "/" + cls.getName() + "." + m + " not found");
                 for (Method method : resolved)
-                    if (installed.add(hookId + "/" + method))
+                    if (installed(method.getDeclaringClass()).add(hookId + "/" + method))
                         methods.add(method);
             }
             if (methods.isEmpty())
@@ -956,8 +1065,8 @@ class XCore {
                         values.add(LuaValue.valueOf(when));
                         values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
                         values.addAll(xargs);
-                        // The function is of the Lua runtime of the thread which installed the hook,
-                        // which is not thread safe for other dynamic hooks of it
+                        // The function is of the globals of the script on the thread which installed the hook,
+                        // whose locals are not thread safe for other dynamic hooks of it
                         synchronized (runtime) {
                             fun.invoke(values.toArray(new LuaValue[0]));
                         }
@@ -973,14 +1082,19 @@ class XCore {
                     backend.hook(methods.get(i), callback);
                 } catch (Throwable ex) {
                     synchronized (installed) {
-                        installed.remove(key);
+                        installed(cls).remove(key);
                         for (int j = i; j < methods.size(); j++)
-                            installed.remove(hookId + "/" + methods.get(j));
+                            installed(methods.get(j).getDeclaringClass()).remove(hookId + "/" + methods.get(j));
                     }
                     throw new LuaError(ex);
                 }
 
             return LuaValue.NIL;
+        }
+
+        // The dynamic hooks of a class, by hook id and method name or method; locked by installed
+        private static Set<String> installed(Class<?> cls) {
+            return installed.computeIfAbsent(cls, c -> new HashSet<>());
         }
     }
 

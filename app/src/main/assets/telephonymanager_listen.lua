@@ -73,8 +73,9 @@ function before(h, param)
     if events ~= kept then
         param:setArgument(1, events)
     end
-    -- Android sends the first location again at each registration (see nocells). After the hooks, since the listener
-    -- is the key, of which hashCode and equals are of the app and can throw
+    -- Android sends the first location again at each registration (see nocells). Kept by the identity of the listener,
+    -- so hashCode and equals of the app do not run; after the hooks and in a pcall, since the log of debug builds names
+    -- the listener by its toString, which is of the app and can throw
     pcall(param.putValue, param, 'nocells', false, listener)
     return restricted
 end

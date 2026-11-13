@@ -22,6 +22,11 @@ package eu.faircode.xlua;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.database.sqlite.SQLiteDatabase;
+import android.security.net.config.NetworkSecurityConfigProvider;
+
+import com.android.providers.settings.SettingsProvider;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -29,14 +34,26 @@ import org.luaj.vm2.Prototype;
 import org.luaj.vm2.compiler.LuaC;
 
 import java.io.ByteArrayInputStream;
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.io.File;
+
+import io.github.libxposed.api.XposedInterface;
+import io.github.libxposed.api.XposedModuleInterface;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -77,6 +94,234 @@ public class XCoreTest {
 
         XCore.release();
         assertNull(System.getProperty("eu.faircode.xlua.engine"));
+    }
+
+    // A framework of the modern API which counts the hooks and the detaches of the module
+    private final List<Executable> hooked = new ArrayList<>();
+    private int detached = 0;
+
+    private XLuaModule module() {
+        XposedInterface.HookBuilder builder = (XposedInterface.HookBuilder) Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[]{XposedInterface.HookBuilder.class},
+                (proxy, m, args) -> ("intercept".equals(m.getName()) ? null : proxy));
+        XposedInterface framework = (XposedInterface) Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[]{XposedInterface.class},
+                (proxy, m, args) -> {
+                    if ("hook".equals(m.getName())) {
+                        hooked.add((Executable) args[0]);
+                        return builder;
+                    }
+                    if ("getApiVersion".equals(m.getName()))
+                        return XposedInterface.API_102;
+                    // The default value of the type, null for objects and void
+                    return (m.getReturnType().isPrimitive() && m.getReturnType() != void.class
+                            ? Array.get(Array.newInstance(m.getReturnType(), 1), 0) : null);
+                });
+        XLuaModule module = new XLuaModule();
+        module.attachFramework(framework, () -> detached++);
+        module.onModuleLoaded((XposedModuleInterface.ModuleLoadedParam) Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[]{XposedModuleInterface.ModuleLoadedParam.class},
+                (proxy, m, args) -> ("getProcessName".equals(m.getName()) ? "test.app" : false)));
+        return module;
+    }
+
+    private XposedModuleInterface.PackageReadyParam ready(String packageName, boolean first) {
+        return (XposedModuleInterface.PackageReadyParam) Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[]{XposedModuleInterface.PackageReadyParam.class},
+                (proxy, m, args) -> {
+                    switch (m.getName()) {
+                        case "getPackageName":
+                            return packageName;
+                        case "isFirstPackage":
+                            return first;
+                        case "getClassLoader":
+                        case "getDefaultClassLoader":
+                            return getClass().getClassLoader();
+                        default:
+                            return null;
+                    }
+                });
+    }
+
+    // The modern entry point claims a process right before it hooks, not when it is loaded: the AppComponentFactory
+    // of an app runs before onPackageReady and would read the claim; after the release it does not claim again
+    @Test
+    public void modernClaimWaitsForTheFirstHook() {
+        XCore.release();
+        XLuaModule module = module();
+        assertNull(System.getProperty("eu.faircode.xlua.engine"));
+
+        module.onPackageReady(ready("test.app", true));
+        assertEquals("modern", System.getProperty("eu.faircode.xlua.engine"));
+        assertFalse(hooked.isEmpty());
+
+        XCore.release();
+        module.onPackageReady(ready("test.app", true));
+        module.onPackageReady(ready("com.google.android.webview", false));
+        assertNull(System.getProperty("eu.faircode.xlua.engine"));
+        assertEquals(0, detached);
+    }
+
+    // A process the legacy entry point claimed first is left to it, without any hook of the modern one
+    @Test
+    public void modernEntryLeavesALegacyClaim() {
+        XCore.release();
+        XLuaModule module = module();
+        assertTrue(XCore.claim(backend("legacy")));
+
+        module.onPackageReady(ready("test.app", true));
+        module.onPackageReady(ready("test.app", true));
+        assertTrue(hooked.isEmpty());
+        assertEquals(1, detached);
+        assertEquals("legacy", System.getProperty("eu.faircode.xlua.engine"));
+        XCore.release();
+    }
+
+    // The application is made after the hook of Android 11 and later returned, so the constructor, static initializer
+    // and attachBaseContext of the app do not run inside a hook; before Android 11 newApplication is hooked
+    @Test
+    public void applicationIsMadeOutsideTheHook() throws Throwable {
+        core.hookApplication("test.app", getClass().getClassLoader());
+        assertEquals(Collections.singletonList(
+                NetworkSecurityConfigProvider.class.getDeclaredMethod("handleNewApplication", Context.class)), members);
+
+        // Installed when the network security config was made, with the context of the application, and the claim
+        // released before
+        assertTrue(XCore.claim(backend("test")));
+        XCall made = new XCall(members.get(0), null, new Object[]{context});
+        callbacks.get(0).before(made);
+        assertEquals("test", System.getProperty("eu.faircode.xlua.engine"));
+        callbacks.get(0).after(made);
+        assertNull(System.getProperty("eu.faircode.xlua.engine"));
+
+        members.clear();
+        core.hookApplication("test.app", new ClassLoader(getClass().getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (NetworkSecurityConfigProvider.class.getName().equals(name))
+                    throw new ClassNotFoundException(name);
+                return super.loadClass(name, resolve);
+            }
+        });
+        assertFalse(members.isEmpty());
+        for (Member member : members)
+            assertEquals("newApplication", member.getName());
+
+        // Also when the framework cannot hook the method of Android 11, else the app would run without any hook
+        List<String> names = new ArrayList<>();
+        new XCore(new XBackend() {
+            @Override
+            public String getName() {
+                return "test";
+            }
+
+            @Override
+            public void hook(Member member, Callback callback) {
+                if (member.getDeclaringClass() == NetworkSecurityConfigProvider.class)
+                    throw new IllegalStateException("Cannot hook");
+                names.add(member.getName());
+            }
+
+            @Override
+            public void log(String message) {
+            }
+
+            @Override
+            public void log(Throwable ex) {
+            }
+        }).hookApplication("test.app", getClass().getClassLoader());
+        assertFalse(names.isEmpty());
+        for (String name : names)
+            assertEquals("newApplication", name);
+    }
+
+    private static StackTraceElement frame(String cls, String method) {
+        return new StackTraceElement(cls, method, null, -1);
+    }
+
+    private static List<String> frames(Throwable ex) {
+        List<String> names = new ArrayList<>();
+        for (StackTraceElement frame : ex.getStackTrace())
+            names.add(frame.getClassName() + "." + frame.getMethodName());
+        return names;
+    }
+
+    // Android 9 and later send the first five frames of a SecurityException of the settings provider to any app,
+    // which end with the caller of the provider like without a hook, also after the hook of call or query
+    @Test
+    public void settingsErrorsWithoutHookFrames() throws Throwable {
+        core.hookSettings(getClass().getClassLoader());
+        assertEquals(2, members.size());
+        String provider = SettingsProvider.class.getName();
+        String[][] hooks = {{"call", "android.content.ContentProvider"}, {"query", "android.content.ContentProvider$Transport"}};
+        for (int h = 0; h < hooks.length; h++) {
+            SecurityException ex = new SecurityException("Permission denial");
+            ex.setStackTrace(new StackTraceElement[]{
+                    frame(provider, "enforceHasAtLeastOnePermission"),
+                    frame(provider, "mutateGlobalSetting"),
+                    frame(provider, hooks[h][0]),
+                    frame("a.b.HookBridge", "invokeExactOriginalMethod"),
+                    frame("m", "proceed"),
+                    frame("eu.faircode.xlua.ModernBackend", "lambda$hook$0"),
+                    frame("r0", "callback"),
+                    frame(hooks[h][1], hooks[h][0]),
+                    frame("android.os.Binder", "execTransact")});
+            XCall call = new XCall(members.get(h), new SettingsProvider(), new Object[5]);
+            call.setOutcome(null, ex);
+            callbacks.get(h).after(call);
+            assertEquals(Arrays.asList(provider + ".enforceHasAtLeastOnePermission", provider + ".mutateGlobalSetting",
+                    provider + "." + hooks[h][0], hooks[h][1] + "." + hooks[h][0], "android.os.Binder.execTransact"),
+                    frames(ex));
+        }
+
+        // Errors of the service itself have no frame of the provider and are kept as they are
+        IllegalArgumentException ex = new IllegalArgumentException("selection invalid");
+        List<String> own = frames(ex);
+        XCall call = new XCall(members.get(1), new SettingsProvider(), new Object[5]);
+        call.setThrowable(ex);
+        callbacks.get(1).after(call);
+        assertEquals(own, frames(ex));
+    }
+
+    // When the service fails, an app it did not answer as one with assignments gets the answer of the settings provider,
+    // like without Doppel (an error for these columns); an app it did gets no answer, which its hooks report as an error
+    @Test
+    public void failedServiceAnswersAssignedAppsOnly() throws Throwable {
+        core.hookSettings(getClass().getClassLoader());
+        SettingsProvider provider = new SettingsProvider();
+        // The package manager refuses, so the caller is neither system server nor the app (see permittedCallers)
+        provider.context = new ContextWrapper(null) {
+            @Override
+            public PackageManager getPackageManager() {
+                throw new SecurityException("Not the app");
+            }
+        };
+        // A database which fails, like one which cannot be opened
+        Constructor<XDatabase> broken = XDatabase.class.getDeclaredConstructor(SQLiteDatabase.class);
+        broken.setAccessible(true);
+        Field db = XProvider.class.getDeclaredField("db");
+        db.setAccessible(true);
+        db.set(null, broken.newInstance((Object) null));
+        // The stubs of Android give the caller uid 0
+        try {
+            for (int h = 0; h < 2; h++) {
+                Object[] args = (h == 0 ? new Object[]{XProvider.METHOD, "getAssignedHooks2", null}
+                        : new Object[]{null, new String[]{XProvider.COLUMN + "getAssignedHooks2"}, null, null, null});
+                XCall other = new XCall(members.get(h), provider, args);
+                callbacks.get(h).before(other);
+                assertFalse(other.isReturnEarly());
+
+                XCore.answered(0, XProvider.CALLER_ASSIGNED);
+                XCall assigned = new XCall(members.get(h), provider, args);
+                callbacks.get(h).before(assigned);
+                assertTrue(assigned.isReturnEarly());
+                assertNull(assigned.getResult());
+                XCore.answered(0, XProvider.CALLER_NONE);
+            }
+        } finally {
+            XCore.answered(0, XProvider.CALLER_NONE);
+            db.set(null, null);
+        }
     }
 
     private final List<Member> members = new ArrayList<>();
@@ -222,6 +467,38 @@ public class XCoreTest {
         XCall call = new XCall(get, new Target(), new Object[0]);
         callbacks.get(0).before(call);
         assertEquals("2", call.getResult());
+    }
+
+    // The first call on a new thread makes only the globals of the script, not the libraries, which all threads
+    // share, so it costs about what later calls cost; the locals of the script stay per thread
+    @Test
+    public void librariesSharedByThreads() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        install("librariesSharedByThreads",
+                "local calls = 0\n" +
+                        "function before(hook, param)\n" +
+                        "  calls = calls + 1\n" +
+                        "  param:setResult(tostring(string) .. ' ' .. calls)\n" +
+                        "  return true\n" +
+                        "end", get);
+
+        XCall own = new XCall(get, new Target(), new Object[0]);
+        callbacks.get(0).before(own);
+        callbacks.get(0).before(own);
+        String libraries = ((String) own.getResult()).split(" ")[1];
+        assertTrue(own.getResult().toString(), own.getResult().toString().endsWith(" 2"));
+
+        XCall other = new XCall(get, new Target(), new Object[0]);
+        Thread thread = new Thread(() -> {
+            try {
+                callbacks.get(0).before(other);
+            } catch (Throwable ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+        thread.start();
+        thread.join();
+        assertEquals("table: " + libraries + " 1", other.getResult());
     }
 
     @Test
@@ -386,6 +663,50 @@ public class XCoreTest {
         assertEquals(new File("/sdcard/DCIM").getPath(), XCore.filterValue(new File("/sdcard/DCIM/")));
         assertNull(XCore.filterValue(new Target()));
         assertNull(XCore.filterValue(null));
+    }
+
+    // The getPath of a subclass of File is code of the app, which can fail: the method runs like without Doppel, which
+    // reads the path itself or natively the field of File, and the script does not run
+    @Test
+    public void failingFilterValue() throws Throwable {
+        Method open = Target.class.getMethod("open", String.class);
+        install("failingFilterValue",
+                "function filter(hook) return { '/sys/*' } end\n" +
+                        "function before(hook, param) param:setResult('fake') return true end", open);
+
+        File failing = new File("/sys/devices") {
+            @Override
+            public String getPath() {
+                throw new IllegalStateException("app");
+            }
+        };
+        XCall call = new XCall(open, new Target(), new Object[]{failing});
+        callbacks.get(0).before(call);
+        callbacks.get(0).after(call);
+        assertFalse(call.isReturnEarly());
+    }
+
+    // A class of the same name in another class loader, like one of a plugin, is another class with its own hook
+    @Test
+    public void dynamicHookPerClassLoader() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        install("dynamicHookPerClassLoader",
+                "function after(h, param)\n" +
+                        "  hook(param:getThis(), 'inherited', function(when, p) end)\n" +
+                        "  return false\n" +
+                        "end", get);
+        callbacks.get(0).after(new XCall(get, new First(), new Object[0]));
+        assertEquals(2, members.size());
+
+        try (URLClassLoader loader = new URLClassLoader(
+                new URL[]{Target.class.getProtectionDomain().getCodeSource().getLocation()}, null)) {
+            Object other = loader.loadClass(First.class.getName()).getDeclaredConstructor().newInstance();
+            callbacks.get(0).after(new XCall(get, other, new Object[0]));
+            assertEquals(3, members.size());
+            Class<?> declaring = ((Method) members.get(2)).getDeclaringClass();
+            assertEquals(Target.class.getName(), declaring.getName());
+            assertEquals(loader, declaring.getClassLoader());
+        }
     }
 
     // Dynamic hooks of methods which objects inherit are installed once, in the class declaring the method

@@ -94,6 +94,16 @@ public class CoerceJavaToLua {
 		}
 	}
 
+	private static final class LongCoercion implements Coercion {
+		public LuaValue coerce( Object javaValue ) {
+			long l = ((Long) javaValue).longValue();
+			// A double drops the low bits of a long above 2^53, like of a 64-bit fsid a script copies into a fake struct
+			// shortcut: one passed to an Object target (setResult, putValue, list:add, MatrixCursor.RowBuilder.add as cell() of
+			// contentresolver_query.lua does) still becomes a rounded Double, upgrade when a cursor column or result must stay exact
+			return (long) (double) l == l? LuaDouble.valueOf( (double) l ): new LuaDouble.ExactLong( l );
+		}
+	}
+
 	private static final class StringCoercion implements Coercion {
 		public LuaValue coerce( Object javaValue ) {
 			return LuaString.valueOf( javaValue.toString() );
@@ -140,7 +150,7 @@ public class CoerceJavaToLua {
 		COERCIONS.put( Character.class, charCoercion );
 		COERCIONS.put( Short.class, intCoercion );
 		COERCIONS.put( Integer.class, intCoercion );
-		COERCIONS.put( Long.class, doubleCoercion );
+		COERCIONS.put( Long.class, new LongCoercion() );
 		COERCIONS.put( Float.class, doubleCoercion );
 		COERCIONS.put( Double.class, doubleCoercion );
 		COERCIONS.put( String.class, stringCoercion );

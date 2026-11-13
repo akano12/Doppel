@@ -142,6 +142,27 @@ public class XResolverTest {
         return XResolver.resolveTarget(cls, methodName, params, returnType);
     }
 
+    // Classes of the boot class path, also as arrays, are looked up there and not through the class loader of the app,
+    // which its AppComponentFactory can make; other classes, like the ones of libraries, through the app's class loader
+    @Test
+    public void bootClassesWithoutTheAppsClassLoader() throws ClassNotFoundException {
+        List<String> asked = new ArrayList<>();
+        ClassLoader app = new ClassLoader(XResolverTest.class.getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                asked.add(name);
+                return super.loadClass(name, resolve);
+            }
+        };
+        assertEquals(String.class, XResolver.resolveClass("java.lang.String", app));
+        assertEquals(java.io.File[].class, XResolver.resolveClass("java.io.File[]", app));
+        assertEquals(int.class, XResolver.resolveClass("int", app));
+        assertEquals(Collections.emptyList(), asked);
+
+        assertEquals(Base.class, XResolver.resolveClass(Base.class.getName(), app));
+        assertEquals(Collections.singletonList(Base.class.getName()), asked);
+    }
+
     @Test
     public void method() throws Throwable {
         Member member = resolve(Sub.class, "get", new Class<?>[]{int.class}, null);

@@ -51,14 +51,23 @@ final class XResolver {
     private XResolver() {
     }
 
-    // Class names as in definitions: primitive types, arrays like int[] and class names
+    // Class names as in definitions: primitive types, arrays like int[] and class names. A class of the boot class path,
+    // which the class loaders of Android ask first, is looked up there (a null loader is the boot class loader on Android):
+    // a class loader of the app itself, like the one its AppComponentFactory makes, would else be asked for every class
+    // of the hooks, with the frames of the engine on the stack, and could give a class of its own for a framework class.
+    // shortcut: the classes of libraries, like the SDKs of optional hooks, are asked of the app's class loader, the only
+    // one which can find them, so a class loader of the app still sees those names; upgrade if apps detect it this way
     static Class<?> resolveClass(String name, ClassLoader loader) throws ClassNotFoundException {
         Class<?> primitive = PRIMITIVES.get(name);
         if (primitive != null)
             return primitive;
         if (name.endsWith("[]"))
             return Array.newInstance(resolveClass(name.substring(0, name.length() - 2), loader), 0).getClass();
-        return Class.forName(name, false, loader);
+        try {
+            return Class.forName(name, false, null);
+        } catch (ClassNotFoundException ignored) {
+            return Class.forName(name, false, loader);
+        }
     }
 
     // The classes of several names, like the parameter types of a definition

@@ -60,10 +60,9 @@ function before(hook, param)
     local blocked = 'thermal.blocked.' .. (string.find(method, 'Headroom', 1, true) and 'headroom' or 'status')
     if method == 'removeThermalStatusListener' or method == 'removeThermalHeadroomListener' then
         local listener = param:getArgument(0)
-        if listener == nil or not param:getValue(blocked, listener) then
+        if listener == nil or blockedof(param, blocked):remove(listener) == nil then
             return false
         end
-        param:putValue(blocked, nil, listener)
         param:setResult(nil)
         return false
     elseif method ~= 'addThermalStatusListener' and method ~= 'addThermalHeadroomListener' then
@@ -78,7 +77,8 @@ function before(hook, param)
         return false
     end
     -- A listener added twice, which Android refuses with the message of its version
-    if param:getValue(blocked, listener) then
+    local listeners = blockedof(param, blocked)
+    if listeners:containsKey(listener) then
         local message = 'Listener already registered: '
         if luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 36 then
             message = (method == 'addThermalStatusListener' and 'Thermal status' or 'Thermal headroom') ..
@@ -88,7 +88,7 @@ function before(hook, param)
         return true
     end
     param:setResult(nil)
-    param:putValue(blocked, true, listener)
+    listeners:put(listener, true)
     -- Headroom like a device whose sensors have no samples yet, which Android does not call back for (NaN)
     if method == 'addThermalHeadroomListener' then
         return true
@@ -104,6 +104,21 @@ function before(hook, param)
         luajava.newInstance('android.os.Handler', looper):post(runnable)
     end
     return true
+end
+
+-- The blocked listeners of the status or the headroom of the PowerManager of the call, which each context has of its
+-- own (a cached service), by hashCode and equals like the ArrayMap of each PowerManager, so another object equal to one
+-- is the same listener, unlike for putValue, which knows the PowerManager by identity.
+-- shortcut: hashCode and equals of the app run below frames of LuaJ and Doppel, where Android runs them below
+-- PowerManager, upgrade when apps look at the stack in them.
+function blockedof(param, blocked)
+    local manager = param:getThis()
+    local listeners = param:getValue(blocked, manager)
+    if listeners == nil then
+        listeners = luajava.newInstance('java.util.concurrent.ConcurrentHashMap')
+        param:putValue(blocked, listeners, manager)
+    end
+    return listeners
 end
 
 -- Whether an array of arguments is empty, like areAllEffectsSupported() without effects

@@ -24,12 +24,14 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
+import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 // Scripts call methods of objects of classes which declare a method with a type the ROM does not have,
@@ -119,6 +121,44 @@ public class LuaReflectionTest {
         Object pdus = globals.load("return luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('[B'), 0)")
                 .call().touserdata();
         assertEquals(byte[][].class, pdus.getClass());
+    }
+
+    public static class Struct {
+        public final long size;
+        public final long id;
+
+        public Struct(long size, long id) {
+            this.size = size;
+            this.id = id;
+        }
+    }
+
+    // A Java long of more than 53 bits which a script reads and passes on stays the same long, like the 64-bit f_fsid
+    // of ext4 resources.lua copies into a fake StructStatVfs; one the script computes with is a plain number
+    @Test
+    public void longsGoBackToJava() {
+        long fsid = 0x04970d6bd3609fe8L;
+        assertEquals(fsid, CoerceLuaToJava.coerce(CoerceJavaToLua.coerce(fsid), long.class));
+        assertEquals(Long.valueOf(fsid), CoerceLuaToJava.coerce(CoerceJavaToLua.coerce(fsid), Long.class));
+        assertEquals(1L << 40, CoerceLuaToJava.coerce(CoerceJavaToLua.coerce(1L << 40), long.class));
+        assertEquals(Long.MAX_VALUE, CoerceLuaToJava.coerce(CoerceJavaToLua.coerce(Long.MAX_VALUE), long.class));
+        assertTrue(CoerceJavaToLua.coerce(5L).isint());
+
+        Globals globals = JsePlatform.standardGlobals();
+        globals.set("result", CoerceJavaToLua.coerce(new Struct(7, fsid)));
+        Struct fake = (Struct) globals.load("return luajava.newInstance('" + Struct.class.getName() + "', result.size * 2, result.id)")
+                .call().touserdata();
+        assertEquals(14L, fake.size);
+        assertEquals(fsid, fake.id);
+        // A new table entry and one which held a number before each keep the long
+        Struct added = (Struct) globals.load("local t = {} t.id = result.id" +
+                " return luajava.newInstance('" + Struct.class.getName() + "', result.size, t.id)").call().touserdata();
+        assertEquals(fsid, added.id);
+        Struct replaced = (Struct) globals.load("local t = {} t.id = 1 t.id = result.id" +
+                " return luajava.newInstance('" + Struct.class.getName() + "', result.size, t.id)").call().touserdata();
+        assertEquals(fsid, replaced.id);
+        LuaValue sum = globals.load("return result.id + 0").call();
+        assertEquals((long) (double) fsid, CoerceLuaToJava.coerce(sum, long.class));
     }
 
     public interface Checker {

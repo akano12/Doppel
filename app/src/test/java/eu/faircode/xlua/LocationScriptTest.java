@@ -619,9 +619,6 @@ public class LocationScriptTest {
             "function intentof(values, binder, class, made)",
             "  local intent = { extras = bundleof(values, binder, 'boot', not made), replaced = 0,",
             "    class = class or 'android.content.Intent' }",
-            // The class of a real Intent as LuaJ gives it, or a subclass of the SDK in place of ReferrerIntent
-            "  function intent:getClass() return self.class == 'android.content.Intent' and",
-            "    real.newInstance(self.class):getClass() or real.bindClass(self.class) end",
             "  function intent:getExtras() local e = self.extras return bundleof(e.values, e.binder, e.loader, e.inparcel) end",
             "  function intent:setExtrasClassLoader(loader) self.extras.loader = loader end",
             "  function intent:replaceExtras(bundle) self.replaced = self.replaced + 1",
@@ -715,8 +712,8 @@ public class LocationScriptTest {
     // An update which starts the app is read before the hooks are there, so it is faked when Android gives the intent to
     // the component, read with its class loader, which the extras keep, also none; once for each intent given, and
     // again after the hook of Intent.CREATOR, so an intent it read before the hook of Location.CREATOR was there is
-    // faked too, but a subclass, like ReferrerIntent, each time it is parcelled, since its marks would be found by
-    // value; never extras the app put or read, which are not even written, nor without the field of the parcel, which
+    // faked too, also an intent of a subclass, like ReferrerIntent, which is marked by itself, since the marks are kept
+    // by identity; never extras the app put or read, which are not even written, nor without the field of the parcel, which
     // an intent just read from its parcel does not need
     @Test
     public void locationUpdatesOfIntentsAreFakedWhenGiven() throws Exception {
@@ -756,7 +753,7 @@ public class LocationScriptTest {
         assertEquals("3/2", result.arg(5).tojstring());
         assertEquals("false 1 nil location=0", result.arg(6).tojstring());
         assertEquals("false 2 split location=0", result.arg(7).tojstring());
-        assertEquals("false 1 split location=0 nil", result.arg(8).tojstring());
+        assertEquals("false 1 split location=0 true", result.arg(8).tojstring());
         assertEquals("false 1 split location=0*", result.arg(9).tojstring());
         assertEquals("false 0 split location=52* 0", result.arg(10).tojstring());
         assertEquals("false 0 split location=52 0", result.arg(11).tojstring());

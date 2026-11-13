@@ -24,6 +24,7 @@ import android.app.ActivityManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.ComponentInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -771,6 +772,8 @@ class XProvider {
                         !(userid != 0 && "android".equals(pi.packageName)))
                     try {
                         ApplicationInfo ai = pi.applicationInfo;
+                        if (inSystemServerOnly(pm, ai))
+                            continue;
                         boolean persistent = ((ai.flags & ApplicationInfo.FLAG_PERSISTENT) != 0 ||
                                 "android".equals(ai.packageName));
                         boolean system = ((ai.flags &
@@ -839,9 +842,73 @@ class XProvider {
         });
 
         MatrixCursor result = new MatrixCursor(new String[]{"blob"});
-        for (XApp app : apps.values())
+        for (XApp app : apps.values()) {
+            limitErrors(app.assignments);
             result.newRow().add(app.marshall());
+        }
         return result;
+    }
+
+    // Packages like Fused Location and Settings Storage run in system server only, where the hooks of "android" are
+    // installed (see XCore.hookAndroid), so their own restrictions would never be installed: a component of the
+    // process "system" of the system uid runs in system server, also for other users (see
+    // ActivityManagerService.isSingleton), so the list leaves them out. Any app can name its process "system",
+    // which is then a process of its own, and Telecom has components in a process of its own, which its
+    // restrictions apply to. shortcut: Telecom's screen offers all groups, though its code in system server is
+    // restricted by the ones of "android" only, upgrade when users restrict Telecom for what system server does.
+    // shortcut: the stored restrictions of a package left out stay in the database unseen and go into backups,
+    // which a restore skips (see Backup.restore), upgrade to removing them at boot like removedApps when they matter.
+    static boolean inSystemServerOnly(PackageManager pm, ApplicationInfo ai) throws PackageManager.NameNotFoundException {
+        // The components are looked up for the few in the process "system" only
+        return inSystemServerOnly(ai.packageName, ai.uid, Collections.singletonList(ai.processName)) &&
+                inSystemServerOnly(ai.packageName, ai.uid, getProcesses(pm, ai.packageName));
+    }
+
+    static boolean inSystemServerOnly(String packageName, int uid, List<String> processes) {
+        if ("android".equals(packageName) || Util.getAppId(uid) != Process.SYSTEM_UID)
+            return false;
+        for (String process : processes)
+            if (!"system".equals(process))
+                return false;
+        return true;
+    }
+
+    // The process of a package and of all its components, also disabled ones and the ones of a locked user
+    private static List<String> getProcesses(PackageManager pm, String packageName) throws PackageManager.NameNotFoundException {
+        return getProcesses(Util.getPackageInfo(pm, packageName,
+                PackageManager.GET_ACTIVITIES | PackageManager.GET_SERVICES |
+                        PackageManager.GET_RECEIVERS | PackageManager.GET_PROVIDERS |
+                        PackageManager.MATCH_DISABLED_COMPONENTS |
+                        PackageManager.MATCH_DIRECT_BOOT_AWARE | PackageManager.MATCH_DIRECT_BOOT_UNAWARE));
+    }
+
+    // A kind of component a package has none of is null
+    static List<String> getProcesses(PackageInfo pi) {
+        List<String> processes = new ArrayList<>();
+        processes.add(pi.applicationInfo.processName);
+        for (ComponentInfo[] components : new ComponentInfo[][]{pi.activities, pi.services, pi.receivers, pi.providers})
+            if (components != null)
+                for (ComponentInfo component : components)
+                    processes.add(component.processName);
+        return processes;
+    }
+
+    // All apps of a user are sent in rows of a CursorWindow of 2 MB (config_cursorWindowSize), each app in one row which
+    // must fit, with strings in UTF-16. A hooked app can store an error of MAX_EXCEPTION chars in each of its about 2000
+    // assignments, see Report, so the errors of an app are cut, still as errors, which the log lists by their first line.
+    // shortcut: errors past MAX_ERRORS chars per app are sent as their first line, the first in stored order kept in
+    // full; upgrade to loading one assignment's full error on demand when users need full traces of many failing hooks.
+    static final int MAX_ERRORS = 128 * 1024;
+    static final int MAX_ERROR_LINE = 100;
+
+    static void limitErrors(List<XAssignment> assignments) {
+        int left = MAX_ERRORS;
+        for (XAssignment assignment : assignments)
+            if (assignment.exception != null) {
+                if (assignment.exception.length() > left)
+                    assignment.exception = limit(assignment.exception.trim().split("\n", 2)[0], MAX_ERROR_LINE);
+                left = Math.max(0, left - assignment.exception.length());
+            }
     }
 
     private static Bundle assignHooks(Context context, Bundle extras) throws Throwable {
@@ -1184,7 +1251,7 @@ class XProvider {
                 null, null, "used DESC")));
     }
 
-    // A new app, see ReceiverPackage, which is not running yet
+    // A new app, see ReceiverPackage, which stops it when it runs already
     private static Bundle initApp(Bundle extras) throws Throwable {
         final String packageName = extras.getString("packageName");
         final int uid = extras.getInt("uid");

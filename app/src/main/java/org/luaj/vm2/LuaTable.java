@@ -763,7 +763,8 @@ public class LuaTable extends LuaValue implements Metatable {
 	protected static Entry defaultEntry(LuaValue key, LuaValue value) {
 		if ( key.isinttype() ) {
 			return new IntKeyEntry( key.toint(), value );
-		} else if (value.type() == TNUMBER) {
+		// A long a double cannot hold stays itself, which an entry of a double would not keep
+		} else if (value.type() == TNUMBER && !(value instanceof LuaDouble.ExactLong)) {
 			return new NumberValueEntry( key, value.todouble() );
 		} else {
 			return new NormalEntry( key, value );
@@ -1232,7 +1233,7 @@ public class LuaTable extends LuaValue implements Metatable {
 
 		public Entry set(LuaValue value) {
 			LuaValue n = value.tonumber();
-			if ( !n.isnil() ) {
+			if ( !n.isnil() && !(n instanceof LuaDouble.ExactLong) ) {
 				this.value = n.todouble();
 				return this;
 			} else {

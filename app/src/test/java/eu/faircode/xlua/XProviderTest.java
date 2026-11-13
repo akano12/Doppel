@@ -19,6 +19,13 @@
 
 package eu.faircode.xlua;
 
+import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.ComponentInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.ProviderInfo;
+import android.content.pm.ServiceInfo;
+
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -126,6 +133,103 @@ public class XProviderTest {
         for (String[] app : removed)
             names.add(app[0]);
         assertEquals(Arrays.asList("removed.app", "reinstalled.app"), names);
+    }
+
+    // Packages whose code runs in system server only cannot be restricted themselves, see getApps
+    @Test
+    public void packagesOfSystemServerLeftOut() {
+        int system = android.os.Process.SYSTEM_UID;
+        List<String> fused = Arrays.asList("system", "system");
+        assertTrue(XProvider.inSystemServerOnly("com.android.location.fused", system, fused));
+        assertTrue(XProvider.inSystemServerOnly("com.android.location.fused", Util.getUserUid(10, system), fused));
+        assertTrue(XProvider.inSystemServerOnly("com.android.providers.settings", system,
+                Collections.singletonList("system")));
+        // Telecom has a process of its own for its screens, where its restrictions are installed
+        assertFalse(XProvider.inSystemServerOnly("com.android.server.telecom", system,
+                Arrays.asList("system", "com.android.server.telecom:ui", "system")));
+        assertFalse(XProvider.inSystemServerOnly("android", system, Collections.singletonList("system")));
+        // A process of another uid named "system" is a process of its own, like of an app hiding from the list
+        assertFalse(XProvider.inSystemServerOnly("hiding.app", 10123, Collections.singletonList("system")));
+        assertFalse(XProvider.inSystemServerOnly("phone.app", android.os.Process.PHONE_UID,
+                Collections.singletonList("system")));
+    }
+
+    // A package stays listed when the application or any of its components runs in a process of its own, see getProcesses
+    @Test
+    public void processesOfAPackage() {
+        int system = android.os.Process.SYSTEM_UID;
+        // Telecom runs in system server, but its screens run in a process of its own
+        PackageInfo telecom = packageInfo("com.android.server.telecom", "system");
+        telecom.services = new ServiceInfo[]{component(new ServiceInfo(), "system")};
+        telecom.activities = new ActivityInfo[]{component(new ActivityInfo(), "system"),
+                component(new ActivityInfo(), "com.android.server.telecom:ui")};
+        assertFalse(XProvider.inSystemServerOnly(telecom.packageName, system, XProvider.getProcesses(telecom)));
+
+        // Fused Location has services only, all in system server, and no array for the kinds it has none of
+        PackageInfo fused = packageInfo("com.android.location.fused", "system");
+        fused.services = new ServiceInfo[]{component(new ServiceInfo(), "system"), component(new ServiceInfo(), "system")};
+        assertTrue(XProvider.inSystemServerOnly(fused.packageName, system, XProvider.getProcesses(fused)));
+
+        PackageInfo receiver = packageInfo("system.receiver", "system");
+        receiver.receivers = new ActivityInfo[]{component(new ActivityInfo(), "system.receiver:remote")};
+        assertFalse(XProvider.inSystemServerOnly(receiver.packageName, system, XProvider.getProcesses(receiver)));
+
+        // Each kind of component counts, in any process
+        PackageInfo all = packageInfo("all.kinds", "application");
+        all.activities = new ActivityInfo[]{component(new ActivityInfo(), "activity")};
+        all.services = new ServiceInfo[]{component(new ServiceInfo(), "service")};
+        all.receivers = new ActivityInfo[]{component(new ActivityInfo(), "receiver")};
+        all.providers = new ProviderInfo[]{component(new ProviderInfo(), "provider")};
+        assertEquals(Arrays.asList("application", "activity", "service", "receiver", "provider"), XProvider.getProcesses(all));
+    }
+
+    private static PackageInfo packageInfo(String packageName, String process) {
+        PackageInfo pi = new PackageInfo();
+        pi.packageName = packageName;
+        pi.applicationInfo = new ApplicationInfo();
+        pi.applicationInfo.processName = process;
+        return pi;
+    }
+
+    private static <T extends ComponentInfo> T component(T component, String process) {
+        component.processName = process;
+        return component;
+    }
+
+    // A hooked app can store an error in each of its assignments, which would together not fit in the one row of
+    // the app, see getApps: past the limit errors are sent as their first line, never as no error
+    @Test
+    public void errorsOfAnAppFitInItsRow() throws Exception {
+        String json = new String(java.nio.file.Files.readAllBytes(
+                new java.io.File("src/main/assets/hooks.json").toPath()), java.nio.charset.StandardCharsets.UTF_8);
+        // All built-in hooks restricted and some custom ones, with the longest names there are
+        int count = json.split("\"luaScript\"", -1).length - 1 + 500;
+        // A first line longer than what is sent of it
+        String line = new String(new char[200]).replace('\0', 'y');
+        String trace = line + "\n" + new String(new char[16384]).replace('\0', 'x');
+        List<XAssignment> assignments = new java.util.ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            XAssignment assignment = new XAssignment(hook(String.format("%073d", i), 0, true));
+            assignment.exception = (i == 1 ? "short\nerror" : trace);
+            assignments.add(assignment);
+        }
+        XProvider.limitErrors(assignments);
+
+        // Parcel.writeString: a length and the UTF-16 chars with a terminator, padded to 4 bytes
+        long size = 0;
+        for (XAssignment assignment : assignments) {
+            assertTrue(assignment.exception != null);
+            size += 4 + parcelled(assignment.id) + parcelled(String.format("%18s", "")) + 3 * 8 + 4 +
+                    parcelled(assignment.exception);
+        }
+        assertTrue("Row of " + size + " bytes", size < 2048 * 1024 - 64 * 1024);
+        assertEquals(trace, assignments.get(0).exception);
+        assertEquals("short\nerror", assignments.get(1).exception);
+        assertEquals(line.substring(0, XProvider.MAX_ERROR_LINE) + "…", assignments.get(count - 1).exception);
+    }
+
+    private static int parcelled(String text) {
+        return 4 + ((text.length() + 1) * 2 + 3) / 4 * 4;
     }
 
     // The scripts are sent of the definitions which need them only, see getHooks

@@ -27,10 +27,13 @@ import android.system.Os;
 import android.system.StructStat;
 
 import org.junit.Test;
+import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
+import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -42,7 +45,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -255,6 +260,25 @@ public class XParamTest {
         assertEquals(4092, XParam.available(4096, 4));
         assertEquals(0, XParam.available(4096, 5000));
         assertEquals(25000, XParam.available(25000, 0));
+    }
+
+    // A fake takes the number of the file opened, with its flags by fcntl on Android 8.1 and from Android 11; on Android
+    // 9 and 10, which refuse fcntl to apps, only when the open, also openat of java.nio, had no O_CLOEXEC, which dup2
+    // clears; a method without the flags of an open keeps the number of the fake
+    @Test
+    public void movableFakes() {
+        int cloexec = 0x80000;
+        Object[] plain = {"/proc/cpuinfo", 0, 0};
+        Object[] closing = {"/proc/cpuinfo", cloexec, 0};
+        for (int sdk : new int[]{27, 30, 34})
+            assertTrue(XParam.movable(sdk, closing, cloexec));
+        for (int sdk : new int[]{28, 29}) {
+            assertTrue(XParam.movable(sdk, plain, cloexec));
+            assertTrue(XParam.movable(sdk, new Object[]{-100, new byte[0], 0x20000, 0}, cloexec));
+            assertFalse(XParam.movable(sdk, closing, cloexec));
+            assertFalse(XParam.movable(sdk, new Object[]{new File("/proc/cpuinfo"), 0x10000000}, cloexec));
+            assertFalse(XParam.movable(sdk, new Object[0], cloexec));
+        }
     }
 
     // Fakes are told apart by device, inode and change time, so a file which gets the inode of a removed fake is no fake;
@@ -529,6 +553,47 @@ public class XParamTest {
         }
     }
 
+    // A throwable a script makes, and its cause, have the frames from the hooked method down, here this test, without
+    // those of LuaJ, the engine and the reflection of luajava; a throwable with frames of its own keeps them
+    @Test
+    public void throwablesWithoutHookFrames() throws Throwable {
+        Method count = XParamTest.class.getMethod("count", int.class, String.class);
+        XCall call = new XCall(count, null, new Object[]{1, "one"});
+        Globals globals = JsePlatform.standardGlobals();
+        globals.set("param", CoerceJavaToLua.coerce(param(call)));
+        StackTraceElement[] here = new Throwable().getStackTrace();
+        globals.load("local cause = luajava.newInstance('java.io.IOException', 'cause')\n" +
+                "param:setResult(luajava.newInstance('java.lang.IllegalStateException', 'blocked', cause))").call();
+        Throwable thrown = call.getThrowable();
+        assertEquals("blocked", thrown.getMessage());
+        assertEquals("cause", thrown.getCause().getMessage());
+        // Below this test, whose frame is of the engine's package too
+        List<StackTraceElement> below = Arrays.asList(here).subList(1, here.length);
+        assertEquals(below, Arrays.asList(thrown.getStackTrace()));
+        assertEquals(below, Arrays.asList(thrown.getCause().getStackTrace()));
+
+        StackTraceElement[] own = {new StackTraceElement("libcore.io.Linux", "open", null, -2),
+                new StackTraceElement("com.example.App", "open", "App.java", 12)};
+        Exception copy = new IllegalStateException("copy");
+        copy.setStackTrace(own);
+        param(call).setResult(copy);
+        assertArrayEquals(own, call.getThrowable().getStackTrace());
+    }
+
+    // The frames of the hook are left out, the reflection of luajava above them too, the hooker of the framework and the
+    // reflection of the app stay
+    @Test
+    public void hookFrames() {
+        String[] classes = {"java.lang.reflect.Constructor", "java.lang.reflect.Constructor",
+                "org.luaj.vm2.lib.jse.JavaConstructor", "org.luaj.vm2.LuaClosure", "eu.faircode.xlua.XCore$3",
+                "eu.faircode.xlua.ModernBackend$$ExternalSyntheticLambda0", "org.lsposed.lspd.impl.LSPosedBridge",
+                "LSPHooker_", "libcore.io.IoBridge", "java.lang.reflect.Method", "com.example.App"};
+        StackTraceElement[] frames = new StackTraceElement[classes.length];
+        for (int i = 0; i < classes.length; i++)
+            frames[i] = new StackTraceElement(classes[i], "m", null, i);
+        assertArrayEquals(Arrays.copyOfRange(frames, 7, 11), XParam.withoutHookFrames(frames));
+    }
+
     // The message of an exception, which scripts cannot set themselves (see package_probe)
     @Test
     public void exceptionMessage() throws Throwable {
@@ -575,6 +640,38 @@ public class XParamTest {
         XParam param = param();
         assertTrue("Own package", param.isInstalledVisible("test.app"));
         assertFalse("No package", param.isInstalledVisible(null));
+    }
+
+    // Values are kept per object by identity, like NsdManager knows listeners, without calling hashCode or equals of the
+    // app; null is a scope too
+    @Test
+    public void valuesByIdentity() throws NoSuchFieldException {
+        class Listener {
+            @Override
+            public boolean equals(Object other) {
+                throw new AssertionError("equals");
+            }
+
+            @Override
+            public int hashCode() {
+                throw new AssertionError("hashCode");
+            }
+
+            // For the log of debug builds
+            @Override
+            public String toString() {
+                return "Listener";
+            }
+        }
+        XParam param = param();
+        Listener first = new Listener(), second = new Listener();
+        param.putValue("nsd.blocked", true, first);
+        assertEquals(true, param.getValue("nsd.blocked", first));
+        assertNull(param.getValue("nsd.blocked", second));
+        param.putValue("nsd.blocked", null, first);
+        assertNull(param.getValue("nsd.blocked", first));
+        param.putValue("global", 7, null);
+        assertEquals(7, param.getValue("global", null));
     }
 
     // The lookups of scripts do not run the hooks of the app, also when they fail
