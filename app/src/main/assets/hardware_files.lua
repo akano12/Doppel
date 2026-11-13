@@ -29,8 +29,13 @@
 -- The feature files of the system which stay are read without the features the group hides (see FEATURES).
 -- A SecureDirectoryStream of java.nio, which Files.newDirectoryStream gives, opens, removes and moves the files of its
 -- folder and reads their attributes by the descriptor of the folder and their name (openat, unlinkat, renameat and
--- fstatat, see atpath), which only the groups which hook those calls cover. Not covered is native code. The property
--- areas of /dev/__properties__ have the fake values of the properties, see systemproperties_get.
+-- fstatat, see atpath), which only the groups which hook those calls cover. Not covered is native code. FileInputStream,
+-- which FileReader opens too, and FileOutputStream of Android 8.1 and 9 open natively (open0), not by the hooks of open;
+-- Read.VPN, Read.Debugging and Read.Biometrics hook open0 to hide their files (see before), but not to rewrite them
+-- (see tables and featuretext). The property areas of /dev/__properties__ have the fake values of the properties, see
+-- systemproperties_get.
+-- shortcut: the other groups do not hook open0, so on Android 8.1 and 9 FileInputStream and FileReader still open their
+-- files, add the hooks of Read.VPN to them if apps read the files that way.
 -- shortcut: a SecureDirectoryStream of a folder in the one of the stream (its newDirectoryStream) has no filter, so it
 -- lists the names of hidden files, which openat then does not find, hook its constructor to add a filter if apps do so.
 -- For Use.Tracking the tables of the process which every app reads of itself name the hardware too (see tables): the
@@ -41,6 +46,8 @@
 -- the chip, like /dev/block/platform/soc/1d84000.ufshc/by-name.
 -- shortcut: the mount points of makers, like /efs of Samsung, and the numbers of the block devices, which tell UFS
 -- from eMMC, stay in the mount tables; leave them out once the mounts of AOSP of Android 8.1 to 17 are known.
+-- For Read.Debugging the mount tables leave out the mounts of Magisk (see magiskmount), like its tmpfs on
+-- /debug_ramdisk, where its files do not exist.
 
 -- The files of each group, as patterns of the path; a pattern ending in / covers the files of a folder
 local FILES = {
@@ -106,7 +113,12 @@ local FILES = {
                      '^/proc/[^/]+/task/%d+/net/xt_qtaguid/iface_stat/([^/]+)',
                      '^/proc/sys/net/ipv[46]/conf/([^/]+)', '^/proc/sys/net/ipv[46]/neigh/([^/]+)' },
     -- su of root managers, in the folders of programs of the system and the ones they used to install to,
-    -- and the programs and folders of Magisk
+    -- and the programs and folders of Magisk; the folders /data/adb and /debug_ramdisk themselves stay, which a device
+    -- without root has too: init.usb.rc of AOSP makes /data/adb (oreo-mr1-release), and /debug_ramdisk is an empty
+    -- folder of the root from Android 10 (rootdir/Android.mk of system/core, android10-release).
+    -- shortcut: from Android 11 /debug_ramdisk is the tmpfs of Magisk, which can be written, not the empty folder of the
+    -- read-only root, so making and removing names in it (EACCES, ENOENT) and its statvfs differ from a device without
+    -- root (EROFS); answer for it like for the root if apps probe that.
     ['Read.Debugging'] = {
         '^/system/bin/su$', '^/system/xbin/su$', '^/sbin/su$', '^/su$', '^/su/', '^/system/bin/failsafe/su$',
         '^/system/sd/xbin/su$', '^/system/bin/%.ext/su$', '^/system/usr/we%-need%-root/su$', '^/data/local/su$',
@@ -144,7 +156,15 @@ for group, names in pairs({
     -- the sensor features (see FEATURES). Android 10 and later also read a folder for the SKU of the device in there,
     -- like /odm/etc/permissions/sku_X (in /vendor too from Android 11, in /product from Android 15), no deeper one.
     ['Get.Sensors'] = { 'permissions/android%.hardware%.sensor%.[^/]*$',
-                        'permissions/sku_[^/]+/android%.hardware%.sensor%.[^/]*$' } }) do
+                        'permissions/sku_[^/]+/android%.hardware%.sensor%.[^/]*$' },
+    -- The same for the biometric features, the files of AOSP of the fingerprint sensor (from Android 8.1) and of face
+    -- unlock (from Android 10), and of iris unlock named the same way
+    ['Read.Biometrics'] = { 'permissions/android%.hardware%.fingerprint%.xml$',
+                            'permissions/android%.hardware%.biometrics%.face%.xml$',
+                            'permissions/android%.hardware%.biometrics%.iris%.xml$',
+                            'permissions/sku_[^/]+/android%.hardware%.fingerprint%.xml$',
+                            'permissions/sku_[^/]+/android%.hardware%.biometrics%.face%.xml$',
+                            'permissions/sku_[^/]+/android%.hardware%.biometrics%.iris%.xml$' } }) do
     for _, name in ipairs(names) do
         for _, etc in ipairs(ETC) do
             table.insert(FILES[group], etc .. name)
@@ -211,19 +231,40 @@ local FILTERS = {
                            '/data/adb*', '*bin/su*', '*magisk*', '*debug_ramdisk*', '*/./*', '*//*', '*/../*',
                            '/system/bin', '/system/xbin', '/sbin', '/data/local', '/cache', '/dev', '/vendor/bin',
                            '/vendor/xbin', '/product/bin', '/system_ext/bin', '/odm/bin', '/system/app' },
+    -- The folders etc of every path of ETC, which list the hidden folders: also by the links of /system to the
+    -- partitions, like /system/vendor/etc, of /oem and the partitions my_ of OPPO, and of all APEX modules, which the
+    -- filter can only pass as all of /apex, so the script also runs for the certificates of the system which Android 14
+    -- and later read from /apex/com.android.conscrypt/cacerts, and resolves each once per thread (see HIDDEN).
+    -- shortcut: the folders etc of other partitions of makers, like /mi_ext/etc, still list them; add them when known.
     ['Read.Features'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*', '/system/etc', '/vendor/etc',
-                          '/odm/etc', '/vendor/odm/etc', '/product/etc', '/system_ext/etc', '/etc' },
+                          '/odm/etc', '/vendor/odm/etc', '/product/etc', '/system_ext/etc', '/etc', '/system/vendor/etc',
+                          '/system/product/etc', '/system/system_ext/etc', '/system/vendor/odm/etc', '/oem/etc', '/my_*',
+                          '/apex/*' },
     ['Get.Applications'] = { '*etc/permissions*', '*/./*', '*//*', '/system/app', '/system/priv-app', '/product/app',
                              '/product/priv-app', '/system_ext/app', '/system_ext/priv-app', '/vendor/app',
                              '/vendor/priv-app', '/odm/app', '/odm/priv-app', '/system/product/app',
                              '/system/product/priv-app', '/system/system_ext/app', '/system/system_ext/priv-app',
                              '/system/vendor/app', '/system/vendor/priv-app' },
     ['Get.Sensors'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
+    ['Read.Biometrics'] = { '*sys/*', '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
 }
 
--- The features of the system each group hides from the feature files which stay, like handheld_core_hardware.xml,
--- by the start of their names, the same as the hooks of the group in features hide
-local FEATURES = { ['Get.Sensors'] = 'android.hardware.sensor.' }
+-- The folders of the shared libraries of the partitions, which apps can list (system_file and vendor_framework_file of
+-- the SELinux policy of AOSP), also by the links of /system to the partitions and the folder /odm/framework leads to
+-- without an odm partition: of Read.Features the jars of the libraries of makers are left out (see libraries)
+local FRAMEWORKS = {}
+for _, folder in ipairs({ '/system/framework', '/product/framework', '/system_ext/framework', '/vendor/framework',
+                          '/odm/framework', '/system/product/framework', '/system/system_ext/framework',
+                          '/system/vendor/framework', '/vendor/odm/framework', '/system/vendor/odm/framework' }) do
+    FRAMEWORKS[folder] = true
+    table.insert(FILTERS['Read.Features'], folder)
+end
+
+-- The features of the system each group hides from the feature files which stay, like handheld_core_hardware.xml, the
+-- same as the hooks of the group in features and biometrics hide; a name ending in * covers the names starting with it
+local FEATURES = { ['Get.Sensors'] = { 'android.hardware.sensor.*' },
+                   ['Read.Biometrics'] = { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
+                                           'android.hardware.biometrics.iris' } }
 
 -- The feature files of the system, which it reads its features from, in the folders permissions and sysconfig of etc
 -- and in their folders of the SKU of the device, like sku_X, which Android 10 and later read too (see Get.Sensors)
@@ -275,8 +316,9 @@ local REASONS = { [ENOENT] = 'No such file or directory', [EACCES] = 'Permission
 local UNFILTERED = { openat = true, unlinkat = true, renameat = true, fstatat = true, link = true, symlink = true,
                      rename = true, name = true, toString = true }
 
--- Parts of the paths of the tables of the process (see tables), which only the hooks of open of Use.Tracking run for
-local TABLES = { '/maps', '/smaps', '/mount' }
+-- Parts of the paths of the tables of the process (see tables), which only the hooks of open of the groups run for: the
+-- maps and the mount tables for Use.Tracking, the mount tables for Read.Debugging
+local TABLES = { ['Use.Tracking'] = { '/maps', '/smaps', '/mount' }, ['Read.Debugging'] = { '/mount' } }
 
 function filter(hook)
     local method, group = hook:getMethodName(), hook:getGroup()
@@ -284,17 +326,17 @@ function filter(hook)
         return nil
     end
     local values = paths(group)
-    if method == 'open' and group == 'Use.Tracking' then
-        for _, part in ipairs(TABLES) do
+    if method == 'open' then
+        for _, part in ipairs(TABLES[group] or {}) do
             values[#values + 1] = '*' .. part .. '*'
         end
     end
     return values
 end
 
--- Whether a path has a part of the paths of the tables of the process
-function tabled(path)
-    for _, part in ipairs(TABLES) do
+-- Whether a path has a part of the paths of the tables of the process of a group
+function tabled(group, path)
+    for _, part in ipairs(TABLES[group] or {}) do
         if string.find(path, part, 1, true) then
             return true
         end
@@ -575,22 +617,117 @@ function byname(text)
     return string.gsub(text, '/dev/block/[^%s]-/by%-name/', '/dev/block/by-name/')
 end
 
--- The tables of the process which the app opened with a hook of open of Use.Tracking, by the path they lead to through
--- /proc or a descriptor, like /proc/self/maps, /proc/thread-self/smaps, /proc/mounts, a link to self/mounts, and
--- /dev/fd/9/maps of a descriptor of /proc/self, not by links of the app itself: the maps without the files of the
--- vendor (see unmapped), and the mount tables with the partitions by name (see byname)
+-- Whether a mount is of Magisk, which a device without root does not have, by its source, its mount point and, in
+-- mountinfo, the folder of the source it mounts: the tmpfs of Magisk, named magisk, on /sbin up to Android 10 (where
+-- older versions name it tmpfs, and Android mounts nothing) and on /debug_ramdisk from Android 11, an empty folder of
+-- the root of AOSP (see FILES); its programs mounted from there, like /system/bin/magisk, the mirrors of the
+-- partitions and the modules in its folder .magisk, also as the source by its block devices there, the folders of the
+-- system which the modules change, mounted from its tmpfs named worker, and the files of the modules, which mountinfo
+-- names by their path in /data, like /adb/modules/example/system/bin/tool.
+function magiskmount(source, point, root)
+    if string.find(point, '/.magisk', 1, true) or (root ~= nil and string.find(root, '/.magisk', 1, true)) then
+        return true
+    end
+    return source ~= nil and string.find(source, 'magisk', 1, true) ~= nil or source == 'worker' or point == '/sbin' or
+            point == '/debug_ramdisk' or string.find(point, '^/debug_ramdisk/') ~= nil or
+            (root ~= nil and string.find(root, '^/adb/') ~= nil)
+end
+
+-- A mount table without the mounts of Magisk (see magiskmount) and the mounts in them, like the files of the system
+-- which Magisk mounts back into a folder it changes, and how many it left out, by the fields of each table: the source
+-- and mount point of mounts, the id, the parent, the folder of the source, the mount point and after the type the
+-- source of mountinfo, and the source and mount point of mountstats. A mount in one of Magisk is by its parent in
+-- mountinfo, so no parent is missing, and in the others by its mount point under an earlier one of Magisk; an earlier
+-- mount there stays, which Magisk only covers.
+-- shortcut: a mount table without the folders of the source (mounts and mountstats) names a file of a module mounted
+-- over a file of the system only by the partition of /data, like /dev/block/dm-48 /system/bin/tool, which stays; and
+-- the file stores of FileSystems.getFileStores, which java.nio makes of /proc/mounts it reads natively (see
+-- storename), still have the mounts of Magisk, like /debug_ramdisk; leave them out too if apps look for root that way.
+function unmagisked(text, name)
+    local mounts, ids = {}, {}
+    for line in string.gmatch(text, '[^\n]*\n?') do
+        local mount = { line = line }
+        if name == 'mountinfo' then
+            mount.id, mount.parent, mount.root, mount.point = string.match(line, '^(%d+) (%d+) %d+:%d+ (%S+) (%S+) ')
+            mount.source = string.match(line, ' %- %S+ (%S+)')
+        elseif name == 'mountstats' then
+            mount.source, mount.point = string.match(line, '^device (%S+) mounted on (%S+) ')
+        else
+            mount.source, mount.point = string.match(line, '^(%S+) (%S+) ')
+        end
+        mount.left = mount.point ~= nil and magiskmount(mount.source, mount.point, mount.root)
+        mounts[#mounts + 1] = mount
+    end
+    if name == 'mountinfo' then
+        -- By the parent, until no more are found, since a parent may come after its mount
+        local found = true
+        while found do
+            found = false
+            for _, mount in ipairs(mounts) do
+                if mount.left and mount.id ~= nil then
+                    ids[mount.id] = true
+                elseif not mount.left and mount.parent ~= nil and ids[mount.parent] then
+                    mount.left, found = true, true
+                end
+            end
+        end
+    else
+        -- By the mount point under an earlier one of Magisk
+        local points = {}
+        for _, mount in ipairs(mounts) do
+            if not mount.left and mount.point ~= nil then
+                for _, folder in ipairs(points) do
+                    if string.sub(mount.point, 1, #folder + 1) == folder .. '/' then
+                        mount.left = true
+                        break
+                    end
+                end
+            end
+            if mount.left and mount.point ~= '/' then
+                points[#points + 1] = mount.point
+            end
+        end
+    end
+    local result, left = {}, 0
+    for _, mount in ipairs(mounts) do
+        if mount.left then
+            left = left + 1
+        else
+            result[#result + 1] = mount.line
+        end
+    end
+    return table.concat(result), left
+end
+
+-- The tables of the process which the app opened with a hook of open of a group of TABLES, by the path they lead to
+-- through /proc or a descriptor, like /proc/self/maps, /proc/thread-self/smaps, /proc/mounts, a link to self/mounts,
+-- and /dev/fd/9/maps of a descriptor of /proc/self, not by links of the app itself: for Use.Tracking the maps without
+-- the files of the vendor (see unmapped) and the mount tables with the partitions by name (see byname), for
+-- Read.Debugging the mount tables without the mounts of Magisk (see unmagisked). Both hooks of an open replace the
+-- text, each the one the other left (see XParam.getFileText), and the faked_files hooks of both groups give the stat,
+-- size and link of the descriptor of the table, not of the fake.
+-- shortcut: on Android 8.1 and 9 FileInputStream, which FileReader opens too, opens by its native open0, not by
+-- IoBridge.open and the hooks of open (AOSP libcore oreo-mr1-release and pie-release, FileInputStream(File)), so it reads
+-- the tables as they are, the maps with the files of the vendor and the mount tables with the mounts of Magisk, while
+-- RandomAccessFile, Os.open and java.nio read them rewritten; the hooks of open0 of Read.Debugging only hide its files
+-- (see before), put the fake in place of the descriptor of the stream there (Os.dup2) if apps read the tables that way.
 function tables(hook, param)
-    local path = pathof(param)
-    if about(hook).group ~= 'Use.Tracking' or param:getException() ~= nil or param:getResult() == nil or
-            not (string.find(path, 'proc/', 1, true) or string.find(path, '/fd/', 1, true)) or not tabled(path) then
+    local path, group = pathof(param), about(hook).group
+    if param:getException() ~= nil or param:getResult() == nil or
+            not (string.find(path, 'proc/', 1, true) or string.find(path, '/fd/', 1, true)) or not tabled(group, path) then
         return false
     end
     local resolved = resolve(path, param)
     local name = string.match(resolved, '^/proc/[^/]+/(%a+)$') or string.match(resolved, '^/proc/[^/]+/task/%d+/(%a+)$')
     local text, left
-    if name == 'maps' or name == 'smaps' then
+    local mounts = name == 'mounts' or name == 'mountinfo' or name == 'mountstats'
+    if group == 'Read.Debugging' then
+        if mounts then
+            text, left = unmagisked(param:getFileText(), name)
+        end
+    elseif name == 'maps' or name == 'smaps' then
         text, left = unmapped(param:getFileText())
-    elseif name == 'mounts' or name == 'mountinfo' or name == 'mountstats' then
+    elseif mounts then
         text, left = byname(param:getFileText())
     end
     if left == nil or left == 0 then
@@ -628,10 +765,10 @@ function matched(group, path, param)
         plain = resolve(plain, param)
     end
     -- A file the app makes itself in the shared storage, like /sdcard/etc/permissions/android.hardware.sensor.light.xml,
-    -- is no sensor file of the system, as for featurefile.
+    -- is no sensor or biometric feature file of the system, as for featurefile.
     -- shortcut: Read.Features, Get.Applications and Use.Tracking still hide the names of their etc patterns there, like
     -- /sdcard/etc/permissions, leave them too if apps make such files
-    if group == 'Get.Sensors' and string.find(plain, '^/sdcard/') then
+    if (group == 'Get.Sensors' or group == 'Read.Biometrics') and string.find(plain, '^/sdcard/') then
         return false
     end
     -- Resolved once, when needed: getCanonicalPath reads the file system
@@ -725,15 +862,16 @@ function making(hook, path, param)
     return (ok and readonly) and EROFS or nil
 end
 
--- The error of a call on a hidden file: of making a file, a folder or a pipe by its name (open and openat with
--- O_CREAT, which FileOutputStream always sets, mkdir, mkfifo) like a missing name in a folder of /sys, which apps
+-- The error of a call on a hidden file: of making a file, a folder, a pipe or a node by its name (open and openat with
+-- O_CREAT, which FileOutputStream always sets, mkdir, mkfifo, mknod) like a missing name in a folder of /sys, which apps
 -- cannot write (EACCES), unless making answers first, since Linux never gives ENOENT for a name it makes in a folder
 -- which exists; of removing it (remove) EROFS on a file system mounted read-only, like the fonts of /system, which
 -- Linux checks before it looks the name up; else of a name no lookup finds
 function failing(hook, path, param)
     local class, method = about(hook).class, about(hook).method
     local flags = (method == 'open' and param:getArgument(1)) or (method == 'openat' and param:getArgument(2)) or 0
-    if method == 'mkdir' or method == 'mkfifo' or class == 'java.io.FileOutputStream' or bit32.band(flags, O_CREAT) ~= 0 then
+    if method == 'mkdir' or method == 'mkfifo' or method == 'mknod' or class == 'java.io.FileOutputStream' or
+            bit32.band(flags, O_CREAT) ~= 0 then
         return making(hook, path, param) or EACCES
     elseif method == 'remove' then
         return making(hook, path, param) or ENOENT
@@ -850,13 +988,14 @@ function listing(hook, param, folder)
         return false
     end
     local group = about(hook).group
-    local none = unlisted(group, folder, param)
+    local none, jars = unlisted(group, folder, param), libraries(group, folder, param) or {}
     param:setArgument(1, luajava.createProxy('java.nio.file.DirectoryStream$Filter', {
         accept = function(entry)
             -- Left out as File.list does, so a matched file the app cannot read stays listed, as Android lists it;
             -- of Read.VPN only the names of the interfaces of VPNs are looked up (see after)
             local path = tostring(entry)
-            if none or ((group ~= 'Read.VPN' or isvpninterface(string.match(path, '[^/]+$'))) and
+            if none or jars[string.match(path, '[^/]*$')] or
+                    ((group ~= 'Read.VPN' or isvpninterface(string.match(path, '[^/]+$'))) and
                     matched(group, path, param) and reachable(group, path, param)) then
                 return false
             end
@@ -881,13 +1020,10 @@ function truststore()
     return false
 end
 
--- Whether the names of a folder are left out of a listing, the files themselves stay (see APPS)
-function unlisted(group, folder, param)
-    if group ~= 'Get.Applications' then
-        return false
-    end
-    -- The forms of a path which the file system lists the same, like /system/app/., /system//priv-app and /x/../app,
-    -- also the descriptor of the folder, like /proc/self/fd/57 of /system/priv-app, which only its resolved path names
+-- The path of a folder the file system lists, the same for the forms of a path which it lists the same, like
+-- /system/app/., /system//priv-app, /system/app/ and /x/../app, also the descriptor of the folder, like /proc/self/fd/57
+-- of /system/priv-app, which only its resolved path names
+function listedpath(folder, param)
     local plain = unrooted(folder)
     if string.find(plain, '/../', 1, true) or string.find(plain, '/%.%.$') or string.find(plain, '/fd/', 1, true) then
         plain = resolve(plain, param)
@@ -897,13 +1033,75 @@ function unlisted(group, folder, param)
         previous = plain
         plain = string.gsub(string.gsub(plain, '/%./', '/'), '//+', '/')
     until plain == previous
-    plain = string.gsub(plain, '/%.$', '')
+    return (string.gsub(string.gsub(plain, '/%.$', ''), '(.)/$', '%1'))
+end
+
+-- Whether the names of a folder are left out of a listing, the files themselves stay (see APPS)
+function unlisted(group, folder, param)
+    if group ~= 'Get.Applications' then
+        return false
+    end
+    local plain = listedpath(folder, param)
     for _, pattern in ipairs(APPS) do
         if string.find(plain, pattern) then
             return true
         end
     end
     return false
+end
+
+-- The libraries of the Android platform and the ones of Google on every device, which features does not hide from
+-- getSystemSharedLibraryNames, the same as there, which a test compares
+local PLATFORM = { 'android.', 'androidx.', 'com.android.', 'javax.', 'org.apache.' }
+local GOOGLE = { ['com.google.android.maps'] = true, ['com.google.android.media.effects'] = true }
+
+-- Whether a shared library of the system is not part of the Android platform, like vendor of features
+function vendor(name)
+    if name == nil or GOOGLE[name] then
+        return false
+    end
+    for _, prefix in ipairs(PLATFORM) do
+        if string.sub(name, 1, string.len(prefix)) == prefix then
+            return false
+        end
+    end
+    return true
+end
+
+-- The jars Read.Features leaves out of the listing of a folder of FRAMEWORKS, by name, nil for other groups and
+-- folders: of the libraries features hides from getSystemSharedLibraryNames, named after them, like
+-- com.google.android.dialer.support.jar of /product/framework; the jars of AOSP, like framework.jar, are of no library.
+-- The files stay, since the class loader of an app with such a library checks its jar with File.isFile when it is made
+-- (DexPathList.makeDexElements, AOSP libcore oreo-mr1-release to main), which can be after the hooks are in place.
+-- The names are read once per thread, without the hooks of the app, which hide them.
+-- shortcut: a jar not named after its library stays listed, read the paths of the libraries from their permission files
+-- if makers name jars otherwise; and like a library can be loaded by its name (see features), a jar is found by name.
+-- shortcut: the files compiled from the jars in the folders oat of FRAMEWORKS, like oat/arm64/<library>.odex, and the
+-- folders framework of other partitions, like /oem and /my_product, still list the names, leave them out too if apps
+-- list those folders.
+local JARS = nil
+
+function libraries(group, folder, param)
+    if group ~= 'Read.Features' or not FRAMEWORKS[listedpath(folder, param)] then
+        return nil
+    end
+    if JARS == nil then
+        local ok, names = pcall(function()
+            return param:unhooked(function()
+                return param:getApplicationContext():getPackageManager():getSystemSharedLibraryNames()
+            end)
+        end)
+        if not ok or names == nil then
+            return nil
+        end
+        JARS = {}
+        for index = 1, names['length'] do
+            if vendor(names[index]) then
+                JARS[names[index] .. '.jar'] = true
+            end
+        end
+    end
+    return JARS
 end
 
 -- The bit of reading of access, R_OK, the same on every Linux, and also FileSystem.ACCESS_READ of java.io, while
@@ -972,8 +1170,8 @@ function before(hook, param)
     end
     -- Files which only the parts of the tables of the process let in, like in a folder maps of the app, are no hidden
     -- files; paths of /proc run the script, since filtered does not know all its links to the root
-    if method == 'open' and about(hook).group == 'Use.Tracking' and not string.find(path, '^/?proc/') and
-            tabled(path) and not filtered('Use.Tracking', path) then
+    local group = about(hook).group
+    if method == 'open' and not string.find(path, '^/?proc/') and tabled(group, path) and not filtered(group, path) then
         return false
     end
     if class == 'sun.nio.fs.UnixFileSystemProvider' and method == 'newDirectoryStream' then
@@ -983,7 +1181,6 @@ function before(hook, param)
     -- a VPN, its counters, addresses and routes, like tun0 in /proc/net/dev; the names of its interfaces in there, like
     -- /proc/net/dev_snmp6/tun0, do not exist (ENOENT, not EACCES). The check of Read.Network leaves the links of the
     -- descriptors of the app alone, like for Read.Network itself (see hidden).
-    local group = about(hook).group
     local found = hidden(hook, path, param)
     if group == 'Read.Network' and found or
             group == 'Read.VPN' and not found and hidden(hook, path, param, 'Read.Network') then
@@ -1093,15 +1290,26 @@ function featurefile(path, param)
     return found(plain) or (linked and found(resolve(plain, param)))
 end
 
--- The text of a feature file without the features whose names start with the prefix, and the number left out; as
+-- Whether a feature is one of the names of FEATURES
+function featured(name, names)
+    for _, feature in ipairs(names) do
+        if name == feature or
+                (string.sub(feature, -1) == '*' and string.sub(name, 1, #feature - 1) == string.sub(feature, 1, -2)) then
+            return true
+        end
+    end
+    return false
+end
+
+-- The text of a feature file without the features of the names (see FEATURES), and the number left out; as
 -- long as the file, which stat and File.length give, by spaces after the root element, which XML allows (like
 -- font_config). shortcut: only empty elements, <feature name="..." />, which the files of AOSP and of makers have,
 -- upgrade when a device declares a feature as <feature name="..."></feature>.
-function withoutfeatures(text, prefix)
+function withoutfeatures(text, names)
     local count = 0
     local result = string.gsub(text, '%s*<feature%s[^>]*/>', function(element)
         local name = string.match(element, '%sname%s*=%s*"([^"]*)"') or string.match(element, "%sname%s*=%s*'([^']*)'")
-        if name ~= nil and string.sub(name, 1, string.len(prefix)) == prefix then
+        if name ~= nil and featured(name, names) then
             count = count + 1
             return ''
         end
@@ -1118,12 +1326,12 @@ end
 -- would lose what the app writes. The flags are the second argument of both BlockGuardOs.open and
 -- UnixNativeDispatcher.open.
 function featuretext(hook, param)
-    local prefix = FEATURES[about(hook).group]
-    if prefix == nil or bit32.band(param:getArgument(1), O_ACCMODE) ~= 0 or param:getException() ~= nil or
+    local names = FEATURES[about(hook).group]
+    if names == nil or bit32.band(param:getArgument(1), O_ACCMODE) ~= 0 or param:getException() ~= nil or
             param:getResult() == nil or not featurefile(pathof(param), param) then
         return false
     end
-    local text, count = withoutfeatures(param:getFileText(), prefix)
+    local text, count = withoutfeatures(param:getFileText(), names)
     if count == 0 then
         return false
     end
@@ -1135,7 +1343,7 @@ end
 -- tables of the process an app opened (see tables) and the names of the file stores of java.nio (see storename)
 function after(hook, param)
     if about(hook).method == 'open' then
-        if about(hook).group == 'Use.Tracking' then
+        if TABLES[about(hook).group] then
             return tables(hook, param)
         end
         return featuretext(hook, param)
@@ -1158,11 +1366,12 @@ function after(hook, param)
     -- shortcut: the names in the folder of a VPN interface through a descriptor opened natively, like /proc/self/fd/57
     -- of /proc/sys/net/ipv4/conf/tun0, stay, look them up too if apps list such descriptors
     local vpn = about(hook).group == 'Read.VPN'
+    local jars = libraries(about(hook).group, folder, param) or {}
     if not unlisted(about(hook).group, folder, param) then
         -- Of the root the path is /name, not //name, which the patterns of the root do not match
         for index = 1, names['length'] do
-            if (vpn and not isvpninterface(names[index])) or
-                    not hidden(hook, (folder == '/' and '' or folder) .. '/' .. names[index], param) then
+            if not jars[names[index]] and ((vpn and not isvpninterface(names[index])) or
+                    not hidden(hook, (folder == '/' and '' or folder) .. '/' .. names[index], param)) then
                 table.insert(kept, names[index])
             end
         end

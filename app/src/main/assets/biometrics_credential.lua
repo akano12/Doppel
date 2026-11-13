@@ -21,8 +21,13 @@
 
 local DEVICE_CREDENTIAL = 32768
 local BIOMETRIC_NO_AUTHENTICATION = -1
--- The authenticators the methods accept, others are an error which stays
+-- The authenticators the methods accept, others are an error which stays. The service takes the texts only for
+-- exactly BIOMETRIC_STRONG or BIOMETRIC_WEAK (Utils.isValidAuthenticatorConfig, else a SecurityException), but the
+-- time for any bits of BIOMETRIC_STRONG, which it reads as a fingerprint.
 local VALID = { getStrings = 33023, getLastAuthenticationTime = 32783 }
+local BIOMETRIC_MIN_STRENGTH = 32767
+local BIOMETRIC_STRONG = 15
+local BIOMETRIC_WEAK = 255
 
 function before(hook, param)
     local valid = VALID[hook:getMethodName()]
@@ -32,6 +37,10 @@ function before(hook, param)
     local authenticators = param:getArgument(0)
     if authenticators == DEVICE_CREDENTIAL or bit32.band(authenticators, DEVICE_CREDENTIAL) == 0 or
             bit32.band(authenticators, bit32.bnot(valid)) ~= 0 then
+        return false
+    end
+    local strength = bit32.band(authenticators, BIOMETRIC_MIN_STRENGTH)
+    if hook:getMethodName() == 'getStrings' and strength ~= BIOMETRIC_STRONG and strength ~= BIOMETRIC_WEAK then
         return false
     end
     param:setArgument(0, DEVICE_CREDENTIAL)

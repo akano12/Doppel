@@ -695,14 +695,18 @@ public class FingerprintScriptsTest {
         assertTrue(Scripts.run(properties, "return heap('0.75')").arg1().isnil());
         result = Scripts.run(properties, "local p = paramof('576m', { [0] = 'dalvik.vm.heapsize' })\n" +
                 "local restricted = after(hookof('SystemProperties.get/resources'), p)\n" +
-                "local target = paramof('0.75', { [0] = 'dalvik.vm.heaptargetutilization' })\n" +
-                "after(hookof('SystemProperties.get/resources'), target)\n" +
-                "return restricted, p.result, target.result, after(hookof('SystemProperties.get/resources'), " +
-                "paramof('0.5', { [0] = 'dalvik.vm.heaptargetutilization' }))");
+                "return restricted, p.result");
         assertTrue(result.arg1().toboolean());
         assertEquals("512m", result.arg(2).tojstring());
-        assertEquals("0.5", result.arg(3).tojstring());
-        assertFalse(result.arg(4).toboolean());
+        // The other settings of the heap stay real, like the runtime which uses them (VMRuntime.getTargetHeapUtilization)
+        String[][] others = {{"dalvik.vm.heapstartsize", "8m"}, {"dalvik.vm.heapminfree", "512k"},
+                {"dalvik.vm.heapmaxfree", "8m"}, {"dalvik.vm.heaptargetutilization", "0.75"}};
+        for (String[] c : others) {
+            result = Scripts.run(properties, "local p = paramof('" + c[1] + "', { [0] = '" + c[0] + "' })\n" +
+                    "return after(hookof('SystemProperties.get/resources'), p), p.result");
+            assertFalse(c[0], result.arg1().toboolean());
+            assertEquals(c[0], c[1], result.arg(2).tojstring());
+        }
     }
 
     @Test

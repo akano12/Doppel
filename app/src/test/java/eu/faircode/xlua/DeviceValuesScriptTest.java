@@ -22,9 +22,19 @@ package eu.faircode.xlua;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
+import java.time.Duration;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 // Scripts which fake values of the device (system properties, the operator, the battery, the security patch,
@@ -1612,6 +1622,8 @@ public class DeviceValuesScriptTest {
             "function featureparamof(result, name, keep)",
             "  local param = paramof(result, { [0] = name })",
             "  param.getSetting = function(self, key) assert(key == 'features.keep', key) return keep end",
+            "  param.getApplicationContext = function(self)",
+            "    return { getClassLoader = function(self) return loaders.app end } end",
             "  return param",
             "end",
             // Frames named like class.method
@@ -1626,8 +1638,18 @@ public class DeviceValuesScriptTest {
             "end",
             "stack = stackof('com.example.app.Main.onCreate')",
             "function callers() return stack end",
-            // The classes of the app, also named like the framework, are not of the boot class path
-            "function bootclass(name) return not string.find(name, 'example', 1, true) end",
+            // The classes of the app, also named like the framework, are not of the boot class path; another class loader
+            // is the set of the names it finds, the one of WebView none until WebView is loaded (see webviewclass)
+            "loaders = { app = {} }",
+            "function finds(name, loader)",
+            "  if loader == nil then return not string.find(name, 'example', 1, true) end",
+            "  return loader[name] == true",
+            "end",
+            "function loaderin(class, name)",
+            "  assert(class == 'android.webkit.WebViewFactory' and name == 'sProviderInstance', class .. '.' .. name)",
+            "  if loaders.failing then error('Not listed') end",
+            "  return loaders.webview",
+            "end",
             "function names(result)",
             "  local list = {}",
             "  for index = 1, result['length'] do list[index] = tostring(result[index].name) end",
@@ -1691,6 +1713,38 @@ public class DeviceValuesScriptTest {
         Scripts.run(globals, "stack = stackof(" + engine + "'java.lang.invoke.MethodHandle.invokeExact', " +
                 "'com.example.app.Main.onCreate', 'android.app.Activity.performCreate')");
         assertTrue(Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+
+        // WebView, of which the classes are not of the boot class path, gets the touchscreen features it counts the touch
+        // points of pages by, once it is loaded; before, or when its class loader cannot be looked up, it gets false
+        String touch = "'android.hardware.touchscreen.multitouch.jazzhand'";
+        String webView = "'org.chromium.ui.base.TouchDevice.maxTouchPoints', 'J.N.MZ', " +
+                "'org.chromium.android_webview.AwContents.<init>', 'android.webkit.WebView.<init>'";
+        Scripts.run(globals, "stack = stackof(" + engine + webView + ")");
+        assertTrue(Scripts.run(globals, has + "true, " + touch + ", nil))").arg1().toboolean());
+        Scripts.run(globals, "loaders.webview = { ['org.chromium.ui.base.TouchDevice'] = true, " +
+                "['org.chromium.base.BuildInfo'] = true }\n" +
+                "loaders.app = { ['org.chromium.base.BuildInfo'] = true }\n" +
+                "loaders.failing = true");
+        assertTrue(Scripts.run(globals, has + "true, " + touch + ", nil))").arg1().toboolean());
+        Scripts.run(globals, "loaders.failing = nil");
+        assertFalse(Scripts.run(globals, has + "true, " + touch + ", nil))").arg1().toboolean());
+        Scripts.run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
+                webView + ")");
+        assertFalse(Scripts.run(globals, has + "true, 'android.hardware.touchscreen', nil))").arg1().toboolean());
+        Scripts.run(globals, "stack = stackof(" + engine.replace(".hasSystemFeature'", ".getSystemAvailableFeatures'") +
+                webView + ")");
+        result = Scripts.run(globals, "local param = featureparamof(featuresof(featureof('android.hardware.wifi'), " +
+                "featureof(nil)), nil, nil)\n" +
+                "local restricted = after(hookof('PackageManager.getSystemAvailableFeatures', 'getSystemAvailableFeatures'), param)\n" +
+                "return restricted, names(param.result)");
+        assertFalse(result.arg1().toboolean());
+        assertEquals("android.hardware.wifi,nil", result.arg(2).tojstring());
+        // A class of the app with the name of one of WebView, like of Chromium of its own, and a class of code
+        // which neither loads, like code the app loads itself, are not WebView
+        for (String caller : new String[]{"org.chromium.base.BuildInfo.getInstance", "com.example.dynamic.Check.run"}) {
+            Scripts.run(globals, "stack = stackof(" + engine + "'" + caller + "', 'android.app.Activity.performCreate')");
+            assertTrue(caller, Scripts.run(globals, has + "true, " + touch + ", nil))").arg1().toboolean());
+        }
         Scripts.run(globals, "stack = stackof('com.example.app.Main.onCreate')");
 
         // The list has the same features, and the OpenGL ES version, which has no name
@@ -1705,6 +1759,30 @@ public class DeviceValuesScriptTest {
         result = Scripts.run(globals, String.format(list, "featureof('android.hardware.nfc'), featureof(nil)"));
         assertFalse(result.arg1().toboolean());
         assertEquals("android.hardware.nfc,nil", result.arg(2).tojstring());
+    }
+
+    // Static fields for the lookup of the class loader of WebView, which runs on the JVM (see classLoadersAreLookedUp)
+    @SuppressWarnings("unused")
+    private static final Object PROVIDER = new Object() {
+    };
+    @SuppressWarnings("unused")
+    private static final Object NO_PROVIDER = null;
+
+    // The lookups of webviewclass on classes of the JVM: the class loader of the object in a static field, which is
+    // found by listing the fields, and whether a class loader finds a class
+    @Test
+    public void classLoadersAreLookedUp() throws Exception {
+        Globals globals = load("features");
+        String test = "'" + DeviceValuesScriptTest.class.getName() + "'";
+        ClassLoader loader = DeviceValuesScriptTest.class.getClassLoader();
+        assertTrue(Scripts.run(globals, "return loaderin(" + test + ", 'PROVIDER')").arg1().touserdata() == loader);
+        assertTrue(Scripts.run(globals, "return loaderin(" + test + ", 'NO_PROVIDER')").arg1().isnil());
+        assertTrue(Scripts.run(globals, "return loaderin(" + test + ", 'MISSING')").arg1().isnil());
+        assertTrue(Scripts.run(globals, "return finds(" + test + ", loaderin(" + test + ", 'PROVIDER'))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return finds('com.example.app.Main', loaderin(" + test + ", 'PROVIDER'))")
+                .arg1().toboolean());
+        assertTrue(Scripts.run(globals, "return finds('java.lang.String', nil)").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return finds(" + test + ", nil)").arg1().toboolean());
     }
 
     // Whether features.lua restricts hasSystemFeature(name) of a hook in the group, with the feature there
@@ -1768,9 +1846,21 @@ public class DeviceValuesScriptTest {
             assertFalse(name, hasFeature(globals, "nil", name));
     }
 
+    // The levels of a low battery of Android 14 in the resources of the system; no level set for battery saver,
+    // since the context has no ContentResolver (see IntentScriptTest.batteryLevelKeepsTheWarnings)
+    private static final String BATTERY_LEVELS = "local real = luajava.bindClass\n" +
+            "local levels = { config_lowBatteryWarningLevel = 20, config_criticalBatteryWarningLevel = 10,\n" +
+            "  config_lowBatteryCloseWarningBump = 5 }\n" +
+            "luajava.bindClass = function(name)\n" +
+            "  if name ~= 'android.content.res.Resources' then return real(name) end\n" +
+            "  return { getSystem = function(self) return { getIdentifier = function(self, name) return name end,\n" +
+            "    getInteger = function(self, id) return levels[id] end } end }\n" +
+            "end";
+
     @Test
     public void batteryCapacityIsRounded() throws Exception {
         Globals globals = load("battery");
+        Scripts.run(globals, BATTERY_LEVELS);
         for (String method : new String[]{"getIntProperty", "getLongProperty"}) {
             Varargs result = Scripts.run(globals, "return run(hookof('BatteryManager." + method + "', '" + method + "'), " +
                     "paramof(57, { [0] = 4 }))");
@@ -1781,6 +1871,10 @@ public class DeviceValuesScriptTest {
         for (int level : new int[]{0, 3, 12})
             assertEquals(String.valueOf(level), 15, Scripts.run(globals, "return run(hookof('BatteryManager.getIntProperty', " +
                     "'getIntProperty'), paramof(" + level + ", { [0] = 4 }))").arg(2).toint());
+        // On the side of the warning level (20) and the close level (25) of the real capacity, like BATTERY_CHANGED
+        for (int[] level : new int[][]{{15, 15}, {18, 20}, {22, 21}, {25, 25}, {26, 30}})
+            assertEquals(String.valueOf(level[0]), level[1], Scripts.run(globals, "return run(hookof(" +
+                    "'BatteryManager.getIntProperty', 'getIntProperty'), paramof(" + level[0] + ", { [0] = 4 }))").arg(2).toint());
         // Other properties as not supported: an int is 0 before Android 9 and for apps made for it, else its minimum,
         // with the version of Android of the test, so a device runs the same branches as the JVM
         Scripts.run(globals, "local real = luajava.bindClass\n" +
@@ -1797,31 +1891,208 @@ public class DeviceValuesScriptTest {
                 "'getLongProperty'), paramof(-1234, { [0] = 2 }))").arg(2).tolong());
     }
 
-    // The design capacity of PowerProfile as on devices without it: 0, or the default the caller gives; other
-    // values of the power profile stay
+    // The design capacity of PowerProfile is the one of the default profile of Android, also with a default the caller
+    // gives when the item is there, even with its value; a profile without it and other values of the power profile stay
     @Test
-    public void batteryDesignCapacityIsMissing() throws Exception {
+    public void batteryDesignCapacityIsTheDefault() throws Exception {
         Globals globals = load("battery");
-        String profile = "'com.android.internal.os.PowerProfile'";
-        Varargs result = Scripts.run(globals, "return run(hookof('PowerProfile.getBatteryCapacity', 'getBatteryCapacity', " +
-                profile + "), paramof(4500.0, {}))");
+        // The capacity item of the profile (nil: none) as getAveragePower with a level gives it, asked without the hooks
+        Scripts.run(globals, "function profile(method, result, arguments, item)\n" +
+                "  local param = paramof(result, arguments)\n" +
+                "  param.getThis = function(self) return { getAveragePower = function(self, type, level)\n" +
+                "    assert(type == 'battery.capacity' and level == 0, 'item') assert(param.inside, 'hooked')\n" +
+                "    return item or 0 end } end\n" +
+                "  param.unhooked = function(self, fn) param.inside = true local value = fn() param.inside = false return value end\n" +
+                "  return run(hookof('PowerProfile.' .. method, method, 'com.android.internal.os.PowerProfile'), param)\n" +
+                "end");
+        String[][] cases = {
+                {"'getBatteryCapacity', 4500.0, {}, 4500.0", "true", "1000"},
+                {"'getAveragePower', 4500.0, { [0] = 'battery.capacity', [1] = 3 }, 4500.0", "true", "1000"},
+                {"'getAveragePowerOrDefault', 4500.0, { [0] = 'battery.capacity', [1] = 5000.0 }, 4500.0", "true", "1000"},
+                // The item has the value of the default
+                {"'getAveragePowerOrDefault', 5000.0, { [0] = 'battery.capacity', [1] = 5000.0 }, 5000.0", "true", "1000"},
+                {"'getAveragePower', 110.5, { [0] = 'cpu.active' }, 4500.0", "false", "110.5"},
+                // A profile without the capacity stays: 0, or the default of the caller
+                {"'getBatteryCapacity', 0.0, {}, nil", "false", "0"},
+                {"'getAveragePowerOrDefault', 5000.0, { [0] = 'battery.capacity', [1] = 5000.0 }, nil", "false", "5000"},
+                // An item of 0 stays like for getBatteryCapacity
+                {"'getAveragePowerOrDefault', 0.0, { [0] = 'battery.capacity', [1] = 5000.0 }, 0.0", "false", "0"},
+        };
+        for (String[] test : cases) {
+            Varargs result = Scripts.run(globals, "return profile(" + test[0] + ")");
+            assertEquals(test[0], Boolean.parseBoolean(test[1]), result.arg1().toboolean());
+            assertEquals(test[0], Double.parseDouble(test[2]), result.arg(2).todouble(), 0);
+        }
+    }
+
+    // The text of the design capacity in the framework resource power_profile is the default capacity too, for each
+    // way the parser reads a text, by the line the item has in a parser of its own of the same file, read without the
+    // hooks; the same text elsewhere, other resources, unmarked parsers, an item of 0 or of the fake and a profile
+    // without it stay
+    @Test
+    public void batteryDesignCapacityOfTheResourceIsTheDefault() throws Exception {
+        Globals globals = load("battery");
+        // The profile as events of a parser (2 START_TAG, 4 TEXT, 3 END_TAG) with their lines; the text of the
+        // capacity (nil: no item) ends on the next line, the same text of another item is on the line after
+        Scripts.run(globals, "ID = 0x01170013 VALUES = {} SCANS = 0\n" +
+                "function profile(capacity)\n" +
+                "  PROFILE = { { 2, 1, 'device' } }\n" +
+                "  local items = { { 2, 5, 'item', 'cpu.idle' }, { 4, 5, '4500.0' }, { 3, 5, 'item' }, { 3, 6, 'device' } }\n" +
+                "  if capacity then\n" +
+                "    PROFILE = { PROFILE[1], { 2, 3, 'item', 'battery.capacity' }, { 4, 3, capacity }, { 3, 4, 'item' } }\n" +
+                "  end\n" +
+                "  for _, event in ipairs(items) do PROFILE[#PROFILE + 1] = event end\n" +
+                "end\n" +
+                "local real = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name ~= 'android.content.res.Resources' then return real(name) end\n" +
+                "  return { getSystem = function(self) return {\n" +
+                "    getIdentifier = function(self, name, type, package)\n" +
+                "      return (name == 'power_profile' and type == 'xml' and package == 'android') and ID or 0 end } end }\n" +
+                "end\n" +
+                // The file of the call in the assets of the ResourcesImpl, not a lookup in the resources of the system
+                "IMPL = { getAssets = function(self) return {\n" +
+                "    openXmlResourceParser = function(self, cookie, file)\n" +
+                "      assert(cookie == 7 and file == 'res/xml/power_profile.xml' and INSIDE, 'scan') SCANS = SCANS + 1\n" +
+                "      local index, parser = 0, {}\n" +
+                "      local function at() return PROFILE[index] or { 1, 0 } end\n" +
+                "      parser.next = function(self) index = index + 1 return at()[1] end\n" +
+                "      parser.getName = function(self) return at()[3] end\n" +
+                "      parser.getAttributeValue = function(self, ns, name)\n" +
+                "        assert(ns == nil and name == 'name') return at()[1] == 2 and at()[4] or nil end\n" +
+                "      parser.getText = function(self) return at()[1] == 4 and at()[3] or nil end\n" +
+                "      parser.getLineNumber = function(self) return at()[2] end\n" +
+                "      parser.close = function(self) CLOSED = true end\n" +
+                "      return parser end } end }\n" +
+                "function valued(param)\n" +
+                "  param.putValue = function(self, name, value, scope) VALUES[scope] = { [name] = value } end\n" +
+                "  param.getValue = function(self, name, scope) return VALUES[scope] and VALUES[scope][name] end\n" +
+                "  param.unhooked = function(self, fn) INSIDE = true local value = fn() INSIDE = false return value end\n" +
+                "  return param\n" +
+                "end\n" +
+                "function loadxml(parser, id)\n" +
+                "  local param = valued(paramof(parser, { [0] = 'res/xml/power_profile.xml', [1] = id, [2] = 7, [3] = 'xml' }))\n" +
+                "  param.getThis = function(self) return IMPL end\n" +
+                "  return after(hookof('ResourcesImpl.loadXmlResourceParser/power_profile', 'loadXmlResourceParser',\n" +
+                "    'android.content.res.ResourcesImpl'), param)\n" +
+                "end\n" +
+                "function chars(text)\n" +
+                "  local builder = luajava.newInstance('java.lang.StringBuilder', text)\n" +
+                "  local array = luajava.bindClass('java.lang.reflect.Array'):newInstance(\n" +
+                "    luajava.bindClass('java.lang.Character').TYPE, builder:length())\n" +
+                "  builder:getChars(0, builder:length(), array, 0)\n" +
+                "  return array\n" +
+                "end\n" +
+                "function readtext(parser, method, line, text)\n" +
+                "  parser.getLineNumber = function(self) return line end\n" +
+                "  local param = valued(paramof(text, { [0] = HOLDER }))\n" +
+                "  param.getThis = function(self) return parser end\n" +
+                "  local restricted = after(hookof('XmlBlock.Parser.' .. method .. '/power_profile', method,\n" +
+                "    'android.content.res.XmlBlock$Parser'), param)\n" +
+                "  return restricted, param.result\n" +
+                "end");
+        // Only the file of the power profile runs the script, which other XML resources would else run
+        assertEquals("*power_profile*", Scripts.run(globals, "return filter(hookof('ResourcesImpl.loadXmlResourceParser" +
+                "/power_profile', 'loadXmlResourceParser'))[1]").arg1().tojstring());
+        assertTrue(Scripts.run(globals, "return filter(hookof('XmlBlock.Parser.getText/power_profile', 'getText'))")
+                .arg1().isnil());
+        assertTrue(Scripts.run(globals, "return filter(hookof('BatteryManager.getIntProperty', 'getIntProperty'))")
+                .arg1().isnil());
+
+        // A parser of the resource of the framework is marked, one of a resource of the app with the name is not
+        Scripts.run(globals, "profile('4500.0') APP = {} OWN = {} assert(not loadxml(APP, ID)) assert(not loadxml(OWN, 0x7f0f0001))");
+        assertEquals(1, Scripts.run(globals, "return SCANS").arg1().toint());
+        assertTrue(Scripts.run(globals, "return CLOSED").arg1().toboolean());
+        // Also by the definition with the flag of feature flags of Android 16 and 17
+        Scripts.run(globals, "FLAGS = {}\n" +
+                "local param = valued(paramof(FLAGS, { [0] = 'res/xml/power_profile.xml', [1] = ID, [2] = 7, [3] = 'xml',\n" +
+                "  [4] = true }))\n" +
+                "param.getThis = function(self) return IMPL end\n" +
+                "assert(not after(hookof('ResourcesImpl.loadXmlResourceParser.flags/power_profile', 'loadXmlResourceParser',\n" +
+                "  'android.content.res.ResourcesImpl'), param))");
+        assertTrue(Scripts.run(globals, "return readtext(FLAGS, 'getText', 3, '4500.0')").arg1().toboolean());
+        String[][] cases = {
+                {"APP, 'getText', 3, '4500.0'", "true", "1000"},
+                {"APP, 'nextText', 4, '4500.0'", "true", "1000"},
+                // The same text of another item, the text on the line of the end, and the end on the line of the text
+                {"APP, 'getText', 5, '4500.0'", "false", "4500.0"},
+                {"APP, 'getText', 4, '4500.0'", "false", "4500.0"},
+                {"APP, 'nextText', 3, '4500.0'", "false", "4500.0"},
+                // The fake given by getText inside nextText, and a parser of another resource
+                {"APP, 'nextText', 4, '1000'", "false", "1000"},
+                {"OWN, 'getText', 3, '4500.0'", "false", "4500.0"},
+                {"{}, 'getText', 3, '4500.0'", "false", "4500.0"},
+        };
+        for (String[] test : cases) {
+            Varargs result = Scripts.run(globals, "return readtext(" + test[0] + ")");
+            assertEquals(test[0], Boolean.parseBoolean(test[1]), result.arg1().toboolean());
+            assertEquals(test[0], test[2], result.arg(2).tojstring());
+        }
+        // The characters with the start and length of the fake in the array the app gives
+        Varargs chars = Scripts.run(globals, "HOLDER = luajava.bindClass('java.lang.reflect.Array'):newInstance(\n" +
+                "  luajava.bindClass('java.lang.Integer').TYPE, 2) HOLDER[2] = 6\n" +
+                "local restricted, result = readtext(APP, 'getTextCharacters', 3, chars('4500.0'))\n" +
+                "return restricted, luajava.newInstance('java.lang.String', result), HOLDER[1], HOLDER[2]");
+        assertTrue(chars.arg1().toboolean());
+        assertEquals("1000", chars.arg(2).tojstring());
+        assertEquals(0, chars.arg(3).toint());
+        assertEquals(4, chars.arg(4).toint());
+        assertFalse(Scripts.run(globals, "return readtext(APP, 'getTextCharacters', 3, chars('1000'))").arg1().toboolean());
+
+        // An item of 0 or of the fake, and a profile without it, mark nothing
+        for (String capacity : new String[]{"'0'", "' 0.0 '", "'1000'", "'1000.0'", "nil"}) {
+            Scripts.run(globals, "profile(" + capacity + ") OTHER = {} loadxml(OTHER, ID)");
+            assertFalse(capacity, Scripts.run(globals, "return readtext(OTHER, 'getText', 3, '0')").arg1().toboolean());
+            assertTrue(capacity, Scripts.run(globals, "return VALUES[OTHER] == nil").arg1().toboolean());
+        }
+    }
+
+    // The time until the battery is full: unknown stays, else a minute per percent from the level apps see (see
+    // batteryCapacityIsRounded), which is read without the hooks; unknown when the level cannot be read
+    @Test
+    public void chargeTimeIsTypical() throws Exception {
+        Globals globals = load("battery");
+        Scripts.run(globals, BATTERY_LEVELS);
+        Scripts.run(globals, "function charging(result, level)\n" +
+                "  local param = paramof(result, {})\n" +
+                "  param.getThis = function(self) return { getLongProperty = function(self, id)\n" +
+                "    assert(id == 4, 'id') assert(param.inside, 'hooked') return level end } end\n" +
+                "  param.unhooked = function(self, fn) param.inside = true local value = fn() param.inside = false return value end\n" +
+                "  return run(hookof('BatteryManager.computeChargeTimeRemaining', 'computeChargeTimeRemaining'), param)\n" +
+                "end");
+        assertFalse(Scripts.run(globals, "return charging(-1, 57)").arg1().toboolean());
+        // Half a step rounds down and the warning levels (20 and 25) keep their side, like getIntProperty
+        long[][] cases = {{57, 40 * 60000L}, {55, 50 * 60000L}, {22, 79 * 60000L}, {3, 85 * 60000L}, {97, 0},
+                {Long.MIN_VALUE, -1}};
+        for (long[] level : cases) {
+            Varargs result = Scripts.run(globals, "return charging(1234567, " + level[0] + ")");
+            assertTrue(String.valueOf(level[0]), result.arg1().toboolean());
+            assertEquals(String.valueOf(level[0]), level[1], result.arg(2).tolong());
+        }
+        // The fake answer stays without a change
+        assertFalse(Scripts.run(globals, "return charging(" + 40 * 60000L + ", 57)").arg1().toboolean());
+    }
+
+    // On battery the remaining time is the unknown one of BatteryStats, -1 ms, never null, which Android gives only while
+    // powered, and so not personalized
+    @Test
+    public void batteryDischargePredictionIsUnknown() throws Exception {
+        Globals globals = load("battery");
+        String prediction = "return run(hookof('PowerManager.getBatteryDischargePrediction', 'getBatteryDischargePrediction'), " +
+                "paramof(%s, {}))";
+        Varargs result = Scripts.run(globals, String.format(prediction, "luajava.bindClass('java.time.Duration'):ofMinutes(250)"));
         assertTrue(result.arg1().toboolean());
-        assertEquals(0.0, result.arg(2).todouble(), 0);
-        result = Scripts.run(globals, "return run(hookof('PowerProfile.getAveragePower', 'getAveragePower', " +
-                profile + "), paramof(4500.0, { [0] = 'battery.capacity' }))");
+        assertEquals(Duration.ofMillis(-1), result.arg(2).checkuserdata(Duration.class));
+        assertFalse(Scripts.run(globals, String.format(prediction, "nil")).arg1().toboolean());
+        assertFalse(Scripts.run(globals, String.format(prediction, "luajava.bindClass('java.time.Duration'):ofMillis(-1)"))
+                .arg1().toboolean());
+
+        String personalized = "return run(hookof('PowerManager.isBatteryDischargePredictionPersonalized', " +
+                "'isBatteryDischargePredictionPersonalized'), paramof(%s, {}))";
+        result = Scripts.run(globals, String.format(personalized, "true"));
         assertTrue(result.arg1().toboolean());
-        assertEquals(0.0, result.arg(2).todouble(), 0);
-        result = Scripts.run(globals, "return run(hookof('PowerProfile.getAveragePowerOrDefault', " +
-                "'getAveragePowerOrDefault', " + profile + "), paramof(4500.0, { [0] = 'battery.capacity', [1] = 1000.0 }))");
-        assertTrue(result.arg1().toboolean());
-        assertEquals(1000.0, result.arg(2).todouble(), 0);
-        result = Scripts.run(globals, "return run(hookof('PowerProfile.getAveragePower', 'getAveragePower', " +
-                profile + "), paramof(110.5, { [0] = 'cpu.active' }))");
-        assertFalse(result.arg1().toboolean());
-        assertEquals(110.5, result.arg(2).todouble(), 0);
-        // A profile without the capacity stays
-        assertFalse(Scripts.run(globals, "return run(hookof('PowerProfile.getBatteryCapacity', 'getBatteryCapacity', " +
-                profile + "), paramof(0, {}))").arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(Scripts.run(globals, String.format(personalized, "false")).arg1().toboolean());
     }
 
     @Test
@@ -1859,20 +2130,251 @@ public class DeviceValuesScriptTest {
         assertEquals((long) Math.floor(7208960.0 * blocks / 28808593), result.arg(3).tolong());
         assertEquals((long) Math.floor(6000000.0 * blocks / 28808593), result.arg(4).tolong());
         assertEquals((long) Math.floor(6000000.0 * blocks / 28808593), result.arg(5).tolong());
+    }
 
-        // The memory info of the app is changed in place
-        // with the thresholds grown like the total; without a hidden threshold it stays absent
-        result = Scripts.run(globals, "local info = { totalMem = 4109369344, availMem = 1234567890,\n" +
-                "  threshold = 226492416, foregroundAppThreshold = 75497472 }\n" +
-                "local restricted = after(hookof('ActivityManager.getMemoryInfo', 'getMemoryInfo'), paramof(nil, { [0] = info }))\n" +
-                "return restricted, info.totalMem, info.availMem, info.threshold, info.foregroundAppThreshold,\n" +
-                "  info.hiddenAppThreshold");
-        assertTrue(result.arg1().toboolean());
-        assertEquals(4294967296L, result.arg(2).tolong());
-        assertEquals(1200000000L, result.arg(3).tolong());
-        assertEquals((long) Math.floor(226492416 * (4294967296.0 / 4109369344L)), result.arg(4).tolong());
-        assertEquals((long) Math.floor(75497472 * (4294967296.0 / 4109369344L)), result.arg(5).tolong());
-        assertTrue(result.arg(6).isnil());
+    // ActivityManager.getMemoryInfo and the binder proxy fake the info through its parcel, which has the thresholds the
+    // runtime hides from apps that target Android 12 or later, with the advertised size first from Android 14: the total
+    // and the thresholds grow like the total, the free memory is the one of the faked /proc/meminfo, MemFree and Cached,
+    // MemAvailable from Android 16, rounded when the file cannot be read, and low memory follows them like
+    // ProcessList.getMemoryInfo computes it: below the middle between the thresholds of the home app and of the cached
+    // apps. The second hook of one call keeps what the first faked. A parcel of another layout and a subclass of the app,
+    // whose parcel methods are not called, get their fields faked, low memory by the middle when the hidden thresholds are
+    // fields, else at least below the threshold of the home app; a call which threw or did not fill the info keeps it.
+    @Test
+    public void memoryInfoIsFakedThroughItsParcel() throws Exception {
+        Globals globals = load("resources");
+        Scripts.run(globals, "local prior = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = SDK } end\n" +
+                "  if name == 'android.os.Parcel' then return prior('eu.faircode.xlua.DeviceValuesScriptTest$Parcel') end\n" +
+                "  if name == 'android.app.ActivityManager$MemoryInfo' then\n" +
+                "    return prior('eu.faircode.xlua.DeviceValuesScriptTest$MemoryInfo')\n" +
+                "  end\n" +
+                "  return prior(name)\n" +
+                "end\n" +
+                "function getmemoryinfo(name, text, exception)\n" +
+                "  local param = paramof(nil, { [0] = info })\n" +
+                "  param.readFile = function(self, path) assert(path == '/proc/meminfo') return text end\n" +
+                "  param.getException = function(self) return exception end\n" +
+                "  return after(hookof(name, 'getMemoryInfo'), param)\n" +
+                "end");
+        String text = String.join("\n",
+                "MemTotal:        2537472 kB",
+                "MemFree:           60000 kB",
+                "MemAvailable:     300000 kB",
+                "Cached:           200000 kB",
+                "");
+        globals.set("text", text);
+        // 2.42 GiB is sold as 3 GiB; the real free memory, MemFree and Cached, is above the middle of the real thresholds
+        double scale = 3221225472.0 / 2598371328L;
+        long home = (long) Math.floor(226492416 * scale), cached = (long) Math.floor(301989888 * scale);
+        assertFalse(266240000L < 226492416L + (301989888L - 226492416L) / 2);
+        for (int version : new int[]{33, 34, 35, 36}) {
+            MemoryInfo info = new MemoryInfo(version >= 34);
+            globals.set("SDK", version);
+            globals.set("info", CoerceJavaToLua.coerce(info));
+            Varargs result = Scripts.run(globals, "return getmemoryinfo('IActivityManager.getMemoryInfo', text), " +
+                    "getmemoryinfo('ActivityManager.getMemoryInfo', text)");
+            assertTrue(result.arg1().toboolean());
+            assertFalse(result.arg(2).toboolean());
+            assertEquals(version >= 34 ? 3221225472L : 2684354560L, info.advertisedMem);
+            assertEquals(3221225472L, info.totalMem);
+            // 59570 kB of MemFree in the faked file, 292968 kB of MemAvailable
+            long avail = (version >= 36 ? 292968L : 59570L + 200000) * 1024;
+            assertEquals(avail, info.availMem);
+            assertEquals(home, info.threshold);
+            assertArrayEquals(new long[]{cached, (long) Math.floor(150994944 * scale), (long) Math.floor(113246208 * scale)},
+                    info.hidden);
+            assertEquals((long) Math.floor(75497472 * scale), info.foregroundAppThreshold);
+            assertTrue(avail < home + (cached - home) / 2);
+            assertTrue(info.lowMemory);
+        }
+
+        MemoryInfo info = new MemoryInfo(false);
+        globals.set("SDK", 33);
+        globals.set("info", CoerceJavaToLua.coerce(info));
+        assertTrue(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', nil)").arg1().toboolean());
+        assertEquals(260000000L, info.availMem);
+        assertTrue(info.lowMemory);
+
+        // A parcel of another layout: the faked free memory is below the threshold of the home app, so low memory
+        long[] real = {301989888, 150994944, 113246208};
+        MemoryInfo other = new MemoryInfo(true);
+        globals.set("info", CoerceJavaToLua.coerce(other));
+        assertTrue(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', text)").arg1().toboolean());
+        assertEquals(3221225472L, other.advertisedMem);
+        assertEquals(3221225472L, other.totalMem);
+        assertEquals((59570L + 200000) * 1024, other.availMem);
+        assertEquals(home, other.threshold);
+        assertEquals((long) Math.floor(75497472 * scale), other.foregroundAppThreshold);
+        assertArrayEquals(real, other.hidden);
+        assertTrue(other.lowMemory);
+        // With more cached memory, between the threshold of the home app and the middle: low memory stays without the
+        // threshold of the cached apps, and follows the middle with it, of a subclass of an app that targets Android 11
+        String more = text.replace("200000 kB", "233000 kB");
+        long between = (59570L + 233000) * 1024;
+        assertTrue(home < between && between < home + (cached - home) / 2);
+        other = new MemoryInfo(true);
+        globals.set("info", CoerceJavaToLua.coerce(other));
+        globals.set("more", more);
+        assertTrue(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', more)").arg1().toboolean());
+        assertEquals(between, other.availMem);
+        assertFalse(other.lowMemory);
+        AppMemoryInfo own = new AppMemoryInfo();
+        globals.set("info", CoerceJavaToLua.coerce(own));
+        assertTrue(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', more)").arg1().toboolean());
+        assertEquals(0, own.writes);
+        assertEquals(0, own.reads);
+        assertEquals(3221225472L, own.totalMem);
+        assertEquals(between, own.availMem);
+        assertEquals(home, own.threshold);
+        assertEquals(cached, own.hiddenAppThreshold);
+        assertTrue(own.lowMemory);
+
+        // A subclass of the app whose readFromParcel reads nothing keeps the zeros of the call
+        AppMemoryInfo empty = new AppMemoryInfo();
+        empty.advertisedMem = empty.availMem = empty.totalMem = empty.threshold = empty.foregroundAppThreshold = 0;
+        empty.hiddenAppThreshold = 0;
+        globals.set("info", CoerceJavaToLua.coerce(empty));
+        assertFalse(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', more)").arg1().toboolean());
+        assertEquals(0, empty.writes + empty.reads);
+        assertEquals(0, empty.advertisedMem + empty.availMem + empty.totalMem + empty.threshold + empty.foregroundAppThreshold
+                + empty.hiddenAppThreshold);
+        assertFalse(empty.lowMemory);
+
+        // A call which threw, like when the system server died
+        MemoryInfo failed = new MemoryInfo(false);
+        globals.set("info", CoerceJavaToLua.coerce(failed));
+        globals.set("exception", CoerceJavaToLua.coerce(new RuntimeException("DeadObjectException")));
+        assertFalse(Scripts.run(globals, "return getmemoryinfo('IActivityManager.getMemoryInfo', text, exception)")
+                .arg1().toboolean());
+        assertEquals(2598371328L, failed.totalMem);
+        assertEquals(266240000L, failed.availMem);
+        assertEquals(226492416L, failed.threshold);
+        assertArrayEquals(real, failed.hidden);
+        assertFalse(failed.lowMemory);
+    }
+
+    // A parcel of the longs and ints written to it, in their order, like android.os.Parcel, of which the script uses
+    // only the start
+    public static class Parcel {
+        private final List<Number> values = new ArrayList<>();
+        private int position;
+
+        public static Parcel obtain() {
+            return new Parcel();
+        }
+
+        public void setDataPosition(int position) {
+            this.position = position;
+        }
+
+        public void writeLong(long value) {
+            write(value);
+        }
+
+        public void writeInt(int value) {
+            write(value);
+        }
+
+        public long readLong() {
+            return (Long) this.values.get(this.position++);
+        }
+
+        public int readInt() {
+            return (Integer) this.values.get(this.position++);
+        }
+
+        public void recycle() {
+        }
+
+        private void write(Number value) {
+            if (this.position < this.values.size())
+                this.values.set(this.position, value);
+            else
+                this.values.add(value);
+            this.position++;
+        }
+    }
+
+    // ActivityManager.MemoryInfo of an app which targets Android 12 or later: the runtime hides the thresholds of the
+    // cached apps, the secondary server and the visible apps, so they are no fields for the script, only in the parcel,
+    // which starts with the advertised size from Android 14
+    public static class MemoryInfo {
+        public long advertisedMem = 2684354560L, availMem = 266240000, totalMem = 2598371328L, threshold = 226492416;
+        public long foregroundAppThreshold = 75497472;
+        public boolean lowMemory = false;
+        private final long[] hidden = {301989888, 150994944, 113246208};
+        private final boolean advertised;
+
+        MemoryInfo(boolean advertised) {
+            this.advertised = advertised;
+        }
+
+        public void writeToParcel(Parcel dest, int flags) {
+            if (this.advertised)
+                dest.writeLong(this.advertisedMem);
+            dest.writeLong(this.availMem);
+            dest.writeLong(this.totalMem);
+            dest.writeLong(this.threshold);
+            dest.writeInt(this.lowMemory ? 1 : 0);
+            for (long value : this.hidden)
+                dest.writeLong(value);
+            dest.writeLong(this.foregroundAppThreshold);
+        }
+
+        public void readFromParcel(Parcel source) {
+            if (this.advertised)
+                this.advertisedMem = source.readLong();
+            this.availMem = source.readLong();
+            this.totalMem = source.readLong();
+            this.threshold = source.readLong();
+            this.lowMemory = source.readInt() != 0;
+            for (int i = 0; i < this.hidden.length; i++)
+                this.hidden[i] = source.readLong();
+            this.foregroundAppThreshold = source.readLong();
+        }
+    }
+
+    // MemoryInfo of an app's own subclass, made for Android 11, which sees the threshold of the cached apps, and whose
+    // parcel methods count their calls and do nothing
+    public static class AppMemoryInfo extends MemoryInfo {
+        public long hiddenAppThreshold = 301989888;
+        int writes, reads;
+
+        AppMemoryInfo() {
+            super(false);
+        }
+
+        @Override
+        public void writeToParcel(Parcel dest, int flags) {
+            this.writes++;
+        }
+
+        @Override
+        public void readFromParcel(Parcel source) {
+            this.reads++;
+        }
+    }
+
+    // A disk of StorageManager, made of its parcel: an SD card of 64 GB has the size of the totals, a small USB disk keeps
+    // its size like a small file system
+    @Test
+    public void diskSizesAreRounded() throws Exception {
+        Globals globals = load("resources");
+        Varargs result = Scripts.run(globals,
+                "local hook = hookof('DiskInfo.createFromParcel', 'CREATOR:createFromParcel')\n" +
+                        "local card, stick = { size = 63864569856 }, { size = 511705088 }\n" +
+                        "local restricted, old, new = after(hook, paramof(card, {}))\n" +
+                        "return restricted, old, new, card.size, after(hook, paramof(stick, {})), stick.size,\n" +
+                        "  after(hook, paramof(nil, {}))");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("63864569856", result.arg(2).tojstring());
+        assertEquals("64000000000", result.arg(3).tojstring());
+        assertEquals(64000000000L, result.arg(4).tolong());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals(511705088L, result.arg(6).tolong());
+        assertFalse(result.arg(7).toboolean());
     }
 
     // Pages of memory tell the same sizes as getMemoryInfo; Os.sysconf and ForwardingOs.sysconf both run for one call,
@@ -1909,6 +2411,223 @@ public class DeviceValuesScriptTest {
         assertFalse(result.arg(9).toboolean());
         assertFalse(result.arg(10).toboolean());
         assertEquals(292969L, result.arg(11).tolong());
+    }
+
+    // The hidden natives behind the sizes, which apps reach by reflection, give the sizes of getMemoryInfo and of
+    // /proc/meminfo: Process.getTotalMemory and getFreeMemory, which keep -1 when they fail, with the free memory of the
+    // faked file, MemFree and Cached, MemAvailable from Android 16, or rounded when the file cannot be read,
+    // Debug.getMemInfo in kB at the indexes of Debug.MEMINFO_*, with the available memory from Android 14 and also an
+    // array of Android 8.1 shorter than all of them, readProcLines of /proc/meminfo, the faked file parsed like Android,
+    // and readProcFile, the faked file, before Android 10 its first 255 bytes, parsed by Process.parseProcLine
+    @Test
+    public void memoryNativesAreFaked() throws Exception {
+        Globals globals = load("resources");
+        Varargs result = Scripts.run(globals, "local total, free = paramof(4109369344, {}), paramof(1234567890, {})\n" +
+                "free.readFile = function(self, path) return nil end\n" +
+                "local failed, nothing = paramof(-1, {}), paramof(-1, {})\n" +
+                "return after(hookof('Process.getTotalMemory', 'getTotalMemory'), total), total.result,\n" +
+                "  after(hookof('Process.getFreeMemory', 'getFreeMemory'), free), free.result,\n" +
+                "  after(hookof('Process.getTotalMemory', 'getTotalMemory'), failed), failed.result,\n" +
+                "  after(hookof('Process.getFreeMemory', 'getFreeMemory'), nothing), nothing.result,\n" +
+                "  filter(hookof('Debug.getMemInfo', 'getMemInfo')) == nil");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(4294967296L, result.arg(2).tolong());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals(1200000000L, result.arg(4).tolong());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals(-1L, result.arg(6).tolong());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals(-1L, result.arg(8).tolong());
+        // The array is no path, so the hook has no filter
+        assertTrue(result.arg(9).toboolean());
+
+        String sdk = "local prior = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = SDK } end\n" +
+                "  return prior(name)\n" +
+                "end\n";
+        Scripts.run(globals, sdk);
+        String meminfo = String.join("\n",
+                "MemTotal:        4013056 kB",
+                "MemFree:          147624 kB",
+                "MemAvailable:     551824 kB",
+                "Cached:          1500000 kB",
+                "");
+        for (int version : new int[]{35, 36}) {
+            globals.set("SDK", version);
+            result = Scripts.run(globals, "local free = paramof(1234567890, {})\n" +
+                    "free.readFile = function(self, path) assert(path == '/proc/meminfo') return [[" + meminfo + "]] end\n" +
+                    "return after(hookof('Process.getFreeMemory', 'getFreeMemory'), free), free.result");
+            assertTrue(result.arg1().toboolean());
+            // 146484 kB of MemFree and 546875 kB of MemAvailable in the faked file
+            assertEquals((version >= 36 ? 546875L : 146484L + 1500000) * 1024, result.arg(2).tolong());
+        }
+
+        // Total, free, cached and swap total of the real file in kB, and the available memory at index 19
+        long swap = (long) Math.floor(1900580.0 * 1024 * (4294967296.0 / 4109369344L) / 1024);
+        for (int version : new int[]{34, 33}) {
+            long[] sizes = new long[26];
+            sizes[0] = 4013056;
+            sizes[1] = 147624;
+            sizes[3] = 1500000;
+            sizes[8] = 1900580;
+            sizes[19] = 551824;
+            globals.set("SDK", version);
+            globals.set("sizes", CoerceJavaToLua.coerce(sizes));
+            assertTrue(Scripts.run(globals, "return after(hookof('Debug.getMemInfo', 'getMemInfo'), paramof(nil, { [0] = sizes }))")
+                    .arg1().toboolean());
+            assertEquals(4194304L, sizes[0]);
+            assertEquals(146484L, sizes[1]);
+            assertEquals(1500000L, sizes[3]);
+            assertEquals(swap, sizes[8]);
+            assertEquals(version >= 34 ? 546875L : 551824L, sizes[19]);
+        }
+        long[] short81 = {4013056, 147624};
+        globals.set("SDK", 27);
+        globals.set("sizes", CoerceJavaToLua.coerce(short81));
+        assertTrue(Scripts.run(globals, "return after(hookof('Debug.getMemInfo', 'getMemInfo'), paramof(nil, { [0] = sizes }))")
+                .arg1().toboolean());
+        assertArrayEquals(new long[]{4194304, 146484}, short81);
+
+        // readProcLines: the first field a line starts with gets the number after it and its spaces, others keep 0,
+        // like a name without its colon; a line the faked file leaves out gives 0, and the sizes after the fields stay
+        String[] fields = {"MemTotal:", "Cached:", "RbinTotal:", "MemTotal", "MemFree: ", "HugePages_Total:"};
+        long[] out = {4013056, 1500000, 409600, 0, 147624, 12, 7};
+        globals.set("fields", CoerceJavaToLua.coerce(fields));
+        globals.set("out", CoerceJavaToLua.coerce(out));
+        String text = String.join("\n",
+                "MemTotal:        4013056 kB",
+                "MemFree:          147624 kB",
+                "Cached:          1500000 kB",
+                "RbinTotal:        409600 kB",
+                "HugePages_Total:      12",
+                "");
+        result = Scripts.run(globals, "local strict = { allowThreadDiskReads = function(self) return 'policy' end,\n" +
+                "  setThreadPolicy = function(self, policy) assert(policy == 'policy') restored = true end }\n" +
+                "local prior = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.StrictMode' then return strict end\n" +
+                "  return prior(name)\n" +
+                "end\n" +
+                "local function call(path)\n" +
+                "  local param = paramof(nil, { [0] = path, [1] = fields, [2] = out })\n" +
+                "  param.opens = function(self, file) return path == '/proc/self/root/proc/meminfo' end\n" +
+                "  param.readFile = function(self, file) assert(file == '/proc/meminfo') return [[" + text + "]] end\n" +
+                "  return after(hookof('Process.readProcLines/meminfo', 'readProcLines'), param)\n" +
+                "end\n" +
+                "return filter(hookof('Process.readProcLines/meminfo', 'readProcLines'))[1], call('/data/meminfo'),\n" +
+                "  call('/proc/self/root/proc/meminfo'), restored");
+        assertEquals("*meminfo*", result.arg(1).tojstring());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertArrayEquals(new long[]{4194304, 1500000, 0, 0, 146484, 12, 7}, out);
+
+        // readProcFile: the faked file, without the line of the maker, and the format and arrays of the app go to the
+        // parser, of which the app gets the result; another file is not parsed again
+        String[] lines = {"MemTotal:        4013056 kB", "MemFree:          147624 kB", "MemAvailable:     551824 kB",
+                "Buffers:           20000 kB", "Cached:          1500000 kB", "SwapCached:            0 kB",
+                "Active:           900000 kB", "Inactive:         800000 kB", "Active(anon):     400000 kB",
+                "RbinTotal:        409600 kB", "Inactive(anon):   100000 kB", "Active(file):     500000 kB",
+                "Inactive(file):   400000 kB"};
+        String faked = String.join("\n", "MemTotal:        4194304 kB", "MemFree:          146484 kB",
+                "MemAvailable:     546875 kB", lines[3], lines[4], lines[5], lines[6], lines[7], lines[8], lines[10],
+                lines[11], lines[12], "");
+        int[] format = {32, 8224, 10};
+        globals.set("format", CoerceJavaToLua.coerce(format));
+        globals.set("text", String.join("\n", lines) + "\n");
+        for (int version : new int[]{29, 28}) {
+            Process.buffer = null;
+            globals.set("SDK", version);
+            result = Scripts.run(globals, "local prior = luajava.bindClass\n" +
+                    "luajava.bindClass = function(name)\n" +
+                    "  if name == 'android.os.Process' then return prior('eu.faircode.xlua.DeviceValuesScriptTest$Process') end\n" +
+                    "  return prior(name)\n" +
+                    "end\n" +
+                    "local function call(path)\n" +
+                    "  local param = paramof(true, { [0] = path, [1] = format, [3] = out })\n" +
+                    "  param.opens = function(self, file) return path == '/proc/meminfo' end\n" +
+                    "  param.readFile = function(self, file) assert(file == '/proc/meminfo') return text end\n" +
+                    "  return after(hookof('Process.readProcFile/meminfo', 'readProcFile'), param), param.result\n" +
+                    "end\n" +
+                    "local other, kept = call('/data/meminfo')\n" +
+                    "local restricted, parsed = call('/proc/meminfo')\n" +
+                    "luajava.bindClass = prior\n" +
+                    "return filter(hookof('Process.readProcFile/meminfo', 'readProcFile'))[1], other, kept, restricted, parsed");
+            assertEquals("*meminfo*", result.arg(1).tojstring());
+            assertFalse(result.arg(2).toboolean());
+            assertTrue(result.arg(3).toboolean());
+            assertTrue(result.arg(4).toboolean());
+            assertFalse(result.arg(5).toboolean());
+            String expected = version >= 29 ? faked : faked.substring(0, 255);
+            assertEquals(expected + "\0", new String(Process.buffer, StandardCharsets.US_ASCII));
+            assertEquals(0, Process.start);
+            assertEquals(expected.length(), Process.end);
+            assertTrue(Process.format == format && Process.strings == null && Process.longs == out && Process.floats == null);
+        }
+    }
+
+    // readProcLines of /proc/meminfo reads its first 2047 bytes on Android 8.1 and 4095 from Android 9, of the faked file,
+    // which is the one the app can read: a field after the cut gives 0, a line the cut ends gives the digits before the
+    // cut, and a field which only the lines of makers, which the faked file leaves out, put after the cut gives its size
+    @Test
+    public void procLinesAreCutLikeAndroid() throws Exception {
+        Globals globals = load("resources");
+        Scripts.run(globals, "local prior = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = SDK } end\n" +
+                "  return prior(name)\n" +
+                "end\n" +
+                "function readproclines(text)\n" +
+                "  local param = paramof(nil, { [0] = '/proc/meminfo', [1] = fields, [2] = out })\n" +
+                "  param.opens = function(self, file) return true end\n" +
+                "  param.readFile = function(self, file) assert(file == '/proc/meminfo') return text end\n" +
+                "  return after(hookof('Process.readProcLines/meminfo', 'readProcLines'), param)\n" +
+                "end");
+        globals.set("fields", CoerceJavaToLua.coerce(new String[]{"MemTotal:", "Cached:", "HugePages_Total:"}));
+        StringBuilder kept = new StringBuilder("MemTotal:        4013056 kB\n");
+        for (int i = 0; i < 71; i++)
+            kept.append("Mapped:             1000 kB\n");
+        kept.append("Buffers: 1\n").append("Cached:          1500000 kB\n").append("HugePages_Total:      12\n");
+        // The faked total has as many digits, so the digits of Cached start at byte 2044 there too, of which the cut
+        // keeps 150
+        assertEquals(2044, kept.indexOf("1500000"));
+        StringBuilder makers = new StringBuilder("MemTotal:        4013056 kB\n");
+        for (int i = 0; i < 80; i++)
+            makers.append("RbinTotal:        409600 kB\n");
+        makers.append("Cached:          1500000 kB\n").append("HugePages_Total:      12\n");
+        Object[][] cases = {{27, kept, new long[]{4194304, 150, 0}}, {28, kept, new long[]{4194304, 1500000, 12}},
+                {27, makers, new long[]{4194304, 1500000, 12}}};
+        for (Object[] c : cases) {
+            long[] out = new long[3];
+            globals.set("SDK", (Integer) c[0]);
+            globals.set("out", CoerceJavaToLua.coerce(out));
+            globals.set("real", c[1].toString());
+            assertTrue(Scripts.run(globals, "return readproclines(real)").arg1().toboolean());
+            assertArrayEquals("SDK " + c[0], (long[]) c[2], out);
+        }
+    }
+
+    // Process.parseProcLine, which gets what readProcFile parses, and returns that the format ran off the end
+    public static class Process {
+        static byte[] buffer;
+        static int start, end;
+        static int[] format;
+        static String[] strings;
+        static long[] longs;
+        static float[] floats;
+
+        public static boolean parseProcLine(byte[] buffer, int start, int end, int[] format, String[] strings, long[] longs,
+                                            float[] floats) {
+            Process.buffer = buffer;
+            Process.start = start;
+            Process.end = end;
+            Process.format = format;
+            Process.strings = strings;
+            Process.longs = longs;
+            Process.floats = floats;
+            return false;
+        }
     }
 
     // SystemProperties.get(key) calls native_get(key), which apps also reach by reflection: the fake value is made once
@@ -2034,16 +2753,28 @@ public class DeviceValuesScriptTest {
     @Test
     public void biometricsAreTheScreenLockOnly() throws Exception {
         Globals globals = Scripts.load("biometrics_credential", STUBS + "\n" + BIOMETRIC);
-        // BIOMETRIC_WEAK and DEVICE_CREDENTIAL become DEVICE_CREDENTIAL; biometrics only, the screen lock only
-        // and authenticators which are an error stay
-        Varargs result = Scripts.run(globals, "local param = biometricparamof(nil, 33023)\n" +
+        // BIOMETRIC_WEAK or BIOMETRIC_STRONG and DEVICE_CREDENTIAL become DEVICE_CREDENTIAL; biometrics only, the screen
+        // lock only and authenticators which are an error stay, also a strength the service rejects (32771)
+        String strings = "local param = biometricparamof(nil, %d)\n" +
                 "local restricted = before(hookof('BiometricManager.getStrings', 'getStrings'), param)\n" +
+                "return restricted, param:getArgument(0)";
+        Varargs result;
+        for (int authenticators : new int[]{33023, 32783}) {
+            result = Scripts.run(globals, String.format(strings, authenticators));
+            assertTrue(Integer.toString(authenticators), result.arg1().toboolean());
+            assertEquals(32768, result.arg(2).toint());
+        }
+        for (int authenticators : new int[]{255, 32768, 33024, 32771}) {
+            result = Scripts.run(globals, String.format(strings, authenticators));
+            assertFalse(Integer.toString(authenticators), result.arg1().toboolean());
+            assertEquals(authenticators, result.arg(2).toint());
+        }
+        // The time takes any bits of BIOMETRIC_STRONG, which the service reads as a fingerprint
+        result = Scripts.run(globals, "local param = biometricparamof(nil, 32771)\n" +
+                "local restricted = before(hookof('BiometricManager.getLastAuthenticationTime', 'getLastAuthenticationTime'), param)\n" +
                 "return restricted, param:getArgument(0)");
         assertTrue(result.arg1().toboolean());
         assertEquals(32768, result.arg(2).toint());
-        for (String authenticators : new String[]{"255", "32768", "33024"})
-            assertFalse(authenticators, Scripts.run(globals, "return before(hookof('BiometricManager.getStrings', 'getStrings'), " +
-                    "biometricparamof(nil, " + authenticators + "))").arg1().toboolean());
 
         // There was no biometric authentication, the screen lock keeps its time
         result = Scripts.run(globals, "return run(hookof('BiometricManager.getLastAuthenticationTime', 'getLastAuthenticationTime'), " +
@@ -2066,6 +2797,11 @@ public class DeviceValuesScriptTest {
                 .arg1().toboolean());
     }
 
+    // A manager built with its service, like FingerprintManager, which keeps it in mService (see biometricHardwareIsAbsent)
+    private static class Manager {
+        private Object mService = new Object();
+    }
+
     // The answers of a device without biometric hardware; the script runs only for the names of biometrics
     @Test
     public void biometricHardwareIsAbsent() throws Exception {
@@ -2075,14 +2811,77 @@ public class DeviceValuesScriptTest {
                 "  if list == nil then return nil end\n" +
                 "  table.sort(list) return table.concat(list, ',')\n" +
                 "end\n" +
-                "return names('getSystemService'), names('hasSystemFeature'), names('getSystemAvailableFeatures')");
+                "return names('getSystemService'), names('hasSystemFeature'), names('getSystemAvailableFeatures'),\n" +
+                "  names('getService'), names('checkService'), names('listServices')");
         assertEquals("face,fingerprint,iris", result.arg(1).tojstring());
         assertEquals("android.hardware.biometrics.face,android.hardware.biometrics.iris,android.hardware.fingerprint",
                 result.arg(2).tojstring());
         assertTrue(result.arg(3).isnil());
+        assertEquals("biometric,face,fingerprint,iris", result.arg(4).tojstring());
+        assertEquals("biometric,face,fingerprint,iris", result.arg(5).tojstring());
+        assertTrue(result.arg(6).isnil());
 
-        // No manager for apps targeting Android 8 or later, before only no iris manager
+        // ServiceManager has no binders of the services, for any target: the managers of older apps get none either.
+        // BiometricService runs with the hardware only on Android 10, later always.
+        Scripts.run(globals, "local real = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                "  return real(name)\n" +
+                "end\n" +
+                "sdk = 30");
+        // The IServiceManager behind it (ServiceManagerProxy) has none either
+        for (String hook : new String[]{"ServiceManager.getService", "ServiceManager.checkService", "ServiceManagerProxy.getService",
+                "ServiceManagerProxy.checkService"}) {
+            String method = hook.substring(hook.indexOf('.') + 1);
+            String lookup = "return run(hookof('" + hook + "/biometrics', '" + method + "'), paramof(%s, { [0] = '%s' }))";
+            result = Scripts.run(globals, String.format(lookup, "'binder'", "fingerprint"));
+            assertTrue(method, result.arg1().toboolean());
+            assertTrue(method, result.arg(2).isnil());
+            assertFalse(method, Scripts.run(globals, String.format(lookup, "'binder'", "biometric")).arg1().toboolean());
+            assertFalse(method, Scripts.run(globals, String.format(lookup, "'binder'", "auth")).arg1().toboolean());
+            assertFalse(method, Scripts.run(globals, String.format(lookup, "nil", "face")).arg1().toboolean());
+            result = Scripts.run(globals, "sdk = 29\n" + String.format(lookup, "'binder'", "biometric"));
+            assertTrue(method, result.arg1().toboolean());
+            assertTrue(method, result.arg(2).isnil());
+            assertFalse(method, Scripts.run(globals, String.format(lookup, "nil", "biometric")).arg1().toboolean());
+            Scripts.run(globals, "sdk = 30");
+        }
+
+        // The names ServiceManager lists, without the services of the hardware and its HALs, as a new String[];
+        // BiometricService only on Android 10
+        String list = "local param = paramof(%s, {})\n" +
+                "local restricted, old, new = after(hookof('ServiceManager.listServices/biometrics', 'listServices'), param)\n" +
+                "return restricted, param.result, old, new";
+        globals.set("listed", CoerceJavaToLua.coerce(new String[]{"window", "fingerprint", "biometric", "auth",
+                "android.hardware.biometrics.fingerprint.IFingerprint/default", "face", "android.hardware.light.ILights/default"}));
+        result = Scripts.run(globals, String.format(list, "listed"));
+        assertTrue(result.arg1().toboolean());
+        assertArrayEquals(new String[]{"window", "biometric", "auth", "android.hardware.light.ILights/default"},
+                (String[]) result.arg(2).checkuserdata(String[].class));
+        assertEquals("7", result.arg(3).tojstring());
+        assertEquals("4", result.arg(4).tojstring());
+        result = Scripts.run(globals, "sdk = 29\n" + String.format(list, "listed"));
+        assertArrayEquals(new String[]{"window", "auth", "android.hardware.light.ILights/default"},
+                (String[]) result.arg(2).checkuserdata(String[].class));
+        Scripts.run(globals, "sdk = 30");
+        // A list without them stays the same array, no list stays none
+        String[] none = {"window", "biometric"};
+        globals.set("listed", CoerceJavaToLua.coerce(none));
+        result = Scripts.run(globals, String.format(list, "listed"));
+        assertFalse(result.arg1().toboolean());
+        assertSame(none, result.arg(2).touserdata());
+        assertFalse(Scripts.run(globals, String.format(list, "nil")).arg1().toboolean());
+        // The IServiceManager lists them the same, from Android 9 for the priority in the argument
+        globals.set("listed", CoerceJavaToLua.coerce(new String[]{"window", "face", "iris"}));
+        result = Scripts.run(globals, "local param = paramof(listed, { [0] = 15 })\n" +
+                "local restricted = after(hookof('ServiceManagerProxy.listServices.priority/biometrics', 'listServices'), param)\n" +
+                "return restricted, param.result");
+        assertTrue(result.arg1().toboolean());
+        assertArrayEquals(new String[]{"window"}, (String[]) result.arg(2).checkuserdata(String[].class));
+
+        // No manager for apps targeting Android 8 or later, before only no iris manager, and the one of BiometricService stays
         String service = "return run(hookof('Context.getSystemService/biometrics', 'getSystemService'), paramof('manager', { [0] = '%s' }))";
+        assertFalse(Scripts.run(globals, "sdk = 29 target = 26\n" + String.format(service, "biometric")).arg1().toboolean());
         Scripts.run(globals, "target = 26");
         result = Scripts.run(globals, String.format(service, "fingerprint"));
         assertTrue(result.arg1().toboolean());
@@ -2091,6 +2890,18 @@ public class DeviceValuesScriptTest {
         Scripts.run(globals, "target = 25");
         assertFalse(Scripts.run(globals, String.format(service, "fingerprint")).arg1().toboolean());
         assertTrue(Scripts.run(globals, String.format(service, "iris")).arg1().toboolean());
+        // A manager of an older app which kept its service, being built by a call of getService compiled inline, loses
+        // it and stays the same manager; one without it stays as it is
+        Manager manager = new Manager();
+        globals.set("manager", CoerceJavaToLua.coerce(manager));
+        String legacy = "return run(hookof('Context.getSystemService/biometrics', 'getSystemService'), " +
+                "paramof(manager, { [0] = 'fingerprint' }))";
+        result = Scripts.run(globals, legacy);
+        assertTrue(result.arg1().toboolean());
+        assertSame(manager, result.arg(2).touserdata());
+        assertNull(manager.mService);
+        assertFalse(Scripts.run(globals, legacy).arg1().toboolean());
+        assertSame(manager, Scripts.run(globals, legacy).arg(2).touserdata());
 
         // Biometrics only are no hardware, with the screen lock the answer stays
         String authenticate = "return run(hookof('BiometricManager.canAuthenticate%s', 'canAuthenticate'), paramof(%d, { [0] = %d }))";
@@ -2116,6 +2927,16 @@ public class DeviceValuesScriptTest {
             assertFalse(method, result.arg(2).toboolean());
             assertFalse(method, Scripts.run(globals, "return run(hookof('FingerprintManager." + method + "', '" + method + "'), " +
                     "paramof(false, {}))").arg1().toboolean());
+        }
+
+        // No biometric is enrolled for keystore, as a new long[], from Android 12 by both methods; none stays none
+        for (String name : new String[]{"BiometricManager.getAuthenticatorIds", "BiometricManager.getAuthenticatorIds/user"}) {
+            result = Scripts.run(globals, "return run(hookof('" + name + "', 'getAuthenticatorIds'), " +
+                    "paramof({ length = 2 }, { [0] = 0 }))");
+            assertTrue(name, result.arg1().toboolean());
+            assertEquals(name, 0, ((long[]) result.arg(2).checkuserdata(long[].class)).length);
+            assertFalse(name, Scripts.run(globals, "return run(hookof('" + name + "', 'getAuthenticatorIds'), " +
+                    "paramof({ length = 0 }, { [0] = 0 }))").arg1().toboolean());
         }
 
         // The list of features without the biometric ones, as a new array

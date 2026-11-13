@@ -275,6 +275,17 @@ end
 -- The settings of the always-on VPN
 local ALWAYSON = { always_on_vpn_app = true, always_on_vpn_lockdown = true, always_on_vpn_lockdown_whitelist = true }
 
+-- The settings of fingerprint and face unlock, which the face service and the pages of Settings for the hardware write
+-- and the settings provider does not set by default (fingerptint is the name of Android 16), so a device without the
+-- hardware has none (see biometrics)
+local BIOMETRIC = {
+    face_unlock_keyguard_enabled = true, face_unlock_dismisses_keyguard = true, face_unlock_attention_required = true,
+    face_unlock_app_enabled = true, face_unlock_always_require_confirmation = true, face_unlock_re_enroll = true,
+    biometric_keyguard_enabled = true, biometric_app_enabled = true, sfps_performant_auth_enabled_v2 = true,
+    screen_off_udfps_enabled = true, fingerprint_keyguard_enabled = true, fingerptint_app_enabled = true,
+    face_keyguard_enabled = true, face_app_enabled = true,
+}
+
 -- Developer options, USB and wireless debugging and Stay awake (the power sources, 0 by default) appear off, and so do
 -- the options which Settings turns off with developer options (DevelopmentSettingsDashboardFragment), like Show taps
 -- and the app to debug
@@ -291,10 +302,20 @@ local HOOKED = {
     bluetooth_address = true,
 }
 
+-- The value of a setting of PERSONAL on a new device, nil for other settings. Devices with more than one SIM keep data
+-- roaming for each, as data_roaming with the id of the subscription (DcTracker, GlobalSettingsHelper), like data_roaming1,
+-- and Android 8.1 adds the id without checking it, so a minus sign is allowed; TelephonyManager.isDataRoamingEnabled reads that one.
+function personal(key)
+    if string.match(key, '^data_roaming%-?%d+$') then
+        return PERSONAL.data_roaming
+    end
+    return PERSONAL[key]
+end
+
 -- Whether hooks change the setting; the hooked methods are called for all settings, so check the name first
 function hooked(key)
-    return key ~= nil and (HOOKED[key] ~= nil or DEVELOPER[key] ~= nil or ALWAYSON[key] ~= nil or COMPONENTS[key] ~= nil or PERSONAL[key] ~= nil or
-            identifier(key))
+    return key ~= nil and (HOOKED[key] ~= nil or DEVELOPER[key] ~= nil or ALWAYSON[key] ~= nil or COMPONENTS[key] ~= nil or personal(key) ~= nil or
+            BIOMETRIC[key] ~= nil or identifier(key))
 end
 
 -- The fake languages, normalized, without tags which are no language (und) and without repeats,
@@ -370,8 +391,8 @@ function fakesetting(param, name, key, result)
             return false
         end
         return true, fake
-    elseif name == 'settings' and PERSONAL[key] ~= nil then
-        local fake = PERSONAL[key]
+    elseif name == 'settings' and personal(key) ~= nil then
+        local fake = personal(key)
         if fake == NONE then
             fake = nil
         end
@@ -421,6 +442,11 @@ function fakesetting(param, name, key, result)
             return false
         end
         return true, nil
+    elseif name == 'biometrics' and BIOMETRIC[key] ~= nil then
+        if result == nil then
+            return false
+        end
+        return true, nil
     elseif name == 'mac' and key == 'bluetooth_address' then
         -- The Bluetooth MAC address, like BluetoothAdapter.getAddress
         local fake = '02:00:00:00:00:00'
@@ -443,6 +469,7 @@ local PROVIDER = {
     battery = { 'battery' },
     locale = { 'locale' },
     vpn = { 'vpn' },
+    biometrics = { 'biometrics' },
     network = { 'network' },
 }
 
@@ -728,6 +755,19 @@ function provider(hook, param, group)
 end
 
 function after(hook, param)
+    -- Data roaming as the phone process reads it from the setting: off, like data_roaming. It has no arguments, so
+    -- this comes before the name. The exception of Android stays, like the SecurityException without ACCESS_NETWORK_STATE.
+    -- shortcut: SubscriptionInfo.getDataRoaming, its text and its parcel stay real (they need READ_PHONE_STATE), which
+    -- Android 8.1 updates with the setting and the DataSettingsManager of Android 14 does not, upgrade when apps are seen
+    -- comparing them.
+    if hook:getMethodName() == 'isDataRoamingEnabled' then
+        if param:getException() ~= nil or not param:getResult() then
+            return false
+        end
+        param:setResult(false)
+        return true, 'true', 'false'
+    end
+
     -- The getters are called for all settings, so check the name first; the second argument of
     -- the provider hooks is the method of call (GET_secure, LIST_secure), the name of the setting for
     -- ContentProviderClient.call(method, arg, extras) or the projection of a query

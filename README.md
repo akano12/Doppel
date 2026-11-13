@@ -186,7 +186,8 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   and accessibility services, also in the permission files of system apps and the folders of system apps; hidden apps
   cannot be reached, their providers cannot be observed, and they are not named as the maker of a PendingIntent, as
   the default browser or as the users of a shared library
-* **Read battery**: level in steps of 10 percent, at least 15, no charge details, battery saver off
+* **Read battery**: level in steps of 10 percent, at least 15, no charge details but the time to full of a typical
+  charger instead of the real one, battery saver off
 * **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable; the files of su and Magisk do not exist
 * **Read device features**: only the features in *Shown device features* (*Fake values*), no external keyboards and game controllers; the feature and permission files of the system do not exist. The features of the camera, microphone, sensors and biometric sensors are left to *Use camera*, *Record audio*, *Get sensors* and *Read biometric sensors*
 * **Read device settings**: the values of a new device, like the animation scale and the screen timeout

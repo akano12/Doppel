@@ -41,7 +41,8 @@ final class FakeIds {
     // Of the service only, not in Fake values: the seed of the fake DRM id, which follows the mode of the Android ID
     static final String DRM_ID = "value.drm_id";
     // Of the service only too: the key of the offsets of fake locations (location.lua), of each app, new each boot like
-    // the offsets of the coarse locations of Android, so apps cannot compute them
+    // the offsets of the coarse locations of Android, so apps cannot compute them; also of the offset of the sequence
+    // number of the battery (intent_createfromparcel.lua)
     static final String LOCATION_KEY = "location.key";
     // Of the service only too: the suffix of the names under which package_probe.lua looks up hidden apps, of each app,
     // new each boot, so every process of the app uses the same names, like for a PendingIntent another process or a

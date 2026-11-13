@@ -37,7 +37,7 @@ public class IntentScriptTest {
             "  return { getName = function(self) return name end }",
             "end",
             // The values scripts keep per scope, like XParam.putValue, which a test can share with another script
-            "context = {}",
+            "context = { getContentResolver = function(self) return 'resolver' end }",
             "store = {}",
             // The packages which stay visible besides the app itself, and whether the process is of the system;
             // the result is the intent, or another value, which setResult replaces
@@ -52,7 +52,12 @@ public class IntentScriptTest {
             "    isPackageVisible = function(self, name)",
             "      return name == 'com.example.app' or (visible ~= nil and visible[name] == true) end,",
             "    isSystem = function(self) return system == true end,",
-            "    getSetting = function(self, name) return settings and settings[name] end }",
+            "    getSetting = function(self, name) return settings and settings[name] end,",
+            // XParam.unhooked, and XParam.uuidOf with an offset of the sequence of the battery of 0xc for the key, which
+            // would be far larger if more than its first digit were read
+            "    unhooked = function(self, fn) return fn() end,",
+            "    uuidOf = function(self, seed) assert(seed == 'battery.seq/key', seed)",
+            "      return 'c1f4c0de-0000-4000-8000-000000000000' end }",
             "end",
             // An intent with a copy of its extras, like Intent.getExtras, and the package of its data
             "function intentof(action, extras, package)",
@@ -110,13 +115,23 @@ public class IntentScriptTest {
             "  end",
             "  if name == 'java.lang.Integer' then return { TYPE = 'int' } end",
             "  if name == 'java.lang.Byte' then return { TYPE = 'byte' } end",
-            // The texts of Android without service, by their names in the resources of the system
+            // The texts of Android without service and the levels of a low battery of Android 14, by their names
+            // in the resources of the system, and the level of battery saver the user set, none (0) by default, -1 for
+            // a setting the app cannot read, like an instant app
             "  if name == 'android.content.res.Resources' then",
-            "    local ids = { lockscreen_carrier_default = 1, emergency_calls_only = 2 }",
-            "    local texts = { 'No service', 'Emergency calls only' }",
+            "    local ids = { lockscreen_carrier_default = 1, emergency_calls_only = 2, config_lowBatteryWarningLevel = 3,",
+            "      config_criticalBatteryWarningLevel = 4, config_lowBatteryCloseWarningBump = 5 }",
+            "    local values = { 'No service', 'Emergency calls only', 20, 10, 5 }",
             "    return { getSystem = function(self) return {",
             "      getIdentifier = function(self, name, type, package) return package == 'android' and ids[name] or 0 end,",
-            "      getString = function(self, id) return texts[id] end } end }",
+            "      getInteger = function(self, id) assert(id > 2) return values[id] end,",
+            "      getString = function(self, id) return values[id] end } end }",
+            "  end",
+            "  if name == 'android.provider.Settings$Global' then",
+            "    return { getInt = function(self, resolver, name, default)",
+            "      assert(resolver == 'resolver' and name == 'low_power_trigger_level')",
+            "      if TRIGGER == -1 then error('java.lang.SecurityException') end",
+            "      return TRIGGER or default end }",
             "  end",
             "  return { name = name }",
             "end }");
@@ -720,6 +735,66 @@ public class IntentScriptTest {
         }
     }
 
+    // The fake level is on the same side as the real one of the level at which Android warns of a low battery and of
+    // the one 5 higher at which it stops, so battery_low and BATTERY_LOW and BATTERY_OKAY agree with it, keeps the order
+    // of the levels and stays when faked again, for the configured level (20), levels the user set for battery saver,
+    // one below the critical level (10) and a setting the app cannot read; BatteryManager has the same copy
+    @Test
+    public void batteryLevelKeepsTheWarnings() throws Exception {
+        for (int[] c : new int[][]{{0, 20}, {15, 15}, {50, 50}, {5, 10}, {-1, 20}}) {
+            String[] text = run(String.format("TRIGGER = %d\n" +
+                    "local levels = {}\n" +
+                    "for real = 0, 100 do levels[#levels + 1] = batterylevel(paramof(nil), real, 100) end\n" +
+                    "return table.concat(levels, ',')", c[0])).arg1().tojstring().split(",");
+            int warning = c[1];
+            int close = warning + 5;
+            for (int real = 0; real <= 100; real++) {
+                int fake = Integer.parseInt(text[real]);
+                String at = c[0] + "/" + real + "=" + fake;
+                assertEquals(at, real <= warning, fake <= warning);
+                assertEquals(at, real >= close, fake >= close);
+                assertEquals(at, fake, Integer.parseInt(text[fake]));
+                if (real > 0)
+                    assertTrue(at, fake >= Integer.parseInt(text[real - 1]));
+            }
+        }
+        // Android 14 at 22 percent without a warning yet, and Android 9 to 13 (15) at 15 percent just after one
+        assertEquals(21, run("TRIGGER = 0 return batterylevel(paramof(nil), 22, 100)").arg1().toint());
+        assertEquals(15, run("TRIGGER = 15 return batterylevel(paramof(nil), 15, 100)").arg1().toint());
+        assertEquals(Scripts.function("intent_createfromparcel", "batterylevel"), Scripts.function("battery", "batterylevel"));
+    }
+
+    // The voltage of a typical battery at the fake level, so it changes with it; the sequence number of the updates of
+    // the battery with an offset of the app by its key, the same in BATTERY_CHANGED and in the broadcasts of the plug
+    // and of a low battery, at most 15 so it stays near what Android counts soon after a boot, and the real one
+    // without a key
+    @Test
+    public void batteryVoltageAndSequenceAreOfTheApp() {
+        Varargs result = run(
+                "local settings = { ['location.key'] = 'key' }\n" +
+                        "local full = intentof('android.intent.action.BATTERY_CHANGED', { level = 90, scale = 100,\n" +
+                        "  voltage = 4321, temperature = 287, seq = 4817 })\n" +
+                        "local low = intentof('android.intent.action.BATTERY_CHANGED', { level = 20, scale = 100, voltage = 3700,\n" +
+                        "  seq = 4818 })\n" +
+                        "after(hookof('Intent.createFromParcel/battery'), paramof(full, nil, false, settings))\n" +
+                        "after(hookof('Intent.createFromParcel/battery'), paramof(low, nil, false, settings))\n" +
+                        "local warning = intentof('android.intent.action.BATTERY_LOW', { seq = 4818 })\n" +
+                        "local restricted = after(hookof('Intent.createFromParcel/battery'), paramof(warning, nil, false, settings))\n" +
+                        "local plug = intentof('android.intent.action.ACTION_POWER_CONNECTED', { seq = 4819 })\n" +
+                        "local keyless = after(hookof('Intent.createFromParcel/battery'), paramof(plug))\n" +
+                        "return full.extras.voltage, low.extras.voltage, full.extras.temperature, full.extras.seq,\n" +
+                        "  low.extras.seq, restricted, warning.extras.seq, keyless, plug.extras.seq");
+        assertEquals(4140, result.arg(1).toint());
+        assertEquals(3720, result.arg(2).toint());
+        assertEquals(250, result.arg(3).toint());
+        assertEquals(4817 + 0xc, result.arg(4).toint());
+        assertEquals(4818 + 0xc, result.arg(5).toint());
+        assertTrue(result.arg(6).toboolean());
+        assertEquals(4818 + 0xc, result.arg(7).toint());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals(4819, result.arg(9).toint());
+    }
+
     // The details of charging have neutral values instead of none, since Android always sends them; the level of the
     // capacity follows the fake level; the battery saver going on is off
     @Test
@@ -735,7 +810,7 @@ public class IntentScriptTest {
                         "return e.level, e.charge_counter, e.max_charging_current, e['android.os.extra.CYCLE_COUNT'],\n" +
                         "  e['android.os.extra.CHARGING_STATUS'], e['android.os.extra.CAPACITY_LEVEL'], restricted, saver.extras.mode");
         assertEquals(15, result.arg(1).toint());
-        assertEquals(600000, result.arg(2).toint());
+        assertEquals(150000, result.arg(2).toint());
         assertEquals(0, result.arg(3).toint());
         assertEquals(0, result.arg(4).toint());
         assertEquals(1, result.arg(5).toint());

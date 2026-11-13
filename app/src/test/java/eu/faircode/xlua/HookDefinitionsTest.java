@@ -901,8 +901,16 @@ public class HookDefinitionsTest {
                 "java.io.UnixFileSystem getLastModifiedTime(java.io.File) @faked_files 27-");
         for (String name : new String[]{"Os.fstat", "FileInputStream.available", "RandomAccessFile.length", "FileDispatcherImpl.size",
                 "Os.readlink", "UnixNativeDispatcher.readlink", "BlockGuardOs.stat", "UnixFileSystem.getLength",
-                "UnixFileSystem.getLastModifiedTime"})
+                "UnixFileSystem.getLastModifiedTime"}) {
             assertEquals(name, hook("BlockGuardOs.open/boot_id").getString("group"), hook(name + "/faked_files").getString("group"));
+            // The same for the mount tables Read.Debugging rewrites without the mounts of Magisk (see hardware_files)
+            JSONObject model = hook(name + "/faked_files"), copy = hook(name + "/faked_files_debugging");
+            assertNotNull(name + "/faked_files_debugging", copy);
+            for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk", "luaScript"})
+                assertEquals(name + " " + key, model.get(key).toString(), copy.get(key).toString());
+            assertFalse(name, copy.has("maxSdk") || copy.has("optional"));
+            assertEquals(name, hook("BlockGuardOs.open/root").getString("group"), copy.getString("group"));
+        }
     }
 
     // The identifier services of manufacturers are bound by each method binding services, and their providers are
@@ -1127,6 +1135,20 @@ public class HookDefinitionsTest {
             assertEquals(name, "Get.Location", hook(name).getString("group"));
     }
 
+    // The input devices from Android 8.1: InputDevice.isExternal, by which the script tells external ones apart, is hidden
+    // before Android 10, but unrestricted on Android 8.1 and on the light greylist of Android 9
+    @Test
+    public void inputDevicesOnAllVersions() throws Exception {
+        String m = "android.hardware.input.InputManager ";
+        String d = "android.view.InputDevice ";
+        check("InputManager.getInputDeviceIds", m + "getInputDeviceIds() @input_devices 27-");
+        check("InputManager.getInputDevice", m + "getInputDevice(int) @input_devices 27-");
+        check("InputDevice.getDeviceIds", d + "getDeviceIds() @input_devices 27-");
+        check("InputDevice.getDevice", d + "getDevice(int) @input_devices 27-");
+        for (String method : new String[]{"getName", "getVendorId", "getProductId", "getDescriptor", "toString"})
+            check("InputDevice." + method, d + method + "() @input_devices 27-");
+    }
+
     // The full lists of sensors, which the getters read and apps can call by reflection, are empty, so Android answers
     // every getter from them; the manager of the sensors of an input device is not the system one, which the hooks of
     // SensorManager resolve to (on Android 14 and later also getSensorList, which SystemSensorManager overrides), so it
@@ -1142,6 +1164,17 @@ public class HookDefinitionsTest {
         for (String name : new String[]{"SystemSensorManager.getFullSensorList", "SystemSensorManager.getFullDynamicSensorList",
                 "InputSensorManager.getDefaultSensor", "InputSensorManager.getFullSensorList"})
             assertEquals(name, "Get.Sensors", hook(name).getString("group"));
+    }
+
+    // The listeners of input devices, which hear nothing of external ones, and the parcel of a device, which has the
+    // fields of the getters; from Android 8.1 like the other hooks of input devices (see input_devices)
+    @Test
+    public void inputDeviceListenersAndParcels() throws Exception {
+        check("InputManager.registerInputDeviceListener", "android.hardware.input.InputManager registerInputDeviceListener(" +
+                "android.hardware.input.InputManager$InputDeviceListener,android.os.Handler) @input_devices 27-");
+        check("InputDevice.writeToParcel", "android.view.InputDevice writeToParcel(android.os.Parcel,int) @input_devices 27-");
+        for (String name : new String[]{"InputManager.registerInputDeviceListener", "InputDevice.writeToParcel"})
+            assertEquals(name, "Read.Features", hook(name).getString("group"));
     }
 
     // The location updates of a PendingIntent, which stay parcelled in the extras of the intent
@@ -1548,6 +1581,9 @@ public class HookDefinitionsTest {
         check("InputManagerGlobal.getInputDeviceBluetoothAddress", "android.hardware.input.InputManagerGlobal " +
                 "getInputDeviceBluetoothAddress(int) @generic_null_value 34- optional");
         check("PowerManager.getLocationPowerSaveMode", "android.os.PowerManager getLocationPowerSaveMode() @generic_zero_value 28-");
+        check("PowerManager.getBatteryDischargePrediction", "android.os.PowerManager getBatteryDischargePrediction() @battery 31-");
+        check("PowerManager.isBatteryDischargePredictionPersonalized", "android.os.PowerManager " +
+                "isBatteryDischargePredictionPersonalized() @battery 31-");
         check("NsdManager.registerServiceInfoCallback/discovery", "android.net.nsd.NsdManager registerServiceInfoCallback(" +
                 "android.net.nsd.DiscoveryRequest,java.util.concurrent.Executor,android.net.nsd.NsdManager$ServiceInfoCallback) " +
                 "@nsdmanager_listener 33- optional");
@@ -1624,6 +1660,25 @@ public class HookDefinitionsTest {
         }
     }
 
+    // The framework resource power_profile, loaded by ResourcesImpl with four arguments (Android 8.1 to 15 and main)
+    // and with the flag of feature flags (Android 16 and 17), and each way its parser reads a text
+    @Test
+    public void powerProfileOfTheFramework() throws Exception {
+        String load = "android.content.res.ResourcesImpl loadXmlResourceParser(java.lang.String,int,int,java.lang.String";
+        String parser = "android.content.res.XmlBlock$Parser ";
+        String[][] definitions = {
+                {"ResourcesImpl.loadXmlResourceParser/power_profile", load + ") @battery 27- optional"},
+                {"ResourcesImpl.loadXmlResourceParser.flags/power_profile", load + ",boolean) @battery 36- optional"},
+                {"XmlBlock.Parser.getText/power_profile", parser + "getText() @battery 27- optional"},
+                {"XmlBlock.Parser.nextText/power_profile", parser + "nextText() @battery 27- optional"},
+                {"XmlBlock.Parser.getTextCharacters/power_profile", parser + "getTextCharacters(int[]) @battery 27- optional"}};
+        for (String[] hook : definitions) {
+            check(hook[0], hook[1]);
+            assertEquals(hook[0], "Read.Battery", hook(hook[0]).getString("group"));
+            assertEquals(hook[0], "android", hook(hook[0]).getString("excludePackages"));
+        }
+    }
+
     // Permissions and their groups name the app which defines them (see package_resolve)
     @Test
     public void permissionsOfHiddenApps() throws Exception {
@@ -1642,6 +1697,17 @@ public class HookDefinitionsTest {
     public void fileStoreSizesAreRounded() throws Exception {
         for (String method : new String[]{"getTotalSpace", "getUsableSpace", "getUnallocatedSpace"})
             check("UnixFileStore." + method, "sun.nio.fs.UnixFileStore " + method + "() @resources 27-");
+    }
+
+    // A SecureDirectoryStream opens /proc/meminfo by openat, of which the script checks the file itself (see openedat),
+    // and the disks of StorageManager are made of their parcel by the hidden DiskInfo, of which the script rounds the size
+    @Test
+    public void meminfoByDescriptorAndSizesOfDisks() throws Exception {
+        check("UnixNativeDispatcher.openat/meminfo", "sun.nio.fs.UnixNativeDispatcher openat(int,byte[],int,int) @resources 27-");
+        check("DiskInfo.createFromParcel",
+                "android.os.storage.DiskInfo CREATOR:createFromParcel(android.os.Parcel) @resources 27- optional");
+        for (String name : new String[]{"UnixNativeDispatcher.openat/meminfo", "DiskInfo.createFromParcel"})
+            assertEquals(name, "Read.Resources", hook(name).getString("group"));
     }
 
     // Apps targeting Android 9 or older still get the neighboring cells on Android 10 and newer; the method is not
@@ -2150,6 +2216,54 @@ public class HookDefinitionsTest {
         }
     }
 
+    // The same calls for su and the files of Magisk and of the fingerprint sensor, which gave EROFS for changing the
+    // mode of su and EEXIST for making a folder by its name where stat gave ENOENT, and a node by its name, which
+    // Files.copy of a special file makes (AOSP oreo-release to main: mknod(UnixPath,int,long)); and opening them by
+    // FileInputStream and FileOutputStream of Android 8.1 and 9, which open natively, like the folders of VPN interfaces
+    @Test
+    public void rootAndFingerprintSensorByEveryPathCall() throws Exception {
+        for (String suffix : new String[]{"root", "fingerprint_sensor"}) {
+            String group = (suffix.equals("root") ? "Read.Debugging" : "Read.Biometrics");
+            for (String name : new String[]{"Os.listxattr", "Os.setxattr", "Os.removexattr", "Os.chmod", "Os.chown",
+                    "Os.lchown", "Os.link", "Os.remove", "Os.mkdir", "Os.mkfifo", "Os.symlink", "Os.rename",
+                    "UnixNativeDispatcher.chmod", "UnixNativeDispatcher.chown", "UnixNativeDispatcher.lchown",
+                    "UnixNativeDispatcher.link", "UnixNativeDispatcher.mkdir", "UnixNativeDispatcher.symlink",
+                    "UnixNativeDispatcher.rename"}) {
+                JSONObject model = hook(name + "/hardware_model"), hook = hook(name + "/" + suffix);
+                assertNotNull(name + "/" + suffix, hook);
+                for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk", "luaScript"})
+                    assertEquals(name + " " + key, model.get(key).toString(), hook.get(key).toString());
+                assertFalse(name, hook.has("optional"));
+                assertEquals(name, group, hook.getString("group"));
+            }
+            check("UnixNativeDispatcher.mknod/" + suffix,
+                    "sun.nio.fs.UnixNativeDispatcher mknod(sun.nio.fs.UnixPath,int,long) @hardware_files 27-");
+            assertEquals(group, hook("UnixNativeDispatcher.mknod/" + suffix).getString("group"));
+            for (String name : new String[]{"FileInputStream.open0", "FileOutputStream.open0"}) {
+                JSONObject vpn = hook(name + "/vpn_interfaces"), hook = hook(name + "/" + suffix);
+                assertNotNull(name + "/" + suffix, hook);
+                for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk", "maxSdk",
+                        "luaScript"})
+                    assertEquals(name + " " + key, vpn.get(key).toString(), hook.get(key).toString());
+                assertFalse(name, hook.has("optional"));
+                assertEquals(name, group, hook.getString("group"));
+            }
+        }
+    }
+
+    // The state of adb in the property areas apps read as files, like the model of the device in them
+    @Test
+    public void debuggingInPropertyAreas() throws Exception {
+        for (String name : new String[]{"BlockGuardOs.open", "UnixNativeDispatcher.open"}) {
+            JSONObject device = hook(name + "/device"), debugging = hook(name + "/debugging");
+            assertNotNull(name + "/debugging", debugging);
+            for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk", "luaScript"})
+                assertEquals(name + " " + key, device.get(key).toString(), debugging.get(key).toString());
+            assertFalse(name, debugging.has("maxSdk") || debugging.has("optional"));
+            assertEquals(name, hook("SystemProperties.get/debugging").getString("group"), debugging.getString("group"));
+        }
+    }
+
     // The names of the file stores of java.nio, which getFileStores makes of the mount entries it reads natively, on
     // every version (AOSP oreo-mr1-release to android17-release declare both in UnixFileStore)
     @Test
@@ -2254,7 +2368,8 @@ public class HookDefinitionsTest {
         }
     }
 
-    // The other ways to the values of fingerprints: the pages of memory, the methods behind SystemProperties.get, the
+    // The other ways to the values of fingerprints: the pages of memory, the hidden natives of the memory sizes, which
+    // the system server keeps for its own memory levels, the methods behind SystemProperties.get, the
     // metrics and parameters of codecs, listeners of the heat; of the vibrator SystemVibrator only, which is
     // what Vibrator resolves to
     @Test
@@ -2264,6 +2379,18 @@ public class HookDefinitionsTest {
         String e = "java.util.concurrent.Executor,";
         check("Os.sysconf/resources", "android.system.Os sysconf(int) @resources 27-");
         check("ForwardingOs.sysconf/resources", "libcore.io.ForwardingOs sysconf(int) @resources 27-");
+        check("IActivityManager.getMemoryInfo", "android.app.IActivityManager$Stub$Proxy getMemoryInfo(" +
+                "android.app.ActivityManager$MemoryInfo) @resources 27- optional");
+        check("Process.getTotalMemory", "android.os.Process getTotalMemory() @resources 27- optional");
+        check("Process.getFreeMemory", "android.os.Process getFreeMemory() @resources 27- optional");
+        check("Process.readProcLines/meminfo", "android.os.Process readProcLines(" + s +
+                ",java.lang.String[],long[]) @resources 27- optional");
+        check("Process.readProcFile/meminfo", "android.os.Process readProcFile(" + s +
+                ",int[],java.lang.String[],long[],float[]) @resources 27- optional");
+        check("Debug.getMemInfo", "android.os.Debug getMemInfo(long[]) @resources 27- optional");
+        for (String name : new String[]{"Process.getTotalMemory", "Process.getFreeMemory", "Process.readProcLines/meminfo",
+                "Process.readProcFile/meminfo", "Debug.getMemInfo"})
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
         for (String variant : new String[]{"serial", "operator", "device", "timezone", "debugging", "resources"})
             check("SystemProperties.native_get/" + variant, "android.os.SystemProperties native_get(" + s +
                     ") @systemproperties_get 27- optional");
@@ -2377,8 +2504,44 @@ public class HookDefinitionsTest {
                 "java.util.concurrent.Executor," + prompt + "$AuthenticationCallback) @biometric_prompt 30-");
         check("BiometricPrompt.authenticate/crypto", prompt + " authenticate(" + prompt + "$CryptoObject," +
                 "android.os.CancellationSignal,java.util.concurrent.Executor," + prompt + "$AuthenticationCallback) @biometric_prompt 30-");
+        // Keystore asks for the enrolled biometrics, the managers are built from the binders of ServiceManager, and
+        // Settings keeps whether fingerprint and face unlock are on
+        String biometric = "android.hardware.biometrics.BiometricManager getAuthenticatorIds(";
+        check("BiometricManager.getAuthenticatorIds", biometric + ") @biometrics 30- optional");
+        check("BiometricManager.getAuthenticatorIds/user", biometric + "int) @biometrics 31- optional");
+        for (String method : new String[]{"getService", "checkService"}) {
+            check("ServiceManager." + method + "/biometrics", "android.os.ServiceManager " + method + "(" + s +
+                    ") @biometrics 27- optional");
+            assertEquals(method, "android", hook("ServiceManager." + method + "/biometrics").getString("excludePackages"));
+        }
+        check("ServiceManager.listServices/biometrics", "android.os.ServiceManager listServices() @biometrics 27- optional");
+        assertEquals("java.lang.String[]", hook("ServiceManager.listServices/biometrics").getString("returnType"));
+        assertEquals("android", hook("ServiceManager.listServices/biometrics").getString("excludePackages"));
+        // The same of the IServiceManager behind it, which lists for a priority from Android 9
+        String proxy = "android.os.ServiceManagerProxy ";
+        for (String method : new String[]{"getService", "checkService"}) {
+            check("ServiceManagerProxy." + method + "/biometrics", proxy + method + "(" + s + ") @biometrics 27- optional");
+            assertEquals(method, "android.os.IBinder", hook("ServiceManagerProxy." + method + "/biometrics").getString("returnType"));
+        }
+        check("ServiceManagerProxy.listServices/biometrics", proxy + "listServices() @biometrics 27-27 optional");
+        check("ServiceManagerProxy.listServices.priority/biometrics", proxy + "listServices(int) @biometrics 28- optional");
+        for (String name : new String[]{"getService", "checkService", "listServices", "listServices.priority"}) {
+            assertEquals(name, "android", hook("ServiceManagerProxy." + name + "/biometrics").getString("excludePackages"));
+            if (name.startsWith("listServices"))
+                assertEquals(name, "java.lang.String[]", hook("ServiceManagerProxy." + name + "/biometrics").getString("returnType"));
+        }
+        check("Settings.Secure.getStringForUser/biometrics", "android.provider.Settings$Secure getStringForUser(" +
+                "android.content.ContentResolver," + s + ",int) @settingssecure_getstring 27- optional");
+        check("ContentResolver.query26/biometrics", "android.content.ContentResolver query(android.net.Uri," + s +
+                "[],android.os.Bundle,android.os.CancellationSignal) @settingssecure_getstring 27-");
+        check("ContentResolver.call/biometrics", "android.content.ContentResolver call(" + s + "," + s + "," + s +
+                ",android.os.Bundle) @settingssecure_getstring 29-");
         check("Settings.System.getStringForUser/adb", "android.provider.Settings$System getStringForUser(" +
                 "android.content.ContentResolver," + s + ",int) @settingssecure_getstring 27- optional");
+        // Data roaming of the phone process, like the setting data_roaming of the same group
+        check("TelephonyManager.isDataRoamingEnabled/settings", "android.telephony.TelephonyManager isDataRoamingEnabled() " +
+                "@settingssecure_getstring 29-");
+        assertEquals("Read.Settings", hook("TelephonyManager.isDataRoamingEnabled/settings").getString("group"));
         check("CameraManager2.setTorchMode", "android.hardware.camera2.CameraManager setTorchMode(" + s + ",boolean) @camera2_open 27-");
         check("CameraManager2.turnOnTorchWithStrengthLevel", "android.hardware.camera2.CameraManager turnOnTorchWithStrengthLevel(" +
                 s + ",int) @camera2_open 33-");

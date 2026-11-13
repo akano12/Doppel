@@ -23906,6 +23906,39 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  // FileInputStream, which FileReader opens too, and FileOutputStream of Android 8.1 and 9 open natively (open0), not by
+  // BlockGuardOs.open, which they use from Android 10
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "FileInputStream.open0/fingerprint_sensor",
+    "author": "akano12",
+    "className": "java.io.FileInputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "FileOutputStream.open0/fingerprint_sensor",
+    "author": "akano12",
+    "className": "java.io.FileOutputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@hardware_files"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",
@@ -24080,6 +24113,314 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  // The calls which tell a hidden file of the fingerprint sensor exists, like for the ids of Read.Identifiers:
+  // listing or changing its attributes, mode or owner, linking, removing or moving it and making a folder, a pipe,
+  // a node or a link by its name (EEXIST), which answer like for a missing file
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.listxattr/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "listxattr",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.setxattr/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "setxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "byte[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.removexattr/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "removexattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.chmod/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.chown/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.lchown/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.link/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "link",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.remove/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "remove",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.mkdir/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.mkfifo/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkfifo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.symlink/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Os.rename/fingerprint_sensor",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "rename",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.chmod/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.chown/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.lchown/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.link/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "link",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.mkdir/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.symlink/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "byte[]",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.rename/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "rename",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "UnixNativeDispatcher.mknod/fingerprint_sensor",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "mknod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "long"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
   // Fingerprint sensor, face and iris unlock, see biometrics.lua
   {
     "collection": "Privacy",
@@ -24143,6 +24484,35 @@
     "parameterTypes": [],
     "returnType": "java.util.Map",
     "minSdk": 37,
+    "luaScript": "@biometrics"
+  },
+  // The ids of the enrolled biometrics, hidden, which keystore asks when a key needs a biometric for each use
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricManager.getAuthenticatorIds",
+    "author": "akano12",
+    "className": "android.hardware.biometrics.BiometricManager",
+    "methodName": "getAuthenticatorIds",
+    "parameterTypes": [],
+    "returnType": "long[]",
+    "minSdk": 30,
+    "optional": true,
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "BiometricManager.getAuthenticatorIds/user",
+    "author": "akano12",
+    "className": "android.hardware.biometrics.BiometricManager",
+    "methodName": "getAuthenticatorIds",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "long[]",
+    "minSdk": 31,
+    "optional": true,
     "luaScript": "@biometrics"
   },
   {
@@ -24223,6 +24593,119 @@
     "minSdk": 27,
     "luaScript": "@biometrics"
   },
+  // The binders of the services, which apps get from the hidden ServiceManager and Android builds the managers with,
+  // and the names of the services it lists
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ServiceManager.getService/biometrics",
+    "author": "akano12",
+    "className": "android.os.ServiceManager",
+    "methodName": "getService",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.os.IBinder",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ServiceManager.checkService/biometrics",
+    "author": "akano12",
+    "className": "android.os.ServiceManager",
+    "methodName": "checkService",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.os.IBinder",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ServiceManager.listServices/biometrics",
+    "author": "akano12",
+    "className": "android.os.ServiceManager",
+    "methodName": "listServices",
+    "parameterTypes": [],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@biometrics"
+  },
+  // The same of the IServiceManager behind ServiceManager, which apps get by the greylisted getIServiceManager; it lists
+  // the services for a priority from Android 9
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ServiceManagerProxy.getService/biometrics",
+    "author": "akano12",
+    "className": "android.os.ServiceManagerProxy",
+    "methodName": "getService",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.os.IBinder",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ServiceManagerProxy.checkService/biometrics",
+    "author": "akano12",
+    "className": "android.os.ServiceManagerProxy",
+    "methodName": "checkService",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.os.IBinder",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ServiceManagerProxy.listServices/biometrics",
+    "author": "akano12",
+    "className": "android.os.ServiceManagerProxy",
+    "methodName": "listServices",
+    "parameterTypes": [],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "maxSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@biometrics"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ServiceManagerProxy.listServices.priority/biometrics",
+    "author": "akano12",
+    "className": "android.os.ServiceManagerProxy",
+    "methodName": "listServices",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 28,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@biometrics"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Biometrics",
@@ -24263,6 +24746,134 @@
     "returnType": "android.content.pm.FeatureInfo[]",
     "minSdk": 27,
     "luaScript": "@biometrics"
+  },
+  // The settings of fingerprint and face unlock, which Settings writes when they are set up (see settingssecure_getstring)
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "Settings.Secure.getStringForUser/biometrics",
+    "author": "akano12",
+    "className": "android.provider.Settings$Secure",
+    "methodName": "getStringForUser",
+    "parameterTypes": [
+      "android.content.ContentResolver",
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ContentResolver.call/biometrics",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ContentProviderClient.call/biometrics",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ContentProviderClient.call.authority/biometrics",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "call",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 29,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ContentResolver.call.uri/biometrics",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "call",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String",
+      "java.lang.String",
+      "android.os.Bundle"
+    ],
+    "returnType": "android.os.Bundle",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ContentResolver.query26/biometrics",
+    "author": "akano12",
+    "className": "android.content.ContentResolver",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Biometrics",
+    "name": "ContentProviderClient.query26/biometrics",
+    "author": "akano12",
+    "className": "android.content.ContentProviderClient",
+    "methodName": "query",
+    "parameterTypes": [
+      "android.net.Uri",
+      "java.lang.String[]",
+      "android.os.Bundle",
+      "android.os.CancellationSignal"
+    ],
+    "returnType": "android.database.Cursor",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
   },
   {
     "collection": "Privacy",
@@ -24864,8 +25475,9 @@
     "minSdk": 27,
     "luaScript": "@features"
   },
-  // External input devices, like keyboards and game controllers; from Android 10, which made InputDevice.isExternal
-  // public, which the script uses to tell them
+  // External input devices, like keyboards and game controllers, which the script tells apart by InputDevice.isExternal:
+  // public from Android 10 and hidden before, but on the light greylist of Android 9 and unrestricted on Android 8.1,
+  // so the script calls it on every version
   {
     "collection": "Privacy",
     "group": "Read.Features",
@@ -24875,7 +25487,7 @@
     "methodName": "getInputDeviceIds",
     "parameterTypes": [],
     "returnType": "int[]",
-    "minSdk": 29,
+    "minSdk": 27,
     "luaScript": "@input_devices"
   },
   {
@@ -24889,7 +25501,7 @@
       "int"
     ],
     "returnType": "android.view.InputDevice",
-    "minSdk": 29,
+    "minSdk": 27,
     "luaScript": "@input_devices"
   },
   {
@@ -24901,7 +25513,7 @@
     "methodName": "getDeviceIds",
     "parameterTypes": [],
     "returnType": "int[]",
-    "minSdk": 29,
+    "minSdk": 27,
     "luaScript": "@input_devices"
   },
   {
@@ -24915,10 +25527,26 @@
       "int"
     ],
     "returnType": "android.view.InputDevice",
-    "minSdk": 29,
+    "minSdk": 27,
     "luaScript": "@input_devices"
   },
-  // The names and ids of built-in input devices, which tell the model
+  // A listener hears of the devices which are connected, changed and removed
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputManager.registerInputDeviceListener",
+    "author": "akano12",
+    "className": "android.hardware.input.InputManager",
+    "methodName": "registerInputDeviceListener",
+    "parameterTypes": [
+      "android.hardware.input.InputManager$InputDeviceListener",
+      "android.os.Handler"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@input_devices"
+  },
+  // The names and ids of input devices, which tell the model of the device and what someone uses
   {
     "collection": "Privacy",
     "group": "Read.Features",
@@ -24928,7 +25556,7 @@
     "methodName": "getName",
     "parameterTypes": [],
     "returnType": "java.lang.String",
-    "minSdk": 29,
+    "minSdk": 27,
     "luaScript": "@input_devices"
   },
   {
@@ -24940,7 +25568,7 @@
     "methodName": "getVendorId",
     "parameterTypes": [],
     "returnType": "int",
-    "minSdk": 29,
+    "minSdk": 27,
     "luaScript": "@input_devices"
   },
   {
@@ -24952,7 +25580,7 @@
     "methodName": "getProductId",
     "parameterTypes": [],
     "returnType": "int",
-    "minSdk": 29,
+    "minSdk": 27,
     "luaScript": "@input_devices"
   },
   {
@@ -24964,7 +25592,7 @@
     "methodName": "getDescriptor",
     "parameterTypes": [],
     "returnType": "java.lang.String",
-    "minSdk": 29,
+    "minSdk": 27,
     "luaScript": "@input_devices"
   },
   {
@@ -24976,8 +25604,24 @@
     "methodName": "toString",
     "parameterTypes": [],
     "returnType": "java.lang.String",
-    "minSdk": 29,
+    "minSdk": 27,
     "usage": false,
+    "luaScript": "@input_devices"
+  },
+  // A parcel of a device has the fields of the getters, which InputDevice.CREATOR reads back
+  {
+    "collection": "Privacy",
+    "group": "Read.Features",
+    "name": "InputDevice.writeToParcel",
+    "author": "akano12",
+    "className": "android.view.InputDevice",
+    "methodName": "writeToParcel",
+    "parameterTypes": [
+      "android.os.Parcel",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
     "luaScript": "@input_devices"
   },
   {
@@ -27374,6 +28018,95 @@
     "optional": true,
     "luaScript": "@battery"
   },
+  // The framework resource power_profile, which PowerProfile parses and apps can too: every Resources.getXml,
+  // getLayout and getAnimation loads it by ResourcesImpl, with four arguments up to Android 15 and on main and a flag
+  // of feature flags on Android 16 and 17, so both are hooked from where they can exist; the parser reads the text of
+  // an item by getText, which nextText and getTextCharacters call, hooked each since a compiled caller can have it inline
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "ResourcesImpl.loadXmlResourceParser/power_profile",
+    "author": "akano12",
+    "className": "android.content.res.ResourcesImpl",
+    "methodName": "loadXmlResourceParser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "android.content.res.XmlResourceParser",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "ResourcesImpl.loadXmlResourceParser.flags/power_profile",
+    "author": "akano12",
+    "className": "android.content.res.ResourcesImpl",
+    "methodName": "loadXmlResourceParser",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int",
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "android.content.res.XmlResourceParser",
+    "minSdk": 36,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "XmlBlock.Parser.getText/power_profile",
+    "author": "akano12",
+    "className": "android.content.res.XmlBlock$Parser",
+    "methodName": "getText",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "XmlBlock.Parser.nextText/power_profile",
+    "author": "akano12",
+    "className": "android.content.res.XmlBlock$Parser",
+    "methodName": "nextText",
+    "parameterTypes": [],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "XmlBlock.Parser.getTextCharacters/power_profile",
+    "author": "akano12",
+    "className": "android.content.res.XmlBlock$Parser",
+    "methodName": "getTextCharacters",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "returnType": "char[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@battery"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Battery",
@@ -27386,6 +28119,9 @@
     ],
     "returnType": "android.content.Intent",
     "minSdk": 27,
+    "settings": [
+      "location.key"
+    ],
     "excludePackages": "android",
     "luaScript": "@intent_createfromparcel"
   },
@@ -27403,6 +28139,7 @@
     "excludePackages": "android",
     "luaScript": "@generic_zero_value"
   },
+  // The remaining time on battery, unknown, and whether the estimate is personalized, as for the unknown one: no
   {
     "collection": "Privacy",
     "group": "Read.Battery",
@@ -27413,7 +28150,19 @@
     "parameterTypes": [],
     "returnType": "java.time.Duration",
     "minSdk": 31,
-    "luaScript": "@generic_null_value"
+    "luaScript": "@battery"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Battery",
+    "name": "PowerManager.isBatteryDischargePredictionPersonalized",
+    "author": "akano12",
+    "className": "android.os.PowerManager",
+    "methodName": "isBatteryDischargePredictionPersonalized",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 31,
+    "luaScript": "@battery"
   },
   // Battery saver
   {
@@ -27786,6 +28535,40 @@
     "excludePackages": "android",
     "luaScript": "@systemproperties_get"
   },
+  // The same properties in the property areas apps can read as files (/dev/__properties__), like sys.usb.config and
+  // init.svc.adbd, see XParam.setPropertyValues
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "BlockGuardOs.open/debugging",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "open",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "java.io.FileDescriptor",
+    "minSdk": 27,
+    "luaScript": "@systemproperties_get"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.open/debugging",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "open",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@systemproperties_get"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Debugging",
@@ -27863,6 +28646,39 @@
     ],
     "returnType": "int",
     "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // FileInputStream, which FileReader opens too, and FileOutputStream of Android 8.1 and 9 open natively (open0), not by
+  // BlockGuardOs.open, which they use from Android 10
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "FileInputStream.open0/root",
+    "author": "akano12",
+    "className": "java.io.FileInputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "FileOutputStream.open0/root",
+    "author": "akano12",
+    "className": "java.io.FileOutputStream",
+    "methodName": "open0",
+    "parameterTypes": [
+      "java.lang.String",
+      "boolean"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 28,
     "luaScript": "@hardware_files"
   },
   {
@@ -28257,6 +29073,440 @@
     "minSdk": 27,
     "luaScript": "@hardware_files"
   },
+  // The calls which tell su or a file of Magisk exists, like for the files of Use.Tracking: listing or changing
+  // its attributes, mode or owner, linking, removing or moving it and making a folder, a pipe, a node (Files.copy
+  // of a special file) or a link by its name (EEXIST), which answer like for a missing file, also on the read-only
+  // partitions of the system (EROFS)
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.listxattr/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "listxattr",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.setxattr/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "setxattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String",
+      "byte[]",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.removexattr/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "removexattr",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.chmod/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.chown/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "chown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.lchown/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.link/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "link",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.remove/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "remove",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.mkdir/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.mkfifo/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "mkfifo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.symlink/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.rename/root",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "rename",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.chmod/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chmod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.chown/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "chown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.lchown/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "lchown",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.link/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "link",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.mkdir/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "mkdir",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.symlink/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "symlink",
+    "parameterTypes": [
+      "byte[]",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.rename/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "rename",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.mknod/root",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "mknod",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath",
+      "int",
+      "long"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "luaScript": "@hardware_files"
+  },
+  // The stat, size and link of the mount tables the script hardware_files rewrites without the mounts of Magisk answer
+  // like for the file the app opened, see faked_files; the same hooks as for Use.Tracking, which answer the same when
+  // both groups run them
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.fstat/faked_files_debugging",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "fstat",
+    "parameterTypes": [
+      "java.io.FileDescriptor"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "FileInputStream.available/faked_files_debugging",
+    "author": "akano12",
+    "className": "java.io.FileInputStream",
+    "methodName": "available",
+    "parameterTypes": [],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "RandomAccessFile.length/faked_files_debugging",
+    "author": "akano12",
+    "className": "java.io.RandomAccessFile",
+    "methodName": "length",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "FileDispatcherImpl.size/faked_files_debugging",
+    "author": "akano12",
+    "className": "sun.nio.ch.FileDispatcherImpl",
+    "methodName": "size",
+    "parameterTypes": [
+      "java.io.FileDescriptor"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "Os.readlink/faked_files_debugging",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixNativeDispatcher.readlink/faked_files_debugging",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "readlink",
+    "parameterTypes": [
+      "sun.nio.fs.UnixPath"
+    ],
+    "returnType": "byte[]",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "BlockGuardOs.stat/faked_files_debugging",
+    "author": "akano12",
+    "className": "libcore.io.BlockGuardOs",
+    "methodName": "stat",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.system.StructStat",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixFileSystem.getLength/faked_files_debugging",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLength",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Debugging",
+    "name": "UnixFileSystem.getLastModifiedTime/faked_files_debugging",
+    "author": "akano12",
+    "className": "java.io.UnixFileSystem",
+    "methodName": "getLastModifiedTime",
+    "parameterTypes": [
+      "java.io.File"
+    ],
+    "returnType": "long",
+    "minSdk": 27,
+    "luaScript": "@faked_files"
+  },
   {
     "collection": "Privacy",
     "group": "Read.Debugging",
@@ -28381,6 +29631,106 @@
     "minSdk": 27,
     "luaScript": "@resources"
   },
+  // The binder proxy behind it, which apps reach by reflection through ActivityManager.getService
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "IActivityManager.getMemoryInfo",
+    "author": "akano12",
+    "className": "android.app.IActivityManager$Stub$Proxy",
+    "methodName": "getMemoryInfo",
+    "parameterTypes": [
+      "android.app.ActivityManager$MemoryInfo"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "luaScript": "@resources"
+  },
+  // The hidden natives of Process and Debug, which apps reach by reflection and which read the sizes of the kernel
+  // themselves; the system server computes its memory levels with them, so it keeps the real ones
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Process.getTotalMemory",
+    "author": "akano12",
+    "className": "android.os.Process",
+    "methodName": "getTotalMemory",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Process.getFreeMemory",
+    "author": "akano12",
+    "className": "android.os.Process",
+    "methodName": "getFreeMemory",
+    "parameterTypes": [],
+    "returnType": "long",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Process.readProcLines/meminfo",
+    "author": "akano12",
+    "className": "android.os.Process",
+    "methodName": "readProcLines",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "long[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Process.readProcFile/meminfo",
+    "author": "akano12",
+    "className": "android.os.Process",
+    "methodName": "readProcFile",
+    "parameterTypes": [
+      "java.lang.String",
+      "int[]",
+      "java.lang.String[]",
+      "long[]",
+      "float[]"
+    ],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@resources"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "Debug.getMemInfo",
+    "author": "akano12",
+    "className": "android.os.Debug",
+    "methodName": "getMemInfo",
+    "parameterTypes": [
+      "long[]"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@resources"
+  },
   // The pages of memory, which tell the same sizes (resources)
   {
     "collection": "Privacy",
@@ -28471,6 +29821,25 @@
     "methodName": "open",
     "parameterTypes": [
       "sun.nio.fs.UnixPath",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "luaScript": "@resources"
+  },
+  // The SecureDirectoryStream of a folder, which Files.newDirectoryStream gives, opens its files by the descriptor of the
+  // folder and their name, which the filter does not see, so the script checks the file itself
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "UnixNativeDispatcher.openat/meminfo",
+    "author": "akano12",
+    "className": "sun.nio.fs.UnixNativeDispatcher",
+    "methodName": "openat",
+    "parameterTypes": [
+      "int",
+      "byte[]",
       "int",
       "int"
     ],
@@ -28577,6 +29946,26 @@
     ],
     "returnType": "long",
     "minSdk": 27,
+    "luaScript": "@resources"
+  },
+  // The SD cards and USB disks of StorageManager.getDisks, findDiskById and of the volumes (VolumeInfo.disk), which apps
+  // reach by reflection, all made of their parcel; no usage, since Android reads the volumes itself, like for
+  // StorageManager.getUuidForPath
+  {
+    "collection": "Privacy",
+    "group": "Read.Resources",
+    "name": "DiskInfo.createFromParcel",
+    "author": "akano12",
+    "className": "android.os.storage.DiskInfo",
+    "methodName": "CREATOR:createFromParcel",
+    "parameterTypes": [
+      "android.os.Parcel"
+    ],
+    "returnType": "android.os.storage.DiskInfo",
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android",
     "luaScript": "@resources"
   },
   // StatFs itself, see resources.lua
@@ -29024,6 +30413,20 @@
     ],
     "returnType": "android.database.Cursor",
     "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@settingssecure_getstring"
+  },
+  // The phone process answers from the setting data_roaming, which is faked, so this is too
+  {
+    "collection": "Privacy",
+    "group": "Read.Settings",
+    "name": "TelephonyManager.isDataRoamingEnabled/settings",
+    "author": "akano12",
+    "className": "android.telephony.TelephonyManager",
+    "methodName": "isDataRoamingEnabled",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 29,
     "excludePackages": "android",
     "luaScript": "@settingssecure_getstring"
   },

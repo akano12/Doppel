@@ -91,6 +91,59 @@ function noservice(text)
     return false
 end
 
+-- The broadcasts of the plug and of a low battery, which have the sequence number of BATTERY_CHANGED (see sequence)
+local SEQUENCED = { ['android.intent.action.ACTION_POWER_CONNECTED'] = true,
+    ['android.intent.action.ACTION_POWER_DISCONNECTED'] = true, ['android.intent.action.BATTERY_LOW'] = true,
+    ['android.intent.action.BATTERY_OKAY'] = true }
+
+-- The battery level in steps of 10 percent of the scale, but at least 15 percent, a copy of battery, on the same side
+-- as the real level of the levels at which Android warns of a low battery and stops warning (BatteryService), so the
+-- battery_low of Android and its broadcasts BATTERY_LOW and BATTERY_OKAY agree with it; a fake gives the same fake
+-- again, like when the app parcels an intent itself, so half a step rounds down. The warning level is the one the
+-- user set for battery saver (low_power_trigger_level), else the configured one, at least the critical level, read
+-- without the hooks of the app; Android stops warning a bump above it.
+function batterylevel(param, real, scale)
+    local fake = math.max(math.floor(15 * scale / 100), math.floor(math.ceil(real * 10 / scale - 0.5) * scale / 10))
+    local resources = luajava.bindClass('android.content.res.Resources'):getSystem()
+    local function integer(name)
+        return resources:getInteger(resources:getIdentifier(name, 'integer', 'android'))
+    end
+    local ok, warning = pcall(function()
+        return param:unhooked(function()
+            return luajava.bindClass('android.provider.Settings$Global'):getInt(
+                    param:getApplicationContext():getContentResolver(), 'low_power_trigger_level', 0)
+        end)
+    end)
+    if not ok or warning == 0 then
+        warning = integer('config_lowBatteryWarningLevel')
+    end
+    warning = math.max(warning, integer('config_criticalBatteryWarningLevel'))
+    local close = math.ceil((warning + integer('config_lowBatteryCloseWarningBump')) * scale / 100)
+    warning = math.floor(warning * scale / 100)
+    if real <= warning then
+        return math.min(fake, warning)
+    elseif real >= close then
+        return math.max(fake, close)
+    end
+    return math.min(math.max(fake, warning + 1), close - 1)
+end
+
+-- The sequence number of the updates of the battery since the boot (seq), which all apps read alike, with an offset of
+-- each app from 0 to 15, new each boot, by the key of the offsets of locations (FakeIds), so apps do not read the same
+-- number; small, because Android counts from 1 and only when the battery changes, so a large number soon after a boot
+-- would tell the offset is there; true when set
+-- shortcut: apps whose numbers differ by at most 15 can still link, the differences of two numbers stay those of
+-- Android, soon after a boot the number can be up to 15 above any Android has counted yet, and an intent the app
+-- parcels itself gets the offset again; upgrade when an app is seen to compare them, or hide the time of the boot too
+function sequence(param, extras)
+    local key = param:getSetting('location.key')
+    if key == nil or not extras:containsKey('seq') then
+        return false
+    end
+    extras:putInt('seq', extras:getInt('seq', 0) + tonumber(string.sub(param:uuidOf('battery.seq/' .. key), 1, 1), 16))
+    return true
+end
+
 -- The extras a variant leaves out of a broadcast, nil when none
 function extrasof(name, action)
     local actions = EXTRAS[name]
@@ -284,8 +337,10 @@ function after(hook, param)
         intent:replaceExtras(extras)
         return true
     elseif name == 'battery' and action == 'android.intent.action.BATTERY_CHANGED' then
-        -- The level in steps of 10 percent, but at least 15 percent like battery, and typical values instead of
-        -- exact measurements, which change slowly and together identify a device across apps
+        -- The level in steps (batterylevel), and typical values instead of exact measurements, which change slowly
+        -- and together identify a device across apps: the voltage of a typical battery at the fake level, from
+        -- 3.69 V at 15 percent to 4.2 V when full, and a temperature of 25 degrees; the sequence number per app
+        -- shortcut: the voltage is the same while charging, when a battery has a higher one; upgrade if apps compare
         -- Bundle.putInt, because Lua would select Intent.putExtra(String, byte) for small numbers
         local extras = intent:getExtras()
         if extras == nil then
@@ -295,21 +350,22 @@ function after(hook, param)
         local scale = extras:getInt('scale', 100)
         local level = old
         if old >= 0 and scale > 0 then
-            level = math.max(math.floor(15 * scale / 100), math.floor(math.floor(old * 10 / scale + 0.5) * scale / 10))
+            level = batterylevel(param, old, scale)
             extras:putInt('level', level)
         end
+        local percent = (scale > 0 and level * 100 / scale or 0)
         if extras:containsKey('voltage') then
-            extras:putInt('voltage', 3800)
+            extras:putInt('voltage', 3600 + math.floor(6 * percent))
         end
         if extras:containsKey('temperature') then
             extras:putInt('temperature', 250)
         end
+        sequence(param, extras)
         -- The details of charging, neutral values instead of none, since Android always sends them: no charging
-        -- current and voltage, the charge of a 4000 mAh battery at the level, no cycles, the default policy of
+        -- current and voltage, the charge of a 1000 mAh battery at the level, no cycles, the default policy of
         -- charging (CHARGING_POLICY_DEFAULT, 1) instead of one the user chose, like adaptive or long life, while
         -- a device without policies (0) stays, and the level of the capacity by the level (BATTERY_CAPACITY_LEVEL_*)
-        local percent = (scale > 0 and level * 100 / scale or 0)
-        for key, value in pairs({ charge_counter = math.floor(percent * 40000), max_charging_current = 0,
+        for key, value in pairs({ charge_counter = math.floor(percent * 10000), max_charging_current = 0,
                                   max_charging_voltage = 0, ['android.os.extra.CYCLE_COUNT'] = 0 }) do
             if extras:containsKey(key) then
                 extras:putInt(key, value)
@@ -329,6 +385,13 @@ function after(hook, param)
             return true
         end
         return true, tostring(old), tostring(level)
+    elseif name == 'battery' and SEQUENCED[action] then
+        local extras = intent:getExtras()
+        if extras == nil or not sequence(param, extras) then
+            return false
+        end
+        intent:replaceExtras(extras)
+        return true
     elseif name == 'battery' and action == 'android.os.action.POWER_SAVE_MODE_CHANGING' then
         -- The battery saver going on, which isPowerSaveMode hides: off
         local extras = intent:getExtras()

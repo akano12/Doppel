@@ -338,6 +338,48 @@ public class SettingsScriptTest {
         assertFalse(run("return hooked(nil)").arg1().toboolean());
     }
 
+    // Data roaming is off also for each SIM of a device with more than one, as data_roaming with the id of the
+    // subscription, by the getters and in the list of the provider; other settings of the name stay
+    @Test
+    public void dataRoamingOfEachSimIsOff() {
+        for (String key : new String[]{"data_roaming", "data_roaming1", "data_roaming12", "data_roaming-1"}) {
+            assertTrue(key, run("return hooked('" + key + "')").arg1().toboolean());
+            assertEquals(key, "0", applications("settings", key, "1"));
+            assertEquals(key, "same", applications("settings", key, "0"));
+        }
+        for (String key : new String[]{"data_roaming_is_user_setting_key", "data_roamingx", "data_roaming1x", "xdata_roaming1"})
+            assertFalse(key, run("return hooked('" + key + "')").arg1().toboolean());
+        assertEquals("same", applications("adb", "data_roaming1", "1"));
+        Varargs result = list("settings", "data_roaming=1", "data_roaming2=1", "mobile_data2=1");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("data_roaming,data_roaming2", result.arg(2).tojstring());
+        assertEquals("[data_roaming=0, data_roaming2=0, mobile_data2=1]", result.arg(3).tojstring());
+    }
+
+    // TelephonyManager.isDataRoamingEnabled, which has no arguments, is off like the setting; false and the exception
+    // of Android, like the SecurityException without ACCESS_NETWORK_STATE, stay
+    @Test
+    public void dataRoamingOfTelephonyIsOff() {
+        String call = "local param = paramof({}, {})\n" +
+                "param.getArgument = function(self, index) error('ArrayIndexOutOfBoundsException: Argument #' .. index) end\n" +
+                "param.getResult = function(self) return %s end\n" +
+                "param.getException = function(self) return %s end\n" +
+                "param.setResult = function(self, value) self.result = value end\n" +
+                "local restricted = after(hookof('TelephonyManager.isDataRoamingEnabled/settings', " +
+                "'android.telephony.TelephonyManager', 'isDataRoamingEnabled'), param)\n" +
+                "return restricted, param.result";
+        Varargs result = run(String.format(call, "true", "nil"));
+        assertTrue(result.arg1().toboolean());
+        assertFalse(result.arg(2).isnil());
+        assertFalse(result.arg(2).toboolean());
+        result = run(String.format(call, "false", "nil"));
+        assertFalse(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        result = run(String.format(call, "nil", "'java.lang.SecurityException'"));
+        assertFalse(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+    }
+
     // Identifiers which manufacturers and SDKs keep in settings appear missing, like on a device without them, in any
     // table, since ROMs move them: of Huawei, Amazon Fire OS, Xiaomi, OnePlus and the SDKs of Baidu
     @Test
@@ -421,6 +463,23 @@ public class SettingsScriptTest {
         assertEquals("opportunistic", applications("network", "private_dns_mode", "hostname"));
         assertEquals("same", applications("network", "private_dns_mode", "off"));
         assertEquals("same", applications("tracking", "private_dns_mode", "hostname"));
+    }
+
+    // The settings of fingerprint and face unlock, which a device without the hardware does not have, also by the
+    // provider and by the name of Android 16 (fingerptint); the ones which are not set and other settings stay
+    @Test
+    public void biometricSettingsAreMissing() {
+        for (String key : new String[]{"face_unlock_keyguard_enabled", "biometric_keyguard_enabled", "biometric_app_enabled",
+                "face_unlock_re_enroll", "fingerptint_app_enabled", "face_keyguard_enabled", "screen_off_udfps_enabled"}) {
+            assertTrue(key, run("return hooked('" + key + "')").arg1().toboolean());
+            assertEquals(key, null, applications("biometrics", key, "1"));
+            assertTrue(key, run("return (fakeany(paramof({}, {}), 'biometrics', '" + key + "', '0'))").arg1().toboolean());
+        }
+        assertEquals("same", run("local changed = fakesetting(paramof({}, {}), 'biometrics', 'face_unlock_app_enabled', nil)\n" +
+                "return changed and 'changed' or 'same'").arg1().tojstring());
+        assertEquals("same", applications("settings", "biometric_app_enabled", "1"));
+        assertEquals("same", applications("biometrics", "adb_enabled", "1"));
+        assertFalse(run("return hooked('fingerprint_app_enabled')").arg1().toboolean());
     }
 
     // How often the device started: of a device started once, which Android always counts

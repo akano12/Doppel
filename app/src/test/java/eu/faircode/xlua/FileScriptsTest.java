@@ -99,6 +99,39 @@ public class FileScriptsTest {
         assertEquals("3221225472", result.arg(4).tojstring());
     }
 
+    // 32-bit kernels with high memory: HighTotal and LowTotal add up to MemTotal and HighFree and LowFree to MemFree,
+    // also when faked; the low memory has the size the kernel maps, so the high memory takes what the total grew,
+    // and the free memory lost is taken from the free high memory, then from the free low memory
+    @Test
+    public void meminfoHighMemory() throws Exception {
+        Globals globals = Scripts.load("resources", STUBS);
+        Varargs result = Scripts.run(globals,
+                "local param = paramof([[" + String.join("\n",
+                        "MemTotal:        2023424 kB",
+                        "MemFree:          147624 kB",
+                        "HighTotal:       1290240 kB",
+                        "HighFree:           1000 kB",
+                        "LowTotal:         733184 kB",
+                        "LowFree:          146624 kB",
+                        "") + "]])\n" +
+                        "return after(hookof('open'), param), param.text");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(String.join("\n",
+                "MemTotal:        2097152 kB",
+                "MemFree:          146484 kB",
+                "HighTotal:       1363968 kB",
+                "HighFree:              0 kB",
+                "LowTotal:         733184 kB",
+                "LowFree:          146484 kB",
+                ""), result.arg(2).tojstring());
+        String[] lines = result.arg(2).tojstring().split("\n");
+        long[] kb = new long[lines.length];
+        for (int i = 0; i < lines.length; i++)
+            kb[i] = Long.parseLong(lines[i].replaceAll("\\D", ""));
+        assertEquals(kb[0], kb[2] + kb[4]);
+        assertEquals(kb[1], kb[3] + kb[5]);
+    }
+
     // The lines makers add, like the ones of Samsung, are left out; the lines of the kernel stay, also those with
     // other characters in the name and without kB
     @Test
@@ -147,6 +180,51 @@ public class FileScriptsTest {
         assertTrue(result.arg(3).toboolean());
         assertFalse(result.arg(4).toboolean());
         assertFalse(result.arg(5).toboolean());
+    }
+
+    // A SecureDirectoryStream opens /proc/meminfo by the descriptor of its folder and the name (openat), which the filter
+    // does not see: a name with meminfo is the file by the link of the descriptor opened, read without telling StrictMode;
+    // another file named meminfo, other names, which are not looked up, and a link which cannot be read keep their text
+    @Test
+    public void meminfoOfASecureDirectoryStream() throws Exception {
+        Globals globals = Scripts.load("resources", STUBS);
+        Varargs result = Scripts.run(globals,
+                "local links = { [60] = '/proc/meminfo', [61] = '/data/user/0/test.app/files/meminfo' }\n" +
+                        "POLICY, READS = 'app', 0\n" +
+                        "local make = luajava.newInstance\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name == 'android.os.StrictMode' then\n" +
+                        "    return { allowThreadDiskReads = function(self) local old = POLICY; POLICY = 'reads'; return old end,\n" +
+                        "      setThreadPolicy = function(self, policy) POLICY = policy end }\n" +
+                        "  end\n" +
+                        "  assert(name == 'android.system.Os', name)\n" +
+                        "  return { readlink = function(self, link)\n" +
+                        "    assert(POLICY == 'reads', POLICY)\n" +
+                        "    READS = READS + 1\n" +
+                        "    return links[tonumber(string.match(link, '^/proc/self/fd/(%d+)$'))] or error('ErrnoException')\n" +
+                        "  end }\n" +
+                        "end\n" +
+                        // The name as bytes, a text here
+                        "luajava.newInstance = function(name, ...)\n" +
+                        "  if name == 'java.lang.String' then return ... end\n" +
+                        "  return make(name, ...)\n" +
+                        "end\n" +
+                        "local function run(name, fd)\n" +
+                        "  local param = paramof([[" + MEMINFO + "]])\n" +
+                        "  param.getArgument = function(self, index) return ({ [0] = 57, name, 0, 0 })[index] end\n" +
+                        "  param.getResult = function(self) return fd end\n" +
+                        "  param.unhooked = function(self, fn) return fn() end\n" +
+                        "  return tostring(after(hookof('openat'), param)) .. ':' .. tostring(param.set)\n" +
+                        "end\n" +
+                        "return run('meminfo', 60), run('meminfo', 61), run('stat', 60), run('meminfo', 62), READS, POLICY,\n" +
+                        "  filter(hookof('openat')) == nil");
+        assertEquals("true:true", result.arg(1).tojstring());
+        assertEquals("false:false", result.arg(2).tojstring());
+        assertEquals("false:false", result.arg(3).tojstring());
+        assertEquals("false:false", result.arg(4).tojstring());
+        assertEquals(3, result.arg(5).toint());
+        assertEquals("app", result.arg(6).tojstring());
+        assertTrue(result.arg(7).toboolean());
     }
 
     // Sizes which are rounded already stay as they are
@@ -1265,6 +1343,130 @@ public class FileScriptsTest {
         assertFalse(filterMatches(filter, "/sys/class/sensors/light_sensor/light_cal"));
     }
 
+    // For Read.Biometrics the feature files of the fingerprint sensor and of face and iris unlock do not exist, also in
+    // the folders of the SKU, and are left out of listings, like the files of the sensor in /sys; the other feature files
+    // stay and are read without exactly the features hasSystemFeature hides (see biometrics); files of the shared
+    // storage with the same names and other groups stay
+    @Test
+    public void biometricFeatureFilesOfTheSystem() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local bio = hookof('Read.Biometrics')\n" +
+                        "local list = paramof('/vendor/etc/permissions', namesof('android.hardware.fingerprint.xml',\n" +
+                        "  'android.hardware.biometrics.face.xml', 'handheld_core_hardware.xml'))\n" +
+                        "after(hookof('Read.Biometrics', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "return hidden(bio, '/vendor/etc/permissions/android.hardware.fingerprint.xml'),\n" +
+                        "  hidden(bio, '/etc/permissions/android.hardware.biometrics.face.xml'),\n" +
+                        "  hidden(bio, '/odm/etc/permissions/sku_X/android.hardware.biometrics.iris.xml'),\n" +
+                        "  hidden(bio, '/sys/class/fingerprint/fingerprint'),\n" +
+                        "  hidden(bio, '/vendor/etc/permissions/handheld_core_hardware.xml'),\n" +
+                        "  hidden(bio, '/sdcard/etc/permissions/android.hardware.fingerprint.xml'),\n" +
+                        "  hidden(hookof('Get.Sensors'), '/vendor/etc/permissions/android.hardware.fingerprint.xml'),\n" +
+                        "  list.result.length, list.result[1]");
+        for (int i = 1; i <= 4; i++)
+            assertTrue("result " + i, result.arg(i).toboolean());
+        for (int i = 5; i <= 7; i++)
+            assertFalse("result " + i, result.arg(i).toboolean());
+        assertEquals(1, result.arg(8).toint());
+        assertEquals("handheld_core_hardware.xml", result.arg(9).tojstring());
+
+        String text = String.join("\n",
+                "<permissions>",
+                "    <feature name=\"android.hardware.fingerprint\" />",
+                "    <feature name=\"android.hardware.biometrics.face\"/>",
+                "    <feature name=\"android.hardware.fingerprint.extra\" />",
+                "    <feature name=\"android.hardware.sensor.light\" />",
+                "</permissions>",
+                "");
+        Varargs read = Scripts.run(globals,
+                "local param = paramof('/vendor/etc/permissions/handheld_core_hardware.xml', 'fd', 0)\n" +
+                        "param.text = [[" + text + "]]\n" +
+                        "param.getFileText = function(self) return self.text end\n" +
+                        "param.setFileText = function(self, value) self.text = value end\n" +
+                        "local restricted, count = after(hookof('Read.Biometrics', 'libcore.io.BlockGuardOs', 'open'), param)\n" +
+                        "return restricted, count, param.text");
+        assertTrue(read.arg(1).toboolean());
+        assertEquals("2", read.arg(2).tojstring());
+        String expected = String.join("\n",
+                "<permissions>",
+                "    <feature name=\"android.hardware.fingerprint.extra\" />",
+                "    <feature name=\"android.hardware.sensor.light\" />",
+                "</permissions>",
+                "");
+        assertEquals(expected + " ".repeat(text.length() - expected.length()), read.arg(3).tojstring());
+
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Biometrics'))").arg1().checktable().unpack());
+        for (String path : new String[]{"/vendor/etc/permissions", "/vendor/etc/permissions/android.hardware.fingerprint.xml",
+                "/odm/etc/sysconfig/a.xml", "/sys/class/fingerprint/fingerprint", "/vendor/./etc/permissions"})
+            assertTrue(path, filterMatches(filter, path));
+        assertFalse(filterMatches(filter, "/system/etc/hosts"));
+    }
+
+    // For Read.Features the folders of the shared libraries of the partitions list without the jars of the libraries of
+    // makers which getSystemSharedLibraryNames hides (see features), by File.list and Files.newDirectoryStream and by
+    // other forms of their paths; the jars of AOSP, of the platform and of Google on every device stay, and so do the
+    // files themselves, which class loaders check. The names are read once, and only for those folders.
+    @Test
+    public void libraryJarsOfMakersAreLeftOutOfListings() throws Exception {
+        assertEquals(Scripts.function("features", "vendor"), Scripts.function("hardware_files", "vendor"));
+        for (String name : new String[]{"PLATFORM", "GOOGLE"}) {
+            java.util.regex.Pattern table = java.util.regex.Pattern.compile("local " + name + " = \\{[^}]*\\}");
+            java.util.regex.Matcher features = table.matcher(Scripts.read("features"));
+            java.util.regex.Matcher files = table.matcher(Scripts.read("hardware_files"));
+            assertTrue(name, features.find() && files.find());
+            assertEquals(name, features.group(), files.group());
+        }
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local calls = 0\n" +
+                        "local function withnames(param)\n" +
+                        "  param.unhooked = function(self, fn) return fn() end\n" +
+                        "  param.getApplicationContext = function(self) return { getPackageManager = function(self)\n" +
+                        "    return { getSystemSharedLibraryNames = function(self) calls = calls + 1\n" +
+                        "      return namesof('com.google.android.dialer.support', 'com.google.android.maps', 'android.test.base',\n" +
+                        "        'com.samsung.device') end } end } end\n" +
+                        "  return param\n" +
+                        "end\n" +
+                        "local function listed(group, folder)\n" +
+                        "  local param = withnames(paramof(folder, namesof('com.google.android.dialer.support.jar', 'framework.jar',\n" +
+                        "    'com.google.android.maps.jar', 'android.test.base.jar', 'com.samsung.device.jar', 'oat')))\n" +
+                        "  after(hookof(group, 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), param)\n" +
+                        "  local names = {}\n" +
+                        "  for index = 1, param.result.length do names[index] = param.result[index] end\n" +
+                        "  return table.concat(names, ',')\n" +
+                        "end\n" +
+                        "local own = listed('Read.Features', '/data/user/0/test.app/files/framework') .. ' ' .. calls\n" +
+                        "local stream = withnames(paramof('/product/framework', nil,\n" +
+                        "  { accept = function(self, entry) return true end }))\n" +
+                        "before(hookof('Read.Features', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), stream)\n" +
+                        "return listed('Read.Features', '/product/framework'), listed('Read.Features', '/system/./framework'),\n" +
+                        "  listed('Read.Features', '/system/vendor/framework'), calls,\n" +
+                        "  stream.argument.value.accept('/product/framework/com.google.android.dialer.support.jar'),\n" +
+                        "  stream.argument.value.accept('/product/framework/framework.jar'),\n" +
+                        "  listed('Use.Tracking', '/product/framework'),\n" +
+                        "  own, calls");
+        String kept = "framework.jar,com.google.android.maps.jar,android.test.base.jar,oat";
+        String all = "com.google.android.dialer.support.jar,framework.jar,com.google.android.maps.jar,android.test.base.jar," +
+                "com.samsung.device.jar,oat";
+        assertEquals(kept, result.arg(1).tojstring());
+        assertEquals(kept, result.arg(2).tojstring());
+        assertEquals(kept, result.arg(3).tojstring());
+        assertEquals(1, result.arg(4).toint());
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+        assertEquals(all, result.arg(7).tojstring());
+        assertEquals(all + " 0", result.arg(8).tojstring());
+        assertEquals(1, result.arg(9).toint());
+
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Features', 'java.io.UnixFileSystem', 'list0'))")
+                .arg1().checktable().unpack());
+        for (String folder : new String[]{"/system/framework", "/product/framework", "/system_ext/framework", "/vendor/framework",
+                "/odm/framework", "/system/product/framework", "/vendor/odm/framework", "/system/./framework"})
+            assertTrue(folder, filterMatches(filter, folder));
+        assertFalse(filterMatches(filter, "/system/framework/framework.jar"));
+        assertFalse(filterMatches(filter, "/data/user/0/test.app/files/framework"));
+    }
+
     // Nothing is under a hidden permission file, for which the kernel would answer ENOTDIR and tell the file is there,
     // also by a link to its folder; under a file which stays, and under the files of Read.Network, which stay there,
     // the real call answers
@@ -1417,6 +1619,27 @@ public class FileScriptsTest {
         assertTrue(filterMatches(filter, "/vendor/odm/etc"));
         filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking'))").arg1().checktable().unpack());
         assertTrue(filterMatches(filter, "/vendor/odm/etc"));
+    }
+
+    // The folders etc of the partitions by the links of /system, of /oem, of the partitions my_ and of the APEX modules
+    // leave out the hidden folders too, which do not exist by those paths either; a folder of the app does not run it
+    @Test
+    public void etcListingsOfEveryPathOfThePartitions() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Features', 'java.io.UnixFileSystem', 'list0'))")
+                .arg1().checktable().unpack());
+        for (String folder : new String[]{"/system/vendor/etc", "/system/product/etc", "/system/system_ext/etc",
+                "/system/vendor/odm/etc", "/oem/etc", "/my_product/etc", "/apex/com.android.foo/etc"}) {
+            assertTrue(folder, filterMatches(filter, folder));
+            Varargs result = Scripts.run(globals, "local list = paramof('" + folder + "', namesof('permissions', 'sysconfig', 'group'))\n" +
+                    "local restricted = after(hookof('Read.Features', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                    "return restricted, list.result.length, list.result[1], hidden(hookof('Read.Features'), '" + folder + "/permissions')");
+            assertTrue(folder, result.arg1().toboolean());
+            assertEquals(folder, 1, result.arg(2).toint());
+            assertEquals(folder, "group", result.arg(3).tojstring());
+            assertTrue(folder, result.arg(4).toboolean());
+        }
+        assertFalse(filterMatches(filter, "/data/user/0/test.app/files/etc"));
     }
 
     // File.list of the root leaves out a readable fstab file, the names of the root are /name and not //name
@@ -1704,6 +1927,94 @@ public class FileScriptsTest {
         assertTrue(result.arg(3).toboolean());
         assertFalse(Scripts.run(globals, "hidden = function() error('hidden') end\n" +
                 "return before(hookof('Use.Tracking'), paramof('/data/user/0/test.app/files/maps/tile'))").arg1().toboolean());
+    }
+
+    // For Read.Debugging the mount tables leave out the mounts of Magisk: its tmpfs on /debug_ramdisk or /sbin, its
+    // programs, the mirrors, modules and worker in .magisk, also as the source, the folders the worker mounts over, the
+    // mounts in those, by the parent in mountinfo, also one listed later, and else by a later mount point under them,
+    // and in mountinfo the files of the modules by their folder in /data; the other mounts, an earlier one under a
+    // folder of Magisk, the folder of an app named magisk and a table without root stay. Only the hooks of open run
+    // for the mount tables, not for the maps, and a table through the hooks of both groups loses both, in either order.
+    @Test
+    public void mountTablesWithoutMagisk() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS + "\n" + TABLE_STUBS);
+        String kept = "/dev/block/dm-5 /vendor ext4 ro,seclabel 0 0\ntmpfs /dev tmpfs rw,seclabel,nosuid 0 0\n" +
+                "/dev/block/dm-48 /data/user/0/com.example.magisk f2fs rw 0 0\n";
+        String mounts = "/dev/block/dm-5 /vendor ext4 ro,seclabel 0 0\n" +
+                "magisk /debug_ramdisk tmpfs rw,seclabel,relatime,mode=755 0 0\n" +
+                "/dev/block/dm-0 /debug_ramdisk/.magisk/mirror/system_root ext4 ro,seclabel 0 0\n" +
+                "/dev/block/dm-48 /debug_ramdisk/.magisk/modules f2fs rw,lazytime 0 0\n" +
+                "worker /debug_ramdisk/.magisk/worker tmpfs rw,seclabel,relatime 0 0\n" +
+                "worker /system/bin tmpfs ro,seclabel,relatime 0 0\n" +
+                "/dev/block/dm-5 /system/bin/sh ext4 ro 0 0\n" +
+                "magisk /system/bin/magisk tmpfs ro,seclabel,relatime 0 0\n" +
+                "tmpfs /dev tmpfs rw,seclabel,nosuid 0 0\n" +
+                "tmpfs /sbin tmpfs rw,seclabel,relatime,mode=755 0 0\n" +
+                "/dev/block/dm-0 /sbin/.magisk/mirror/system ext4 ro 0 0\n" +
+                "/sbin/.magisk/block/vendor /vendor/lib64/libexample.so ext4 ro 0 0\n" +
+                "/dev/block/dm-48 /data/user/0/com.example.magisk f2fs rw 0 0\n";
+        String mountinfo = "23 1 253:5 / /vendor ro,relatime shared:2 - ext4 /dev/block/dm-5 ro,seclabel\n" +
+                "49 34 0:19 / /debug_ramdisk rw,relatime shared:13 - tmpfs magisk rw,seclabel,mode=755\n" +
+                "50 49 0:20 / /debug_ramdisk/.magisk/worker rw,relatime shared:14 - tmpfs worker rw,seclabel\n" +
+                "51 23 0:20 /system/bin /system/bin ro,relatime shared:14 - tmpfs worker rw,seclabel\n" +
+                "52 23 253:48 /adb/modules/example/system/bin/tool /system/bin/tool ro,relatime shared:30 - f2fs " +
+                "/dev/block/dm-48 rw\n" +
+                "53 51 253:5 /system/bin/sh /system/bin/sh ro,relatime shared:2 - ext4 /dev/block/dm-5 ro\n" +
+                "54 55 253:5 /system/xbin/tool /system/xbin/tool ro,relatime shared:2 - ext4 /dev/block/dm-5 ro\n" +
+                "55 23 0:20 /system/xbin /system/xbin ro,relatime shared:14 - tmpfs worker rw,seclabel\n" +
+                "60 1 253:48 / /data rw,nosuid shared:30 - f2fs /dev/block/dm-48 rw,lazytime\n";
+        String mountstats = "device /dev/block/dm-5 mounted on /vendor with fstype ext4\n" +
+                "device magisk mounted on /debug_ramdisk with fstype tmpfs\n" +
+                "device worker mounted on /system/bin with fstype tmpfs\n";
+        Varargs result = Scripts.run(globals, "local a, b, c = opened('/proc/mounts', [[" + mounts + "]], 'Read.Debugging')\n" +
+                "local d, e, f = opened('/proc/self/mountinfo', [[" + mountinfo + "]], 'Read.Debugging')\n" +
+                "local g, h, i = opened('/proc/123/task/124/mountstats', [[" + mountstats + "]], 'Read.Debugging')\n" +
+                "return a, b, c, d, e, f, g, h, i");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("10", result.arg(2).tojstring());
+        assertEquals(kept, result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("7", result.arg(5).tojstring());
+        assertEquals("23 1 253:5 / /vendor ro,relatime shared:2 - ext4 /dev/block/dm-5 ro,seclabel\n" +
+                "60 1 253:48 / /data rw,nosuid shared:30 - f2fs /dev/block/dm-48 rw,lazytime\n", result.arg(6).tojstring());
+        assertTrue(result.arg(7).toboolean());
+        assertEquals("2", result.arg(8).tojstring());
+        assertEquals("device /dev/block/dm-5 mounted on /vendor with fstype ext4\n", result.arg(9).tojstring());
+
+        // A mount under a folder of Magisk from before Magisk covered it stays
+        result = Scripts.run(globals, "return opened('/proc/mounts', '/dev/block/dm-6 /system/bin/x ext4 ro 0 0\\n' ..\n" +
+                "  'worker /system/bin tmpfs ro 0 0\\n/dev/block/dm-5 /system/bin/sh ext4 ro 0 0\\n', 'Read.Debugging')");
+        assertEquals("2", result.arg(2).tojstring());
+        assertEquals("/dev/block/dm-6 /system/bin/x ext4 ro 0 0\n", result.arg(3).tojstring());
+
+        // Stay: a table without root, the maps, a failed open, and the mounts of Magisk for Use.Tracking
+        result = Scripts.run(globals, "return opened('/proc/self/mounts', [[" + kept + "]], 'Read.Debugging'),\n" +
+                "  opened('/proc/self/maps', '7a1f000000-7a1f001000 rw-s 00000000 00:05 555   /dev/kgsl-3d0\\n', 'Read.Debugging'),\n" +
+                "  opened('/proc/mounts', [[" + mounts + "]], 'Read.Debugging', true),\n" +
+                "  opened('/proc/mounts', [[" + mounts + "]], 'Use.Tracking')");
+        for (int i = 1; i <= 4; i++)
+            assertFalse(String.valueOf(i), result.arg(i).toboolean());
+
+        // Both groups on one open, each replacing the text the other left
+        String both = "/dev/block/platform/soc/1d84000.ufshc/by-name/metadata /metadata ext4 rw 0 0\n" +
+                "magisk /debug_ramdisk tmpfs rw 0 0\n";
+        result = Scripts.run(globals,
+                "local a = select(3, opened('/proc/mounts', [[" + both + "]], 'Use.Tracking'))\n" +
+                        "local b = select(3, opened('/proc/mounts', [[" + both + "]], 'Read.Debugging'))\n" +
+                        "return select(3, opened('/proc/mounts', a, 'Read.Debugging')), select(3, opened('/proc/mounts', b))");
+        assertEquals("/dev/block/by-name/metadata /metadata ext4 rw 0 0\n", result.arg1().tojstring());
+        assertEquals("/dev/block/by-name/metadata /metadata ext4 rw 0 0\n", result.arg(2).tojstring());
+
+        Object open = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Debugging'))").arg1().checktable().unpack());
+        Object stat = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Debugging', nil, 'stat'))")
+                .arg1().checktable().unpack());
+        for (String path : new String[]{"/proc/mounts", "/proc/self/mounts", "proc/self/mountinfo", "/proc/self/task/124/mountstats"}) {
+            assertTrue(path, filterMatches(open, path));
+            assertFalse(path, filterMatches(stat, path));
+        }
+        assertFalse(filterMatches(open, "/proc/self/maps"));
+        assertFalse(Scripts.run(globals, "hidden = function() error('hidden') end\n" +
+                "return before(hookof('Read.Debugging'), paramof('/data/user/0/test.app/files/mounts'))").arg1().toboolean());
     }
 
     // The file stores of java.nio, which read the mount entries natively, name the partition like the mount table the
@@ -2066,6 +2377,80 @@ public class FileScriptsTest {
         assertEquals("sun.nio.fs.UnixException:2", result.arg(9).tojstring());
         // A font of every Android stays
         assertEquals("false unchanged", result.arg(10).tojstring());
+    }
+
+    // The same for su and the files of Magisk on the read-only /system, where making a name, also a node by Files.copy
+    // of a special file, gives EROFS and removing one too, which the real call answers, and for the files of the
+    // fingerprint sensor in /sys (EACCES); the attributes, mode and owner like a missing file. The folders /data/adb
+    // and /debug_ramdisk themselves stay, which AOSP makes, /debug_ramdisk from Android 10 (see FILES).
+    // link, symlink and rename of su run with a stand-in like for the ids. FileInputStream and FileOutputStream of
+    // Android 8.1 and 9, which open natively, throw FileNotFoundException with the path and the error of a missing file.
+    @Test
+    public void makingByTheNameOfSuAndOfTheFingerprintSensor() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "READONLY['/system/bin'] = true\n" +
+                        "local su, sensor = '/system/bin/su', '/sys/class/fingerprint/fingerprint'\n" +
+                        "local function run(group, class, method, path)\n" +
+                        "  local param = makingparam(path)\n" +
+                        "  local restricted = before(hookof(group, class, method), param)\n" +
+                        "  if not param.early then\n" +
+                        "    return tostring(restricted) .. ' ' .. (param.argument and 'argument ' .. param.argument.index ..\n" +
+                        "      ':[' .. param.argument.value .. ']' or 'unchanged')\n" +
+                        "  end\n" +
+                        "  return param.result.class .. ':' .. table.concat(param.result.args, ':')\n" +
+                        "end\n" +
+                        "local os, nio, debug, bio = 'android.system.Os', 'sun.nio.fs.UnixNativeDispatcher', 'Read.Debugging',\n" +
+                        "  'Read.Biometrics'\n" +
+                        "return run(debug, os, 'chmod', su), run(debug, os, 'listxattr', su), run(debug, os, 'remove', su),\n" +
+                        "  run(debug, os, 'mkdir', su), run(debug, nio, 'mkdir', su), run(debug, nio, 'mknod', su),\n" +
+                        "  run(debug, os, 'lchown', '/debug_ramdisk/magisk'), run(debug, os, 'mkdir', '/data/adb'),\n" +
+                        "  run(debug, nio, 'mkdir', '/debug_ramdisk'), run(bio, os, 'mkdir', sensor), run(bio, nio, 'mknod', sensor),\n" +
+                        "  run(bio, os, 'removexattr', sensor), run(bio, nio, 'chown', sensor .. '/name'),\n" +
+                        "  run(debug, 'java.io.FileInputStream', 'open0', su), run(debug, 'java.io.FileOutputStream', 'open0', su),\n" +
+                        "  run(bio, 'java.io.FileInputStream', 'open0', sensor .. '/name'),\n" +
+                        "  run(bio, 'java.io.FileOutputStream', 'open0', sensor)");
+        assertEquals("true argument 0:[]", result.arg(1).tojstring());
+        assertEquals("true argument 0:[]", result.arg(2).tojstring());
+        assertEquals("false unchanged", result.arg(3).tojstring());
+        assertEquals("android.system.ErrnoException:mkdir:30", result.arg(4).tojstring());
+        assertEquals("sun.nio.fs.UnixException:30", result.arg(5).tojstring());
+        assertEquals("sun.nio.fs.UnixException:30", result.arg(6).tojstring());
+        assertEquals("true argument 0:[]", result.arg(7).tojstring());
+        assertEquals("false unchanged", result.arg(8).tojstring());
+        assertEquals("false unchanged", result.arg(9).tojstring());
+        assertEquals("android.system.ErrnoException:mkdir:13", result.arg(10).tojstring());
+        assertEquals("sun.nio.fs.UnixException:13", result.arg(11).tojstring());
+        assertEquals("true argument 0:[]", result.arg(12).tojstring());
+        assertEquals("sun.nio.fs.UnixException:2", result.arg(13).tojstring());
+        assertEquals("java.io.FileNotFoundException:/system/bin/su (No such file or directory)", result.arg(14).tojstring());
+        assertEquals("java.io.FileNotFoundException:/system/bin/su (Read-only file system)", result.arg(15).tojstring());
+        assertEquals("java.io.FileNotFoundException:/sys/class/fingerprint/fingerprint/name (No such file or directory)",
+                result.arg(16).tojstring());
+        assertEquals("java.io.FileNotFoundException:/sys/class/fingerprint/fingerprint (Permission denied)",
+                result.arg(17).tojstring());
+
+        Varargs linked = Scripts.run(globals,
+                "local su, own = '/system/bin/su', '/data/user/0/test.app/files/a'\n" +
+                        "local make = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path)\n" +
+                        "  if name ~= 'java.io.File' then return make(name, path) end\n" +
+                        "  return { exists = function() return path == su end, toPath = function() return 'path:' .. path end }\n" +
+                        "end\n" +
+                        "local function run(class, method, first, second)\n" +
+                        "  local args = { [0] = first, second }\n" +
+                        "  local param = makingparam(first)\n" +
+                        "  param.getArgument = function(self, index) return args[index] end\n" +
+                        "  param.setArgument = function(self, index, value) args[index] = value end\n" +
+                        "  local restricted = before(hookof('Read.Debugging', class, method), param)\n" +
+                        "  return tostring(restricted) .. ' ' .. tostring(args[0]) .. ' ' .. tostring(args[1])\n" +
+                        "end\n" +
+                        "return run('android.system.Os', 'symlink', 'x', su),\n" +
+                        "  run('sun.nio.fs.UnixNativeDispatcher', 'rename', own, su),\n" +
+                        "  filter(hookof('Read.Debugging', 'android.system.Os', 'link')) == nil");
+        assertEquals("true x /system/bin/su~", linked.arg(1).tojstring());
+        assertEquals("true /data/user/0/test.app/files/a path:/system/bin/su~", linked.arg(2).tojstring());
+        assertTrue(linked.arg(3).toboolean());
     }
 
     // link, symlink and rename of a hidden id run with a name of its folder which does not exist in place of the id, so

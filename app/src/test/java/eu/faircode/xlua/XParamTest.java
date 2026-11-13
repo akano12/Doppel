@@ -372,6 +372,11 @@ public class XParamTest {
             assertEquals("/sys/devices/system/cpu/possible",
                     XParam.unfaked(new XCall(readlink, null, path), link.getBytes(StandardCharsets.UTF_8), keyOf));
             assertNull(XParam.unfaked(new XCall(readlink, null, path), "/proc/self/fd/57", keyOf));
+            // The hook of a second group, like Read.Debugging next to Use.Tracking, gets the answer of the first and
+            // leaves it as it is
+            assertNull(XParam.unfaked(new XCall(readlink, null, path), "/sys/devices/system/cpu/possible", keyOf));
+            assertEquals(4096L, XParam.unfaked(new XCall(length, raf, new Object[0]), 4096L, keyOf));
+            assertEquals(0L, XParam.unfaked(new XCall(getLastModifiedTime, null, new Object[]{fd57}), 0L, keyOf));
             assertNull(XParam.unfaked(new XCall(open, null, path), 57, keyOf));
         } finally {
             XParam.fakedFiles.clear();

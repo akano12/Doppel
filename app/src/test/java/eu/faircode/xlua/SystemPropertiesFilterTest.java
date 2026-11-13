@@ -76,7 +76,8 @@ public class SystemPropertiesFilterTest {
             assertFalse(key, (Boolean) matches.invoke(filter, key));
     }
 
-    // USB debugging and the heap of apps: the script runs for the properties of the variant, not for those of the other
+    // USB debugging and the heap of apps: the script runs for the properties of the variant, not for those of the other;
+    // the settings of the heap other than its sizes stay real, so it runs for them in neither
     @Test
     public void debuggingAndHeapPropertiesAreFiltered() throws Exception {
         Globals globals = Scripts.load("systemproperties_get", STUBS);
@@ -89,9 +90,13 @@ public class SystemPropertiesFilterTest {
             assertTrue(key, FileScriptsTest.filterMatches(debugging, key));
             assertFalse(key, FileScriptsTest.filterMatches(resources, key));
         }
-        for (String key : new String[]{"dalvik.vm.heapgrowthlimit", "dalvik.vm.heapsize", "dalvik.vm.heapstartsize",
-                "dalvik.vm.heapminfree", "dalvik.vm.heapmaxfree", "dalvik.vm.heaptargetutilization"}) {
+        for (String key : new String[]{"dalvik.vm.heapgrowthlimit", "dalvik.vm.heapsize"}) {
             assertTrue(key, FileScriptsTest.filterMatches(resources, key));
+            assertFalse(key, FileScriptsTest.filterMatches(debugging, key));
+        }
+        for (String key : new String[]{"dalvik.vm.heapstartsize", "dalvik.vm.heapminfree", "dalvik.vm.heapmaxfree",
+                "dalvik.vm.heaptargetutilization"}) {
+            assertFalse(key, FileScriptsTest.filterMatches(resources, key));
             assertFalse(key, FileScriptsTest.filterMatches(debugging, key));
         }
     }

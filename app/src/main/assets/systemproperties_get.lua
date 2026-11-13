@@ -121,11 +121,12 @@ local DEBUGGING = {
 }
 
 -- The heap of apps, which Android sets per model, like 256m and 512m: rounded down to a step like memory_class
--- (STEPS, which a test compares), in megabytes; the other settings of the heap the values of a common configuration
+-- (STEPS, which a test compares), in megabytes. The other settings of the heap (heapstartsize, heapminfree,
+-- heapmaxfree, heaptargetutilization) stay real: the runtime keeps using them, VMRuntime.getTargetHeapUtilization
+-- answers the real target and the free memory after a garbage collection follows them, so a fixed value would
+-- disagree with the runtime.
 local HEAP = { ['dalvik.vm.heapgrowthlimit'] = true, ['dalvik.vm.heapsize'] = true }
 local STEPS = { 128, 192, 256, 384, 512 }
-local OTHERHEAP = { ['dalvik.vm.heapstartsize'] = '16m', ['dalvik.vm.heapminfree'] = '8m',
-                    ['dalvik.vm.heapmaxfree'] = '32m', ['dalvik.vm.heaptargetutilization'] = '0.5' }
 
 -- A heap size like 384m rounded down to a step, nil for other values
 function heap(value)
@@ -163,6 +164,20 @@ function noadb(value, key)
         return (key == 'persist.sys.usb.config' and '' or 'mtp')
     end
     return table.concat(kept, ',')
+end
+
+-- The fake value of a property of DEBUGGING, of which empty is what get gives for a property which is not set
+function fakedebugging(key, result, empty)
+    local fake = DEBUGGING[key]
+    if fake == NOADB then
+        return noadb(result, key)
+    elseif fake == LOGTAG then
+        -- The logger buffer Off writes Settings in front of the tag of the log, which stays
+        return (result == 'Settings' and empty or (string.gsub(result, '^Settings,?', '')))
+    elseif fake == '' then
+        return empty
+    end
+    return fake
 end
 
 -- The fake values by property name and the Lua patterns of the names with a *,
@@ -342,9 +357,6 @@ function filter(hook)
         for key, _ in pairs(HEAP) do
             table.insert(keys, key)
         end
-        for key, _ in pairs(OTHERHEAP) do
-            table.insert(keys, key)
-        end
         return keys
     end
     return nil
@@ -372,9 +384,13 @@ end
 -- The property areas of /dev/__properties__, which apps can read as files where they can read the properties (see
 -- XParam.getProperties and setPropertyValues): the properties the variant fakes get the values get gives, of the serial
 -- also the ICC IDs and IMEIs of vendors by their names in the area, of the device the model and the build, like
--- ro.product.model in u:object_r:build_prop:s0. A property with an empty value stays, like for get.
--- shortcut: the variants debugging and resources have no hooks of opening files, so the areas keep their real values,
--- like ro.debuggable, give them the hooks too if apps read the areas for them.
+-- ro.product.model in u:object_r:build_prop:s0, of debugging the ones of DEBUGGING, like sys.usb.config and
+-- init.svc.adbd. A property with an empty value stays, like for get.
+-- shortcut: the variant resources has no hooks of opening files, so the areas keep the real heap sizes, like
+-- dalvik.vm.heapsize, give it the hooks too if apps read the areas for them.
+-- shortcut: FileInputStream and FileReader of Android 8.1 and 9 open natively, not by the hooks of open (see
+-- hardware_files), so they read the areas unchanged, put the fake in place of the descriptor of the stream if apps
+-- read the areas that way.
 -- shortcut: a long value (92 bytes or more, only of ro. properties, like a long ro.build.fingerprint) stays real, since
 -- setPropertyValues only replaces short ones, write the long values too if devices have such faked properties.
 function area(hook, param)
@@ -392,6 +408,8 @@ function area(hook, param)
             fake = operator(key, properties[index + 1])
         elseif name == 'device' then
             fake = fakedevice(key, properties[index + 1])
+        elseif name == 'debugging' and DEBUGGING[key] ~= nil then
+            fake = fakedebugging(key, properties[index + 1], '')
         end
         if fake ~= nil then
             keys[#keys + 1] = key
@@ -436,7 +454,7 @@ function after(hook, param)
     local key = param:getArgument(0)
     if key == nil or not (string.sub(key, 1, 3) == 'ro.' or
             string.sub(key, 1, 4) == 'gsm.' or SERIALS[key] ~= nil or iccid(key) or deviceid(key) or key == 'persist.sys.timezone' or
-            DEBUGGING[key] ~= nil or NAMES[key] ~= nil or HEAP[key] ~= nil or OTHERHEAP[key] ~= nil) then
+            DEBUGGING[key] ~= nil or NAMES[key] ~= nil or HEAP[key] ~= nil) then
         return false
     end
 
@@ -485,22 +503,14 @@ function after(hook, param)
         param:setResult(fake)
         return true, result, fake
     elseif name == 'debugging' and DEBUGGING[key] ~= nil then
-        local fake = DEBUGGING[key]
-        if fake == NOADB then
-            fake = noadb(result, key)
-        elseif fake == LOGTAG then
-            -- The logger buffer Off writes Settings in front of the tag of the log, which stays
-            fake = (result == 'Settings' and empty or string.gsub(result, '^Settings,?', ''))
-        elseif fake == '' then
-            fake = empty
-        end
+        local fake = fakedebugging(key, result, empty)
         if fake == result then
             return false
         end
         param:setResult(fake)
         return true, result, fake
-    elseif name == 'resources' and (HEAP[key] ~= nil or OTHERHEAP[key] ~= nil) then
-        local fake = OTHERHEAP[key] or heap(result)
+    elseif name == 'resources' and HEAP[key] ~= nil then
+        local fake = heap(result)
         if fake == nil or fake == result then
             return false
         end

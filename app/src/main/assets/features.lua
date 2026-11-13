@@ -111,15 +111,70 @@ end
 -- with a random name, like LSPosed does, and the package manager calls the hooked method itself too,
 -- like hasSystemFeature without a version, which calls the one with a version. A class of the framework is one of
 -- the boot class path, not one by its name, since an app can name its own classes android.* too.
+-- WebView is part of the framework too, with classes of its own package (see webviewclass).
 local FRAMEWORK = { 'android.', 'com.android.internal.', 'com.android.server.', 'java.', 'javax.', 'dalvik.', 'libcore.' }
 local BOOT = {} -- Whether a class is of the boot class path, by name
+local WEBVIEW = {} -- Whether a class is of WebView, by name, once WebView is loaded
+local FIELDS = {} -- The static fields of loaderin, by class and name, false when not listed
 
--- Whether a class is of the boot class path, which a class loader of null finds
-function bootclass(class)
+-- Whether a class loader finds a class, without initializing it; the boot class path for a class loader of null
+function finds(class, loader)
     local ok = pcall(function()
-        return luajava.bindClass('java.lang.Class'):forName(class, false, nil)
+        return luajava.bindClass('java.lang.Class'):forName(class, false, loader)
     end)
     return ok
+end
+
+-- The class loader of the object in a static field of a class, nil when the field is null or not listed. The fields
+-- are listed like LuaJ lists them, which Android does not report as a use of a hidden API, unlike getDeclaredField
+-- (see location.lua); a version which hides the field leaves it out.
+function loaderin(class, name)
+    local key = class .. '.' .. name
+    if FIELDS[key] == nil then
+        FIELDS[key] = false
+        -- Lua sees a Class as its static members, so the methods of Class get the class as the object
+        local fields = luajava.bindClass('java.lang.Class').getDeclaredFields(luajava.bindClass(class))
+        for index = 1, fields['length'] do
+            if fields[index]:getName() == name then
+                fields[index]:setAccessible(true)
+                FIELDS[key] = fields[index]
+            end
+        end
+    end
+    local object = FIELDS[key] and FIELDS[key]:get(nil)
+    if not object then
+        return nil
+    end
+    -- Through Object, so LuaJ does not list the methods of the class of the object, like the provider of WebView
+    return luajava.bindClass('java.lang.Class').getClassLoader(luajava.bindClass('java.lang.Object').getClass(object))
+end
+
+-- WebView runs in the process of the app with classes of its own package, which are not of the boot class path, like
+-- org.chromium.ui.base.TouchDevice, which counts the touch points pages see (navigator.maxTouchPoints) by the
+-- touchscreen features, without which a page on a touch phone sees none. A class of WebView is one the class loader of
+-- the provider of WebView finds and the one of the app does not, since an app can have classes of the same names, like
+-- Chromium or Cronet of its own. The provider is the one WebViewFactory keeps once WebView is loaded (in every version
+-- from 8.1), since WebView.getWebViewClassLoader would load WebView, which takes long and after which the app can no
+-- longer set the folder of its data (WebView.setDataDirectorySuffix); before that, and while the provider is made,
+-- WebView gets false like the app.
+-- shortcut: code the app loads itself, with a class loader of its own, can name a class like one of WebView and get the
+-- real features, and a class loader of the app of its own sees the lookup of the classes of WebView in it, upgrade when
+-- the classes of the frames can be told apart, like by java.lang.StackWalker of Android 14.
+function webviewclass(class, param)
+    if WEBVIEW[class] == nil then
+        local ok, of = pcall(function()
+            local loader = loaderin('android.webkit.WebViewFactory', 'sProviderInstance')
+            if loader == nil then
+                return nil
+            end
+            return finds(class, loader) and not finds(class, param:getApplicationContext():getClassLoader())
+        end)
+        if not ok or of == nil then
+            return false
+        end
+        WEBVIEW[class] = of
+    end
+    return WEBVIEW[class]
 end
 
 function framework(class, param)
@@ -134,7 +189,7 @@ function framework(class, param)
                 return true
             end
             if BOOT[class] == nil then
-                BOOT[class] = bootclass(class)
+                BOOT[class] = finds(class, nil)
             end
             return BOOT[class]
         end
@@ -157,7 +212,7 @@ function calledbyframework(method, param)
             caller = frames[next]:getClassName()
         end
     end
-    return (caller ~= nil and framework(caller, param))
+    return (caller ~= nil and (framework(caller, param) or webviewclass(caller, param)))
 end
 
 -- Whether a feature is hidden from the app, see hides

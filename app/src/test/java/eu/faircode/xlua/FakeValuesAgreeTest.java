@@ -389,6 +389,26 @@ public class FakeValuesAgreeTest {
         assertEquals("/dev/__properties__/*", run(properties, "filter(hookof('BlockGuardOs.open/device', 'open'))[1]"));
     }
 
+    // The state of adb in the property areas the app reads as files, like sys.usb.config and init.svc.adbd, is that of
+    // get, for both ways of opening files; properties which are not of adb stay
+    @Test
+    public void debuggingInPropertyAreas() throws Exception {
+        Globals properties = load("systemproperties_get");
+        String[][] cases = {{"sys.usb.config", "mtp,adb"}, {"sys.usb.state", "adb"}, {"persist.sys.usb.config", "adb"},
+                {"init.svc.adbd", "running"}, {"ro.debuggable", "1"}, {"service.adb.tcp.port", "5555"},
+                {"persist.log.tag", "Settings,I"}};
+        for (String[] property : cases) {
+            String expected = run(properties, "fakeof('SystemProperties.get/debugging', 'get', '" + property[1] + "', { '" +
+                    property[0] + "' })");
+            assertTrue(property[0], !expected.equals(property[1]));
+            for (String hook : new String[]{"BlockGuardOs.open/debugging", "UnixNativeDispatcher.open/debugging"})
+                assertEquals(property[0], property[0] + "=" + expected, area(properties, hook, "{}", property[0], property[1]));
+        }
+        assertEquals("", area(properties, "BlockGuardOs.open/debugging", "{}", "persist.sys.locale", "de-DE",
+                "ro.product.model", "Pixel 8"));
+        assertEquals("/dev/__properties__/*", run(properties, "filter(hookof('BlockGuardOs.open/debugging', 'open'))[1]"));
+    }
+
     // The model and build in the user agent of WebView become K, like Chrome does, for the default user agent
     // and for the ones the app sets
     @Test

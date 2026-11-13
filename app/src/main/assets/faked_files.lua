@@ -25,11 +25,12 @@
 -- since only paths with /fd/ run this script), mapping a file of /sys, native code, the stat of java.nio by the path of
 -- the link (Files.size, readAttributes) and the access mode from Android 11: a file in memory is open for writing too
 -- (fcntl F_GETFL), so writes of the app do not fail with EBADF and it cannot be opened again read-only, since apps may
--- not open their files in memory (AOSP sepolicy, app_domain in te_macros). shortcut: only for apps restricted by
--- Use.Tracking, though Read.Resources, Read.Identifiers, Read.Timezone and Read.Locale fake files too, so for those the
--- fake tells its own stat, size and link, also the length of its text instead of the size 0 of a file of /proc before
--- Android 11, where a pipe had it; upgrade by copying these hooks into those groups, of which the answers do not change
--- twice.
+-- not open their files in memory (AOSP sepolicy, app_domain in te_macros). The hooks are of Use.Tracking and of
+-- Read.Debugging, of which hardware_files rewrites the mount tables; where both groups run them for one call, the
+-- second gets the answer of the first and leaves it. shortcut: Read.Resources, Read.Identifiers, Read.Timezone and
+-- Read.Locale fake files too, so for an app restricted by those alone the fake tells its own stat, size and link, also
+-- the length of its text instead of the size 0 of a file of /proc before Android 11, where a pipe had it; upgrade by
+-- copying these hooks into those groups, like into Read.Debugging.
 function filter(hook)
     local name = hook:getMethodName()
     if name == 'readlink' or name == 'stat' or name == 'getLength' or name == 'getLastModifiedTime' then
