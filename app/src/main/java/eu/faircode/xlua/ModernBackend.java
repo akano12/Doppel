@@ -88,6 +88,11 @@ class ModernBackend implements XBackend {
                 });
     }
 
+    @Override
+    public boolean deoptimize(Member member) {
+        return xposed.deoptimize((Executable) member);
+    }
+
     // On a device without Doppel the stack trace of an exception of a method goes from the method straight to its caller.
     // The frames in between are those of the hook: the call of the original method by the framework, the interceptors,
     // of which this one names Doppel, and the stub which LSPlant made to stand in for the method. An exception made

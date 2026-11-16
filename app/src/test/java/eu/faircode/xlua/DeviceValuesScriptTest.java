@@ -81,7 +81,7 @@ public class DeviceValuesScriptTest {
     public void propertiesOfTheDeviceAreFaked() throws Exception {
         Globals globals = load("systemproperties_get");
         for (String key : new String[]{"ro.boot.hardware", "ro.board.platform", "ro.build.expect.bootloader",
-                "ro.build.expect.baseband", "ro.boot.hardware.platform", "ro.vendor.build.id",
+                "ro.build.expect.baseband", "ro.boot.hardware.platform", "ro.vendor.build.id", "ro.build.legacy.id",
                 "ro.product.marketname", "ro.product.vendor.marketname", "ro.config.marketing_name",
                 "ro.vendor.product.model", "ro.odm.product.manufacturer", "persist.sys.exif.model", "ro.vendor.soc.model",
                 "ro.vendor.soc.model.part_name", "ro.hardware.chipname", "ro.chipname", "ro.vendor.qti.soc_model",
@@ -106,6 +106,14 @@ public class DeviceValuesScriptTest {
         // A property of the device not starting with ro. is faked by get too
         assertEquals("unknown", Scripts.run(globals, "return run(hookof('SystemProperties.get/device', 'get'), " +
                 "paramof('SM-S918B', { [0] = 'persist.sys.exif.model' }))").arg(2).tojstring());
+        // The thumbprint, which only some makers set, holds the release, ID and incremental of the build: not set
+        for (String key : new String[]{"ro.build.thumbprint", "ro.vendor.build.thumbprint"}) {
+            String real = "'14/UQ1A.240205.004/11269751:user/release-keys'";
+            assertEquals(key, "", Scripts.run(globals, "return run(hookof('SystemProperties.get/device', 'get'), " +
+                    "paramof(" + real + ", { [0] = '" + key + "' }))").arg(2).tojstring());
+            assertEquals(key, "def", Scripts.run(globals, "return run(hookof('SystemProperties.get.default/device', 'get'), " +
+                    "paramof(" + real + ", { [0] = '" + key + "', [1] = 'def' }))").arg(2).tojstring());
+        }
 
         // The security patch level per quarter
         assertEquals("2025-04-01", Scripts.run(globals,
@@ -214,7 +222,7 @@ public class DeviceValuesScriptTest {
                 "paramof('Pixel 7', { [0] = 'ro.product.name', [1] = 'Pixel 7' }))").arg(2).tojstring());
     }
 
-    // The OpenGL strings without the chip, its family and the build of the driver; the version stays
+    // The OpenGL strings without the chip, its family and the build of the driver; the versions stay
     @Test
     public void graphicsStringsNameNoChip() throws Exception {
         Globals globals = load("gles_getstring");
@@ -222,7 +230,9 @@ public class DeviceValuesScriptTest {
                 {"7937", "PowerVR Rogue GE8320", "unknown"},
                 {"7937", "Android Emulator OpenGL ES Translator (NVIDIA GeForce RTX 5060 Laptop GPU)", "unknown"},
                 {"7936", "Google (NVIDIA Corporation)", "unknown"}, {"7936", "Qualcomm", "unknown"},
-                {"7938", "OpenGL ES 3.2 V@0502.0 (GIT@4f7d2a8, I8bd1c1a3b0, 1681374963) (Date:04/13/23)", "OpenGL ES 3.2"}};
+                {"7938", "OpenGL ES 3.2 V@0502.0 (GIT@4f7d2a8, I8bd1c1a3b0, 1681374963) (Date:04/13/23)", "OpenGL ES 3.2"},
+                {"35724", "OpenGL ES GLSL ES 3.20 (ANGLE 2.1.24112 git hash: 3a7e4d5f9c01)", "OpenGL ES GLSL ES 3.20"},
+                {"35724", "OpenGL ES GLSL ES 3.20 build 1.13@5776728", "OpenGL ES GLSL ES 3.20"}};
         for (String[] c : cases) {
             Varargs result = Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
                     "paramof('" + c[1] + "', { [0] = " + c[0] + " }))");
@@ -234,6 +244,9 @@ public class DeviceValuesScriptTest {
                 "paramof('unknown', { [0] = 7936 }))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
                 "paramof('GL_OES_EGL_image', { [0] = 7939 }))").arg1().toboolean());
+        // A shading language without a build, like the 1.0.17 of the emulator, stays whole
+        assertFalse(Scripts.run(globals, "return run(hookof('GLES20.glGetString', 'glGetString'), " +
+                "paramof('OpenGL ES GLSL ES 1.0.17', { [0] = 35724 }))").arg1().toboolean());
     }
 
     // The panel of the display: the exact density becomes the stable density of the device, which does not follow the
@@ -3022,6 +3035,58 @@ public class DeviceValuesScriptTest {
         assertEquals("icu Europe/Amsterdam", result.arg(4).tojstring());
     }
 
+    // Native code gets the fake zone by TZ, set at the start after System.getenv() keeps the environment, also when the
+    // default is the fake zone already, but not over a TZ the app set and not in system server; Java does not see it by
+    // getenv and environ, but sees a TZ the app set
+    @Test
+    public void timeZoneForNativeCode() throws Exception {
+        Globals globals = load("timezone");
+        Scripts.run(globals, Scripts.ARRAYOF + "\n" +
+                "ENV, READ = {}, false\n" +
+                "local bind = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'java.lang.System' then return { getenv = function(self) READ = true end } end\n" +
+                "  if name ~= 'android.system.Os' then return bind(name) end\n" +
+                "  return { setenv = function(self, key, value, overwrite)\n" +
+                "    assert(READ) if overwrite or ENV[key] == nil then ENV[key] = value end end }\n" +
+                "end\n" +
+                "function startof(package, zone, setting)\n" +
+                "  local param = paramof(luajava.bindClass('java.util.TimeZone'):getTimeZone(zone), {})\n" +
+                "  param.getPackageName = function(self) return package end\n" +
+                "  param.getValue = function(self, name, scope) return nil end\n" +
+                "  param.getSetting = function(self, name) return setting end\n" +
+                "  after(hookof('TimeZone.defaultTimeZone', '#defaultTimeZone', 'java.util.TimeZone'), param)\n" +
+                "  return ENV['TZ'], param.result:getID()\n" +
+                "end");
+        assertTrue(Scripts.run(globals, "return startof('android', 'Europe/Berlin')").arg1().isnil());
+        Varargs result = Scripts.run(globals, "return startof('com.example', 'Europe/Berlin', 'Asia/Tokyo')");
+        assertEquals("Asia/Tokyo", result.arg1().tojstring());
+        assertEquals("Asia/Tokyo", result.arg(2).tojstring());
+        assertEquals("UTC", Scripts.run(globals, "ENV = {} return startof('com.example', 'UTC')").arg1().tojstring());
+        assertEquals("America/New_York", Scripts.run(globals,
+                "ENV = { TZ = 'America/New_York' } return startof('com.example', 'Europe/Berlin')").arg1().tojstring());
+
+        // Only TZ runs the script of getenv, which hides the fake zone only
+        assertEquals("TZ", Scripts.run(globals, "return filter(hookof('Linux.getenv/timezone', 'getenv'))[1]").arg1().tojstring());
+        assertTrue(Scripts.run(globals, "return filter(hookof('Linux.environ/timezone', 'environ'))").arg1().isnil());
+        String getenv = "return run(hookof('Linux.getenv/timezone', 'getenv'), paramof(%s, { [0] = '%s' }))";
+        result = Scripts.run(globals, String.format(getenv, "'UTC'", "TZ"));
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertFalse(Scripts.run(globals, String.format(getenv, "'America/New_York'", "TZ")).arg1().toboolean());
+        assertFalse(Scripts.run(globals, String.format(getenv, "nil", "TZ")).arg1().toboolean());
+        assertFalse(Scripts.run(globals, String.format(getenv, "'UTC'", "ZONE")).arg1().toboolean());
+
+        // The environment without the fake TZ, as a new String[]
+        result = Scripts.run(globals, "return run(hookof('Linux.environ/timezone', 'environ'), " +
+                "paramof(arrayof('PATH=/system/bin', 'TZ=UTC', 'ANDROID_DATA=/data'), {}))");
+        assertTrue(result.arg1().toboolean());
+        assertArrayEquals(new String[]{"PATH=/system/bin", "ANDROID_DATA=/data"},
+                (String[]) result.arg(2).checkuserdata(String[].class));
+        assertFalse(Scripts.run(globals, "return run(hookof('Linux.environ/timezone', 'environ'), " +
+                "paramof(arrayof('PATH=/system/bin', 'TZ=America/New_York'), {}))").arg1().toboolean());
+    }
+
     // The Java system properties lose the build of the kernel and the model and build in http.agent
     @Test
     public void systemPropertiesAreReduced() throws Exception {
@@ -3061,6 +3126,10 @@ public class DeviceValuesScriptTest {
         assertFalse(Scripts.run(globals, "return run(hookof('Build.getSerial', 'getSerial'), paramof(nil, {}))").arg1().toboolean());
         // Build.SERIAL of apps targeting Android 8 or later is unknown already, which is no restriction
         assertFalse(Scripts.run(globals, "return run(hookof('Build.SERIAL', 'SERIAL'), paramof('unknown', {}))").arg1().toboolean());
+        // A serial set in Fake values replaces that unknown too, since the values the user set win
+        assertEquals("ABC123", Scripts.run(globals, "local param = paramof('unknown', {})\n" +
+                "param.getSetting = function(self, name) assert(name == 'value.serial') return 'ABC123' end\n" +
+                "return run(hookof('Build.SERIAL', 'SERIAL'), param)").arg(2).tojstring());
     }
 
     // Sizes of /proc/meminfo of 2 TB and more, which string.format('%d') of LuaJ wraps, stay whole

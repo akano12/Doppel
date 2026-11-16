@@ -19,6 +19,11 @@
 -- Lists of other apps keep only the app itself. The lists of components, like of the activities for an intent,
 -- and of properties also keep system apps, like the lookups of single packages (see package_probe), because the
 -- Android framework uses them in the app process, like for launch intents, text to speech and speech recognition.
+-- shortcut: system apps, also the framework package android, stay in the lists of components and in lookups while the
+-- lists of packages leave them out, so the two disagree; hiding them needs XParam.isVisible split into the packages an
+-- app names (lookups, lists, getPackagesForUid) and the system components every Android has which serve the app, like
+-- the settings provider, which Settings gets by ContentResolver.acquireProvider inside every app and which would else
+-- be gone (see provider_hidden); upgrade when Get.Applications gets that split for all its scripts, checked on a device
 
 local MATCH_ALL = 0x20000 -- PackageManager
 

@@ -19,17 +19,19 @@
 -- variant: a change of the time zone (timezone), since the fake zone stays the same; Android sends it only when the
 -- zone changed (AlarmManagerService); a broadcast of Bluetooth about a device (network), since the hooks of Bluetooth
 -- hide the devices around, of which a device without them gets none; the connectivity broadcast of a VPN (vpn), which a
--- device without a VPN does not send when it connects or disconnects. intent_createfromparcel marks those when it reads
--- them, which spares reading the extras of the intent here, before the class loader of the app is set. The receiver is
--- not called, and Android is told it finished, like after an onReceive which returned at once. The first sticky
--- broadcast of a receiver which registers is the state at that time, which a device without the change has too, so it
--- is delivered (as intent_createfromparcel made it).
--- shortcut: Android still starts the process of an app which is not running for a receiver of its manifest, and an
--- ordered broadcast to a registered receiver, or from Android 14 one Android waits for, is still delivered (with the
--- fake zone, the stand-in device or the network below the VPN, see intent_createfromparcel); upgrade when Android
--- itself can leave out the app.
+-- device without a VPN does not send when it connects or disconnects; a broadcast about another app (package), system
+-- apps too, like its install or removal, of which a device without the app gets none. intent_createfromparcel marks those
+-- when it reads them, which spares reading the extras of the intent here, before the class loader of the app is set.
+-- The receiver is not called, and Android is told it finished, like after an onReceive which returned at once. The
+-- first sticky broadcast of a receiver which registers is the state at that time, which a device without the change has
+-- too, so it is delivered (as intent_createfromparcel made it).
+-- shortcut: Android still starts the process of an app which is not running for a receiver of its manifest, and from
+-- Android 15 keeps that start with the broadcast, which ApplicationStartInfo (getHistoricalProcessStartReasons) shows
+-- the app, and an ordered broadcast to a registered receiver, or from Android 14 one Android waits for, is still
+-- delivered (with the fake zone, the stand-in device, the network below the VPN or the app itself for a hidden app, see
+-- intent_createfromparcel); upgrade when Android itself can leave out the app.
 local ACTIONS = { timezone = 'android.intent.action.TIMEZONE_CHANGED' }
-local MARKS = { network = 'bluetooth.device', vpn = 'vpn.connectivity' }
+local MARKS = { network = 'bluetooth.device', vpn = 'vpn.connectivity', package = 'package.hidden' }
 
 function before(hook, param)
     -- Hook names are like Function/variant

@@ -177,8 +177,8 @@ public class GenericScriptsTest {
         }
     }
 
-    // Build.VERSION.BASE_OS is the property itself, empty on most devices; it stays empty like the property
-    // (see systemproperties_get), while a value becomes unknown
+    // No value stays, like Build.getRadioVersion of a device without a radio, while a value becomes unknown, which
+    // Android gives for a property which is not set
     @Test
     public void emptyValuesStayUnknownValuesAreFaked() throws Exception {
         Globals globals = load("generic_unknown_value");
@@ -189,7 +189,7 @@ public class GenericScriptsTest {
             assertFalse(value, result.arg(1).toboolean());
             assertFalse(value, result.arg(2).toboolean());
         }
-        Varargs result = Scripts.run(globals, "local param = paramof('google/os')\n" +
+        Varargs result = Scripts.run(globals, "local param = paramof('g5300g-230512')\n" +
                 "local restricted = after(hookof('java.lang.String'), param)\n" +
                 "return restricted, param.result");
         assertTrue(result.arg(1).toboolean());

@@ -1295,6 +1295,35 @@ public class PackageScriptsTest {
         assertTrue(result.arg(6).isnil());
     }
 
+    // Lists of packages leave out every other app, also the framework package android and Settings, which have the
+    // system uid 1000, so the app sees no other app at all, only itself, though the uids of the system stay visible
+    @Test
+    public void packageListsLeaveOutTheSystem() throws Exception {
+        Globals globals = load("generic_filter_by_uid");
+        String items = "local own = { uid = 10001 }\n" +
+                "local android = { uid = 1000, system = true }\n" +
+                "local settings = { uid = 1000, system = true }\n";
+        for (String hook : new String[]{"PackageManager.getInstalledPackages", "PackageManager.getPackagesHoldingPermissions.33",
+                "PackageManager.getInstalledPackagesAsUser"}) {
+            Varargs result = Scripts.run(globals, items +
+                    "local list = listof({ { applicationInfo = android }, { applicationInfo = own }, { applicationInfo = settings } })\n" +
+                    "local param = paramof({}, { [1000] = true })\n" +
+                    "param.result = list\n" +
+                    "return after(hookof('" + hook + "'), param), list:size(), list:get(0).applicationInfo == own");
+            assertTrue(hook, result.arg(1).toboolean());
+            assertEquals(hook, 1, result.arg(2).toint());
+            assertTrue(hook, result.arg(3).toboolean());
+        }
+        Varargs applications = Scripts.run(globals, items +
+                "local list = listof({ android, own, settings })\n" +
+                "local param = paramof({}, { [1000] = true })\n" +
+                "param.result = list\n" +
+                "return after(hookof('PackageManager.getInstalledApplications.33'), param), list:size(), list:get(0) == own");
+        assertTrue(applications.arg(1).toboolean());
+        assertEquals(1, applications.arg(2).toint());
+        assertTrue(applications.arg(3).toboolean());
+    }
+
     // Lists of components keep system apps, which the Android framework uses, lists of packages do not
     @Test
     public void componentsOfSystemAppsStay() throws Exception {

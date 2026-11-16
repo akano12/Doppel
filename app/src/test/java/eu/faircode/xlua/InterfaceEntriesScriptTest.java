@@ -79,7 +79,7 @@ public class InterfaceEntriesScriptTest {
             "  local kept = {}",
             "  for index = 1, param.result['length'] do",
             "    local entry = param.result[index]",
-            "    kept[#kept + 1] = entry.ifa_name .. '=' .. (entry.ifa_addr and entry.ifa_addr.text or (entry.hwaddr and 'hw' or '-'))",
+            "    kept[#kept + 1] = (entry.ifa_name or '?') .. '=' .. (entry.ifa_addr and entry.ifa_addr.text or (entry.hwaddr and 'hw' or '-'))",
             "  end",
             "  return restricted, table.concat(kept, ','), param.result",
             "end",
@@ -104,6 +104,32 @@ public class InterfaceEntriesScriptTest {
         Varargs result = run("network");
         assertTrue(result.arg(1).toboolean());
         assertEquals("lo=127.0.0.1,lo=::1,tun0=-,wlan0=hw,dummy0=hw,lo=-", result.arg(2).tojstring());
+    }
+
+    // An app gets only the entries of the addresses from Android 13 (from 11 when it targets 30): each interface keeps
+    // one entry, with the name and the flags of its first one and nothing else, so NetworkInterface lists the same
+    // interfaces as without the hook; vpn leaves out its VPN like any other entry, and mac has nothing to leave out
+    @Test
+    public void interfacesStayWithoutAddresses() throws Exception {
+        Varargs result = Scripts.run(Scripts.load("interface_entries", STUBS), String.join("\n",
+                "local wlan0 = entryof('wlan0', addressof('10.0.2.16', false))",
+                "wlan0.ifa_flags, wlan0.ifa_netmask = 69699, addressof('255.255.255.0', false)",
+                "wlan0.ifa_broadaddr = addressof('10.0.2.255', false)",
+                "local restricted, kept, entries = run('network', arrayof({ entryof('tun0', addressof('192.0.2.1', false)),",
+                "  wlan0, entryof('wlan0', addressof('fec0::d2bf', false)), entryof('lo', addressof('127.0.0.1', true)),",
+                "  entryof('lo', addressof('::1', true)), entryof('dummy0', addressof('fe80::1', false)) }))",
+                "local entry = entries[2]",
+                "local _, vpn = run('vpn', entries)",
+                "local mac, unchanged = run('mac', entries)",
+                "return restricted, kept, entry.ifa_flags, entry.ifa_netmask == nil and entry.ifa_broadaddr == nil and",
+                "  entry.hwaddr == nil, vpn, mac, unchanged"));
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("tun0=-,wlan0=-,lo=127.0.0.1,lo=::1,dummy0=-", result.arg(2).tojstring());
+        assertEquals(69699, result.arg(3).toint());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("wlan0=-,lo=127.0.0.1,lo=::1,dummy0=-", result.arg(5).tojstring());
+        assertFalse(result.arg(6).toboolean());
+        assertEquals("tun0=-,wlan0=-,lo=127.0.0.1,lo=::1,dummy0=-", result.arg(7).tojstring());
     }
 
     // The interfaces of VPNs go, like NetworkInterface.getNetworkInterfaces (see vpn)
@@ -134,7 +160,8 @@ public class InterfaceEntriesScriptTest {
         assertEquals(4098, off.arg(3).toint());
     }
 
-    // Nothing to leave out, and fields which reflection does not find (hidden APIs not allowed to the app): all stay
+    // Nothing to leave out, and fields which reflection does not find (a framework which does not let the module use
+    // hidden APIs): all stay
     @Test
     public void otherwiseAllStays() throws Exception {
         Globals globals = Scripts.load("interface_entries", STUBS);
@@ -143,6 +170,9 @@ public class InterfaceEntriesScriptTest {
             assertFalse(variant, only.arg(1).toboolean());
             Varargs hidden = Scripts.run(globals, "return run('" + variant + "', arrayof({ { ifa_name = 'lo', getClass = function(self) return component end } }))");
             assertFalse(variant, hidden.arg(1).toboolean());
+            Varargs none = Scripts.run(globals, "return run('" + variant + "', arrayof({ { getClass = function(self) return component end } }))");
+            assertFalse(variant, none.arg(1).toboolean());
+            assertEquals(variant, "?=-", none.arg(2).tojstring());
         }
     }
 

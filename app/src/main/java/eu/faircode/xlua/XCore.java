@@ -58,7 +58,9 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -580,6 +582,10 @@ class XCore {
         } catch (Throwable ex) {
             log(new IllegalStateException("Settings of " + packageName + ":" + uid, ex));
         }
+        // Without the boot value of the service the suffix of the substitute names is made here, once for all hooks
+        // and threads, so two threads of a script cannot each make and keep a different one
+        if (!settings.containsKey(FakeIds.PROBE_SUFFIX))
+            settings.put(FakeIds.PROBE_SUFFIX, FakeIds.generate(FakeIds.PROBE_SUFFIX, new SecureRandom()));
         return settings;
     }
 
@@ -706,6 +712,32 @@ class XCore {
                 }
             }
         });
+        deoptimize(context, hook);
+    }
+
+    // The callers the definition names run in the interpreter, so the hook runs also where the boot image compiled the
+    // hooked method into them; which callers have it differs per Android version, so one which is not there is skipped
+    private static void deoptimize(Context context, XHook hook) {
+        for (String caller : hook.getDeoptimize())
+            try {
+                int dot = caller.lastIndexOf('.');
+                Class<?> cls = XResolver.resolveClass(caller.substring(0, dot), context.getClassLoader());
+                String name = caller.substring(dot + 1);
+                List<Member> members = new ArrayList<>(Arrays.asList(cls.getDeclaredConstructors()));
+                members.addAll(Arrays.asList(cls.getDeclaredMethods()));
+                int found = 0;
+                for (Member member : members)
+                    if (name.equals(member instanceof Method ? member.getName() : "<init>") &&
+                            !Modifier.isAbstract(member.getModifiers())) {
+                        found++;
+                        if (!backend.deoptimize(member))
+                            XLog.w(TAG, hook.getId() + ": cannot deoptimize " + member);
+                    }
+                if (found == 0)
+                    XLog.i(TAG, hook.getId() + ": no caller " + caller);
+            } catch (Throwable ex) {
+                XLog.i(TAG, hook.getId() + ": deoptimize " + caller + ": " + ex);
+            }
     }
 
     // The answer of the service to a call or query of an app: an illegal argument is thrown to the app;

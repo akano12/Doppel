@@ -34,6 +34,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 // The legacy backend must give the hooks the same before/after semantics as the modern one, see ModernBackendTest;
@@ -67,6 +68,14 @@ public class LegacyBackendTest {
                 throw (Exception) originalThrowable;
             return originalResult;
         });
+    }
+
+    // A caller is deoptimized by XposedBridge.deoptimizeMethod of LSPosed, looked up since Xposed has none
+    @Test
+    public void deoptimizeCaller() throws Throwable {
+        XposedBridge.deoptimized = null;
+        assertTrue(backend.deoptimize(method));
+        assertSame(method, XposedBridge.deoptimized);
     }
 
     @Test

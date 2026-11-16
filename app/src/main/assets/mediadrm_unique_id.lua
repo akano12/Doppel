@@ -30,10 +30,10 @@ function after(hook, param)
         return false
     end
 
-    -- A value of the service like the fake Android ID, per app and new each boot like it (see FakeIds): a constant, like
-    -- zeros, would be one id which never changes, and libraries use this id when there is no GSF id; made of the Android
-    -- ID an app could compute the id and tell it is fake. A fixed Android ID has no such value, so the id is made of it.
-    local seed = param:getSetting('value.drm_id') or param:getSetting('value.android_id')
+    -- A value of the service in every mode of the Android ID, of the app unless the Android ID is the same for all apps
+    -- (see FakeIds): a constant, like zeros, would be one id which never changes, and libraries use this id when there is
+    -- no GSF id; made of the Android ID, even a fixed one, an app could compute the id and tell it is fake
+    local seed = param:getSetting('value.drm_id')
     local fake = fakeid(seed, 'deviceUniqueId', result.length)
     if propertyString == 'provisioningUniqueId' then
         -- Widevine of newer devices gives the inverted bits of the device id: the inverted fake device id then, which

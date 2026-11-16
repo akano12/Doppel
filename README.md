@@ -138,7 +138,9 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   (Huawei, Honor, Xiaomi, OnePlus, Amazon Fire OS, Baidu) and the SIM serial in their system properties
 * **Read telephony data**: fake IMEI, MEID, SIM serial, phone number and more, also in the phone accounts of the SIMs
   and in the calls of the call log
-* **Use tracking**: fake device model and build, operator, device name, WebView user agent, install times of other apps,
+* **Use tracking**: fake device model and build (unknown, which Android gives for a value that is not set, with the
+  fingerprint Android makes of them and no fingerprints of the partitions), operator, device name, WebView user agent,
+  install times of other apps,
   boot id and the folder times and inodes that tell when the device was set up; the hardware files in /sys, the
   property files of the partitions, the GPU drivers and the vendor's HAL manifests, SELinux contexts and display
   configuration do not exist, nor do
@@ -154,14 +156,15 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary><b>Where you are</b> · 5 groups</summary>
 
 * **Determine activity**: fake unknown activity, no activity transitions or sleep events
-* **Get location**: fake location, no NMEA messages or raw GNSS measurements, no location of Wi-Fi access points (RTT), and no location of photos and videos.
+* **Get location**: fake location, no NMEA messages or raw GNSS measurements, no location of Wi-Fi access points (RTT), and no location of photos and videos, except those the app ships in its own APK.
   Do not restrict it for camera, gallery and photo editing apps whose photos should keep their location: what such
   an app saves, like an edited copy, is saved without it
 * **Get sensors**: hide them, also as features of the device, and dynamic sensors, like the head tracker of headphones; the proximity sensor cannot turn the screen off
 * **Read languages**: fake languages, *Languages* in *Fake values*, default en-US, also in system properties
   and the settings; no region of sale (Samsung, Xiaomi); only keyboard languages of the fake ones. The app keeps
   the language chosen for it and its texts; the language of its configuration stays real
-* **Read time zone**: fake time zone, *Time zone* in *Fake values*, default UTC
+* **Read time zone**: fake time zone, *Time zone* in *Fake values*, default UTC, also for the local time of native code,
+  like SQLite, Flutter and JNI libraries
 
 </details>
 
@@ -182,10 +185,11 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <details>
 <summary><b>Your device and apps</b> · 8 groups</summary>
 
-* **Get applications**: hide other apps, their components, widgets, install sessions and usage statistics, keyboards
-  and accessibility services, also in the permission files of system apps and the folders of system apps; hidden apps
-  cannot be reached, their providers cannot be observed, and they are not named as the maker of a PendingIntent, as
-  the default browser or as the users of a shared library
+* **Get applications**: hide other apps, their components, widgets, accounts, install sessions and usage statistics,
+  keyboards and accessibility services, also in the permission files of system apps and the folders of system apps;
+  hidden apps cannot be reached, their providers cannot be observed, and they are not named as the maker of a
+  PendingIntent, as the default browser or as the users of a shared library; the installs, updates, removals, restarts
+  and suspensions of other apps, system apps too, send the app no broadcasts
 * **Read battery**: level in steps of 10 percent, at least 15, no charge details but the time to full of a typical
   charger instead of the real one, battery saver off
 * **Read debugging state**: developer options (also Stay awake and the log buffer sizes) and USB or wireless debugging off, a build which is not debuggable; the files of su and Magisk do not exist
@@ -233,15 +237,19 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 <summary>What Doppel cannot do</summary>
 
 * Xposed cannot hook native code: audio recorded with OpenSL ES, like WhatsApp does, and files read natively
-  are not restricted. Native code also sees the real system properties, codecs, GPU, processors, fonts and sensors,
-  and can start processes itself, which are not refused. Apps reading the bytes of photos themselves still find their
-  location.
+  are not restricted. Native code also sees the real system properties, languages, codecs, GPU, processors, fonts and
+  sensors, and can start processes itself, like `getprop`, which are not refused and see the real values too. Apps
+  reading the bytes of photos themselves still find their location. *Read time zone* gives native code the fake zone by
+  the variable `TZ`, which Java does not see; native code can still read `TZ`, which a device without Doppel does not
+  have, and the real zone in the system property, and the app's own programs get `TZ` too when the app gives them no
+  environment of its own.
 * Services an app runs in isolated processes, and its app zygote preload (Android 10 and later), get no hooks, since
   the framework does not load modules there: they see the real `Build` values, like the model and fingerprint, and can
   pass them to the app. The app's own `AppComponentFactory` (Android 9 and later) runs before the hooks are installed
   and reads the real `Build` values too.
 * Pages in a WebView run in Chromium's native code too: their WebGL names the real GPU, its vendor and extensions, and
   navigator.hardwareConcurrency gives the real number of processors, which can differ from what *Use tracking* fakes.
+  Their dates and `Intl` have the real time zone, not the one of *Read time zone*.
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names.
   The Firebase, Segment, Amazon and Facebook SDKs store the opt-outs and consents *Use analytics* sets, so collection
@@ -301,9 +309,9 @@ How the code fits together (package `eu.faircode.xlua`, kept from XPrivacyLua):
 * Entry points: `XLuaModule` for the modern API (*META-INF/xposed/java_init.list*), `XLua` for the legacy API
   (*assets/xposed_init*); both hand over to `XCore`, through `ModernBackend` or `LegacyBackend`.
 * The service runs in system server: `XCore.hookSettings` hooks `call` and `query` of the settings provider, which
-  `XProvider` answers, with its database (`XDatabase`) in */data/system/xlua*. `XProvider.answers` decides who gets
-  answers: system server, Doppel itself and restricted apps for their own data; other apps get the answers of a
-  device without Doppel. `scripts/check-service.sh` checks this on a device.
+  `XProvider` answers, with its database (`XDatabase`) in */data/system_de/0/xlua*, which no app can see, unlike a
+  folder in */data/system*. `XProvider.answers` decides who gets answers: system server, Doppel itself and restricted
+  apps for their own data; other apps get the answers of a device without Doppel. `scripts/check-service.sh` checks this on a device.
 * In each app in the scope, `XCore` asks the service (`Data`) for the hooks assigned to the app and installs them
   before the app's own code runs. A hook is a definition of [hooks.json](app/src/main/assets/hooks.json) with a Lua
   script of *app/src/main/assets*, run by the LuaJ copy in *org.luaj* with `XHook` and `XParam`, see

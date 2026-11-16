@@ -22,7 +22,9 @@
 -- GPS properties blanked, like the media provider does; tags the app set on the object itself stay, and so do tags
 -- the media provider zeroed already. MediaMetadataRetriever gives no location of videos. The location columns of
 -- MediaStore (latitude, longitude), which Android 10 and later leave empty, are empty on Android 8.1 and 9 too, also
--- to selections and sort orders, so the provider answers with its own cursor like on Android 10.
+-- to selections and sort orders, so the provider answers with its own cursor like on Android 10. Photos and videos of
+-- the app's own APK, its assets and raw resources, keep their location, as the app shipped it and it tells nothing of
+-- the user; files of the app and media it owns do not, as they can be copies of the user's photos.
 -- Not covered are apps reading the bytes of photos themselves, and the range of the XMP (getAttributeRange).
 local METADATA_KEY_LOCATION = 23
 local COLUMNS = { 'latitude', 'longitude' }
@@ -620,9 +622,62 @@ function gps(tag)
     return tag ~= nil and string.sub(tag, 1, 3) == 'GPS'
 end
 
--- Whether the app set the tags on this object itself (see setAttribute), like a photo it writes, which stay
+-- Whether a new ExifInterface or the new source of a retriever reads the app's own APK: an asset or a raw resource as
+-- an AssetInputStream, or a descriptor of one of its APK files, like of openRawResourceFd or an android.resource uri.
+-- Read without the hooks and without telling StrictMode of a disk read; false when it fails.
+-- shortcut: an asset in another stream, like a BufferedInputStream, or by a descriptor to ExifInterface stays hidden,
+-- and any AssetInputStream counts, also of the assets of another app or of a ResourcesLoader (Android 11 and later),
+-- whose AssetsProvider could give a photo the app read whole already; upgrade if apps read their assets like that
+function packaged(param)
+    local source = param:getArgument(0)
+    if param:isInstance(source, 'android.content.res.AssetManager$AssetInputStream') then
+        return true
+    end
+    local context = param:getApplicationContext()
+    if context == nil or not param:isInstance(source, 'java.io.FileDescriptor') then
+        return false
+    end
+    local info = context:getApplicationInfo()
+    local ok, same = pcall(function()
+        return param:unhooked(function()
+            local strict = luajava.bindClass('android.os.StrictMode')
+            local policy = strict:allowThreadDiskReads()
+            local done, value = pcall(function()
+                local system = luajava.bindClass('android.system.Os')
+                local stat = system:fstat(source)
+                local paths = { info.sourceDir }
+                local splits = info.splitSourceDirs
+                for index = 1, (splits ~= nil and splits['length'] or 0) do
+                    table.insert(paths, splits[index])
+                end
+                for _, path in ipairs(paths) do
+                    local apk = system:stat(path)
+                    if apk.st_dev == stat.st_dev and apk.st_ino == stat.st_ino then
+                        return true
+                    end
+                end
+                return false
+            end)
+            strict:setThreadPolicy(policy)
+            return done and value
+        end)
+    end)
+    return ok and same == true
+end
+
+-- Whether this object reads the app's own APK (see packaged), whose location stays
+function shipped(param)
+    local this = param:getThis()
+    return this ~= nil and param:getValue('photo.packaged', this) ~= nil
+end
+
+-- Whether the app set the tags on this object itself (see setAttribute), like a photo it writes, or the object reads
+-- the app's own APK: such tags stay
 function own(param, ...)
     local this = param:getThis()
+    if shipped(param) then
+        return true
+    end
     for _, tag in ipairs({ ... }) do
         if this == nil or param:getValue('exif.' .. tag, this) == nil then
             return false
@@ -690,7 +745,11 @@ function after(hook, param)
     end
     local result = param:getResult()
     local fake
-    if method == 'setAttribute' then
+    if method == nil or method == 'setDataSource' then
+        -- A new ExifInterface (a constructor), or a new source of a retriever, which replaces the one before
+        param:putValue('photo.packaged', packaged(param) or nil, param:getThis())
+        return false
+    elseif method == 'setAttribute' then
         -- A tag the app set, which reads back on this object; null removes it
         local tag = param:getArgument(0)
         if tag ~= nil and param:getThis() ~= nil then
@@ -698,7 +757,7 @@ function after(hook, param)
         end
         return false
     elseif method == 'extractMetadata' then
-        if param:getArgument(0) ~= METADATA_KEY_LOCATION or result == nil then
+        if param:getArgument(0) ~= METADATA_KEY_LOCATION or result == nil or shipped(param) then
             return false
         end
         param:setResult(nil)

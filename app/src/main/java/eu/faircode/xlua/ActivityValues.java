@@ -105,7 +105,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private static final Object[] SECTIONS = new Object[]{
             R.string.title_values_identifiers,
             new Field(FakeIds.SERIAL, R.string.title_value_serial, Type.TEXT, "unknown"),
-            new Field(FakeIds.ANDROID_ID, R.string.title_value_android_id, Type.TEXT, "0000000000000000"),
+            // Fixed without a value, the app gets one of its own, see FakeIds.getBootValues
+            new Field(FakeIds.ANDROID_ID, R.string.title_value_android_id, Type.TEXT, null),
             new Field(FakeIds.IMEI, R.string.title_value_imei, Type.TEXT, null),
             new Field(FakeIds.MEID, R.string.title_value_meid, Type.TEXT, null),
             new Field("value.phone_number", R.string.title_value_phone_number, Type.TEXT, null),
@@ -743,7 +744,9 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             EditText input = til.getEditText();
             til.setError(null);
             String value = getValue(field, input);
-            if (value != null && !isValid(field, value)) {
+            // The field of an identifier is hidden unless it is fixed: what it keeps of before is not checked then
+            Mode mode = modes.get(field.key);
+            if (value != null && (mode == null || FakeIds.FIXED.equals(getMode(mode))) && !isValid(field, value)) {
                 til.setError(getString(R.string.msg_invalid, value));
                 input.requestFocus();
                 return;
@@ -827,6 +830,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     return Math.abs(Double.parseDouble(value)) <= 180;
                 case "location.accuracy":
                     return Double.parseDouble(value) > 0;
+                case FakeIds.ANDROID_ID:
+                    // Lowercase hexadecimal like Android gives, 16 digits, fewer for an id kept from before Android 8,
+                    // which had no leading zeros
+                    return value.matches("[0-9a-f]{1,16}");
                 default:
                     return true;
             }

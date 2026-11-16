@@ -124,14 +124,17 @@ final class FakeIds {
         Map<String, String> result = new HashMap<>();
         for (String key : KEYS) {
             String mode = getMode(key, global, app);
-            if (BOOT.equals(mode))
+            // An Android ID fixed without a value, of the app or of all apps, which apps would get as their settings
+            // are merged, is one of the app too: every device has one, and no device has a default like zeros
+            if (BOOT.equals(mode) || (ANDROID_ID.equals(key) && FIXED.equals(mode) && app.get(key) == null && global.get(key) == null))
                 result.put(key, derive(secret, userid, packageName, key));
             else if (BOOT_ALL.equals(mode))
                 result.put(key, derive(secret, userid, null, key));
         }
+        // The seed of the DRM id is of the service in every mode, of the app unless the Android ID is the same for all
+        // apps: made of a fixed Android ID, which the app reads, the app could compute the DRM id and tell it is fake
         String mode = getMode(ANDROID_ID, global, app);
-        if (!FIXED.equals(mode))
-            result.put(DRM_ID, derive(secret, userid, BOOT.equals(mode) ? packageName : null, DRM_ID));
+        result.put(DRM_ID, derive(secret, userid, BOOT_ALL.equals(mode) ? null : packageName, DRM_ID));
         result.put(LOCATION_KEY, derive(secret, userid, packageName, LOCATION_KEY));
         result.put(PROBE_SUFFIX, derive(secret, userid, packageName, PROBE_SUFFIX));
         return result;

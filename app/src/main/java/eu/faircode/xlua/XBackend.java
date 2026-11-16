@@ -29,6 +29,12 @@ interface XBackend {
 
     void hook(Member member, Callback callback) throws Throwable;
 
+    // Runs the method in the interpreter, which calls the methods it calls through their hooks, also those which
+    // the boot image compiled into it; false when the framework cannot
+    default boolean deoptimize(Member member) throws Throwable {
+        return false;
+    }
+
     void log(String message);
 
     void log(Throwable ex);

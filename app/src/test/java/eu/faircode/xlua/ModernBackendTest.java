@@ -38,12 +38,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 // The modern backend must provide the before/after semantics of the legacy Xposed API
 public class ModernBackendTest {
     private XposedInterface.Hooker hooker;
     private Object exceptionMode; // Of the hook, see throwableBefore
+    private Object deoptimized; // The method given to the framework, see deoptimizeCaller
     private ModernBackend backend;
     private Method method;
 
@@ -83,6 +85,10 @@ public class ModernBackendTest {
                         assertSame(method, args[0]);
                         return builder;
                     }
+                    if ("deoptimize".equals(m.getName())) {
+                        deoptimized = args[0];
+                        return true;
+                    }
                     throw new UnsupportedOperationException(m.getName());
                 });
         backend = new ModernBackend(xposed);
@@ -90,6 +96,13 @@ public class ModernBackendTest {
 
     private Object invoke(Object... args) throws Throwable {
         return hooker.intercept(new FakeChain(this, args));
+    }
+
+    // A caller is deoptimized by the framework, which tells whether it could
+    @Test
+    public void deoptimizeCaller() throws Throwable {
+        assertTrue(backend.deoptimize(method));
+        assertSame(method, deoptimized);
     }
 
     @Test

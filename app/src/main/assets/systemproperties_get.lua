@@ -19,6 +19,8 @@
 -- The security patch level per quarter, like 2025-04-01 for 2025-05-05: a date of fewer values,
 -- which apps can still parse and compare, where 'unknown' would make them fail; also Build.VERSION.SECURITY_PATCH
 local QUARTER = {}
+-- The fingerprint Android makes of the faked build properties (see fingerprint); also Build.FINGERPRINT
+local FINGERPRINT = {}
 
 -- Properties behind the fields of android.os.Build with their fake values; a * matches the partition,
 -- like ro.vendor.build.id
@@ -57,11 +59,16 @@ local DEVICE = {
     { 'generic', { 'dalvik.vm.isa.arm64.variant', 'dalvik.vm.isa.arm.variant' } },
     { 'x86_64', { 'dalvik.vm.isa.x86_64.variant' } },
     { 'x86', { 'dalvik.vm.isa.x86.variant' } },
-    { 'unknown', { 'ro.build.fingerprint', 'ro.*.build.fingerprint', 'ro.build.id', 'ro.*.build.id',
+    { 'unknown', { 'ro.build.id', 'ro.*.build.id', 'ro.build.legacy.id',
                    'ro.build.display.id', 'ro.build.version.incremental', 'ro.*.build.version.incremental',
-                   'ro.build.version.base_os', 'ro.build.host', 'ro.build.user', 'ro.build.tags',
+                   'ro.build.host', 'ro.build.user', 'ro.build.tags',
                    'ro.*.build.tags', 'ro.build.type', 'ro.*.build.type', 'ro.build.description',
                    'ro.build.flavor', 'ro.build.product', 'ro.build.date', 'ro.*.build.date' } },
+    -- Also the partitions, which every device of Android 10 and later has in Build.getFingerprintedPartitions
+    { FINGERPRINT, { 'ro.build.fingerprint', 'ro.build.legacy.fingerprint', 'ro.*.build.fingerprint' } },
+    -- Not set: the fingerprint of the build an update was made for, which most devices do not set, like
+    -- Build.VERSION.BASE_OS, and the thumbprint, which only some makers set
+    { '', { 'ro.build.version.base_os', 'ro.build.thumbprint', 'ro.*.build.thumbprint' } },
     { QUARTER, { 'ro.build.version.security_patch', 'ro.*.build.version.security_patch',
                  'ro.*.build.security_patch' } },
     { '0', { 'ro.build.date.utc', 'ro.*.build.date.utc' } },
@@ -236,8 +243,24 @@ function fakedevice(key, result)
     end
     if fake == QUARTER then
         fake = quarter(result)
+    elseif fake == FINGERPRINT then
+        -- A partition without the property stays without it, like on the device
+        if result == nil or result == '' then
+            return nil
+        end
+        fake = fingerprint()
     end
     return fake
+end
+
+-- The fingerprint Android makes of the build properties when they are not set (Build.deriveFingerprint, and init sets
+-- the property so from Android 10): of the unknown fields and the release, which stays real, like
+-- unknown/unknown/unknown:14/unknown/unknown:unknown/unknown; init takes release_or_codename from Android 12, which is
+-- the release on a release build.
+function fingerprint()
+    local version = luajava.bindClass('android.os.Build$VERSION')
+    local release = (version.SDK_INT >= 31 and version.RELEASE_OR_CODENAME or version.RELEASE)
+    return 'unknown/unknown/unknown:' .. release .. '/unknown/unknown:unknown/unknown'
 end
 
 -- The first day of the quarter of a date like 2025-05-05, nil when it is no date
@@ -446,6 +469,18 @@ function after(hook, param)
         end
         param:setResult(fake)
         return true, result, fake
+    elseif hook:getMethodName() == '#FINGERPRINT' then
+        -- The field Build.FINGERPRINT, the same as its property
+        local result = param:getResult()
+        if result == nil or result == '' then
+            return false
+        end
+        local fake = fingerprint()
+        if fake == result then
+            return false
+        end
+        param:setResult(fake)
+        return true, result, fake
     elseif hook:getMethodName() == 'open' then
         return area(hook, param)
     end
@@ -517,8 +552,12 @@ function after(hook, param)
         param:setResult(fake)
         return true, result, fake
     elseif name == 'device' then
-        -- Like the fields of android.os.Build
+        -- Like the fields of android.os.Build; an empty fake is what get gives for a property which is not set, which
+        -- is '' also for a null default (SystemProperties_getSS)
         local fake = fakedevice(key, result)
+        if fake == '' then
+            fake = empty or ''
+        end
         if fake == nil or fake == result then
             return false
         end

@@ -19,7 +19,9 @@
 
 package eu.faircode.xlua;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
+import java.lang.reflect.Method;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -54,6 +56,23 @@ class LegacyBackend implements XBackend {
                 apply(call, param);
             }
         });
+    }
+
+    // LSPosed added XposedBridge.deoptimizeMethod to the legacy API, which the API of Xposed (82) does not have
+    @Override
+    public boolean deoptimize(Member member) throws Throwable {
+        Method deoptimize;
+        try {
+            deoptimize = XposedBridge.class.getMethod("deoptimizeMethod", Member.class);
+        } catch (NoSuchMethodException ignored) {
+            return false;
+        }
+        try {
+            deoptimize.invoke(null, member);
+        } catch (InvocationTargetException ex) {
+            throw ex.getCause();
+        }
+        return true;
     }
 
     private static void apply(XCall call, XC_MethodHook.MethodHookParam param) {

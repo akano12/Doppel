@@ -28,6 +28,7 @@ import android.security.net.config.NetworkSecurityConfigProvider;
 
 import com.android.providers.settings.SettingsProvider;
 
+import org.json.JSONObject;
 import org.junit.Before;
 import org.junit.Test;
 import org.luaj.vm2.Prototype;
@@ -57,6 +58,7 @@ import io.github.libxposed.api.XposedModuleInterface;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -326,6 +328,7 @@ public class XCoreTest {
 
     private final List<Member> members = new ArrayList<>();
     private final List<XBackend.Callback> callbacks = new ArrayList<>();
+    private final List<Member> deoptimized = new ArrayList<>();
     private XCore core;
     private Context context;
 
@@ -364,6 +367,12 @@ public class XCoreTest {
             }
 
             @Override
+            public boolean deoptimize(Member member) {
+                deoptimized.add(member);
+                return true;
+            }
+
+            @Override
             public void log(String message) {
             }
 
@@ -384,20 +393,51 @@ public class XCoreTest {
             public ApplicationInfo getApplicationInfo() {
                 return ai;
             }
+
+            @Override
+            public ClassLoader getClassLoader() {
+                return XCoreTest.class.getClassLoader();
+            }
         };
     }
 
     // Like XCore.install, without the class lookup through the class loader of an app
     private void install(String name, String script, Member member) throws Exception {
+        install(name, script, member, "");
+    }
+
+    private void install(String name, String script, Member member, String attributes) throws Exception {
         XHook hook = XHook.fromJSON("{\"collection\": \"Test\", \"group\": \"Test.Group\", \"name\": \"" + name + "\"," +
                 " \"author\": \"Test\", \"className\": \"" + Target.class.getName() + "\", \"parameterTypes\": []," +
-                " \"minSdk\": 1, \"usage\": false, \"luaScript\": \"\"}");
+                " \"minSdk\": 1, \"usage\": false, \"luaScript\": \"\"" + attributes + "}");
         Prototype prototype = LuaC.instance.compile(
                 new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)), "script");
         Method installMethod = XCore.class.getDeclaredMethod("installMethod",
                 Context.class, XHook.class, Prototype.class, Map.class, Member.class);
         installMethod.setAccessible(true);
         installMethod.invoke(core, context, hook, prototype, new HashMap<String, String>(), member);
+    }
+
+    // The callers a definition names are deoptimized once the hook is installed, all methods of the name or the
+    // constructors; one which is not there, like of another Android version, is skipped and the hook stays
+    @Test
+    public void callersAreDeoptimized() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        String callers = ", \"deoptimize\": [\"" + Target.class.getName() + ".open\", \"" + First.class.getName() + ".<init>\"," +
+                " \"" + Target.class.getName() + ".missing\", \"missing.Class.open\", \"open\"]";
+        install("callersAreDeoptimized", "", get, callers);
+        assertEquals(Collections.singletonList(get), members);
+        assertEquals(Arrays.asList(Target.class.getMethod("open", String.class), First.class.getDeclaredConstructor()),
+                deoptimized);
+
+        // Kept by an export and an import, and left out of a definition without callers
+        JSONObject jhook = XHook.fromJSON("{\"collection\": \"Test\", \"group\": \"Test.Group\", \"name\": \"callers\"," +
+                " \"author\": \"Test\", \"className\": \"java.lang.Object\", \"parameterTypes\": [], \"minSdk\": 1," +
+                " \"luaScript\": \"\"" + callers + "}").toJSONObject();
+        assertEquals(5, XHook.fromJSONObject(jhook).getDeoptimize().length);
+        jhook.remove("deoptimize");
+        assertFalse(XHook.fromJSONObject(jhook).toJSONObject().has("deoptimize"));
+        assertEquals(0, XHook.fromJSONObject(jhook).getDeoptimize().length);
     }
 
     // Definitions for a range of app versions; an app with a versionCodeMajor has a version code beyond an int
@@ -649,10 +689,15 @@ public class XCoreTest {
         }
     }
 
-    // Without the settings of the service the hooks are installed still, with the settings read
+    // Without the settings of the service the hooks are installed still, with the settings read and a suffix of the
+    // substitute names of their own, new for each app
     @Test
     public void settingsFail() {
-        assertTrue(XCore.getSettings(context, "test.app", 10123).isEmpty());
+        Map<String, String> settings = XCore.getSettings(context, "test.app", 10123);
+        assertEquals(settings.keySet().toString(), 1, settings.size());
+        String suffix = settings.get(FakeIds.PROBE_SUFFIX);
+        assertTrue(suffix, suffix.matches("\\.x[0-9]{9}"));
+        assertNotEquals(suffix, XCore.getSettings(context, "test.app", 10123).get(FakeIds.PROBE_SUFFIX));
     }
 
     // Files are compared by their path, other objects not at all

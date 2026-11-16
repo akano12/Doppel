@@ -29,6 +29,8 @@ import android.os.Process;
 import android.util.Log;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -217,7 +219,11 @@ class XDatabase {
             "ActivityManager.getRunningTasks",
             "ActivityThread.handleBindService/notification", "AppEventsLogger.activateApp/context",
             "AppEventsLogger.activateApp/context/id", "AppEventsLogger.deactivateApp/context",
-            "AppEventsLogger.deactivateApp/context/id", "BlockGuardOs.open", "Bundle.get/location",
+            "AppEventsLogger.deactivateApp/context/id", "BlockGuardOs.open",
+            // The partitions are made of the hooked properties ro.<partition>.build.fingerprint and date.utc, which give
+            // the fake build like Build.FINGERPRINT and TIME; an empty list has no device of Android 10 or later
+            "Build.getFingerprintedPartitions",
+            "Bundle.get/location",
             "CameraManager2.registerAvailabilityCallback", "CameraManager2.registerTorchCallback",
             "Configuration.createFromParcel", "ContentProviderClient.query1/blockednumber",
             "ContentProviderClient.query1/calendars", "ContentProviderClient.query1/call_log",
@@ -278,7 +284,9 @@ class XDatabase {
     }
 
     static XDatabase open() throws Throwable {
-        File dir = new File(Environment.getDataDirectory(), "system" + File.separator + "xlua");
+        File data = Environment.getDataDirectory();
+        File dir = folder(new File(data, "system" + File.separator + "xlua"),
+                new File(data, "system_de" + File.separator + "0" + File.separator + "xlua"));
         File file = new File(dir, "xlua.db");
         if (!dir.isDirectory() && !dir.mkdirs())
             throw new IOException("Cannot create " + dir);
@@ -292,6 +300,51 @@ class XDatabase {
             for (File f : files)
                 Util.setPermissions(f.getAbsolutePath(), 0660, Process.SYSTEM_UID, Process.SYSTEM_UID);
         return database;
+    }
+
+    // Any app can search /data/system and so see a folder there, but no app can search /data/system_de, so every name in
+    // it gives an app EACCES, like on a device without Doppel; vold makes the folder of the system user 0 before system
+    // server starts. The folder of older versions is copied, because rename refuses folders of different encryption keys,
+    // and is kept in use, with all restrictions, when the copy fails, until the next start tries again.
+    static File folder(File old, File dir) {
+        try {
+            File[] files = old.listFiles();
+            if (files != null && !new File(dir, "xlua.db").exists()) {
+                // Complete before the rename, so an interrupted copy leaves the old database in use
+                File tmp = new File(dir.getPath() + ".tmp");
+                delete(tmp);
+                // Files without a database, like a write-ahead log, would corrupt the copied one
+                delete(dir);
+                if (!tmp.mkdir())
+                    throw new IOException("Cannot create " + tmp);
+                for (File f : files)
+                    try (FileOutputStream out = new FileOutputStream(new File(tmp, f.getName()))) {
+                        Files.copy(f.toPath(), out);
+                        out.getFD().sync();
+                    }
+                if (!tmp.renameTo(dir))
+                    throw new IOException("Cannot rename " + tmp);
+                Log.i(TAG, "Database moved from " + old + " to " + dir);
+            }
+            // Not mkdirs: the folder of user 0 belongs to vold
+            if (!dir.isDirectory() && !dir.mkdir())
+                throw new IOException("Cannot create " + dir);
+            if (files != null)
+                delete(old);
+            return dir;
+        } catch (IOException ex) {
+            Log.e(TAG, Log.getStackTraceString(ex));
+            return old;
+        }
+    }
+
+    // The folders of the database hold only files
+    private static void delete(File dir) {
+        File[] files = dir.listFiles();
+        if (files != null)
+            for (File f : files)
+                f.delete();
+        dir.delete();
     }
 
     // A database file upgraded to the current version; also for the test of the migrations, see XDatabaseTest

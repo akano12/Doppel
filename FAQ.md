@@ -13,7 +13,8 @@ When no other user has Doppel installed anymore, all data is cleared, also the c
 *Settings* > *Clear restrictions and settings* removes all restrictions and settings, including the fake values, of the current user
 and keeps the custom hook definitions.
 
-All data is stored in the system folder */data/system/xlua*, so regular backup apps cannot back it up.
+All data is stored in the system folder */data/system_de/0/xlua*, which apps cannot see, so regular backup apps cannot back it up.
+Older versions used */data/system/xlua*, which Doppel moves there on the first start.
 Use *Settings* > *Backup* and *Restore* for all restrictions, settings and custom hook definitions.
 Restrictions of hook definitions which the device does not have, like custom definitions which are not in the backup, are not restored.
 

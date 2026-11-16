@@ -655,9 +655,10 @@ public class ValueScriptsTest {
         check(globals, "return after_(nil, paramof('+3100000'))", false, false, "+3100000");
     }
 
-    // The Widevine ids come from the fake Android ID, of the same length, zeros without one; other properties stay
+    // The Widevine ids come from the seed of the service, of the same length, never from the Android ID the app reads,
+    // even a fixed one; zeros only when the service gave no seed; other properties stay
     @Test
-    public void drmIdsFollowAndroidId() throws Exception {
+    public void drmIdsComeFromTheService() throws Exception {
         Globals globals = load("mediadrm_unique_id");
         for (String property : new String[]{"deviceUniqueId", "provisioningUniqueId"}) {
             globals.set("id", CoerceJavaToLua.coerce(new byte[32]));
@@ -665,23 +666,22 @@ public class ValueScriptsTest {
             assertTrue(property, result.arg1().toboolean());
             assertArrayEquals(property, new byte[32], (byte[]) result.arg(3).checkuserdata());
 
-            for (String seed : new String[]{"44aa15730b248663", "0123456789abcdef"}) {
-                Scripts.run(globals, "settings['value.android_id'] = '" + seed + "'");
+            // A fixed Android ID alone, of which an app could compute the id, is not used
+            Scripts.run(globals, "settings['value.android_id'] = '44aa15730b248663'");
+            result = Scripts.run(globals, "return after_(nil, paramof(id, { [0] = '" + property + "' }))");
+            assertTrue(property, result.arg1().toboolean());
+            assertArrayEquals(property, new byte[32], (byte[]) result.arg(3).checkuserdata());
+
+            for (String seed : new String[]{"secret", "0123456789abcdef0123456789abcdef"}) {
+                Scripts.run(globals, "settings['value.drm_id'] = '" + seed + "'");
                 result = Scripts.run(globals, "return after_(nil, paramof(id, { [0] = '" + property + "' }))");
                 assertTrue(property, result.arg1().toboolean());
                 assertArrayEquals(property, MessageDigest.getInstance("SHA-256").digest((seed + property).getBytes(StandardCharsets.UTF_8)),
                         (byte[]) result.arg(3).checkuserdata());
             }
-            Scripts.run(globals, "settings['value.android_id'] = nil");
+            Scripts.run(globals, "settings['value.android_id'] = nil; settings['value.drm_id'] = nil");
         }
-        // The value of the service goes before the Android ID, of which an app could compute the id
-        Scripts.run(globals, "settings['value.android_id'] = 'public'; settings['value.drm_id'] = 'secret'");
-        globals.set("id", CoerceJavaToLua.coerce(new byte[32]));
-        assertArrayEquals(MessageDigest.getInstance("SHA-256").digest("secretdeviceUniqueId".getBytes(StandardCharsets.UTF_8)),
-                (byte[]) Scripts.run(globals, "return after_(nil, paramof(id, { [0] = 'deviceUniqueId' }))")
-                        .arg(3).checkuserdata());
-        Scripts.run(globals, "settings['value.drm_id'] = nil");
-        Scripts.run(globals, "settings['value.android_id'] = 'abc'");
+        Scripts.run(globals, "settings['value.drm_id'] = 'abc'");
         globals.set("id", CoerceJavaToLua.coerce(new byte[]{1, 2, 3}));
         assertEquals(3, ((byte[]) Scripts.run(globals, "return after_(nil, paramof(id, { [0] = 'deviceUniqueId' }))")
                 .arg(3).checkuserdata()).length);
@@ -697,7 +697,6 @@ public class ValueScriptsTest {
             provisioning[i] = (byte) ~device[i];
         globals.set("realdevice", CoerceJavaToLua.coerce(device));
         globals.set("id", CoerceJavaToLua.coerce(provisioning));
-        Scripts.run(globals, "settings['value.android_id'] = 'abc'");
         byte[] fakeDevice = MessageDigest.getInstance("SHA-256").digest("abcdeviceUniqueId".getBytes(StandardCharsets.UTF_8));
         byte[] fakeProvisioning = (byte[]) Scripts.run(globals,
                 "local drm = { getPropertyByteArray = function(self, name) assert(name == 'deviceUniqueId') return realdevice end }\n" +
@@ -1173,13 +1172,159 @@ public class ValueScriptsTest {
                 "end");
         Varargs result = Scripts.run(globals, "local param = typesparamof(arrayof({ packageName = 'com.google.android.gms' },\n" +
                 "  { packageName = 'com.bank' }, { packageName = 'com.example' }))\n" +
-                "return after(nil, param), param.result.length, param.result[1].packageName, param.result[2].packageName");
+                "return after(hookof('getAuthenticatorTypes'), param), param.result.length, param.result[1].packageName,\n" +
+                "  param.result[2].packageName");
         assertTrue(result.arg(1).toboolean());
         assertEquals(2, result.arg(2).toint());
         assertEquals("com.google.android.gms", result.arg(3).tojstring());
         assertEquals("com.example", result.arg(4).tojstring());
-        assertFalse(Scripts.run(globals, "return after_(nil, typesparamof(arrayof({ packageName = 'com.example' })))").arg(2).toboolean());
-        assertFalse(Scripts.run(globals, "return after_(nil, typesparamof(nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return after_(hookof('getAuthenticatorTypes'), " +
+                "typesparamof(arrayof({ packageName = 'com.example' })))").arg(2).toboolean());
+        assertFalse(Scripts.run(globals, "return after_(hookof('getAuthenticatorTypes'), typesparamof(nil))").arg1().toboolean());
+    }
+
+    // The script of account types with the authenticators of the app, of Google and of the hidden app com.bank, read
+    // unhooked (reads, 'error' when the lookup fails), and arrays and maps made by the script with their class
+    private static Globals authenticators() throws Exception {
+        Globals globals = load("account_authenticators");
+        Scripts.run(globals, "reads, auths = 0, arrayof({ packageName = 'com.example', type = 'com.example.account' },\n" +
+                "  { packageName = 'com.google.android.gms', type = 'com.google' }, { packageName = 'com.bank', type = 'com.bank' })\n" +
+                "manager = { getAuthenticatorTypes = function(self) assert(unhooked, 'hooked lookup') reads = reads + 1\n" +
+                "  if auths == 'error' then error('DeadObjectException') end return auths end }\n" +
+                "luajava = { bindClass = function(name)\n" +
+                "  if name == 'android.accounts.AccountManager' then\n" +
+                "    return { get = function(self, context) assert(context == 'context') return manager end } end\n" +
+                "  assert(name == 'java.lang.reflect.Array', name)\n" +
+                "  return { newInstance = function(self, class, size) return { class = class, length = size } end } end,\n" +
+                "  newInstance = function(name) return { class = name } end }\n" +
+                "function mapof(size) return { isEmpty = function(self) return size == 0 end } end\n" +
+                "local paramof_ = paramof\n" +
+                "function paramof(...) local param = paramof_(...)\n" +
+                "  param.isPackageVisible = function(self, name) return name ~= 'com.bank' end return param end\n" +
+                "function accountsof(...) local accounts = {}\n" +
+                "  for index, type in ipairs({ ... }) do accounts[index] = { name = 'me', type = type } end\n" +
+                "  return arrayof(table.unpack(accounts)) end\n" +
+                "function typesof(array) local types = {}\n" +
+                "  for index = 1, array.length do types[index] = array[index].type end return table.concat(types, ' ') end");
+        return globals;
+    }
+
+    // Android keeps no account whose authenticator is gone, so the accounts of the types the app does not see are left
+    // out of every list: of hidden apps and of types without a visible authenticator, like from Android 11 without the
+    // visibility of its package; the types are read once, only for a list with accounts
+    @Test
+    public void accountsOfHiddenApps() throws Exception {
+        Globals globals = authenticators();
+        for (String method : new String[]{"getAccounts", "getAccountsAsUser", "getAccountsByType", "getAccountsByTypeAsUser",
+                "getAccountsByTypeForPackage"}) {
+            Varargs result = Scripts.run(globals, "local param = paramof(accountsof('com.bank', 'com.example.account', " +
+                    "'com.google', 'org.unknown', 'com.bank'))\n" +
+                    "local restricted, old, new = after(hookof('" + method + "'), param)\n" +
+                    "return restricted, old, new, param.result.class, typesof(param.result)");
+            assertTrue(method, result.arg(1).toboolean());
+            assertEquals(method, "5", result.arg(2).tojstring());
+            assertEquals(method, "2", result.arg(3).tojstring());
+            assertEquals(method, "android.accounts.Account", result.arg(4).tojstring());
+            assertEquals(method, "com.example.account com.google", result.arg(5).tojstring());
+
+            // All left out is an empty array, as Android gives for no accounts
+            result = Scripts.run(globals, "local param = paramof(accountsof('com.bank'))\n" +
+                    "return after(hookof('" + method + "'), param), param.result.length, param.result.class");
+            assertTrue(method, result.arg(1).toboolean());
+            assertEquals(method, 0, result.arg(2).toint());
+            assertEquals(method, "android.accounts.Account", result.arg(3).tojstring());
+        }
+        assertEquals(1, Scripts.run(globals, "return reads").toint(1));
+        assertFalse(Scripts.run(globals, "return after_(hookof('getAccounts'), paramof(accountsof('com.google')))").arg(2).toboolean());
+
+        // The accounts for a hidden app are none, like for an app which is not installed, also of the types it sees
+        Varargs hidden = Scripts.run(globals, "local param = paramof(accountsof('com.example.account', 'com.google'),\n" +
+                "  { [0] = 'com.example.account', [1] = 'com.bank' })\n" +
+                "return after(hookof('getAccountsByTypeForPackage'), param), param.result.length, param.result.class");
+        assertTrue(hidden.arg(1).toboolean());
+        assertEquals(0, hidden.arg(2).toint());
+        assertEquals("android.accounts.Account", hidden.arg(3).tojstring());
+        assertFalse(Scripts.run(globals, "return after_(hookof('getAccountsByTypeForPackage'), " +
+                "paramof(accountsof('com.google'), { [1] = 'com.other' }))").arg(2).toboolean());
+        assertFalse(Scripts.run(globals, "return after_(hookof('getAccountsByTypeForPackage'), " +
+                "paramof(accountsof(), { [1] = 'com.bank' }))").arg(2).toboolean());
+        assertFalse(Scripts.run(globals, "return after_(hookof('getAccounts'), paramof(nil))").arg1().toboolean());
+
+        // An empty list needs no lookup
+        globals = authenticators();
+        assertFalse(Scripts.run(globals, "return after_(hookof('getAccounts'), paramof(accountsof()))").arg(2).toboolean());
+        assertEquals(0, Scripts.run(globals, "return reads").toint(1));
+
+        // A failed lookup hides all accounts, also of the app itself, and is not kept
+        Varargs failed = Scripts.run(globals, "auths = 'error'\n" +
+                "local param = paramof(accountsof('com.example.account', 'com.google'))\n" +
+                "return after(hookof('getAccounts'), param), param.result.length");
+        assertTrue(failed.arg(1).toboolean());
+        assertEquals(0, failed.arg(2).toint());
+        Varargs again = Scripts.run(globals, "auths = arrayof({ packageName = 'com.example', type = 'com.example.account' })\n" +
+                "local param = paramof(accountsof('com.example.account'))\n" +
+                "return after(hookof('getAccounts'), param), param.set, reads");
+        assertFalse(again.arg(1).toboolean());
+        assertFalse(again.arg(2).toboolean());
+        assertEquals(3, again.arg(3).toint());
+    }
+
+    // The calls which name a type of a hidden app, or one without a visible authenticator, ask for the empty type,
+    // which Android answers with no accounts through the future, or as not the authenticator of it; visible types and
+    // no type stay
+    @Test
+    public void typesOfHiddenAppsNamedByCalls() throws Exception {
+        Globals globals = authenticators();
+        String hook = "hookof('getAccountsByTypeAndFeatures')";
+        for (String type : new String[]{"com.bank", "org.unknown"}) {
+            Varargs result = Scripts.run(globals, "local param = paramof(nil, { [0] = '" + type + "' })\n" +
+                    "local restricted, old, new = before(" + hook + ", param)\n" +
+                    "return restricted, old, new, param.args[0]");
+            assertTrue(type, result.arg(1).toboolean());
+            assertEquals(type, type, result.arg(2).tojstring());
+            assertEquals(type, "", result.arg(3).tojstring());
+            assertEquals(type, "", result.arg(4).tojstring());
+        }
+        for (String args : new String[]{"{ [0] = 'com.google' }", "{ [0] = 'com.example.account' }", "{}"}) {
+            Varargs result = Scripts.run(globals, "return before_(" + hook + ", paramof(nil, " + args + "))");
+            assertFalse(args, result.arg(1).toboolean());
+            assertFalse(args, result.arg(2).toboolean());
+        }
+        // An authenticator lists the accounts of its own types only, Android throws for others
+        String visibility = "hookof('getAccountsAndVisibilityForPackage')";
+        Varargs result = Scripts.run(globals, "local param = paramof(nil, { [0] = 'com.other', [1] = 'com.bank' })\n" +
+                "local restricted, old, new = before(" + visibility + ", param)\n" +
+                "return restricted, old, new, param.args[0], param.args[1]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.bank", result.arg(2).tojstring());
+        assertEquals("", result.arg(3).tojstring());
+        assertEquals("com.other", result.arg(4).tojstring());
+        assertEquals("", result.arg(5).tojstring());
+        for (String args : new String[]{"{ [0] = 'com.other', [1] = 'com.example.account' }", "{ [0] = 'com.other' }"})
+            assertFalse(args, Scripts.run(globals, "return before_(" + visibility + ", paramof(nil, " + args + "))").arg(2)
+                    .toboolean());
+
+        // The visibility for a hidden app is an empty map, which the binder reads as a HashMap, like for an app which is
+        // not installed; Android checks the type first, which throws, so no map comes then
+        result = Scripts.run(globals, "local param = paramof(mapof(1), { [0] = 'com.bank', [1] = 'com.example.account' })\n" +
+                "return after(" + visibility + ", param), param.result.class");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("java.util.HashMap", result.arg(2).tojstring());
+        result = Scripts.run(globals, "local param = paramof(nil, { [0] = 'com.bank', [1] = 'com.bank' })\n" +
+                "return before(" + visibility + ", param), param.args[1], after_(" + visibility + ", param)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("", result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
+        for (String args : new String[]{"{ [0] = 'com.other' }", "{ [0] = 'com.example' }"})
+            assertFalse(args, Scripts.run(globals, "return after_(" + visibility + ", paramof(mapof(1), " + args + "))").arg(2)
+                    .toboolean());
+        assertFalse(Scripts.run(globals, "return after_(" + visibility + ", paramof(mapof(0), { [0] = 'com.bank' }))").arg(2)
+                .toboolean());
+
+        // The future is left as it is, and the other hooks have nothing to do before the call
+        assertFalse(Scripts.run(globals, "return after_(" + hook + ", paramof({ getResult = true }))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return before_(hookof('getAccounts'), paramof(nil, { [0] = 'com.bank' }))").arg1()
+                .toboolean());
     }
 
     // The clip and its description are a plain text, without the label and the types of the real clip

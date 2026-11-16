@@ -264,6 +264,69 @@
     "excludePackages": "android",
     "luaScript": "@intent_createfromparcel"
   },
+  // The broadcasts about other apps, system apps too, do not reach the receivers of the manifest and the registered
+  // ones, like on a device without the app (see receiver_skip); ReceiverDispatcher gets the sender too from Android 14
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ActivityThread.handleReceiver/package",
+    "author": "akano12",
+    "className": "android.app.ActivityThread",
+    "methodName": "handleReceiver",
+    "parameterTypes": [
+      "android.app.ActivityThread$ReceiverData"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ReceiverDispatcher.performReceive/package",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ReceiverDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "int"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "maxSdk": 33,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "ReceiverDispatcher.performReceive.sender/package",
+    "author": "akano12",
+    "className": "android.app.LoadedApk$ReceiverDispatcher",
+    "methodName": "performReceive",
+    "parameterTypes": [
+      "android.content.Intent",
+      "int",
+      "java.lang.String",
+      "android.os.Bundle",
+      "boolean",
+      "boolean",
+      "boolean",
+      "int",
+      "int",
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 34,
+    "excludePackages": "android",
+    "luaScript": "@receiver_skip"
+  },
   {
     "collection": "Privacy",
     "group": "Get.Applications",
@@ -718,6 +781,124 @@
     "parameterTypes": [],
     "returnType": "android.accounts.AuthenticatorDescription[]",
     "minSdk": 27,
+    "luaScript": "@account_authenticators"
+  },
+  // An account names the app of its authenticator by its type, and Android keeps no account whose authenticator is
+  // gone, so the accounts go with the types: in the lists, also the hidden ones for a user, of which getAccounts calls
+  // one, and the one the account listeners get; getAccountsByTypeForPackage lists the accounts of the app for no type,
+  // and none for a hidden app, like for one which is not installed
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccountManager.getAccounts/apps",
+    "author": "akano12",
+    "className": "android.accounts.AccountManager",
+    "methodName": "getAccounts",
+    "parameterTypes": [],
+    "returnType": "android.accounts.Account[]",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@account_authenticators"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccountManager.getAccountsAsUser/apps",
+    "author": "akano12",
+    "className": "android.accounts.AccountManager",
+    "methodName": "getAccountsAsUser",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.accounts.Account[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@account_authenticators"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccountManager.getAccountsByType/apps",
+    "author": "akano12",
+    "className": "android.accounts.AccountManager",
+    "methodName": "getAccountsByType",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.accounts.Account[]",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@account_authenticators"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccountManager.getAccountsByTypeAsUser/apps",
+    "author": "akano12",
+    "className": "android.accounts.AccountManager",
+    "methodName": "getAccountsByTypeAsUser",
+    "parameterTypes": [
+      "java.lang.String",
+      "android.os.UserHandle"
+    ],
+    "returnType": "android.accounts.Account[]",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@account_authenticators"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccountManager.getAccountsByTypeForPackage/apps",
+    "author": "akano12",
+    "className": "android.accounts.AccountManager",
+    "methodName": "getAccountsByTypeForPackage",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "android.accounts.Account[]",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@account_authenticators"
+  },
+  // The accounts of a type with features come through a future and its callback, and an authenticator lists the
+  // accounts of its types with their visibility, so the type of a hidden app is asked as one no authenticator has;
+  // the visibility for a hidden app is an empty map, like for one which is not installed
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccountManager.getAccountsByTypeAndFeatures/apps",
+    "author": "akano12",
+    "className": "android.accounts.AccountManager",
+    "methodName": "getAccountsByTypeAndFeatures",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String[]",
+      "android.accounts.AccountManagerCallback",
+      "android.os.Handler"
+    ],
+    "returnType": "android.accounts.AccountManagerFuture",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@account_authenticators"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "AccountManager.getAccountsAndVisibilityForPackage/apps",
+    "author": "akano12",
+    "className": "android.accounts.AccountManager",
+    "methodName": "getAccountsAndVisibilityForPackage",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.lang.String"
+    ],
+    "returnType": "java.util.Map",
+    "minSdk": 27,
+    "excludePackages": "android",
     "luaScript": "@account_authenticators"
   },
   {
@@ -7966,7 +8147,8 @@
     "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
-  // The GPS tags an app sets on an ExifInterface read back on that object, like a photo it writes (photo_location)
+  // The GPS tags an app sets on an ExifInterface read back on that object, like a photo it writes, and the photos and
+  // videos of its own APK, read as an asset or by a descriptor of the APK, keep their location (photo_location)
   {
     "collection": "Privacy",
     "group": "Get.Location",
@@ -8014,6 +8196,132 @@
     "returnType": "void",
     "minSdk": 27,
     "optional": true,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.constructor",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "parameterTypes": [
+      "java.io.InputStream"
+    ],
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterface.constructor/type",
+    "author": "akano12",
+    "className": "android.media.ExifInterface",
+    "parameterTypes": [
+      "java.io.InputStream",
+      "int"
+    ],
+    "minSdk": 30,
+    "usage": false,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.constructor",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "parameterTypes": [
+      "java.io.InputStream"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceX.constructor/type",
+    "author": "akano12",
+    "className": "androidx.exifinterface.media.ExifInterface",
+    "parameterTypes": [
+      "java.io.InputStream",
+      "int"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "ExifInterfaceS.constructor",
+    "author": "akano12",
+    "className": "android.support.media.ExifInterface",
+    "parameterTypes": [
+      "java.io.InputStream"
+    ],
+    "minSdk": 27,
+    "optional": true,
+    "usage": false,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "MediaMetadataRetriever.setDataSource/fd",
+    "author": "akano12",
+    "className": "android.media.MediaMetadataRetriever",
+    "methodName": "setDataSource",
+    "parameterTypes": [
+      "java.io.FileDescriptor",
+      "long",
+      "long"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "MediaMetadataRetriever.setDataSource/uri",
+    "author": "akano12",
+    "className": "android.media.MediaMetadataRetriever",
+    "methodName": "setDataSource",
+    "parameterTypes": [
+      "java.lang.String",
+      "java.util.Map"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
+    "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
+    "luaScript": "@photo_location"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Location",
+    "name": "MediaMetadataRetriever.setDataSource/source",
+    "author": "akano12",
+    "className": "android.media.MediaMetadataRetriever",
+    "methodName": "setDataSource",
+    "parameterTypes": [
+      "android.media.MediaDataSource"
+    ],
+    "returnType": "void",
+    "minSdk": 27,
+    "usage": false,
     "excludePackages": "android,com\\.(google\\.)?android\\.providers\\.media(\\.module)?",
     "luaScript": "@photo_location"
   },
@@ -10814,8 +11122,7 @@
     "returnType": "byte[]",
     "minSdk": 27,
     "settings": [
-      "value.drm_id",
-      "value.android_id"
+      "value.drm_id"
     ],
     "luaScript": "@mediadrm_unique_id"
   },
@@ -20849,7 +21156,7 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "usage": false,
-    "luaScript": "@generic_unknown_value"
+    "luaScript": "@systemproperties_get"
   },
   {
     "collection": "Privacy",
@@ -21081,7 +21388,7 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "usage": false,
-    "luaScript": "@generic_unknown_value"
+    "luaScript": "@generic_empty_text"
   },
   {
     "collection": "Privacy",
@@ -21344,18 +21651,6 @@
     "returnType": "java.lang.String",
     "minSdk": 27,
     "luaScript": "@generic_unknown_value"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Use.Tracking",
-    "name": "Build.getFingerprintedPartitions",
-    "author": "akano12",
-    "className": "android.os.Build",
-    "methodName": "getFingerprintedPartitions",
-    "parameterTypes": [],
-    "returnType": "java.util.List",
-    "minSdk": 29,
-    "luaScript": "@generic_empty"
   },
   {
     "collection": "Privacy",
@@ -27758,6 +28053,11 @@
   // Read time zone
   // https://developer.android.com/reference/java/util/TimeZone
   // Setting value.timezone, default UTC
+  // shortcut: pages in a WebView get the real zone in Date and Intl, since Chromium sets it in its native ICU: up to
+  // WebView 138 its renderer, an isolated process without hooks, takes it from TimeZone there, and from WebView 139 ICU
+  // reads persist.sys.timezone through libc, in the renderer and in the app, which hands it to the renderers; a script
+  // replacing Date and Intl would show in the page and miss workers, and giving the fake to the zone monitor of WebView
+  // needs its internal classes, upgrade when WebView can set the zone of pages.
   {
     "collection": "Privacy",
     "group": "Read.Timezone",
@@ -28064,6 +28364,44 @@
     "settings": [
       "value.timezone"
     ],
+    "luaScript": "@timezone"
+  },
+  // Native code gets the fake zone by TZ, which timezone sets at the start; Java does not see it, by getenv of
+  // System and Os and by Os.environ (System.getenv() keeps the environment of the start)
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "Linux.getenv/timezone",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
+    "methodName": "getenv",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "java.lang.String",
+    "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.timezone"
+    ],
+    "excludePackages": "android",
+    "luaScript": "@timezone"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "Linux.environ/timezone",
+    "author": "akano12",
+    "className": "libcore.io.Linux",
+    "methodName": "environ",
+    "parameterTypes": [],
+    "returnType": "java.lang.String[]",
+    "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.timezone"
+    ],
+    "excludePackages": "android",
     "luaScript": "@timezone"
   },
   // Read languages of the device

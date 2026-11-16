@@ -78,6 +78,12 @@ and a restore names the definitions of the backup first.
 * The optional attribute *excludePackages* is a comma separated list of [regular expressions](https://developer.android.com/reference/java/util/regex/Pattern) of package names the hook should not be applied to, like `com\.google\..*`
 * Setting *enabled* to *false* will switch the hook off (default *true*)
 * Setting *optional* to *true* will suppress error messages about the class or method not being found (default *false*)
+* The optional attribute *deoptimize* lists methods which call the hooked method, as class and method name,
+  like `android.os.StatFs.<init>` for the constructors of *StatFs*. The boot image of Android can have small methods compiled
+  into the methods which call them, and those calls then skip the hook. Doppel runs the methods of these names
+  (all of them, whatever their parameters) in the interpreter, so that they call the hooked method through the hook.
+  A method which the device does not have is skipped. These methods run slower, so name only callers that a test on a device
+  showed to skip the hook. The hook editor keeps the attribute but does not show it
 * The attribute *builtin* tells a definition of the app from a custom or downloaded one; the app sets it, exported definitions leave it out
 * Setting *usage* to *false* means that executing the hook will not be reported (default *true*)
 * Setting *notify* to *true* will result in showing notifications when the hook is applied (default *false*)

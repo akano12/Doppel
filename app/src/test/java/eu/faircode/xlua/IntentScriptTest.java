@@ -168,7 +168,8 @@ public class IntentScriptTest {
         assertEquals("com.example.app", result.arg(6).tojstring());
     }
 
-    // Broadcasts about the app itself, like about components it changed, and about system apps stay
+    // Broadcasts about the app itself, like about components it changed, stay; about system apps they keep their data,
+    // where they still arrive (see hiddenPackageBroadcastsAreNotDelivered)
     @Test
     public void visiblePackagesStay() {
         Varargs own = run(
@@ -194,7 +195,7 @@ public class IntentScriptTest {
                         "local param = paramof(intent, { ['com.google.android.webview'] = true })\n" +
                         "return after(hookof('Intent.createFromParcel/package'), param),\n" +
                         "  intent.data:getSchemeSpecificPart(), intent.extras['android.intent.extra.UID']");
-        assertFalse(system.arg(1).toboolean());
+        assertTrue(system.arg(1).toboolean());
         assertEquals("com.google.android.webview", system.arg(2).tojstring());
         assertEquals(10050, system.arg(3).toint());
     }
@@ -252,6 +253,89 @@ public class IntentScriptTest {
         assertEquals(1, result.arg(3).toint());
         assertEquals("com.example.app", result.arg(4).tojstring());
         assertEquals(10001, result.arg(5).toint());
+    }
+
+    // A broadcast about another app, also one without extras and system apps too, is marked, so it does not reach the
+    // receivers (see receiver_skip), like on a device without the app: a receiver of the manifest is finished first, a
+    // registered one only when nothing goes back to Android, so an ordered one still arrives about the app itself, or
+    // with the system app; so are the removal of another user id, also without its package, and a list without the app
+    // itself, also of hidden packages only; broadcasts about the app itself and packages of its user id, lists with the
+    // app itself and broadcasts of processes of the system are not marked
+    @Test
+    public void hiddenPackageBroadcastsAreNotDelivered() throws Exception {
+        Varargs marks = run("removed = intentof('android.intent.action.PACKAGE_REMOVED',\n" +
+                "  { ['android.intent.extra.UID'] = 10060, ['android.intent.extra.REPLACING'] = true }, 'com.example.bank')\n" +
+                "cleared = intentof('android.intent.action.PACKAGE_DATA_CLEARED', nil, 'com.example.bank')\n" +
+                "own = intentof('android.intent.action.PACKAGE_CHANGED', { ['android.intent.extra.UID'] = 10001 }, 'com.example.app')\n" +
+                "sibling = intentof('android.intent.action.PACKAGE_REPLACED', { ['android.intent.extra.UID'] = 10001 },\n" +
+                "  'com.example.app.plugin')\n" +
+                "webview = intentof('android.intent.action.PACKAGE_REPLACED', {}, 'com.google.android.webview')\n" +
+                "system = intentof('android.intent.action.PACKAGE_ADDED', {}, 'com.example.bank')\n" +
+                "suspended = intentof('android.intent.action.PACKAGES_SUSPENDED',\n" +
+                "  { ['android.intent.extra.changed_package_list'] = { length = 1, 'com.example.bank' } })\n" +
+                "focus = intentof('android.intent.action.PACKAGES_SUSPENDED',\n" +
+                "  { ['android.intent.extra.changed_package_list'] = { length = 1, 'com.google.android.youtube' } })\n" +
+                "mine = intentof('android.intent.action.PACKAGES_UNSUSPENDED',\n" +
+                "  { ['android.intent.extra.changed_package_list'] = { length = 2, 'com.example.app', 'com.example.bank' } })\n" +
+                "uninstalled = intentof('android.intent.action.UID_REMOVED', { ['android.intent.extra.UID'] = 10060 })\n" +
+                "hook = hookof('Intent.createFromParcel/package')\n" +
+                "after(hook, paramof(removed))\n" +
+                "after(hook, paramof(cleared))\n" +
+                "after(hook, paramof(own))\n" +
+                "after(hook, paramof(sibling))\n" +
+                "after(hook, paramof(webview, { ['com.google.android.webview'] = true }))\n" +
+                "after(hook, paramof(system, nil, true))\n" +
+                "after(hook, paramof(suspended))\n" +
+                "after(hook, paramof(mine))\n" +
+                "return store[removed]['package.hidden'], store[cleared]['package.hidden'], removed.data, cleared.data,\n" +
+                "  store[own] == nil and store[sibling] == nil and store[system] == nil and store[mine] == nil,\n" +
+                "  store[webview]['package.hidden'], webview.data:getSchemeSpecificPart(), store[suspended]['package.hidden'],\n" +
+                "  after(hook, paramof(focus, { ['com.google.android.youtube'] = true })), store[focus]['package.hidden'],\n" +
+                "  focus.extras['android.intent.extra.changed_package_list'].length, after(hook, paramof(uninstalled)),\n" +
+                "  store[uninstalled]['package.hidden']");
+        assertTrue(marks.arg(1).toboolean());
+        assertTrue(marks.arg(2).toboolean());
+        assertEquals("package:com.example.app", marks.arg(3).tojstring());
+        assertEquals("package:com.example.app", marks.arg(4).tojstring());
+        assertTrue(marks.arg(5).toboolean());
+        assertTrue(marks.arg(6).toboolean());
+        assertEquals("com.google.android.webview", marks.arg(7).tojstring());
+        assertTrue(marks.arg(8).toboolean());
+        assertTrue(marks.arg(9).toboolean());
+        assertTrue(marks.arg(10).toboolean());
+        assertEquals(1, marks.arg(11).toint());
+        assertTrue(marks.arg(12).toboolean());
+        assertTrue(marks.arg(13).toboolean());
+        // The removal of the user id of the app itself is not marked; the uninstall of the updates of a system app, whose
+        // user id stays, is marked like its PACKAGE_REMOVED, without its package
+        assertTrue(run("local own = intentof('android.intent.action.UID_REMOVED', { ['android.intent.extra.UID'] = 10001 })\n" +
+                "return not after(hook, paramof(own)) and store[own] == nil").arg1().toboolean());
+        Varargs update = run("local update = intentof('android.intent.action.UID_REMOVED', { ['android.intent.extra.UID'] = 10050,\n" +
+                "  ['android.intent.extra.REPLACING'] = true, ['android.intent.extra.PACKAGE_NAME'] = 'com.google.android.gms' })\n" +
+                "return after(hook, paramof(update, { ['com.google.android.gms'] = true })), store[update]['package.hidden'],\n" +
+                "  update.extras['android.intent.extra.PACKAGE_NAME'] == nil");
+        assertTrue(update.arg(1).toboolean());
+        assertTrue(update.arg(2).toboolean());
+        assertTrue(update.arg(3).toboolean());
+        String receive = "dispatchof('ReceiverDispatcher.performReceive/package', 'performReceive', 7), ";
+        String sender = "dispatchof('ReceiverDispatcher.performReceive.sender/package', 'performReceive', 10), ";
+        deliver(skipper("removed", "cleared", "own", "webview", "suspended", "uninstalled", "mine"), new String[][]{
+                {"dispatchof('ActivityThread.handleReceiver/package', 'handleReceiver', 1), { [0] = dataof(cleared) }",
+                        "true", "finish,skip"},
+                {"dispatchof('ActivityThread.handleReceiver/package', 'handleReceiver', 1), { [0] = dataof(own) }",
+                        "false", ""},
+                {receive + "{ [0] = removed, [4] = false, [5] = false }", "true", "skip"},
+                {receive + "{ [0] = removed, [4] = true, [5] = false }", "false", ""},
+                {receive + "{ [0] = webview, [4] = false, [5] = false }", "true", "skip"},
+                {receive + "{ [0] = suspended, [4] = false, [5] = false }", "true", "skip"},
+                {receive + "{ [0] = mine, [4] = false, [5] = false }", "false", ""},
+                {sender + "{ [0] = uninstalled, [4] = false, [5] = false, [6] = true }", "true", "skip"},
+                {sender + "{ [0] = removed, [4] = false, [5] = false, [6] = true }", "true", "skip"},
+                {sender + "{ [0] = removed, [4] = false, [5] = false, [6] = false }", "false", ""},
+                {sender + "{ [0] = own, [4] = false, [5] = false, [6] = true }", "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive/network', 'performReceive', 7), " +
+                        "{ [0] = removed, [4] = false, [5] = false }", "false", ""},
+        });
     }
 
     @Test

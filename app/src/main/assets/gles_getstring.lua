@@ -17,8 +17,11 @@
 
 -- The strings of the OpenGL driver name the graphics chip, like Adreno (TM) 740, which narrows down the model of
 -- the device, like Build.MODEL: the renderer and the vendor become unknown, also the family, like Adreno or Mali,
--- which games use for workarounds of drivers; the version keeps its number, like OpenGL ES 3.2, which they parse,
--- the build of the driver goes. The vendor of EGL stays: the EGL loader of Android gives Android on every device.
+-- which games use for workarounds of drivers; the versions of OpenGL ES and of its shading language keep their number,
+-- like OpenGL ES 3.2 and OpenGL ES GLSL ES 3.20, which they parse, the build of the driver goes, like the one of ANGLE.
+-- Android has no value of its own for a GPU it does not know, so these take Build.UNKNOWN like the fields of Build;
+-- the name of a common chip instead would make games apply the workarounds of another driver.
+-- The vendor of EGL stays: the EGL loader of Android gives Android on every device.
 -- Not covered is native code, which calls the driver itself, like most games and Vulkan.
 -- The extensions of vendors, like GL_QCOM_tiled_rendering, GL_ARM_shader_framebuffer_fetch and EGL_IMG_context_priority,
 -- name the chip and the driver too; the extensions of Khronos and Android (OES, EXT, KHR, ANDROID, OVR) stay, which
@@ -32,6 +35,7 @@ local VENDOR = 7936 -- GL_VENDOR
 local RENDERER = 7937 -- GL_RENDERER
 local VERSION = 7938 -- GL_VERSION
 local EXTENSIONS = 7939 -- GL_EXTENSIONS
+local SHADING = 35724 -- GL_SHADING_LANGUAGE_VERSION
 local EGL_EXTENSIONS = 12373 -- EGL_EXTENSIONS
 local NUM_EXTENSIONS = 33309 -- GL_NUM_EXTENSIONS
 local KEPT = { 'GL_OES_', 'GL_EXT_', 'GL_KHR_', 'GL_ANDROID_', 'GL_OVR_', 'EGL_KHR_', 'EGL_EXT_', 'EGL_ANDROID_' }
@@ -182,6 +186,9 @@ function after(hook, param)
         fake = 'unknown'
     elseif name == VERSION then
         fake = string.match(result, '^OpenGL ES[%-%a]* %d+%.%d+')
+    elseif name == SHADING then
+        -- The whole number, like 1.0.17 of the emulator
+        fake = string.match(result, '^OpenGL ES GLSL ES [%d%.]+')
     end
     if fake == nil or fake == result then
         return false

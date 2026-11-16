@@ -20,7 +20,7 @@
 -- themselves, which would bypass the hooks of NetworkInterface. Its entries are left out like those hooks leave out
 -- what they hide: the addresses of the device, loopback stays (network, see network_address), the interfaces of VPNs
 -- (vpn, see vpn) and the hardware addresses (mac, see mac_address), which go out of their entries while those stay.
--- Apps which may not use hidden APIs cannot call it; then reflection does not find the fields here either, so the
+-- Where reflection does not find the fields here (a framework which does not let the module use hidden APIs), the
 -- entries stay, like the original result.
 -- Not covered is Libcore.rawOs, the native getifaddrs, which the hooked one calls, nor native code, which reads the
 -- same entries by netlink itself like the getifaddrs of bionic; Java may not open such a socket (see refused).
@@ -39,11 +39,29 @@ function isvpninterface(name)
     return false
 end
 
--- Whether a variant leaves out an entry (true), or the entry which takes its place
+-- Whether network leaves out the address of an entry
+local function hidden(entry)
+    local address = entry.ifa_addr
+    return address ~= nil and not address:isLoopbackAddress()
+end
+
+-- Whether a variant leaves out an entry (true), or the entry which takes its place; named has the names of the
+-- interfaces which keep an entry
 local OUT = {
-    network = function(entry)
-        local address = entry.ifa_addr
-        return address ~= nil and not address:isLoopbackAddress()
+    -- The interfaces stay without their addresses, like in NetworkInterface (see network_address), which lists the
+    -- names of the entries: an app may get only the entries of the addresses (bionic sends no RTM_GETLINK for it from
+    -- Android 13, and from 11 when it targets 30 or higher), so an entry with only the name and the flags takes the
+    -- place of the first one of an interface which keeps none.
+    -- shortcut: such an app gets no entry without an address from a device, so one which calls getifaddrs itself can
+    -- tell the hook is there, while NetworkInterface agrees with its other hooks; upgrade if apps are seen to check it
+    network = function(entry, named)
+        if not hidden(entry) then
+            return false
+        elseif named[entry.ifa_name] then
+            return true
+        end
+        named[entry.ifa_name] = true
+        return luajava.new(entry:getClass(), entry.ifa_name, entry.ifa_flags, nil, nil, nil, nil)
     end,
     vpn = function(entry)
         return isvpninterface(entry.ifa_name)
@@ -90,10 +108,21 @@ function after(hook, param)
         return false
     end
 
+    local named = {}
+    if out == OUT.network then
+        for index = 1, result['length'] do
+            -- No name where reflection does not find the fields
+            local name = result[index].ifa_name
+            if name ~= nil and not hidden(result[index]) then
+                named[name] = true
+            end
+        end
+    end
+
     local kept, changed = {}, false
     for index = 1, result['length'] do
         local entry = result[index]
-        local fake = out(entry)
+        local fake = out(entry, named)
         if fake then
             changed = true
         end

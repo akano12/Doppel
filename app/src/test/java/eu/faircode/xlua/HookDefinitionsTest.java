@@ -853,10 +853,17 @@ public class HookDefinitionsTest {
     }
 
     // The broadcast of a time zone change is left out where both kinds of receivers get it, with the signature of
-    // ReceiverDispatcher of each version (AOSP oreo-mr1 to android13-release, android14-release to main), and the
-    // property areas are faked for both ways of opening files
+    // ReceiverDispatcher of each version (AOSP oreo-mr1 to android13-release, android14-release to main), the
+    // property areas are faked for both ways of opening files, and the TZ of native code is hidden from Java beneath
+    // Libcore.os and Libcore.rawOs, not in system server, which gets no TZ
     @Test
     public void timeZoneBroadcastAndPropertyAreas() throws Exception {
+        check("Linux.getenv/timezone", "libcore.io.Linux getenv(java.lang.String) @timezone 27-");
+        check("Linux.environ/timezone", "libcore.io.Linux environ() @timezone 27-");
+        for (String name : new String[]{"Linux.getenv/timezone", "Linux.environ/timezone"}) {
+            assertEquals(name, "Read.Timezone", hook(name).getString("group"));
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
+        }
         String args = "android.content.Intent,int,java.lang.String,android.os.Bundle,boolean,boolean,";
         check("ActivityThread.handleReceiver/timezone",
                 "android.app.ActivityThread handleReceiver(android.app.ActivityThread$ReceiverData) @receiver_skip 27-");
@@ -1213,6 +1220,36 @@ public class HookDefinitionsTest {
             }
         assertEquals(13, readers);
         assertTrue(hook("MediaMetadataRetriever.extractMetadata").optBoolean("usage", true));
+    }
+
+    // The sources of ExifInterface and MediaMetadataRetriever, by which photo_location tells the photos and videos of the
+    // app's own APK apart: the constructors of a stream, with a type from Android 11 (and AndroidX), and each source of a
+    // retriever, as a new one replaces the one before; the paths and uris of a retriever end in the descriptor or the uri
+    @Test
+    public void photoSourcesAreHooked() throws Exception {
+        String[][] constructors = {{"ExifInterface.constructor", "android.media.ExifInterface", "1", "27", "false"},
+                {"ExifInterface.constructor/type", "android.media.ExifInterface", "2", "30", "false"},
+                {"ExifInterfaceX.constructor", "androidx.exifinterface.media.ExifInterface", "1", "27", "true"},
+                {"ExifInterfaceX.constructor/type", "androidx.exifinterface.media.ExifInterface", "2", "27", "true"},
+                {"ExifInterfaceS.constructor", "android.support.media.ExifInterface", "1", "27", "true"}};
+        for (String[] c : constructors) {
+            JSONObject hook = hook(c[0]);
+            assertNotNull(c[0], hook);
+            assertEquals(c[0], c[1], hook.getString("className"));
+            assertFalse(c[0], hook.has("methodName"));
+            JSONArray params = hook.getJSONArray("parameterTypes");
+            assertEquals(c[0], Integer.parseInt(c[2]), params.length());
+            assertEquals(c[0], "java.io.InputStream", params.getString(0));
+            if (params.length() > 1)
+                assertEquals(c[0], "int", params.getString(1));
+            assertEquals(c[0], Integer.parseInt(c[3]), hook.getInt("minSdk"));
+            assertEquals(c[0], Boolean.parseBoolean(c[4]), hook.optBoolean("optional", false));
+            assertEquals(c[0], "@photo_location", hook.getString("luaScript"));
+        }
+        String m = "android.media.MediaMetadataRetriever setDataSource(";
+        check("MediaMetadataRetriever.setDataSource/fd", m + "java.io.FileDescriptor,long,long) @photo_location 27-");
+        check("MediaMetadataRetriever.setDataSource/uri", m + "java.lang.String,java.util.Map) @photo_location 27-");
+        check("MediaMetadataRetriever.setDataSource/source", m + "android.media.MediaDataSource) @photo_location 27-");
     }
 
     // The files of /proc/net are denied for reading, not missing (see hardware_files): Read.Network asks access for
@@ -1596,10 +1633,10 @@ public class HookDefinitionsTest {
                     "@intent_createfromparcel 27-");
             assertEquals(variant[1], hook("Intent.createFromParcel/" + variant[0]).getString("group"));
         }
-        // The broadcasts of Bluetooth about a device and of a VPN do not reach either kind of receiver, with the signature
-        // of ReceiverDispatcher of each version, like the time zone change
+        // The broadcasts of Bluetooth about a device, of a VPN and about other apps do not reach either kind of
+        // receiver, with the signature of ReceiverDispatcher of each version, like the time zone change
         String args = "android.content.Intent,int,java.lang.String,android.os.Bundle,boolean,boolean,";
-        for (String[] variant : new String[][]{{"network", "Read.Network"}, {"vpn", "Read.VPN"}}) {
+        for (String[] variant : new String[][]{{"network", "Read.Network"}, {"vpn", "Read.VPN"}, {"package", "Get.Applications"}}) {
             check("ActivityThread.handleReceiver/" + variant[0],
                     "android.app.ActivityThread handleReceiver(android.app.ActivityThread$ReceiverData) @receiver_skip 27-");
             check("ReceiverDispatcher.performReceive/" + variant[0],
@@ -2093,7 +2130,9 @@ public class HookDefinitionsTest {
         check("Display.getDeviceProductInfo", "android.view.Display getDeviceProductInfo() @display_panel 31-");
         check("Display.toString", "android.view.Display toString() @display_panel 27-");
         check("Display.getAddress", "android.view.Display getAddress() @display_panel 29-29 optional");
-        check("Build.getFingerprintedPartitions", "android.os.Build getFingerprintedPartitions() @generic_empty 29-");
+        // The fingerprint made like its property, the base OS empty like not set
+        check("Build.FINGERPRINT", "android.os.Build #FINGERPRINT() @systemproperties_get 27-");
+        check("Build.VERSION.BASE_OS", "android.os.Build$VERSION #BASE_OS() @generic_empty_text 27-");
         check("LocationManager.registerGnssStatusCallback30", "android.location.LocationManager registerGnssStatusCallback(" +
                 "java.util.concurrent.Executor,android.location.GnssStatus$Callback) @gnss_register 30-");
         check("LinkProperties.getMtu/vpn", "android.net.LinkProperties getMtu() @vpn_addresses 27-");
@@ -2697,6 +2736,22 @@ public class HookDefinitionsTest {
             assertTrue(name + " is not excluded from android", Arrays.asList(hook(name).optString("excludePackages", "")
                     .split(",")).contains("android"));
         assertEquals("Get.Applications", hook("AccountManager.getAuthenticatorTypes/apps").getString("group"));
+        // The accounts go with the types of their authenticators, in every list and in the calls which name a type
+        String a = "android.accounts.AccountManager ";
+        check("AccountManager.getAccounts/apps", a + "getAccounts() @account_authenticators 27-");
+        check("AccountManager.getAccountsAsUser/apps", a + "getAccountsAsUser(int) @account_authenticators 27- optional");
+        check("AccountManager.getAccountsByType/apps", a + "getAccountsByType(java.lang.String) @account_authenticators 27-");
+        check("AccountManager.getAccountsByTypeAsUser/apps", a +
+                "getAccountsByTypeAsUser(java.lang.String,android.os.UserHandle) @account_authenticators 27- optional");
+        check("AccountManager.getAccountsByTypeForPackage/apps", a +
+                "getAccountsByTypeForPackage(java.lang.String,java.lang.String) @account_authenticators 27-");
+        check("AccountManager.getAccountsByTypeAndFeatures/apps", a + "getAccountsByTypeAndFeatures(java.lang.String," +
+                "java.lang.String[],android.accounts.AccountManagerCallback,android.os.Handler) @account_authenticators 27-");
+        check("AccountManager.getAccountsAndVisibilityForPackage/apps", a +
+                "getAccountsAndVisibilityForPackage(java.lang.String,java.lang.String) @account_authenticators 27-");
+        for (JSONObject hook : hooks)
+            if ("@account_authenticators".equals(hook.getString("luaScript")))
+                assertEquals(hook.getString("name"), "Get.Applications", hook.getString("group"));
         // The account types are left out only with the apps they tell are installed, not by Read.Account alone
         for (JSONObject hook : hooks)
             if ("getAuthenticatorTypes".equals(hook.optString("methodName")))

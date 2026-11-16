@@ -22,6 +22,7 @@ package eu.faircode.xlua;
 import org.junit.Test;
 import org.luaj.vm2.Globals;
 
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -367,12 +368,59 @@ public class FakeValuesAgreeTest {
         assertEquals("2025-04-01", run(globals, "fakeof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH', '2025-05-05')"));
     }
 
+    // The fingerprint Android makes of the fake fields Build.BRAND to Build.TAGS and the real release, the same for
+    // Build.FINGERPRINT, its properties and the property areas; init takes release_or_codename from Android 12. The
+    // fingerprint of the build an update was made for is not there, like on most devices; the partitions have the fake
+    // fingerprint, so Build.getFingerprintedPartitions lists them like on every device of Android 10 and later.
+    @Test
+    public void fingerprint() throws Exception {
+        String real = "google/shiba/shiba:14/UQ1A.240205.004/11269751:user/release-keys";
+        Globals unknown = load("generic_unknown_value");
+        Function<String, String> field = name -> run(unknown, "fakeof('Build." + name + "', '#" + name + "', 'x')");
+        String expected = field.apply("BRAND") + "/" + field.apply("PRODUCT") + "/" + field.apply("DEVICE") + ":14/" +
+                field.apply("ID") + "/" + field.apply("INCREMENTAL") + ":" + field.apply("TYPE") + "/" + field.apply("TAGS");
+        assertEquals("unknown/unknown/unknown:14/unknown/unknown:unknown/unknown", expected);
+
+        Globals properties = load("systemproperties_get");
+        Scripts.run(properties, "SDK, CODENAME = 34, '14'\n" +
+                "luajava = { bindClass = function(name)\n" +
+                "  assert(name == 'android.os.Build$VERSION')\n" +
+                "  return { SDK_INT = SDK, RELEASE = '14', RELEASE_OR_CODENAME = CODENAME }\n" +
+                "end }");
+        assertEquals(expected, run(properties, "fakeof('Build.FINGERPRINT', '#FINGERPRINT', '" + real + "')"));
+        for (String key : new String[]{"ro.build.fingerprint", "ro.build.legacy.fingerprint", "ro.system.build.fingerprint",
+                "ro.vendor.build.fingerprint", "ro.bootimage.build.fingerprint"}) {
+            assertEquals(key, expected, run(properties, "fakeof('SystemProperties.get/device', 'get', '" + real + "', { '" +
+                    key + "' })"));
+            assertEquals(key, key + "=" + expected, area(properties, "BlockGuardOs.open/device", "{}", key, real));
+        }
+        // The release of Build also when the real fingerprint has another one, like of a ROM
+        Scripts.run(properties, "CODENAME = 'VanillaIceCream'");
+        assertEquals("unknown/unknown/unknown:VanillaIceCream/unknown/unknown:unknown/unknown",
+                run(properties, "fakeof('Build.FINGERPRINT', '#FINGERPRINT', 'google/husky/husky:10/x/y:user/release-keys')"));
+        Scripts.run(properties, "SDK = 30");
+        assertEquals(expected, run(properties, "fakeof('Build.FINGERPRINT', '#FINGERPRINT', '" + real + "')"));
+
+        assertEquals("", run(load("generic_empty_text"), "fakeof('Build.VERSION.BASE_OS', '#BASE_OS', '" + real + "')"));
+        for (String key : new String[]{"ro.build.version.base_os", "ro.build.thumbprint", "ro.vendor.build.thumbprint"}) {
+            assertEquals(key, "", run(properties, "fakeof('SystemProperties.get/device', 'get', '" + real + "', { '" + key + "' })"));
+            assertEquals(key, "def", run(properties, "fakeof('SystemProperties.get.default/device', 'get', '" + real +
+                    "', { '" + key + "', 'def' })"));
+            assertEquals(key, "", run(properties, "fakeof('SystemProperties.get.default/device', 'get', '" + real +
+                    "', { '" + key + "' })"));
+            assertEquals(key, key + "=", area(properties, "BlockGuardOs.open/device", "{}", key, real));
+        }
+    }
+
     // The model, the build and the security patch in the property areas the app reads as files, like
     // u:object_r:build_prop:s0 and build_vendor_prop, are those of get, for both ways of opening files; ANGLE as the
     // driver of the system and properties which name no device stay
     @Test
     public void deviceInPropertyAreas() throws Exception {
         Globals properties = load("systemproperties_get");
+        Scripts.run(properties, "luajava = { bindClass = function(name)\n" +
+                "  return { SDK_INT = 34, RELEASE = '14', RELEASE_OR_CODENAME = '14' }\n" +
+                "end }");
         String[][] cases = {{"ro.product.model", "sdk_gphone64_x86_64"}, {"ro.product.vendor.model", "sdk_gphone64_x86_64"},
                 {"ro.build.id", "UE1A.230829.050"},
                 {"ro.vendor.build.fingerprint", "google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.050/10930475:userdebug/dev-keys"},
@@ -387,6 +435,38 @@ public class FakeValuesAgreeTest {
         assertEquals("", area(properties, "BlockGuardOs.open/device", "{}", "ro.hardware.egl", "angle",
                 "persist.sys.locale", "de-DE", "ro.product.first_api_level", "34"));
         assertEquals("/dev/__properties__/*", run(properties, "filter(hookof('BlockGuardOs.open/device', 'open'))[1]"));
+    }
+
+    // Build.getFingerprintedPartitions has no hook: Android makes each partition of its properties, by get, which calls
+    // native_get(key) natively up to Android 10 and native_get(key, '') from Android 11 (AOSP android10-release to
+    // main), so a partition has the fingerprint of Build.FINGERPRINT and the time (date.utc * 1000) of Build.TIME, and
+    // a partition without the property is left out, like on the device
+    @Test
+    public void partitionsHaveTheFakeBuild() throws Exception {
+        Globals properties = load("systemproperties_get");
+        Scripts.run(properties, "luajava = { bindClass = function(name)\n" +
+                "  return { SDK_INT = 34, RELEASE = '14', RELEASE_OR_CODENAME = '14' }\n" +
+                "end }");
+        String fingerprint = run(properties, "fakeof('Build.FINGERPRINT', '#FINGERPRINT', " +
+                "'google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.050/12077443:userdebug/dev-keys')");
+        Globals zero = load("generic_zero_value");
+        long time = Scripts.run(zero, "local param = paramof(1693526400000, {}, {})\n" +
+                "param.getException = function(self) return nil end\n" +
+                "after(hookof('Build.TIME', '#TIME'), param)\n" +
+                "return param.result").arg1().tolong();
+        String[][] hooks = {{"SystemProperties.get/device", "get", "{ '%s' }"},
+                {"SystemProperties.native_get/device", "native_get", "{ '%s' }"},
+                {"SystemProperties.native_get.default/device", "native_get", "{ '%s', '' }"}};
+        for (String name : new String[]{"bootimage", "odm", "product", "product_services", "system_ext", "system", "vendor"})
+            for (String[] hook : hooks) {
+                String key = "ro." + name + ".build.";
+                String head = "fakeof('" + hook[0] + "', '" + hook[1] + "', ";
+                assertEquals(key, fingerprint, run(properties, head + "'google/sdk_gphone64_x86_64/emu64xa:14/" +
+                        "UE1A.230829.050/12077443:userdebug/dev-keys', " + String.format(hook[2], key + "fingerprint") + ")"));
+                assertEquals(key, time, Long.parseLong(run(properties, head + "'1693526400', " +
+                        String.format(hook[2], key + "date.utc") + ")")) * 1000);
+                assertEquals(key, "", run(properties, head + "'', " + String.format(hook[2], key + "fingerprint") + ")"));
+            }
     }
 
     // The state of adb in the property areas the app reads as files, like sys.usb.config and init.svc.adbd, is that of

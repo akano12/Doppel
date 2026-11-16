@@ -17,7 +17,8 @@
 
 function after(hook, param)
     local result = param:getResult()
-    -- Empty stays empty, like the property Build.VERSION.BASE_OS reads (see systemproperties_get)
+    -- No value stays, like Build.getRadioVersion of a device without a radio; the fields of Build are unknown, Android's
+    -- value of a property which is not set
     if result == nil or result == '' then
         return false
     end

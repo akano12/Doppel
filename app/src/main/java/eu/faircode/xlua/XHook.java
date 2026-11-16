@@ -71,6 +71,7 @@ public class XHook {
     private String luaScript;
 
     private String[] settings;
+    private String[] deoptimize;
 
     private XHook() {
     }
@@ -199,6 +200,11 @@ public class XHook {
         return (this.settings == null ? new String[0] : this.settings);
     }
 
+    // Methods which call the hooked method, as class and method name, "<init>" for constructors, empty when none
+    public String[] getDeoptimize() {
+        return (this.deoptimize == null ? new String[0] : this.deoptimize);
+    }
+
     // Hooks of system services hook the implementation, which can be a subclass
     public void resolveClassName(Context context) {
         try {
@@ -309,6 +315,9 @@ public class XHook {
         if (this.settings != null)
             jroot.put("settings", new JSONArray(Arrays.asList(this.settings)));
 
+        if (this.deoptimize != null)
+            jroot.put("deoptimize", new JSONArray(Arrays.asList(this.deoptimize)));
+
         return jroot;
     }
 
@@ -363,6 +372,13 @@ public class XHook {
                 hook.settings[i] = jsettings.getString(i);
         } else
             hook.settings = null;
+
+        JSONArray jdeoptimize = jroot.optJSONArray("deoptimize");
+        if (jdeoptimize != null) {
+            hook.deoptimize = new String[jdeoptimize.length()];
+            for (int i = 0; i < jdeoptimize.length(); i++)
+                hook.deoptimize[i] = jdeoptimize.getString(i);
+        }
 
         return hook;
     }
@@ -445,6 +461,7 @@ public class XHook {
         dest.writeByte(this.notify ? (byte) 1 : (byte) 0);
         dest.writeString(withLua ? this.luaScript : null);
         dest.writeStringArray(this.settings);
+        dest.writeStringArray(this.deoptimize);
     }
 
     protected XHook(Parcel in) {
@@ -471,6 +488,8 @@ public class XHook {
         this.notify = (in.readByte() != 0);
         this.luaScript = in.readString();
         this.settings = in.createStringArray();
+        // Last, so a parcel of the service of the version before, until the reboot after an update, reads as none
+        this.deoptimize = (in.dataAvail() > 0 ? in.createStringArray() : null);
     }
 
     public static final Parcelable.Creator<XHook> CREATOR = new Parcelable.Creator<XHook>() {

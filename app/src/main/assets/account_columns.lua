@@ -26,6 +26,9 @@
 -- shortcut: contacts of types of vendors which are no accounts either, like vnd.sec.contact.phone, and SIM contacts
 -- before Android 12, which has no list of them, are faked; upgrade with the accounts of the device from the service,
 -- as the app sees only some of them
+-- shortcut: the rows of contacts and calendars still show by their account_type and account_name the accounts which
+-- Get.Applications leaves out of the getAccounts calls (see account_authenticators), of hidden apps and from Android 11
+-- of authenticators the app cannot see; leave out the rows of the types the app does not see, with the same check
 local NAMES = { 'account_name', 'accountName' }
 local ADDRESSES = { 'ownerAccount', 'organizer', 'attendeeEmail', 'name', 'calendar_displayName' }
 

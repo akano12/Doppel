@@ -29,10 +29,13 @@ function fakezone(param)
     return luajava.bindClass('java.util.TimeZone'):getTimeZone(fakeid(param))
 end
 
--- Only the property areas run the script of the hooks of opening files (see XCore.getFilter)
+-- Only the property areas run the script of the hooks of opening files, and only TZ the one of getenv
+-- (see XCore.getFilter)
 function filter(hook)
     if hook:getMethodName() == 'open' then
         return { '/dev/__properties__/*' }
+    elseif hook:getMethodName() == 'getenv' then
+        return { 'TZ' }
     end
     return nil
 end
@@ -71,6 +74,41 @@ function after(hook, param)
             return false
         end
         return true, old, id
+    elseif method == 'getenv' then
+        -- The TZ set below is not there for Java, like on a device without Doppel; a TZ the app set itself stays
+        local id = fakeid(param)
+        if param:getArgument(0) ~= 'TZ' or param:getResult() ~= id then
+            return false
+        end
+        param:setResult(nil)
+        return true, id, nil
+    elseif method == 'environ' then
+        local result = param:getResult()
+        local kept = {}
+        for index = 1, result['length'] do
+            if result[index] ~= 'TZ=' .. fakeid(param) then
+                kept[#kept + 1] = result[index]
+            end
+        end
+        if #kept == result['length'] then
+            return false
+        end
+        local fake = luajava.bindClass('java.lang.reflect.Array'):newInstance(
+                luajava.bindClass('java.lang.String'), #kept)
+        for index = 1, #kept do
+            fake[index] = kept[index]
+        end
+        param:setResult(fake)
+        return true, tostring(result['length']), tostring(#kept)
+    elseif method == '#defaultTimeZone' and param:getPackageName() ~= 'android' then
+        -- Once, at the start: native code, like localtime of bionic, which SQLite, Flutter and JNI libraries use, takes
+        -- the zone from TZ before the property of the zone, which Java hooks cannot change. A TZ the app set itself
+        -- stays. System.getenv() keeps the environment of the start, so it is read before. Not in system server, where
+        -- other threads could read the environment while setenv changes it.
+        -- shortcut: an app setting TZ itself without overwriting, or to the fake zone, reads no TZ back, and one
+        -- removing TZ gives native code the real zone again; hook Linux.setenv and unsetenv when apps do that
+        luajava.bindClass('java.lang.System'):getenv()
+        luajava.bindClass('android.system.Os'):setenv('TZ', fakeid(param), false)
     end
 
     local result = param:getResult()

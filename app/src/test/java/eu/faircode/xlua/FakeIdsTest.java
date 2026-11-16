@@ -102,7 +102,7 @@ public class FakeIdsTest {
     }
 
     // Only the identifiers new each boot get a value, of the app or the same for all apps
-    // The seed of the DRM id is not shown in Fake values and follows the mode of the Android ID; of a fixed one there is none
+    // The seed of the DRM id is not shown in Fake values and follows the mode of the Android ID; of a fixed one it is of the app
     @Test
     public void drmSeedFollowsTheAndroidId() {
         Map<String, String> none = new HashMap<>();
@@ -117,9 +117,35 @@ public class FakeIdsTest {
         assertEquals(FakeIds.getBootValues(SECRET, 0, "com.example", all, none).get(FakeIds.DRM_ID),
                 FakeIds.getBootValues(SECRET, 0, "com.other", all, none).get(FakeIds.DRM_ID));
 
+        // Of a fixed Android ID too, which the app reads, so it cannot compute the DRM id of it
         Map<String, String> fixed = new HashMap<>();
         fixed.put(FakeIds.ANDROID_ID + FakeIds.MODE, FakeIds.FIXED);
-        assertNull(FakeIds.getBootValues(SECRET, 0, "com.example", fixed, none).get(FakeIds.DRM_ID));
+        fixed.put(FakeIds.ANDROID_ID, "44aa15730b248663");
+        String own = FakeIds.getBootValues(SECRET, 0, "com.example", fixed, none).get(FakeIds.DRM_ID);
+        assertEquals(32, own.length());
+        assertNotEquals(own, FakeIds.getBootValues(SECRET, 0, "com.other", fixed, none).get(FakeIds.DRM_ID));
+        assertNull(FakeIds.getBootValues(SECRET, 0, "com.example", fixed, none).get(FakeIds.ANDROID_ID));
+    }
+
+    // An Android ID fixed without a value is one of the app, not zeros; a value for all apps applies to an app fixed
+    // without one, like the settings merge (see XCore)
+    @Test
+    public void fixedAndroidIdWithoutValueIsOfTheApp() {
+        Map<String, String> none = new HashMap<>();
+        Map<String, String> fixed = new HashMap<>();
+        fixed.put(FakeIds.ANDROID_ID + FakeIds.MODE, FakeIds.FIXED);
+        String one = FakeIds.getBootValues(SECRET, 0, "com.example", fixed, none).get(FakeIds.ANDROID_ID);
+        assertTrue(one, one.matches("[0-9a-f]{16}"));
+        assertNotEquals(one, FakeIds.getBootValues(SECRET, 0, "com.other", fixed, none).get(FakeIds.ANDROID_ID));
+        assertEquals(one, FakeIds.getBootValues(SECRET, 0, "com.example", none, fixed).get(FakeIds.ANDROID_ID));
+
+        Map<String, String> global = new HashMap<>();
+        global.put(FakeIds.ANDROID_ID, "44aa15730b248663");
+        assertNull(FakeIds.getBootValues(SECRET, 0, "com.example", global, fixed).get(FakeIds.ANDROID_ID));
+        // Only the Android ID: the serial fixed without a value stays unknown, like Build.getSerial gives apps
+        Map<String, String> serial = new HashMap<>();
+        serial.put(FakeIds.SERIAL + FakeIds.MODE, FakeIds.FIXED);
+        assertNull(FakeIds.getBootValues(SECRET, 0, "com.example", serial, none).get(FakeIds.SERIAL));
     }
 
     // The key of the location offsets is of each app, whatever the modes, and not shown in Fake values

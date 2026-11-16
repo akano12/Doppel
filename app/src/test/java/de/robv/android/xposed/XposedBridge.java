@@ -32,6 +32,13 @@ public final class XposedBridge {
         return null;
     }
 
+    // Of LSPosed, which added it to the legacy API
+    public static Member deoptimized = null;
+
+    public static void deoptimizeMethod(Member deoptimizedMethod) {
+        deoptimized = deoptimizedMethod;
+    }
+
     public static void log(String text) {
     }
 

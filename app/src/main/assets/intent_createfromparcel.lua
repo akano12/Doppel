@@ -19,8 +19,9 @@
 -- The functions of the USB connection (UsbManager), which are extras of USB_STATE, like adb for USB debugging
 local USB_FUNCTIONS = { 'mtp', 'ptp', 'rndis', 'midi', 'accessory', 'audio_source', 'ncm', 'uvc' }
 
--- The actions of the variant package with what they tell: a package which becomes the app itself (own),
--- lists of packages (lists) or the user id of a removed app (uid); the other intents go by without a lookup
+-- The actions of the variant package with what they tell: a package (own), lists of packages (lists) or the user id of a
+-- removed app (uid), of which the broadcasts about other apps are not delivered; where they still arrive, a hidden
+-- package becomes the app itself (own) or is left out (lists, uid); the other intents go by without a lookup
 local PACKAGE_ACTIONS = {}
 for kind, actions in pairs({
     own = { 'PACKAGE_ADDED', 'PACKAGE_CHANGED', 'PACKAGE_DATA_CLEARED', 'PACKAGE_FIRST_LAUNCH', 'PACKAGE_FULLY_REMOVED',
@@ -248,13 +249,25 @@ function after(hook, param)
     end
 
     if kind == 'own' then
-        -- Packages which stay visible, like the app itself and system apps, stay, like their probes (see package_probe),
-        -- also the components of the app which it changed itself
+        -- Broadcasts about the app itself and the packages of its user id stay, also of the components it changed itself
         local data = intent:getData()
-        if data ~= nil and data:getScheme() == 'package' and param:isPackageVisible(data:getSchemeSpecificPart()) then
+        local package = (data ~= nil and data:getScheme() == 'package' and data:getSchemeSpecificPart() or nil)
+        local extras = intent:getExtras()
+        if package == param:getPackageName() or
+                (extras ~= nil and extras:getInt('android.intent.extra.UID', -1) == param:getUid()) then
             return false
         end
 
+        -- A broadcast about another package, system apps too, is marked, so it does not reach the receivers, which are
+        -- code of the app (see receiver_skip), like on a device without the package, which gets none; where it still
+        -- arrives, a package which stays visible, like a system app, stays, like its probes (see package_probe), and a
+        -- hidden one becomes the app itself
+        -- shortcut: the ordered QUERY_PACKAGE_RESTART, which Settings of Android 8.1 to 13 sends to any receiver when the
+        -- user opens the app info of a hidden app, still arrives so; upgrade when receiver_skip can finish ordered ones
+        param:putValue('package.hidden', true, intent)
+        if package ~= nil and param:isPackageVisible(package) then
+            return true
+        end
         local uriClass = luajava.bindClass('android.net.Uri')
         local uri = uriClass:parse('package:' .. param:getPackageName())
         intent:setData(uri)
@@ -262,7 +275,6 @@ function after(hook, param)
         -- The extras are of the app itself too, like the data: its user id, its package, like for PACKAGE_DATA_CLEARED,
         -- and for PACKAGE_CHANGED the changed components, which are the package when all of it changed;
         -- Bundle.putInt, because Lua would select Intent.putExtra(String, byte) for small numbers
-        local extras = intent:getExtras()
         if extras ~= nil then
             if extras:containsKey('android.intent.extra.UID') then
                 extras:putInt('android.intent.extra.UID', param:getUid())
@@ -301,16 +313,26 @@ function after(hook, param)
         local uids = extras:getIntArray('android.intent.extra.changed_uid_list')
         local keptPackages, keptUids = {}, {}
         local count = (packages ~= nil and packages['length'] or 0)
+        local own = false
         for index = 1, count do
             if param:isPackageVisible(packages[index]) then
                 keptPackages[#keptPackages + 1] = packages[index]
-                if uids ~= nil and index <= uids['length'] then
-                    keptUids[#keptUids + 1] = uids[index]
+                local uid = (uids ~= nil and index <= uids['length'] and uids[index] or nil)
+                if uid ~= nil then
+                    keptUids[#keptUids + 1] = uid
                 end
+                own = own or packages[index] == param:getPackageName() or uid == param:getUid()
             end
         end
+        -- A list without the app itself and the packages of its user id is marked, like the broadcasts about another
+        -- package (own), also of hidden packages only, of which Android 11 and later sends none and a device without them
+        -- none either
+        local marked = (count > 0 and not own)
+        if marked then
+            param:putValue('package.hidden', true, intent)
+        end
         if #keptPackages == count then
-            return false
+            return marked
         end
         local arrayClass = luajava.bindClass('java.lang.reflect.Array')
         local names = arrayClass:newInstance(luajava.bindClass('java.lang.String'), #keptPackages)
@@ -328,10 +350,18 @@ function after(hook, param)
         intent:replaceExtras(extras)
         return true
     elseif kind == 'uid' then
-        -- The user id of a removed app can come with its package
+        -- The removal of another user id is marked, like the broadcasts about another package (own), also of the
+        -- updates of a system app, whose user id stays; the user id of a removed app can come with its package
         local extras = intent:getExtras()
-        if extras == nil or not extras:containsKey('android.intent.extra.PACKAGE_NAME') then
+        if extras == nil then
             return false
+        end
+        local marked = (extras:getInt('android.intent.extra.UID', -1) ~= param:getUid())
+        if marked then
+            param:putValue('package.hidden', true, intent)
+        end
+        if not extras:containsKey('android.intent.extra.PACKAGE_NAME') then
+            return marked
         end
         extras:remove('android.intent.extra.PACKAGE_NAME')
         intent:replaceExtras(extras)

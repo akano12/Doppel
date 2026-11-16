@@ -1,0 +1,119 @@
+/*
+    This file is part of Doppel.
+
+    Doppel is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Doppel is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Doppel.  If not, see <http://www.gnu.org/licenses/>.
+
+    Copyright 2026 akano12
+ */
+
+package eu.faircode.xlua;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+// The database moves out of /data/system, which any app can search, without losing restrictions on the way
+public class XDatabaseFolderTest {
+    @Rule
+    public TemporaryFolder root = new TemporaryFolder();
+
+    private File old;
+    private File dir;
+
+    @Before
+    public void folders() throws IOException {
+        old = root.newFolder("system", "xlua");
+        dir = new File(root.newFolder("system_de", "0"), "xlua");
+    }
+
+    private static void write(File file, String text) throws IOException {
+        Files.write(file.toPath(), text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String read(File file) throws IOException {
+        return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+    }
+
+    // The write-ahead log can hold committed rows, so it comes along
+    @Test
+    public void movesAllFiles() throws IOException {
+        write(new File(old, "xlua.db"), "db");
+        write(new File(old, "xlua.db-wal"), "wal");
+        assertEquals(dir, XDatabase.folder(old, dir));
+        assertEquals("db", read(new File(dir, "xlua.db")));
+        assertEquals("wal", read(new File(dir, "xlua.db-wal")));
+        assertFalse(old.exists());
+        assertFalse(new File(dir.getPath() + ".tmp").exists());
+    }
+
+    // A database in the new folder is the current one, also when the old folder could not be removed before
+    @Test
+    public void newDatabaseWins() throws IOException {
+        assertTrue(dir.mkdir());
+        write(new File(dir, "xlua.db"), "new");
+        write(new File(old, "xlua.db"), "old");
+        assertEquals(dir, XDatabase.folder(old, dir));
+        assertEquals("new", read(new File(dir, "xlua.db")));
+        assertFalse(old.exists());
+    }
+
+    // An interrupted copy is made again, without the files it left
+    @Test
+    public void staleFilesAreRemoved() throws IOException {
+        File tmp = new File(dir.getPath() + ".tmp");
+        assertTrue(tmp.mkdir());
+        write(new File(tmp, "xlua.db"), "half");
+        assertTrue(dir.mkdir());
+        write(new File(dir, "xlua.db-wal"), "stale");
+        write(new File(old, "xlua.db"), "db");
+        assertEquals(dir, XDatabase.folder(old, dir));
+        assertEquals("db", read(new File(dir, "xlua.db")));
+        assertFalse(new File(dir, "xlua.db-wal").exists());
+        assertFalse(tmp.exists());
+        assertFalse(old.exists());
+    }
+
+    // A first start makes only the new folder
+    @Test
+    public void withoutOldFolder() {
+        assertTrue(old.delete());
+        assertEquals(dir, XDatabase.folder(old, dir));
+        assertTrue(dir.isDirectory());
+        assertFalse(old.exists());
+    }
+
+    // Without the folder of user 0 the old database stays in use and nothing is made in the place of vold's folder
+    @Test
+    public void failureKeepsOldFolder() throws IOException {
+        File missing = new File(new File(root.getRoot(), "missing"), "xlua");
+        write(new File(old, "xlua.db"), "db");
+        assertEquals(old, XDatabase.folder(old, missing));
+        assertEquals("db", read(new File(old, "xlua.db")));
+        assertFalse(missing.getParentFile().exists());
+
+        assertTrue(new File(old, "xlua.db").delete() && old.delete());
+        assertEquals(old, XDatabase.folder(old, missing));
+        assertFalse(missing.getParentFile().exists());
+    }
+}

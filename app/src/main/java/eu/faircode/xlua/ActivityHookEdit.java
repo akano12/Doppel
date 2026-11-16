@@ -52,6 +52,7 @@ import java.io.ByteArrayInputStream;
 import java.lang.reflect.Member;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -429,6 +430,9 @@ public class ActivityHookEdit extends ActivityBase {
         JSONArray settings = split(etSettings);
         if (settings.length() > 0)
             jhook.put("settings", settings);
+        // Not a field of the editor, kept as the definition has it
+        if (hook != null && hook.getDeoptimize().length > 0)
+            jhook.put("deoptimize", new JSONArray(Arrays.asList(hook.getDeoptimize())));
         return jhook;
     }
 

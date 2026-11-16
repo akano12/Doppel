@@ -679,13 +679,18 @@ public class FingerprintScriptsTest {
         assertEquals(536870912L, result.arg1().tolong());
         assertFalse(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
-        // Never below the heap in use (550 of 576 MB): the real maximum, the next step being above it
-        result = Scripts.run(globals,
-                "total = 576716800\n" +
-                        "local used = paramof(603979776)\n" +
-                        "return after(hookof('maxMemory'), used), used.result");
-        assertFalse(result.arg1().toboolean());
-        assertEquals(603979776L, result.arg(2).tolong());
+        // The step whatever the heap in use (100 and 280 of 288 MB), the memory class in bytes for the whole process
+        int memoryClass = Scripts.run(globals,
+                "local p = paramof(288) after(hookof('getMemoryClass'), p) return p.result").arg1().toint();
+        for (long total : new long[]{104857600L, 293601280L}) {
+            result = Scripts.run(globals,
+                    "total = " + total + "\n" +
+                            "local used = paramof(301989888)\n" +
+                            "return after(hookof('maxMemory'), used), used.result");
+            assertTrue(total + "", result.arg1().toboolean());
+            assertEquals(total + "", memoryClass * 1048576L, result.arg(2).tolong());
+        }
+        assertEquals(256, memoryClass);
 
         Globals properties = load("systemproperties_get");
         String[][] heaps = {{"384m", "384m"}, {"576m", "512m"}, {"300m", "256m"}, {"1g", "512m"},
@@ -883,6 +888,66 @@ public class FingerprintScriptsTest {
         LuaValue bytes = globals.get("xmp").call(LuaValue.NIL,
                 org.luaj.vm2.lib.jse.CoerceJavaToLua.coerce(xmp.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1)));
         assertArrayEquals(blanked.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1), (byte[]) bytes.touserdata(byte[].class));
+    }
+
+    // Photos and videos of the app's own APK keep their location: an ExifInterface of an asset or a raw resource (an
+    // AssetInputStream), and a retriever of a descriptor of one of its APK files until a new source replaces it; a
+    // source which failed keeps the one before, and other streams and descriptors, also of a file which cannot be read,
+    // stay hidden. The descriptor is read without telling StrictMode.
+    @Test
+    public void photosOfTheAppsOwnApkKeepTheirLocation() throws Exception {
+        Globals globals = load("photo_location");
+        Varargs result = Scripts.run(globals,
+                "local files = { ['/data/app/base.apk'] = { st_dev = 1, st_ino = 10 },\n" +
+                        "  ['/data/app/split.apk'] = { st_dev = 1, st_ino = 11 }, ['/sdcard/v.mp4'] = { st_dev = 2, st_ino = 10 } }\n" +
+                        "local allowed, restored = 0, 0\n" +
+                        "luajava.bindClass = function(name) return {\n" +
+                        "  allowThreadDiskReads = function(self) allowed = allowed + 1 return 'old' end,\n" +
+                        "  setThreadPolicy = function(self, policy) if policy == 'old' then restored = restored + 1 end end,\n" +
+                        "  fstat = function(self, fd) return files[fd.path] or error('EBADF') end,\n" +
+                        "  stat = function(self, path) return files[path] end } end\n" +
+                        "local values = {}\n" +
+                        "local function on(param, this) param.getThis = function() return this end\n" +
+                        "  param.putValue = function(self, name, value, scope) values[scope] = values[scope] or {}\n" +
+                        "    values[scope][name] = value end\n" +
+                        "  param.getValue = function(self, name, scope) return (values[scope] or {})[name] end\n" +
+                        "  param.isInstance = function(self, object, name) return type(object) == 'table' and object.class == name end\n" +
+                        "  param.getApplicationContext = function() return { getApplicationInfo = function() return\n" +
+                        "    { sourceDir = '/data/app/base.apk', splitSourceDirs = { length = 1, '/data/app/split.apk' } } end } end\n" +
+                        "  return param end\n" +
+                        "local function fd(path) return { class = 'java.io.FileDescriptor', path = path } end\n" +
+                        "local asset = { class = 'android.content.res.AssetManager$AssetInputStream' }\n" +
+                        "local stream = { class = 'java.io.FileInputStream' }\n" +
+                        "local function exif(source) local this = {}\n" +
+                        "  after(hookof(nil), on(paramof(nil, { [0] = source }), this)) return this end\n" +
+                        "local function read(this, method, result, tag, returnType)\n" +
+                        "  local p = on(paramof(result, { [0] = tag }), this)\n" +
+                        "  after(hookof(method, returnType), p) return tostring(p.result) end\n" +
+                        "local function source(this, arg, failed) local p = on(paramof(nil, { [0] = arg, [1] = 0, [2] = 1 }), this)\n" +
+                        "  if failed then p.getException = function() return 'IllegalArgumentException' end end\n" +
+                        "  after(hookof('setDataSource'), p) end\n" +
+                        "local function location(this) return read(this, 'extractMetadata', '+52.5200+013.4050/', 23) end\n" +
+                        "local shipped, other = exif(asset), exif(stream)\n" +
+                        "local exifs = table.concat({ read(shipped, 'getAttribute', '52/1,31/1,0/1', 'GPSLatitude'),\n" +
+                        "  read(shipped, 'getLatLong', true, 'array', 'boolean'),\n" +
+                        "  read(shipped, 'hasAttribute', true, 'GPSLatitude', 'boolean'),\n" +
+                        "  read(shipped, 'getAttribute', '<x exif:GPSLatitude=\"52,30.12N\"/>', 'Xmp'),\n" +
+                        "  read(other, 'getAttribute', '52/1,31/1,0/1', 'GPSLatitude'),\n" +
+                        "  read(other, 'getLatLong', true, 'array', 'boolean') }, ' ')\n" +
+                        "local mmr, user, broken = {}, {}, {}\n" +
+                        "local videos = {}\n" +
+                        "source(mmr, fd('/data/app/split.apk')) table.insert(videos, location(mmr))\n" +
+                        "source(mmr, fd('/sdcard/v.mp4'), true) table.insert(videos, location(mmr))\n" +
+                        "source(mmr, 'https://example.com/v.mp4') table.insert(videos, location(mmr))\n" +
+                        "source(mmr, fd('/data/app/base.apk')) table.insert(videos, location(mmr))\n" +
+                        "source(mmr, { class = 'android.media.MediaDataSource' }) table.insert(videos, location(mmr))\n" +
+                        "source(user, fd('/sdcard/v.mp4')) table.insert(videos, location(user))\n" +
+                        "source(broken, fd('/proc/self/fd/-1')) table.insert(videos, location(broken))\n" +
+                        "table.insert(videos, location({}))\n" +
+                        "return exifs, table.concat(videos, ' '), allowed == restored and allowed > 0");
+        assertEquals("52/1,31/1,0/1 true true <x exif:GPSLatitude=\"52,30.12N\"/> nil false", result.arg1().tojstring());
+        assertEquals("+52.5200+013.4050/ +52.5200+013.4050/ nil +52.5200+013.4050/ nil nil nil nil", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
     }
 
     @Test
