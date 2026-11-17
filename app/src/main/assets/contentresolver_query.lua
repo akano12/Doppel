@@ -613,7 +613,7 @@ end
 -- The thread of recipients (Telephony.Threads.getOrCreateThreadId), which the provider creates when there is none and
 -- returns, and without which the app would throw: a fake one, the same for the same recipients in any order, of its
 -- fake Android ID (see Fake values) like other fake numbers, so the app cannot tell whether a thread was there before.
--- shortcut: the thread changes with the fake Android ID, which is new each boot unless it is fixed, where the provider
+-- shortcut: the thread changes with the fake Android ID when it is chosen to be new each boot, where the provider
 -- keeps it across boots; upgrade with a secret of each app which stays and the app cannot read.
 -- shortcut: a thread of its own for each way of writing a number, which the provider matches loosely, upgrade when an
 -- app compares them.

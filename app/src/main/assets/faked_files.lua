@@ -19,13 +19,14 @@
 -- Android 11 a removed file of the app, see XParam.setFileText, which tells them apart by its stat, its size and its
 -- link in /proc/self/fd. These answer like for the file it replaced, also through RandomAccessFile.length,
 -- FileInputStream.available, FileChannel.size, /dev/fd and java.nio, and by the path of the link (Os.stat, File.length,
--- File.lastModified), see XParam.unfakeFile; not for a pipe, which XParam.oldFile makes when it can make no file and
--- which must keep the stat of a pipe. Not covered are Libcore.os.fstat by reflection, /proc/self/fdinfo, the canonical
--- path of the link, a link the app makes to the link (Os.stat, File.length and File.lastModified of it give the fake,
--- since only paths with /fd/ run this script), mapping a file of /sys, native code, the stat of java.nio by the path of
--- the link (Files.size, readAttributes) and the access mode from Android 11: a file in memory is open for writing too
--- (fcntl F_GETFL), so writes of the app do not fail with EBADF and it cannot be opened again read-only, since apps may
--- not open their files in memory (AOSP sepolicy, app_domain in te_macros). The hooks are of Use.Tracking and of
+-- File.lastModified), and its access mode by Os.fcntlInt (F_GETFL), read-only, see XParam.unfakeFile; not for a pipe,
+-- which XParam.oldFile makes when it can make no file and which must keep the stat of a pipe. Not covered are
+-- Libcore.os.fstat by reflection, /proc/self/fdinfo, the canonical path of the link, a link the app makes to the link
+-- (Os.stat, File.length and File.lastModified of it give the fake, since only paths with /fd/ run this script), mapping
+-- a file of /sys, native code, the stat of java.nio by the path of the link (Files.size, readAttributes) and writing
+-- from Android 11: a file in memory is open for writing too, so writes of the app do not fail with EBADF, and native
+-- fcntl tells it, and it cannot be opened again read-only, since apps may not open their files in memory (AOSP
+-- sepolicy, app_domain in te_macros). The hooks are of Use.Tracking and of
 -- Read.Debugging, of which hardware_files rewrites the mount tables; where both groups run them for one call, the
 -- second gets the answer of the first and leaves it. shortcut: Read.Resources, Read.Identifiers, Read.Timezone and
 -- Read.Locale fake files too, so for an app restricted by those alone the fake tells its own stat, size and link, also

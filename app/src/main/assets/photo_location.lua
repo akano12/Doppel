@@ -32,6 +32,9 @@ local NULL = {}
 local MODE_ALLOWED = 0
 local PERMISSION_GRANTED = 0
 local FLAG_GRANT_READ_URI_PERMISSION = 1
+-- The class of Android which asks a provider, of the resolver of a context; a client of a provider is not one, as its
+-- provider can be of the app, like the one of a MockContentResolver of tests, whose query would run without the hooks
+local RESOLVER = 'android.app.ContextImpl$ApplicationContentResolver'
 
 -- Words of SQL after which a name is a value, like latitude in AND latitude; after other words (like AS), names,
 -- values and ) a name is an alias or a type, like la in latitude la and latitude AS la
@@ -53,10 +56,15 @@ local rewritten = false
 -- The projection and Bundle of the app, when before changed them, for after when SQLite refuses the changed SQL
 local asked = nil
 
--- Whether a uri is of the media provider, also with the user in front, like 0@media (see contentresolver_query)
+-- Whether a uri is of the media provider, also with the user in front, like 0@media (see contentresolver_query); only
+-- a user Android reads as a number, since for another one, like x@media, ContentProvider.getUserIdFromAuthority logs
+-- "Error parsing userId." with the stack, which would have the frames of the script, and no provider answers
 function media(uri)
     local authority = (uri ~= nil and uri:getAuthority() or nil)
-    return authority ~= nil and string.gsub(authority, '^.*@', '') == 'media'
+    local user = (authority ~= nil and string.match(authority, '^(.*)@media$') or nil)
+    return authority == 'media' or (user ~= nil and (pcall(function()
+        return luajava.bindClass('java.lang.Integer'):parseInt(user)
+    end)))
 end
 
 -- The location column of a name of SQL, in any case, like latitude for Latitude, else nil
@@ -346,10 +354,34 @@ function stringarray(list, n)
     return array
 end
 
+-- The resolver to ask the media provider with, without the hooks: the one of the query when it is of Android's own
+-- class (RESOLVER), else the resolver of the context, which is; nil when neither is. A query of a subclass of the app,
+-- like of ContentResolver, runs the code of the app, like its acquireUnstableProvider, and a client runs its provider,
+-- which can be of the app, both of which would run without the hooks. The classes themselves are compared, which a
+-- class of the app with the same name is not.
+-- shortcut: a subclass or a client whose provider of the authority media is another one, like the one of a
+-- MockContentResolver of tests, gets the columns and the errors of the media provider of Android; upgrade if apps ship one
+function asker(param)
+    local function framework(object)
+        local ok, same = pcall(function()
+            return object:getClass() == luajava.bindClass(RESOLVER)
+        end)
+        return ok and same
+    end
+    local this = param:getThis()
+    if not framework(this) then
+        this = param:getApplicationContext():getContentResolver()
+    end
+    return (framework(this) and this or nil)
+end
+
 -- The columns of the table of a query of the media provider, which it gives for a selection of no rows, as the
 -- projection: the location columns NULL; nil when the provider gives none
 function columnsof(param, uri)
-    local this = param:getThis()
+    local this = asker(param)
+    if this == nil then
+        return nil
+    end
     local args = luajava.newInstance('android.os.Bundle')
     args:putString('android:query-arg-sql-selection', '0')
     local names = param:unhooked(function()
@@ -484,13 +516,16 @@ function before(hook, param)
         param:setArgument(1, stringarray(list, n))
     end
 
-    -- A copy: the app could read its own Bundle back
+    -- A copy: the app could read its own Bundle back. Its values are read by get and their type, since getString and
+    -- getStringArray of another type log a warning with the stack, which would have the frames of the script, where the
+    -- app process of Android reads none of them, like XParam.plainQueryArgs
     local bundle = param:getArgument(2)
     local fake = false
     if bundle ~= nil then
         local copy = luajava.newInstance('android.os.Bundle', bundle)
         for _, key in ipairs({ 'android:query-arg-sql-selection', 'android:query-arg-sql-sort-order' }) do
-            local text = copy:getString(key)
+            local text = copy:get(key)
+            text = (type(text) == 'string' and text or nil)
             local sorting = (key == 'android:query-arg-sql-sort-order' and aliases or nil)
             local sql = (text ~= nil and rewrite(text, nil, inner, tables, sorting) or nil)
             if sql ~= text then
@@ -499,8 +534,8 @@ function before(hook, param)
             end
         end
         -- Without the sort order the provider sorts by these, joined (ContentResolver.createSqlSortClause)
-        local sort = copy:getStringArray('android:query-arg-sort-columns')
-        if sort ~= nil then
+        local sort = copy:get('android:query-arg-sort-columns')
+        if param:isInstance(sort, '[Ljava.lang.String;') then
             local list, differ = {}, false
             for index = 1, sort['length'] do
                 list[index] = (sort[index] ~= nil and rewrite(sort[index], nil, inner, tables, aliases) or nil)
@@ -522,13 +557,19 @@ function before(hook, param)
     return false
 end
 
--- The cursor, or nil, of the query with the arguments of the app, unhooked, or the exception it throws, which
--- CompletableFuture.handle gets as the Throwable itself, where pcall gets only its text
+-- The cursor, or nil, of the query with the arguments of the app, unhooked (see asker), or the exception it throws,
+-- which CompletableFuture.handle gets as the Throwable itself, where pcall gets only its text; neither when there is no
+-- resolver to ask with. The Bundle is a copy of the query arguments only (XParam.plainQueryArgs), made with the hooks,
+-- as the query writes it to a parcel, where values of classes of the app in the Bundle of the app would run their code.
 function original(param, arguments)
-    local this, uri, signal = param:getThis(), param:getArgument(0), param:getArgument(3)
+    local this, uri, signal = asker(param), param:getArgument(0), param:getArgument(3)
     local cursor, thrown
+    if this == nil then
+        return nil, nil
+    end
+    local bundle = param:plainQueryArgs(arguments.bundle)
     local run = luajava.createProxy('java.util.function.Function', { apply = function()
-        return this:query(uri, arguments.projection, arguments.bundle, signal)
+        return this:query(uri, arguments.projection, bundle, signal)
     end })
     -- The exception comes wrapped in a CompletionException
     local keep = luajava.createProxy('java.util.function.BiFunction', { apply = function(value, ex)
@@ -686,17 +727,46 @@ function own(param, ...)
     return true
 end
 
+-- The name of the class whose getAttribute(String) an object runs: its own, or the one it inherits it from.
+-- Lua sees a Class as its static members, so the methods of Class get the class as the object.
+function declarer(this)
+    local class = luajava.bindClass('java.lang.Class')
+    local types = luajava.bindClass('java.lang.reflect.Array'):newInstance(class, 1)
+    types[1] = luajava.bindClass('java.lang.String')
+    return class.getName(class.getMethod(this:getClass(), 'getAttribute', types):getDeclaringClass())
+end
+
 -- Whether the value of a tag is zeroed already, like the media provider zeroes the bytes of the GPS tags for apps
--- without ACCESS_MEDIA_LOCATION, which ExifInterface then gives as 0/0 or empty: such tags stay like Android gives them
-function zeroed(param, tag, value)
+-- without ACCESS_MEDIA_LOCATION, which ExifInterface then gives as 0/0 or empty: such tags stay like Android gives them.
+-- The tag is read only from an object which runs the getAttribute of the hooked class itself, also a subclass of the
+-- app which does not override it, so it answers like an object of that class on the same photo: of Android without
+-- the hooks, and of AndroidX and the support library, which are code in the app, with them, whose getAttribute keeps a
+-- zeroed tag and gives a real one as missing, so the answers agree. A subclass which overrides getAttribute is not
+-- read, because its override would decide what counts as zeroed, like 0/0 for the real tags, or come back to these
+-- hooks without end: its tags are not zeroed. A failed read is not zeroed.
+-- shortcut: a subclass which overrides getAttribute gets hasAttribute false and no value of the other getters for a
+-- zeroed tag which its super.getAttribute keeps as 0/0, since the hook backends of Doppel cannot call the method of the
+-- hooked class past an override; upgrade with invokeSpecial of the libxposed API, and for the legacy API with its
+-- invokeOriginalMethod once that is shown not to dispatch to the override
+function zeroed(hook, param, tag, value)
     if value == nil then
         local this = param:getThis()
+        local class = hook:getClassName()
         if this == nil then
             return false
         end
-        value = param:unhooked(function()
-            return this:getAttribute(tag)
+        local ok, read = pcall(function()
+            if declarer(this) ~= class then
+                return nil
+            end
+            if class ~= 'android.media.ExifInterface' then
+                return this:getAttribute(tag)
+            end
+            return param:unhooked(function()
+                return this:getAttribute(tag)
+            end)
         end)
+        value = (ok and read or nil)
     end
     return type(value) == 'string' and string.find(value, '^[0/,%s%z]*$') ~= nil
 end
@@ -795,14 +865,18 @@ function after(hook, param)
     elseif method == 'hasAttribute' then
         -- hasAttribute of a GPS tag is false, like a tag which is not there
         local tag = param:getArgument(0)
-        if not gps(tag) or result == false or own(param, tag) or zeroed(param, tag) then
+        if not gps(tag) or result == false or own(param, tag) or zeroed(hook, param, tag) then
             return false
         end
         param:setResult(false)
         return true, tag, nil
     else
         -- getAttribute, getAttributeBytes, getAttributeInt, getAttributeDouble and getAttributeRange of a GPS tag:
-        -- like a tag which is not there, null or the default
+        -- like a tag which is not there, null or the default; null is a tag which is not there already, which needs no
+        -- read of the tag (see zeroed), which would else come back to this hook without end
+        if result == nil then
+            return false
+        end
         local tag = param:getArgument(0)
         if tag == 'Xmp' and result ~= nil and (method == 'getAttribute' or method == 'getAttributeBytes') and
                 not own(param, tag) then
@@ -813,7 +887,7 @@ function after(hook, param)
             param:setResult(fake)
             return true, tag, nil
         end
-        if not gps(tag) or own(param, tag) or zeroed(param, tag, method == 'getAttribute' and result or nil) then
+        if not gps(tag) or own(param, tag) or zeroed(hook, param, tag, method == 'getAttribute' and result or nil) then
             return false
         end
         if method == 'getAttributeInt' or method == 'getAttributeDouble' then

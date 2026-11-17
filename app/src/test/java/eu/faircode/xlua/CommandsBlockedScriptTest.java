@@ -32,7 +32,10 @@ import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Proxy;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -67,9 +70,38 @@ public class CommandsBlockedScriptTest {
             "function fork(program, dir, folder) return call('forkAndExec', {}, { [0] = program, [5] = dir }, folder) end",
             "function finish(builder, ex)",
             "  local made",
-            "  after({}, { getThis = function(self) return builder end, getException = function(self) return ex end,",
+            "  after({ getMethodName = function(self) return 'start' end }, {",
+            "    getThis = function(self) return builder end, getException = function(self) return ex end,",
             "    setResult = function(self, value) made = value end })",
             "  return made",
+            "end",
+            "SDK = 34",
+            "function sdk() return SDK end",
+            "function access(class, method, target, mode, folder, targetSdk, data)",
+            "  local args = { [0] = target, [1] = mode }",
+            "  local info = { nativeLibraryDir = folder, targetSdkVersion = targetSdk, dataDir = data }",
+            "  local param = {",
+            "    getArgument = function(self, index) return args[index] end,",
+            "    setArgument = function(self, index, value) args[index] = value end,",
+            "    getApplicationContext = function(self)",
+            "      return { getApplicationInfo = function(self) return info end }",
+            "    end }",
+            "  local hook = { getClassName = function(self) return class end, getMethodName = function(self) return method end }",
+            "  local restricted, line = before(hook, param)",
+            "  return restricted, args[0], line",
+            "end",
+            "function checked(method, target, result, folder)",
+            "  local info = { nativeLibraryDir = folder, targetSdkVersion = 34 }",
+            "  local param = {",
+            "    getThis = function(self) return target end,",
+            "    getArgument = function(self, index) return target end,",
+            "    getResult = function(self) return result end,",
+            "    setResult = function(self, value) result = value end,",
+            "    getApplicationContext = function(self)",
+            "      return { getApplicationInfo = function(self) return info end }",
+            "    end }",
+            "  local restricted, line = after({ getMethodName = function(self) return method end }, param)",
+            "  return restricted, result, line",
             "end");
 
     @Rule
@@ -334,6 +366,170 @@ public class CommandsBlockedScriptTest {
         Files.copy(program.toPath(), copy.toPath());
         assertTrue(refused(null, copy.getPath()) != null);
         assertTrue(refused(files, "./getprop") != null);
+    }
+
+    private static final int X_OK = 1, W_OK = 2, R_OK = 4;
+
+    // The argument which a check of access passes on with the hook, the file run instead, or null when it is left as it is
+    private Object accessed(String className, String method, Object target, int mode, int targetSdk, File data) {
+        Varargs result = globals.get("access").invoke(new LuaValue[]{LuaValue.valueOf(className), LuaValue.valueOf(method),
+                CoerceJavaToLua.coerce(target), LuaValue.valueOf(mode), CoerceJavaToLua.coerce(lib.getPath()),
+                LuaValue.valueOf(targetSdk), data == null ? LuaValue.NIL : LuaValue.valueOf(data.getPath())});
+        if (!result.arg1().toboolean()) {
+            if (target instanceof String)
+                assertEquals(target, result.arg(2).tojstring());
+            else
+                assertSame(target, result.arg(2).touserdata());
+            return null;
+        }
+        assertEquals(target.toString(), result.arg(3).tojstring());
+        return result.arg(2).isstring() ? result.arg(2).tojstring() : result.arg(2).touserdata();
+    }
+
+    private Object accessed(String path, int mode) {
+        return accessed("android.system.Os", "access", path, mode, 34, null);
+    }
+
+    // The answer of File.canExecute or Files.isExecutable after its real check, which here says yes
+    private Varargs checked(String method, Object target) {
+        return globals.get("checked").invoke(new LuaValue[]{LuaValue.valueOf(method), CoerceJavaToLua.coerce(target),
+                LuaValue.TRUE, CoerceJavaToLua.coerce(lib.getPath())});
+    }
+
+    // Os.access says no for a program whose exec is refused, by the real call for the file run instead, which may not run
+    // either, here on the computer running the test, so the exception is the one Android gives; so does
+    // UnixNativeDispatcher.access, by a path of java.nio, which Files.isExecutable and the checkAccess of its provider
+    // check with; File.canExecute and Files.isExecutable say no after their real check, which the hook leaves to run,
+    // also where the hooks beneath them do not run
+    @Test
+    public void programsMayNotRunByAccess() throws Exception {
+        Assume.assumeTrue(new File("/bin/sh").isFile() && File.separatorChar == '/');
+        assertEquals("/dev/null", accessed("/bin/sh", X_OK));
+        assertEquals("/dev/null", accessed("/bin/sh", R_OK | X_OK));
+        assertEquals("/dev/null", accessed("libcore.io.BlockGuardOs", "access", "/bin/sh", X_OK, 34, null));
+        assertFalse(new File("/dev/null").canExecute());
+        String unix = "sun.nio.fs.UnixNativeDispatcher";
+        for (int mode : new int[]{X_OK, R_OK | X_OK})
+            assertEquals(Paths.get("/dev/null"), accessed(unix, "access", Paths.get("/bin/sh"), mode, 34, null));
+        assertFalse(Files.isExecutable(Paths.get("/dev/null")));
+        for (Object[] check : new Object[][]{{"canExecute", new File("/bin/sh")}, {"isExecutable", Paths.get("/bin/sh")}}) {
+            Varargs result = checked((String) check[0], check[1]);
+            assertTrue(result.arg1().toboolean());
+            assertFalse(result.arg(2).toboolean());
+            assertEquals("/bin/sh", result.arg(3).tojstring());
+        }
+        // By the path the check of File takes, not its text
+        File named = new File("/bin/sh") {
+            @Override
+            public String toString() {
+                throw new IllegalStateException();
+            }
+        };
+        assertFalse(checked("canExecute", named).arg(2).toboolean());
+        // Not for a folder, whose search stays
+        assertTrue(checked("canExecute", files).arg(2).toboolean());
+        assertTrue(checked("isExecutable", files.toPath()).arg(2).toboolean());
+        assertNull(accessed(unix, "access", files.toPath(), X_OK, 34, null));
+        // Nor for other modes, like of Files.exists, nor for a program of the native library folder, which runs
+        for (int mode : new int[]{0, R_OK, W_OK})
+            assertNull(accessed(unix, "access", Paths.get("/bin/sh"), mode, 34, null));
+        assertTrue(lib.mkdir());
+        File program = new File(lib, "libtool.so");
+        assertTrue(program.createNewFile());
+        assertNull(accessed(unix, "access", program.toPath(), X_OK, 34, null));
+        // Nor after a real check which says no
+        Varargs no = globals.get("checked").invoke(new LuaValue[]{LuaValue.valueOf("canExecute"),
+                CoerceJavaToLua.coerce(new File("/bin/sh")), LuaValue.FALSE, CoerceJavaToLua.coerce(lib.getPath())});
+        assertFalse(no.arg1().toboolean());
+        assertFalse(no.arg(2).toboolean());
+        // Nor after one which throws, like for a null path, nor for a path of another file system, which no exec runs
+        Varargs thrown = globals.get("checked").invoke(new LuaValue[]{LuaValue.valueOf("isExecutable"), LuaValue.NIL,
+                LuaValue.NIL, CoerceJavaToLua.coerce(lib.getPath())});
+        assertFalse(thrown.arg1().toboolean());
+        assertTrue(thrown.arg(2).isnil());
+        Path other = (Path) Proxy.newProxyInstance(Path.class.getClassLoader(), new Class<?>[]{Path.class},
+                (proxy, m, args) -> "toString".equals(m.getName()) ? "/bin/sh" : null);
+        assertTrue(checked("isExecutable", other).arg(2).toboolean());
+    }
+
+    // Other modes, like of File.exists (8), folders, whose search stays, files which do not exist and no path at all
+    // keep their answer, and so do programs of the native library folder, which run
+    @Test
+    public void otherChecksOfAccessStay() throws Exception {
+        Assume.assumeTrue(new File("/bin/sh").isFile() && File.separatorChar == '/');
+        for (int mode : new int[]{0, W_OK, R_OK, R_OK | W_OK, 8})
+            assertNull(accessed("/bin/sh", mode));
+        assertNull(accessed(files.getPath(), X_OK));
+        assertNull(accessed(new File(files, "none").getPath(), X_OK));
+        // The kernel wants a folder for a / at the end, ENOTDIR for a file, which File drops
+        assertNull(accessed("/bin/sh/", X_OK));
+        assertTrue(globals.get("access").invoke(new LuaValue[]{LuaValue.valueOf("android.system.Os"),
+                LuaValue.valueOf("access"), LuaValue.NIL, LuaValue.valueOf(X_OK)}).isnil(2));
+        assertTrue(lib.mkdir());
+        File program = new File(lib, "libtool.so");
+        assertTrue(program.createNewFile());
+        assertNull(accessed(program.getPath(), X_OK));
+        assertTrue(checked("canExecute", program).arg(2).toboolean());
+        // A file the app may not write keeps the answer for writing too, else it may not run
+        Assume.assumeFalse(new File("/bin/sh").canWrite());
+        assertNull(accessed("/bin/sh", W_OK | X_OK));
+        File tool = new File(files, "tool");
+        assertTrue(tool.createNewFile());
+        assertEquals("/dev/null", accessed(tool.getPath(), W_OK | X_OK));
+    }
+
+    // The script checks files with disk reads allowed, so StrictMode hears of no read the call of the app does not make,
+    // and the policy of the app is back after the checks, also when they fail; the program run instead, which a hook of
+    // the same method of another group passes on, is not checked again; and the script is shared by the groups, so it
+    // runs once per call (see XCore.installMethod)
+    @Test
+    public void checksOfFilesTellStrictModeNothing() throws Exception {
+        Assume.assumeTrue(new File("/bin/sh").isFile() && File.separatorChar == '/');
+        Varargs result = Scripts.run(globals,
+                "local bind, make = luajava.bindClass, luajava.new\n" +
+                        "local policy, checks, lax = 'app', 0, 0\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name == 'android.os.StrictMode' then return {\n" +
+                        "    allowThreadDiskReads = function(self) local old = policy policy = 'lax' return old end,\n" +
+                        "    setThreadPolicy = function(self, value) policy = value end } end\n" +
+                        "  return bind(name) end\n" +
+                        "local file = bind('java.io.File')\n" +
+                        "luajava.new = function(class, path, ...)\n" +
+                        "  if class == file then\n" +
+                        "    checks = checks + 1\n" +
+                        "    if policy == 'lax' then lax = lax + 1 end\n" +
+                        "    if path == '/bin/boom' then error('boom') end\n" +
+                        "  end\n" +
+                        "  return make(class, path, ...) end\n" +
+                        "local _, refused = access('android.system.Os', 'access', '/bin/sh', 1, nil, 34)\n" +
+                        "local first, restored = checks, policy\n" +
+                        "local passed = access('libcore.io.BlockGuardOs', 'access', refused, 1, nil, 34)\n" +
+                        "local again = checks\n" +
+                        "local failed = access('android.system.Os', 'access', '/bin/boom', 1, nil, 34)\n" +
+                        "return refused, first, lax == checks, restored, passed, again, failed, policy, shared(nil)");
+        assertEquals("/dev/null", result.arg1().tojstring());
+        assertTrue(result.arg(2).toint() > 0);
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("app", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertEquals(result.arg(2).toint(), result.arg(6).toint());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals("app", result.arg(8).tojstring());
+        assertTrue(result.arg(9).toboolean());
+    }
+
+    // Android 10 and later let access say yes for the files of the data folders of an app which targets them, whose
+    // exec fails by itself; for older apps and Android 9 and before the exec is refused like that of other files
+    @Test
+    public void filesOfTheAppKeepAccessWhereAndroidRefusesTheirExec() throws Exception {
+        Assume.assumeTrue(File.separatorChar == '/');
+        File tool = new File(files, "tool");
+        assertTrue(tool.createNewFile());
+        assertNull(accessed("android.system.Os", "access", tool.getPath(), X_OK, 29, temp.getRoot()));
+        assertEquals("/dev/null", accessed("android.system.Os", "access", tool.getPath(), X_OK, 28, temp.getRoot()));
+        assertEquals("/dev/null", accessed("android.system.Os", "access", tool.getPath(), X_OK, 29, temp.newFolder("data")));
+        globals.set("SDK", 28);
+        assertEquals("/dev/null", accessed("android.system.Os", "access", tool.getPath(), X_OK, 29, temp.getRoot()));
     }
 
     @Test

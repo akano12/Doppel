@@ -16,17 +16,19 @@
 -- Copyright 2026 akano12
 
 -- The names of the codecs name the vendor of the chip, like c2.qti.avc.decoder (Qualcomm), c2.exynos.h264.decoder
--- (Samsung) and OMX.MTK.VIDEO.DECODER.AVC (MediaTek), which narrows down the model. The vendor becomes hw, like
--- c2.hw.avc.decoder, numbered (hw2, hw3) where two codecs would get the same name, like OMX.SEC.avc.dec and
--- OMX.Exynos.avc.dec; the codecs of Android itself (android, google) and of FFmpeg stay. Codecs of vendors which
--- ExoPlayer and Media3 take for software by their name before Android 10 (OMX.SEC.*.sw.*, the HEVC software decoder
--- of Qualcomm) become google, which they take for software too. What the codecs can do stays, since players choose
--- codecs by it, and so does the end of a name, like .secure. Media libraries get the fake names too, which turns off
--- their workarounds of bugs of codecs of vendors by name (ExoPlayer, Media3); a fake name an app opens a codec with
--- is the real one again, and a real name, which the faked list does not have, opens no codec, and the exceptions of
--- both name the codec the app asked for. The metrics of a codec have the fake name too, and vendor parameters, named
--- after the vendor, are not there (generic hooks). Not covered is native code (NDK AMediaCodec).
-local KEPT = { android = true, google = true, ffmpeg = true, hw = true }
+-- (Samsung) and OMX.MTK.VIDEO.DECODER.AVC (MediaTek), which narrows down the model. The vendor becomes unknown, like
+-- c2.unknown.avc.decoder, the value of Android for a vendor it does not know (Build.UNKNOWN), which the GPU, MediaDrm
+-- and Build.SOC_MANUFACTURER give for the vendor of the chip too; a real vendor would contradict them and turn on its
+-- workarounds for codecs of another vendor. It is numbered (unknown2, unknown3) where two codecs would get the same
+-- name, like OMX.SEC.avc.dec and OMX.Exynos.avc.dec; the codecs of Android itself (android, google) and of FFmpeg
+-- stay. Codecs of vendors which ExoPlayer and Media3 take for software by their name before Android 10 (OMX.SEC.*.sw.*,
+-- the HEVC software decoder of Qualcomm) become google, which they take for software too. What the codecs can do stays,
+-- since players choose codecs by it, and so does the end of a name, like .secure. Media libraries get the fake names
+-- too, which turns off their workarounds of bugs of codecs of vendors by name (ExoPlayer, Media3); a fake name an app
+-- opens a codec with is the real one again, and a real name, which the faked list does not have, opens no codec, and
+-- the exceptions of both name the codec the app asked for. The metrics of a codec have the fake name too, and vendor
+-- parameters, named after the vendor, are not there (generic hooks). Not covered is native code (NDK AMediaCodec).
+local KEPT = { android = true, google = true, ffmpeg = true, unknown = true }
 
 -- MediaCodec.MetricsConstants.CODEC, and MediaPlayer.MetricsConstants.CODEC_VIDEO and CODEC_AUDIO of the codecs
 -- a player decoded with
@@ -52,7 +54,7 @@ function fakename(name)
     if software(name) then
         return 'OMX.google.' .. rest
     end
-    return first .. '.hw.' .. rest
+    return first .. '.unknown.' .. rest
 end
 
 -- The fake names of the names of all codecs, real to fake and back: numbered where two would get the same one,
@@ -72,7 +74,7 @@ function mapping(names)
                 local number = 1
                 while taken[fake] do
                     number = number + 1
-                    fake = first .. '.hw' .. number .. '.' .. rest
+                    fake = first .. '.unknown' .. number .. '.' .. rest
                 end
                 taken[fake] = true
                 reals[fake] = name
@@ -135,7 +137,7 @@ function before(hook, param)
     -- is a codec the faked list does not have: Android gets the fake name, which no codec of the device has (see
     -- mapping), and fails like for a name of no codec.
     -- shortcut: Android 9+ would open a real codec named like a secure fake name without .secure, which only a device
-    -- with codecs of the vendor hw has, upgrade when one does
+    -- with codecs of the vendor unknown has, upgrade when one does
     local stem = string.match(name, '^(.+)%.secure$')
     local fake = fakes[name] or (stem ~= nil and fakes[stem] ~= nil and fakes[stem] .. '.secure') or nil
     if fake == nil or fake == name then
@@ -195,7 +197,7 @@ function fakeof(param, name)
     end
     local fakes, reals = codecs(param)
     -- Already fake, like the name findDecoderForFormat and MediaCodec.getName get from the hooked getName and
-    -- getCanonicalName they call: a numbered one (hw2) would else become the fake name of another codec
+    -- getCanonicalName they call: a numbered one (unknown2) would else become the fake name of another codec
     if reals[name] ~= nil then
         return nil
     end

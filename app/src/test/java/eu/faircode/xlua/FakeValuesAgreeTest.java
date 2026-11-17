@@ -87,23 +87,60 @@ public class FakeValuesAgreeTest {
                 "end)()");
     }
 
-    // The kernel release without the build, for Os.uname and the property os.version
+    // The kernel release of the unstamped build of the newest AOSP kernel of the same version, without the sublevel of
+    // the device and with the page size of arm64 kernels, for Os.uname, the property os.version and /proc, and the
+    // version of Os.uname, dated like every kernel version, in /proc/sys/kernel/version and /proc/version too
     @Test
     public void kernel() throws Exception {
-        String real = "6.6.50-android15-8-g8adecb593e9b";
         Globals uname = load("uname");
         Scripts.run(uname, "luajava = { newInstance = function(name, sysname, nodename, release, version, machine)\n" +
                 "  return { release = release, nodename = nodename, version = version } end }");
-        assertEquals("6.6.50", run(uname, "fakeof('Os.uname', 'uname', " +
-                "{ sysname = 'Linux', release = '" + real + "', machine = 'aarch64' }).release"));
+        Globals proc = load("kernel_version");
+        Scripts.run(proc, "function readof(path, text)\n" +
+                "  after(nil, { getException = function(self) return nil end, getResult = function(self) return 'fd' end,\n" +
+                "    opens = function(self, file) return file == path end, getFileText = function(self) return text end,\n" +
+                "    setFileText = function(self, fake) text = fake end })\n" +
+                "  return text\n" +
+                "end");
         Globals properties = load("system_properties");
-        assertEquals("6.6.50", run(properties, "(function()\n" +
-                "  local values = { ['os.version'] = '" + real + "' }\n" +
-                "  fakeof('System.unchangeableProps', '#unchangeableProps', {\n" +
-                "    get = function(self, key) return values[key] end,\n" +
-                "    put = function(self, key, value) values[key] = value end })\n" +
-                "  return values['os.version']\n" +
-                "end)()"));
+        String[][] releases = {
+                { "3.18.91+", "3.18.140" },
+                { "4.14.175-gdbec1739", "4.14.336" },
+                { "4.14.336", "4.14.336" },
+                { "5.10.185-android12-9-00043-g383607d234da-ab10550364", "5.10.270-android12-9-maybe-dirty" },
+                { "5.15.119-android13-8-00034-gd34029c8258b", "5.15.220-android13-8-maybe-dirty" },
+                { "6.1.23-android14-4-00257-g7e35917775b8-ab9964412", "6.1.177-android14-11-maybe-dirty" },
+                { "6.1.75-android14-11-g8b1f2a9-ab11000000", "6.1.177-android14-11-maybe-dirty" },
+                // The page size of arm64 kernels from 6.6 on stays, x86 kernels have none
+                { "6.6.50-android15-8-g8adecb593e9b", "6.6.144-android15-8-maybe-dirty" },
+                { "6.6.50-android15-8-g8adecb593e9b-ab12345678-4k", "6.6.144-android15-8-maybe-dirty-4k" },
+                { "6.12.81-android16-6-g4f69fc7b210c-ab16167562", "6.12.96-android16-7-maybe-dirty" },
+                { "6.12.38-android16-5-g1a2b3c4d5e6f-ab13800000-16k", "6.12.96-android16-7-maybe-dirty-16k" },
+                { "6.18.2-android17-1-gabcdef-4k", "6.18.33-android17-6-maybe-dirty-4k" },
+                { "6.18.33-android17-6-maybe-dirty-4k", "6.18.33-android17-6-maybe-dirty-4k" },
+                { "7.1.3-android18-1-gabcdef", "7.1.0" }
+        };
+        for (String[] release : releases) {
+            String real = release[0];
+            String fake = "fakeof('Os.uname', 'uname', { sysname = 'Linux', release = '" + real + "', machine = 'aarch64', " +
+                    "version = '#1 SMP PREEMPT Tue Oct 1 12:00:00 UTC 2024' })";
+            assertEquals(release[1], run(uname, fake + ".release"));
+            String version = run(uname, fake + ".version");
+            assertTrue(version, version.matches("#\\d+ SMP PREEMPT [A-Z][a-z]{2} [A-Z][a-z]{2} +\\d+ \\d{2}:\\d{2}:\\d{2} [A-Z]+ \\d{4}"));
+            assertEquals(release[1] + "\n", run(proc, "readof('/proc/sys/kernel/osrelease', '" + real + "\\n')"));
+            assertEquals(version + "\n", run(proc, "readof('/proc/sys/kernel/version', '#1 SMP PREEMPT Tue Oct 1 12:00:00 UTC 2024\\n')"));
+            String banner = run(proc, "readof('/proc/version', 'Linux version " + real +
+                    " (builder@host) (clang version 17.0.0) #1 SMP PREEMPT\\n')");
+            assertTrue(banner, banner.startsWith("Linux version " + release[1] + " ("));
+            assertTrue(banner, banner.endsWith(") " + version + "\n"));
+            assertEquals(release[1], run(properties, "(function()\n" +
+                    "  local values = { ['os.version'] = '" + real + "' }\n" +
+                    "  fakeof('System.unchangeableProps', '#unchangeableProps', {\n" +
+                    "    get = function(self, key) return values[key] end,\n" +
+                    "    put = function(self, key, value) values[key] = value end })\n" +
+                    "  return values['os.version']\n" +
+                    "end)()"));
+        }
     }
 
     // UTC without a time zone set, else the one set, for the default time zone, its property and the
@@ -265,26 +302,33 @@ public class FakeValuesAgreeTest {
     // (wifiinfo_ssid_bssid, mac_address, network_address) are the ones of the text of WifiInfo (network_tostring)
     @Test
     public void wifi() throws Exception {
-        String ssid = run(load("wifiinfo_ssid_bssid"), "fakeof(nil, 'getSSID', '\"Home\"')");
-        String bssid = run(load("wifiinfo_ssid_bssid"), "fakeof(nil, 'getBSSID', 'aa:bb:cc:dd:ee:ff')");
         String mac = run(load("mac_address"), "fakeof(nil, 'getMacAddress', '11:22:33:44:55:66')");
         String ip = run(load("network_address"), "fakeof(nil, 'getIpAddress', 167772674)");
         assertEquals(0, Integer.parseInt(ip));
 
-        // From Android 12 the text has the name of getSSID
+        // From Android 12 the text has the name of getSSID, of the network Android hides without the location permission
+        Globals getters = load("wifiinfo_ssid_bssid");
         Globals tostring = load("network_tostring");
-        Scripts.run(tostring, "local real = luajava\nsdk = 31\n" +
-                "luajava = setmetatable({ bindClass = function(name)\n" +
-                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
-                "  return real.bindClass(name) end }, { __index = real })");
+        for (Globals globals : new Globals[]{getters, tostring})
+            Scripts.run(globals, "local real = luajava\nsdk = 31\n" +
+                    "luajava = setmetatable({ bindClass = function(name)\n" +
+                    "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                    "  return real.bindClass(name) end }, { __index = real })");
+        String ssid = run(getters, "fakeof(nil, 'getSSID', '\"Home\"')");
+        String bssid = run(getters, "fakeof(nil, 'getBSSID', 'aa:bb:cc:dd:ee:ff')");
+        String id = run(getters, "fakeof(nil, 'getNetworkId', 3)");
         String text = run(tostring, "wifiinfo('SSID: \"Home\", BSSID: aa:bb:cc:dd:ee:ff," +
-                " MAC: 11:22:33:44:55:66, IP: /10.0.2.16, Security type: 0')");
+                " MAC: 11:22:33:44:55:66, IP: /10.0.2.16, Security type: 0, Net ID: 3, Metered hint: false')");
         // The address 0 of the getter is no address, which Android prints as null
         assertTrue(text, text.startsWith("SSID: " + ssid + ", BSSID: " + bssid + ", MAC: " + mac + "," +
                 " IP: null,"));
-        // Before it the name of WifiSsid, which getSSID quotes
-        String old = run(tostring, "(function() sdk = 30 return wifiinfo('SSID: Home, BSSID: aa:bb:cc:dd:ee:ff," +
-                " MAC: 11:22:33:44:55:66') end)()");
+        assertTrue(text, text.contains(", Net ID: " + id + ", "));
+        // Before it the fake network, of the name of WifiSsid, which getSSID quotes
+        for (Globals globals : new Globals[]{getters, tostring})
+            Scripts.run(globals, "sdk = 30");
+        ssid = run(getters, "fakeof(nil, 'getSSID', '\"Home\"')");
+        bssid = run(getters, "fakeof(nil, 'getBSSID', 'aa:bb:cc:dd:ee:ff')");
+        String old = run(tostring, "wifiinfo('SSID: Home, BSSID: aa:bb:cc:dd:ee:ff, MAC: 11:22:33:44:55:66')");
         assertEquals("SSID: " + ssid.substring(1, ssid.length() - 1) + ", BSSID: " + bssid + ", MAC: " + mac, old);
 
         // The Bluetooth address of the settings is a MAC address too, like BluetoothAdapter.getAddress
@@ -355,17 +399,16 @@ public class FakeValuesAgreeTest {
                 "{ 'ro.boot.vbmeta.public_key_digest' })"));
     }
 
-    // The first day of the quarter, for Build.VERSION.SECURITY_PATCH and its property; other texts stay
+    // Not set, for Build.VERSION.SECURITY_PATCH and its property, also of other texts
     @Test
     public void securityPatch() throws Exception {
         Globals globals = load("systemproperties_get");
-        for (String date : new String[]{"2025-01-01", "2025-03-31", "2025-05-05", "2025-07-01", "2025-12-31",
-                "2025-5-5", "unknown"}) {
+        for (String date : new String[]{"2025-01-01", "2025-05-05", "2025-12-31", "2025-5-5", "unknown"}) {
             String expected = run(globals, "fakeof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH', '" + date + "')");
             assertEquals(date, expected, run(globals, "fakeof('SystemProperties.get/device', 'get', '" + date +
                     "', { 'ro.build.version.security_patch' })"));
         }
-        assertEquals("2025-04-01", run(globals, "fakeof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH', '2025-05-05')"));
+        assertEquals("", run(globals, "fakeof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH', '2025-05-05')"));
     }
 
     // The fingerprint Android makes of the fake fields Build.BRAND to Build.TAGS and the real release, the same for
@@ -469,14 +512,17 @@ public class FakeValuesAgreeTest {
             }
     }
 
-    // The state of adb in the property areas the app reads as files, like sys.usb.config and init.svc.adbd, is that of
-    // get, for both ways of opening files; properties which are not of adb stay
+    // The state of adb and the user build in the property areas the app reads as files, like sys.usb.config,
+    // init.svc.adbd and ro.build.type, is that of get, for both ways of opening files; properties which are not of adb
+    // or the build stay
     @Test
     public void debuggingInPropertyAreas() throws Exception {
         Globals properties = load("systemproperties_get");
         String[][] cases = {{"sys.usb.config", "mtp,adb"}, {"sys.usb.state", "adb"}, {"persist.sys.usb.config", "adb"},
                 {"init.svc.adbd", "running"}, {"ro.debuggable", "1"}, {"service.adb.tcp.port", "5555"},
-                {"persist.log.tag", "Settings,I"}};
+                {"persist.log.tag", "Settings,I"}, {"ro.build.type", "userdebug"}, {"ro.adb.secure", "0"},
+                {"dalvik.vm.lockprof.threshold", "500"},
+                {"ro.vendor.build.fingerprint", "google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.050/10930475:userdebug/dev-keys"}};
         for (String[] property : cases) {
             String expected = run(properties, "fakeof('SystemProperties.get/debugging', 'get', '" + property[1] + "', { '" +
                     property[0] + "' })");
@@ -485,22 +531,35 @@ public class FakeValuesAgreeTest {
                 assertEquals(property[0], property[0] + "=" + expected, area(properties, hook, "{}", property[0], property[1]));
         }
         assertEquals("", area(properties, "BlockGuardOs.open/debugging", "{}", "persist.sys.locale", "de-DE",
-                "ro.product.model", "Pixel 8"));
+                "ro.product.model", "Pixel 8", "ro.build.type", "user"));
         assertEquals("/dev/__properties__/*", run(properties, "filter(hookof('BlockGuardOs.open/debugging', 'open'))[1]"));
     }
 
-    // The model and build in the user agent of WebView become K, like Chrome does, for the default user agent
-    // and for the ones the app sets
+    // The model and build in the user agent of WebView become the fake Build.MODEL and Build.ID, like http.agent
+    // (system_properties), for the default user agent and for the ones the app sets; without a model none is added,
+    // and the reduced one of Android 17 and the fake one stay
     @Test
     public void userAgent() throws Exception {
         Globals globals = load("webview_constructor");
         String[][] agents = {
                 {"Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv) AppleWebKit/537.36",
-                        "Mozilla/5.0 (Linux; Android 15; K; wv) AppleWebKit/537.36"},
+                        "Mozilla/5.0 (Linux; Android 15; unknown Build/unknown; wv) AppleWebKit/537.36"},
                 {"Mozilla/5.0 (Linux; Android 10; SM-G973F Build/QP1A.190711.020) AppleWebKit/537.36",
-                        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"},
-                {"Mozilla/5.0 (Linux; Android 15; K; wv) AppleWebKit/537.36",
-                        "Mozilla/5.0 (Linux; Android 15; K; wv) AppleWebKit/537.36"}};
+                        "Mozilla/5.0 (Linux; Android 10; unknown Build/unknown) AppleWebKit/537.36"},
+                {"Mozilla/5.0 (Linux; Android Baklava; Build/BP21.250103.003; wv) AppleWebKit/537.36",
+                        "Mozilla/5.0 (Linux; Android Baklava; Build/unknown; wv) AppleWebKit/537.36"},
+                {"Mozilla/5.0 (Linux; Android 15; unknown Build/unknown; wv) AppleWebKit/537.36",
+                        "Mozilla/5.0 (Linux; Android 15; unknown Build/unknown; wv) AppleWebKit/537.36"},
+                {"Mozilla/5.0 (Linux; Android 9; Android SDK built for x86 Build/PSR1.180720.075; wv) AppleWebKit/537.36",
+                        "Mozilla/5.0 (Linux; Android 9; unknown Build/unknown; wv) AppleWebKit/537.36"},
+                {"Dalvik/2.1.0 (Linux; U; Android 9; Android SDK built for x86 Build/PSR1.180720.075)",
+                        "Dalvik/2.1.0 (Linux; U; Android 9; unknown Build/unknown)"},
+                {"Mozilla/5.0 (Linux; Android 10; K; wv) AppleWebKit/537.36",
+                        "Mozilla/5.0 (Linux; Android 10; K; wv) AppleWebKit/537.36"},
+                {"Dalvik/2.1.0 (Linux; U; Android 15; Pixel 9 Build/AP4A.250105.002)",
+                        "Dalvik/2.1.0 (Linux; U; Android 15; unknown Build/unknown)"},
+                {"Dalvik/2.1.0 (Linux; U; Android Baklava Build/BP21.250103.003)",
+                        "Dalvik/2.1.0 (Linux; U; Android Baklava Build/unknown)"}};
         for (String[] ua : agents) {
             String expected = run(globals, "fakeof(nil, 'getDefaultUserAgent', '" + ua[0] + "')");
             assertEquals(ua[0], ua[1], expected);
@@ -549,14 +608,28 @@ public class FakeValuesAgreeTest {
         }
     }
 
+    // The feature files which stay for Read.Features (hardware_files) are of the features it shows (features)
+    @Test
+    public void shownFeaturesAreTheSame() throws Exception {
+        Pattern shown = Pattern.compile("\nlocal SHOWN = (\\{[^}]*\\})\n");
+        Matcher features = shown.matcher(Scripts.read("features").replace("\r\n", "\n"));
+        Matcher files = shown.matcher(Scripts.read("hardware_files").replace("\r\n", "\n"));
+        assertTrue(features.find());
+        assertTrue(files.find());
+        assertEquals(features.group(1), files.group(1));
+    }
+
     // The folders of VPN interfaces which do not exist (hardware_files) are of the interfaces vpn leaves out
     @Test
     public void vpnInterfacesAreTheSame() throws Exception {
         assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("hardware_files", "isvpninterface"));
         assertEquals(Scripts.function("generic_empty", "emptylike"), Scripts.function("network_address", "emptylike"));
         assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("vpn_addresses", "isvpninterface"));
+        assertEquals(Scripts.function("vpn", "isvpninterface"), Scripts.function("vpn_parcel", "isvpninterface"));
         assertEquals(Scripts.function("vpn", "linkproperties"), Scripts.function("vpn_addresses", "linkproperties"));
         assertEquals(Scripts.function("vpn", "linkproperties"), Scripts.function("network_address", "linkproperties"));
+        assertEquals(Scripts.function("vpn", "devicevpn"), Scripts.function("vpn_addresses", "devicevpn"));
+        assertEquals(Scripts.function("vpn", "devicevpn"), Scripts.function("vpn_parcel", "devicevpn"));
     }
 
     // 8 processors in /proc/cpuinfo (cpuinfo) and for Runtime.availableProcessors and the ranges of /sys (cpu_count)
@@ -620,15 +693,18 @@ public class FakeValuesAgreeTest {
                 "/proc/scsi/scsi", "/proc/bus/input/devices", "/sys/class/camera/rear/rear_camfw",
                 "/system/bin/su", "/system/xbin/su", "/sbin/su", "/su/bin/su", "/system/app/Superuser.apk",
                 "/system/bin/magisk", "/debug_ramdisk/magisk", "/data/adb/magisk.db", "/proc/self/root/system/xbin/su",
-                "/system/etc/permissions", "/vendor/etc/permissions/android.hardware.bluetooth.xml",
+                "/system/framework/XposedBridge.jar", "/system/xposed.prop", "/system/bin/app_process64_xposed",
+                "/system/lib64/libxposed_art.so", "/system/lib/libriru_edxp.so",
+                "/vendor/etc/permissions/android.hardware.bluetooth.xml",
                 "/product/etc/permissions/carrierwifi.xml", "/system/etc/sysconfig/google.xml",
                 "/system/etc/permissions/privapp-permissions-meta.xml",
-                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/devices/system/cpu/cpu3/topology/core_id",
-                "/sys/devices/system/cpu/modalias", "/sys/devices/system/cpu/cpu8", "/sys/devices/system/cpu/cpu9/online",
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "/sys/devices/system/cpu/cpu3/cache/index0/size",
+                "/sys/devices/system/cpu/cpu8", "/sys/devices/system/cpu/cpu9/online",
                 "/sys/devices/system/cpu/cpu10", "/sys/devices/system/cpu/cpu127/online"};
         String[] stay = {
                 "/sys/devices/system/cpux/online", "/sys/devices/system/cpu", "/sys/devices/system/cpu/cpu0",
-                "/sys/devices/system/cpu/cpu7", "/sys/devices/system/cpu/cpu7/online",
+                "/sys/devices/system/cpu/cpu7", "/sys/devices/system/cpu/cpu7/online", "/sys/devices/system/cpu/cpu3/topology/core_id",
+                "/sys/devices/system/cpu/modalias",
                 "/sys/class/sec/tspx",
                 "/sys/bus/mmc/devices/mmc0:0001/cidx", "/sys/class/fingerprint/fingerprintx",
                 "/sys/devices/system/chip-idx/unique_id", "/sys/class/scsi_host/host0/unique_id",
@@ -637,7 +713,10 @@ public class FakeValuesAgreeTest {
                 "/sys/devices/platform/soc/1d84000.ufshc", "/sys/block/sda/size", "/sys/block/sda/device/queue_depth",
                 "/proc/bus/input/handlers", "/proc/cpuinfo", "/system/bin/sh", "/system/bin/sudo", "/sdcard/su",
                 "/data/user/0/com.termux/files/usr/bin/su", "/system/xbin/sum", "/system/etc/hosts",
-                "/system/etc/permissionsx"};
+                "/system/etc/permissionsx", "/system/etc/permissions", "/system/etc/permissions/platform.xml",
+                // The folder of the feature files of the vendor, with the file of Wi-Fi, which features shows
+                "/vendor/etc/permissions", "/vendor/etc/permissions/android.hardware.wifi.xml",
+                "/system/bin/app_process64", "/system/lib64/libart.so"};
         // Each file of a sample which does not exist is hidden for a group at least, the others for none
         for (String[] paths : new String[][]{hidden, stay})
             for (String path : paths) {
@@ -650,7 +729,9 @@ public class FakeValuesAgreeTest {
     }
 
     // The files which opening hides (contentresolver_open) are of providers whose queries are hidden for the same
-    // variant (contentresolver_query); the voicemails are of the variant mmssms for opening, of voicemail for queries
+    // variant (contentresolver_query); the voicemails are of the variant mmssms for opening, of voicemail for queries,
+    // and the copies of the sounds of the settings provider are of the sounds its settings name no more for the variant
+    // (settingssecure_getstring)
     @Test
     public void openedProvidersAreQueried() throws Exception {
         Globals query = Scripts.load("contentresolver_query", STUBS + "\n" +
@@ -664,22 +745,32 @@ public class FakeValuesAgreeTest {
                 "end");
         Matcher pair = Pattern.compile("\\(name == '([^']*)' and authority == '([^']*)'\\)")
                 .matcher(Scripts.function("contentresolver_open", "restricts"));
+        Globals settings = load("settingssecure_getstring");
         int pairs = 0;
         while (pair.find()) {
             String authority = pair.group(2);
+            if ("settings".equals(authority)) {
+                for (String sound : new String[]{"ringtone", "notification_sound", "alarm_alert"})
+                    assertEquals(sound, "true nil", Scripts.run(settings, "local changed, fake = fakesetting(nil, '" + pair.group(1) +
+                            "', '" + sound + "', 'content://media/internal/audio/media/36')\n" +
+                            "return tostring(changed) .. ' ' .. tostring(fake)").arg1().tojstring());
+                pairs++;
+                continue;
+            }
             String name = ("com.android.voicemail".equals(authority) ? "voicemail" : pair.group(1));
             assertEquals(name + " " + authority, "true", run(query, "tostring(after(hookof('ContentResolver.query/" +
                     name + "'), paramof(cursorof(), { uriof('" + authority + "') }, {})))"));
             pairs++;
         }
-        assertEquals(5, pairs);
+        assertEquals(6, pairs);
     }
 
-    // The advertising id of Play services is zeros, from the client library and from the service
+    // The advertising id of Play services, its app set id and the ids of AdServices are zeros
     @Test
     public void advertisingId() throws Exception {
         assertEquals(constantOf("adid_service", "ZEROS"),
-                "'" + run(load("advertisingidclient$info_getid"), "fakeof('AdvertisingIdClient$Info.getId', 'getId', 'real')") + "'");
+                "'" + run(load("advertisingidclient$info_getid"), "fakeof('AppSetIdInfo.getId', 'getId', 'real')") + "'");
+        assertEquals(constantOf("adid_service", "ZEROS"), constantOf("adservices_id", "ZERO"));
     }
 
     // The install times of other apps (ms) and the times of the folders of the storage (s) are the same time

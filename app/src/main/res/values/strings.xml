@@ -44,6 +44,7 @@
     <string name="title_values_custom">Custom definitions</string>
     <string name="title_value_serial">Serial number</string>
     <string name="title_value_android_id">Android ID</string>
+    <string name="title_value_android_id_default">one for each app developer, which stays the same</string>
     <string name="title_value_imei">IMEI</string>
     <string name="title_value_meid">MEID</string>
     <string name="title_value_phone_number">Phone number</string>
@@ -132,8 +133,8 @@
         <item quantity="other">%1$d restrictions of definitions which do not exist anymore, left out</item>
     </plurals>
     <plurals name="title_restore_completed">
-        <item quantity="one">%1$d restriction of a definition added since the backup, for the groups it restricted</item>
-        <item quantity="other">%1$d restrictions of definitions added since the backup, for the groups it restricted</item>
+        <item quantity="one">%1$d restriction of a definition added, moved or applying to more apps since the backup, for the groups it restricted</item>
+        <item quantity="other">%1$d restrictions of definitions added, moved or applying to more apps since the backup, for the groups it restricted</item>
     </plurals>
     <plurals name="title_restore_partial">
         <item quantity="one">%1$d group partially restricted: the backup does not tell which definitions were added since, see the screens of the apps</item>
@@ -541,12 +542,12 @@
     <string name="title_mode_fixed">Fixed</string>
     <string name="title_mode_boot">Each boot</string>
     <string name="title_mode_all">Same for all apps</string>
-    <string name="title_box_boot">New after each device restart, a different one for each app</string>
-    <string name="title_box_boot_all">New after each device restart, the same for every app</string>
+    <string name="title_box_boot">New after each device restart, a different one for each app developer; an app which keeps it can tell</string>
+    <string name="title_box_boot_all">New after each device restart, the same for every app; an app which keeps it can tell</string>
     <string name="title_box_inherit_fixed">Fixed for all apps</string>
-    <string name="title_box_inherit_boot">Each boot for all apps, one for each app; until the device restarts this app gets:</string>
+    <string name="title_box_inherit_boot">Each boot for all apps, one for each app developer; until the device restarts this app gets:</string>
     <string name="title_box_inherit_boot_all">Each boot, the same for all apps; until the device restarts this app gets:</string>
-    <string name="title_box_inherit_boot_short">Each boot for all apps, one for each app</string>
+    <string name="title_box_inherit_boot_short">Each boot for all apps, one for each app developer</string>
     <string name="title_box_inherit_boot_all_short">Each boot, the same for all apps</string>
     <string name="title_box_saved">Until the device restarts this app gets:</string>
     <string name="title_clear_field">Clear %1$s</string>
@@ -663,7 +664,7 @@
     <string name="group_desc_read_timezone">Time zone of the device</string>
     <string name="group_desc_read_locale">Languages of the device and its region of sale, not the language of the app</string>
     <string name="group_desc_read_features">Hardware and software features of the device, connected keyboards and controllers; the features of the camera, microphone, sensors and biometrics are hidden by their own groups</string>
-    <string name="group_desc_read_vpn">Whether a VPN is connected</string>
+    <string name="group_desc_read_vpn">Whether a VPN is connected, and starting a VPN of the app itself</string>
     <string name="group_desc_record_audio">Recording with the microphone, and whether the device has one</string>
     <string name="group_desc_record_video">Recording video with the media recorder of Android</string>
     <string name="group_desc_run_commands">Commands like su, id and getprop fail; programs of the app itself still run; other groups refuse commands too, see the FAQ</string>

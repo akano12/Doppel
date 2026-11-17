@@ -19,18 +19,28 @@
 
 package eu.faircode.xlua;
 
+import android.content.AttributionSource;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
+import android.os.Binder;
+import android.os.Bundle;
+import android.os.IBinder;
+import android.os.IInterface;
+import android.os.RemoteException;
 import android.security.net.config.NetworkSecurityConfigProvider;
 
 import com.android.providers.settings.SettingsProvider;
 
 import org.json.JSONObject;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.luaj.vm2.Prototype;
 import org.luaj.vm2.compiler.LuaC;
 
@@ -45,12 +55,16 @@ import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.io.File;
 
 import io.github.libxposed.api.XposedInterface;
@@ -59,7 +73,10 @@ import io.github.libxposed.api.XposedModuleInterface;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 // Hooks installed by the engine, with a backend which records them
@@ -326,6 +343,241 @@ public class XCoreTest {
         }
     }
 
+    // The app's own code gets the answers of the settings provider: its call of the method of the service gets another
+    // method, and its query of a column a sort order which the hook of the settings provider leaves to the settings
+    // provider without asking the service; the engine's own, inside enterService, stay as they are
+    @Test
+    public void ownCodeOfTheAppGetsTheAnswersOfTheSettingsProvider() throws Throwable {
+        core.hookSettings(getClass().getClassLoader());
+        core.hideService(getClass().getClassLoader());
+        assertEquals(4, members.size());
+        assertEquals("android.content.ContentProviderProxy", members.get(2).getDeclaringClass().getName());
+        assertEquals(Arrays.asList("query", "call"), Arrays.asList(members.get(2).getName(), members.get(3).getName()));
+
+        // The stubs of Android have no Uri and an SDK_INT of 0, so the hook of call takes the way of Android 8.1 and 9,
+        // by the binder of the settings provider which a query of the engine showed; all versions are tested below
+        IBinder binder = new Binder();
+        IInterface settings = () -> binder;
+        IInterface another = Binder::new;
+        try {
+            XCore.enterService();
+            try {
+                XCore.markQuery(new Class<?>[0], new Object[0], "settings", settings);
+            } finally {
+                XCore.leaveService();
+            }
+            Object[] own = {null, XProvider.METHOD, "reports", null};
+            callbacks.get(3).before(new XCall(members.get(3), settings, own));
+            assertEquals(XCore.OWN, own[1]);
+            Object[] other = {null, XProvider.METHOD, "reports", null};
+            callbacks.get(3).before(new XCall(members.get(3), another, other));
+            assertEquals(XProvider.METHOD, other[1]);
+            Object[] get = {null, "GET_system", "x", null};
+            callbacks.get(3).before(new XCall(members.get(3), settings, get));
+            assertEquals("GET_system", get[1]);
+            Object[] engine = {null, XProvider.METHOD, "reports", null};
+            XCore.enterService();
+            try {
+                callbacks.get(3).before(new XCall(members.get(3), settings, engine));
+            } finally {
+                XCore.leaveService();
+            }
+            assertEquals(XProvider.METHOD, engine[1]);
+        } finally {
+            XCore.settingsBinder = null;
+        }
+
+        // Without a Uri the query is left as it is
+        Object[] query = {null, null, new String[]{XProvider.COLUMN + "getAssignedHooks2"}, null, null};
+        callbacks.get(2).before(new XCall(members.get(2), null, query));
+        assertNull(query[3]);
+        assertTrue(XCore.isSettings("settings"));
+        assertTrue(XCore.isSettings("10@settings"));
+        assertFalse(XCore.isSettings("com.example.settings"));
+        assertFalse(XCore.isSettings(null));
+        assertTrue(XCore.isColumn(new String[]{XProvider.COLUMN + "getAssignedHooks2", "name"}));
+        assertFalse(XCore.isColumn(new String[]{"name", XProvider.COLUMN + "getAssignedHooks2"}));
+        assertFalse(XCore.isColumn(new String[]{null}));
+        assertFalse(XCore.isColumn(new String[0]));
+        assertFalse(XCore.isColumn(null));
+
+        boolean[] asked = {false};
+        SettingsProvider provider = new SettingsProvider() {
+            @Override
+            public Context getContext() {
+                asked[0] = true;
+                throw new IllegalStateException("Service asked");
+            }
+        };
+        String[] projection = {XProvider.COLUMN + "getAssignedHooks2"};
+        String[] selection = {"test.app", "10123"};
+        XCall marked = new XCall(members.get(1), provider, new Object[]{null, projection, null, selection, XCore.OWN});
+        callbacks.get(1).before(marked);
+        assertFalse(marked.isReturnEarly());
+        assertFalse(asked[0]);
+        XCall unmarked = new XCall(members.get(1), provider, new Object[]{null, projection, null, selection, null});
+        callbacks.get(1).before(unmarked);
+        assertTrue(asked[0]);
+    }
+
+    // The arguments of ContentProviderProxy.query of Android 8.1 to 10, of 11 and of 12 and later, with objects for the
+    // hidden types: the code of the app gets a new Bundle for its query of a column of the service of the settings
+    // provider, also when it had none, while other providers, other columns and the queries of the engine keep theirs,
+    // and those of the engine show the binder of the settings provider. The stubs of Android keep nothing in a Bundle,
+    // so the sort order in the copy is not seen here.
+    @Test
+    public void queriesOfTheServiceByTheAppAreMarkedOnAllVersions() {
+        Class<?>[][] signatures = {
+                {String.class, Uri.class, String[].class, Bundle.class, Object.class},
+                {String.class, String.class, Uri.class, String[].class, Bundle.class, Object.class},
+                {AttributionSource.class, Uri.class, String[].class, Bundle.class, Object.class}};
+        String[] column = {XProvider.COLUMN + "getAssignedHooks2"};
+        for (Class<?>[] types : signatures) {
+            int extras = Arrays.asList(types).indexOf(Bundle.class);
+            for (String authority : new String[]{"settings", "10@settings"}) {
+                Bundle own = new Bundle();
+                Object[] args = queryArgs(types, column, own);
+                XCore.markQuery(types, args, authority, null);
+                assertNotNull(args[extras]);
+                assertNotSame(own, args[extras]);
+                Object[] none = queryArgs(types, column, null);
+                XCore.markQuery(types, none, authority, null);
+                assertNotNull(none[extras]);
+            }
+
+            Bundle own = new Bundle();
+            for (String authority : new String[]{"com.example.settings", null}) {
+                Object[] other = queryArgs(types, column, own);
+                XCore.markQuery(types, other, authority, null);
+                assertSame(own, other[extras]);
+            }
+            for (String[] projection : new String[][]{{"name"}, null}) {
+                Object[] name = queryArgs(types, projection, own);
+                XCore.markQuery(types, name, "settings", null);
+                assertSame(own, name[extras]);
+            }
+
+            IBinder binder = new Binder();
+            Object[] engine = queryArgs(types, column, own);
+            XCore.enterService();
+            try {
+                XCore.markQuery(types, engine, "com.example.settings", (IInterface) Binder::new);
+                assertNull(XCore.settingsBinder);
+                XCore.markQuery(types, engine, "settings", (IInterface) () -> binder);
+                assertSame(binder, XCore.settingsBinder);
+            } finally {
+                XCore.leaveService();
+                XCore.settingsBinder = null;
+            }
+            assertSame(own, engine[extras]);
+        }
+    }
+
+    private static Object[] queryArgs(Class<?>[] types, String[] projection, Bundle extras) {
+        Object[] args = new Object[types.length];
+        args[Arrays.asList(types).indexOf(String[].class)] = projection;
+        args[Arrays.asList(types).indexOf(Bundle.class)] = extras;
+        return args;
+    }
+
+    // The arguments of ContentProviderProxy.call of Android 8.1 and 9, without the authority, of 10, of 11 and of 12 and
+    // later: the method of the service which the code of the app calls of the settings provider is renamed, of another
+    // provider not; on Android 8.1 and 9 the binder of the proxy tells the provider, once a query of the engine showed it
+    @Test
+    public void callsOfTheServiceByTheAppAreMarkedOnAllVersions() {
+        IBinder binder = new Binder();
+        IInterface provider = () -> binder;
+        IInterface another = Binder::new;
+        try {
+            for (int sdk : new int[]{27, 28}) {
+                XCore.settingsBinder = null;
+                Object[] early = {"app", XProvider.METHOD, "reports", null};
+                XCore.markCall(early, sdk, provider);
+                assertEquals(XProvider.METHOD, early[1]);
+
+                XCore.settingsBinder = binder;
+                Object[] own = {"app", XProvider.METHOD, "reports", null};
+                XCore.markCall(own, sdk, provider);
+                assertEquals(XCore.OWN, own[1]);
+                for (Object proxy : new Object[]{another, null, "proxy"}) {
+                    Object[] other = {"app", XProvider.METHOD, "reports", null};
+                    XCore.markCall(other, sdk, proxy);
+                    assertEquals(XProvider.METHOD, other[1]);
+                }
+                Object[] get = {"app", "GET_system", "x", null};
+                XCore.markCall(get, sdk, provider);
+                assertEquals("GET_system", get[1]);
+            }
+
+            // From Android 10 the authority tells the provider, whatever the binder
+            Object[][] layouts = {{"app", "settings", XProvider.METHOD, "reports", null},
+                    {"app", null, "10@settings", XProvider.METHOD, "reports", null},
+                    {null, "settings", XProvider.METHOD, "reports", null},
+                    {null, "settings", XProvider.METHOD, "reports", null}};
+            int[] sdks = {29, 30, 31, 37};
+            for (int i = 0; i < sdks.length; i++) {
+                int method = layouts[i].length - 3;
+                Object[] own = layouts[i].clone();
+                XCore.markCall(own, sdks[i], another);
+                assertEquals(XCore.OWN, own[method]);
+                Object[] other = layouts[i].clone();
+                other[method - 1] = "com.example.settings";
+                XCore.markCall(other, sdks[i], provider);
+                assertEquals(XProvider.METHOD, other[method]);
+            }
+        } finally {
+            XCore.settingsBinder = null;
+        }
+    }
+
+    // A refused or invalid call or query of an app with assignments gets the answer of the settings provider, like an app
+    // outside the scope, and its reports get null like from the settings provider; system server and the app get the
+    // error or no result, and an error of the service gives no result to both
+    @Test
+    public void assignedAppsGetTheAnswersOfTheSettingsProvider() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        Exception[] errors = {new IllegalArgumentException("selection invalid"), new NumberFormatException("x"),
+                new SecurityException("Permission error")};
+        for (Exception error : errors) {
+            XCall assigned = new XCall(get, new Target(), new Object[0]);
+            XCore.serve(assigned, "Query", false, () -> {
+                throw error;
+            });
+            assertFalse(error.toString(), assigned.isReturnEarly());
+        }
+
+        XCall reports = new XCall(get, new Target(), new Object[0]);
+        XCore.serve(reports, "Call", false, () -> null);
+        assertTrue(reports.isReturnEarly());
+        assertNull(reports.getResult());
+
+        XCall invalid = new XCall(get, new Target(), new Object[0]);
+        IllegalArgumentException ex = new IllegalArgumentException("extras missing");
+        XCore.serve(invalid, "Call", true, () -> {
+            throw ex;
+        });
+        assertTrue(invalid.hasThrowable());
+        assertSame(ex, invalid.getThrowable());
+
+        XCall refused = new XCall(get, new Target(), new Object[0]);
+        XCore.serve(refused, "Call", true, () -> {
+            throw new SecurityException("Permission error");
+        });
+        assertTrue(refused.isReturnEarly());
+        assertFalse(refused.hasThrowable());
+        assertNull(refused.getResult());
+
+        for (boolean permitted : new boolean[]{false, true}) {
+            XCall failed = new XCall(get, new Target(), new Object[0]);
+            XCore.serve(failed, "Query", permitted, () -> {
+                throw new RemoteException("Database failed");
+            });
+            assertTrue(failed.isReturnEarly());
+            assertFalse(failed.hasThrowable());
+            assertNull(failed.getResult());
+        }
+    }
+
     private final List<Member> members = new ArrayList<>();
     private final List<XBackend.Callback> callbacks = new ArrayList<>();
     private final List<Member> deoptimized = new ArrayList<>();
@@ -342,6 +594,26 @@ public class XCoreTest {
         }
 
         public String open(String path) {
+            return "real";
+        }
+
+        public String lstat(String path) {
+            return "real";
+        }
+
+        public String stat(File file) {
+            return "real";
+        }
+
+        // Like UnixFileSystemProvider.newDirectoryStream, declared with the interface of the paths of java.nio
+        public String newDirectoryStream(Path dir, java.nio.file.DirectoryStream.Filter<? super Path> filter) {
+            return "real";
+        }
+    }
+
+    // Like BlockGuardOs, with the flags of open
+    public static class Os {
+        public String open(String path, int flags, int mode) {
             return "real";
         }
     }
@@ -407,9 +679,13 @@ public class XCoreTest {
     }
 
     private void install(String name, String script, Member member, String attributes) throws Exception {
+        install(name, script, member, attributes, false);
+    }
+
+    private void install(String name, String script, Member member, String attributes, boolean usage) throws Exception {
         XHook hook = XHook.fromJSON("{\"collection\": \"Test\", \"group\": \"Test.Group\", \"name\": \"" + name + "\"," +
                 " \"author\": \"Test\", \"className\": \"" + Target.class.getName() + "\", \"parameterTypes\": []," +
-                " \"minSdk\": 1, \"usage\": false, \"luaScript\": \"\"" + attributes + "}");
+                " \"minSdk\": 1, \"usage\": " + usage + ", \"luaScript\": \"\"" + attributes + "}");
         Prototype prototype = LuaC.instance.compile(
                 new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)), "script");
         Method installMethod = XCore.class.getDeclaredMethod("installMethod",
@@ -552,6 +828,79 @@ public class XCoreTest {
         assertEquals("fake", call.getResult());
     }
 
+    // A script shared by the groups is installed once per method, so a call runs it once, not once per restricted group;
+    // the hook of another method is installed too, and so are all hooks of a script which is not shared or says no
+    @Test
+    public void sharedScriptIsInstalledOncePerMethod() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        Method open = Target.class.getMethod("open", String.class);
+        String shared = "function shared(hook) return true end\n" +
+                "function before(hook, param) param:setResult('fake') return true end";
+        install("sharedFirst", shared, get);
+        install("sharedSecond", shared, get);
+        install("sharedOpen", shared, open);
+        assertEquals(Arrays.asList(get, open), members);
+
+        String apart = "function shared(hook) return false end";
+        install("apartFirst", apart, open);
+        install("apartSecond", apart, open);
+        install("plainFirst", "", open);
+        install("plainSecond", "", open);
+        assertEquals(6, callbacks.size());
+
+        XCall call = new XCall(get, new Target(), new Object[0]);
+        callbacks.get(0).before(call);
+        assertEquals("fake", call.getResult());
+    }
+
+    // The reports of restricted calls start no thread, which the app could list: the first is sent right away, on the
+    // thread of the hooked call, the next ones together, by the first hooked call once a second has passed
+    @Test
+    public void reportsStartNoThread() throws Throwable {
+        List<String> sent = new ArrayList<>();
+        ApplicationInfo ai = context.getApplicationInfo();
+        context = new ContextWrapper(null) {
+            @Override
+            public String getPackageName() {
+                return "test.app";
+            }
+
+            @Override
+            public ApplicationInfo getApplicationInfo() {
+                return ai;
+            }
+
+            @Override
+            public ClassLoader getClassLoader() {
+                return XCoreTest.class.getClassLoader();
+            }
+
+            // The reports are sent by the content resolver, without which they fail, like when the service refuses them
+            @Override
+            public ContentResolver getContentResolver() {
+                sent.add(Thread.currentThread().getName() + " " + XCore.inService());
+                return null;
+            }
+        };
+        Method get = Target.class.getMethod("get");
+        install("reportsStartNoThread", "local calls = 0\n" +
+                "function before(hook, param) calls = calls + 1 return calls <= 2 end", get, "", true);
+        Set<Thread> threads = new HashSet<>(Thread.getAllStackTraces().keySet());
+        String self = Thread.currentThread().getName() + " true";
+
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        assertEquals(Collections.singletonList(self), sent);
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        assertEquals(1, sent.size());
+        Thread.sleep(1100);
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        assertEquals(Arrays.asList(self, self), sent);
+
+        Set<Thread> started = new HashSet<>(Thread.getAllStackTraces().keySet());
+        started.removeAll(threads);
+        assertEquals(Collections.emptySet(), started);
+    }
+
     // In system server the hooks of "android" do not apply to the service and the engine itself
     @Test
     public void notInService() throws Throwable {
@@ -686,6 +1035,152 @@ public class XCoreTest {
             XCall call = new XCall(open, new Target(), new Object[]{path});
             callbacks.get(0).before(call);
             assertFalse(path, call.isReturnEarly());
+        }
+    }
+
+    @Rule
+    public final TemporaryFolder temp = new TemporaryFolder();
+
+    // A path through a link, like one the app made itself or a descriptor of a folder in /proc/self/fd, runs the script by
+    // the path its links lead to, which the hooks of a call resolve once; a call which acts on a link itself, like lstat,
+    // by the name in the folder the links before it lead to
+    @Test
+    public void linksRunTheScript() throws Throwable {
+        Path folder = temp.getRoot().toPath().toRealPath();
+        Path kernel = Files.createDirectory(folder.resolve("kernel"));
+        Files.createFile(kernel.resolve("osrelease"));
+        Path boot = Files.createFile(folder.resolve("boot_id"));
+        Path other = Files.createFile(folder.resolve("other"));
+        Path link = Files.createSymbolicLink(folder.resolve("link"), boot);
+        Path descriptor = Files.createSymbolicLink(folder.resolve("descriptor"), kernel);
+        Method open = Target.class.getMethod("open", String.class);
+        Method lstat = Target.class.getMethod("lstat", String.class);
+        String script = "function filter(hook) return { '*boot_id*', '*kernel/osrelease*' } end\n" +
+                "function after(hook, param) param:setResult('fake') return true end";
+        install("linksRunTheScript", script, open);
+        install("linksRunTheScriptLstat", script, lstat);
+
+        for (String path : new String[]{link.toString(), descriptor + "/osrelease", descriptor + "//osrelease"}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            callbacks.get(0).after(call);
+            assertEquals(path, "fake", call.getResult());
+        }
+        // Not a file without links, nor a text which is no absolute path, like the name of a resource
+        for (String path : new String[]{other.toString(), folder.toString().substring(1) + "/link"}) {
+            XCall call = new XCall(open, new Target(), new Object[]{path});
+            callbacks.get(0).before(call);
+            callbacks.get(0).after(call);
+            assertNull(path, call.getResult());
+        }
+
+        // lstat of the link itself is of the link, of a name through a link of a folder of the file
+        XCall itself = new XCall(lstat, new Target(), new Object[]{link.toString()});
+        callbacks.get(1).before(itself);
+        callbacks.get(1).after(itself);
+        assertNull(itself.getResult());
+        XCall through = new XCall(lstat, new Target(), new Object[]{descriptor + "/osrelease"});
+        callbacks.get(1).before(through);
+        callbacks.get(1).after(through);
+        assertEquals("fake", through.getResult());
+
+        // A link changed during a call is read after the method as before it, and by the next call as it is then
+        Path moved = Files.createSymbolicLink(folder.resolve("moved"), other);
+        XCall first = new XCall(open, new Target(), new Object[]{moved.toString()});
+        callbacks.get(0).before(first);
+        Files.delete(moved);
+        Files.createSymbolicLink(moved, boot);
+        callbacks.get(0).after(first);
+        assertNull(first.getResult());
+        XCall next = new XCall(open, new Target(), new Object[]{moved.toString()});
+        callbacks.get(0).before(next);
+        callbacks.get(0).after(next);
+        assertEquals("fake", next.getResult());
+
+        // Also when a script replaced the path before the method, like with an empty one for a hidden file, so the hooks
+        // after it compare no path at all
+        install("linksRunTheScriptHidden", "function filter(hook) return { '*hidden*' } end\n" +
+                "function before(hook, param) param:setArgument(0, '') return true end", open);
+        Path hidden = Files.createFile(folder.resolve("hidden"));
+        Files.delete(moved);
+        Files.createSymbolicLink(moved, hidden);
+        XCall blank = new XCall(open, new Target(), new Object[]{moved.toString()});
+        callbacks.get(2).before(blank);
+        callbacks.get(0).before(blank);
+        callbacks.get(0).after(blank);
+        callbacks.get(2).after(blank);
+        assertEquals("", blank.args[0]);
+        Files.delete(moved);
+        Files.createSymbolicLink(moved, boot);
+        XCall again = new XCall(open, new Target(), new Object[]{moved.toString()});
+        callbacks.get(2).before(again);
+        callbacks.get(0).before(again);
+        callbacks.get(0).after(again);
+        callbacks.get(2).after(again);
+        assertEquals(moved.toString(), again.args[0]);
+        assertEquals("fake", again.getResult());
+    }
+
+    // open with O_NOFOLLOW, or with O_CREAT and O_EXCL, acts on a link at the end of the path itself, like on Android, where
+    // it fails with ELOOP or EEXIST, so a link of the app does not run the script, by its name in its folder; a file of a
+    // value by its text still does, and so do other flags, of the platform, which are 0 in the tests
+    @Test
+    public void openWithoutFollowingLinks() throws Throwable {
+        Path folder = temp.getRoot().toPath().toRealPath();
+        Path boot = Files.createFile(folder.resolve("boot_id"));
+        Path link = Files.createSymbolicLink(folder.resolve("link"), boot);
+        Method open = Os.class.getMethod("open", String.class, int.class, int.class);
+        install("openWithoutFollowingLinks", "function filter(hook) return { '*boot_id*' } end\n" +
+                "function after(hook, param) param:setResult('fake') return true end", open);
+        int noFollow = XCore.openNoFollow, exclusive = XCore.openExclusive;
+        try {
+            XCore.openNoFollow = 0x20000;
+            XCore.openExclusive = 0x40 | 0x80;
+            Object[][] calls = {
+                    {link.toString(), 0x20001, null}, {link.toString(), 0xc1, null}, {link.toString(), 0x41, "fake"},
+                    {link.toString(), 0x80, "fake"}, {boot.toString(), 0xc1, "fake"}};
+            for (Object[] expected : calls) {
+                XCall call = new XCall(open, new Os(), new Object[]{expected[0], expected[1], 0600});
+                callbacks.get(0).before(call);
+                callbacks.get(0).after(call);
+                assertEquals(expected[0] + " " + expected[1], expected[2], call.getResult());
+            }
+        } finally {
+            XCore.openNoFollow = noFollow;
+            XCore.openExclusive = exclusive;
+        }
+        // Without the constants of the platform every link is followed
+        XCall call = new XCall(open, new Os(), new Object[]{link.toString(), 0xc1, 0600});
+        callbacks.get(0).before(call);
+        callbacks.get(0).after(call);
+        assertEquals("fake", call.getResult());
+    }
+
+    // A relative path of a file is from the root, which apps run in, so a link reached by it runs the script too, like
+    // data/user/0/<app>/files/link of a link to /proc/sys/kernel/random/boot_id, also of a path of java.nio to a hook
+    // declared with its interface; other relative texts are no paths (see linksRunTheScript)
+    @Test
+    public void relativeLinksRunTheScript() throws Throwable {
+        Path folder = temp.getRoot().toPath().toRealPath();
+        Path boot = Files.createFile(folder.resolve("boot_id"));
+        Path link = Files.createSymbolicLink(folder.resolve("link"), boot);
+        Path other = Files.createSymbolicLink(folder.resolve("other"), Files.createFile(folder.resolve("file")));
+        Method stat = Target.class.getMethod("stat", File.class);
+        Method list = Target.class.getMethod("newDirectoryStream", Path.class, java.nio.file.DirectoryStream.Filter.class);
+        String script = "function filter(hook) return { '*boot_id*' } end\n" +
+                "function after(hook, param) param:setResult('fake') return true end";
+        install("relativeLinksRunTheScript", script, stat);
+        install("relativeLinksRunTheScriptPath", script, list);
+        for (Path path : new Path[]{link, other}) {
+            String relative = path.toString().substring(1);
+            XCall call = new XCall(stat, new Target(), new Object[]{new File(relative)});
+            callbacks.get(0).before(call);
+            callbacks.get(0).after(call);
+            assertEquals(path.toString(), path == link ? "fake" : null, call.getResult());
+            XCall listed = new XCall(list, new Target(), new Object[]{Path.of(relative), null});
+            callbacks.get(1).before(listed);
+            callbacks.get(1).after(listed);
+            assertEquals(path.toString(), path == link ? "fake" : null, listed.getResult());
         }
     }
 

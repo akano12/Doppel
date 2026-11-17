@@ -19,8 +19,10 @@
 
 package eu.faircode.xlua;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.system.ErrnoException;
 import android.system.Os;
@@ -54,6 +56,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -350,6 +353,10 @@ public class XParamTest {
 
         void open(String path) {
         }
+
+        int fcntlInt(FileDescriptor fd, int cmd, int arg) {
+            return 0;
+        }
     }
 
     // The calls about a descriptor of a fake, or about its path, answer like about the file the fake replaced, a file of
@@ -381,6 +388,7 @@ public class XParamTest {
             Method getLastModifiedTime = Hooked.class.getDeclaredMethod("getLastModifiedTime", File.class);
             Method readlink = Os.class.getMethod("readlink", String.class);
             Method open = Hooked.class.getDeclaredMethod("open", String.class);
+            Method fcntl = Hooked.class.getDeclaredMethod("fcntlInt", FileDescriptor.class, int.class, int.class);
             assertEquals(4096, XParam.unfaked(new XCall(available, in, new Object[0]), 4, keyOf));
             assertEquals(4096L, XParam.unfaked(new XCall(length, raf, new Object[0]), 4L, keyOf));
             assertEquals(4096L, XParam.unfaked(new XCall(size, null, new Object[]{in.getFD()}), 4L, keyOf));
@@ -402,6 +410,12 @@ public class XParamTest {
             assertEquals(4096L, XParam.unfaked(new XCall(length, raf, new Object[0]), 4096L, keyOf));
             assertEquals(0L, XParam.unfaked(new XCall(getLastModifiedTime, null, new Object[]{fd57}), 0L, keyOf));
             assertNull(XParam.unfaked(new XCall(open, null, path), 57, keyOf));
+            // The access mode of F_GETFL (3) is read-only, the other flags stay, like O_LARGEFILE of a file in memory
+            // (O_RDWR | 0x8000 on x86_64); not F_GETFD (1), other files or a read-only fake
+            assertEquals(0x8000, XParam.unfaked(new XCall(fcntl, null, new Object[]{in.getFD(), 3, 0}), 0x8002, keyOf));
+            assertNull(XParam.unfaked(new XCall(fcntl, null, new Object[]{in.getFD(), 1, 0}), 1, keyOf));
+            assertNull(XParam.unfaked(new XCall(fcntl, null, new Object[]{other, 3, 0}), 0x8002, keyOf));
+            assertNull(XParam.unfaked(new XCall(fcntl, null, new Object[]{in.getFD(), 3, 0}), 0x8000, keyOf));
         } finally {
             XParam.fakedFiles.clear();
             //noinspection ResultOfMethodCallIgnored
@@ -640,6 +654,24 @@ public class XParamTest {
         XParam param = param();
         assertTrue("Own package", param.isInstalledVisible("test.app"));
         assertFalse("No package", param.isInstalledVisible(null));
+        assertTrue("Own package in a list", param.isOwnPackage("test.app"));
+        assertTrue("No package in a list", param.isOwnPackage(null));
+        assertTrue("Other package for the system", param(1000).isOwnPackage("other.app"));
+    }
+
+    // A lookup without the hooks gets a copy of an intent of the app of Android's own class, so the overrides of a
+    // subclass of the app do not run there
+    @Test
+    public void plainIntents() throws NoSuchFieldException {
+        Intent app = new Intent() {
+            @Override
+            public String resolveTypeIfNeeded(ContentResolver resolver) {
+                throw new AssertionError("Code of the app");
+            }
+        };
+        Intent plain = param().plainIntent(app);
+        assertSame(Intent.class, plain.getClass());
+        assertNotSame(app, plain);
     }
 
     // Values are kept per object by identity, like NsdManager knows listeners, without calling hashCode or equals of the

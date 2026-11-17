@@ -120,15 +120,28 @@ public class PackageInfoScriptTest {
         assertEquals("1720734637000", result.arg(5).tojstring());
     }
 
-    // An update of a system app, FLAG_UPDATED_SYSTEM_APP, has the time it was installed on the device;
-    // it gets the time of the firmware, like before the update
+    // An update of a system app, FLAG_UPDATED_SYSTEM_APP, has the time it was installed on the device and an install
+    // time of the first firmware or of when the profile was made; both get the time of reproducible builds, also when
+    // they are the same, like for an update which came with the firmware
     @Test
     public void updatedSystemApps() {
         Varargs result = run("infoof('com.google.android.gms', 129, 1720734637000, 1761400000456)");
         assertTrue(result.arg1().toboolean());
-        assertEquals("com.google.android.gms 1761400000456", result.arg(2).tojstring());
-        assertEquals("1720734637000", result.arg(4).tojstring());
-        assertEquals("1720734637000", result.arg(5).tojstring());
+        assertEquals("com.google.android.gms 1720734637000", result.arg(2).tojstring());
+        assertEquals(FAKE, result.arg(3).tojstring());
+        assertEquals(FAKE, result.arg(4).tojstring());
+        assertEquals(FAKE, result.arg(5).tojstring());
+        result = run("infoof('com.google.android.webview', 129, 1720734637000, 1720734637000)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(FAKE, result.arg(4).tojstring());
+        assertEquals(FAKE, result.arg(5).tojstring());
+        // Like the other apps of the system in a new profile
+        result = run("infoof('com.google.android.webview', 129, 0, 1761400000456)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("0", result.arg(4).tojstring());
+        assertEquals(FAKE, result.arg(5).tojstring());
+        result = run("infoof('com.google.android.webview', 129, 0, " + FAKE + ")");
+        assertFalse(result.arg1().toboolean());
     }
 
     @Test

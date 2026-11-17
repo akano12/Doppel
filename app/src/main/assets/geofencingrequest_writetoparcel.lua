@@ -24,11 +24,14 @@
 -- the radius; other fields fail the hook, which then writes the real request.
 -- shortcut: a parcel the app writes itself, like for an extra of an intent, has the fake region too, which reading it
 -- back with CREATOR shows; upgrade should apps do that.
--- shortcut: the device is always outside that fence, so a request with INITIAL_TRIGGER_EXIT gets its EXIT at once,
--- which stock gives only outside the region of the app, and from play-services-location 20.0.0 on the fences of
--- GeofencingEvent.getTriggeringGeofences read 0, 0 and 0.1, unlike the Geofence and GeofencingRequest of the app;
--- upgrade by clearing INITIAL_TRIGGER_EXIT in the copy, so the fake fence never alerts, or by giving the fences of the
--- event the region of the app back.
+-- The device is always outside that fence, so INITIAL_TRIGGER_EXIT is cleared in the copy too, as Play services would
+-- else alert at once, which stock does only outside the region of the app: the fake fence never alerts. The request has
+-- one int field, the initial trigger; without exactly one the trigger stays, rather than writing the real region.
+-- The events of the fences, like their transitions and the fences of GeofencingEvent.getTriggeringGeofences, are left
+-- out of the intents Play services sends (see intent_results).
+local EXIT = 2 -- GeofencingRequest.INITIAL_TRIGGER_EXIT
+local STATIC = 8 -- java.lang.reflect.Modifier.STATIC
+
 function before(hook, param)
     local parcel = param:getArgument(0)
     if parcel == nil then
@@ -58,20 +61,25 @@ function before(hook, param)
             doubles[2]:setDouble(fence, 0)
             floats[1]:setFloat(fence, 0.1)
         end
+        local ints = fieldsof(fake, 'int')
+        if #ints == 1 then
+            ints[1]:setInt(fake, bit32.band(ints[1]:getInt(fake), bit32.bnot(EXIT)))
+        end
         fake:writeToParcel(parcel, param:getArgument(1))
     end)
     param:setResult(nil)
     return true
 end
 
--- The fields an object declares of a type, as Class.toString names it, made accessible
+-- The fields of its own an object declares of a type, as Class.toString names it, made accessible; not static ones,
+-- like the constants of the initial triggers
 function fieldsof(object, type)
     local found = {}
     -- Lua sees a Class as its static members, so the methods of Class get the class as the object
     local fields = luajava.bindClass('java.lang.Class').getDeclaredFields(object:getClass())
     for index = 1, fields['length'] do
         local field = fields[index]
-        if tostring(field:getType()) == type then
+        if tostring(field:getType()) == type and bit32.band(field:getModifiers(), STATIC) == 0 then
             field:setAccessible(true)
             found[#found + 1] = field
         end

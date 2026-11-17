@@ -17,10 +17,14 @@
 
 -- The exact sizes of memory and storage, like 3919 MB, and the free space narrow down the device model,
 -- its firmware and the device itself. Instead of fake values, which apps rely on, like for the size of
--- caches and before writing files, the sizes are rounded: totals up to the sizes devices are sold with,
--- free space down to two digits, so apps never think there is more free space than there is.
--- Small file systems keep their exact sizes. StatFs is hooked itself, because the framework,
--- which is compiled ahead of time, calls Os.statvfs inlined, so its hook only applies to apps.
+-- caches and before writing files, a total tells only the size the device would be sold with: it is a fixed
+-- share of that size, like the kernel and the other partitions leave, so it is no sold size itself, and the
+-- total of the device and its advertised memory are what Android derives from these totals. Free space is
+-- rounded down to two digits and never above its total, so apps never think there is more free space than
+-- there is, and free memory is in whole pages like the kernel counts it. The low memory thresholds are the ones
+-- Android gives every device without the settings of a maker. Small file systems keep their exact sizes. StatFs is
+-- hooked itself, because the framework, which is compiled ahead of time, calls Os.statvfs inlined, so its hook only
+-- applies to apps.
 
 local GB = 1000000000
 local GIB = 1073741824
@@ -28,25 +32,58 @@ local GIB = 1073741824
 -- Memory sizes devices are sold with, in GiB
 local MEMORY = { 1, 1.5, 2, 3, 4, 6, 8, 10, 12, 16, 18, 20, 24, 32, 48, 64 }
 
+-- The total memory: the share of the memory a device is sold with which the kernel gives (MemTotal), without the
+-- kernel itself, the reserved memory and the memory of the modem and graphics, like 3.72 GiB of 4; above 0.9, so the
+-- total stays in its size, at most the size in GB, so Android rounds it to the same advertised size whether it compares
+-- with powers of GB or of GiB, and in whole pages of 16 KiB, which are whole pages of 4 KiB too
+local MEMORYSHARE = 0.93
+local PAGE = 16384
+
 function memorysize(value)
     for _, size in ipairs(MEMORY) do
         if value <= size * GIB then
-            return size * GIB
+            return math.floor(size * GIB * MEMORYSHARE / PAGE) * PAGE
         end
     end
     return value
 end
 
--- Storage sizes devices are sold with, powers of two GB
+-- The size a disk is sold with, like Android rounds it (FileUtils.roundStorageSize): a power of two of MB, GB and from
+-- 1000 GB on of TB, which only the first release of Android 14 takes up to the same power of MiB, GiB and TiB, like 130
+-- GB to 128 GB; its quarterly releases and Android 15 and later compare with powers of MB, GB and TB again.
+-- shortcut: the quarterly releases of Android 14 have the same SDK_INT and round a size between a power of two of GB
+-- and the same power of GiB, like 64.1 GB, up to the next power, where this rounds it down; only real disk sizes fall
+-- there, the faked totals stay at or below their power of GB, and FileUtils.roundStorageSize, which would tell, is
+-- hidden without the mark of the APIs apps may still use, so the scripts in the app may not call it; tell the releases
+-- apart by another sign if one is found.
 function storagesize(value)
+    local binary = sdk() == 34
+    local size, kilo, kibi = 1, 1, 1
+    while size * (binary and kibi or kilo) < value do
+        size = size * 2
+        if size > 512 then
+            size, kilo, kibi = 1, kilo * 1000, kibi * 1024
+        end
+    end
+    return size * kilo
+end
+
+-- File systems in whole MiB, which every block size up to 1 MiB divides, so File and FileStore, which do not know the
+-- block size, give whole blocks like StatFs and statvfs.
+-- shortcut: a file system with blocks above 1 MiB, like an exFAT card formatted so, gets byte sizes which are no whole
+-- blocks of its StatFs, take a larger unit if such cards are seen.
+local UNIT = 1048576
+
+-- The total of a file system: a share of the size it would be sold with, like a partition of a disk, the same for all
+-- file systems of that size; above 0.5, so the total stays in its size
+local SHARE = 0.875
+
+function partitionsize(value)
+    -- Small file systems keep their size
     if value < GB then
         return value
     end
-    local size = GB
-    while size < value do
-        size = size * 2
-    end
-    return size
+    return math.floor(storagesize(value) * SHARE / UNIT) * UNIT
 end
 
 -- Down to two significant digits, like 7917 MB to 7900 MB
@@ -61,11 +98,39 @@ function freesize(value)
     return math.floor(value / step) * step
 end
 
+-- Free memory down to two significant digits and up to a whole page again, like the kernel counts it: still not above
+-- the real size, which is whole pages too, and kept by a second rounding
+function freememsize(value, page)
+    return math.ceil(freesize(value) / page) * page
+end
+
+-- The size of a page of memory, read without the hooks
+function pagesize(param)
+    return param:unhooked(function()
+        local constants = luajava.bindClass('android.system.OsConstants')
+        return luajava.bindClass('android.system.Os'):sysconf(constants._SC_PAGESIZE)
+    end)
+end
+
+-- Free space of a file system down to two significant digits of whole MiB, which a second rounding keeps, and not above
+-- the faked total of its real total, when known, rounded the same way, so a nearly empty file system has less free
+-- space than its total, like on a device, which a second rounding keeps too.
+-- shortcut: free space does not follow writes smaller than its step, like 1 GB at 50 GB free, which an app that
+-- writes and measures again sees; the exact free space would tell more, follow writes from a rounded start only if
+-- apps are seen to measure so.
+function spacesize(value, total)
+    local fake = freesize(math.floor(value / UNIT)) * UNIT
+    if total ~= nil and total > 0 then
+        fake = math.min(fake, freesize(math.floor(partitionsize(total) / UNIT)) * UNIT)
+    end
+    return fake
+end
+
 -- Opening files, of which only /proc/meminfo has the sizes, see XCore.getFilter; also by other paths,
 -- like /proc/self/root/proc/meminfo, by java.nio (UnixNativeDispatcher.open), see XParam.opens, and by
 -- Process.readProcLines and readProcFile, which the framework calls for other files of /proc too.
--- Not covered are links of apps themselves to the file, which have paths without meminfo. openat has no path the filter
--- could compare, see openedat.
+-- Also by links of apps themselves to the file, which the filter compares by the path they lead to. openat has no path
+-- the filter could compare, see openedat.
 function filter(hook)
     local method = hook:getMethodName()
     if method == 'open' or method == 'readProcLines' or method == 'readProcFile' then
@@ -113,27 +178,29 @@ for name in string.gmatch('MemTotal MemFree MemAvailable Buffers Cached SwapCach
 end
 
 -- The faked size of a line of /proc/meminfo which tells the total or the free memory, nil for the other lines;
--- state keeps what MemTotal and MemFree, which come first, changed, for the lines after them
+-- state has the size of a page and keeps what MemTotal and MemFree, which come first, changed, for the lines after them
 function memsize(state, name, size)
     if name == 'MemTotal:' then
         local fake = memorysize(size)
-        state.scale, state.more = fake / size, fake - size
+        state.scale, state.more, state.total = fake / size, fake - size, fake
         return fake
     elseif name == 'MemFree:' or name == 'MemAvailable:' then
-        local fake = freesize(size)
+        -- Not above the faked total, which can be below the real one
+        local fake = math.min(freememsize(size, state.page), state.total or size)
         if name == 'MemFree:' then
             -- What the line lost, in the whole kB of the line
             state.less = size - math.floor(fake / 1024) * 1024
         end
         return fake
-    elseif name == 'SwapTotal:' or name == 'CommitLimit:' then
+    elseif name == 'SwapTotal:' or name == 'SwapFree:' or name == 'CommitLimit:' then
         -- SwapTotal, a share of the memory with zram, and CommitLimit, half of it plus SwapTotal, tell the total,
-        -- so they grow with it, like on a device with the faked total
-        return math.floor(size * (state.scale or 1) / 1024) * 1024
+        -- so they grow with it, like on a device with the faked total, in whole pages; SwapFree with them, so it stays
+        -- below SwapTotal like the kernel counts it
+        return math.floor(size * (state.scale or 1) / state.page) * state.page
     elseif name == 'HighTotal:' then
         -- 32-bit kernels with high memory: HighTotal and LowTotal add up to MemTotal, HighFree and LowFree to MemFree.
-        -- The low memory is what the kernel keeps mapped, which its address space limits, so on a device with more
-        -- memory only the high memory is larger; the free memory lost is taken from the free high memory first
+        -- The low memory is what the kernel keeps mapped, which its address space limits, so on a device with more or
+        -- less memory only the high memory differs; the free memory lost is taken from the free high memory first
         return size + (state.more or 0)
     elseif name == 'HighFree:' or name == 'LowFree:' then
         local taken = math.min(size, state.less or 0)
@@ -144,12 +211,13 @@ function memsize(state, name, size)
 end
 
 -- The sizes of /proc/meminfo like the ones of ActivityManager.getMemoryInfo, which come from this file:
--- the total memory rounded up, the free and available memory down, in the format of the kernel
-function meminfo(param)
+-- the total memory rounded up, the free and available memory down, in the format of the kernel; the free sizes in
+-- whole pages of page bytes
+function meminfo(param, page)
     local changed = false
     local old, new = {}, {}
     local lines = {}
-    local state = {}
+    local state = { page = page }
     for line in string.gmatch(param:getFileText(), '[^\n]*\n') do
         if not MEMINFO[string.match(line, '^[^:]*:')] then
             changed = true
@@ -202,7 +270,7 @@ function fakedmeminfo(param)
     local file = { text = text,
                    getFileText = function(self) return self.text end,
                    setFileText = function(self, value) self.text = value end }
-    meminfo(file)
+    meminfo(file, pagesize(param))
     return file.text
 end
 
@@ -230,12 +298,12 @@ function procsizes(text, fields, count)
 end
 
 -- Process.getFreeMemory, which also gives MemoryInfo.availMem in the system server: MemFree and Cached of /proc/meminfo,
--- MemAvailable from Android 16, here of the faked file, so they agree with it; the real size rounded down when the file
--- cannot be read
+-- MemAvailable from Android 16, here of the faked file, so they agree with it; the real size rounded like MemFree when
+-- the file cannot be read
 function freememory(param, real)
     local text = fakedmeminfo(param)
     if text == nil then
-        return freesize(real)
+        return freememsize(real, pagesize(param))
     end
     local fields = sdk() >= 36 and { 'MemAvailable:' } or { 'MemFree:', 'Cached:' }
     local sum = 0
@@ -243,6 +311,19 @@ function freememory(param, real)
         sum = sum + size
     end
     return sum * 1024
+end
+
+-- The low memory thresholds of MemoryInfo in the order of its parcel, of the home app, the cached apps, the secondary
+-- server, the visible and the foreground app: the levels of ProcessList.updateOomLevels for 700 MB or more, which every
+-- faked total is, without the settings of a maker (config_lowMemoryKillerMinFreeKbytesAbsolute and Adjust), so they
+-- tell neither the maker nor the real total; in kB times 1024 like getMemLevel, with the levels of the cached apps
+-- raised on devices with 64-bit ABIs
+local THRESHOLDS = { 'threshold', 'hiddenAppThreshold', 'secondaryServerThreshold', 'visibleAppThreshold',
+                     'foregroundAppThreshold' }
+
+function thresholds()
+    local home = luajava.bindClass('android.os.Build').SUPPORTED_64_BIT_ABIS.length > 0 and 221184 or 147456
+    return { home * 1024, home * 1024, home * 1024, 92160 * 1024, 73728 * 1024 }
 end
 
 -- Low memory like ProcessList.getMemoryInfo computes it: below the middle between the thresholds of the home app and of
@@ -269,27 +350,21 @@ function memoryparcel(param, info)
         parcel:recycle()
         return false
     end
-    parcel:readInt()
-    -- Of the cached apps, the secondary server, the visible and the foreground app
-    local thresholds = { parcel:readLong(), parcel:readLong(), parcel:readLong(), parcel:readLong() }
-    -- The low memory thresholds are shares of the total, so they grow with it, like SwapTotal
-    local fake = memorysize(total)
-    home = math.floor(home * (fake / total))
-    for i = 1, 4 do
-        thresholds[i] = math.floor(thresholds[i] * (fake / total))
-    end
+    local fake, levels = memorysize(total), thresholds()
     avail = freememory(param, avail)
     parcel:setDataPosition(0)
     if advertised then
-        -- The size the device is sold with: not smaller than the total, like on a device
-        parcel:writeLong(advertised > 0 and fake or advertised)
+        -- The advertised memory of the faked total, like Process.getAdvertisedMem gives it on a device without
+        -- ro.boot.ddr_size, which reads as not set (see systemproperties_get): the total rounded like a disk, like
+        -- 4 GB of 3.72 GiB; Android never gives a power of two of GiB
+        parcel:writeLong(advertised > 0 and storagesize(fake) or advertised)
     end
     parcel:writeLong(avail)
     parcel:writeLong(fake)
-    parcel:writeLong(home)
-    parcel:writeInt(lowmemory(avail, home, thresholds[1]) and 1 or 0)
-    for i = 1, 4 do
-        parcel:writeLong(thresholds[i])
+    parcel:writeLong(levels[1])
+    parcel:writeInt(lowmemory(avail, levels[1], levels[2]) and 1 or 0)
+    for i = 2, 5 do
+        parcel:writeLong(levels[i])
     end
     parcel:setDataPosition(0)
     info:readFromParcel(parcel)
@@ -298,32 +373,86 @@ function memoryparcel(param, info)
 end
 
 -- MemoryInfo faked through its fields, for a subclass of the app and a parcel of a maker; the hidden thresholds are nil
--- when the runtime does not show them, and then low memory is at least below the threshold of the home app, which
--- Android gives the cached apps too (ProcessList.getMemLevel), so it is the middle.
+-- when the runtime does not show them.
 -- shortcut: when the runtime hides the thresholds of the cached apps, the secondary server and the visible apps, they
--- stay real in the parcel of such an info, and low memory follows the threshold of the home app, which differs from the
--- middle only where a maker changed the levels; read them by reflection past the hidden API rules when apps are seen
--- to subclass the info
+-- stay real in the parcel of such an info; set them by reflection past the hidden API rules when apps are seen to
+-- subclass the info
 function memoryfields(param, info)
-    local total = info.totalMem
-    local fake = memorysize(total)
-    for _, name in ipairs({ 'threshold', 'hiddenAppThreshold', 'secondaryServerThreshold',
-                            'visibleAppThreshold', 'foregroundAppThreshold' }) do
+    local fake, levels = memorysize(info.totalMem), thresholds()
+    for i, name in ipairs(THRESHOLDS) do
         if info[name] ~= nil then
-            info[name] = math.floor(info[name] * (fake / total))
+            info[name] = levels[i]
         end
     end
     info.totalMem = fake
     info.availMem = freememory(param, info.availMem)
-    -- The size the device is sold with, Android 14 and later: not smaller than the total, like on a device
+    -- The advertised memory of Android 14 and later, like memoryparcel
     if info.advertisedMem ~= nil and info.advertisedMem > 0 then
-        info.advertisedMem = fake
+        info.advertisedMem = storagesize(fake)
     end
-    if info.hiddenAppThreshold ~= nil then
-        info.lowMemory = lowmemory(info.availMem, info.threshold, info.hiddenAppThreshold)
-    else
-        info.lowMemory = info.lowMemory or info.availMem < info.threshold
+    info.lowMemory = lowmemory(info.availMem, levels[1], levels[2])
+end
+
+-- What fn gives, run without the hooks and without telling StrictMode of a disk read, which the call of the app told
+-- already; nil when it fails
+function quietly(param, fn)
+    return param:unhooked(function()
+        local strict = luajava.bindClass('android.os.StrictMode')
+        local policy = strict:allowThreadDiskReads()
+        local ok, value = pcall(fn)
+        strict:setThreadPolicy(policy)
+        return ok and value or nil
+    end)
+end
+
+-- Whether a call of StorageManager or StorageStatsManager is of the internal storage
+function internal(param)
+    return luajava.bindClass('android.os.storage.StorageManager').UUID_DEFAULT:equals(param:getArgument(0))
+end
+
+-- The real total of the storage of a free size, for its limit: of the StatFs, file or file store, of the internal
+-- storage for StorageManager and StorageStatsManager; nil for another volume and when it cannot be read.
+-- shortcut: a StatFs or File of a subclass of the app gets no limit, since asking it for its total would run the code
+-- of the app, which could count the calls; read the fields of the object if apps subclass them.
+-- shortcut: the free space of another volume by StorageManager and StorageStatsManager gets no limit, so on a nearly
+-- empty card it can be above the total of its file system, find the path of the volume if apps compare them.
+function realtotal(hook, param)
+    local name = hook:getName()
+    return quietly(param, function()
+        local this = param:getThis()
+        if string.find(name, '^StatFs%.') then
+            return this:getClass():getName() == 'android.os.StatFs' and this:getTotalBytes() or nil
+        elseif string.find(name, '^File%.') then
+            return this:getClass():getName() == 'java.io.File' and this:getTotalSpace() or nil
+        elseif string.find(name, '^UnixFileStore%.') then
+            return this:getTotalSpace()
+        elseif internal(param) then
+            return luajava.bindClass('android.os.Environment'):getDataDirectory():getTotalSpace()
+        end
+        return nil
+    end)
+end
+
+-- The size of the internal storage, primary true, else of another volume, of StorageStatsManager.getTotalBytes: what
+-- Android derives of the totals of /data and, from Android 9, /system (StorageManager.getPrimaryStorageSize), here of
+-- their faked totals, so these add up to it like on a device; of other volumes the size of the disk, which Android
+-- rounded already. The hidden getPrimaryStorageSize itself adds up the totals of File in the app, so it gets the faked
+-- ones. The block device of the internal storage, whose size the storage service gives without a permission from Android
+-- 14 QPR3 and uses for the total above 512 GB from Android 15, has the same size, so the total agrees with it like on a
+-- device sold with that size.
+-- shortcut: where the boot image inlined File.getTotalSpace into getPrimaryStorageSize, that one gives the real sum,
+-- hook it with devicesize if apps read it.
+-- shortcut: an app which transacts with the storage service itself gets the exact block device size, round it in the
+-- reply parcel if apps do so.
+function devicesize(param, result, primary)
+    local totals = primary and quietly(param, function()
+        local environment = luajava.bindClass('android.os.Environment')
+        return { environment:getDataDirectory():getTotalSpace(), environment:getRootDirectory():getTotalSpace() }
+    end)
+    if not totals or totals[1] <= 0 then
+        return storagesize(result)
     end
+    return storagesize(partitionsize(totals[1]) + (sdk() < 28 and 0 or partitionsize(totals[2])))
 end
 
 function after(hook, param)
@@ -336,11 +465,12 @@ function after(hook, param)
         if not (method == 'open' and param:opens('/proc/meminfo') or method == 'openat' and openedat(param)) then
             return false
         end
-        return meminfo(param)
+        return meminfo(param, pagesize(param))
     end
 
-    -- A disk, made of its parcel (see DiskInfo.createFromParcel): its size rounded like the other totals, so it agrees
-    -- with getTotalBytes of a volume on it, which Android rounds of the size of the disk (FileUtils.roundStorageSize)
+    -- A disk, made of its parcel (see DiskInfo.createFromParcel): its size rounded to the size it is sold with, so it
+    -- agrees with getTotalBytes of a volume on it, which Android rounds of the size of the disk (FileUtils.roundStorageSize),
+    -- also of a small disk, like 512 MB, but on the quarterly releases of Android 14 (see storagesize)
     -- shortcut: an app which transacts with the storage service itself and reads the reply parcel by hand gets the
     -- exact size, upgrade by rounding it in the parcel if apps do so.
     if method == 'CREATOR:createFromParcel' then
@@ -349,7 +479,8 @@ function after(hook, param)
             return false
         end
         local size = disk.size
-        local fake = storagesize(size)
+        -- A disk whose size is not known has none, which Android leaves
+        local fake = size > 0 and storagesize(size) or size
         if fake == size then
             return false
         end
@@ -406,11 +537,11 @@ function after(hook, param)
         if param:getException() ~= nil or sizes == nil or sizes.length == 0 or sizes[1] <= 0 then
             return false
         end
-        local lines = { { 1, 'MemTotal:' }, { 2, 'MemFree:' }, { 9, 'SwapTotal:' } }
+        local lines = { { 1, 'MemTotal:' }, { 2, 'MemFree:' }, { 9, 'SwapTotal:' }, { 10, 'SwapFree:' } }
         if sdk() >= 34 then
             table.insert(lines, { 20, 'MemAvailable:' })
         end
-        local state, changed = {}, false
+        local state, changed = { page = pagesize(param) }, false
         for _, line in ipairs(lines) do
             local index = line[1]
             if index <= sizes.length then
@@ -448,31 +579,38 @@ function after(hook, param)
 
     local fake
     if method == 'sysconf' then
-        -- Os.sysconf, the pages of memory: the sizes of getMemoryInfo in pages of the device. Only these names are
-        -- rounded; the free pages are rounded up to a page, or the second hook of one call, of Os and ForwardingOs,
-        -- would round them down once more
+        -- Os.sysconf, the pages of memory: the total of getMemoryInfo in pages of the device, and the free pages like
+        -- bionic counts them (get_avphys_pages), MemFree and Buffers, of the faked /proc/meminfo, so they agree with it,
+        -- else rounded like MemFree; the second hook of one call, of Os and ForwardingOs, keeps both. Only these names
+        -- are faked.
         local constants = luajava.bindClass('android.system.OsConstants')
         local name = param:getArgument(0)
         if name ~= constants._SC_PHYS_PAGES and name ~= constants._SC_AVPHYS_PAGES then
             return false
         end
-        local size = param:unhooked(function()
-            return luajava.bindClass('android.system.Os'):sysconf(constants._SC_PAGESIZE)
-        end)
+        local size = pagesize(param)
         if name == constants._SC_PHYS_PAGES then
             fake = math.floor(memorysize(result * size) / size)
         else
-            fake = math.ceil(freesize(result * size) / size)
+            local text = fakedmeminfo(param)
+            if text == nil then
+                fake = freememsize(result * size, size) / size
+            else
+                local sizes = procsizes(text, { 'MemFree:', 'Buffers:' }, 2)
+                fake = math.floor((sizes[1] + sizes[2]) * 1024 / size)
+            end
         end
     elseif method == 'statvfs' or method == 'fstatvfs' then
-        -- Sizes in fragments, like StatFs uses them
+        -- Sizes in fragments, like StatFs uses them; a small file system keeps its blocks, its free space is rounded
+        -- like by StatFs and File
         local unit = result.f_frsize
-        if unit <= 0 or result.f_blocks * unit < GB then
+        if unit <= 0 then
             return false
         end
-        local blocks = math.floor(storagesize(result.f_blocks * unit) / unit)
-        local free = math.floor(freesize(result.f_bfree * unit) / unit)
-        local avail = math.floor(freesize(result.f_bavail * unit) / unit)
+        local total = result.f_blocks * unit
+        local blocks = math.floor(partitionsize(total) / unit)
+        local free = math.floor(spacesize(result.f_bfree * unit, total) / unit)
+        local avail = math.floor(spacesize(result.f_bavail * unit, total) / unit)
         if blocks == result.f_blocks and free == result.f_bfree and avail == result.f_bavail then
             return false
         end
@@ -483,7 +621,7 @@ function after(hook, param)
                 math.floor(result.f_files * scale), math.floor(result.f_ffree * scale), math.floor(result.f_favail * scale),
                 result.f_fsid, result.f_flag, result.f_namemax)
         param:setResult(fake)
-        return true, tostring(result.f_blocks * unit) .. ' ' .. tostring(result.f_bavail * unit),
+        return true, tostring(total) .. ' ' .. tostring(result.f_bavail * unit),
                 tostring(blocks * unit) .. ' ' .. tostring(avail * unit)
     elseif method == 'getFreeMemory' then
         -- Process.getFreeMemory, which gives -1 when it fails
@@ -497,19 +635,26 @@ function after(hook, param)
             return false
         end
         fake = memorysize(result)
+    elseif method == 'getTotalBytes' and string.find(hook:getName(), '^StorageStatsManager%.') then
+        fake = devicesize(param, result, internal(param))
+    elseif method == 'getInternalStorageBlockDeviceSize' then
+        if result <= 0 then
+            return false
+        end
+        fake = devicesize(param, result, true)
     elseif method == 'getTotalSpace' or method == 'getTotalBytes' then
-        fake = storagesize(result)
+        fake = partitionsize(result)
     elseif method == 'getBlockCountLong' or method == 'getBlockCount' then
         -- StatFs, in blocks
         local size = param:getThis():getBlockSizeLong()
-        fake = math.floor(storagesize(result * size) / size)
+        fake = math.floor(partitionsize(result * size) / size)
     elseif string.find(method, 'Blocks') then
         -- StatFs getAvailableBlocks(Long), getFreeBlocks(Long)
         local size = param:getThis():getBlockSizeLong()
-        fake = math.floor(freesize(result * size) / size)
+        fake = math.floor(spacesize(result * size, realtotal(hook, param)) / size)
     else
-        -- getFreeSpace, getUsableSpace, getFreeBytes and getAvailableBytes
-        fake = freesize(result)
+        -- getFreeSpace, getUsableSpace, getUnallocatedSpace, getFreeBytes, getAvailableBytes and getAllocatableBytes
+        fake = spacesize(result, realtotal(hook, param))
     end
 
     if fake == result then

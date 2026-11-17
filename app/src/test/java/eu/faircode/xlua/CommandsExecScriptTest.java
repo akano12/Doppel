@@ -95,7 +95,8 @@ public class CommandsExecScriptTest {
             "  return restricted, thrown, line, program",
             "end",
             "function finish(builder)",
-            "  return after({}, { getThis = function(self) return builder end, getException = function(self) end })",
+            "  return after({ getMethodName = function(self) return 'start' end },",
+            "    { getThis = function(self) return builder end, getException = function(self) end })",
             "end");
 
     // A list which shows the script other words than ProcessBuilder.start reads from it

@@ -39,11 +39,16 @@ interface XBackend {
 
     void log(Throwable ex);
 
-    // Hook all methods with the given name declared by the class; abstract methods have no code to hook
-    default void hookAll(Class<?> cls, String name, Callback callback) throws Throwable {
+    // Hook all methods with the given name declared by the class, the number of which it returns; abstract methods have
+    // no code to hook
+    default int hookAll(Class<?> cls, String name, Callback callback) throws Throwable {
+        int hooked = 0;
         for (Method method : cls.getDeclaredMethods())
-            if (method.getName().equals(name) && !Modifier.isAbstract(method.getModifiers()))
+            if (method.getName().equals(name) && !Modifier.isAbstract(method.getModifiers())) {
                 hook(method, callback);
+                hooked++;
+            }
+        return hooked;
     }
 
     abstract class Callback {

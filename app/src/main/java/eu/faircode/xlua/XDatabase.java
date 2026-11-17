@@ -119,9 +119,12 @@ class XDatabase {
             }
     };
 
-    // Built-in hook names moved to another group by this or former versions: name, group now. The apps which
-    // restrict the group a hook moved to get it once, like the hooks an update adds, the apps which restrict
-    // the hook keep it, see XProvider.assignMovedBuiltins
+    // Built-in hook names moved to another group by this or former versions, or which leave out fewer packages than
+    // before: name, group now and, for the latter, the packages it left out before, like excludePackages. The apps
+    // which restrict the group a hook moved to, or which it left out before, get it once, like the hooks an update
+    // adds, the apps which restrict the hook keep it, see XProvider.assignMovedBuiltins; a restore of a backup made
+    // before the move does the same, see Backup.completingMoved. The other apps had a hook which left out fewer
+    // packages already, unless their user switched it off, which stays. New rows go at the end, see MOVED_UNLISTED.
     static final String[][] MOVED = new String[][]{
             {"Build.getRadioVersion", "Use.Tracking"},
             {"MediaDrm.getPropertyByteArray", "Read.Identifiers"},
@@ -130,7 +133,31 @@ class XDatabase {
             {"SubscriptionInfo.getMnc", "Use.Tracking"},
             {"SubscriptionInfo.getMncString", "Use.Tracking"},
             {"SubscriptionInfo.toString/plmn", "Use.Tracking"},
+            // These left out all packages of Google and com.android.* before, now Play services and the services
+            // framework only
+            {"ContentResolver.query26/gsf_id", "Read.Identifiers", "com\\.android\\..*,com\\.google\\.android\\..*"},
+            {"ContentProviderClient.query26/gsf_id", "Read.Identifiers", "com\\.android\\..*,com\\.google\\.android\\..*"},
     };
+
+    // The first rows of MOVED, which every release that writes the list of built-in definitions into its backups but
+    // not the list of moved ones (2.1 to 2.3) had already, so its backups were made after these moves, see
+    // Backup.completingMoved
+    static final int MOVED_UNLISTED = 7;
+
+    // Whether a moved hook goes to an app which restricts its group, see MOVED: a hook moved to another group to every
+    // such app, one which leaves out fewer packages only to an app it left out before
+    static boolean movedFor(String id, String packageName) {
+        for (String[] move : MOVED)
+            if (XHook.builtinId(move[0]).equals(id)) {
+                if (move.length < 3)
+                    return true;
+                for (String regex : Util.split(move[2]))
+                    if (packageName.matches(regex))
+                        return true;
+                return false;
+            }
+        return true;
+    }
 
     // Built-in hook names renamed by this and former versions: old name, new name, see upgrade and Backup.renamed
     static final String[][] RENAMED = new String[][]{
@@ -210,6 +237,12 @@ class XDatabase {
             // The callbacks of audio devices are registered and get the devices the app may see, of infoListFromPortList,
             // like Android calls them at the registration
             {"AudioManager.registerAudioDeviceCallback", "AudioManager.infoListFromPortList"},
+            // The ids of AdServices are faked in the results of the service, so the ids an app makes itself keep their values
+            {"AdId.getAdId", "GetAdIdResult.createFromParcel"},
+            {"AdId.isLimitAdTrackingEnabled", "GetAdIdResult.createFromParcel"},
+            {"AdId.constructor", "GetAdIdResult.createFromParcel"},
+            {"AppSetId.getId", "GetAppSetIdResult.createFromParcel"},
+            {"AppSetId.constructor", "GetAppSetIdResult.createFromParcel"},
     };
 
     // Built-in hook names removed by this and former versions, without a definition which took over; their assignments
@@ -261,12 +294,19 @@ class XDatabase {
             // The callbacks of install sessions are told about the sessions of the app itself, see install_sessions.lua
             "PackageInstaller.registerSessionCallback", "PackageInstaller.registerSessionCallback/handler",
             "LauncherApps.registerPackageInstallerSessionCallback",
+            // The callbacks of package changes are told about the app itself, see launcher_callbacks.lua
+            "LauncherApps.registerCallback", "LauncherApps.registerCallback/handler",
             // The media provider decides by the permission alone whether a photo has its location, so the URI the hook
             // gave back changed nothing but was not the one of Android; the readers of the tags are hooked
             "MediaStore.setRequireOriginal",
             // The account types tell only which apps are installed, which AccountManager.getAuthenticatorTypes/apps of
             // Get.Applications hides; with Read.Account alone PackageManager shows the apps whose types it left out
-            "AccountManager.getAuthenticatorTypes"
+            "AccountManager.getAuthenticatorTypes",
+            // The advertising ids of Play services and microG are faked by their service (ServiceDispatcher.doConnected/adid),
+            // the one of Huawei is not there (Context.bindService/identifiers and the settings and providers of identifiers),
+            // so the Info an app makes itself keeps its values
+            "AdvertisingIdClient$Info.getId", "AdvertisingIdClient$Info.isLimitAdTrackingEnabled",
+            "HuaweiAdvertisingIdClient$Info.getId", "HuaweiAdvertisingIdClient$Info.isLimitAdTrackingEnabled"
     };
 
     // Settings of all users and apps which no script reads anymore, removed on each start, see upgrade

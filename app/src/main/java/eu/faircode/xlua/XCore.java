@@ -23,6 +23,7 @@ package eu.faircode.xlua;
 import android.annotation.SuppressLint;
 import android.app.Application;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -32,9 +33,14 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
+import android.os.IInterface;
 import android.os.RemoteException;
 import android.os.Process;
+import android.os.StrictMode;
 import android.os.UserHandle;
+import android.provider.Settings;
+import android.system.OsConstants;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -55,6 +61,7 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
@@ -88,15 +95,29 @@ class XCore {
     private static volatile XBackend backend = null;
     private static volatile int version = -1;
 
-    // Usage reports are sent in batches, with the last report per hook and event, and the last error
+    // Usage reports are sent in batches, with the last report per hook and event, and the last error, at most once a
+    // second. In apps the hooked call of any thread which comes once they are due sends them (see sendDue), so they
+    // start no thread, which the app could list, and their frames are only inside a hooked call, under the frames of
+    // its hook; a report with none sent in the second before is due right away. System server sends them on a thread of
+    // its own, which no app can list, since its hooked methods can hold locks which the settings provider and the
+    // notifications of the service take too.
+    // shortcut: the reports of the last second before an app makes no more hooked calls wait for its next one, and
+    // are lost when its process ends first; send them also when the last activity of the app stops if users miss them
+    // shortcut: the hooked call which sends the reports waits for the service, also on the main thread, for a time not
+    // measured on a device; measure it and send them by a call which does not wait if apps slow down
+    private static final long REPORT_DELAY = TimeUnit.SECONDS.toNanos(1);
     private final Map<String, Map<String, Bundle>> queue = new HashMap<>();
-    private boolean flushing = false;
-    private final ScheduledExecutorService reporter = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        // Without a name of its own: apps can list the threads of their process
-        Thread thread = new Thread(runnable);
-        thread.setDaemon(true);
-        return thread;
-    });
+    private volatile boolean queued = false;
+    // By System.nanoTime, when the queue is due, and when reports were last sent
+    private volatile long due = 0;
+    private long sent = 0;
+    private boolean anySent = false;
+    private ScheduledExecutorService reporter = null;
+    // The methods hooked with a script shared by the groups, each with the script, see installMethod
+    private final Set<String> sharedHooks = ConcurrentHashMap.newKeySet();
+    // The callers deoptimized in this process, by their class loader and name: the hooks of one method in each group
+    // name the same ones, which would else each list the methods of their classes again, see deoptimize
+    private static final Set<String> deoptimized = ConcurrentHashMap.newKeySet();
 
     XCore(XBackend backend) {
         XCore.backend = backend;
@@ -205,6 +226,9 @@ class XCore {
                             ReceiverPackage.MATCH_ANY_USER);
                     version = (int) PackageInfoCompat.getLongVersionCode(pi);
                     XLog.i(TAG, "Module version " + version);
+                    // The signers of the module which runs, so an app which takes its name after it was removed
+                    // gets no answers, see XProvider.permitted
+                    XProvider.moduleSigners = XProvider.getModuleSigners(context);
 
                     // The texts of notifications of the module version which runs, also after an update
                     try {
@@ -271,6 +295,13 @@ class XCore {
                 throw new Throwable("Context not found");
             }
         });
+
+        // Without this hook other listeners get Doppel's notifications, like before, but the service still runs
+        try {
+            XNotify.hideFromListeners(backend, classLoader);
+        } catch (Throwable ex) {
+            log(ex);
+        }
     }
 
     // Protected broadcasts, which only the system sends, so the receiver is not exported, which Android 13
@@ -329,8 +360,8 @@ class XCore {
                 if (caller == XProvider.CALLER_NONE)
                     return;
 
-                serve(call, "Call " + arg,
-                        () -> XProvider.call(context, arg, extras, caller == XProvider.CALLER_PERMITTED));
+                boolean permitted = (caller == XProvider.CALLER_PERMITTED);
+                serve(call, "Call " + arg, permitted, () -> XProvider.call(context, arg, extras, permitted));
             }
 
             @Override
@@ -347,8 +378,8 @@ class XCore {
                 try {
                     String[] projection = (String[]) call.args[1];
                     String[] selection = (String[]) call.args[3];
-                    if (projection == null || projection.length == 0 ||
-                            projection[0] == null || !projection[0].startsWith(XProvider.COLUMN))
+                    // A query of the app's own code is the settings provider's, see hideService
+                    if (!isColumn(projection) || OWN.equals(call.args[4]))
                         return;
 
                     enterService();
@@ -370,8 +401,8 @@ class XCore {
 
                 // A column without a method, like xlua., gets no result too
                 String method = column.substring(XProvider.COLUMN.length());
-                serve(call, "Query " + column, () -> XProvider.query(context, method, selection,
-                        caller == XProvider.CALLER_PERMITTED));
+                boolean permitted = (caller == XProvider.CALLER_PERMITTED);
+                serve(call, "Query " + column, permitted, () -> XProvider.query(context, method, selection, permitted));
             }
 
             @Override
@@ -379,6 +410,101 @@ class XCore {
                 withoutHookFrames(call);
             }
         });
+    }
+
+    // A query of the service has its column first, see Data.query
+    static boolean isColumn(String[] projection) {
+        return (projection != null && projection.length > 0 &&
+                projection[0] != null && projection[0].startsWith(XProvider.COLUMN));
+    }
+
+    // The sort order of a query and the method of a call of the app's own code, which the settings provider ignores
+    static final String OWN = XProvider.COLUMN + "own";
+
+    // The service answers the engine only: a query of its columns or a call of its method by the code of the app, outside
+    // enterService, is marked on its way to the settings provider, where hookSettings leaves it to the settings provider,
+    // so the app gets the error or the null of a device without Doppel. Installed in every process the engine hooks,
+    // also of an app without assignments now, since the service answers its uid once it has some.
+    // shortcut: not yet seen to fire on a device; the app's AppComponentFactory (Android 9 and later), which runs before
+    // the engine, and a query or call the app sends with IBinder.transact itself still get the answers of the service;
+    // upgrade to a token the code of the app cannot get
+    void hideService(ClassLoader classLoader) throws Throwable {
+        // https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/core/java/android/content/ContentProviderNative.java
+        Class<?> cls = XResolver.resolveClass("android.content.ContentProviderProxy", classLoader);
+        int queries = backend.hookAll(cls, "query", new XBackend.Callback() {
+            @Override
+            void before(XCall call) {
+                try {
+                    Class<?>[] types = ((Method) call.method).getParameterTypes();
+                    Uri uri = null;
+                    for (int i = 0; i < types.length; i++)
+                        if (types[i] == Uri.class)
+                            uri = (Uri) call.args[i];
+                    markQuery(types, call.args, (uri == null ? null : uri.getAuthority()), call.thisObject);
+                } catch (Throwable ex) {
+                    log(ex);
+                }
+            }
+        });
+        int calls = backend.hookAll(cls, "call", new XBackend.Callback() {
+            @Override
+            void before(XCall call) {
+                if (!inService())
+                    try {
+                        markCall(call.args, Build.VERSION.SDK_INT, call.thisObject);
+                    } catch (Throwable ex) {
+                        log(ex);
+                    }
+            }
+        });
+        // Logged, since the code of the app would else get the answers of the service without a sign of it
+        if (queries == 0 || calls == 0)
+            XLog.w(TAG, "Service not hidden: " + queries + " query and " + calls + " call methods hooked");
+    }
+
+    // The binder of the settings provider, which the engine's own queries reach, kept so that it stays the same object;
+    // on Android 8.1 and 9 it tells a call of the settings provider from one of another provider, see markCall
+    static volatile IBinder settingsBinder = null;
+
+    // ContentProviderProxy.query has one Uri, one projection and one Bundle of arguments on all versions, see XCoreTest.
+    // A query of the settings provider of a column of the service by the code of the app gets a copy of its arguments
+    // with the sort order OWN, so the app's own Bundle stays as it was; the engine's own show the binder of the provider.
+    static void markQuery(Class<?>[] types, Object[] args, String authority, Object proxy) {
+        if (!isSettings(authority))
+            return;
+        if (inService()) {
+            if (proxy instanceof IInterface)
+                settingsBinder = ((IInterface) proxy).asBinder();
+            return;
+        }
+        String[] projection = null;
+        int extras = -1;
+        for (int i = 0; i < types.length; i++)
+            if (types[i] == String[].class)
+                projection = (String[]) args[i];
+            else if (types[i] == Bundle.class)
+                extras = i;
+        if (!isColumn(projection) || extras < 0)
+            return;
+        Bundle marked = (args[extras] == null ? new Bundle() : new Bundle((Bundle) args[extras]));
+        marked.putString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER, OWN);
+        args[extras] = marked;
+    }
+
+    // ContentProviderProxy.call has the method third from the end, after the authority since Android 10; before, only
+    // the binder of the proxy tells the settings provider, so a call of another provider, or one before the engine's
+    // first query, stays as it was, like without Doppel
+    static void markCall(Object[] args, int sdk, Object proxy) {
+        int method = args.length - 3;
+        if (method > 0 && XProvider.METHOD.equals(args[method]) && (sdk < Build.VERSION_CODES.Q
+                ? settingsBinder != null && proxy instanceof IInterface && ((IInterface) proxy).asBinder() == settingsBinder
+                : isSettings((String) args[method - 1])))
+            args[method] = OWN;
+    }
+
+    // An authority with a user, like 10@settings, is of the same provider
+    static boolean isSettings(String authority) {
+        return (authority != null && Settings.AUTHORITY.equals(authority.substring(authority.lastIndexOf('@') + 1)));
     }
 
     // Android 9 and later send the first five frames of a SecurityException of system server to the caller, also to
@@ -527,7 +653,17 @@ class XCore {
     }
 
     private void hookPackage(final String packageName, int uid, final Context context) throws Throwable {
+        // Before the first query of the engine; an app whose code cannot be kept from the service still gets its hooks.
+        // System server has no code of an app, and its settings provider is its own, reached without a proxy.
+        if (!"android".equals(packageName))
+            try {
+                hideService(context.getClassLoader());
+            } catch (Throwable ex) {
+                log(ex);
+            }
+
         List<XHook> hooks;
+        enterService();
         try {
             hooks = Data.getAssignedHooks(context, packageName, uid);
         } catch (IllegalArgumentException ex) {
@@ -535,6 +671,8 @@ class XCore {
             // logged, since an illegal argument of the service would else leave the app without hooks silently
             XLog.i(TAG, "No assigned hooks: " + ex.getMessage());
             return;
+        } finally {
+            leaveService();
         }
         if (hooks.isEmpty())
             return;
@@ -571,16 +709,19 @@ class XCore {
             }
     }
 
-    // App settings replace global settings, the identifiers new each boot both (see FakeIds); the settings read
+    // App settings replace global settings, the identifiers the service derives both (see FakeIds); the settings read
     // until an error of the service, logged, since without them the app would run without any hook
     static Map<String, String> getSettings(Context context, String packageName, int uid) {
         Map<String, String> settings = new HashMap<>();
+        enterService();
         try {
             settings.putAll(Data.getSettings(context, "global"));
             settings.putAll(Data.getSettings(context, packageName));
             settings.putAll(Data.getBootValues(context, packageName, uid));
         } catch (Throwable ex) {
             log(new IllegalStateException("Settings of " + packageName + ":" + uid, ex));
+        } finally {
+            leaveService();
         }
         // Without the boot value of the service the suffix of the substitute names is made here, once for all hooks
         // and threads, so two threads of a script cannot each make and keep a different one
@@ -640,7 +781,16 @@ class XCore {
                                final Map<String, String> settings, final Member member) throws Throwable {
         // The runtime made for the filter is the one of this thread, so the script runs once here
         final Globals installed = getGlobals(context, hook, script, settings);
-        final Filter filter = getFilter(installed, hook);
+        // A script whose function shared returns true acts the same for each group, like refusing programs, which each
+        // group does whose fakes a program could read: of its hooks of one method only the first is installed, so a
+        // call runs the script once and not once per restricted group, whose other hooks would find nothing left to do
+        // and only cost time; its use is reported for the group of that hook only, like one of them reported it before
+        LuaValue shared = installed.get("shared");
+        String key = member + "\n" + hook.getLuaScript();
+        boolean once = (!shared.isnil() && shared.call(CoerceJavaToLua.coerce(hook)).toboolean());
+        if (once && sharedHooks.contains(key))
+            return;
+        final Filter filter = getFilter(installed, hook, member);
         backend.hook(member, new XBackend.Callback() {
             // The Lua runtime of this hook per thread, without a lock on each call
             private final ThreadLocal<Globals> threadGlobals = new ThreadLocal<>();
@@ -663,9 +813,10 @@ class XCore {
             private void execute(XCall call, String function) {
                 if (inService())
                     return;
+                sendDue(context);
                 try {
                     if (filter != null && (call.args == null || call.args.length == 0 ||
-                            !filter.matches(filterValue(call.args[0]))))
+                            !filter.matches(call.args, function.equals("after"))))
                         return;
                 } catch (Throwable ex) {
                     // The getPath of the app's own subclass of File failed: the method answers like without Doppel,
@@ -712,6 +863,8 @@ class XCore {
                 }
             }
         });
+        if (once)
+            sharedHooks.add(key);
         deoptimize(context, hook);
     }
 
@@ -723,6 +876,8 @@ class XCore {
                 int dot = caller.lastIndexOf('.');
                 Class<?> cls = XResolver.resolveClass(caller.substring(0, dot), context.getClassLoader());
                 String name = caller.substring(dot + 1);
+                if (!deoptimized.add(System.identityHashCode(cls.getClassLoader()) + "/" + caller))
+                    continue;
                 List<Member> members = new ArrayList<>(Arrays.asList(cls.getDeclaredConstructors()));
                 members.addAll(Arrays.asList(cls.getDeclaredMethods()));
                 int found = 0;
@@ -740,16 +895,23 @@ class XCore {
             }
     }
 
-    // The answer of the service to a call or query of an app: an illegal argument is thrown to the app;
-    // a refused app gets no result, like before, and so does an error of the service, which XProvider logged
-    // with its cause already
-    private static void serve(XCall call, String what, Callable<Object> answer) {
+    // The answer of the service to a call or query: an illegal argument is thrown to system server and the app,
+    // which get no result when refused; an app with assignments gets the answer of the settings provider instead,
+    // like an app outside the scope, as it would on a device without Doppel: null for a call, an illegal argument
+    // for the column of a query. An error of the service, which XProvider logged with its cause already, gives
+    // no result, which the engine reports, see XCoreTest.
+    static void serve(XCall call, String what, boolean permitted, Callable<Object> answer) {
         try {
             call.setResult(answer.call());
-        } catch (IllegalArgumentException ex) {
-            XLog.i(TAG, "Error: " + ex.getMessage());
-            call.setThrowable(ex);
-        } catch (SecurityException | RemoteException ex) {
+        } catch (IllegalArgumentException | SecurityException ex) {
+            XLog.w(TAG, what + ": " + ex);
+            if (!permitted)
+                return;
+            if (ex instanceof IllegalArgumentException)
+                call.setThrowable(ex);
+            else
+                call.setResult(null);
+        } catch (RemoteException ex) {
             XLog.w(TAG, what + ": " + ex.getMessage());
             call.setResult(null);
         } catch (Throwable ex) {
@@ -767,24 +929,66 @@ class XCore {
     // Paths also match as plain absolute paths: relative to the root, without // and /./ and without links of /proc
     // to the root, see XParam.plainPath. A value with /../ always runs the script, which only the file system can
     // resolve (see XParam.opens), so scripts check such values themselves. Files and paths of java.nio are compared
-    // by their path, see filterValue.
-    private static Filter getFilter(Globals globals, XHook hook) {
+    // by their path, see filterValue. A path which matches no value by its text matches by the path its links
+    // lead to, like a link the app made itself to /proc/sys/kernel/random/boot_id, or /proc/self/fd/9/osrelease of a
+    // descriptor of /proc/sys/kernel, which the scripts resolve too (see XParam.opens), also by a relative path, from the
+    // root; of a call which acts on a link itself, like lstat, readlink, mkdir or open with O_NOFOLLOW or with O_CREAT and
+    // O_EXCL, by the path of its name in the folder the links before it lead to, so a link of the app answers like on
+    // Android, like with ELOOP or EEXIST. This holds for an absolute value of every hook; a relative value only counts
+    // from the root for the first arguments which are paths of files (see Filter.files), other relative values, like the
+    // names of resources of loadXmlResourceParser, are compared by their text only.
+    // shortcut: each call of a path which no value matches by its text resolves the path once more, by getCanonicalPath
+    // through the hooks of canonicalize0, which return in the service; the cost was not measured on a device, resolve
+    // without those hooks if apps slow down. A link changed between the hooks and the call is read as the kernel finds it;
+    // upgrade when apps are seen doing that.
+    private static Filter getFilter(Globals globals, XHook hook, Member member) {
         LuaValue func = globals.get("filter");
         if (func.isnil())
             return null;
         LuaValue values = func.call(CoerceJavaToLua.coerce(hook));
         if (values.isnil())
             return null;
-        Filter filter = new Filter();
+        Filter filter = new Filter(member);
         for (int i = 1; i <= values.length(); i++)
             filter.add(values.get(i).checkjstring());
         return filter;
     }
 
+    // The calls of files which act on a link at the end of their path itself, not on the file it leads to
+    private static final Set<String> NO_FOLLOW = new HashSet<>(Arrays.asList(
+            "lstat", "readlink", "lchown", "remove", "mkdir", "mkfifo", "mknod", "createFileExclusively"));
+
+    // The flags by which open acts on a link at the end of its path itself: O_NOFOLLOW, which differs between ARM and x86,
+    // and O_CREAT with O_EXCL, which fails with EEXIST for any link (open(2)). Not final, since the android.jar of the tests
+    // has 0 for all constants of OsConstants.
+    static int openNoFollow = OsConstants.O_NOFOLLOW;
+    static int openExclusive = OsConstants.O_CREAT | OsConstants.O_EXCL;
+
     private static class Filter {
         private final Set<String> values = new HashSet<>();
         private final List<String> prefixes = new ArrayList<>();
         private final List<String> parts = new ArrayList<>();
+        // Whether the calls act on the file a link at the end of their path leads to, see NO_FOLLOW
+        private final boolean follows;
+        // Whether the second argument has the flags of open, like of BlockGuardOs.open and UnixNativeDispatcher.open
+        private final boolean opens;
+        // Whether a relative first argument is a path of the file system, from the root, which apps run in: a file, a
+        // path of java.nio, also of the hooks declared with its interface, like UnixFileSystemProvider.newDirectoryStream,
+        // or a text of the classes of files, other than the name of Linux.getenv; absolute values resolve for every hook
+        private final boolean files;
+
+        Filter(Member member) {
+            Class<?>[] types = ((Executable) member).getParameterTypes();
+            String method = member.getName();
+            String cls = member.getDeclaringClass().getName();
+            this.follows = !NO_FOLLOW.contains(method);
+            this.opens = ("open".equals(method) && types.length > 1 && types[1] == int.class);
+            this.files = (types.length > 0 && (types[0] == File.class || "sun.nio.fs.UnixPath".equals(types[0].getName()) ||
+                    "java.nio.file.Path".equals(types[0].getName()) ||
+                    (types[0] == String.class && !"getenv".equals(method) &&
+                            (cls.startsWith("libcore.io.") || cls.startsWith("java.io.") || cls.startsWith("sun.nio.fs.") ||
+                                    cls.equals("android.system.Os") || cls.equals("android.os.Process")))));
+        }
 
         private void add(String value) {
             if (value.length() > 1 && value.startsWith("*") && value.endsWith("*"))
@@ -795,21 +999,72 @@ class XCore {
                 this.values.add(value);
         }
 
-        // Paths also by another form, like /proc/sys/kernel/./osrelease, which the file system reads the same
-        boolean matches(String value) {
+        // Paths also by another form, like /proc/sys/kernel/./osrelease, which the file system reads the same, and by the
+        // path their links lead to; after the method of a call by the path its hooks resolved before it
+        boolean matches(Object[] args, boolean after) {
+            // A hook after the method ends what the hooks of the call resolved, also when a script changed its value
+            if (after)
+                lastResolved.get().after = true;
+            String value = filterValue(args[0]);
             if (value == null)
                 return false;
             // Only the file system can resolve /.., also at the end, like /sdcard/Download/.., which is /sdcard
             if (value.contains("/../") || value.startsWith("../") || value.endsWith("/..") || value.equals(".."))
                 return true;
-            if (value.startsWith("/")) {
-                String plain = XParam.plainPath(value);
-                if (!plain.equals(value) && matchesText(plain))
-                    return true;
-            } else if (matchesText(XParam.plainPath("/" + value)))
+            if (!value.startsWith("/")) {
                 // Relative to the root, which apps run in, like data/adb, see XParam.isPath
+                if (matchesText(XParam.plainPath("/" + value)) || matchesText(value))
+                    return true;
+                if (!files || value.isEmpty())
+                    return false;
+                value = "/" + value;
+            }
+            String plain = XParam.plainPath(value);
+            if ((!plain.equals(value) && matchesText(plain)) || matchesText(value))
                 return true;
-            return matchesText(value);
+            String resolved = (follows(args) ? resolved(plain, after) : inFolder(plain, after));
+            return (resolved != null && !resolved.equals(plain) && matchesText(resolved));
+        }
+
+        // Whether a call acts on the file a link at the end of its path leads to; a flag of 0, like in the tests, is none
+        private boolean follows(Object[] args) {
+            if (!follows)
+                return false;
+            if (!opens || args.length < 2 || !(args[1] instanceof Integer))
+                return true;
+            int flags = (Integer) args[1];
+            return ((flags & openNoFollow) == 0 && (openExclusive == 0 || (flags & openExclusive) != openExclusive));
+        }
+
+        // The path of the name in the folder the links before it lead to, null when the folder cannot be resolved
+        private static String inFolder(String path, boolean after) {
+            int slash = path.lastIndexOf('/');
+            if (slash == 0)
+                return path;
+            String folder = resolved(path.substring(0, slash), after);
+            return (folder == null ? null : (folder.equals("/") ? "" : folder) + path.substring(slash));
+        }
+
+        // The path a path leads to, resolved by the first hook of a call which needs it, before the method, and kept for
+        // its other hooks, also after the method, until a hook of the next call runs before its method: the filters of
+        // the many hooks of a call, like of open, resolve it once. Per thread, since the hooks of a call run on its thread,
+        // first all before the method, then all after it.
+        private static final ThreadLocal<Resolved> lastResolved = ThreadLocal.withInitial(Resolved::new);
+
+        private static final class Resolved {
+            private String path;
+            private String canonical;
+            private boolean after;
+        }
+
+        private static String resolved(String path, boolean after) {
+            Resolved last = lastResolved.get();
+            if (!path.equals(last.path) || (last.after && !after)) {
+                last.path = path;
+                last.canonical = XParam.canonicalPath(path);
+            }
+            last.after = after;
+            return last.canonical;
         }
 
         private boolean matchesText(String value) {
@@ -925,29 +1180,55 @@ class XCore {
                 queue.put(key, new HashMap<>());
             queue.get(key).put(hook, args);
 
-            if (!flushing) {
-                flushing = true;
-                reporter.schedule(() -> flush(context, packageName, uid), 1, TimeUnit.SECONDS);
+            if (queued)
+                return;
+            long now = System.nanoTime();
+            due = (anySent && now - sent < REPORT_DELAY ? sent + REPORT_DELAY : now);
+            queued = true;
+            if ("android".equals(packageName)) {
+                if (reporter == null)
+                    reporter = Executors.newSingleThreadScheduledExecutor(runnable -> {
+                        Thread thread = new Thread(runnable);
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+                reporter.schedule(() -> flush(context, packageName, uid), due - now, TimeUnit.NANOSECONDS);
+                return;
             }
         }
+        sendDue(context);
+    }
+
+    // The reports of an app, once they are due, on the thread of the hooked call, see queue
+    private void sendDue(Context context) {
+        if (queued && System.nanoTime() - due >= 0 && !"android".equals(context.getPackageName()))
+            flush(context, context.getPackageName(), context.getApplicationInfo().uid);
     }
 
     // shortcut: a count, not a size; 20 stack traces of a few KB each fit, measure the parcel when traces grow
     static final int REPORTS_PER_CALL = 20;
 
     private void flush(Context context, String packageName, int uid) {
-        XLog.i(TAG, "Processing event queue package=" + packageName + ":" + uid);
-
         ArrayList<Bundle> work = new ArrayList<>();
         synchronized (queue) {
+            // Another thread sent them first
+            if (!queued)
+                return;
             for (Map<String, Bundle> reports : queue.values())
                 work.addAll(reports.values());
             queue.clear();
-            flushing = false;
+            queued = false;
+            sent = System.nanoTime();
+            anySent = true;
         }
+        XLog.i(TAG, "Processing event queue package=" + packageName + ":" + uid);
 
-        // The hooks of the app do not apply to its reports, see installMethod
+        // The hooks of the app do not apply to its reports, see installMethod, nor does the StrictMode policy of the
+        // thread, which Android sends along with the call, so what the service does would come back as violations of
+        // the app, with the frames of the service
         enterService();
+        StrictMode.ThreadPolicy policy = StrictMode.getThreadPolicy();
+        StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX);
         try {
             // Few calls, each one transaction of the service; in parts, since errors have stack traces and a call
             // is limited in size (1 MB for all calls of the app at once)
@@ -955,11 +1236,12 @@ class XCore {
                 try {
                     Data.reports(context, new ArrayList<>(work.subList(i, Math.min(work.size(), i + REPORTS_PER_CALL))));
                 } catch (Throwable ex) {
-                    // One line: the service logged its error already, or refused an app whose restrictions were
-                    // all removed while it runs, which would else log a stack trace each second
+                    // One line, like for a settings provider which cannot be reached: the service answers no report,
+                    // also not a refused one of an app whose restrictions were all removed while it runs
                     XLog.w(TAG, "Report " + packageName + ":" + uid + ": " + ex);
                 }
         } finally {
+            StrictMode.setThreadPolicy(policy);
             leaveService();
         }
     }

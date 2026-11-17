@@ -150,6 +150,10 @@ The functions of *param* ([all](../app/src/main/java/eu/faircode/xlua/XParam.jav
   whether another app is visible to the app, see the group *Get applications*
 * *getValue(name, scope)* and *putValue(name, value, scope)*: values kept with an object, see remarks below
 * *unhooked(function)*: runs a function without the hooks of the app on the thread, for lookups of the script itself
+* *plainIntent(intent)*: a copy of an intent of the app for such a lookup, of Android's own class and without extras
+  and clip data, so no code of the app runs without the hooks; *nil* for a *content:* uri whose type stays unknown
+* *plainQueryArgs(bundle)*: a copy of a query Bundle of the app for such a lookup, with only the strings, string arrays
+  and ints of its *android:query-arg-* keys (*null* for other values), so no value of the app is parcelled there
 * *opens(path)*, *getFileText()*, *setFileText(text)*, *readFile(path)* and *uuidOf(seed)*: see remarks below
 
 The before/after function **must** return *true* when something was done and **must** return *false* otherwise.
@@ -222,6 +226,9 @@ This hooks the methods with that name which the class of the object declares or 
 The function is called before and after each execution of them with *when* (*before* or *after*),
 a *param* like the one of the *before*/*after* functions, and the arguments given to *hook* after the function, if any.
 What it returns is not used; an error in it is written to the logcat, and a method which does not exist is only logged too.
+The methods are hooked for the class, so the function runs for every object of it, also when the app calls one itself;
+to change only the objects the script was given, keep them with *param:putValue(name, value, object)*
+and compare *param:getThis()*, like [telephonymanager_listen](../app/src/main/assets/telephonymanager_listen.lua) does.
 Inside a *before*/*after* function whose first parameter is named *hook* the global *hook* is hidden by that parameter,
 so name the parameter differently there, like [webview_constructor](../app/src/main/assets/webview_constructor.lua) does.
 
@@ -251,9 +258,20 @@ end
 
 The function is called once, when the hook is installed, with the *hook* of the definition only,
 so *filter* is a reserved name: a script must not use it for a function of its own.
+
+A script which several groups hook the same method with, and which acts the same whatever the group of its hook,
+can define a *shared* function, which returns true for such a *hook*. Of its hooks of one method only the first
+is installed then, so a call runs the script once instead of once for each restricted group,
+like [commands_blocked](../app/src/main/assets/commands_blocked.lua) does; its use is reported for the group of that hook only.
+Like *filter* it is called once, when the hook is installed, so *shared* is a reserved name too.
 A value ending in \* stands for all values starting with the text before it, like */sys/\** for the files of */sys*,
 for a script which tells the paths apart itself;
 likewise a value like *\*meminfo\** starting and ending in \* stands for all values containing the text between.
+An absolute path which matches no value by its text matches by the path its links lead to,
+like a link the app made itself to */proc/meminfo*, and so does a relative path of a file
+(a *java.io.File*, a path of java.nio or a text of the classes of files), from the root, which apps run in;
+a call which acts on a link itself, like *lstat*, *readlink*, *mkdir* or *open* with *O_NOFOLLOW* or with *O_CREAT* and *O_EXCL*,
+matches by the name in the folder the links before it lead to.
 
 For a hooked method which opens a file and returns its file descriptor, like *libcore.io.BlockGuardOs.open*,
 or the number of one, like *sun.nio.fs.UnixNativeDispatcher.open* for java.nio,

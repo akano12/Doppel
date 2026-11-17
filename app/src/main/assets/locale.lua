@@ -24,8 +24,29 @@
 -- (Locale.setDefault, see holds); on a device with one language that is any list of that language alone, also one
 -- which the app sets to test the hooks or the user picks in the app, on every version. The languages the user chose for
 -- the app (Android 13) and languages which are not languages of the device stay first. The languages of the
--- keyboard (subtypes of input methods) are only those of the fake languages. The configuration of the resources
--- stays, it selects the language of the app's texts.
+-- keyboard (subtypes of input methods) are only those of the fake languages, also in the secure settings (see
+-- settingssecure_getstring). The configuration of the resources, which apps read (getConfiguration, its locale and
+-- getLocales, also of Resources.getSystem) and which selects the language of the app's texts, has the same languages,
+-- so the texts are in a fake language unless a language was chosen for the app, like on a device with the fake
+-- languages; so has the configuration of a change the app is told of (onConfigurationChanged of the application,
+-- services, providers, activities and registered callbacks, and the changes of the multi-window and picture-in-picture
+-- modes); so do the configurations Activity.dump prints (see dumped); the broadcast of a change of the languages does
+-- not reach the app (see receiver_skip).
+-- shortcut: the configuration of the process, which only hidden methods give, the one of a change a window context
+-- (Context.createWindowContext) is told of, and the one an activity was last told of until its first change (see
+-- reported), read by reflection, keep the languages of the device; a compiled caller can have the small
+-- performConfigurationChanged inline, which leaves the application, services and providers with them too; upgrade by
+-- the configuration the system sends to the process when a probe shows either.
+-- shortcut: the hooks of the configuration of a change and of Activity.dump run the app's own code
+-- (onConfigurationChanged, onMultiWindowModeChanged, onPictureInPictureModeChanged, the dump of its fragments) below
+-- frames of Doppel, which a stack trace taken there shows, like the hooks of handleReceiver; the dump of the app's
+-- fragments and dumpables gets a PrintWriter of Doppel instead of the writer given, which gets the whole dump at once,
+-- by one print at the end; the lists of the languages of the device are replaced in the whole dump, also in the text
+-- the app prints itself there (its fragments, dumpables, views and messages), so an app which prints a list it guesses
+-- gets the fake one back, which tells the hooks and confirms the guess, also when it labels it like a line of the
+-- framework; and after the first change of an activity the system finds a change of the languages on each change
+-- (freeTextLayoutCachesIfNeeded), which only costs the time to clear the caches of text layouts; upgrade when a place
+-- is found where the configuration is reported before the app's code runs, for activities too.
 
 -- The fake languages, normalized, without tags which are no language (und) and without repeats,
 -- which LocaleList does not allow
@@ -85,7 +106,12 @@ function systemtags(param)
                 end
                 return device
             end
-            -- Before Android 13 the configuration of the process has the languages of the device
+            -- Before Android 13 the configuration of the process has the languages of the device, which the one of the
+            -- resources of the system had until it was faked (see configured)
+            local known = param:getValue('locale.device', nil)
+            if known ~= nil and known ~= '' then
+                return split(known)
+            end
             local resources = luajava.bindClass('android.content.res.Resources'):getSystem()
             return tagsof(resources:getConfiguration():getLocales())
         end)
@@ -122,6 +148,23 @@ function indexof(tags, tag)
         end
     end
     return nil
+end
+
+-- The tags with one of the fake ones first, the language of the app's texts which the system puts first
+-- (updateLocaleListFromAppContext), so Locale.getDefault is the first language of the configuration, like on a device
+-- with the fake languages; the tags as they are for another one
+function front(tags, tag, fake)
+    local index = indexof(tags, tag)
+    if index == nil or index == 1 or indexof(fake, tag) == nil then
+        return tags
+    end
+    local moved = { tag }
+    for at, item in ipairs(tags) do
+        if at ~= index then
+            moved[#moved + 1] = item
+        end
+    end
+    return moved
 end
 
 -- System properties of the language (from the first fake language) and of the region of sale, the country the device
@@ -214,11 +257,11 @@ end
 -- or those of the configuration alone when none are chosen. Such a list is faked like one of the system, else the
 -- default would have the languages of the device; so is Locale.setDefault of the first language of the device, like
 -- apps set the locale of their configuration, else LocaleList.getDefault, which starts with Locale.getDefault, would
--- have it first. shortcut: an app which sets all the languages of the device, or the first one as its locale, gets
--- the fake ones back, which tells the hooks and the languages, as its configuration does already; on a device with
--- one language any list of that language alone is faked, also one the app sets to test the hooks and one of a
--- language picker of the app (not AppCompat) on every version, which then formats numbers and dates in the fake
--- language; upgrade when the configuration is faked.
+-- have it first. The same for the configurations of the resources (see configured). shortcut: an app which sets all the
+-- languages of the device, or the first one as its locale, gets the fake ones back, which tells the hooks; on a device
+-- with one language any list of that language alone is faked, also one the app sets to test the hooks and one of a
+-- language picker of the app (not AppCompat) on every version, which then formats numbers and dates and shows its
+-- texts in the fake language; upgrade by telling the lists of the system by the configuration it sends.
 function holds(tags, system)
     if system == nil or #system == 0 then
         return false
@@ -239,7 +282,20 @@ end
 -- of the language the app has texts for, and Locale.setDefault(locale) and setDefault(category, locale), which keep the
 -- fake when the hook of setDefault(list, index), a hidden method, is not there
 function before(hook, param)
-    if hook:getMethodName() ~= 'setDefault' then
+    local method = hook:getMethodName()
+    if method == 'updateConfiguration' or method == 'updateConfigurationImpl' then
+        return configured(param, 0)
+    elseif method == 'performConfigurationChanged' or method == 'dispatchMultiWindowModeChanged' or
+            method == 'dispatchPictureInPictureModeChanged' then
+        return configured(param, 1)
+    elseif method == 'performActivityConfigurationChanged' then
+        if not reported(hook, param) then
+            return false
+        end
+        return configured(param, 1)
+    elseif method == 'dumpInner' then
+        return dumping(param)
+    elseif method ~= 'setDefault' then
         return false
     end
     local fake = fakes(param)
@@ -259,6 +315,9 @@ function before(hook, param)
         end
         local system = systemtags(param)
         local merged = merge(current, system, fake)
+        if count == 1 then
+            merged = front(merged, current[1], fake)
+        end
         local new = table.concat(merged, ',')
         if old == new or not (bysystem() or holds(current, system)) then
             return false
@@ -292,11 +351,198 @@ function before(hook, param)
     return true, tag, fakeTag
 end
 
+-- The configuration a ResourcesImpl gets, when made and on configuration changes, with the languages of the defaults
+-- (see merge), as a copy, since the caller keeps its own, like the configuration of the process; it then puts the
+-- language of the app's texts first and gives it to the AssetManager. Only a list with all the languages of the device
+-- (see holds), which the configurations of the system have, so a language the app chose for a context stays. Before
+-- Android 13 the system gives the configuration of the process to the resources of the system first
+-- (Resources.updateSystemConfiguration), which keeps its languages as those of the device (see systemtags), but not one
+-- without languages, like the one of a change of the assets. shortcut: when the languages of the device are not known
+-- the configuration stays, since a language the app chose could not be told apart; upgrade when that is seen.
+-- The same for the configuration of a change the app is told of, the argument at the index.
+function configured(param, index)
+    local config = param:getArgument(index)
+    if config == nil then
+        return false
+    end
+    local old = table.concat(tagsof(config:getLocales()), ',')
+    if old ~= '' and luajava.bindClass('android.os.Build$VERSION').SDK_INT < 33 and
+            onstack('updateSystemConfiguration', { ['android.content.res.Resources'] = true }) then
+        param:putValue('locale.device', old, nil)
+    end
+    local copy, new = fakeconfig(param, config)
+    if copy == nil then
+        return false
+    end
+    param:setArgument(index, copy)
+    return true, old, new
+end
+
+-- A copy of a configuration with the languages of the defaults and those languages, nil when it keeps its own
+function fakeconfig(param, config)
+    local current = tagsof(config:getLocales())
+    local old = table.concat(current, ',')
+    local fake = fakes(param)
+    if old == table.concat(fake, ',') then
+        return nil
+    end
+    local system = systemtags(param)
+    local merged = merge(current, system, fake)
+    local new = table.concat(merged, ',')
+    if old == new or not holds(current, system) then
+        return nil
+    end
+    local copy = luajava.newInstance('android.content.res.Configuration', config)
+    copy:setLocales(listof(merged))
+    return copy, new
+end
+
+-- The configuration an activity was last told of (Activity.mCurrentConfig), which the system compares with the one of
+-- a change to tell whether to tell the activity, gets the languages of the defaults too: from the launch it has those
+-- of the device, so each change would seem to change the languages as well, and an activity which does not handle that
+-- would no longer be told of any change. The fields are listed like LuaJ lists them, which Android does not report as
+-- a use of a hidden API, unlike getDeclaredField (see features.lua). Whether the field is there; without it the
+-- configuration of the change stays, like the activity's.
+function reported(hook, param)
+    local ok, found = pcall(function()
+        local activity = param:getArgument(0)
+        if hook:getParameterTypes()[1] ~= 'android.app.Activity' then
+            -- From Android 14 the record of the activity
+            local field = declared(luajava.bindClass('java.lang.Object').getClass(activity), 'activity')
+            activity = field and field:get(activity)
+        end
+        local field = activity and declared(luajava.bindClass('android.app.Activity'), 'mCurrentConfig')
+        if not field then
+            return false
+        end
+        local config = field:get(activity)
+        local copy = config and fakeconfig(param, config)
+        if copy ~= nil then
+            field:set(activity, copy)
+        end
+        return true
+    end)
+    return ok and found
+end
+
+-- Activity.dump prints the configurations of the activity: the one it was last told of, with the languages of the
+-- device until its first change (see reported), and from Android 14 the ones of its window (ViewRootImpl), of which
+-- the one from the system has them always. The dump goes to a buffer first, then to the writer with each list of the
+-- languages of the device, as LocaleList prints it, replaced by the fake ones, which makes a list with a language
+-- chosen for the app before them the same as the configuration of the resources (see merge). The buffer is kept with
+-- the writer, which is left when it cannot be made.
+function dumping(param)
+    local writer = param:getArgument(2)
+    if writer == nil then
+        return false
+    end
+    pcall(function()
+        local buffer = luajava.newInstance('java.io.StringWriter')
+        local printer = luajava.newInstance('java.io.PrintWriter', buffer)
+        param:putValue('locale.writer', writer, printer)
+        param:putValue('locale.buffer', buffer, printer)
+        param:setArgument(2, printer)
+    end)
+    return false
+end
+
+-- After the dump, also one which failed: the buffer to the writer, as it is when the languages cannot be replaced
+function dumped(param)
+    local printer = param:getArgument(2)
+    local writer = printer and param:getValue('locale.writer', printer)
+    if writer == nil then
+        return false
+    end
+    printer:flush()
+    local text = param:getValue('locale.buffer', printer):toString()
+    local ok, new, old, fake = pcall(dumptext, param, text)
+    writer:print(ok and new or text)
+    if not ok or new == text then
+        return false
+    end
+    return true, old, fake
+end
+
+-- What Configuration.toString prints between the list of the languages and the direction of the layout: nothing, or
+-- from Android 14 the grammatical gender
+local GENDERS = { '', ' neuter', ' feminine', ' masculine', ' ?grgend' }
+
+-- The text with each whole list of the languages of the device, or the end of a list which starts with others,
+-- replaced by the fake ones, and both lists as LocaleList prints them (Locale.toString, like de_DE). A whole list
+-- gets the direction of the layout of the first fake language too, which Configuration.toString prints after it and
+-- setLocales sets from its first language; after a language chosen for the app it stays that of the chosen one.
+function dumptext(param, text)
+    local system = systemtags(param)
+    if system == nil or #system == 0 then
+        return text
+    end
+    local locale = luajava.bindClass('java.util.Locale')
+    local function printed(tags)
+        local names = {}
+        for _, tag in ipairs(tags) do
+            names[#names + 1] = locale:forLanguageTag(tag):toString()
+        end
+        return table.concat(names, ',')
+    end
+    local tags = fakes(param)
+    local old, fake = printed(system), printed(tags)
+    if old == fake then
+        return text
+    end
+    local direction = (rtl(tags[1]) and ' ldrtl' or ' ldltr')
+    local parts, from = {}, 1
+    while true do
+        local first, last = string.find(text, old, from, true)
+        if first == nil then
+            break
+        end
+        local left, right = text:sub(first - 1, first - 1), text:sub(last + 1, last + 1)
+        local whole = (left == '[' or left == ',') and right == ']'
+        parts[#parts + 1] = text:sub(from, first - 1) .. (whole and fake or old)
+        from = last + 1
+        if whole and left == '[' then
+            for _, gender in ipairs(GENDERS) do
+                local at = last + 2 + #gender
+                local token = text:sub(at, at + 5)
+                if text:sub(last + 2, at - 1) == gender and (token == ' ldltr' or token == ' ldrtl') then
+                    parts[#parts + 1] = ']' .. gender .. direction
+                    from = at + 6
+                    break
+                end
+            end
+        end
+    end
+    parts[#parts + 1] = text:sub(from)
+    return table.concat(parts), old, fake
+end
+
+-- Whether the layout of a language goes from right to left, as Configuration.setLayoutDirection takes it, also when
+-- the developer option forces it
+function rtl(tag)
+    local locale = luajava.bindClass('java.util.Locale'):forLanguageTag(tag)
+    return luajava.bindClass('android.text.TextUtils'):getLayoutDirectionFromLocale(locale) == 1
+end
+
+-- A field the class declares, accessible, nil when it is not listed
+function declared(class, name)
+    -- Lua sees a Class as its static members, so the methods of Class get the class as the object
+    local fields = luajava.bindClass('java.lang.Class').getDeclaredFields(class)
+    for index = 1, fields['length'] do
+        if fields[index]:getName() == name then
+            fields[index]:setAccessible(true)
+            return fields[index]
+        end
+    end
+    return nil
+end
+
 function after(hook, param)
     local method = hook:getMethodName()
     if method == '#sLastExplicitlySetLocaleList' then
         -- When the hooks are installed: the system set the defaults already
         return push(param)
+    elseif method == 'dumpInner' then
+        return dumped(param)
     elseif method == 'getSystemLocales' then
         -- LocaleManager.getSystemLocales, the languages of the device without the one of the app (Android 13)
         local result = param:getResult()
@@ -330,10 +576,8 @@ function after(hook, param)
         param:setResult(array)
         return true, old, new
     elseif method == 'getEnabledInputMethodSubtypeList' then
-        -- The languages of a keyboard, which the user enabled, or which the system chose by the language of the device.
-        -- shortcut: the ids of the enabled and the selected subtypes in the secure settings (enabled_input_methods,
-        -- selected_input_method_subtype) stay, which name them by the hashCode of InputMethodInfo.getSubtypeAt;
-        -- upgrade by leaving them out in settingssecure_getstring.
+        -- The languages of a keyboard, which the user enabled, or which the system chose by the language of the device;
+        -- the secure settings which name them leave out the same ones (see settingssecure_getstring)
         local result = param:getResult()
         if result == nil then
             return false
@@ -504,13 +748,45 @@ function ttslocales(param)
     return (ok and value or '')
 end
 
+-- The configurations of the resources made before the hooks were installed, of the system and of the app, like
+-- configured makes them, by the public method apps change their language with, without the hooks; the first language
+-- of the app's then, the one of its texts, nil when not known. Not in system server, where the hooks of the
+-- configurations are left out too, so its resources keep the languages of the device.
+function pushconfig(param, system, fake)
+    if param:getPackageName() == 'android' then
+        return nil
+    end
+    local ok, first = pcall(param.unhooked, param, function()
+        local all = { luajava.bindClass('android.content.res.Resources'):getSystem(),
+                      param:getApplicationContext():getResources() }
+        for _, resources in ipairs(all) do
+            local config = resources:getConfiguration()
+            local current = tagsof(config:getLocales())
+            local merged = merge(current, system, fake)
+            if holds(current, system) and table.concat(merged, ',') ~= table.concat(current, ',') then
+                local copy = luajava.newInstance('android.content.res.Configuration', config)
+                copy:setLocales(listof(merged))
+                resources:updateConfiguration(copy, nil)
+            end
+        end
+        return tagsof(all[2]:getConfiguration():getLocales())[1]
+    end)
+    return (ok and first or nil)
+end
+
 -- The defaults of the process to the fake ones, and the property user.locale, which the runtime has
--- from the start of the device (persist.sys.locale)
+-- from the start of the device (persist.sys.locale); first the configurations of the resources, of which the first
+-- language of the app's becomes the locale, like the system sets it, and the languages of the device they had
 function push(param)
     local fake = fakes(param)
+    local device = systemtags(param)
+    if device ~= nil and luajava.bindClass('android.os.Build$VERSION').SDK_INT < 33 then
+        param:putValue('locale.device', table.concat(device, ','), nil)
+    end
+    local first = pushconfig(param, device, fake)
     local localeList = luajava.bindClass('android.os.LocaleList')
     local current = tagsof(localeList:getDefault())
-    local merged = merge(current, systemtags(param), fake)
+    local merged = front(merge(current, device, fake), first, fake)
     local old, new = table.concat(current, ','), table.concat(merged, ',')
     local system = luajava.bindClass('java.lang.System')
     local property = system:getProperty('user.locale')

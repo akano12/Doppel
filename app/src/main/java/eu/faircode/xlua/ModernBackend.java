@@ -62,26 +62,35 @@ class ModernBackend implements XBackend {
 
                     // Like legacy Xposed, a result set before skips the original method,
                     // but the after callback is still called
+                    Throwable original = null;
                     if (!call.isReturnEarly()) {
                         Object result = null;
-                        Throwable throwable = null;
                         try {
                             result = chain.proceed(call.args);
                         } catch (Throwable ex) {
-                            throwable = ex;
+                            original = ex;
+                            // Before after, so a copy a script makes of it, like with another message, has none either:
+                            // setResult takes the frames of Doppel out of the copy by their names, after which the others
+                            // are no longer found by their place. The stack is walked on the way out of an exception only,
+                            // which costs about as much as making it; an exception of the app's own class which refuses,
+                            // or a stack too deep to walk, is thrown as it is.
+                            try {
+                                hideHook(ex, member, new Throwable().getStackTrace());
+                            } catch (Throwable ignored) {
+                            }
                         }
-                        call.setOutcome(result, throwable);
+                        call.setOutcome(result, original);
                     }
 
                     callback.after(call);
 
                     if (call.hasThrowable()) {
-                        // The stack is walked on the way out of an exception only, which costs about as much as making it;
-                        // an exception of the app's own class which refuses, or a stack too deep to walk, is thrown as it is
-                        try {
-                            hideHook(call.getThrowable(), member, new Throwable().getStackTrace());
-                        } catch (Throwable ignored) {
-                        }
+                        // Another exception, which a script set, made under this call too
+                        if (call.getThrowable() != original)
+                            try {
+                                hideHook(call.getThrowable(), member, new Throwable().getStackTrace());
+                            } catch (Throwable ignored) {
+                            }
                         throw call.getThrowable();
                     }
                     return call.getResult();

@@ -30,9 +30,9 @@ function after(hook, param)
         return false
     end
 
-    -- A value of the service in every mode of the Android ID, of the app unless the Android ID is the same for all apps
-    -- (see FakeIds): a constant, like zeros, would be one id which never changes, and libraries use this id when there is
-    -- no GSF id; made of the Android ID, even a fixed one, an app could compute the id and tell it is fake
+    -- A value of the service of each app, which stays, in every mode of the Android ID (see FakeIds): a constant, like
+    -- zeros, would be one id which never changes, and libraries use this id when there is no GSF id; made of the Android
+    -- ID, even a fixed one, an app could compute the id and tell it is fake
     local seed = param:getSetting('value.drm_id')
     local fake = fakeid(seed, 'deviceUniqueId', result.length)
     if propertyString == 'provisioningUniqueId' then

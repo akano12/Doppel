@@ -148,29 +148,197 @@ public class AuditFixesScriptTest {
         assertFalse(result.arg(8).toboolean());
     }
 
-    // The standby buckets of all apps keep the visible ones only, a map like Android gives (real HashMap of luajava)
+    // Autofill is off when its service is hidden, like on a device whose service is set to none, so it agrees with
+    // the service the getter hides: AutofillManager is turned off where it learns the state, isEnabled also where it
+    // could not be; the service is read without the hooks, from the setting on Android 8.1, and kept for a while
     @Test
-    public void standbyBucketsOfHiddenAppsAreLeftOut() throws Exception {
+    public void autofillIsOffWithHiddenService() throws Exception {
+        String stubs = PARAM + "\n" + Scripts.ARRAYOF + "\n" +
+                "version = 34\n" +
+                "function sdkversion() return version end\n" +
+                "setting = nil\n" +
+                "service = 'com.passwords.hidden'\n" +
+                "reads = 0\n" +
+                "values = {}\n" +
+                "context = { getContentResolver = function(self) return 'resolver' end }\n" +
+                "field = { getName = function(self) return 'mEnabled' end, setAccessible = function(self, on) assert(on) end,\n" +
+                "  get = function(self, afm) return afm.mEnabled end, set = function(self, afm, value) afm.mEnabled = value end }\n" +
+                "fields = arrayof({ getName = function(self) return 'mService' end }, field)\n" +
+                "luajava = { bindClass = function(name)\n" +
+                "  if name == 'java.lang.Class' then\n" +
+                "    return { getDeclaredFields = function(class) assert(class == 'AutofillManager'); return fields end }\n" +
+                "  end\n" +
+                "  if name == 'android.view.autofill.AutofillManager' then return 'AutofillManager' end\n" +
+                "  assert(name == 'android.provider.Settings$Secure', name)\n" +
+                "  return { getString = function(self, resolver, key)\n" +
+                "    assert(resolver == 'resolver' and key == 'autofill_service', key); reads = reads + 1; return setting end }\n" +
+                "end }\n" +
+                "function call(method, result, enabled, visible, manager)\n" +
+                "  local param = paramof(result, nil, visible)\n" +
+                "  local afm = manager or { mEnabled = enabled }\n" +
+                "  afm.getAutofillServiceComponentName = function(self)\n" +
+                "    assert(param.inside); reads = reads + 1\n" +
+                "    if service == 'error' then error('Fail to get autofill services component name.') end\n" +
+                "    return service and { getPackageName = function(self) return service end } end\n" +
+                "  last = afm\n" +
+                "  param.getThis = function(self) return afm end\n" +
+                "  param.getApplicationContext = function(self) return context end\n" +
+                "  param.getValue = function(self, name, scope)\n" +
+                "    assert(scope == context or scope == afm); return (values[scope] or {})[name] end\n" +
+                "  param.putValue = function(self, name, value, scope)\n" +
+                "    assert(scope == context or scope == afm); values[scope] = values[scope] or {}; values[scope][name] = value end\n" +
+                "  param.unhooked = function(self, fn) param.inside = true; local value = fn(); param.inside = false; return value end\n" +
+                "  local restricted, old = (method == 'enableCompatibilityMode' and before or after)(hookof(method), param)\n" +
+                "  return restricted, param.result, old, afm.mEnabled, reads, param.set\n" +
+                "end";
+        Globals globals = Scripts.load("package_result", stubs);
+
+        // Adding the client, which returns nothing before Android 12, turns autofill off with the hidden service
+        Varargs result = Scripts.run(globals, "return call('ensureServiceClientAddedIfNeededLocked', nil, true)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.passwords.hidden", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals(1, result.arg(5).toint());
+
+        // The service is kept: no second read while adding again or for isEnabled, where AutofillManager was not
+        // turned off; autofill which is off already stays as it is
+        result = Scripts.run(globals, "return call('tryAddServiceClientIfNeededLocked', true, true)");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals(1, result.arg(5).toint());
+        result = Scripts.run(globals, "return call('isEnabled', true, true)");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals("com.passwords.hidden", result.arg(3).tojstring());
+        assertEquals(1, result.arg(5).toint());
+        assertFalse(Scripts.run(globals, "return call('tryAddServiceClientIfNeededLocked', true, false)").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return call('isEnabled', false, false)").arg1().toboolean());
+
+        // The compatibility mode of autofill is skipped too, so no bridge becomes the accessibility policy; the other
+        // hooks of the script do nothing before the call
+        result = Scripts.run(globals, "return call('enableCompatibilityMode', nil, true)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.passwords.hidden", result.arg(3).tojstring());
+        assertTrue(result.arg(6).toboolean());
+        assertEquals(1, result.arg(5).toint());
+        assertFalse(Scripts.run(globals, "return before(hookof('getInstallerPackageName'), paramof('com.hidden'))").toboolean(1));
+
+        // A new state from the service reads the service again, since the user may have chosen another one
+        result = Scripts.run(globals, "return call('setState', nil, true)");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals(2, result.arg(5).toint());
+
+        // The service tells the app no new state when the user switches from a hidden service to a visible one, so
+        // AutofillManager is on again once the kept service is old; one the service turned off itself stays off
+        result = Scripts.run(globals, "service = 'com.passwords'\n" +
+                "return call('tryAddServiceClientIfNeededLocked', true, nil, 'com.passwords', last)");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals(2, result.arg(5).toint());
+        result = Scripts.run(globals, "values[context].autofill.at = os.time() - 10\n" +
+                "return call('tryAddServiceClientIfNeededLocked', true, nil, 'com.passwords', last)");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals(3, result.arg(5).toint());
+        result = Scripts.run(globals, "values = {}; service = 'com.passwords.hidden'; call('setState', nil, true)\n" +
+                "local afm = last; afm.mEnabled = false; call('setState', nil, nil, nil, afm)\n" +
+                "service = 'com.passwords'; values[context].autofill.at = os.time() - 10\n" +
+                "return call('tryAddServiceClientIfNeededLocked', true, nil, 'com.passwords', afm)");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(4).toboolean());
+
+        // Nor is it on again when the user switched from the hidden service to none, which Android has off
+        result = Scripts.run(globals, "values = {}; service = 'com.passwords.hidden'\n" +
+                "call('tryAddServiceClientIfNeededLocked', true, true)\n" +
+                "local afm = last; service = nil; values[context].autofill.at = os.time() - 10\n" +
+                "return call('tryAddServiceClientIfNeededLocked', true, nil, nil, afm)");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(4).toboolean());
+
+        // The service the app reads is kept, so a switch from a visible service to a hidden one turns autofill off at
+        // once, without reading the service again
+        result = Scripts.run(globals, "values = {}; service = 'com.passwords'\n" +
+                "call('tryAddServiceClientIfNeededLocked', true, true, 'com.passwords')\n" +
+                "local afm = last; service = 'com.passwords.hidden'\n" +
+                "local component = { getPackageName = function(self) return 'com.passwords.hidden' end }\n" +
+                "local _, answer = call('getAutofillServiceComponentName', component, nil, 'com.passwords')\n" +
+                "local count = reads\n" +
+                "local restricted, _, old, enabled = call('tryAddServiceClientIfNeededLocked', true, nil, 'com.passwords', afm)\n" +
+                "return answer, restricted, old, enabled, reads - count");
+        assertTrue(result.arg(1).isnil());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("com.passwords.hidden", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        assertEquals(0, result.arg(5).toint());
+
+        // A visible service and no service leave autofill on
+        result = Scripts.run(globals, "values = {}; service = 'com.passwords'\n" +
+                "return call('ensureServiceClientAddedIfNeededLocked', nil, true, 'com.passwords')");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        result = Scripts.run(globals, "return call('isEnabled', true, true, 'com.passwords')");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        result = Scripts.run(globals, "return call('enableCompatibilityMode', nil, true, 'com.passwords')");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(6).isnil());
+        result = Scripts.run(globals, "values = {}; service = nil; return call('setState', nil, true)");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(4).toboolean());
+
+        // A service which cannot be read is hidden
+        result = Scripts.run(globals, "values = {}; service = 'error'; return call('isEnabled', true, true, 'com.passwords')");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).isnil());
+
+        // Android 8.1 has the setting only, a flattened component
+        result = Scripts.run(globals, "values = {}; version = 27; setting = 'com.passwords.hidden/.AutofillService'\n" +
+                "return call('setState', nil, true)");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.passwords.hidden", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        result = Scripts.run(globals, "values = {}; setting = 'com.passwords/.AutofillService'\n" +
+                "return call('ensureServiceClientAddedIfNeededLocked', nil, true, 'com.passwords')");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(4).toboolean());
+
+        // Where the field is not listed, AutofillManager stays as it is and only isEnabled is off
+        globals = Scripts.load("package_result", stubs + "\nfields = arrayof()");
+        result = Scripts.run(globals, "return call('tryAddServiceClientIfNeededLocked', true, true)");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals(0, result.arg(5).toint());
+        result = Scripts.run(globals, "return call('isEnabled', true, true)");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+    }
+
+    // The standby buckets of all apps need usage access, which reads as not granted, so a map Android gave becomes the
+    // SecurityException of UsageStatsService, which Android throws without usage access; processes of the system keep it
+    @Test
+    public void standbyBucketsAreRefused() throws Exception {
         Globals globals = Scripts.load("generic_filter_by_uid", PARAM);
         Varargs result = Scripts.run(globals,
                 "local hook = { getName = function() return 'UsageStatsManager.getAppStandbyBuckets' end }\n" +
                         "local map = luajava.newInstance('java.util.HashMap')\n" +
-                        "map:put('com.visible', 10)\n" +
-                        "map:put('com.hidden', 40)\n" +
-                        "local param = paramof(map, nil, 'com.visible')\n" +
+                        "map:put('com.example', 10)\n" +
+                        "local param = paramof(map, nil, 'com.example')\n" +
                         "param.isSystem = function() return false end\n" +
-                        "local all = luajava.newInstance('java.util.HashMap')\n" +
-                        "all:put('com.visible', 10)\n" +
-                        "local same = paramof(all, nil, 'com.visible')\n" +
-                        "same.isSystem = function() return false end\n" +
-                        "local restricted, old, new = after(hook, param)\n" +
-                        "return restricted, old, new, param.result:size(), param.result:get('com.visible'), after(hook, same)");
+                        "local system = paramof(map, nil, 'com.example')\n" +
+                        "system.isSystem = function() return true end\n" +
+                        "local thrown = paramof(nil, nil, 'com.example')\n" +
+                        "thrown.isSystem = function() return false end\n" +
+                        "return after(hook, param), param.result:toString(), param.result:getMessage(),\n" +
+                        "  after(hook, system), system.result == map, after(hook, thrown), thrown.set == true");
         assertTrue(result.arg(1).toboolean());
-        assertEquals("2", result.arg(2).tojstring());
-        assertEquals("1", result.arg(3).tojstring());
-        assertEquals(1, result.arg(4).toint());
-        assertEquals(10, result.arg(5).toint());
+        assertEquals("java.lang.SecurityException: Don't have permission to query app standby bucket", result.arg(2).tojstring());
+        assertEquals("Don't have permission to query app standby bucket", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
         assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
     }
 
     // Only the built-in devices without a microphone stay, like Android lists them on a phone without one: the speakers,
@@ -927,6 +1095,7 @@ public class AuditFixesScriptTest {
                 "luajava = { newInstance = function(name) return name end, bindClass = function(name) return {\n" +
                 "  currentThread = function(self) return { getStackTrace = function(self) return { length = 0 } end } end } end }\n" +
                 "function isvpninterface(name) return true end\n" +
+                "function devicevpn(param, object, name) return true end\n" +
                 "function linkproperties() return false end");
         Varargs result = Scripts.run(globals,
                 "local function properties(value)\n" +

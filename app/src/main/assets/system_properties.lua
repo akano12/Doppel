@@ -33,10 +33,7 @@ function after(hook, param)
     -- Only the own entries, os.version is in the defaults of the overridable properties
     local version = props:get('os.version')
     if version ~= nil then
-        local fake = string.match(version, '^[%d%.]+')
-        if fake == nil then
-            fake = 'unknown'
-        end
+        local fake = kernelrelease(version)
         if fake ~= version then
             props:put('os.version', fake)
             restricted = true
@@ -62,4 +59,34 @@ function after(hook, param)
     end
 
     return restricted, table.concat(old, ' '), table.concat(new, ' ')
+end
+
+-- The release like the unstamped build of the newest AOSP kernel of the same kernel version gives it, so neither the
+-- build nor the sublevel of the device's kernel shows: the head of the GKI branch of its first Android release with its
+-- KMI generation, like 6.6.144-android15-8-maybe-dirty, the last release of the AOSP branch of older kernels, which
+-- keep only their digits like a build without git, else the first release of the version, like 7.1.0.
+-- The arm64 GKI kernels from 6.6 on end in their page size, -4k or -16k, which stays, as Os.sysconf shows it anyway.
+-- Used by uname, /proc (see kernel_version) and os.version (see system_properties).
+-- shortcut: the heads of the branches as of November 2026, upgrade when a branch gets a new KMI generation.
+-- shortcut: a page size followed by more text, like by a vendor build, is lost, upgrade when such a build is known.
+-- shortcut: kernels newer than 6.18 become their first release without a GKI part, upgrade when the GKI branch of
+-- Android 18 is known.
+function kernelrelease(release)
+    local version = string.match(release, '^%d+%.%d+')
+    if version == nil then
+        return 'unknown'
+    end
+    local heads = { ['3.18'] = '3.18.140', ['4.4'] = '4.4.302', ['4.9'] = '4.9.337', ['4.14'] = '4.14.336',
+                    ['4.19'] = '4.19.325', ['5.4'] = '5.4.302', ['5.10'] = '5.10.270-android12-9-maybe-dirty',
+                    ['5.15'] = '5.15.220-android13-8-maybe-dirty', ['6.1'] = '6.1.177-android14-11-maybe-dirty',
+                    ['6.6'] = '6.6.144-android15-8-maybe-dirty', ['6.12'] = '6.12.96-android16-7-maybe-dirty',
+                    ['6.18'] = '6.18.33-android17-6-maybe-dirty' }
+    local head = heads[version]
+    if head == nil then
+        return version .. '.0'
+    end
+    if version == '6.6' or version == '6.12' or version == '6.18' then
+        head = head .. (string.match(release, '%-16k$') or string.match(release, '%-4k$') or '')
+    end
+    return head
 end

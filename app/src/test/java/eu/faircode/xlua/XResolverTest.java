@@ -183,11 +183,12 @@ public class XResolverTest {
 
     @Test
     public void returnType() throws Throwable {
-        // The type of the definition must be assignable to the return type of the method
+        // The type of the definition must be assignable to the return type of the method; a method which does not
+        // fit is missing, which XCore skips for optional hooks instead of reporting an install error
         resolve(Base.class, "get", new Class<?>[]{int.class}, String.class);
         try {
             resolve(Base.class, "put", new Class<?>[]{CharSequence.class}, String.class);
-        } catch (Throwable ex) {
+        } catch (NoSuchMethodException ex) {
             assertTrue(ex.getMessage(), ex.getMessage().startsWith("Invalid return type"));
             return;
         }

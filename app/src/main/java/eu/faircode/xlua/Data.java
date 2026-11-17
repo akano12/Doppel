@@ -79,11 +79,12 @@ final class Data {
         return result;
     }
 
-    // The usage of hooks collected by the engine, in one call, see XCore.flush
+    // The usage of hooks collected by the engine, in one call, see XCore.flush; the service answers none, like the
+    // settings provider gives any app for this method, so a hooked app cannot tell it from a device without Doppel
     static void reports(Context context, ArrayList<Bundle> reports) {
         Bundle args = new Bundle();
         args.putParcelableArrayList("reports", reports);
-        call(context, "reports", args);
+        context.getContentResolver().call(XProvider.getURI(), XProvider.METHOD, "reports", args);
     }
 
     // No rows is an answer; no cursor is a failed or refused query, which must not look like empty data, see call
@@ -359,7 +360,7 @@ final class Data {
         return queryMap(context, "getSettings", new String[]{category, Integer.toString(Process.myUid())});
     }
 
-    // The fake identifiers of an app which are new each boot, by name, see FakeIds
+    // The fake identifiers the service derives for an app, new each boot and the default Android ID, by name, see FakeIds
     static Map<String, String> getBootValues(Context context, String packageName, int uid) {
         return queryMap(context, "getBootValues", new String[]{packageName, Integer.toString(uid)});
     }

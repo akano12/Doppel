@@ -19,7 +19,8 @@
 -- address of each interface. NetworkInterface reads it, and apps which may use the APIs hidden by Android can call it
 -- themselves, which would bypass the hooks of NetworkInterface. Its entries are left out like those hooks leave out
 -- what they hide: the addresses of the device, loopback stays (network, see network_address), the interfaces of VPNs
--- (vpn, see vpn) and the hardware addresses (mac, see mac_address), which go out of their entries while those stay.
+-- (vpn, see vpn) and the hardware addresses (mac, see mac_address), which go out of their entries while those stay,
+-- or before Android 11 become 02:00:00:00:00:00.
 -- Where reflection does not find the fields here (a framework which does not let the module use hidden APIs), the
 -- entries stay, like the original result.
 -- Not covered is Libcore.rawOs, the native getifaddrs, which the hooked one calls, nor native code, which reads the
@@ -67,10 +68,30 @@ local OUT = {
         return isvpninterface(entry.ifa_name)
     end,
     -- The entry stays like that of an interface without a hardware address (lo or sit0): an interface without
-    -- addresses (Wi-Fi off, dummy0 or p2p0) has only this entry, and NetworkInterface lists the names of the entries
+    -- addresses (Wi-Fi off, dummy0 or p2p0) has only this entry, and NetworkInterface lists the names of the entries.
+    -- Before Android 11 it keeps a hardware address, 02:00:00:00:00:00, which NetworkInterface.getHardwareAddress then
+    -- gives like Android 10 does (see mac_address), where a device gives one for each such interface; an address of
+    -- zeros, like of lo, stays.
     mac = function(entry)
-        return entry.hwaddr ~= nil and luajava.new(entry:getClass(), entry.ifa_name, entry.ifa_flags, entry.ifa_addr,
-            entry.ifa_netmask, entry.ifa_broadaddr, nil)
+        local hwaddr = entry.hwaddr
+        if hwaddr == nil then
+            return false
+        end
+        local fake = nil
+        if luajava.bindClass('android.os.Build$VERSION').SDK_INT < 30 then
+            local zeros, masked = true, (hwaddr['length'] == 6 and hwaddr[1] == 2)
+            for index = 1, hwaddr['length'] do
+                zeros = zeros and hwaddr[index] == 0
+                masked = masked and (index == 1 or hwaddr[index] == 0)
+            end
+            if zeros or masked then
+                return false
+            end
+            fake = luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('java.lang.Byte').TYPE, 6)
+            fake[1] = 2
+        end
+        return luajava.new(entry:getClass(), entry.ifa_name, entry.ifa_flags, entry.ifa_addr, entry.ifa_netmask,
+            entry.ifa_broadaddr, fake)
     end,
 }
 

@@ -49,7 +49,16 @@ public class FileScriptsTest {
             "    getPackageName = function(self) return 'test.app' end,",
             "    getFileText = function(self) return self.text end,",
             "    setFileText = function(self, value) self.text = value self.set = true end,",
+            "    unhooked = function(self, fn) return fn() end,",
             "    uuidOf = function(self, seed) return 'uuid:' .. seed end }",
+            "end",
+            // The size of a page of memory, which Os.sysconf gives
+            "PAGESIZE = 4096",
+            "local bind = luajava.bindClass",
+            "luajava.bindClass = function(name)",
+            "  if name == 'android.system.OsConstants' then return { _SC_PAGESIZE = 39 } end",
+            "  if name ~= 'android.system.Os' then return bind(name) end",
+            "  return { sysconf = function(self, name) assert(name == 39) return PAGESIZE end }",
             "end");
 
     private static final String MEMINFO = String.join("\n",
@@ -59,29 +68,50 @@ public class FileScriptsTest {
             "Buffers:            3304 kB",
             "");
 
-    // The sizes like the ones of ActivityManager.getMemoryInfo, in the format of the kernel
+    // The sizes like the ones of ActivityManager.getMemoryInfo, in the format of the kernel: 2.42 GiB is sold as 3 GiB,
+    // of which the kernel gives 2.79 GiB; the free sizes in whole pages, like the kernel counts them, of 4 KiB or 16 KiB
     @Test
     public void meminfo() throws Exception {
         Globals globals = Scripts.load("resources", STUBS);
         Varargs result = Scripts.run(globals,
                 "local param = paramof([[" + MEMINFO + "]])\n" +
                         "local restricted, old, new = after(hookof('open'), param)\n" +
-                        "return restricted, param.text, old, new");
+                        "local again = paramof(param.text)\n" +
+                        "local kept = after(hookof('open'), again)\n" +
+                        "PAGESIZE = 16384\n" +
+                        "local large = paramof([[" + MEMINFO + "]])\n" +
+                        "local paged = after(hookof('open'), large)\n" +
+                        "local twice = paramof(large.text)\n" +
+                        "return restricted, param.text, old, new, kept, again.set, paged, large.text,\n" +
+                        "  after(hookof('open'), twice), twice.set");
         assertTrue(result.arg(1).toboolean());
         assertEquals(String.join("\n",
-                "MemTotal:        3145728 kB",
-                "MemFree:          146484 kB",
-                "MemAvailable:     546875 kB",
+                "MemTotal:        2925520 kB",
+                "MemFree:          146488 kB",
+                "MemAvailable:     546876 kB",
                 "Buffers:            3304 kB",
                 ""), result.arg(2).tojstring());
         // The log has the bytes of the total and available memory, also beyond 32 bits
         assertEquals("2594938880 565067776", result.arg(3).tojstring());
-        assertEquals("3221225472 560000000", result.arg(4).tojstring());
+        assertEquals("2995732480 560001024", result.arg(4).tojstring());
+        // Faked once, a file read again stays, with 16 KiB pages too
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(7).toboolean());
+        assertEquals(String.join("\n",
+                "MemTotal:        2925520 kB",
+                "MemFree:          146496 kB",
+                "MemAvailable:     546880 kB",
+                "Buffers:            3304 kB",
+                ""), result.arg(8).tojstring());
+        assertFalse(result.arg(9).toboolean());
+        assertFalse(result.arg(10).toboolean());
     }
 
     // SwapTotal, a share of the memory with zram, and CommitLimit, half of the memory plus SwapTotal, give back
-    // the exact total, so they grow with the faked total and give back that one; the log stays the one of the total
-    // and available memory
+    // the exact total, so they grow with the faked total and give back that one, in whole pages, and SwapFree with them,
+    // so it stays below SwapTotal also when the faked total is below the real one; the log stays the one of the total and
+    // available memory
     @Test
     public void meminfoDerivedTotals() throws Exception {
         Globals globals = Scripts.load("resources", STUBS);
@@ -91,16 +121,28 @@ public class FileScriptsTest {
                         "return restricted, param.text, old, new");
         assertTrue(result.arg(1).toboolean());
         assertEquals(String.join("\n",
-                "MemTotal:        3145728 kB",
-                "SwapTotal:       2359287 kB",
-                "CommitLimit:     3932148 kB",
+                "MemTotal:        2925520 kB",
+                "SwapTotal:       2194128 kB",
+                "CommitLimit:     3656888 kB",
                 ""), result.arg(2).tojstring());
         assertEquals("2594934784", result.arg(3).tojstring());
-        assertEquals("3221225472", result.arg(4).tojstring());
+        assertEquals("2995732480", result.arg(4).tojstring());
+
+        // 3.83 GiB, at the top of 4 GiB, give 3.72 GiB, with swap almost unused
+        result = Scripts.run(globals,
+                "local param = paramof('MemTotal:        4013056 kB\\nSwapTotal:       1900580 kB\\nSwapFree:        1900000 kB\\n')\n" +
+                        "after(hookof('open'), param)\n" +
+                        "return param.text");
+        String[] lines = result.arg1().tojstring().split("\n");
+        long total = Long.parseLong(lines[1].replaceAll("\\D", "")), free = Long.parseLong(lines[2].replaceAll("\\D", ""));
+        assertEquals("MemTotal:        3900688 kB", lines[0]);
+        assertTrue(total < 1900580);
+        assertTrue(free <= total);
+        assertEquals(0, free % 4);
     }
 
     // 32-bit kernels with high memory: HighTotal and LowTotal add up to MemTotal and HighFree and LowFree to MemFree,
-    // also when faked; the low memory has the size the kernel maps, so the high memory takes what the total grew,
+    // also when faked; the low memory has the size the kernel maps, so the high memory takes what the total changed,
     // and the free memory lost is taken from the free high memory, then from the free low memory
     @Test
     public void meminfoHighMemory() throws Exception {
@@ -117,12 +159,12 @@ public class FileScriptsTest {
                         "return after(hookof('open'), param), param.text");
         assertTrue(result.arg(1).toboolean());
         assertEquals(String.join("\n",
-                "MemTotal:        2097152 kB",
-                "MemFree:          146484 kB",
-                "HighTotal:       1363968 kB",
+                "MemTotal:        1950336 kB",
+                "MemFree:          146488 kB",
+                "HighTotal:       1217152 kB",
                 "HighFree:              0 kB",
                 "LowTotal:         733184 kB",
-                "LowFree:          146484 kB",
+                "LowFree:          146488 kB",
                 ""), result.arg(2).tojstring());
         String[] lines = result.arg(2).tojstring().split("\n");
         long[] kb = new long[lines.length];
@@ -157,7 +199,7 @@ public class FileScriptsTest {
                         "return after(hookof('open'), param), param.text");
         assertTrue(result.arg(1).toboolean());
         assertEquals(String.join("\n",
-                "MemTotal:        3145728 kB",
+                "MemTotal:        2925520 kB",
                 "Active(anon):     812340 kB",
                 "Committed_AS:   45123456 kB",
                 "HugePages_Total:       0",
@@ -197,8 +239,9 @@ public class FileScriptsTest {
                         "    return { allowThreadDiskReads = function(self) local old = POLICY; POLICY = 'reads'; return old end,\n" +
                         "      setThreadPolicy = function(self, policy) POLICY = policy end }\n" +
                         "  end\n" +
+                        "  if name == 'android.system.OsConstants' then return { _SC_PAGESIZE = 39 } end\n" +
                         "  assert(name == 'android.system.Os', name)\n" +
-                        "  return { readlink = function(self, link)\n" +
+                        "  return { sysconf = function(self, name) return 4096 end, readlink = function(self, link)\n" +
                         "    assert(POLICY == 'reads', POLICY)\n" +
                         "    READS = READS + 1\n" +
                         "    return links[tonumber(string.match(link, '^/proc/self/fd/(%d+)$'))] or error('ErrnoException')\n" +
@@ -232,28 +275,34 @@ public class FileScriptsTest {
     public void meminfoRounded() throws Exception {
         Globals globals = Scripts.load("resources", STUBS);
         Varargs result = Scripts.run(globals,
-                "local param = paramof('MemTotal:        3145728 kB\\nMemAvailable:     546875 kB\\n')\n" +
+                "local param = paramof('MemTotal:        2925520 kB\\nMemAvailable:     546876 kB\\n')\n" +
                         "return after(hookof('open'), param), param.set");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
     }
 
-    // The sizes of java.nio FileStore like the ones of File: the total rounded up, the free space down
+    // The sizes of java.nio FileStore like the ones of File: the total a share of the size it is sold with, the free
+    // space down to two digits of whole MiB, below the faked total, of which the real one is read without the hooks
     @Test
     public void fileStoreSizes() throws Exception {
         Globals globals = Scripts.load("resources", STUBS);
         Varargs result = Scripts.run(globals,
-                "local function size(method, value)\n" +
+                "local function size(method, value, total)\n" +
+                        "  local store = { getTotalSpace = function(self) assert(UNHOOKED) return total end }\n" +
                         "  local param = { result = value, getResult = function(self) return self.result end,\n" +
-                        "    setResult = function(self, v) self.result = v end }\n" +
-                        "  after(hookof(method), param)\n" +
+                        "    setResult = function(self, v) self.result = v end, getThis = function(self) return store end,\n" +
+                        "    unhooked = function(self, fn) UNHOOKED = true local r = fn() UNHOOKED = false return r end }\n" +
+                        "  after({ getMethodName = function(self) return method end,\n" +
+                        "    getName = function(self) return 'UnixFileStore.' .. method end }, param)\n" +
                         "  return param.result\n" +
                         "end\n" +
-                        "return size('getTotalSpace', 118000000000), size('getUsableSpace', 7917000000), " +
-                        "size('getUnallocatedSpace', 7999000000)");
-        assertEquals(128000000000L, result.arg(1).tolong());
-        assertEquals(7900000000L, result.arg(2).tolong());
-        assertEquals(7900000000L, result.arg(3).tolong());
+                        "return size('getTotalSpace', 118000000000), size('getUsableSpace', 7917000000, 118000000000), " +
+                        "size('getUnallocatedSpace', 7999000000, 118000000000), size('getUsableSpace', 120000000000, 125000000000)");
+        assertEquals(111999451136L, result.arg(1).tolong());
+        assertEquals(7500L << 20, result.arg(2).tolong());
+        assertEquals(7600L << 20, result.arg(3).tolong());
+        // Free space above the faked total of 106811 MiB is that total rounded like free space, below it
+        assertEquals(100000L << 20, result.arg(4).tolong());
     }
 
     // An id of the app, which the id of the kernel changes, and no id for a file without one
@@ -304,6 +353,8 @@ public class FileScriptsTest {
             "        return CANONICAL[args[1]] or args[1]",
             "      end }",
             "    end",
+            // The name of fstatat as bytes, a text here
+            "    if name == 'java.lang.String' then return args[1] end",
             "    return { class = name, args = args }",
             "  end,",
             "  bindClass = function(name)",
@@ -324,6 +375,7 @@ public class FileScriptsTest {
             "    if name == 'android.system.Os' then",
             "      return { readlink = function(self, path)",
             "        assert(POLICY == 'reads', POLICY)",
+            "        READLINKS = READLINKS + 1",
             "        return LINKS[path] or error('ErrnoException')",
             "      end,",
             "      stat = function(self, path)",
@@ -335,6 +387,10 @@ public class FileScriptsTest {
             "      return { allowThreadDiskReads = function(self) local old = POLICY; POLICY = 'reads'; return old end,",
             "        setThreadPolicy = function(self, policy) POLICY = policy end }",
             "    end",
+            // The frames of the stack of the thread, which STACK has, with its length like a Java array
+            "    if name == 'java.lang.Thread' then",
+            "      return { currentThread = function(self) return { getStackTrace = function(self) return STACK end } end }",
+            "    end",
             "    assert(name == 'android.os.Environment', name)",
             "    local root = { getPath = function(self) return '/storage/emulated/10' end }",
             "    return { getExternalStorageDirectory = function(self) return root end }",
@@ -343,24 +399,26 @@ public class FileScriptsTest {
             "  return { getMethodName = function(self) return method end,",
             "    getClassName = function(self) return class or 'libcore.io.BlockGuardOs' end }",
             "end",
-            // The app with its own APK and the packages it can see, see apptime
+            // The app with its own APK; the package manager gives Play services as an updated app of the system with its
+            // real install time, which the times of its files must not show (see apptime)
             "OWN = '/data/app/~~own==/com.example-a==/base.apk'",
             "DUPS = 0",
+            "READLINKS = 0",
+            "STACK = { length = 0 }",
+            "function frameof(class, method)",
+            "  return { getClassName = function(self) return class end, getMethodName = function(self) return method end }",
+            "end",
             "POLICY = 'app'",
             "LINKS = {}",
             "DEVICES = {}",
             "CANONICAL = {}",
             "BOOT = 1799999000",
             "function descriptorof(number) return { number = number, ['getInt$'] = function(self) return self.number end } end",
-            "PACKAGES = { ['com.google.android.gms'] = { firstInstallTime = 1720723580123, applicationInfo = { flags = 129 } },",
-            "  ['com.other'] = { firstInstallTime = 5, applicationInfo = { flags = 0 } } }",
             "CONTEXT = { getApplicationInfo = function(self) return { sourceDir = OWN } end,",
-            "  getPackageManager = function(self)",
-            "    return { getPackageInfo = function(self, name, flags)",
-            "      assert(flags == 0, flags)",
-            "      return PACKAGES[name] or error('NameNotFoundException')",
-            "    end }",
-            "  end }",
+            "  getPackageManager = function(self) return { getPackageInfo = function(self, name, flags)",
+            "    if name ~= 'com.google.android.gms' then return nil end",
+            "    return { firstInstallTime = 1720723580123, applicationInfo = { flags = 129 } }",
+            "  end } end }",
             "function paramof(result, args)",
             "  return { result = result,",
             "    getArgument = function(self, index) return (args or {})[index + 1] end,",
@@ -487,6 +545,28 @@ public class FileScriptsTest {
         assertTrue(result.arg(5).tolong() != result.arg(6).tolong());
     }
 
+    // The inode of a folder is made of the seed of the DRM id of the service, which the app cannot read, not of the
+    // Android ID, which it can; without the seed the real inode stays
+    @Test
+    public void storageInodeSeed() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local function inode(settings)\n" +
+                        "  local param = paramof(statof(1791913509), { '/sdcard/DCIM' })\n" +
+                        "  param.getSetting = function(self, name) return settings[name] end\n" +
+                        "  param.uuidOf = function(self, seed) return string.format('%08x', #seed * 7919 + string.byte(seed, 1)) end\n" +
+                        "  after(hookof('stat'), param)\n" +
+                        "  return param.result.args[2]\n" +
+                        "end\n" +
+                        "return inode({ ['value.drm_id'] = 'a', ['value.android_id'] = 'x' }),\n" +
+                        "  inode({ ['value.drm_id'] = 'a', ['value.android_id'] = 'yyyy' }),\n" +
+                        "  inode({ ['value.drm_id'] = 'bbbb', ['value.android_id'] = 'x' }),\n" +
+                        "  inode({ ['value.android_id'] = 'x' })");
+        assertEquals(result.arg(1).tolong(), result.arg(2).tolong());
+        assertTrue(result.arg(1).tolong() != result.arg(3).tolong());
+        assertEquals(2, result.arg(4).tolong());
+    }
+
     // File.lastModified in milliseconds, 0 for a missing folder; java.nio with the time the folder was made,
     // of the attributes it reads the times into
     @Test
@@ -575,6 +655,142 @@ public class FileScriptsTest {
         assertTrue(result.arg(10).isnil());
         assertFalse(result.arg(11).toboolean());
         assertEquals(1230768000L, result.arg(12).tolong());
+    }
+
+    // A call of java.nio which reads the attributes of a path or a descriptor, the last argument: its inode and times
+    // as text after the script ran, or real when it kept them
+    private static final String NIO = "local function nio(method, args, mode)\n" +
+            "  local attributes = objectof({ st_ino = 2, st_mode = mode or 16889, st_atime_sec = 1, st_atime_nsec = 2,\n" +
+            "    st_mtime_sec = 3, st_mtime_nsec = 4, st_ctime_sec = 5, st_ctime_nsec = 6 }, false)\n" +
+            "  table.insert(args, attributes)\n" +
+            "  local param = paramof(nil, args)\n" +
+            "  param.uuidOf = function(self, seed)\n" +
+            "    local sum = 0\n" +
+            "    for i = 1, #seed do sum = sum + string.byte(seed, i) * i end\n" +
+            "    return string.format('%08x', sum) .. '-0000'\n" +
+            "  end\n" +
+            "  if not after(hookof(method, 'sun.nio.fs.UnixNativeDispatcher'), param) then return 'real' end\n" +
+            "  return attributes.st_ino .. ' ' .. attributes.st_atime_sec .. '.' .. attributes.st_atime_nsec .. ' ' ..\n" +
+            "    attributes.st_mtime_sec .. '.' .. attributes.st_mtime_nsec .. ' ' .. attributes.st_ctime_sec .. '.' ..\n" +
+            "    attributes.st_ctime_nsec\n" +
+            "end\n";
+
+    // A SecureDirectoryStream of java.nio reads the attributes of its entries by the descriptor of its folder and their
+    // name (fstatat): a folder of the shared storage like by its path, with the same inode and times, also by .. and by
+    // an absolute name, and a link read without following it like by lstat; other entries and a descriptor the link of
+    // which cannot be read keep their answer, and the app has its thread policy back. The filter has no paths for a
+    // descriptor and a name, so the script runs for each call
+    @Test
+    public void storageFstatat() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/proc/self/fd/57'] = '/storage/emulated/10'\n" +
+                        "LINKS['/proc/self/fd/58'] = '/storage/emulated/10/DCIM'\n" +
+                        "LINKS['/proc/self/fd/59'] = '/storage/self'\n" +
+                NIO +
+                        "local dcim = nio('stat', { '/sdcard/DCIM' })\n" +
+                        "return dcim, nio('fstatat', { 57, 'DCIM', 0 }), nio('fstatat', { 58, '../Download', 0 }),\n" +
+                        "  nio('stat', { '/sdcard/Download' }), nio('fstatat', { 60, '/sdcard/DCIM', 0 }),\n" +
+                        "  nio('fstatat', { 59, 'primary', 256 }, 41471), nio('lstat', { '/storage/self/primary' }, 41471),\n" +
+                        "  nio('fstatat', { 59, 'primary', 0 }), nio('stat', { '/sdcard' }), nio('fstatat', { 58, 'Camera', 0 }),\n" +
+                        "  nio('fstatat', { 60, 'DCIM', 0 }), POLICY,\n" +
+                        "  filter(hookof('fstatat', 'sun.nio.fs.UnixNativeDispatcher')) == nil");
+        String dcim = result.arg(1).tojstring();
+        assertTrue(dcim, dcim.endsWith(" 1230768000.0 1230768000.0 1230768000.0"));
+        assertEquals(dcim, result.arg(2).tojstring());
+        assertEquals(result.arg(4).tojstring(), result.arg(3).tojstring());
+        assertTrue(!dcim.equals(result.arg(4).tojstring()));
+        assertEquals(dcim, result.arg(5).tojstring());
+        // The link /storage/self/primary keeps an inode of its own without following it, like by lstat
+        assertEquals(result.arg(7).tojstring(), result.arg(6).tojstring());
+        assertEquals(result.arg(9).tojstring(), result.arg(8).tojstring());
+        assertTrue(!result.arg(6).tojstring().equals(result.arg(8).tojstring()));
+        assertEquals("real", result.arg(10).tojstring());
+        assertEquals("real", result.arg(11).tojstring());
+        assertEquals("app", result.arg(12).tojstring());
+        assertTrue(result.arg(13).toboolean());
+    }
+
+    // A SecureDirectoryStream of java.nio reads the attributes of its own folder by its descriptor alone (fstat of
+    // java.nio): a folder of the shared storage like by its path, with the same inode and times, also the stream of a
+    // folder opened by the stream of the storage; a socket, the link of which is not read, also when it would name a
+    // folder, and a descriptor the link of which cannot be read keep their answer, and Os.fstat still takes the number
+    // of its descriptor. The filter has no paths for a descriptor, so the script runs for each call
+    @Test
+    public void storageNioFstat() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/proc/self/fd/57'] = '/storage/emulated/10'\n" +
+                        "LINKS['/proc/self/fd/58'] = '/storage/emulated/10/DCIM'\n" +
+                NIO +
+                        "local os = paramof(statof(1791913509), { descriptorof(58) })\n" +
+                        "after(hookof('fstat', 'android.system.Os'), os)\n" +
+                        "return nio('stat', { '/sdcard/DCIM' }), nio('fstat', { 58 }), nio('fstatat', { 57, 'DCIM', 0 }),\n" +
+                        "  nio('stat', { '/sdcard' }), nio('fstat', { 57 }), nio('fstat', { 58 }, 49663), nio('fstat', { 60 }),\n" +
+                        "  os.result.args[9].args[1], POLICY, filter(hookof('fstat', 'sun.nio.fs.UnixNativeDispatcher')) == nil");
+        String dcim = result.arg(1).tojstring();
+        assertTrue(dcim, dcim.endsWith(" 1230768000.0 1230768000.0 1230768000.0"));
+        assertEquals(dcim, result.arg(2).tojstring());
+        assertEquals(dcim, result.arg(3).tojstring());
+        assertEquals(result.arg(4).tojstring(), result.arg(5).tojstring());
+        assertTrue(!dcim.equals(result.arg(5).tojstring()));
+        assertEquals("real", result.arg(6).tojstring());
+        assertEquals("real", result.arg(7).tojstring());
+        assertEquals(1230768000L, result.arg(8).tolong());
+        assertEquals("app", result.arg(9).tojstring());
+        assertTrue(result.arg(10).toboolean());
+    }
+
+    // fstatat reads the link of the descriptor of the folder only for a name which can lead to one of the folders, not
+    // for the other entries, like those of the app's own folders; in /data/app the folders of packages and their APKs
+    @Test
+    public void storageFstatatNames() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/proc/self/fd/57'] = '/storage/emulated/10'\n" +
+                        "LINKS['/proc/self/fd/61'] = '/data/app/~~x=='\n" +
+                        "LINKS['/proc/self/fd/62'] = '/data/app/~~x==/com.other-y=='\n" +
+                        NIO +
+                        "local other = nio('fstatat', { 57, 'cache.tmp', 0 })\n" +
+                        "local reads = READLINKS\n" +
+                        "return other, reads, nio('fstatat', { 57, 'dcim', 0 }), nio('fstatat', { 61, 'com.other-y==', 0 }),\n" +
+                        "  nio('fstatat', { 62, 'base.apk', 0 }), READLINKS");
+        assertEquals("real", result.arg(1).tojstring());
+        assertEquals(0, result.arg(2).toint());
+        assertTrue(result.arg(3).tojstring(), result.arg(3).tojstring().endsWith(" 1230768000.0 1230768000.0 1230768000.0"));
+        assertTrue(result.arg(4).tojstring(), result.arg(4).tojstring().endsWith(" 1230768000.0 1230768000.0 1230768000.0"));
+        assertTrue(result.arg(5).tojstring(), result.arg(5).tojstring().endsWith(" 1230768000.0 1230768000.0 1230768000.0"));
+        assertEquals(3, result.arg(6).toint());
+    }
+
+    // java.nio sets the times of a file with one of them null by reading the one it keeps (setTimes of its attribute
+    // views, also of a SecureDirectoryStream), which gets the real times, so the fake one is not written to the real
+    // folder; reading the attributes, also by a method named setTimes of another class, even of sun.nio.fs, still gets
+    // the fake ones
+    @Test
+    public void storageNioSetTimes() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/proc/self/fd/58'] = '/storage/emulated/10/DCIM'\n" +
+                        NIO +
+                        "local function under(class, method, call, args)\n" +
+                        "  STACK = { frameof('dalvik.system.VMStack', 'getThreadStackTrace'), frameof(class, method), length = 2 }\n" +
+                        "  local answer = nio(call, args)\n" +
+                        "  STACK = { length = 0 }\n" +
+                        "  return answer\n" +
+                        "end\n" +
+                        "return under('sun.nio.fs.UnixFileAttributeViews$Basic', 'setTimes', 'fstat', { 58 }),\n" +
+                        "  under('sun.nio.fs.UnixSecureDirectoryStream$BasicFileAttributeViewImpl', 'setTimes', 'fstat', { 58 }),\n" +
+                        "  under('sun.nio.fs.UnixFileAttributeViews$Basic', 'setTimes', 'stat', { '/sdcard/DCIM' }),\n" +
+                        "  under('sun.nio.fs.UnixFileAttributeViews$Basic', 'readAttributes', 'fstat', { 58 }),\n" +
+                        "  under('com.example.Files', 'setTimes', 'fstat', { 58 }),\n" +
+                        "  under('sun.nio.fs.UnixOther', 'setTimes', 'fstat', { 58 })");
+        assertEquals("real", result.arg(1).tojstring());
+        assertEquals("real", result.arg(2).tojstring());
+        assertEquals("real", result.arg(3).tojstring());
+        assertTrue(result.arg(4).tojstring(), result.arg(4).tojstring().endsWith(" 1230768000.0 1230768000.0 1230768000.0"));
+        assertTrue(result.arg(5).tojstring(), result.arg(5).tojstring().endsWith(" 1230768000.0 1230768000.0 1230768000.0"));
+        assertTrue(result.arg(6).tojstring(), result.arg(6).tojstring().endsWith(" 1230768000.0 1230768000.0 1230768000.0"));
     }
 
     // A FileDescriptor of Android as LuaJ sees it, with the hidden method which gives its number
@@ -757,9 +973,29 @@ public class FileScriptsTest {
         assertEquals(1230768000L, result.arg(14).tolong());
     }
 
-    // The files of other apps in /data/app get the times of their package info: the time of the firmware for updates
-    // of apps of the system, the time of reproducible builds for others, of packages which are gone and for
-    // /data/app itself; the files of the app itself keep theirs, on Android 11 and later and before
+    // By a link the app made itself, which the filter lets in by the folder it leads to (see XCore.Filter): like by the
+    // path of the folder, while lstat of the link itself keeps its answer
+    @Test
+    public void storageAppLinks() throws Exception {
+        Globals globals = Scripts.load("storage_times", TIMES_STUBS);
+        Varargs result = Scripts.run(globals,
+                "CANONICAL['/data/user/0/test.app/files/d'] = '/storage/emulated/10/DCIM'\n" +
+                        "local function stat(method, mode)\n" +
+                        "  local result = statof(1791913509)\n" +
+                        "  result.st_mode = mode or result.st_mode\n" +
+                        "  local param = paramof(result, { '/data/user/0/test.app/files/d' })\n" +
+                        "  if not after(hookof(method), param) then return 'real' end\n" +
+                        "  return param.result.args[9].args[1]\n" +
+                        "end\n" +
+                        "return stat('stat'), stat('lstat', 41471), POLICY");
+        assertEquals(1230768000L, result.arg(1).tolong());
+        assertEquals("real", result.arg(2).tojstring());
+        assertEquals("app", result.arg(3).tojstring());
+    }
+
+    // The files of other apps in /data/app get the times of their package info, the time of reproducible builds, also
+    // for updates of apps of the system, of packages which are gone and for /data/app itself; the files of the app
+    // itself keep theirs, on Android 11 and later and before
     @Test
     public void appTimes() throws Exception {
         Globals globals = Scripts.load("storage_times", TIMES_STUBS);
@@ -781,14 +1017,14 @@ public class FileScriptsTest {
                         "  seconds('/data/app/~~own==/com.example-a==/oat/arm64/base.odex'), seconds('/data/app/~~own=='),\n" +
                         "  modified.result, found['/data/app'], found['/data/app/*']");
         assertEquals("1230768000.0", result.arg(1).tojstring());
-        assertEquals("1720723580.123000000", result.arg(2).tojstring());
+        assertEquals("1230768000.0", result.arg(2).tojstring());
         assertEquals("1230768000.0", result.arg(3).tojstring());
         assertEquals("1230768000.0", result.arg(4).tojstring());
         assertEquals("1230768000.0", result.arg(5).tojstring());
         assertEquals("1230768000.0", result.arg(6).tojstring());
         for (int i = 7; i <= 10; i++)
             assertEquals(String.valueOf(i), "real", result.arg(i).tojstring());
-        assertEquals(1720723580123L, result.arg(11).tolong());
+        assertEquals(1230768000000L, result.arg(11).tolong());
         assertTrue(result.arg(12).toboolean());
         assertTrue(result.arg(13).toboolean());
     }
@@ -798,7 +1034,7 @@ public class FileScriptsTest {
     @Test
     public void cpuinfo() throws Exception {
         Globals globals = Scripts.load("cpuinfo", STUBS);
-        String core = "processor\t: %d\nBogoMIPS\t: 38.40\n" +
+        String core = "processor\t: %d\nBogoMIPS\t: 19.20\n" +
                 "Features\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop\n" +
                 "CPU implementer\t: 0x51\nCPU architecture: 8\nCPU variant\t: 0xd\nCPU part\t: 0x805\nCPU revision\t: 14\n\n";
         String cores = String.format(core, 0) + String.format(core, 1);
@@ -809,23 +1045,165 @@ public class FileScriptsTest {
                 "local param = paramof([[" + snapdragon + "]])\n" +
                         "local x86 = paramof([[" + x86 + "]])\n" +
                         "local other = paramof([[" + snapdragon + "]], true)\n" +
-                        "local restricted, left = after(nil, param)\n" +
-                        "return restricted, left, param.text, after(nil, x86), x86.set, after(nil, other), other.set,\n" +
-                        "  filter(nil)[1]");
-        // Without the lines of the cores and the chip, 8 processors like Runtime.availableProcessors
-        StringBuilder eight = new StringBuilder();
-        for (int i = 0; i < 8; i++)
-            eight.append("processor\t: ").append(i).append("\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 " +
-                    "atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop\nCPU architecture: 8\n\n");
+                        "other.getArgument = function(self, index) return '/proc/meminfo' end\n" +
+                        "local restricted, left = after(hookof('open'), param)\n" +
+                        "return restricted, left, param.text, after(hookof('open'), x86), x86.set,\n" +
+                        "  after(hookof('open'), other), other.set,\n" +
+                        "  filter(hookof('open'))[1]");
+        // Without the lines of the chip, 8 processors like Runtime.availableProcessors, each with the lines of the
+        // core the kernel prints, of a Cortex-A55 for the atomics of ARMv8.1
         assertTrue(result.arg(1).toboolean());
-        assertEquals("12", result.arg(2).tojstring());
-        assertEquals(eight.toString(), result.arg(3).tojstring());
+        assertEquals("2", result.arg(2).tojstring());
+        assertEquals(arm(8, "fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop",
+                "0x2", "0xd05", "0"), result.arg(3).tojstring());
         // x86: the model and bogomips go, one processor becomes 8
         assertTrue(result.arg(4).toboolean());
         assertTrue(result.arg(5).toboolean());
         assertFalse(result.arg(6).toboolean());
         assertFalse(result.arg(7).toboolean());
         assertEquals("*cpuinfo*", result.arg(8).tojstring());
+    }
+
+    // The 8 blocks of arm with the given features and core, each like the kernel prints it
+    private static String arm(int count, String features, String variant, String part, String revision) {
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < count; i++)
+            text.append("processor\t: ").append(i).append("\nBogoMIPS\t: 38.40\nFeatures\t: ").append(features)
+                    .append("\nCPU implementer\t: 0x41\nCPU architecture: 8\nCPU variant\t: ").append(variant)
+                    .append("\nCPU part\t: ").append(part).append("\nCPU revision\t: ").append(revision).append("\n\n");
+        return text.toString();
+    }
+
+    // The little and big cores of 8 processors all become the same core, also when no line is left out, and a file
+    // which already has it stays as it is; 32-bit apps see the model name and the features of 32-bit code, without the
+    // atomics, so a Cortex-A53 with its revision; vendors which print the line of the core before the processors keep
+    // it with the revision of the fake core
+    @Test
+    public void cpuinfoOfCores() throws Exception {
+        Globals globals = Scripts.load("cpuinfo", STUBS);
+        String features = "fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp";
+        StringBuilder mixed = new StringBuilder();
+        for (int i = 0; i < 8; i++)
+            mixed.append("processor\t: ").append(i).append("\nBogoMIPS\t: 52.00\nFeatures\t: ").append(features)
+                    .append("\nCPU implementer\t: 0x41\nCPU architecture: 8\nCPU variant\t: ").append(i < 6 ? "0x2" : "0x1")
+                    .append("\nCPU part\t: ").append(i < 6 ? "0xd05" : "0xd0b").append("\nCPU revision\t: 0\n\n");
+        String compat = "processor\t: 0\nmodel name\t: ARMv8 Processor rev 1 (v8l)\nBogoMIPS\t: 52.00\n" +
+                "Features\t: half thumb fastmult vfp edsp neon vfpv3 tls vfpv4 idiva idivt lpae evtstrm aes pmull sha1 sha2 crc32\n" +
+                "CPU implementer\t: 0x41\nCPU architecture: 8\nCPU variant\t: 0x2\nCPU part\t: 0xd05\nCPU revision\t: 0\n\n";
+        String vendor = "Processor\t: AArch64 Processor rev 2 (aarch64)\n" + arm(4, "fp asimd evtstrm aes pmull sha1 sha2 crc32",
+                "0x0", "0xd04", "2").replace("38.40", "26.00") + "Hardware\t: MT6765\n";
+        String fake = arm(8, features, "0x2", "0xd05", "0");
+        Varargs result = Scripts.run(globals,
+                "local mixed = paramof([[" + mixed + "]])\n" +
+                        "local compat = paramof([[" + compat + "]])\n" +
+                        "local vendor = paramof([[" + vendor + "]])\n" +
+                        "local fake = paramof([[" + fake + "]])\n" +
+                        "return after(hookof('open'), mixed), mixed.text, after(hookof('open'), compat), compat.text,\n" +
+                        "  after(hookof('open'), vendor),\n" +
+                        "  vendor.text, after(hookof('open'), fake), fake.set");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(fake, result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        StringBuilder a53 = new StringBuilder();
+        for (int i = 0; i < 8; i++)
+            a53.append("processor\t: ").append(i).append("\nmodel name\t: ARMv8 Processor rev 4 (v8l)\nBogoMIPS\t: 38.40\n")
+                    .append("Features\t: half thumb fastmult vfp edsp neon vfpv3 tls vfpv4 idiva idivt lpae evtstrm aes pmull ")
+                    .append("sha1 sha2 crc32\nCPU implementer\t: 0x41\nCPU architecture: 8\nCPU variant\t: 0x0\n")
+                    .append("CPU part\t: 0xd03\nCPU revision\t: 4\n\n");
+        assertEquals(a53.toString(), result.arg(4).tojstring());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("Processor\t: AArch64 Processor rev 4 (aarch64)\n" +
+                arm(8, "fp asimd evtstrm aes pmull sha1 sha2 crc32", "0x0", "0xd03", "4"), result.arg(6).tojstring());
+        assertFalse(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean());
+    }
+
+    // The instructions of ARMv9 and later, which a Cortex-A55 does not have, go and the others keep their order, so the
+    // features of a Cortex-A510 become the ones of the little cores of the Snapdragon 888
+    @Test
+    public void cpuinfoOfArmv9() throws Exception {
+        Globals globals = Scripts.load("cpuinfo", STUBS);
+        String features = "fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc " +
+                "dcpop sha3 sm3 sm4 asimddp sha512 sve asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp sve2 sveaes " +
+                "svepmull svebitperm svesha3 svesm4 flagm2 frint svei8mm svebf16 i8mm bf16 dgh bti";
+        String real = arm(8, features, "0x0", "0xd46", "1");
+        Varargs result = Scripts.run(globals, "local param = paramof([[" + real + "]])\n" +
+                "return after(hookof('open'), param), param.text");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(arm(8, "fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp",
+                "0x2", "0xd05", "0"), result.arg(2).tojstring());
+    }
+
+    // A 32-bit kernel prints the model name and CPU architecture 7 for each processor, also of a core of ARMv8, and the
+    // lines of the board after them: the processors become 8 Cortex-A7 cores with their revision and instructions, without
+    // the ones of ARMv8, and the lines of the board, which such kernels always print, are the ones of a board without values
+    @Test
+    public void cpuinfoOf32BitKernels() throws Exception {
+        Globals globals = Scripts.load("cpuinfo", STUBS);
+        String block = "processor\t: %d\nmodel name\t: ARMv7 Processor rev 4 (v7l)\nBogoMIPS\t: 26.00\n" +
+                "Features\t: half thumb fastmult vfp edsp neon vfpv3 tls vfpv4 idiva idivt lpae evtstrm aes pmull sha1 sha2 crc32\n" +
+                "CPU implementer\t: 0x41\nCPU architecture: 7\nCPU variant\t: 0x0\nCPU part\t: 0xd03\nCPU revision\t: 4\n\n";
+        StringBuilder real = new StringBuilder();
+        for (int i = 0; i < 4; i++)
+            real.append(String.format(block, i));
+        real.append("Hardware\t: MT6737M\nRevision\t: 0001\nSerial\t\t: 1a2b3c4d00000000\n");
+        Varargs result = Scripts.run(globals, "local param = paramof([[" + real + "]])\n" +
+                "return after(hookof('open'), param), param.text");
+        assertTrue(result.arg1().toboolean());
+        StringBuilder expected = new StringBuilder();
+        for (int i = 0; i < 8; i++)
+            expected.append("processor\t: ").append(i).append("\nmodel name\t: ARMv7 Processor rev 3 (v7l)\nBogoMIPS\t: 38.40\n")
+                    .append("Features\t: half thumb fastmult vfp edsp neon vfpv3 tls vfpv4 idiva idivt lpae evtstrm\n")
+                    .append("CPU implementer\t: 0x41\nCPU architecture: 7\nCPU variant\t: 0x0\nCPU part\t: 0xc07\n")
+                    .append("CPU revision\t: 3\n\n");
+        expected.append("Hardware\t: Generic DT based system\nRevision\t: 0000\nSerial\t\t: 0000000000000000\n");
+        assertEquals(expected.toString(), result.arg(2).tojstring());
+    }
+
+    // On riscv the harts of the 4 processors, which need not start at 0, become 8 numbered 0 to 7, and the ids of the
+    // vendor, architecture and implementation of the core and its name in the device tree go
+    @Test
+    public void cpuinfoOfRiscv() throws Exception {
+        Globals globals = Scripts.load("cpuinfo", STUBS);
+        String block = "processor\t: %d\nhart\t\t: %d\nisa\t\t: rv64imafdc_zicntr_zicsr_zifencei_zihpm\nmmu\t\t: sv39\n" +
+                "uarch\t\t: sifive,u74-mc\nmvendorid\t: 0x489\nmarchid\t\t: 0x8000000000000007\nmimpid\t\t: 0x4210427\n" +
+                "hart isa\t: rv64imafdc_zicntr_zicsr_zifencei_zihpm\n\n";
+        StringBuilder real = new StringBuilder();
+        for (int i = 0; i < 4; i++)
+            real.append(String.format(block, i, i + 1));
+        Varargs result = Scripts.run(globals, "local param = paramof([[" + real + "]])\n" +
+                "return after(hookof('open'), param), param.text");
+        assertTrue(result.arg1().toboolean());
+        StringBuilder expected = new StringBuilder();
+        for (int i = 0; i < 8; i++)
+            expected.append(String.format(block, i, i).replaceAll("(uarch|mvendorid|marchid|mimpid)\t+: [^\n]*\n", ""));
+        assertEquals(expected.toString(), result.arg(2).tojstring());
+    }
+
+    // The 4 processors of the emulator become 8, each a core of its own in one package, like a virtual machine with
+    // 8 processors has them
+    @Test
+    public void cpuinfoOfX86() throws Exception {
+        Globals globals = Scripts.load("cpuinfo", STUBS);
+        String block = "processor\t: %1$d\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\n" +
+                "model name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0x1\n" +
+                "cpu MHz\t\t: 3192.000\ncache size\t: 16384 KB\nphysical id\t: 0\nsiblings\t: %2$d\ncore id\t\t: %1$d\n" +
+                "cpu cores\t: %2$d\napicid\t\t: %1$d\ninitial apicid\t: %1$d\nfpu\t\t: yes\nfpu_exception\t: yes\n" +
+                "cpuid level\t: 13\nwp\t\t: yes\nflags\t\t: fpu vme sse sse2\nbugs\t\t: spectre_v1\n" +
+                "bogomips\t: 6384.00\nclflush size\t: 64\ncache_alignment\t: 64\n" +
+                "address sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\n";
+        StringBuilder emulator = new StringBuilder();
+        for (int i = 0; i < 4; i++)
+            emulator.append(String.format(block, i, 4));
+        Varargs result = Scripts.run(globals,
+                "local param = paramof([[" + emulator + "]])\n" +
+                        "return after(hookof('open'), param), param.text");
+        assertTrue(result.arg1().toboolean());
+        StringBuilder expected = new StringBuilder();
+        for (int i = 0; i < 8; i++)
+            expected.append(String.format(block, i, 8).replaceAll("(model|model name|stepping|microcode|cpu MHz|" +
+                    "cache size|bogomips|clflush size|cache_alignment)\t+: [^\n]*\n", ""));
+        assertEquals(expected.toString(), result.arg(2).tojstring());
     }
 
     // The hooks and params of the hardware files script, with the links of /sys as resolve sees them;
@@ -865,6 +1243,7 @@ public class FileScriptsTest {
             "    getException = function(self) return nil end,",
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value self.early = true end,",
+            "    getSetting = function(self, name) return nil end,",
             "    findClass = function(self, name) return name end }",
             "end",
             "function namesof(...)",
@@ -1086,9 +1465,10 @@ public class FileScriptsTest {
                         "  hidden(features, '/system/vendor/odm/etc/sysconfig/a.xml'),\n" +
                         "  hidden(apps, '/vendor/odm/etc/permissions/privapp-permissions-com.example.xml'),\n" +
                         "  hidden(features, '/vendor/odm/app/etc/permissions')");
-        for (int i : new int[]{1, 2, 4, 5, 6, 7, 8, 10, 13, 14, 15, 17, 18, 19, 20, 21})
+        // The folders permissions of the partitions stay, with the files of the features shown (see shownfile)
+        for (int i : new int[]{1, 2, 4, 5, 6, 8, 10, 13, 14, 15, 17, 18, 20, 21})
             assertTrue("result " + i, result.arg(i).toboolean());
-        for (int i : new int[]{3, 9, 11, 12, 16, 22})
+        for (int i : new int[]{3, 7, 9, 11, 12, 16, 19, 22})
             assertFalse("result " + i, result.arg(i).toboolean());
     }
 
@@ -1153,13 +1533,15 @@ public class FileScriptsTest {
                         "  h('/data/user_de/0/com.hidden'), h('/data/misc/profiles/cur/0/com.hidden/primary.prof'),\n" +
                         "  h('/storage/emulated/0/Android/data/com.hidden'), h('/sdcard/Android/obb/com.hidden/main.obb'),\n" +
                         "  h('/storage/emulated/0/Android/media/com.hidden'), h('/storage/1A2B-3C4D/Android/data/com.hidden'),\n" +
+                        "  h('/data/app/com.hidden-Ab_c-d==/base.apk'),\n" +
                         // Stay: the own folders, a visible app, an app which is not installed, a name of no app
                         "  h('/data/user/0/test.app/files/a.db'), h('/storage/emulated/0/Android/data/com.visible'),\n" +
                         "  h('/storage/emulated/0/Android/data/com.notinstalled'), h('/storage/emulated/0/Android/data/.nomedia'),\n" +
-                        "  h('/storage/emulated/0/Android/data'), h('/data/user/0/test.app/files/Android/data/com.hidden')");
-        for (int i = 1; i <= 8; i++)
+                        "  h('/storage/emulated/0/Android/data'), h('/data/user/0/test.app/files/Android/data/com.hidden'),\n" +
+                        "  h('/data/app/test.app-x==/base.apk'), h('/data/app/vmdl123.tmp'), h('/data/app')");
+        for (int i = 1; i <= 9; i++)
             assertTrue("result " + i, result.arg(i).toboolean());
-        for (int i = 9; i <= 14; i++)
+        for (int i = 10; i <= 18; i++)
             assertFalse("result " + i, result.arg(i).toboolean());
 
         // Listing the folder of the apps of the shared storage leaves out the hidden ones
@@ -1178,9 +1560,11 @@ public class FileScriptsTest {
         assertTrue(filterMatches(filter, "/data/data/com.hidden"));
         assertTrue(filterMatches(filter, "/storage/emulated/0/Android/obb/com.hidden"));
         assertTrue(filterMatches(filter, "/storage/emulated/0/Android/media/com.hidden"));
+        assertTrue(filterMatches(filter, "/data/app/com.hidden-Ab_c-d==/base.apk"));
     }
 
-    // From Android 11 Android itself hides the private data and the folders data and obb of other apps
+    // From Android 11 Android itself hides the private data and the folders data and obb of other apps, and the
+    // folders of their code have random names
     @Test
     public void mediaFoldersOfHiddenAppsDoNotExistFromAndroid11() throws Exception {
         Globals globals = Scripts.load("hardware_files", APPS_STUBS + "\nfunction sdkversion() return 30 end");
@@ -1188,25 +1572,132 @@ public class FileScriptsTest {
                 "local apps = hookof('Get.Applications')\n" +
                         "local function h(path) return hidden(apps, path, appsparam(path)) end\n" +
                         "return h('/storage/emulated/0/Android/media/com.hidden'), h('/data/data/com.hidden'),\n" +
-                        "  h('/storage/emulated/0/Android/data/com.hidden')");
+                        "  h('/storage/emulated/0/Android/data/com.hidden'), h('/data/app/com.hidden-Ab==/base.apk')");
         assertTrue(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
         Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Applications'))").arg1().checktable().unpack());
         assertTrue(filterMatches(filter, "/storage/emulated/0/Android/media/com.hidden"));
         assertFalse(filterMatches(filter, "/data/user/0/test.app/files/a.db"));
     }
 
-    // The permissions of the platform, which every AOSP build has, stay; those of the system apps of makers do not
+    // The permissions of the system apps do not exist, but of the platform, which every Android has, nor do the
+    // permission files which grant permissions to another app by its package in their text, like the privileged ones of
+    // com.android.launcher3.xml or those of an app of the vendor by another name, and the folders of the default
+    // permissions, which the folders etc list without, also in a folder of the SKU; the own file of the app and the other
+    // files stay, and the files of the features and libraries of the platform and those hidden by name are not read
     @Test
-    public void platformPermissionsStay() throws Exception {
-        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+    public void permissionFilesOfAppsAreHidden() throws Exception {
+        Globals globals = Scripts.load("hardware_files", APPS_STUBS);
         Varargs result = Scripts.run(globals,
-                "local apps = hookof('Get.Applications')\n" +
-                        "return hidden(apps, '/system/etc/permissions/privapp-permissions-platform.xml'),\n" +
-                        "  hidden(apps, '/system/etc/permissions/privapp-permissions-com.samsung.android.dialer.xml')");
+                "local texts, reads = {\n" +
+                        "  ['/system_ext/etc/permissions/com.android.launcher3.xml'] = '<permissions>\\n' ..\n" +
+                        "    '  <privapp-permissions package=\"com.android.launcher3\">\\n' ..\n" +
+                        "    '    <permission name=\"android.permission.BIND_APPWIDGET\"/>\\n' ..\n" +
+                        "    '  </privapp-permissions>\\n</permissions>\\n',\n" +
+                        "  ['/product/etc/permissions/vendor-apps.xml'] =\n" +
+                        "    \"<permissions><oem-permissions package='com.vendor.app'/>\",\n" +
+                        "  ['/system/etc/permissions/test.app.xml'] = '<permissions><privapp-permissions package=\"test.app\">',\n" +
+                        "  ['/system/etc/permissions/com.nxp.mifare.xml'] = '<permissions><feature name=\"com.nxp.mifare\" />',\n" +
+                        "  ['/system/etc/permissions/platform.xml'] = '<permissions><allow-in-power-save package=\"com.a\" />',\n" +
+                        "  ['/odm/etc/permissions/sku_X/vendor-sku.xml'] =\n" +
+                        "    '<permissions><privapp-permissions package=\"com.sku\">' }, {}\n" +
+                        "local plain = appsparam\n" +
+                        "function appsparam(...)\n" +
+                        "  local param = plain(...)\n" +
+                        "  param.readFile = function(self, path) reads[#reads + 1] = path return texts[path] end\n" +
+                        "  return param\n" +
+                        "end\n" +
+                        "local apps = hookof('Get.Applications')\n" +
+                        "local function h(path) return hidden(apps, path, appsparam(path)) end\n" +
+                        "local list = hookof('Get.Applications', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]')\n" +
+                        "local etc = appsparam('/product/etc', namesof('permissions', 'default-permissions', 'fonts.xml'))\n" +
+                        "after(list, etc)\n" +
+                        "local permissions = appsparam('/system_ext/etc/permissions',\n" +
+                        "  namesof('com.android.launcher3.xml', 'android.hardware.wifi.xml', 'privapp-permissions-platform.xml'))\n" +
+                        "after(list, permissions)\n" +
+                        "return h('/system/etc/permissions/privapp-permissions-platform.xml'),\n" +
+                        "  h('/system/etc/permissions/privapp-permissions-com.samsung.android.dialer.xml'),\n" +
+                        "  h('/system_ext/etc/permissions/com.android.launcher3.xml'), h('/product/etc/permissions/vendor-apps.xml'),\n" +
+                        "  h('/product/etc/default-permissions'), h('/product/etc/default-permissions/default-permissions-google.xml'),\n" +
+                        "  h('/system/etc/permissions/test.app.xml'), h('/system/etc/permissions/com.nxp.mifare.xml'),\n" +
+                        "  h('/system/etc/permissions/android.hardware.wifi.xml'), h('/system/etc/permissions/platform.xml'),\n" +
+                        "  table.concat(reads, ','), etc.result.length, etc.result[1], etc.result[2],\n" +
+                        "  permissions.result.length, permissions.result[1], h('/odm/etc/permissions/sku_X/vendor-sku.xml')");
         assertFalse(result.arg(1).toboolean());
-        assertTrue(result.arg(2).toboolean());
+        for (int i = 2; i <= 6; i++)
+            assertTrue("result " + i, result.arg(i).toboolean());
+        for (int i = 7; i <= 10; i++)
+            assertFalse("result " + i, result.arg(i).toboolean());
+        assertEquals(String.join(",", "/system_ext/etc/permissions/com.android.launcher3.xml",
+                "/product/etc/permissions/vendor-apps.xml", "/system/etc/permissions/test.app.xml",
+                "/system/etc/permissions/com.nxp.mifare.xml", "/system/etc/permissions/platform.xml"), result.arg(11).tojstring());
+        assertEquals(2, result.arg(12).toint());
+        assertEquals("permissions", result.arg(13).tojstring());
+        assertEquals("fonts.xml", result.arg(14).tojstring());
+        assertEquals(2, result.arg(15).toint());
+        assertEquals("android.hardware.wifi.xml", result.arg(16).tojstring());
+        // Also in a folder of the SKU of the device
+        assertTrue(result.arg(17).toboolean());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Applications'))").arg1().checktable().unpack());
+        for (String path : new String[]{"/product/etc", "/system/vendor/etc", "/etc",
+                "/product/etc/default-permissions/default-permissions-google.xml", "/system_ext/etc/permissions/a.xml"})
+            assertTrue(path, filterMatches(filter, path));
+    }
+
+    // For Get.Applications the permission and configuration files of the system which stay are read without the
+    // elements which name other apps, also with their permissions and by the service of a transport of backup, and as
+    // long as before; the elements of the app itself and the others stay, and so do files opened for writing, files of
+    // the app with the same names and files which name no app
+    @Test
+    public void permissionFilesAreReadWithoutOtherApps() throws Exception {
+        Globals globals = Scripts.load("hardware_files", APPS_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local text = '<permissions>\\n' ..\n" +
+                        "  '  <privapp-permissions package=\"com.android.settings\">\\n' ..\n" +
+                        "  '    <permission name=\"android.permission.X\"/>\\n' ..\n" +
+                        "  '  </privapp-permissions>\\n' ..\n" +
+                        "  '  <allow-in-power-save package=\"com.android.shell\" />\\n' ..\n" +
+                        "  \"  <allow-in-power-save package='test.app' />\\n\" ..\n" +
+                        "  '  <backup-transport-whitelisted-service' ..\n" +
+                        "  ' service=\"com.android.localtransport/.LocalTransportService\" />\\n' ..\n" +
+                        "  '  <permission name=\"android.permission.BLUETOOTH\"><group gid=\"net_bt\" /></permission>\\n' ..\n" +
+                        "  '  <library name=\"javax.obex\" file=\"/system/framework/javax.obex.jar\" />\\n</permissions>\\n'\n" +
+                        "local open = hookof('Get.Applications', 'libcore.io.BlockGuardOs', 'open')\n" +
+                        "local function opened(path, flags, body)\n" +
+                        "  local param = appsparam(path, 'fd')\n" +
+                        "  param.getArgument = function(self, index) if index == 0 then return path end return flags end\n" +
+                        "  param.getFileText = function(self) return body end\n" +
+                        "  param.setFileText = function(self, value) self.text = value end\n" +
+                        "  local restricted, count = after(open, param)\n" +
+                        "  return restricted, count, param.text\n" +
+                        "end\n" +
+                        "local r1, c1, t1 = opened('/system/etc/permissions/privapp-permissions-platform.xml', 0, text)\n" +
+                        "local r2 = opened('/system/etc/permissions/privapp-permissions-platform.xml', 2, text)\n" +
+                        "local r3 = opened('/data/user/0/test.app/files/etc/permissions/a.xml', 0, text)\n" +
+                        "local r4, c4, t4 = opened('/product/etc/sysconfig/preinstalled-packages-platform.xml', 0,\n" +
+                        "  '<config><install-in-user-type package=\"com.android.a\"><install-in user-type=\"FULL\" />' ..\n" +
+                        "  '</install-in-user-type></config>')\n" +
+                        "local r5 = opened('/system/etc/permissions/platform.xml', 0,\n" +
+                        "  '<permissions><library name=\"x\" /></permissions>')\n" +
+                        "return r1, c1, t1, #t1 == #text, r2, r3, r4, c4, t4, r5");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("3", result.arg(2).tojstring());
+        String text = result.arg(3).tojstring();
+        for (String gone : new String[]{"com.android.settings", "android.permission.X", "com.android.shell", "localtransport"})
+            assertFalse(gone, text.contains(gone));
+        for (String kept : new String[]{"test.app", "net_bt", "javax.obex", "</permissions>"})
+            assertTrue(kept, text.contains(kept));
+        assertTrue(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(7).toboolean());
+        assertEquals("1", result.arg(8).tojstring());
+        assertEquals("<config></config>", result.arg(9).tojstring().trim());
+        assertFalse(result.arg(10).toboolean());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Applications'))").arg1().checktable().unpack());
+        assertTrue(filterMatches(filter, "/system/etc/sysconfig/preinstalled-packages-platform.xml"));
     }
 
     // For Get.Sensors the files of the sensor features do not exist, also by the link /etc, in the folders of the
@@ -1274,6 +1765,7 @@ public class FileScriptsTest {
         String text = String.join("\n",
                 "<permissions>",
                 "    <feature name=\"android.hardware.location.network\" />",
+                "    <feature name=\"android.hardware.camera.any\" />",
                 "    <feature name=\"android.hardware.sensor.accelerometer\" />",
                 "    <feature name=\"android.hardware.sensor.compass\"/>",
                 "    <feature name='android.hardware.sensor.gyroscope' notLowRam=\"true\" />",
@@ -1286,6 +1778,7 @@ public class FileScriptsTest {
                 "LINKS['/sdcard/etc/permissions/../../../vendor/etc/permissions/a.xml'] = '/vendor/etc/permissions/a.xml'\n" +
                         "LINKS['/proc/self/fd/57/handheld_core_hardware.xml'] = '/vendor/etc/permissions/handheld_core_hardware.xml'\n" +
                         "LINKS['/proc/self/fd/58/a.xml'] = '/data/user/0/com.example/files/etc/permissions/a.xml'\n" +
+                        "LINKS['/data/user/0/test.app/files/h'] = '/vendor/etc/permissions/handheld_core_hardware.xml'\n" +
                         "local function opened(group, path, exception, flags)\n" +
                         "  local param = paramof(path, 'fd', flags or 0)\n" +
                         "  param.text = [[" + text + "]]\n" +
@@ -1311,12 +1804,17 @@ public class FileScriptsTest {
                         "  select(4, opened('Get.Sensors', '/sdcard/etc/permissions/../../../vendor/etc/permissions/a.xml')),\n" +
                         "  select(4, opened('Get.Sensors', '/vendor/odm/etc/permissions/a.xml')),\n" +
                         "  select(4, opened('Get.Sensors', '/proc/self/fd/57/handheld_core_hardware.xml')),\n" +
-                        "  select(4, opened('Get.Sensors', '/proc/self/fd/58/a.xml'))");
+                        "  select(4, opened('Get.Sensors', '/proc/self/fd/58/a.xml')),\n" +
+                        "  select(3, opened('Get.Sensors', '/data/user/0/test.app/files/h')),\n" +
+                        "  select(3, opened('Get.Sensors', '/data/user/0/test.app/files//h')),\n" +
+                        "  select(3, opened('Use.Camera', '/data/user/0/test.app/files/h')),\n" +
+                        "  select(3, opened('Use.Camera', '/data/user/0/test.app/files//h'))");
         assertTrue(read.arg(1).toboolean());
         assertEquals("3", read.arg(2).tojstring());
         String expected = String.join("\n",
                 "<permissions>",
                 "    <feature name=\"android.hardware.location.network\" />",
+                "    <feature name=\"android.hardware.camera.any\" />",
                 "    <feature name=\"android.hardware.sensors.custom\" />",
                 "    <unavailable-feature name=\"android.hardware.sensor.light\" />",
                 "    <feature name=\"android.hardware.touchscreen\" />",
@@ -1333,6 +1831,13 @@ public class FileScriptsTest {
         for (int i = 13; i <= 15; i++)
             assertTrue("read " + i, read.arg(i).toboolean());
         assertFalse(read.arg(16).toboolean());
+        // Through a link of the app, which the filter lets in by the file it leads to, also as files//h
+        assertEquals(read.arg(3).tojstring(), read.arg(17).tojstring());
+        assertEquals(read.arg(3).tojstring(), read.arg(18).tojstring());
+        for (int i = 19; i <= 20; i++) {
+            assertFalse("read " + i, read.arg(i).tojstring().contains("android.hardware.camera"));
+            assertTrue("read " + i, read.arg(i).tojstring().contains("android.hardware.sensor.accelerometer"));
+        }
 
         Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Sensors'))").arg1().checktable().unpack());
         for (String path : new String[]{"/vendor/etc/permissions", "/vendor/etc/permissions/handheld_core_hardware.xml",
@@ -1436,6 +1941,7 @@ public class FileScriptsTest {
                         "  return table.concat(names, ',')\n" +
                         "end\n" +
                         "local own = listed('Read.Features', '/data/user/0/test.app/files/framework') .. ' ' .. calls\n" +
+                        "LINKS['/data/user/0/test.app/files/a'] = '/product/framework'\n" +
                         "local stream = withnames(paramof('/product/framework', nil,\n" +
                         "  { accept = function(self, entry) return true end }))\n" +
                         "before(hookof('Read.Features', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), stream)\n" +
@@ -1444,7 +1950,7 @@ public class FileScriptsTest {
                         "  stream.argument.value.accept('/product/framework/com.google.android.dialer.support.jar'),\n" +
                         "  stream.argument.value.accept('/product/framework/framework.jar'),\n" +
                         "  listed('Use.Tracking', '/product/framework'),\n" +
-                        "  own, calls");
+                        "  own, calls, listed('Read.Features', '/data/user/0/test.app/files/a')");
         String kept = "framework.jar,com.google.android.maps.jar,android.test.base.jar,oat";
         String all = "com.google.android.dialer.support.jar,framework.jar,com.google.android.maps.jar,android.test.base.jar," +
                 "com.samsung.device.jar,oat";
@@ -1457,6 +1963,8 @@ public class FileScriptsTest {
         assertEquals(all, result.arg(7).tojstring());
         assertEquals(all + " 0", result.arg(8).tojstring());
         assertEquals(1, result.arg(9).toint());
+        // Also through a link of the app itself to the folder, which the filter lets in by the path it leads to
+        assertEquals(kept, result.arg(10).tojstring());
 
         Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Features', 'java.io.UnixFileSystem', 'list0'))")
                 .arg1().checktable().unpack());
@@ -1507,7 +2015,8 @@ public class FileScriptsTest {
     }
 
     // The folders of system apps list without names by any form of their path, also by the compatibility links of
-    // /system to the other partitions, which the filter passes too
+    // /system to the other partitions, which the filter passes too, also with a / at the end, which Os.stat keeps, and
+    // /data/app by every form, which the folders of no other partition are; also of odm in vendor and of APEX modules
     @Test
     public void foldersOfSystemAppsByOtherPaths() throws Exception {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
@@ -1521,9 +2030,88 @@ public class FileScriptsTest {
         assertFalse(result.arg(6).toboolean());
         Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Applications'))").arg1().checktable().unpack());
         for (String folder : new String[]{"/system/product/app", "/system/system_ext/priv-app", "/system/vendor/app",
-                "/system/app/.", "/system//priv-app"})
+                "/system/app/.", "/system//priv-app", "/system/priv-app/", "/product/overlay/", "/data/app", "/data/app/",
+                "/data//app", "/vendor/odm/priv-app", "/system/vendor/odm/app/", "/apex/com.android.permission/priv-app"})
             assertTrue(folder, filterMatches(filter, folder));
         assertFalse(filterMatches(filter, "/system/app/Example/Example.apk"));
+        assertFalse(filterMatches(filter, "/data/app/~~own==/test.app-a==/base.apk"));
+        // Also relative to the root, which apps run in, like the filter takes them
+        assertTrue(filterMatches(filter, "system/priv-app"));
+        assertTrue(filterMatches(filter, "../system/priv-app"));
+        Varargs data = Scripts.run(globals,
+                "LINKS['/../system/priv-app'] = '/system/priv-app'\n" +
+                        "return unlisted('Get.Applications', '/data/app'), unlisted('Get.Applications', '/data//app/'),\n" +
+                        "  unlisted('Get.Applications', '/mnt//app'), unlisted('Get.Applications', '/system/priv-app/'),\n" +
+                        "  unlisted('Get.Applications', 'system/priv-app'), unlisted('Get.Applications', '../system/priv-app')");
+        assertTrue(data.arg(1).toboolean());
+        assertTrue(data.arg(2).toboolean());
+        assertFalse(data.arg(3).toboolean());
+        for (int i = 4; i <= 6; i++)
+            assertTrue("result " + i, data.arg(i).toboolean());
+        Varargs more = Scripts.run(globals,
+                "return unlisted('Get.Applications', '/vendor/odm/app'), unlisted('Get.Applications', '/system/vendor/odm/overlay/'),\n" +
+                        "  unlisted('Get.Applications', '/apex/com.android.permission/priv-app'),\n" +
+                        "  unlisted('Get.Applications', '/apex/com.android.wifi@340000000/app/'),\n" +
+                        "  unlisted('Get.Applications', '/apex/com.android.extservices/overlay'),\n" +
+                        "  unlisted('Get.Applications', '/apex/com.android.permission'),\n" +
+                        "  unlisted('Get.Applications', '/apex/com.android.permission/priv-app/GooglePermissionController'),\n" +
+                        "  unlisted('Get.Applications', '/apex/com.android.conscrypt/cacerts')");
+        for (int i = 1; i <= 5; i++)
+            assertTrue("result " + i, more.arg(i).toboolean());
+        for (int i = 6; i <= 8; i++)
+            assertFalse("result " + i, more.arg(i).toboolean());
+        // The other paths of /apex are left alone without reading the file system, but its permission files
+        Varargs apex = Scripts.run(globals,
+                "local read = false\n" +
+                        "function resolve(path) read = true return path end\n" +
+                        "return matched('Get.Applications', '/apex/com.android.conscrypt/cacerts/a.0', {}), read,\n" +
+                        "  matched('Get.Applications', '/apex/com.android.permission/priv-app/GooglePermissionController', {}),\n" +
+                        "  matched('Get.Applications', '/apex/com.android.x/etc/permissions/privapp-permissions-com.x.xml',\n" +
+                        "    { getAppInfo = function() return nil end })");
+        assertFalse(apex.arg(1).toboolean());
+        assertFalse(apex.arg(2).toboolean());
+        assertFalse(apex.arg(3).toboolean());
+        assertTrue(apex.arg(4).toboolean());
+    }
+
+    // The folders of system apps and of overlays, which list without names, have the link count of an empty folder by
+    // stat and lstat of Os and java.nio, also by other forms of their path; the other fields stay, and so do the folders
+    // in them, other folders, a folder of two links, other groups and the mode of java.nio, which has no link count
+    @Test
+    public void foldersOfSystemAppsHaveNoFolders() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local function stat(group, class, method, path, links, returns)\n" +
+                        "  local nio = class == 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        "  local real = { st_dev = 1, st_ino = 2, st_mode = 16877, st_nlink = links, st_uid = 0,\n" +
+                        "    st_gid = 0, st_rdev = 0, st_size = 4096, st_atim = 'a', st_mtim = 'm', st_ctim = 'c',\n" +
+                        "    st_blksize = 4096, st_blocks = 8 }\n" +
+                        "  local param = paramof(path, (not nio) and real or nil, nio and real or nil)\n" +
+                        "  local restricted, old, new = after(hookof(group, class, method, returns), param)\n" +
+                        "  local made = nio and real.st_nlink or (param.result.args and param.result.class .. ':' ..\n" +
+                        "    table.concat(param.result.args, ',') or param.result.st_nlink)\n" +
+                        "  return tostring(restricted) .. ' ' .. tostring(old) .. ' ' .. tostring(new) .. ' ' .. made\n" +
+                        "end\n" +
+                        "local os, nio, apps = 'libcore.io.BlockGuardOs', 'sun.nio.fs.UnixNativeDispatcher', 'Get.Applications'\n" +
+                        "local s = 'android.system.StructStat'\n" +
+                        "return stat(apps, os, 'stat', '/system/priv-app', 39, s), stat(apps, os, 'lstat', '/product/overlay/', 5, s),\n" +
+                        "  stat(apps, nio, 'stat', '/system//app', 25, 'void'),\n" +
+                        "  stat(apps, nio, 'lstat', '/system/vendor/overlay', 3, 'void'),\n" +
+                        "  stat(apps, nio, 'stat', '/system/priv-app', 39, 'int'), stat(apps, os, 'stat', '/system/etc', 12, s),\n" +
+                        "  stat(apps, os, 'stat', '/vendor/app', 2, s), stat('Use.Tracking', os, 'stat', '/system/priv-app', 39, s),\n" +
+                        "  stat(apps, os, 'stat', '/system/priv-app/Example', 3, s)");
+        assertEquals("true 39 2 android.system.StructStat:1,2,16877,2,0,0,0,4096,a,m,c,4096,8", result.arg(1).tojstring());
+        assertEquals("true 5 2 android.system.StructStat:1,2,16877,2,0,0,0,4096,a,m,c,4096,8", result.arg(2).tojstring());
+        assertEquals("true 25 2 2", result.arg(3).tojstring());
+        assertEquals("true 3 2 2", result.arg(4).tojstring());
+        assertEquals("false nil nil 39", result.arg(5).tojstring());
+        assertEquals("false nil nil 12", result.arg(6).tojstring());
+        assertEquals("false nil nil 2", result.arg(7).tojstring());
+        assertEquals("false nil nil 39", result.arg(8).tojstring());
+        assertEquals("false nil nil 3", result.arg(9).tojstring());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Applications'))").arg1().checktable().unpack());
+        for (String folder : new String[]{"/product/overlay", "/vendor/overlay", "/system/product/overlay", "/oem/app"})
+            assertTrue(folder, filterMatches(filter, folder));
     }
 
     // A folder of system apps lists without names also through a descriptor of it, like /proc/self/fd/57 of
@@ -1536,18 +2124,126 @@ public class FileScriptsTest {
         Varargs result = Scripts.run(globals,
                 "LINKS['/proc/self/fd/57'] = '/system/priv-app'\n" +
                         "LINKS['/system/../system/priv-app'] = '/system/priv-app'\n" +
+                        "LINKS['/system/app/../priv-app'] = '/system/priv-app'\n" +
                         "LINKS['/proc/self/fd/9'] = '/data/user/0/test.app/files'\n" +
+                        "LINKS['/data/user/0/test.app/files/a'] = '/system/priv-app'\n" +
                         "local list = paramof('/proc/self/fd/57', namesof('Example', 'Other'))\n" +
                         "after(hookof('Get.Applications', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
                         "local stream = paramof('/proc/self/fd/57', nil, { accept = function(self, entry) return true end })\n" +
                         "before(hookof('Get.Applications', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), stream)\n" +
+                        "local link = paramof('/data/user/0/test.app/files/a', namesof('Example', 'Other'))\n" +
+                        "after(hookof('Get.Applications', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), link)\n" +
+                        "local linked = paramof('/data/user/0/test.app/files//a/', nil,\n" +
+                        "  { accept = function(self, entry) return true end })\n" +
+                        "before(hookof('Get.Applications', 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), linked)\n" +
                         "return list.result.length, stream.argument.value.accept('/proc/self/fd/57/Example'),\n" +
                         "  unlisted('Get.Applications', '/system/../system/priv-app', list),\n" +
-                        "  unlisted('Get.Applications', '/proc/self/fd/9', list)");
+                        "  unlisted('Get.Applications', '/proc/self/fd/9', list),\n" +
+                        "  link.result.length, linked.argument.value.accept('/data/user/0/test.app/files/a/Example'),\n" +
+                        "  unlisted('Get.Applications', '/system/app/../priv-app', list)");
         assertEquals(0, result.arg(1).toint());
         assertFalse(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
         assertFalse(result.arg(4).toboolean());
+        // Also through a link of the app itself to the folder, which the filter lets in by the path it leads to
+        assertEquals(0, result.arg(5).toint());
+        assertFalse(result.arg(6).toboolean());
+        // A path which starts like another folder of system apps is resolved too
+        assertTrue(result.arg(7).toboolean());
+    }
+
+    // A descriptor of a folder of system apps, or of /data/app, has the link count of an empty folder by Os.fstat too,
+    // like by its path; a file, other folders, a folder without folders in it and a descriptor whose path cannot be read
+    // stay, and the filter has no path for it, so the script runs for every call
+    @Test
+    public void foldersOfSystemAppsByDescriptorHaveNoFolders() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "function folderof(param) return param.folder end\n" +
+                        "local fstat = hookof('Get.Applications', 'android.system.Os', 'fstat', 'android.system.StructStat')\n" +
+                        "local function f(folder, mode, links)\n" +
+                        "  local real = { st_dev = 1, st_ino = 2, st_mode = mode, st_nlink = links, st_uid = 0, st_gid = 0,\n" +
+                        "    st_rdev = 0, st_size = 4096, st_atim = 'a', st_mtim = 'm', st_ctim = 'c', st_blksize = 4096,\n" +
+                        "    st_blocks = 8 }\n" +
+                        "  local param = paramof('FileDescriptor', real)\n" +
+                        "  param.folder = folder\n" +
+                        "  local early = before(fstat, param)\n" +
+                        "  local restricted = after(fstat, param)\n" +
+                        "  return tostring(early) .. ' ' .. tostring(restricted) .. ' ' ..\n" +
+                        "    (param.result.args and param.result.args[4] or param.result.st_nlink)\n" +
+                        "end\n" +
+                        "return f('/system/priv-app', 16877, 39), f('/data/app', 16877, 50), f('/system/etc', 16877, 12),\n" +
+                        "  f('/system/priv-app', 33188, 39), f('/product/overlay', 16877, 2), f(nil, 16877, 39),\n" +
+                        "  filter(fstat) == nil");
+        assertEquals("false true 2", result.arg(1).tojstring());
+        assertEquals("false true 2", result.arg(2).tojstring());
+        assertEquals("false false 12", result.arg(3).tojstring());
+        assertEquals("false false 39", result.arg(4).tojstring());
+        assertEquals("false false 2", result.arg(5).tojstring());
+        assertEquals("false false 39", result.arg(6).tojstring());
+        assertTrue(result.arg(7).toboolean());
+    }
+
+    // The folder of the app itself stays listed and counted in a folder whose names are left out: in /data/app, which
+    // then has 3 links, by every path call, and the one of a restricted app of the system in its folder of system apps,
+    // also by the links of /system to the partitions, while the folders of other apps are left out
+    @Test
+    public void ownFolderStaysInFoldersOfApps() throws Exception {
+        String helpers = "function folderof(param) return param.folder end\n" +
+                "local function p(path, result, second)\n" +
+                "  local param = paramof(path, result, second)\n" +
+                "  param.getApplicationContext = function(self) return { getApplicationInfo = function(self)\n" +
+                "    return { sourceDir = SOURCE } end } end\n" +
+                "  return param\n" +
+                "end\n" +
+                "local function real() return { st_dev = 1, st_ino = 2, st_mode = 16877, st_nlink = 50, st_uid = 0,\n" +
+                "  st_gid = 0, st_rdev = 0, st_size = 4096, st_atim = 'a', st_mtim = 'm', st_ctim = 'c', st_blksize = 4096,\n" +
+                "  st_blocks = 8 } end\n" +
+                "local apps, os, nio = 'Get.Applications', 'libcore.io.BlockGuardOs', 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                "local s = 'android.system.StructStat'\n" +
+                "local list = hookof(apps, 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]')\n";
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS + "\nSOURCE = '/data/app/~~own==/test.app-a==/base.apk'");
+        Varargs result = Scripts.run(globals, helpers +
+                "local stat = p('/data/app', real())\n" +
+                "after(hookof(apps, os, 'stat', s), stat)\n" +
+                "local attributes = real()\n" +
+                "after(hookof(apps, nio, 'lstat', 'void'), p('/data/app/', nil, attributes))\n" +
+                "local fstat = p('fd', real())\n" +
+                "fstat.folder = '/data/app'\n" +
+                "after(hookof(apps, 'android.system.Os', 'fstat', s), fstat)\n" +
+                "local data = p('/data/app', namesof('~~other==', '~~own=='))\n" +
+                "after(list, data)\n" +
+                "local stream = p('/data/app', nil, { accept = function(self, entry) return true end })\n" +
+                "before(hookof(apps, 'sun.nio.fs.UnixFileSystemProvider', 'newDirectoryStream'), stream)\n" +
+                "local priv = p('/system/priv-app', real())\n" +
+                "after(hookof(apps, os, 'stat', s), priv)\n" +
+                "return stat.result.args[4], attributes.st_nlink, fstat.result.args[4], data.result.length, data.result[1],\n" +
+                "  stream.argument.value.accept('/data/app/~~own=='), stream.argument.value.accept('/data/app/~~other=='),\n" +
+                "  priv.result.args[4]");
+        assertEquals(3, result.arg(1).toint());
+        assertEquals(3, result.arg(2).toint());
+        assertEquals(3, result.arg(3).toint());
+        assertEquals(1, result.arg(4).toint());
+        assertEquals("~~own==", result.arg(5).tojstring());
+        assertTrue(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        // Another folder of apps has no folder of the app
+        assertEquals(2, result.arg(8).toint());
+
+        // A restricted app of the system
+        Globals system = Scripts.load("hardware_files", HARDWARE_STUBS + "\nSOURCE = '/product/priv-app/Own/Own.apk'");
+        Varargs own = Scripts.run(system, helpers +
+                "local linked = p('/system/product/priv-app', namesof('Other', 'Own'))\n" +
+                "after(list, linked)\n" +
+                "local count = p('/product/priv-app', real())\n" +
+                "after(hookof(apps, os, 'stat', s), count)\n" +
+                "local other = p('/system/priv-app', namesof('Own'))\n" +
+                "after(list, other)\n" +
+                "return linked.result.length, linked.result[1], count.result.args[4], other.result.length");
+        assertEquals(1, own.arg(1).toint());
+        assertEquals("Own", own.arg(2).tojstring());
+        assertEquals(3, own.arg(3).toint());
+        assertEquals(0, own.arg(4).toint());
     }
 
     // The properties at the root of a partition are hidden from Use.Tracking like the ones in etc, and the filter passes them
@@ -1565,33 +2261,109 @@ public class FileScriptsTest {
         assertTrue(filterMatches(filter, "/system/build.prop"));
     }
 
-    // The folders of etc list without the names the group hides: permissions and sysconfig for Read.Features in /system/etc
-    // and /etc, which is a link to it, and fstab.* of /etc, which Use.Tracking hides when the app can read it
+    // For Read.Debugging the property files with the type of the build do not exist either where the app can read them,
+    // of the partitions and the default ones of init, like ro.build.type=userdebug in /system/build.prop and
+    // ro.debuggable in /default.prop; one it cannot read stays (EACCES of Android 14), and so do other files of etc.
+    // The filter passes them and the folders which list them.
+    @Test
+    public void buildPropertiesAreHiddenForDebugging() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local readable = { ['/system/build.prop'] = true, ['/vendor/build.prop'] = true,\n" +
+                        "  ['/system/etc/prop.default'] = true, ['/default.prop'] = true, ['/prop.default'] = true,\n" +
+                        "  ['/product/etc/build.prop'] = true, ['/product/build.prop'] = true, ['/system/etc/hosts'] = true,\n" +
+                        "  ['/vendor/default.prop'] = true, ['/odm/default.prop'] = true }\n" +
+                        "local new = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path, ...)\n" +
+                        "  if name == 'java.io.File' then return { exists = function() return true end,\n" +
+                        "    canRead = function() return readable[path] == true end } end\n" +
+                        "  return new(name, path, ...)\n" +
+                        "end\n" +
+                        // Missing: the real call with an empty path, which answers ENOENT
+                        "local function open(path)\n" +
+                        "  local p = paramof(path, nil, 0)\n" +
+                        "  p.unhooked = function(self, fn) return fn() end\n" +
+                        "  before(hookof('Read.Debugging'), p)\n" +
+                        "  return p.argument ~= nil and p.argument.index == 0 and p.argument.value == '' and not p.early\n" +
+                        "end\n" +
+                        "local system = paramof('/system', namesof('bin', 'build.prop', 'etc'))\n" +
+                        "system.unhooked = function(self, fn) return fn() end\n" +
+                        "after(hookof('Read.Debugging', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), system)\n" +
+                        // The root of /product, which holds build.prop on Android 10 and 11
+                        "local product = paramof('/product', namesof('build.prop', 'etc'))\n" +
+                        "product.unhooked = function(self, fn) return fn() end\n" +
+                        "after(hookof('Read.Debugging', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), product)\n" +
+                        // The root of /vendor, which holds default.prop on Android 8.1 to 10
+                        "local vendor = paramof('/vendor', namesof('default.prop', 'etc'))\n" +
+                        "vendor.unhooked = function(self, fn) return fn() end\n" +
+                        "after(hookof('Read.Debugging', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), vendor)\n" +
+                        "local tracking = paramof('/product', namesof('build.prop', 'etc'))\n" +
+                        "tracking.unhooked = function(self, fn) return fn() end\n" +
+                        "after(hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), tracking)\n" +
+                        "return open('/system/build.prop'), open('/vendor/build.prop'), open('/system/etc/prop.default'),\n" +
+                        "  open('/default.prop'), open('/prop.default'), open('/product/etc/build.prop'),\n" +
+                        "  open('/system_ext/etc/build.prop'), open('/system/etc/hosts'), system.result.length,\n" +
+                        "  system.result[1], system.result[2], product.result.length, product.result[1], tracking.result.length,\n" +
+                        "  tracking.result[1], open('/vendor/default.prop'), open('/odm/default.prop'),\n" +
+                        "  vendor.result.length, vendor.result[1]");
+        for (int i = 1; i <= 8; i++)
+            assertEquals(String.valueOf(i), i <= 6, result.arg(i).toboolean());
+        // The default properties init reads from /vendor and /odm on Android 8.1 to 10
+        assertTrue(result.arg(16).toboolean());
+        assertTrue(result.arg(17).toboolean());
+        assertEquals(1, result.arg(18).toint());
+        assertEquals("etc", result.arg(19).tojstring());
+        assertEquals(2, result.arg(9).toint());
+        assertEquals("bin", result.arg(10).tojstring());
+        assertEquals("etc", result.arg(11).tojstring());
+        assertEquals(1, result.arg(12).toint());
+        assertEquals("etc", result.arg(13).tojstring());
+        assertEquals(1, result.arg(14).toint());
+        assertEquals("etc", result.arg(15).tojstring());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Debugging'))").arg1().checktable().unpack());
+        for (String path : new String[]{"/system/build.prop", "/vendor/etc/build.prop", "/default.prop", "/prop.default",
+                "/system/etc/prop.default", "/", "/system", "/vendor", "/system/etc"})
+            assertTrue(path, filterMatches(filter, path));
+        // Both groups run for every folder which lists a property file they hide, also the roots of the partitions
+        for (String group : new String[]{"Read.Debugging", "Use.Tracking"}) {
+            Object folders = xcoreFilter(Scripts.run(globals, "return filter(hookof('" + group + "'))").arg1().checktable().unpack());
+            for (String path : new String[]{"/product", "/system_ext", "/product_services", "/system/product",
+                    "/system/system_ext", "/system/product_services", "/system/product/etc", "/system/system_ext/etc",
+                    "/system/vendor/etc", "/system/vendor/odm/etc", "/odm", "/system/vendor", "/oem", "/oem/etc",
+                    "/my_product", "/my_product/etc"})
+                assertTrue(group + " " + path, filterMatches(folders, path));
+        }
+    }
+
+    // The folders of etc list without the names the group hides: sysconfig for Read.Features in /vendor/odm/etc, where
+    // permissions stays with the files of the features shown (see shownfile), while those of /system/etc and /etc, which
+    // is a link to it, stay, and fstab.* of /etc, which Use.Tracking hides when the app can read it
     @Test
     public void etcListingsLeaveOutHiddenNames() throws Exception {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
         Varargs result = Scripts.run(globals,
-                "local features = hookof('Read.Features', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]')\n" +
+                "LINKS['/etc/permissions'] = '/system/etc/permissions'\n" +
+                        "LINKS['/etc/sysconfig'] = '/system/etc/sysconfig'\n" +
+                        "local features = hookof('Read.Features', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]')\n" +
                         "local system = paramof('/system/etc', namesof('permissions', 'sysconfig', 'fonts.xml'))\n" +
-                        "after(features, system)\n" +
+                        "local systemed = after(features, system)\n" +
                         "local etc = paramof('/etc', namesof('permissions', 'sysconfig', 'fonts.xml'))\n" +
-                        "after(features, etc)\n" +
-                        "local odm = paramof('/vendor/odm/etc', namesof('build.prop', 'permissions', 'group'))\n" +
+                        "local etced = after(features, etc)\n" +
+                        "local odm = paramof('/vendor/odm/etc', namesof('build.prop', 'permissions', 'sysconfig', 'group'))\n" +
                         "after(features, odm)\n" +
                         "LINKS['/odm/etc'] = '/vendor/odm/etc'\n" +
                         "local canonical = missing(features, '/odm/etc/permissions')\n" +
-                        "return system.result.length, system.result[1], etc.result.length, etc.result[1],\n" +
+                        "return systemed or etced, system.result.length, etc.result.length,\n" +
                         "  odm.result.length, odm.result[1], odm.result[2], canonical, hidden(features, canonical)");
-        assertEquals(1, result.arg(1).toint());
-        assertEquals("fonts.xml", result.arg(2).tojstring());
-        assertEquals(1, result.arg(3).toint());
-        assertEquals("fonts.xml", result.arg(4).tojstring());
+        assertFalse(result.arg(1).toboolean());
+        assertEquals(3, result.arg(2).toint());
+        assertEquals(3, result.arg(3).toint());
         // /vendor/odm/etc, which /odm/etc leads to without an odm partition, and is the canonical path of its files
-        assertEquals(2, result.arg(5).toint());
-        assertEquals("build.prop", result.arg(6).tojstring());
-        assertEquals("group", result.arg(7).tojstring());
-        assertEquals("/vendor/odm/etc/permissions", result.arg(8).tojstring());
-        assertTrue(result.arg(9).toboolean());
+        assertEquals(3, result.arg(4).toint());
+        assertEquals("build.prop", result.arg(5).tojstring());
+        assertEquals("permissions", result.arg(6).tojstring());
+        assertEquals("/vendor/odm/etc/permissions", result.arg(7).tojstring());
+        assertFalse(result.arg(8).toboolean());
 
         Globals tracking = Scripts.load("hardware_files", HARDWARE_STUBS);
         Varargs readable = Scripts.run(tracking,
@@ -1621,6 +2393,114 @@ public class FileScriptsTest {
         assertTrue(filterMatches(filter, "/vendor/odm/etc"));
     }
 
+    // Of /system/etc the folders permissions and sysconfig and the files every Android has in them stay for
+    // Read.Features, by every path to them, and so does a path under such a file, which the kernel answers ENOTDIR for;
+    // the other files, also of a folder of the SKU, and the same names in other partitions do not exist
+    @Test
+    public void filesOfSystemEtcWhichEveryAndroidHasStay() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/etc/permissions'] = '/system/etc/permissions'\n" +
+                        "LINKS['/etc/permissions/platform.xml'] = '/system/etc/permissions/platform.xml'\n" +
+                        "LINKS['/system/etc/permissions/'] = '/system/etc/permissions'\n" +
+                        "LINKS['/system/etc/permissions/.'] = '/system/etc/permissions'\n" +
+                        "LINKS['/system/etc//sysconfig/./framework-sysconfig.xml'] =\n" +
+                        "  '/system/etc/sysconfig/framework-sysconfig.xml'\n" +
+                        "LINKS['/proc/self/fd/57/hiddenapi-package-whitelist.xml'] =\n" +
+                        "  '/system/etc/sysconfig/hiddenapi-package-whitelist.xml'\n" +
+                        "local features = hookof('Read.Features')\n" +
+                        "local results = {}\n" +
+                        "for _, path in ipairs({ '/system/etc/permissions', '/system/etc/sysconfig',\n" +
+                        "  '/system/etc/permissions/platform.xml', '/etc/permissions/platform.xml', '/system/etc/permissions/',\n" +
+                        "  '/system/etc/permissions/.', '/system/etc//sysconfig/./framework-sysconfig.xml',\n" +
+                        "  '/proc/self/fd/57/hiddenapi-package-whitelist.xml',\n" +
+                        "  '/system/etc/sysconfig/preinstalled-packages-platform.xml',\n" +
+                        "  '/system/etc/permissions/platform.xml/x',\n" +
+                        "  '/system/etc/permissions/com.samsung.feature.device_category_phone.xml',\n" +
+                        "  '/system/etc/permissions/android.hardware.wifi.xml', '/system/etc/permissions/handheld_core_hardware.xml',\n" +
+                        "  '/system/etc/sysconfig/google.xml', '/system/etc/permissions/sku_X',\n" +
+                        "  '/system/etc/permissions/sku_X/platform.xml',\n" +
+                        "  '/vendor/etc/permissions/platform.xml', '/vendor/etc/permissions',\n" +
+                        "  '/product/etc/sysconfig/framework-sysconfig.xml' }) do\n" +
+                        "  results[#results + 1] = hidden(features, path) and 'T' or 'F'\n" +
+                        "end\n" +
+                        "local list = paramof('/system/etc/permissions', namesof('platform.xml', 'android.hardware.wifi.xml',\n" +
+                        "  'com.samsung.feature.xml', 'privapp-permissions-platform.xml', 'sku_X'))\n" +
+                        "after(hookof('Read.Features', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "return table.concat(results), list.result.length, list.result[1], list.result[2],\n" +
+                        "  before(features, paramof('/system/etc/permissions/platform.xml')),\n" +
+                        "  hidden(hookof('Get.Applications'), '/system/etc/permissions/privapp-permissions-platform.xml')");
+        // The feature file of Wi-Fi, which features shows, and the folder permissions of /vendor stay (see shownfile)
+        assertEquals("FFFFFFFFFF" + "TFTTTTTFT", result.arg1().tojstring());
+        assertEquals(3, result.arg(2).toint());
+        assertEquals("platform.xml", result.arg(3).tojstring());
+        assertEquals("android.hardware.wifi.xml", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        // The permission file of the platform stays for Get.Applications too, read without the apps it names
+        assertFalse(result.arg(6).toboolean());
+    }
+
+    // The folders permissions of the partitions stay with the files of the features Read.Features shows or the user keeps,
+    // like Wi-Fi and telephony in /vendor/etc/permissions, so the files declare what hasSystemFeature reports; the files
+    // of other features, also of Wi-Fi Direct, and those which declare many, like handheld_core_hardware.xml, do not
+    // exist, and the folder lists only the files which stay
+    @Test
+    public void featureFilesOfShownFeaturesStay() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local features = hookof('Read.Features')\n" +
+                        "local param = paramof('x')\n" +
+                        "param.getSetting = function(self, name) return name == 'features.keep' and 'android.hardware.nfc*' or nil end\n" +
+                        "local results = {}\n" +
+                        "for _, path in ipairs({ '/vendor/etc/permissions', '/vendor/etc/permissions/android.hardware.wifi.xml',\n" +
+                        "  '/vendor/etc/permissions/android.hardware.telephony.gsm.xml',\n" +
+                        "  '/vendor/etc/permissions/android.hardware.touchscreen.multitouch.jazzhand.xml',\n" +
+                        "  '/odm/etc/permissions/android.hardware.nfc.hce.xml',\n" +
+                        "  '/vendor/etc/permissions/android.hardware.wifi.direct.xml',\n" +
+                        "  '/vendor/etc/permissions/handheld_core_hardware.xml', '/vendor/etc/permissions/android.hardware.camera.xml',\n" +
+                        "  '/vendor/etc/permissions/sku_X/android.hardware.wifi.xml', '/vendor/etc/sysconfig',\n" +
+                        "  '/vendor/etc/permissions/android.hardware.wifi.xml/x' }) do\n" +
+                        "  results[#results + 1] = hidden(features, path, param) and 'T' or 'F'\n" +
+                        "end\n" +
+                        "local list = paramof('/vendor/etc/permissions', namesof('android.hardware.wifi.xml',\n" +
+                        "  'handheld_core_hardware.xml', 'android.hardware.wifi.direct.xml', 'android.hardware.telephony.gsm.xml'))\n" +
+                        "after(hookof('Read.Features', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "return table.concat(results), list.result.length, list.result[1], list.result[2]");
+        assertEquals("FFFFF" + "TTTTTT", result.arg1().tojstring());
+        assertEquals(2, result.arg(2).toint());
+        assertEquals("android.hardware.wifi.xml", result.arg(3).tojstring());
+        assertEquals("android.hardware.telephony.gsm.xml", result.arg(4).tojstring());
+    }
+
+    // The permission files of the libraries of the platform which getSystemSharedLibraryNames keeps stay in
+    // /system/etc/permissions for Read.Features, like javax.obex.xml, which every build of AOSP makes for its libraries,
+    // also by /etc and with a path under them, while feature files, the files of libraries of makers, which it hides,
+    // and the same names in other folders do not exist
+    @Test
+    public void permissionFilesOfPlatformLibrariesStay() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/etc/permissions'] = '/system/etc/permissions'\n" +
+                        "LINKS['/etc/permissions/android.test.base.xml'] = '/system/etc/permissions/android.test.base.xml'\n" +
+                        "local features = hookof('Read.Features')\n" +
+                        "local param = paramof('x')\n" +
+                        "param.unhooked = function(self, fn) return fn() end\n" +
+                        "param.getApplicationContext = function(self) return { getPackageManager = function(self) return {\n" +
+                        "  getSystemSharedLibraryNames = function(self)\n" +
+                        "    return namesof('javax.obex', 'com.android.location.provider', 'android.test.base', 'com.vendor.camera')\n" +
+                        "  end } end } end\n" +
+                        "local function h(path) return hidden(features, path, param) end\n" +
+                        "return h('/system/etc/permissions/javax.obex.xml'),\n" +
+                        "  h('/system/etc/permissions/com.android.location.provider.xml'),\n" +
+                        "  h('/etc/permissions/android.test.base.xml'), h('/system/etc/permissions/javax.obex.xml/x'),\n" +
+                        "  h('/system/etc/permissions/android.hardware.nfc.xml'), h('/system/etc/permissions/com.vendor.camera.xml'),\n" +
+                        "  h('/system/etc/sysconfig/javax.obex.xml'), h('/vendor/etc/permissions/javax.obex.xml')");
+        for (int i = 1; i <= 4; i++)
+            assertFalse("result " + i, result.arg(i).toboolean());
+        for (int i = 5; i <= 8; i++)
+            assertTrue("result " + i, result.arg(i).toboolean());
+    }
+
     // The folders etc of the partitions by the links of /system, of /oem, of the partitions my_ and of the APEX modules
     // leave out the hidden folders too, which do not exist by those paths either; a folder of the app does not run it
     @Test
@@ -1634,10 +2514,11 @@ public class FileScriptsTest {
             Varargs result = Scripts.run(globals, "local list = paramof('" + folder + "', namesof('permissions', 'sysconfig', 'group'))\n" +
                     "local restricted = after(hookof('Read.Features', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
                     "return restricted, list.result.length, list.result[1], hidden(hookof('Read.Features'), '" + folder + "/permissions')");
+            // The folder permissions stays with the files of the features shown, sysconfig does not (see shownfile)
             assertTrue(folder, result.arg1().toboolean());
-            assertEquals(folder, 1, result.arg(2).toint());
-            assertEquals(folder, "group", result.arg(3).tojstring());
-            assertTrue(folder, result.arg(4).toboolean());
+            assertEquals(folder, 2, result.arg(2).toint());
+            assertEquals(folder, "permissions", result.arg(3).tojstring());
+            assertFalse(folder, result.arg(4).toboolean());
         }
         assertFalse(filterMatches(filter, "/data/user/0/test.app/files/etc"));
     }
@@ -1904,6 +2785,45 @@ public class FileScriptsTest {
         for (int i = 1; i <= 5; i++)
             assertFalse(String.valueOf(i), result.arg(i).toboolean());
 
+        // By a link of the app itself, which the filter lets in by the table it leads to (see XCore.Filter), also of
+        // Read.Debugging, also by forms of its path which other values of the filter match by their text, like //, /./
+        // and a folder sys, and through the descriptor of a folder of the app; not a file of /sys, which is no link of
+        // the app
+        result = Scripts.run(globals, "LINKS['/data/user/0/test.app/files/m'] = '/proc/123/mounts'\n" +
+                "LINKS['/data/user/0/test.app/files/l'] = '/proc/123/maps'\n" +
+                "LINKS['/data/user/0/test.app/files/sys/m'] = '/proc/123/mounts'\n" +
+                "LINKS['/proc/self/fd/57/m'] = '/proc/123/mounts'\n" +
+                "LINKS['/sys/devices/soc0/m'] = '/proc/123/mounts'\n" +
+                "LINKS['/sys/../data/user/0/test.app/files/m'] = '/proc/123/mounts'\n" +
+                "local magisk = 'magisk /debug_ramdisk tmpfs rw 0 0\\n'\n" +
+                "return select(3, opened('/data/user/0/test.app/files/m', [[" + mounts + "]])),\n" +
+                "  select(3, opened('/data/user/0/test.app/files/l', [[" + maps + "]])),\n" +
+                "  opened('/data/user/0/test.app/files/m', magisk, 'Read.Debugging'),\n" +
+                "  opened('/sys/devices/soc0/m', [[" + mounts + "]]),\n" +
+                "  select(3, opened('/data/user/0/test.app/files//m', [[" + mounts + "]])),\n" +
+                "  select(3, opened('/data/user/0/test.app/files/./m', [[" + mounts + "]])),\n" +
+                "  select(3, opened('/data/user/0/test.app/files/sys/m', [[" + mounts + "]])),\n" +
+                "  select(3, opened('/proc/self/fd/57/m', [[" + mounts + "]])),\n" +
+                "  opened('/data/user/0/test.app/files//m', magisk, 'Read.Debugging'),\n" +
+                "  opened('/data/user/0/test.app/files/./m', magisk, 'Read.Debugging'),\n" +
+                "  opened('/data/user/0/test.app/files/sys/m', magisk, 'Read.Debugging'),\n" +
+                "  opened('/proc/self/fd/57/m', magisk, 'Read.Debugging'),\n" +
+                "  select(3, opened('/sys/../data/user/0/test.app/files/m', [[" + mounts + "]])),\n" +
+                "  opened('/sys/../data/user/0/test.app/files/m', magisk, 'Read.Debugging')");
+        String named = "/dev/block/by-name/metadata /metadata ext4 rw,seclabel 0 0\n" +
+                "/dev/block/dm-5 /vendor ext4 ro,seclabel 0 0\n/dev/block/by-name/misc /misc ext4 rw 0 0\n";
+        assertEquals(named, result.arg(1).tojstring());
+        assertEquals(kept, result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        for (int i = 5; i <= 8; i++)
+            assertEquals(String.valueOf(i), named, result.arg(i).tojstring());
+        for (int i = 9; i <= 12; i++)
+            assertTrue(String.valueOf(i), result.arg(i).toboolean());
+        // A path out of /sys again by /.., which only the file system resolves
+        assertEquals(named, result.arg(13).tojstring());
+        assertTrue(result.arg(14).toboolean());
+
         // Only the hooks of open of Use.Tracking run for them, and not as hidden files
         Object open = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking'))").arg1().checktable().unpack());
         Object stat = xcoreFilter(Scripts.run(globals, "return filter(hookof('Use.Tracking', nil, 'stat'))")
@@ -1925,6 +2845,27 @@ public class FileScriptsTest {
         assertFalse(result.arg1().toboolean());
         assertTrue(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
+        // A link of the app named like a table to a hidden file is that file, like a link named files/s, since the filter
+        // lets it in by the file it leads to; a link to a table is the table, and with O_CREAT and O_EXCL, which fail
+        // with EEXIST for any link, the link itself
+        result = Scripts.run(globals, "LINKS['/data/user/0/test.app/files/mounts'] = '/system/bin/su'\n" +
+                "LINKS['/data/user/0/test.app/files/s'] = '/system/bin/su'\n" +
+                "LINKS['/data/user/0/test.app/files/maps'] = '/system/fonts/SamsungOne.ttf'\n" +
+                "LINKS['/data/user/0/test.app/files/mountinfo'] = '/proc/123/mountinfo'\n" +
+                "local function open(group, path, flags)\n" +
+                "  local param = paramof(path, nil, flags or 0)\n" +
+                "  local restricted = before(hookof(group), param)\n" +
+                "  return tostring(restricted) .. ' ' .. tostring(param.argument and param.argument.value)\n" +
+                "end\n" +
+                "return open('Read.Debugging', '/data/user/0/test.app/files/mounts'),\n" +
+                "  open('Read.Debugging', '/data/user/0/test.app/files/s'),\n" +
+                "  open('Use.Tracking', '/data/user/0/test.app/files/maps'),\n" +
+                "  open('Read.Debugging', '/data/user/0/test.app/files/mountinfo'),\n" +
+                "  open('Read.Debugging', '/data/user/0/test.app/files/mounts', 193)");
+        for (int i = 1; i <= 3; i++)
+            assertEquals(String.valueOf(i), "true ", result.arg(i).tojstring());
+        assertEquals("false nil", result.arg(4).tojstring());
+        assertEquals("false nil", result.arg(5).tojstring());
         assertFalse(Scripts.run(globals, "hidden = function() error('hidden') end\n" +
                 "return before(hookof('Use.Tracking'), paramof('/data/user/0/test.app/files/maps/tile'))").arg1().toboolean());
     }
@@ -2116,21 +3057,75 @@ public class FileScriptsTest {
             assertTrue(String.valueOf(i), result.arg(i).toboolean());
     }
 
-    // The details of the processors go, their folder and numbers stay (code counts the files of the folder); the
-    // codec files name the chip, also in listings of their folders
+    // The files Xposed of rovo89 installs in /system and those of Riru and EdXposed do not exist, by every path, and are
+    // left out of the listings of their folders, while app_process32 and app_process64, links to the app_process of
+    // Xposed, and the files of ART and libmemtrack.so they replaced stay
+    @Test
+    public void filesOfXposed() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/system/bin/app_process64'] = '/system/bin/app_process64_xposed'\n" +
+                        "LINKS['/system/bin/app_process32'] = '/system/bin/app_process32_xposed'\n" +
+                        "LINKS['/proc/self/fd/57/app_process64'] = '/system/bin/app_process64_xposed'\n" +
+                        "LINKS['/system/./xposed.prop'] = '/system/xposed.prop'\n" +
+                        "local debugging = hookof('Read.Debugging')\n" +
+                        "local results = {}\n" +
+                        "for _, path in ipairs({ '/system/xposed.prop', '/system/framework/XposedBridge.jar',\n" +
+                        "  '/system/bin/app_process64_xposed', '/system/bin/app_process32_original',\n" +
+                        "  '/system/lib64/libxposed_art.so',\n" +
+                        "  '/system/lib/libxposed_art.so', '/system/bin/dex2oat.orig.gz', '/system/lib64/libart.so.orig.gz',\n" +
+                        "  '/system/lib/libart-disassembler.so.no_orig', '/system/framework/oat/arm64/services.odex.gz.xposed',\n" +
+                        "  '/system/lib64/libriru_edxp.so', '/system/lib/libriru_a1b2.so', '/system/./xposed.prop',\n" +
+                        "  '/system/lib64/libriruloader.so', '/system/lib/libmemtrack_real.so', '/data/misc/riru/modules',\n" +
+                        "  '/system/lib64/libsandhook.edxp.so', '/system/framework/edxp.jar', '/system/framework/eddexmaker.dex',\n" +
+                        "  '/system/etc/public.libraries-edxp.txt',\n" +
+                        "  '/proc/self/root/system/framework/XposedBridge.jar',\n" +
+                        "  '/system/bin/app_process64', '/system/bin/app_process32', '/proc/self/fd/57/app_process64',\n" +
+                        "  '/system/bin/dex2oat', '/system/lib64/libart.so', '/system/framework/framework.jar',\n" +
+                        "  '/system/etc/hosts', '/system/lib64/libmemtrack.so', '/system/framework/ext.jar' }) do\n" +
+                        "  results[#results + 1] = hidden(debugging, path) and 'T' or 'F'\n" +
+                        "end\n" +
+                        "local list = paramof('/system/bin', namesof('app_process64', 'app_process64_xposed',\n" +
+                        "  'app_process64_original',\n" +
+                        "  'sh'))\n" +
+                        "after(hookof('Read.Debugging', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]'), list)\n" +
+                        "return table.concat(results), list.result.length, list.result[1], list.result[2]");
+        assertEquals("TTTTTTTTTTTTTT" + "TTTTTTT" + "FFFFFFFFF", result.arg1().tojstring());
+        assertEquals(2, result.arg(2).toint());
+        assertEquals("app_process64", result.arg(3).tojstring());
+        assertEquals("sh", result.arg(4).tojstring());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Read.Debugging'))").arg1().checktable()
+                .unpack());
+        for (String path : new String[]{"/system/xposed.prop", "/system/framework/XposedBridge.jar",
+                "/system/lib64/libxposed_art.so", "/system/lib64/libart.so.orig.gz", "/system/lib/libart.so.no_orig",
+                "/system/lib64/libriru_edxp.so", "/system/framework/oat/arm64/services.odex.gz.xposed", "/system",
+                "/system/framework", "/system/lib", "/system/lib64", "/system/lib64/libriruloader.so",
+                "/system/lib/libmemtrack_real.so", "/data/misc/riru", "/system/lib64/libsandhook.edxp.so",
+                "/system/framework/eddexmaker.dex", "/system/etc/public.libraries-edxp.txt", "/system/etc"})
+            assertTrue(path, filterMatches(filter, path));
+        assertFalse(filterMatches(filter, "/system/lib64/libart.so"));
+        assertFalse(filterMatches(filter, "/system/framework/framework.jar"));
+    }
+
+    // The details of the processors go, their folder and numbers stay (code counts the files of the folder), and so do
+    // their layout and capacity, which every kernel of arm64 has (cpu_count fakes them), and their uevent and modalias
+    // (cpuinfo fakes them); the codec files name the chip, also in listings of their folders
     @Test
     public void hardwareProcessorsAndCodecs() throws Exception {
         Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
         String[] hidden = {"/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", "/sys/devices/system/cpu/cpu7/cpufreq",
                 "/sys/devices/system/cpu/cpufreq/policy4/scaling_available_frequencies",
-                "/sys/devices/system/cpu/cpu3/topology/cluster_id", "/sys/devices/system/cpu/cpu0/cache/index2/size",
-                "/sys/devices/system/cpu/cpu0/cpuidle/state1/name", "/sys/devices/system/cpu/cpu5/cpu_capacity",
-                "/sys/devices/system/cpu/cpu0/regs/identification/midr_el1", "/sys/devices/system/cpu/modalias",
+                "/sys/devices/system/cpu/cpu0/cache/index2/size", "/sys/devices/system/cpu/cpu3/cache",
+                "/sys/devices/system/cpu/cpu0/cpuidle/state1/name", "/sys/devices/system/cpu/cpu9/topology/core_id",
+                "/sys/devices/system/cpu/cpu0/regs/identification/midr_el1",
                 "/sys/devices/system/cpu/vulnerabilities/spectre_v2", "/sys/devices/system/cpu/cpuidle/current_driver",
                 "/vendor/etc/media_codecs.xml", "/vendor/etc/media_codecs_sm8550_vendor.xml",
                 "/odm/etc/media_codecs_performance.xml", "/apex/com.android.media.swcodec/etc/media_codecs.xml"};
         String[] stay = {"/sys/devices/system/cpu", "/sys/devices/system/cpu/cpu0", "/sys/devices/system/cpu/possible",
                 "/sys/devices/system/cpu/present", "/sys/devices/system/cpu/online", "/sys/devices/system/cpu/cpu0/online",
+                "/sys/devices/system/cpu/cpu3/topology", "/sys/devices/system/cpu/cpu3/topology/cluster_id",
+                "/sys/devices/system/cpu/cpu7/topology/core_siblings_list", "/sys/devices/system/cpu/cpu5/cpu_capacity",
+                "/sys/devices/system/cpu/modalias", "/sys/devices/system/cpu/cpu0/uevent",
                 "/vendor/etc/media_profiles_V1_0.xml", "/vendor/etc"};
         for (String path : hidden)
             assertTrue(path, Scripts.run(globals, "return hidden(hookof('Use.Tracking'), '" + path + "')").arg1().toboolean());
@@ -2138,7 +3133,7 @@ public class FileScriptsTest {
             assertFalse(path, Scripts.run(globals, "return hidden(hookof('Use.Tracking'), '" + path + "')").arg1().toboolean());
         Varargs result = Scripts.run(globals,
                 "local hook = hookof('Use.Tracking', 'java.io.UnixFileSystem', 'list0', 'java.lang.String[]')\n" +
-                        "local cpu = paramof('/sys/devices/system/cpu', namesof('cpu0', 'cpufreq', 'possible', 'modalias'))\n" +
+                        "local cpu = paramof('/sys/devices/system/cpu', namesof('cpu0', 'cpufreq', 'possible', 'vulnerabilities'))\n" +
                         "after(hook, cpu)\n" +
                         "local etc = paramof('/vendor/etc', namesof('media_codecs.xml', 'audio_policy.conf'))\n" +
                         "after(hook, etc)\n" +
@@ -2200,6 +3195,58 @@ public class FileScriptsTest {
         // On a read-only partition the kernel answers EROFS before the permissions
         assertEquals("java.io.IOException:Read-only file system", result.arg(6).tojstring());
         assertEquals("java.io.IOException:Permission denied", result.arg(7).tojstring());
+    }
+
+    // A call which acts on a link itself judges a link the app made by the link, also when the filter let its path in by
+    // its text, like files//s: lstat, readlink, remove and open with O_CREAT and O_EXCL of a link to su run like on
+    // Android, with the link's attributes, text and EEXIST; links of the system, like a name in the descriptor of
+    // /system/bin, still count by the file they lead to. Making a file through a link of the app, which follows it, fails
+    // like by the path of that file: EROFS in the read-only /system/fonts and /system/bin and ENOENT in the hidden /su,
+    // not EACCES of the folder of the link; a hidden link of the system, which does not exist for the app, by its own
+    // folder, like /system/xbin/su to /su/bin/su (EROFS).
+    @Test
+    public void linksOfTheAppAnswerByTheLinkOrByTheirFile() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "READONLY['/system/fonts'] = true\n" +
+                        "READONLY['/system/bin'] = true\n" +
+                        "local files = '/data/user/0/test.app/files/'\n" +
+                        "LINKS[files .. '/s'] = '/system/bin/su'\n" +
+                        "LINKS[files .. '/mounts'] = '/system/bin/su'\n" +
+                        "LINKS[files .. 'mounts'] = '/system/bin/su'\n" +
+                        "LINKS[files .. 'f'] = '/system/fonts/SamsungOne.ttf'\n" +
+                        "LINKS[files .. 'x'] = '/su/bin/su'\n" +
+                        "LINKS['/proc/self/fd/57'] = '/system/bin'\n" +
+                        "LINKS['/proc/self/fd/57/su'] = '/system/bin/su'\n" +
+                        "LINKS['/system/bin/x'] = '/system/bin/su'\n" +
+                        "LINKS['/system/xbin/su'] = '/su/bin/su'\n" +
+                        "local function run(group, class, method, path, flags)\n" +
+                        "  local param = makingparam(path, flags)\n" +
+                        "  param.getPackageName = function(self) return 'test.app' end\n" +
+                        "  local restricted = before(hookof(group, class, method), param)\n" +
+                        "  if not param.early then\n" +
+                        "    return tostring(restricted) .. ' ' .. (param.argument and 'argument ' .. param.argument.index ..\n" +
+                        "      ':[' .. param.argument.value .. ']' or 'unchanged')\n" +
+                        "  end\n" +
+                        "  return param.result.class .. ':' .. table.concat(param.result.args, ':')\n" +
+                        "end\n" +
+                        "local debug, block, os = 'Read.Debugging', 'libcore.io.BlockGuardOs', 'android.system.Os'\n" +
+                        "return run(debug, block, 'lstat', files .. '/s'), run(debug, os, 'readlink', files .. '/s'),\n" +
+                        "  run(debug, os, 'remove', files .. '/s'), run(debug, block, 'open', files .. '/mounts', 193),\n" +
+                        "  run(debug, block, 'lstat', '/proc/self/fd/57/su'), run(debug, block, 'lstat', '/system/bin/x'),\n" +
+                        "  run('Use.Tracking', block, 'open', files .. 'f', 65), run(debug, block, 'open', files .. 'mounts', 65),\n" +
+                        "  run(debug, 'java.io.FileOutputStream', 'open0', files .. 'mounts'),\n" +
+                        "  run(debug, block, 'open', files .. 'x', 65), run(debug, block, 'open', '/system/xbin/su', 65)");
+        for (int i = 1; i <= 4; i++)
+            assertEquals(String.valueOf(i), "false unchanged", result.arg(i).tojstring());
+        assertEquals("true argument 0:[]", result.arg(5).tojstring());
+        assertEquals("true argument 0:[]", result.arg(6).tojstring());
+        assertEquals("android.system.ErrnoException:open:30", result.arg(7).tojstring());
+        assertEquals("android.system.ErrnoException:open:30", result.arg(8).tojstring());
+        assertEquals("java.io.FileNotFoundException:/data/user/0/test.app/files/mounts (Read-only file system)",
+                result.arg(9).tojstring());
+        assertEquals("true argument 0:[]", result.arg(10).tojstring());
+        assertEquals("android.system.ErrnoException:open:30", result.arg(11).tojstring());
     }
 
     // The folder of a VPN interface on Android 8.1, whose link and real path apps can read and whose files they can open
@@ -2284,6 +3331,50 @@ public class FileScriptsTest {
         assertEquals("argument 0:[]", result.arg(5).tojstring());
         assertEquals("java.io.IOException:Read-only file system", result.arg(6).tojstring());
         assertEquals("java.io.IOException:Read-only file system", result.arg(7).tojstring());
+    }
+
+    // Making a folder, a pipe or a node by the name of a hidden permission file fails like for a missing name on the
+    // read-only partition (EROFS), not EEXIST, by Os and java.nio; symlink and the new name of link run with a missing
+    // name of its folder, which the kernel answers EROFS for too, and the filter passes the paths of making
+    @Test
+    public void makingByTheNameOfAHiddenPermissionFile() throws Exception {
+        Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local file, own = '/system/etc/permissions/privapp-permissions-com.example.xml', '/data/user/0/test.app/files/a'\n" +
+                        "local function make(class, method)\n" +
+                        "  local param = makingparam(file)\n" +
+                        "  before(hookof('Get.Applications', class, method), param)\n" +
+                        "  return param.result.class .. ':' .. table.concat(param.result.args, ':')\n" +
+                        "end\n" +
+                        "local os, nio = 'android.system.Os', 'sun.nio.fs.UnixNativeDispatcher'\n" +
+                        "local made = { make(os, 'mkdir'), make(os, 'mkfifo'), make(nio, 'mkdir'), make(nio, 'mknod') }\n" +
+                        "local new = luajava.newInstance\n" +
+                        "luajava.newInstance = function(name, path)\n" +
+                        "  if name ~= 'java.io.File' then return new(name, path) end\n" +
+                        "  return { exists = function() return path == file end, toPath = function() return 'path:' .. path end }\n" +
+                        "end\n" +
+                        "local function link(class, method, first, second)\n" +
+                        "  local args = { [0] = first, second }\n" +
+                        "  local param = makingparam(first)\n" +
+                        "  param.getArgument = function(self, index) return args[index] end\n" +
+                        "  param.setArgument = function(self, index, value) args[index] = value end\n" +
+                        "  local restricted = before(hookof('Get.Applications', class, method), param)\n" +
+                        "  return tostring(restricted) .. ' ' .. tostring(args[0]) .. ' ' .. tostring(args[1])\n" +
+                        "end\n" +
+                        "return made[1], made[2], made[3], made[4], link(os, 'symlink', 'x', file), link(nio, 'symlink', 'x', file),\n" +
+                        "  link(os, 'link', own, file), link(nio, 'link', own, file)");
+        String file = "/system/etc/permissions/privapp-permissions-com.example.xml", own = "/data/user/0/test.app/files/a";
+        assertEquals("android.system.ErrnoException:mkdir:30", result.arg(1).tojstring());
+        assertEquals("android.system.ErrnoException:mkfifo:30", result.arg(2).tojstring());
+        assertEquals("sun.nio.fs.UnixException:30", result.arg(3).tojstring());
+        assertEquals("sun.nio.fs.UnixException:30", result.arg(4).tojstring());
+        assertEquals("true x " + file + "~", result.arg(5).tojstring());
+        assertEquals("true x path:" + file + "~", result.arg(6).tojstring());
+        assertEquals("true " + own + " " + file + "~", result.arg(7).tojstring());
+        assertEquals("true " + own + " path:" + file + "~", result.arg(8).tojstring());
+        Object filter = xcoreFilter(Scripts.run(globals, "return filter(hookof('Get.Applications', 'android.system.Os', 'mkdir'))")
+                .arg1().checktable().unpack());
+        assertTrue(filterMatches(filter, file));
     }
 
     // Reading or changing the attributes of a hidden file and its mode run with an empty path, and linking it with a
@@ -2850,7 +3941,8 @@ public class FileScriptsTest {
     // A SecureDirectoryStream opens the files of its folder and reads their attributes by the descriptor of the folder
     // and their name, which count by the folder the descriptor leads to, or by themselves when absolute: a hidden id is
     // missing (ENOENT), and making it fails like in /sys (EACCES); the files of the app by the same calls, other files
-    // and a descriptor which leads nowhere stay, and the hooks have no filter, which compares only paths
+    // and a descriptor which leads nowhere stay, and the hooks have no filter, which compares only paths. A link of the
+    // app to an id is the id, unless the call acts on the link itself, with O_CREAT and O_EXCL or AT_SYMLINK_NOFOLLOW
     @Test
     public void hardwareFilesOfASecureDirectoryStream() throws Exception {
         Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
@@ -2884,7 +3976,9 @@ public class FileScriptsTest {
                         "  run('openat', 57, 'type'), run('openat', 58, 'cid'), run('fstatat', 59, 'cid'),\n" +
                         "  run('openat', 59, '/sys/devices/system/chip-id/unique_id'),\n" +
                         "  filter(hookof('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', 'openat')) == nil,\n" +
-                        "  filter(hookof('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', 'fstatat')) == nil");
+                        "  filter(hookof('Read.Identifiers', 'sun.nio.fs.UnixNativeDispatcher', 'fstatat')) == nil,\n" +
+                        "  (function() LINKS[folders[58] .. '/l'] = folders[57] .. '/cid' end)(),\n" +
+                        "  run('openat', 58, 'l'), run('openat', 58, 'l', 193), run('fstatat', 58, 'l'), run('fstatat', 58, 'l', 256)");
         String cid = "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid";
         assertEquals("sun.nio.fs.UnixException:2:" + cid, result.arg(1).tojstring());
         assertEquals("sun.nio.fs.UnixException:2:" + cid, result.arg(2).tojstring());
@@ -2895,11 +3989,17 @@ public class FileScriptsTest {
         assertEquals("sun.nio.fs.UnixException:2:/sys/devices/system/chip-id/unique_id", result.arg(7).tojstring());
         assertTrue(result.arg(8).toboolean());
         assertTrue(result.arg(9).toboolean());
+        String link = "/data/user/0/test.app/files/mmc0:0001/l";
+        assertEquals("sun.nio.fs.UnixException:2:" + link, result.arg(11).tojstring());
+        assertEquals("false", result.arg(12).tojstring());
+        assertEquals("sun.nio.fs.UnixException:2:" + link, result.arg(13).tojstring());
+        assertEquals("false", result.arg(14).tojstring());
     }
 
     // A SecureDirectoryStream removing a hidden id by its name gets ENOENT, like for a missing name in /sys; moving it
     // runs with a name of its folder which does not exist in place of the id, absolute, so Android answers in the order of
-    // Linux, like EXDEV to the folder of the app; the files of the app stay, and the hooks have no filter
+    // Linux, like EXDEV to the folder of the app; the files of the app stay, and the hooks have no filter. An absolute
+    // name through a link of the app to the folder of an id is the id, by the folder its link leads to
     @Test
     public void hardwareFilesRemovedAndMovedByASecureDirectoryStream() throws Exception {
         Globals globals = Scripts.load("hardware_files", READ_ONLY_STUBS);
@@ -2940,7 +4040,13 @@ public class FileScriptsTest {
                         "end\n" +
                         "return run('unlinkat', 57, 'cid', 0), run('unlinkat', 57, 'type', 0), run('unlinkat', 58, 'cid', 0),\n" +
                         "  run('renameat', 57, 'cid', 58, 'cid'), run('renameat', 58, 'cid', 57, 'cid'),\n" +
-                        "  run('renameat', 58, 'cid', 58, 'b'), nofilter('unlinkat'), nofilter('renameat')");
+                        "  run('renameat', 58, 'cid', 58, 'b'), nofilter('unlinkat'), nofilter('renameat'),\n" +
+                        "  (function()\n" +
+                        "    LINKS['/data/user/0/test.app/files/s'] = folders[57]\n" +
+                        "    LINKS['/data/user/0/test.app/files/s/cid'] = folders[57] .. '/cid'\n" +
+                        "  end)(),\n" +
+                        "  run('renameat', 58, '/data/user/0/test.app/files/s/cid', 58, 'b'),\n" +
+                        "  run('renameat', 58, '/data/user/0/test.app/files/t/cid', 58, 'b')");
         String cid = "/sys/devices/platform/13500000.dwmmc2/mmc_host/mmc0/mmc0:0001/cid";
         assertEquals("sun.nio.fs.UnixException:2:" + cid, result.arg(1).tojstring());
         assertEquals("false type nil", result.arg(2).tojstring());
@@ -2950,6 +4056,8 @@ public class FileScriptsTest {
         assertEquals("false cid b", result.arg(6).tojstring());
         assertTrue(result.arg(7).toboolean());
         assertTrue(result.arg(8).toboolean());
+        assertEquals("true /data/user/0/test.app/files/s/cid~ b", result.arg(10).tojstring());
+        assertEquals("false /data/user/0/test.app/files/t/cid b", result.arg(11).tojstring());
     }
 
     // The script compares the paths of openat and fstatat with the filter of the group itself, like XCore.Filter
@@ -2972,9 +4080,10 @@ public class FileScriptsTest {
 
     static Object xcoreFilter(Varargs values) throws Exception {
         Class<?> type = Class.forName("eu.faircode.xlua.XCore$Filter");
-        java.lang.reflect.Constructor<?> constructor = type.getDeclaredConstructor();
+        java.lang.reflect.Constructor<?> constructor = type.getDeclaredConstructor(java.lang.reflect.Member.class);
         constructor.setAccessible(true);
-        Object filter = constructor.newInstance();
+        // A hook which follows links, of a first argument which is a text, like of a class of the app
+        Object filter = constructor.newInstance(XCoreTest.Target.class.getMethod("open", String.class));
         java.lang.reflect.Method add = type.getDeclaredMethod("add", String.class);
         add.setAccessible(true);
         for (int i = 1; i <= values.narg(); i++)
@@ -2994,9 +4103,9 @@ public class FileScriptsTest {
     }
 
     static boolean filterMatches(Object filter, String path) throws Exception {
-        java.lang.reflect.Method matches = filter.getClass().getDeclaredMethod("matches", String.class);
+        java.lang.reflect.Method matches = filter.getClass().getDeclaredMethod("matches", Object[].class, boolean.class);
         matches.setAccessible(true);
-        return (Boolean) matches.invoke(filter, path);
+        return (Boolean) matches.invoke(filter, new Object[]{path}, false);
     }
 
     // File.length and the space of a hidden file are 0, like of a file which does not exist
@@ -3039,6 +4148,36 @@ public class FileScriptsTest {
         assertEquals(2, result.arg(2).toint());
     }
 
+    // A link of the app, and /dev/stdin, can lead elsewhere the next time, so the answer for it is not kept, in either
+    // order, while the answer for a path of the system is
+    @Test
+    public void hardwareLinksOfTheAppNotCached() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "local function open(path, target)\n" +
+                        "  LINKS[path] = target\n" +
+                        "  local param = paramof(path, nil, 0)\n" +
+                        "  param.getPackageName = function(self) return 'test.app' end\n" +
+                        "  before(hookof('Read.Debugging'), param)\n" +
+                        "  return param.argument ~= nil\n" +
+                        "end\n" +
+                        "local l, k = '/data/user/0/test.app/files/l', '/data/user/0/test.app/files/k'\n" +
+                        "local results = { open(l, '/system/bin/sh'), open(l, '/system/bin/su'), open(k, '/system/bin/su'),\n" +
+                        "  open(k, '/system/bin/sh'), open('/dev/stdin', '/system/bin/sh'), open('/dev/stdin', '/system/bin/su') }\n" +
+                        "local calls = 0\n" +
+                        "local original = matched\n" +
+                        "matched = function(...) calls = calls + 1 return original(...) end\n" +
+                        "open('/system/bin/sh')\n" +
+                        "local first = calls\n" +
+                        "open('/system/bin/sh')\n" +
+                        "local t = {}\n" +
+                        "for i, v in ipairs(results) do t[i] = v and 'T' or 'F' end\n" +
+                        "return table.concat(t), first > 0, calls - first");
+        assertEquals("FTTFFT", result.arg1().tojstring());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(0, result.arg(3).toint());
+    }
+
     // A font file of every Android is resolved once, for the fonts of makers and for the patterns, also in a listing
     @Test
     public void fontResolvedOnce() throws Exception {
@@ -3057,6 +4196,23 @@ public class FileScriptsTest {
         assertTrue(result.arg(1).toboolean());
         assertEquals(1, result.arg(2).toint());
         assertTrue(result.arg(3).toboolean());
+    }
+
+    // A font of a maker or a driver of the GPU through a link of the app itself to their folder, which the filter lets in
+    // by the path it leads to (see XCore.Filter), is hidden like by its own path; the fonts of every Android stay
+    @Test
+    public void fontThroughLinkOfTheApp() throws Exception {
+        Globals globals = Scripts.load("hardware_files", HARDWARE_STUBS);
+        Varargs result = Scripts.run(globals,
+                "LINKS['/data/user/0/test.app/files/f/SamsungOne-400.ttf'] = '/system/fonts/SamsungOne-400.ttf'\n" +
+                        "LINKS['/data/user/0/test.app/files/g/libGLESv2_adreno.so'] = '/vendor/lib64/egl/libGLESv2_adreno.so'\n" +
+                        "LINKS['/data/user/0/test.app/files/f/Roboto-Regular.ttf'] = '/system/fonts/Roboto-Regular.ttf'\n" +
+                        "return matched('Use.Tracking', '/data/user/0/test.app/files/f/SamsungOne-400.ttf'),\n" +
+                        "  matched('Use.Tracking', '/data/user/0/test.app/files/g/libGLESv2_adreno.so'),\n" +
+                        "  matched('Use.Tracking', '/data/user/0/test.app/files/f/Roboto-Regular.ttf')");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
     }
 
     // Like an id of the kernel: version 4, the same for the same seed, different for another one

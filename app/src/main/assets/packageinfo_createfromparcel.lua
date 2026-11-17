@@ -24,11 +24,13 @@
 -- Apps of the system get the time of the firmware, which is the same on all devices with the same firmware.
 -- That is their update time: Android sets the install time once, from the firmware the device first booted, or from
 -- when the app was installed for the user, like in a new profile (from Android 15) or by pm install-existing, and moves
--- only the update time when an update of the firmware changes the file. The update time of an updated one, like of
--- Play services, is when the update was installed on the device; it gets the install time instead.
--- shortcut: an updated app of the system keeps its install time, which can tell the first firmware or when a profile
--- was made, since its package info has no time of the current firmware; upgrade when a hook can read that time.
+-- only the update time when an update of the firmware changes the file. An updated app of the system, like Play
+-- services, has the time its update was installed on the device and an install time which can tell the first firmware
+-- or when a profile was made, and no time of the current firmware: it gets the time of reproducible builds, like the
+-- apps which are not of the system, and so do the files of its update in /data/app (see storage_times).
 -- An install time of 0 stays: a new profile has it for apps of the system until a reboot on Android 13 and 14.
+-- shortcut: apps of the system keep the time of the files of the firmware, which tells the build Build.TIME hides,
+-- since these files keep their times too; upgrade when the times of the files of the system partitions are faked.
 -- The paths of the apps stay, like applicationInfo.sourceDir, which have random parts since Android 11
 -- (/data/app/~~...==/com.example-...==/base.apk) that are the same for every app which asks too: the framework
 -- reads the icons and labels of other apps from these files in the process of the app, which another path breaks.
@@ -49,17 +51,10 @@ function after(hook, param)
     end
 
     local ai = info.applicationInfo
-    if ai ~= nil and math.floor(ai.flags / FLAG_SYSTEM) % 2 == 1 then
+    if ai ~= nil and math.floor(ai.flags / FLAG_SYSTEM) % 2 == 1 and math.floor(ai.flags / FLAG_UPDATED_SYSTEM_APP) % 2 == 0 then
         local first = info.firstInstallTime
         local last = info.lastUpdateTime
-        if last == first then
-            return false
-        end
-        if math.floor(ai.flags / FLAG_UPDATED_SYSTEM_APP) % 2 == 1 then
-            info.lastUpdateTime = first
-            return true, info.packageName .. ' ' .. last, tostring(first)
-        end
-        if first == 0 then
+        if last == first or first == 0 then
             return false
         end
         info.firstInstallTime = last
@@ -67,11 +62,12 @@ function after(hook, param)
     end
 
     local first = info.firstInstallTime
-    if first == FAKE and info.lastUpdateTime == FAKE then
+    local fake = (first == 0 and 0 or FAKE)
+    if first == fake and info.lastUpdateTime == FAKE then
         return false
     end
 
-    info.firstInstallTime = FAKE
+    info.firstInstallTime = fake
     info.lastUpdateTime = FAKE
     return true, info.packageName .. ' ' .. first, tostring(FAKE)
 end

@@ -44,10 +44,10 @@ import static org.junit.Assert.assertTrue;
 // and certificates; with Lua stand-ins, like DeviceValuesScriptTest
 public class FingerprintScriptsTest {
     private static final String STUBS = String.join("\n",
-            "function hookof(method, returnType)",
+            "function hookof(method, returnType, class)",
             "  return { getName = function(self) return method end,",
             "    getMethodName = function(self) return method end,",
-            "    getClassName = function(self) return nil end,",
+            "    getClassName = function(self) return class end,",
             "    getReturnType = function(self) return returnType end }",
             "end",
             "function paramof(result, arguments)",
@@ -94,15 +94,19 @@ public class FingerprintScriptsTest {
     @Test
     public void codecNamesHaveNoVendor() throws Exception {
         Globals globals = load("media_codecs");
-        String[][] cases = {{"c2.qti.avc.decoder", "c2.hw.avc.decoder"},
-                {"c2.exynos.h264.decoder.secure", "c2.hw.h264.decoder.secure"},
-                {"OMX.MTK.VIDEO.DECODER.AVC", "OMX.hw.VIDEO.DECODER.AVC"}, {"OMX.qcom.video.decoder.avc", "OMX.hw.video.decoder.avc"},
+        String[][] cases = {{"c2.qti.avc.decoder", "c2.unknown.avc.decoder"},
+                {"c2.exynos.h264.decoder.secure", "c2.unknown.h264.decoder.secure"},
+                {"OMX.MTK.VIDEO.DECODER.AVC", "OMX.unknown.VIDEO.DECODER.AVC"},
+                {"OMX.qcom.video.decoder.avc", "OMX.unknown.video.decoder.avc"},
+                // The codecs of the emulator: those of its vendor goldfish are faked, those it names after Android stay
+                {"c2.goldfish.h264.decoder", "c2.unknown.h264.decoder"},
+                {"OMX.android.goldfish.h264.decoder", "OMX.android.goldfish.h264.decoder"},
                 {"c2.android.avc.decoder", "c2.android.avc.decoder"}, {"OMX.google.h264.decoder", "OMX.google.h264.decoder"},
-                {"c2.hw.avc.decoder", "c2.hw.avc.decoder"}, {"aac.encoder", "aac.encoder"},
+                {"c2.unknown.avc.decoder", "c2.unknown.avc.decoder"}, {"aac.encoder", "aac.encoder"},
                 // Software codecs of vendors stay software for ExoPlayer before Android 10; FFmpeg names no chip
                 {"OMX.SEC.avc.sw.dec", "OMX.google.avc.sw.dec"},
                 {"OMX.qcom.video.decoder.hevcswvdec", "OMX.google.video.decoder.hevcswvdec"},
-                {"OMX.SEC.avc.dec", "OMX.hw.avc.dec"}, {"OMX.ffmpeg.h264.decoder", "OMX.ffmpeg.h264.decoder"}};
+                {"OMX.SEC.avc.dec", "OMX.unknown.avc.dec"}, {"OMX.ffmpeg.h264.decoder", "OMX.ffmpeg.h264.decoder"}};
         for (String[] c : cases)
             assertEquals(c[0], c[1], Scripts.run(globals, "return fakename('" + c[0] + "')").arg1().tojstring());
 
@@ -110,14 +114,14 @@ public class FingerprintScriptsTest {
         Varargs result = Scripts.run(globals, "local p = paramof('c2.qti.avc.decoder')\n" +
                 "local restricted = after(hookof('getName'), p) return restricted, p.result");
         assertTrue(result.arg1().toboolean());
-        assertEquals("c2.hw.avc.decoder", result.arg(2).tojstring());
+        assertEquals("c2.unknown.avc.decoder", result.arg(2).tojstring());
         assertFalse(Scripts.run(globals, "return after(hookof('getName'), paramof('c2.android.avc.decoder'))").arg1().toboolean());
         // MediaCodecList.findDecoderForFormat: the real name of the picked codec is faked, a fake one stays
         result = Scripts.run(globals, "local p = paramof('c2.qti.hevc.decoder')\n" +
-                "local q = paramof('c2.hw.avc.decoder')\n" +
+                "local q = paramof('c2.unknown.avc.decoder')\n" +
                 "return after(hookof('findDecoderForFormat'), p), p.result, after(hookof('findDecoderForFormat'), q)");
         assertTrue(result.arg1().toboolean());
-        assertEquals("c2.hw.hevc.decoder", result.arg(2).tojstring());
+        assertEquals("c2.unknown.hevc.decoder", result.arg(2).tojstring());
         assertFalse(result.arg(3).toboolean());
 
         // createByCodecName with a fake name opens the real codec; a real name, which the faked list does not have,
@@ -131,7 +135,7 @@ public class FingerprintScriptsTest {
                         "    for i, n in ipairs(names) do infos[i] = { getName = function(self) return n end } end\n" +
                         "    return infos end }\n" +
                         "end\n" +
-                        "local fake = paramof(nil, { [0] = 'c2.hw.hevc.decoder' })\n" +
+                        "local fake = paramof(nil, { [0] = 'c2.unknown.hevc.decoder' })\n" +
                         "local opened = before(hookof('createByCodecName'), fake)\n" +
                         "local real = paramof(nil, { [0] = 'c2.qti.avc.decoder' })\n" +
                         "local refused = before(hookof('createByCodecName'), real)\n" +
@@ -145,9 +149,9 @@ public class FingerprintScriptsTest {
                         "  after(hookof('createByCodecName'), paramof('codec'))");
         assertEquals("c2.qti.hevc.decoder", result.arg(1).tojstring());
         assertFalse(result.arg(2).toboolean());
-        assertEquals("c2.hw.avc.decoder", result.arg(3).tojstring());
+        assertEquals("c2.unknown.avc.decoder", result.arg(3).tojstring());
         assertTrue(result.arg(4).toboolean());
-        assertEquals("c2.hw.avc.decoder.secure", result.arg(5).tojstring());
+        assertEquals("c2.unknown.avc.decoder.secure", result.arg(5).tojstring());
         assertFalse(result.arg(6).toboolean());
         assertEquals("c2.android.avc.decoder", result.arg(7).tojstring());
         assertFalse(result.arg(8).toboolean());
@@ -170,9 +174,10 @@ public class FingerprintScriptsTest {
                         "end\n" +
                         "local real = { fails('c2.qti.avc.decoder', luajava.bindClass('java.lang.IllegalArgumentException'),\n" +
                         "  'Failed to initialize %s, error 0xfffffffe (NAME_NOT_FOUND)') }\n" +
-                        "local fake = { fails('c2.hw.hevc.decoder', luajava.bindClass('java.io.IOException'),\n" +
+                        "local fake = { fails('c2.unknown.hevc.decoder', luajava.bindClass('java.io.IOException'),\n" +
                         "  'Failed to find matching codec %s, error 0x80000000 (?)') }\n" +
-                        "local coded = { fails('c2.hw.hevc.decoder', coded, 'Failed to initialize %s, error 0xfffffff4 (NO_MEMORY)') }\n" +
+                        "local coded = { fails('c2.unknown.hevc.decoder', coded,\n" +
+                        "  'Failed to initialize %s, error 0xfffffff4 (NO_MEMORY)') }\n" +
                         "local unknown = { fails('c2.exynos.avc.decoder', luajava.bindClass('java.lang.IllegalArgumentException'),\n" +
                         "  'Failed to initialize %s, error 0xfffffffe') }\n" +
                         "return real[1], real[2], real[3], fake[1], fake[2], fake[3], coded[1], coded[3], coded[4],\n" +
@@ -187,11 +192,11 @@ public class FingerprintScriptsTest {
         genuine = (Throwable) result.arg(5).touserdata();
         thrown = (Throwable) result.arg(6).touserdata();
         assertEquals(IOException.class, thrown.getClass());
-        assertEquals("Failed to find matching codec c2.hw.hevc.decoder, error 0x80000000 (?)", thrown.getMessage());
+        assertEquals("Failed to find matching codec c2.unknown.hevc.decoder, error 0x80000000 (?)", thrown.getMessage());
         assertArrayEquals(genuine.getStackTrace(), thrown.getStackTrace());
         assertFalse(result.arg(7).toboolean());
         assertTrue(result.arg(8).isnil());
-        assertEquals("Failed to initialize c2.hw.hevc.decoder, error 0xfffffff4 (NO_MEMORY)", result.arg(9).tojstring());
+        assertEquals("Failed to initialize c2.unknown.hevc.decoder, error 0xfffffff4 (NO_MEMORY)", result.arg(9).tojstring());
         assertFalse(result.arg(10).toboolean());
         assertTrue(result.arg(11).isnil());
         assertTrue(result.arg(12).isnil());
@@ -201,10 +206,10 @@ public class FingerprintScriptsTest {
                 "local fakes, reals = mapping({ 'OMX.SEC.avc.dec', 'OMX.Exynos.avc.dec', 'OMX.google.avc.sw.dec',\n" +
                         "  'OMX.SEC.avc.sw.dec', 'c2.android.avc.decoder' })\n" +
                         "return fakes['OMX.SEC.avc.dec'], fakes['OMX.Exynos.avc.dec'], fakes['OMX.SEC.avc.sw.dec'],\n" +
-                        "  reals['OMX.hw2.avc.dec'], fakes['c2.android.avc.decoder'], reals['c2.android.avc.decoder']");
-        assertEquals("OMX.hw.avc.dec", result.arg1().tojstring());
-        assertEquals("OMX.hw2.avc.dec", result.arg(2).tojstring());
-        assertEquals("OMX.hw2.avc.sw.dec", result.arg(3).tojstring());
+                        "  reals['OMX.unknown2.avc.dec'], fakes['c2.android.avc.decoder'], reals['c2.android.avc.decoder']");
+        assertEquals("OMX.unknown.avc.dec", result.arg1().tojstring());
+        assertEquals("OMX.unknown2.avc.dec", result.arg(2).tojstring());
+        assertEquals("OMX.unknown2.avc.sw.dec", result.arg(3).tojstring());
         assertEquals("OMX.Exynos.avc.dec", result.arg(4).tojstring());
         assertEquals("c2.android.avc.decoder", result.arg(5).tojstring());
         assertTrue(result.arg(6).isnil());
@@ -219,9 +224,9 @@ public class FingerprintScriptsTest {
                         "    return infos end }\n" +
                         "end\n" +
                         "local p = paramof('OMX.Exynos.avc.dec') after(hookof('getName'), p)\n" +
-                        "local open = paramof(nil, { [0] = 'OMX.hw2.avc.dec' }) before(hookof('createByCodecName'), open)\n" +
+                        "local open = paramof(nil, { [0] = 'OMX.unknown2.avc.dec' }) before(hookof('createByCodecName'), open)\n" +
                         "return p.result, open.args[0]");
-        assertEquals("OMX.hw2.avc.dec", result.arg1().tojstring());
+        assertEquals("OMX.unknown2.avc.dec", result.arg1().tojstring());
         assertEquals("OMX.Exynos.avc.dec", result.arg(2).tojstring());
 
         // findDecoderForFormat gets the fake name of the hooked getName it calls: a numbered one stays
@@ -233,10 +238,10 @@ public class FingerprintScriptsTest {
                         "    for i, n in ipairs(names) do infos[i] = { getName = function(self) return n end } end\n" +
                         "    return infos end }\n" +
                         "end\n" +
-                        "local p = paramof('OMX.hw2.avc.dec')\n" +
+                        "local p = paramof('OMX.unknown2.avc.dec')\n" +
                         "return after(hookof('findDecoderForFormat'), p), p.result");
         assertFalse(result.arg1().toboolean());
-        assertEquals("OMX.hw2.avc.dec", result.arg(2).tojstring());
+        assertEquals("OMX.unknown2.avc.dec", result.arg(2).tojstring());
     }
 
     // The metrics of a codec, a new bundle per call, have its name too; other values stay
@@ -259,8 +264,8 @@ public class FingerprintScriptsTest {
                         "  after(hookof('getMetrics'), paramof(empty))");
         assertTrue(result.arg(1).toboolean());
         assertEquals("c2.goldfish.h264.decoder", result.arg(2).tojstring());
-        assertEquals("c2.hw.h264.decoder", result.arg(3).tojstring());
-        assertEquals("c2.hw.h264.decoder", result.arg(4).tojstring());
+        assertEquals("c2.unknown.h264.decoder", result.arg(3).tojstring());
+        assertEquals("c2.unknown.h264.decoder", result.arg(4).tojstring());
         assertEquals("video/avc", result.arg(5).tojstring());
         assertTrue(result.arg(6).toboolean());
         assertFalse(result.arg(7).toboolean());
@@ -281,8 +286,8 @@ public class FingerprintScriptsTest {
                         "return restricted, old, new, values[video], values[audio]");
         assertTrue(result.arg(1).toboolean());
         assertEquals("OMX.qcom.video.decoder.avc", result.arg(2).tojstring());
-        assertEquals("OMX.hw.video.decoder.avc", result.arg(3).tojstring());
-        assertEquals("OMX.hw.video.decoder.avc", result.arg(4).tojstring());
+        assertEquals("OMX.unknown.video.decoder.avc", result.arg(3).tojstring());
+        assertEquals("OMX.unknown.video.decoder.avc", result.arg(4).tojstring());
         assertEquals("c2.android.aac.decoder", result.arg(5).tojstring());
     }
 
@@ -435,25 +440,131 @@ public class FingerprintScriptsTest {
         assertArrayEquals(new int[]{4, 2, 7}, ints);
     }
 
-    // Older kernels print the lines of all processors in one block, under Processor with the revision of the core
+    // Older kernels print the lines of all processors in one block, under Processor with the revision of the core,
+    // which becomes the one of the fake core like the lines of the core
     @Test
     public void cpuinfoOfOlderKernels() throws Exception {
         Globals globals = load("cpuinfo");
-        String old = "Processor\t: AArch64 Processor rev 4 (aarch64)\nprocessor\t: 0\nprocessor\t: 1\nprocessor\t: 2\n" +
-                "processor\t: 3\nFeatures\t: fp asimd\nCPU implementer\t: 0x51\nCPU part\t: 0x801\n\n" +
-                "Hardware\t: Qualcomm Technologies, Inc MSM8998\n";
+        String old = "Processor\t: AArch64 Processor rev 2 (aarch64)\nprocessor\t: 0\nprocessor\t: 1\nprocessor\t: 2\n" +
+                "processor\t: 3\nFeatures\t: fp asimd \nCPU implementer\t: 0x51\nCPU architecture: AArch64\n" +
+                "CPU part\t: 0x801\n\nHardware\t: Qualcomm Technologies, Inc MSM8998\n";
+        String eight = "processor\t: 0\nprocessor\t: 1\nprocessor\t: 2\nprocessor\t: 3\nprocessor\t: 4\nprocessor\t: 5\n" +
+                "processor\t: 6\nprocessor\t: 7\n";
         Varargs result = Scripts.run(globals, "local text, left = kept([[" + old + "]])\n" +
-                "local eight, counted = processors(text)\n" +
-                "return left, eight, counted, processors('processor\\t: 0\\nprocessor\\t: 1\\n" +
-                "processor\\t: 2\\nprocessor\\t: 3\\nprocessor\\t: 4\\nprocessor\\t: 5\\nprocessor\\t: 6\\nprocessor\\t: 7\\n')");
-        assertEquals(4, result.arg1().toint());
-        StringBuilder expected = new StringBuilder();
-        for (int i = 0; i < 8; i++)
-            expected.append("processor\t: ").append(i).append('\n');
-        expected.append("Features\t: fp asimd\n\n");
-        assertEquals(expected.toString(), result.arg(2).tojstring());
-        assertTrue(result.arg(3).toboolean());
-        assertFalse(result.arg(5).toboolean());
+                "return left, processors(text), processors([[" + eight + "]])");
+        assertEquals(1, result.arg1().toint());
+        assertEquals("Processor\t: AArch64 Processor rev 4 (aarch64)\n" + eight +
+                "Features\t: fp asimd \nCPU implementer\t: 0x41\nCPU architecture: AArch64\nCPU part\t: 0xd03\n\n",
+                result.arg(2).tojstring());
+        assertEquals(eight, result.arg(3).tojstring());
+    }
+
+    // The uevent of each processor names the node and core of the fake core in the device tree and only its instructions,
+    // by their bit in MODALIAS: a Cortex-A55 for 64-bit code with atomics, a Cortex-A53 for 32-bit code on the same kernel,
+    // both numbered like DynamIQ, a Cortex-A53 in clusters of 4 on a kernel without atomics or a 64-bit one without
+    // MODALIAS, a Cortex-A7 on 32-bit kernels and for 32-bit code on a kernel without MODALIAS; on x86 the model is 0;
+    // the same file by a link, /proc/self/root or .., /sys/devices/system/cpu/modalias with the same bits as uevent, and
+    // both by openat, by the link of the descriptor; riscv is only riscv; other uevent files and a file which already
+    // has the fake stay
+    @Test
+    public void cpuUevent() throws Exception {
+        Globals globals = load("cpuinfo");
+        String files = "local wide = true\n" +
+                "local LINKS = { [7] = '/sys/devices/system/cpu/cpu7/uevent', [8] = '/sys/devices/system/cpu/modalias',\n" +
+                "  [9] = '/proc/meminfo', [10] = '/proc/cpuinfo' }\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.StrictMode' then\n" +
+                "    return { allowThreadDiskReads = function(self) return 'policy' end,\n" +
+                "      setThreadPolicy = function(self, policy) assert(policy == 'policy') end } end\n" +
+                "  if name == 'android.system.Os' then\n" +
+                "    return { readlink = function(self, path) return LINKS[tonumber(string.match(path, '^/proc/self/fd/(%d+)$'))] end }\n" +
+                "  end\n" +
+                "  assert(name == 'android.os.Process')\n" +
+                "  return { is64Bit = function(self) return wide end } end\n" +
+                "luajava.newInstance = function(name, path)\n" +
+                "  if name == 'java.lang.String' then return path end\n" +
+                "  assert(name == 'java.io.File')\n" +
+                "  path = string.gsub(path, '^/proc/self/root', '')\n" +
+                "  path = string.gsub(path, '/[^/]+/%.%./', '/')\n" +
+                "  return { getCanonicalPath = function(self)\n" +
+                "    return (string.gsub(path, '^/sys/bus/cpu/devices/', '/sys/devices/system/cpu/')) end } end\n" +
+                "local function readby(method, args, result, text, narrow)\n" +
+                "  wide = not narrow\n" +
+                "  local p = paramof(result, args)\n" +
+                "  p.opens = function(self, file) return false end\n" +
+                "  p.getFileText = function(self) return text end\n" +
+                "  p.setFileText = function(self, value) text = value end\n" +
+                "  return tostring(after(hookof(method), p)) .. ' ' .. text\n" +
+                "end\n" +
+                "local function read(path, text, narrow) return readby('open', { [0] = path }, 'fd', text, narrow) end\n" +
+                "local function readat(name, fd, text) return readby('openat', { [0] = 3, [1] = name }, fd, text) end\n";
+        String features = ",0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F,0010,0011," +
+                "0012,0013,0014,0015,0016,0017,0040,0041";
+        String a55 = ",0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000F,0010,0014";
+        String a53 = ",0000,0001,0002,0003,0004,0005,0006,0007,000B";
+        String arm64 = "OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@700\nOF_TYPE=cpu\nOF_COMPATIBLE_0=arm,cortex-x1\n" +
+                "OF_COMPATIBLE_1=arm,armv8\nOF_COMPATIBLE_N=2\nMODALIAS=cpu:type:aarch64:feature:" + features + "\n\n";
+        String armv8 = "OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@103\nOF_TYPE=cpu\nOF_COMPATIBLE_0=arm,cortex-a73\n" +
+                "OF_COMPATIBLE_N=1\nMODALIAS=cpu:type:aarch64:feature:,0000,0001,0002,0003,0004,0005,0006,0007,000B\n\n";
+        String plain = "OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@103\nOF_TYPE=cpu\nOF_COMPATIBLE_0=arm,cortex-a73\n" +
+                "OF_COMPATIBLE_N=1\n";
+        String arm32 = "OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@1\nOF_TYPE=cpu\nOF_COMPATIBLE_0=arm,cortex-a53\n" +
+                "OF_COMPATIBLE_N=1\nMODALIAS=cpu:type:v7l:feature:,0000,0001,0002,0004,0006,000C,000E,0011,0015,0020\n\n";
+        String x86 = "DRIVER=processor\nMODALIAS=cpu:type:x86,ven0000fam0006mod009E:feature:,0000,0001,005D\n\n";
+        Varargs result = Scripts.run(globals, files +
+                "return read('/sys/devices/system/cpu/cpu7/uevent', [[" + arm64 + "]]),\n" +
+                "  read('/sys/bus/cpu/devices/cpu5/uevent', [[" + arm64 + "]], true),\n" +
+                "  read('/sys/devices/system/cpu/cpu1/uevent', [[" + arm32 + "]], true),\n" +
+                "  read('/sys/devices/system/cpu/cpu0/uevent', [[" + x86 + "]]),\n" +
+                "  read('/sys/devices/platform/soc/uevent', [[" + arm64 + "]]),\n" +
+                "  read('/sys/devices/system/cpu/cpu1/uevent', [[OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@100\n" +
+                "OF_TYPE=cpu\nOF_COMPATIBLE_0=arm,cortex-a55\nOF_COMPATIBLE_N=1\n" +
+                "MODALIAS=cpu:type:aarch64:feature:,0000,0008\n\n]]), filter(hookof('open'))[2],\n" +
+                "  read('/sys/devices/system/cpu/cpu0/uevent', [[OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@1\nOF_TYPE=cpu\n" +
+                "OF_COMPATIBLE_0=sifive,u74-mc\nOF_COMPATIBLE_1=riscv\nOF_COMPATIBLE_N=2\n]]),\n" +
+                "  read('/proc/self/root/sys/devices/system/cpu/cpu7/uevent', [[" + armv8 + "]]),\n" +
+                "  read('/sys/devices/system/cpu/cpu6/../cpu7/uevent', [[" + plain + "]]),\n" +
+                "  read('/sys/devices/system/cpu/cpu7/uevent', [[" + plain + "]], true),\n" +
+                "  read('/sys/devices/system/cpu/modalias', 'cpu:type:aarch64:feature:" + features + "\\n'),\n" +
+                "  read('/sys/devices/system/cpu/modalias', 'cpu:type:aarch64:feature:" + features + "\\n', true),\n" +
+                "  read('/sys/devices/system/cpu/modalias', 'cpu:type:x86,ven0000fam0006mod009E:feature:,0000\\n'),\n" +
+                "  readat('uevent', 7, [[" + arm64 + "]]), readat('modalias', 8, 'cpu:type:aarch64:feature:,0000,0041\\n'),\n" +
+                "  readat('meminfo', 9, 'MemTotal: 1 kB\\n'), readat('uevent', 9, 'OF_NAME=cpu\\n'),\n" +
+                "  filter(hookof('open'))[3], tostring(filter(hookof('openat'))),\n" +
+                "  readat('cpuinfo', 10, 'processor\\t: 0\\nBogoMIPS\\t: 19.20\\nCPU part\\t: 0x805\\n\\n" +
+                "Hardware\\t: Qualcomm Technologies, Inc SM8150\\n')");
+        assertEquals("true OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@700\nOF_TYPE=cpu\nOF_COMPATIBLE_0=arm,cortex-a55\n" +
+                "OF_COMPATIBLE_N=1\nMODALIAS=cpu:type:aarch64:feature:" + a55 + "\n\n", result.arg1().tojstring());
+        assertEquals("true OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@500\nOF_TYPE=cpu\nOF_COMPATIBLE_0=arm,cortex-a53\n" +
+                "OF_COMPATIBLE_N=1\nMODALIAS=cpu:type:aarch64:feature:" + a53 + "\n\n", result.arg(2).tojstring());
+        assertEquals("true OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@1\nOF_TYPE=cpu\nOF_COMPATIBLE_0=arm,cortex-a7\n" +
+                "OF_COMPATIBLE_N=1\nMODALIAS=cpu:type:v7l:feature:,0000,0001,0002,0004,0006,000C,0011,0015\n\n",
+                result.arg(3).tojstring());
+        assertEquals("true DRIVER=processor\nMODALIAS=cpu:type:x86,ven0000fam0006mod0000:feature:,0000,0001,005D\n\n",
+                result.arg(4).tojstring());
+        assertEquals("false " + arm64, result.arg(5).tojstring());
+        assertTrue(result.arg(6).tojstring().startsWith("false "));
+        assertEquals("*/uevent*", result.arg(7).tojstring());
+        assertEquals("true OF_NAME=cpu\nOF_FULLNAME=/cpus/cpu@1\nOF_TYPE=cpu\nOF_COMPATIBLE_0=riscv\nOF_COMPATIBLE_N=1\n",
+                result.arg(8).tojstring());
+        // Without atomics the A53 in clusters of 4, also without MODALIAS, where 32-bit code gets the A7
+        assertEquals("true " + armv8.replace("cortex-a73", "cortex-a53"), result.arg(9).tojstring());
+        assertEquals("true " + plain.replace("cortex-a73", "cortex-a53"), result.arg(10).tojstring());
+        assertEquals("true " + plain.replace("cortex-a73", "cortex-a7"), result.arg(11).tojstring());
+        // The modalias of the processors has the bits of their uevent
+        assertEquals("true cpu:type:aarch64:feature:" + a55 + "\n", result.arg(12).tojstring());
+        assertEquals("true cpu:type:aarch64:feature:" + a53 + "\n", result.arg(13).tojstring());
+        assertEquals("true cpu:type:x86,ven0000fam0006mod0000:feature:,0000\n", result.arg(14).tojstring());
+        assertEquals(result.arg1().tojstring(), result.arg(15).tojstring());
+        assertEquals("true cpu:type:aarch64:feature:,0000\n", result.arg(16).tojstring());
+        assertEquals("false MemTotal: 1 kB\n", result.arg(17).tojstring());
+        assertEquals("false OF_NAME=cpu\n", result.arg(18).tojstring());
+        assertEquals("*/modalias*", result.arg(19).tojstring());
+        assertEquals("nil", result.arg(20).tojstring());
+        // /proc/cpuinfo by openat has the lines of the fake core, without the chip
+        String cpuinfo = result.arg(21).tojstring();
+        assertTrue(cpuinfo, cpuinfo.startsWith("true processor\t: 0\nBogoMIPS\t: 38.40\nCPU part\t: 0xd03\n\n"));
+        assertFalse(cpuinfo, cpuinfo.contains("Hardware"));
     }
 
     @Test
@@ -540,6 +651,15 @@ public class FingerprintScriptsTest {
         assertEquals("0", result.arg(2).tojstring());
         assertEquals("1", result.arg(3).tojstring());
         assertEquals("1\n", result.arg(4).tojstring());
+        // So is a file by a link the app made itself, which names no folder of the processors (see XCore.Filter)
+        result = Scripts.run(globals, files +
+                "local mine = fileof('/data/user/0/app/files/n', '0-5\\n', '/sys/devices/system/cpu/online')\n" +
+                "local restricted, old, new = after(hookof('open'), mine)\n" +
+                "return restricted, old, new, mine:text()");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("0-5", result.arg(2).tojstring());
+        assertEquals("0-7", result.arg(3).tojstring());
+        assertEquals("0-7\n", result.arg(4).tojstring());
         // So is a processor by // or /./, by .. after its own folder and by .. after its link; cpu6/.. is the folder of
         // all of them; a file of another folder, like of the memory, and a path which cannot be resolved stay
         String[][] spellings = {
@@ -582,6 +702,7 @@ public class FingerprintScriptsTest {
                 "  ['/proc/thread-self/status'] = '/proc/123/task/124/status',\n" +
                 "  ['/proc/self/root/proc/self/status'] = '/proc/123/status',\n" +
                 "  ['/proc/self/task/124/status'] = '/proc/123/task/124/status',\n" +
+                "  ['/data/user/0/app/files/mine'] = '/proc/123/status',\n" +
                 "  ['/data/user/0/app/files/status'] = '/data/user/0/app/files/status',\n" +
                 "  ['/sys/class/power_supply/battery/status'] = '/sys/devices/battery/status' }\n" +
                 "luajava.newInstance = function(name, path) assert(name == 'java.io.File')\n" +
@@ -593,7 +714,7 @@ public class FingerprintScriptsTest {
                 "end\n";
         String fake = status.replace("Cpus_allowed:\tf\n", "Cpus_allowed:\tff\n").replace("_list:\t0-3\n", "_list:\t0-7\n");
         for (String path : new String[]{"/proc/self/status", "/proc/thread-self/status", "/proc/self/root/proc/self/status",
-                "/proc/self/task/124/status"}) {
+                "/proc/self/task/124/status", "/data/user/0/app/files/mine"}) {
             result = Scripts.run(globals, links + "return statusof('" + path + "', [[" + status + "]])");
             assertEquals(path, "true 0-3 0-7", result.arg1().tojstring());
             assertEquals(path, fake, result.arg(2).tojstring());
@@ -609,6 +730,82 @@ public class FingerprintScriptsTest {
             assertEquals(path, "false nil nil", result.arg1().tojstring());
             assertEquals(path, same, result.arg(2).tojstring());
         }
+    }
+
+    // The layout of each processor, which every kernel has, is that of 8 equal cores in one cluster, also by the links
+    // of /sys/bus/cpu/devices, and each has the capacity of a kernel without capacities; die_id stays, like the other
+    // files Linux prints the same for all layouts, and so do the files of the processors after cpu7, which do not exist
+    @Test
+    public void processorLayoutIsOneClusterOfEight() throws Exception {
+        Globals globals = load("cpu_count");
+        String files = "local CANONICAL = {}\n" +
+                "luajava.newInstance = function(name, path) assert(name == 'java.io.File')\n" +
+                "  return { getCanonicalPath = function(self) return CANONICAL[path] or path end } end\n" +
+                "local function read(path, text, canonical)\n" +
+                "  CANONICAL[path] = canonical\n" +
+                "  local p = paramof('fd', { [0] = path })\n" +
+                "  p.getFileText = function(self) return text end\n" +
+                "  p.setFileText = function(self, value) text = value end\n" +
+                "  after(hookof('open'), p)\n" +
+                "  return text\n" +
+                "end\n";
+        String cpu = "/sys/devices/system/cpu/";
+        String[][] layout = {
+                {"cpu3/topology/core_id", "1\n", "3\n"}, {"cpu0/topology/core_id", "0\n", "0\n"},
+                {"cpu6/topology/physical_package_id", "2\n", "0\n"}, {"cpu6/topology/cluster_id", "2\n", "0\n"},
+                {"cpu3/topology/thread_siblings", "08\n", "08\n"}, {"cpu5/topology/core_cpus", "20\n", "20\n"},
+                {"cpu5/topology/core_cpus_list", "5\n", "5\n"}, {"cpu7/topology/thread_siblings_list", "7\n", "7\n"},
+                {"cpu4/topology/core_siblings", "70\n", "ff\n"}, {"cpu4/topology/core_siblings_list", "4-6\n", "0-7\n"},
+                {"cpu0/topology/package_cpus", "0f\n", "ff\n"}, {"cpu7/topology/cluster_cpus_list", "7\n", "0-7\n"},
+                {"cpu2/topology/die_id", "-1\n", "-1\n"}, {"cpu7/cpu_capacity", "1024\n", "1024\n"},
+                {"cpu0/cpu_capacity", "325\n", "1024\n"}, {"cpu9/topology/core_id", "1\n", "1\n"}};
+        for (String[] file : layout) {
+            Varargs result = Scripts.run(globals, files + "return read('" + cpu + file[0] + "', '" + file[1].replace("\n", "\\n") + "')");
+            assertEquals(file[0], file[2], result.arg1().tojstring());
+        }
+        Varargs result = Scripts.run(globals, files + "return read('/sys/bus/cpu/devices/cpu4/topology/core_siblings_list', " +
+                "'4-6\\n', '" + cpu + "cpu4/topology/core_siblings_list')");
+        assertEquals("0-7\n", result.arg1().tojstring());
+    }
+
+    // A SecureDirectoryStream opens the same files by the descriptor of their folder and their name (openat), which the
+    // script resolves by the link of the descriptor it returned, read with disk reads allowed, like cpuinfo does for
+    // /proc/cpuinfo, so both give 8 processors: the ranges and the layout of /sys and the status files of /proc; a name
+    // of these in another folder and a descriptor without a link stay, and other names are not resolved
+    @Test
+    public void processorsByDescriptorAreEight() throws Exception {
+        Globals globals = load("cpu_count");
+        String files = "local LINKS, policy, resolved = { [7] = '/sys/devices/system/cpu/possible',\n" +
+                "  [8] = '/sys/devices/system/cpu/cpu5/topology/cluster_id', [9] = '/proc/123/task/124/status',\n" +
+                "  [10] = '/sys/devices/system/memory/memory0/online' }, 'strict', 0\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.StrictMode' then\n" +
+                "    return { allowThreadDiskReads = function(self) policy = 'lax' return 'strict' end,\n" +
+                "      setThreadPolicy = function(self, value) policy = value end } end\n" +
+                "  assert(name == 'android.system.Os')\n" +
+                "  return { readlink = function(self, path) assert(policy == 'lax') resolved = resolved + 1\n" +
+                "    return LINKS[tonumber(string.match(path, '^/proc/self/fd/(%d+)$'))] or error('No link ' .. path) end } end\n" +
+                "luajava.newInstance = function(name, bytes) assert(name == 'java.lang.String') return bytes end\n" +
+                "local function readat(name, fd, text)\n" +
+                "  local p = paramof(fd, { [0] = 3, [1] = name })\n" +
+                "  p.getFileText = function(self) return text end\n" +
+                "  p.setFileText = function(self, value) text = value end\n" +
+                "  return tostring(after(hookof('openat'), p)) .. ' ' .. text\n" +
+                "end\n";
+        Varargs result = Scripts.run(globals, files +
+                "return readat('possible', 7, '0-5\\n'), readat('cluster_id', 8, '1\\n'),\n" +
+                "  readat('status', 9, 'Name:\\tprobe\\nCpus_allowed:\\tf\\nCpus_allowed_list:\\t0-3\\n'),\n" +
+                "  readat('online', 10, '0\\n'), readat('online', 11, '0\\n'), readat('scaling_cur_freq', 7, '300000\\n'),\n" +
+                "  policy, resolved, tostring(filter(hookof('openat')))");
+        assertEquals("true 0-7\n", result.arg1().tojstring());
+        assertEquals("true 0\n", result.arg(2).tojstring());
+        assertEquals("true Name:\tprobe\nCpus_allowed:\tff\nCpus_allowed_list:\t0-7\n", result.arg(3).tojstring());
+        assertEquals("false 0\n", result.arg(4).tojstring());
+        assertEquals("false 0\n", result.arg(5).tojstring());
+        assertEquals("false 300000\n", result.arg(6).tojstring());
+        assertEquals("strict", result.arg(7).tojstring());
+        assertEquals(5, result.arg(8).toint());
+        assertEquals("nil", result.arg(9).tojstring());
     }
 
     @Test
@@ -855,7 +1052,9 @@ public class FingerprintScriptsTest {
     public void photoTagsOfTheAppAndOfAndroidStay() throws Exception {
         Globals globals = load("photo_location");
         Varargs result = Scripts.run(globals,
-                "local exif = { getAttribute = function(self, tag) return ({ GPSLatitudeRef = '', GPSAltitude = '0/0' })[tag] end }\n" +
+                "exifclass = 'android.media.ExifInterface'\n" +
+                        "local exif = { getClass = function() return luajava.bindClass(exifclass) end,\n" +
+                        "  getAttribute = function(self, tag) return ({ GPSLatitudeRef = '', GPSAltitude = '0/0' })[tag] end }\n" +
                         "local values = {}\n" +
                         "local function on(param) param.getThis = function() return exif end\n" +
                         "  param.putValue = function(self, name, value, scope) values[name] = value end\n" +
@@ -873,7 +1072,8 @@ public class FingerprintScriptsTest {
                         "local removed = on(paramof(true, { [0] = 'array' }))\n" +
                         "after(hookof('getLatLong', 'boolean'), removed)\n" +
                         "return after(hookof('getAttribute'), set), set.result, latlong.result, after(hookof('getAttribute'), ref),\n" +
-                        "  after(hookof('hasAttribute', 'boolean'), has), has.result, after(hookof('getAttributeDouble'), double),\n" +
+                        "  after(hookof('hasAttribute', 'boolean', exifclass), has), has.result,\n" +
+                        "  after(hookof('getAttributeDouble', nil, exifclass), double),\n" +
                         "  after(hookof('getAttribute'), real), real.result, removed.result");
         assertEquals("false 52/1,31/1,0/1 true false false true false true nil false", text(result));
 
@@ -888,6 +1088,106 @@ public class FingerprintScriptsTest {
         LuaValue bytes = globals.get("xmp").call(LuaValue.NIL,
                 org.luaj.vm2.lib.jse.CoerceJavaToLua.coerce(xmp.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1)));
         assertArrayEquals(blanked.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1), (byte[]) bytes.touserdata(byte[].class));
+    }
+
+    // Stand-ins of the classes of the objects of the ExifInterface hooks, whose getAttribute photo_location finds by
+    // reflection: the class of AndroidX, a subclass of the app of the class of Android which overrides nothing, and one
+    // which overrides getAttribute
+    public static class AndroidxExif {
+        public String getAttribute(String tag) {
+            return null;
+        }
+    }
+
+    public static class PlainExif extends android.media.ExifInterface {
+        public PlainExif() throws IOException {
+            super("");
+        }
+    }
+
+    public static class OwnExif extends android.media.ExifInterface {
+        public OwnExif() throws IOException {
+            super("");
+        }
+
+        @Override
+        public String getAttribute(String tag) {
+            return null;
+        }
+    }
+
+    // A tag is read only from an object which runs the getAttribute of the hooked class: of AndroidX and the support
+    // library, which are code in the app, with the hooks, whose getAttribute keeps a zeroed tag and gives a real one as
+    // missing, so hasAttribute and the getters agree with getAttribute, and a missing tag needs no read; of Android
+    // without them, also for a subclass of the app which overrides nothing, which answers like the class of Android; a
+    // read which fails is not zeroed. A subclass which overrides getAttribute is not read: an override which gives 0/0
+    // does not keep the real tags, and one which asks hasAttribute does not come back without end.
+    @Test
+    public void photoTagsOfClassesOfTheAppAreReadWithTheHooks() throws Exception {
+        Globals globals = load("photo_location");
+        String setup = "local unhooked, reads = false, 0\n" +
+                "local raw = { GPSLatitude = '52/1,31/1,0/1', GPSAltitude = '0/0' }\n" +
+                "local exif, class\n" +
+                "local function on(param)\n" +
+                "  param.getThis = function() return exif end\n" +
+                "  param.unhooked = function(self, f)\n" +
+                "    unhooked = true\n" +
+                "    local ok, value = pcall(f)\n" +
+                "    unhooked = false\n" +
+                "    if not ok then error(value, 0) end\n" +
+                "    return value\n" +
+                "  end\n" +
+                "  return param\n" +
+                "end\n" +
+                "local function call(method, result, tag, default)\n" +
+                "  local p = on(paramof(result, { [0] = tag, [1] = default }))\n" +
+                "  local restricted = after(hookof(method, method == 'hasAttribute' and 'boolean' or nil, class), p)\n" +
+                "  return tostring(restricted) .. ':' .. tostring(p.result)\n" +
+                "end\n" +
+                "local function classof(name) return function() return luajava.bindClass(name) end end\n" +
+                // Like the engine, which runs the hook of getAttribute on what the class gives; a class of the test stands
+                // for the class of AndroidX, which is not there
+                "local androidx = { getClass = classof(androidxclass),\n" +
+                "  getAttribute = function(self, tag)\n" +
+                "    assert(not unhooked, 'code of the app without the hooks')\n" +
+                "    if tag == 'GPSImgDirection' then error('a read which fails') end\n" +
+                "    local p = on(paramof(raw[tag], { [0] = tag }))\n" +
+                "    after(hookof('getAttribute', nil, class), p)\n" +
+                "    return p.result\n" +
+                "  end }\n" +
+                "local function android(name) return { getClass = classof(name),\n" +
+                "  getAttribute = function(self, tag) assert(unhooked, 'with the hooks') return raw[tag] end } end\n" +
+                // Subclasses of the app which override getAttribute: one gives 0/0 for every tag, one asks hasAttribute,
+                // which is hooked
+                "local zeroing = { getClass = classof(ownclass),\n" +
+                "  getAttribute = function(self, tag) reads = reads + 1 return '0/0' end }\n" +
+                "local asking = { getClass = classof(ownclass),\n" +
+                "  getAttribute = function(self, tag)\n" +
+                "    reads = reads + 1\n" +
+                "    assert(reads < 3, 'without end')\n" +
+                "    return call('hasAttribute', true, tag) == 'false:true' and raw[tag] or nil\n" +
+                "  end }\n";
+        globals.set("androidxclass", AndroidxExif.class.getName());
+        globals.set("ownclass", OwnExif.class.getName());
+        Varargs result = Scripts.run(globals, setup + "exif, class = androidx, androidxclass\n" +
+                "return call('hasAttribute', true, 'GPSLatitude'), call('hasAttribute', true, 'GPSAltitude'),\n" +
+                "  call('getAttribute', '0/0', 'GPSAltitude'), call('getAttribute', nil, 'GPSLongitude'),\n" +
+                "  call('getAttributeDouble', -1, 'GPSLongitude', -1), call('getAttributeDouble', 52.5, 'GPSLatitude', 0),\n" +
+                "  call('hasAttribute', true, 'GPSImgDirection')");
+        assertEquals("true:false false:true false:0/0 false:nil false:-1 true:0 true:false", text(result));
+        for (String name : new String[]{"android.media.ExifInterface", PlainExif.class.getName()}) {
+            result = Scripts.run(globals, setup + "exif, class = android('" + name + "'), 'android.media.ExifInterface'\n" +
+                    "return call('hasAttribute', true, 'GPSLatitude'), call('hasAttribute', true, 'GPSAltitude'),\n" +
+                    "  call('getAttribute', '0/0', 'GPSAltitude'), call('getAttributeBytes', 'bytes', 'GPSAltitude'),\n" +
+                    "  call('getAttributeDouble', 52.5, 'GPSLatitude', 0)");
+            assertEquals(name, "true:false false:true false:0/0 false:bytes true:0", text(result));
+        }
+        for (String subclass : new String[]{"zeroing", "asking"}) {
+            result = Scripts.run(globals, setup + "exif, class = " + subclass + ", 'android.media.ExifInterface'\n" +
+                    "return call('hasAttribute', true, 'GPSLatitude'), call('getAttributeBytes', 'bytes', 'GPSLatitude'),\n" +
+                    "  call('getAttributeDouble', 52.5, 'GPSLatitude', 0), call('getAttribute', '0/0', 'GPSAltitude'), reads");
+            assertEquals(subclass, "true:false true:nil true:0 false:0/0 0", text(result));
+        }
     }
 
     // Photos and videos of the app's own APK keep their location: an ExifInterface of an asset or a raw resource (an
@@ -1162,12 +1462,16 @@ public class FingerprintScriptsTest {
         assertTrue(rewrite.invoke(LuaValue.valueOf("latitude FROM files --"), LuaValue.NIL, LuaValue.TRUE).arg(2).toboolean());
         assertFalse(rewrite.invoke(LuaValue.valueOf("(SELECT _id FROM files)"), LuaValue.NIL, LuaValue.TRUE).arg(2).toboolean());
 
+        // getString and getStringArray of a value of another type log a warning with the stack in the app (BaseBundle)
         String stubs = "local probes = {}\n" +
                 "local function bundleof(values)\n" +
                 "  local b = { values = values }\n" +
-                "  b.getString = function(self, k) return self.values[k] end\n" +
+                "  b.get = function(self, k) return self.values[k] end\n" +
+                "  b.getString = function(self, k)\n" +
+                "    assert(self.values[k] == nil or type(self.values[k]) == 'string', 'typeWarning') return self.values[k] end\n" +
                 "  b.putString = function(self, k, v) self.values[k] = v end\n" +
-                "  b.getStringArray = function(self, k) return self.values[k] end\n" +
+                "  b.getStringArray = function(self, k)\n" +
+                "    assert(self.values[k] == nil or type(self.values[k]) == 'table', 'typeWarning') return self.values[k] end\n" +
                 "  b.putStringArray = function(self, k, v) self.values[k] = v end\n" +
                 "  return b\n" +
                 "end\n" +
@@ -1212,10 +1516,43 @@ public class FingerprintScriptsTest {
                 "  return { getColumnIndex = function(self, n) return n == 'latitude' and 0 or -1 end,\n" +
                 "    getDouble = function(self, i) return 52.5 end }\n" +
                 "end\n" +
+                // A resolver of a context of Android, unless the test gives another class; that class is hidden, so it
+                // is not there for the tests
+                "local RESOLVER = {}\n" +
+                "local bound = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.app.ContextImpl$ApplicationContentResolver' then return RESOLVER end\n" +
+                "  return bound(name)\n" +
+                "end\n" +
+                "local function framework(this)\n" +
+                "  this.getClass = this.getClass or function() return RESOLVER end\n" +
+                "  return this\n" +
+                "end\n" +
+                // XParam.plainQueryArgs, made with the hooks: the query arguments of the Bundle only
+                "local unhooked = false\n" +
+                "local function plain(self, bundle)\n" +
+                "  assert(not unhooked, 'the Bundle of the app read without the hooks')\n" +
+                "  if bundle == nil then return nil end\n" +
+                "  local values = {}\n" +
+                "  for k, v in pairs(bundle.values) do\n" +
+                "    if string.find(k, '^android:query%-arg%-') then values[k] = v end\n" +
+                "  end\n" +
+                "  return bundleof(values)\n" +
+                "end\n" +
                 "local function query(this, authority, projection, bundle, path)\n" +
                 "  local p = paramof(cursor(), { [0] = uri(authority, path), [1] = projection, [2] = bundle })\n" +
-                "  p.this = this\n" +
+                "  p.this = framework(this)\n" +
                 "  p.getApplicationContext = function(self) return context end\n" +
+                "  p.unhooked = function(self, f)\n" +
+                "    unhooked = true\n" +
+                "    local ok, value = pcall(f)\n" +
+                "    unhooked = false\n" +
+                "    if not ok then error(value, 0) end\n" +
+                "    return value\n" +
+                "  end\n" +
+                "  p.plainQueryArgs = plain\n" +
+                "  p.isInstance = function(self, object, name)\n" +
+                "    return name == '[Ljava.lang.String;' and type(object) == 'table' and object.length ~= nil end\n" +
                 "  before(hookof('query'), p)\n" +
                 "  return p\n" +
                 "end\n" +
@@ -1271,6 +1608,25 @@ public class FingerprintScriptsTest {
         // Only the query without a projection of the table without a location asked the provider
         assertEquals("nil 0", result.arg(13).tojstring());
 
+        // Values of other types, which the provider reads as none, are left as they are, without reading them by their
+        // type; a user Android cannot read as a number is of no provider, which the query leaves to Android, like one
+        // past the numbers of Java
+        result = Scripts.run(globals, stubs +
+                "local typed = bundleof({ ['android:query-arg-sql-selection'] = 1,\n" +
+                "  ['android:query-arg-sql-sort-order'] = arrayof('latitude'), ['android:query-arg-sort-columns'] = 'latitude' })\n" +
+                "local p = query(photos, 'media', arrayof('latitude'), typed)\n" +
+                "local projection = arrayof('latitude')\n" +
+                "local function other(authority) return query(photos, authority, projection, nil).args[1] == projection end\n" +
+                "return joined(p.args[1]), p.args[2] == typed, other('x@media'), other('2147483648@media'), other('@media'),\n" +
+                "  other('1@2@media'), other('+10@media'), other('-1@media'), table.concat(probes, ',')");
+        assertEquals("NULLIF(latitude, latitude) AS latitude", result.arg1().tojstring());
+        assertTrue(result.arg(2).toboolean());
+        for (int i = 3; i <= 6; i++)
+            assertTrue(String.valueOf(i), result.arg(i).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals("", result.arg(9).tojstring());
+
         // A provider which gives no columns leaves the cursor to the proxy of after
         result = Scripts.run(globals, stubs +
                 "local failing = { query = function(self) error('provider died') end }\n" +
@@ -1279,6 +1635,37 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg1().isnil());
         assertTrue(result.arg(2).toboolean());
         assertEquals(0, result.arg(3).todouble(), 0);
+
+        // A resolver of a subclass of the app is not asked without the hooks, as its query runs code of the app, like
+        // acquireUnstableProvider: the resolver of the context is, when it is of Android; else none is, which leaves the
+        // cursor to the proxy of after
+        result = Scripts.run(globals, stubs +
+                "local app = { getClass = function() return luajava.bindClass('java.lang.Object') end,\n" +
+                "  query = function(self) error('code of the app without the hooks') end }\n" +
+                "context.getContentResolver = function(self) return framework(photos) end\n" +
+                "local asked = query(app, 'media', nil, nil)\n" +
+                "context.getContentResolver = function(self) return app end\n" +
+                "local none = query(app, 'media', nil, nil)\n" +
+                "return joined(asked.args[1]), none.args[1], after(hookof('query'), none), table.concat(probes, ',')");
+        assertEquals("_id|title|NULL AS latitude|NULL AS longitude", result.arg1().tojstring());
+        assertTrue(result.arg(2).isnil());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("nil 0", result.arg(4).tojstring());
+
+        // Nor is a client of a provider, whose provider can be of the app, like the one of a MockContentResolver of tests:
+        // the resolver of the context is, without the hooks
+        result = Scripts.run(globals, stubs +
+                "local seen = {}\n" +
+                "local client = { getClass = function() return luajava.bindClass('android.content.ContentProviderClient') end,\n" +
+                "  query = function(self) error('code of the app without the hooks') end }\n" +
+                "context.getContentResolver = function(self) return framework({ query = function(self, uri, projection, args)\n" +
+                "  table.insert(seen, tostring(unhooked) .. ' ' .. args:getString('android:query-arg-sql-selection'))\n" +
+                "  return { getColumnNames = function(self) return arrayof('_id', 'latitude') end, close = function(self) end }\n" +
+                "end }) end\n" +
+                "local p = query(client, 'media', nil, nil)\n" +
+                "return joined(p.args[1]), table.concat(seen, ',')");
+        assertEquals("_id|NULL AS latitude", result.arg1().tojstring());
+        assertEquals("true 0", result.arg(2).tojstring());
 
         // Without the app op of storage the provider gives no rows on /external/, named like the projection: the
         // query stays, without a proxy; not on /internal/, and not with a grant of the uri
@@ -1407,6 +1794,7 @@ public class FingerprintScriptsTest {
                 "local other = refused(answering(true), arrayof('latitude'), 'java.lang.SecurityException')\n" +
                 "local kept = refused(answering(true), arrayof('_id'), sqlite)\n" +
                 "local broken = refused({ query = function(self) error('a bug') end }, arrayof('latitude'), sqlite)\n" +
+
                 "return faked, p.result:toString(), p.result:getStackTrace()['length'], p.result:getStackTrace()[1]:toString(),\n" +
                 "  ex:getStackTrace()[1]:toString(), proxied, works.set, opened.closed, after(hookof('query'), other), other.set,\n" +
                 "  after(hookof('query'), kept), kept.set, after(hookof('query'), broken), broken.set, table.concat(seen, ',')");
@@ -1425,6 +1813,56 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(14).toboolean());
         // Asked with the projection and the Bundle of the app, only for the errors of SQLite after a change
         assertEquals("latitude x = 1,latitude x = 1", result.arg(15).tojstring());
+
+        // A resolver of a subclass of the app is not asked again either: the resolver of the context is
+        result = Scripts.run(globals, stubs +
+                "local seen = 0\n" +
+                "local app = { getClass = function() return luajava.bindClass('java.lang.Object') end,\n" +
+                "  query = function(self) error('code of the app without the hooks') end }\n" +
+                "context.getContentResolver = function(self) return framework({ query = function(self)\n" +
+                "  seen = seen + 1 return luajava.bindClass('java.lang.Integer'):parseInt('no such column: x') end }) end\n" +
+                "local p = query(app, 'media', arrayof('latitude'), bundleof({ ['android:query-arg-sql-selection'] = 'x = 1' }))\n" +
+                "local ex = luajava.new(luajava.bindClass('java.lang.IllegalStateException'), 'compiling: SELECT NULL AS latitude')\n" +
+                "p.result = nil\n" +
+                "p.getException = function(self) return ex end\n" +
+                "p.isInstance = function(self, object, name) return not string.find(tostring(object), 'LuaError', 1, true) end\n" +
+                "return after(hookof('query'), p), p.result:toString(), seen");
+        assertFalse(result.arg1().toboolean());
+        assertEquals("java.lang.NumberFormatException: For input string: \"no such column: x\"", result.arg(2).tojstring());
+        assertEquals(1, result.arg(3).toint());
+
+        // Asked again with a copy of the query arguments of the Bundle of the app (XParam.plainQueryArgs), made with the
+        // hooks, as the query parcels the Bundle, where values of the app would run their code without them; a client is
+        // asked again through the resolver of the context
+        result = Scripts.run(globals, stubs +
+                "local got = {}\n" +
+                "local resolver = framework({ query = function(self, uri, projection, args)\n" +
+                "  table.insert(got, { unhooked = unhooked, args = args })\n" +
+                "  return luajava.bindClass('java.lang.Integer'):parseInt('no such column: x') end })\n" +
+                "local client = { getClass = function() return luajava.bindClass('android.content.ContentProviderClient') end,\n" +
+                "  query = function(self) error('code of the app without the hooks') end }\n" +
+                "context.getContentResolver = function(self) return resolver end\n" +
+                "local function refused(this, bundle)\n" +
+                "  local p = query(this, 'media', arrayof('latitude'), bundle)\n" +
+                "  local ex = luajava.new(luajava.bindClass('java.lang.IllegalStateException'), 'compiling: SELECT NULL AS latitude')\n" +
+                "  p.result = nil\n" +
+                "  p.getException = function(self) return ex end\n" +
+                "  p.isInstance = function(self, object, name) return not string.find(tostring(object), 'LuaError', 1, true) end\n" +
+                "  after(hookof('query'), p)\n" +
+                "  return p\n" +
+                "end\n" +
+                "local app = bundleof({ ['android:query-arg-sql-selection'] = 'x = 1', app = 'parcelable of the app' })\n" +
+                "local p = refused(resolver, app)\n" +
+                "local q = refused(client, app)\n" +
+                "local list = {}\n" +
+                "for _, call in ipairs(got) do\n" +
+                "  table.insert(list, tostring(call.unhooked) .. ' ' .. tostring(call.args == app) .. ' ' ..\n" +
+                "    call.args:getString('android:query-arg-sql-selection') .. ' ' .. tostring(call.args.values.app))\n" +
+                "end\n" +
+                "return table.concat(list, ','), p.result:toString(), q.result:toString()");
+        assertEquals("true false x = 1 nil,true false x = 1 nil", result.arg1().tojstring());
+        assertEquals("java.lang.NumberFormatException: For input string: \"no such column: x\"", result.arg(2).tojstring());
+        assertEquals(result.arg(2).tojstring(), result.arg(3).tojstring());
     }
 
     @Test
@@ -1542,6 +1980,221 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(6).isnil());
     }
 
+    // A system certificate the user disabled is there, like on a device where it is enabled: the store asks for those
+    // itself, which its other methods use too, and the accepted issuers of the trust manager have it, unless the app
+    // trusts no system certificate
+    @Test
+    public void disabledSystemCertificatesAreListed() throws Exception {
+        Globals globals = load("device_details");
+        Varargs result = Scripts.run(globals,
+                "local function ask(method, ...)\n" +
+                        "  local hook = hookof(method)\n" +
+                        "  local count = select('#', ...)\n" +
+                        "  hook.getParameterTypes = function(self) return { length = count } end\n" +
+                        "  local args = { ... }\n" +
+                        "  local param = paramof(nil, { [0] = args[1], args[2] })\n" +
+                        "  return before(hook, param), param.args[1], param.set\n" +
+                        "end\n" +
+                        "local a, b, c = ask('getCertificate', 'system:abc.0', false)\n" +
+                        "local d, e = ask('getCertificate', 'system:abc.0', true)\n" +
+                        "local f, g = ask('getCertificate', 'system:abc.0')\n" +
+                        "local h, i = ask('getCertificateAlias', 'certificate', false)\n" +
+                        "return a, b, c, d, e, f, g, h, i");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(7).isnil());
+        assertFalse(result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
+
+        // The disabled ones are those of the folder of the user of the app which the system ones have, read only when
+        // that folder has files, and again only when it changed; the system ones of the conscrypt module from Android
+        // 14 when it has them and system.certs.enabled is not true, else of the system
+        result = Scripts.run(load("device_details"),
+                "local real, bind = luajava.newInstance, luajava.bindClass\n" +
+                        "local folders, removed, apex = {}, '/data/misc/user/10/cacerts-removed', '/apex/com.android.conscrypt/cacerts'\n" +
+                        "local modified, sdk, certs = 1, 34, nil\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name == 'android.os.Process' then return { myUid = function(self) return 1010123 end } end\n" +
+                        "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                        "  if name == 'java.lang.System' then return { getenv = function(self, key) return '/root' end,\n" +
+                        "    getProperty = function(self, key) return key == 'system.certs.enabled' and certs or nil end } end\n" +
+                        "  return { getInstance = function(self, type) return { generateCertificate = function(self, stream)\n" +
+                        "    return stream.file ~= 'broken' and stream.file or error('bad') end } end }\n" +
+                        "end\n" +
+                        "local closed = 0\n" +
+                        "luajava.newInstance = function(name, ...)\n" +
+                        "  local value = ...\n" +
+                        "  if name == 'java.io.File' then return { listFiles = function(self) return folders[value] end,\n" +
+                        "    lastModified = function(self) return modified end } end\n" +
+                        "  if name == 'java.io.FileInputStream' then\n" +
+                        "    return { file = value, close = function(self) closed = closed + 1 end } end\n" +
+                        "  return real(name, ...)\n" +
+                        "end\n" +
+                        "local values = {}\n" +
+                        "local param = paramof(nil)\n" +
+                        "param.getValue = function(self, name, scope) return scope == nil and values[name] or nil end\n" +
+                        "param.putValue = function(self, name, value, scope) if scope == nil then values[name] = value end end\n" +
+                        "local function changed() modified = modified + 1 return disabledcertificates(param) end\n" +
+                        "local none = disabledcertificates(param)\n" +
+                        "folders[removed] = { length = 0 }\n" +
+                        "local empty = changed()\n" +
+                        "folders[removed] = { length = 2, 'a', 'z' }\n" +
+                        "folders[apex] = { length = 3, 'a', 'b', 'broken' }\n" +
+                        "folders['/root/etc/security/cacerts'] = { length = 1, 'z' }\n" +
+                        "local system, disabled = changed()\n" +
+                        "local read = closed\n" +
+                        "local _, same = disabledcertificates(param)\n" +
+                        "local kept = closed\n" +
+                        "certs = 'true'\n" +
+                        "local _, enabled = changed()\n" +
+                        "certs, sdk = nil, 33\n" +
+                        "local _, old = changed()\n" +
+                        "sdk, folders[apex] = 34, { length = 0 }\n" +
+                        "local _, fallback = changed()\n" +
+                        "luajava.newInstance, luajava.bindClass = real, bind\n" +
+                        "return none, empty, system:size(), disabled:size(), disabled:get(0), read, same == disabled, kept,\n" +
+                        "  enabled:get(0), old:get(0), fallback:get(0), closed");
+        assertTrue(result.arg(1).isnil());
+        assertTrue(result.arg(2).isnil());
+        assertEquals(2, result.arg(3).toint());
+        assertEquals(1, result.arg(4).toint());
+        assertEquals("a", result.arg(5).tojstring());
+        // Each file is closed, also a broken one, and the kept ones are not read again
+        assertEquals(5, result.arg(6).toint());
+        assertTrue(result.arg(7).toboolean());
+        assertEquals(5, result.arg(8).toint());
+        assertEquals("z", result.arg(9).tojstring());
+        assertEquals("z", result.arg(10).tojstring());
+        assertEquals("z", result.arg(11).tojstring());
+        assertEquals(14, result.arg(12).toint());
+
+        // The accepted issuers of the trust manager: with the disabled ones when the app trusts the system ones
+        result = Scripts.run(globals,
+                "local real, bind = luajava.newInstance, luajava.bindClass\n" +
+                        "local system, disabled = real('java.util.HashSet'), real('java.util.ArrayList')\n" +
+                        "system:add('sys') system:add('dis')\n" +
+                        "function disabledcertificates() return system, disabled end\n" +
+                        "function addedcertificates() return nil end\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  return bind(name == 'java.security.cert.X509Certificate' and 'java.lang.Object' or name) end\n" +
+                        "local function issuers(...)\n" +
+                        "  local param = paramof({ length = select('#', ...), ... })\n" +
+                        "  return after(hookof('getAcceptedIssuers'), param), param.result\n" +
+                        "end\n" +
+                        "local a = issuers('own', 'sys')\n" +
+                        "disabled:add('dis')\n" +
+                        "local b, c = issuers('own', 'sys')\n" +
+                        "local d = issuers('own')\n" +
+                        "local e = issuers('own', 'sys', 'dis')\n" +
+                        "local f = issuers()\n" +
+                        "luajava.bindClass = bind\n" +
+                        "return a, b, c['length'], c[3], d, e, f");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals(3, result.arg(3).toint());
+        assertEquals("dis", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+    }
+
+    // The certificates the user installed are not among the accepted issuers either, like they are not among the
+    // aliases, also when the user disabled none; one the system has too stays, like its system alias
+    @Test
+    public void userCertificatesAreNoAcceptedIssuers() throws Exception {
+        Globals globals = load("device_details");
+        Varargs result = Scripts.run(globals,
+                "local real, bind = luajava.newInstance, luajava.bindClass\n" +
+                        "local system, disabled, added = nil, nil, real('java.util.HashSet')\n" +
+                        "added:add('usr')\n" +
+                        "function disabledcertificates() return system, disabled end\n" +
+                        "function addedcertificates() return added end\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  return bind(name == 'java.security.cert.X509Certificate' and 'java.lang.Object' or name) end\n" +
+                        "local function issuers(...)\n" +
+                        "  local param = paramof({ length = select('#', ...), ... })\n" +
+                        "  return after(hookof('getAcceptedIssuers'), param), param.result\n" +
+                        "end\n" +
+                        "local a, b = issuers('own', 'sys', 'usr')\n" +
+                        "local c = issuers('own', 'sys')\n" +
+                        "system, disabled = real('java.util.HashSet'), real('java.util.ArrayList')\n" +
+                        "system:add('sys') system:add('dis') disabled:add('dis')\n" +
+                        "local d, e = issuers('usr', 'sys')\n" +
+                        "local f, g = issuers('usr', 'own')\n" +
+                        "luajava.bindClass = bind\n" +
+                        "return a, b['length'], b[1], b[2], c, d, e['length'], e[1], e[2], f, g['length'], g[1]");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(2, result.arg(2).toint());
+        assertEquals("own", result.arg(3).tojstring());
+        assertEquals("sys", result.arg(4).tojstring());
+        assertFalse(result.arg(5).toboolean());
+        // With a disabled one, and of an app which trusts no system certificate without the disabled one
+        assertTrue(result.arg(6).toboolean());
+        assertEquals(2, result.arg(7).toint());
+        assertEquals("sys", result.arg(8).tojstring());
+        assertEquals("dis", result.arg(9).tojstring());
+        assertTrue(result.arg(10).toboolean());
+        assertEquals(1, result.arg(11).toint());
+        assertEquals("own", result.arg(12).tojstring());
+
+        // The installed ones are those of the folder of the user of the app, without those the system folder has by the
+        // same hash, read again only when the folder changed; a file which cannot be opened is left out, not the others
+        result = Scripts.run(load("device_details"),
+                "local real, bind = luajava.newInstance, luajava.bindClass\n" +
+                        "local folders, files, modified = {}, {}, 1\n" +
+                        "local added, root = '/data/misc/user/10/cacerts-added', '/root/etc/security/cacerts'\n" +
+                        "local certificates = {}\n" +
+                        "for _, name in ipairs({ 'other', 'dup', 'usr' }) do\n" +
+                        "  certificates[name] = { equals = function(self, other) return self == other end }\n" +
+                        "end\n" +
+                        "local function file(path, certificate)\n" +
+                        "  files[path] = { path = path, certificate = certificates[certificate],\n" +
+                        "    getName = function(self) return string.match(path, '[^/]+$') end }\n" +
+                        "  return files[path]\n" +
+                        "end\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name == 'android.os.Process' then return { myUid = function(self) return 1010123 end } end\n" +
+                        "  if name == 'android.os.Build$VERSION' then return { SDK_INT = 33 } end\n" +
+                        "  if name == 'java.lang.System' then return { getenv = function(self, key) return '/root' end } end\n" +
+                        "  return { getInstance = function(self, type) return { generateCertificate = function(self, stream)\n" +
+                        "    return stream.file.certificate or error('bad') end } end }\n" +
+                        "end\n" +
+                        "local read = 0\n" +
+                        "luajava.newInstance = function(name, ...)\n" +
+                        "  local value = ...\n" +
+                        "  if name == 'java.io.File' then return { path = value, listFiles = function(self) return folders[value] end,\n" +
+                        "    lastModified = function(self) return modified end,\n" +
+                        "    exists = function(self) return files[value] ~= nil end } end\n" +
+                        "  if name == 'java.io.FileInputStream' then read = read + 1\n" +
+                        "    if string.find(value.path, 'locked', 1, true) then error('EACCES') end\n" +
+                        "    return { file = files[value.path], close = function(self) end } end\n" +
+                        "  return real(name, ...)\n" +
+                        "end\n" +
+                        "local values = {}\n" +
+                        "local param = paramof(nil)\n" +
+                        "param.getValue = function(self, name, scope) return scope == nil and values[name] or nil end\n" +
+                        "param.putValue = function(self, name, value, scope) if scope == nil then values[name] = value end end\n" +
+                        "local none = addedcertificates(param)\n" +
+                        "file(root .. '/abc.0', 'other') file(root .. '/abc.1', 'dup')\n" +
+                        "folders[added] = { length = 4, file(added .. '/abc.0', 'dup'), file(added .. '/locked.0', 'other'),\n" +
+                        "  file(added .. '/def.0', 'usr'), file(added .. '/bad.0', nil) }\n" +
+                        "modified = 2\n" +
+                        "local set = addedcertificates(param)\n" +
+                        "local count = read\n" +
+                        "local same = addedcertificates(param) == set\n" +
+                        "luajava.newInstance, luajava.bindClass = real, bind\n" +
+                        "return none, set:size(), set:contains(certificates.usr), same, read == count");
+        assertTrue(result.arg(1).isnil());
+        assertEquals(1, result.arg(2).toint());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+    }
+
     // A system alias with ../ which leaves the folder of the system certificates is the user's one, so it is hidden too
     @Test
     public void aliasesLeavingTheSystemFolderAreHidden() throws Exception {
@@ -1612,8 +2265,8 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(7).toboolean());
         assertTrue(result.arg(8).isnil());
         assertFalse(result.arg(9).toboolean());
-        // A system certificate the user disabled has none, unless the caller asks for those, like Android
-        assertTrue(result.arg(10).isnil());
+        // A system certificate the user disabled has its alias, like one which is enabled
+        assertEquals("system:abc.1", result.arg(10).tojstring());
         assertEquals("system:abc.1", result.arg(11).tojstring());
         assertTrue(result.arg(12).toboolean());
         assertFalse(result.arg(13).toboolean());
@@ -1790,6 +2443,53 @@ public class FingerprintScriptsTest {
             assertFalse("Value " + i, result.arg(i).toboolean());
     }
 
+    // The least buffer of a track is the one Android works out for an output of 256 frames per buffer: two buffers of
+    // its mixer (768 frames at 44100 and 48000 Hz), of frames of the rate of the track, in bytes of the format
+    @Test
+    public void leastAudioBufferOfTheFakeFrames() throws Exception {
+        Globals globals = load("device_details");
+        Varargs result = Scripts.run(globals,
+                "return mixerframes(48000), mixerframes(44100), mixerframes(96000), mixerframes(16000), mixerframes(8000)");
+        assertEquals("768 768 1792 384 256", text(result));
+        result = Scripts.run(globals,
+                "local output = 48000\n" +
+                        "luajava.bindClass = function(name) return { getNativeOutputSampleRate = function(self, stream)\n" +
+                        "  return stream == 3 and output or -1 end } end\n" +
+                        "local function size(real, rate, channels, encoding)\n" +
+                        "  local param = paramof(real, { [0] = rate, channels, encoding })\n" +
+                        "  local restricted = after(hookof('getMinBufferSize'), param)\n" +
+                        "  return param.result, restricted\n" +
+                        "end\n" +
+                        "local a = size(15376, 48000, 12, 2)\n" +
+                        "local b = size(15376, 48000, 3, 2)\n" +
+                        "local c = size(3844, 44100, 4, 2)\n" +
+                        "local d = size(30752, 48000, 12, 4)\n" +
+                        "local e = size(3844, 48000, 12, 5)\n" +
+                        "local f = size(46128, 48000, 252, 21)\n" +
+                        "local g, h = size(-2, 48000, 1, 2)\n" +
+                        "local i, j = size(-1, 48000, 12, 2)\n" +
+                        "output = 44100\n" +
+                        "local k = size(15376, 44100, 12, 2)\n" +
+                        "output = 0\n" +
+                        "local l, m = size(15376, 44100, 12, 2)\n" +
+                        "return a, b, c, d, e, f, g, h, i, j, k, l, m");
+        // Stereo and its old constant, mono at another rate (705 + 2 frames, + 2), float, AC3 in frames, 24 bit 5.1
+        assertEquals(6160, result.arg(1).toint());
+        assertEquals(6160, result.arg(2).toint());
+        assertEquals(2836, result.arg(3).toint());
+        assertEquals(12320, result.arg(4).toint());
+        assertEquals(1540, result.arg(5).toint());
+        assertEquals(27720, result.arg(6).toint());
+        // Errors stay, and so does the answer when the rate of the output is not known
+        assertEquals(-2, result.arg(7).toint());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals(-1, result.arg(9).toint());
+        assertFalse(result.arg(10).toboolean());
+        assertEquals(6160, result.arg(11).toint());
+        assertEquals(15376, result.arg(12).toint());
+        assertFalse(result.arg(13).toboolean());
+    }
+
     @Test
     public void detailsOfAPlainDevice() throws Exception {
         Globals globals = load("device_details");
@@ -1812,10 +2512,13 @@ public class FingerprintScriptsTest {
                         "after(hookof('aliases'), aliases)\n" +
                         "local contains = paramof(true, { [0] = 'user:def.0' })\n" +
                         "after(hookof('containsAlias'), contains)\n" +
+                        "local flagged = hookof('getCertificate')\n" +
+                        "flagged.getName = function(self) return 'TrustedCertificateStore.getCertificate/deleted' end\n" +
                         "return headroom.result ~= headroom.result, status.result, rate.result, frames.result,\n" +
                         "  amplitude.result, effects.set, effects.result, aliases.result:size(),\n" +
                         "  aliases.result:contains('system:abc.0'), contains.result,\n" +
-                        "  table.concat(filter(hookof('containsAlias')), ','), filter(hookof('aliases'))");
+                        "  table.concat(filter(hookof('containsAlias')), ','), filter(hookof('aliases')),\n" +
+                        "  table.concat(filter(flagged), ',')");
         assertTrue(result.arg1().toboolean());
         assertEquals(0, result.arg(2).toint());
         // The sample rate stays, the frames per buffer are common
@@ -1828,8 +2531,10 @@ public class FingerprintScriptsTest {
         assertEquals(1, result.arg(8).toint());
         assertTrue(result.arg(9).toboolean());
         assertFalse(result.arg(10).toboolean());
+        // The system aliases run the script only for the overload with the flag, which the others call (see before)
         assertEquals("user:*", result.arg(11).tojstring());
         assertTrue(result.arg(12).isnil());
+        assertEquals("user:*,system:*", result.arg(13).tojstring());
 
         // Arrays which are unknown or not supported already are not reported, like what Vibrator makes of the details
         // of the hooked getInfo
@@ -1869,8 +2574,10 @@ public class FingerprintScriptsTest {
         result = Scripts.run(globals,
                 "local certificate = paramof('certificate', { [0] = 'user:def.0' })\n" +
                         "local none = paramof(nil, { [0] = 'user:def.0' })\n" +
+                        "local plain = hookof('getCertificate')\n" +
+                        "plain.getName = function(self) return 'TrustedCertificateStore.getCertificate' end\n" +
                         "return after(hookof('getCertificate'), certificate), certificate.result, certificate.set,\n" +
-                        "  after(hookof('getCertificate'), none), none.set, filter(hookof('getCertificate'))[1]");
+                        "  after(hookof('getCertificate'), none), none.set, table.concat(filter(plain), ',')");
         assertTrue(result.arg1().toboolean());
         assertTrue(result.arg(2).isnil());
         assertTrue(result.arg(3).toboolean());
@@ -1878,9 +2585,9 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(5).toboolean());
         assertEquals("user:*", result.arg(6).tojstring());
 
-        // The screen lock is set; the details of the vibrator are empty, by the constant or else built
+        // The screen lock is not set; the details of the vibrator are empty, by the constant or else built
         result = Scripts.run(globals,
-                "local secure = paramof(false)\n" +
+                "local secure = paramof(true)\n" +
                         "after(hookof('isDeviceSecure'), secure)\n" +
                         "local constant = paramof({ getId = function(self) return 1 end })\n" +
                         "luajava.bindClass = function(name) return { EMPTY_VIBRATOR_INFO = 'empty' } end\n" +
@@ -1890,7 +2597,7 @@ public class FingerprintScriptsTest {
                         "luajava.newInstance = function(name, id) return { build = function(self) return 'built' .. id end } end\n" +
                         "after(hookof('getInfo'), built)\n" +
                         "return secure.result, constant.result, built.result");
-        assertTrue(result.arg1().toboolean());
+        assertFalse(result.arg1().toboolean());
         assertEquals("empty", result.arg(2).tojstring());
         assertEquals("built1", result.arg(3).tojstring());
 
@@ -1911,25 +2618,333 @@ public class FingerprintScriptsTest {
         assertTrue(result.arg(5).toboolean());
     }
 
-    // The screen lock is set, so it is a way to authenticate, which biometrics alone say nothing about
+    // The ids keystore asks are none where it makes a key, also for an app which asks itself, and the real ones where it
+    // checks a key in use, which a lock that is not there would invalidate for good: by the caller below the deepest
+    // frame with the name of the method, which may be one of the hook engine
     @Test
-    public void screenLockCanAuthenticate() throws Exception {
+    public void keysInUseKeepTheirIds() throws Exception {
         Varargs result = Scripts.run(load("device_details"),
-                "local lock = paramof(11, { [0] = 32768 })\n" +
-                        "local changed = after(hookof('canAuthenticate'), lock)\n" +
-                        "local either = paramof(11, { [0] = 32768 + 15 })\n" +
-                        "after(hookof('canAuthenticate'), either)\n" +
-                        "local biometric = paramof(11, { [0] = 15 })\n" +
-                        "after(hookof('canAuthenticate'), biometric)\n" +
-                        "local real = paramof(0, { [0] = 32768 })\n" +
-                        "local kept = after(hookof('canAuthenticate'), real)\n" +
-                        "return lock.result, either.result, biometric.result, biometric.set, kept, real.set, changed");
-        assertEquals(0, result.arg(1).toint());
-        assertEquals(0, result.arg(2).toint());
-        assertEquals(11, result.arg(3).toint());
+                "local stack = {}\n" +
+                        "function callers()\n" +
+                        "  local frames = { length = #stack }\n" +
+                        "  for index, frame in ipairs(stack) do\n" +
+                        "    frames[index] = { getClassName = function(self) return frame[1] end,\n" +
+                        "      getMethodName = function(self) return frame[2] end }\n" +
+                        "  end\n" +
+                        "  return frames\n" +
+                        "end\n" +
+                        "local function ask(method, result, ...)\n" +
+                        "  stack = { { 'java.lang.Thread', 'getStackTrace' }, { 'eu.faircode.xlua.XCall', 'after' }, ... }\n" +
+                        "  local param = paramof(result)\n" +
+                        "  local restricted = after(hookof(method), param)\n" +
+                        "  return param.result, restricted\n" +
+                        "end\n" +
+                        "local gate, bm, fm = 'android.security.GateKeeper', 'android.hardware.biometrics.BiometricManager',\n" +
+                        "  'android.hardware.fingerprint.FingerprintManager'\n" +
+                        "local old, new = 'android.security.KeyStore', 'android.security.keystore2.KeyStoreCryptoOperationUtils'\n" +
+                        "local utils, app, ids = 'android.security.keystore.KeymasterUtils', 'com.example.App', { length = 2 }\n" +
+                        "local a = ask('getSecureUserId', 123, { gate, 'getSecureUserId' }, { utils, 'getRootSid' })\n" +
+                        "local b = ask('getSecureUserId', 123, { gate, 'getSecureUserId' }, { old, 'getInvalidKeyException' })\n" +
+                        "local c = ask('getSecureUserId', 123, { gate, 'getSecureUserId' }, { gate, 'getSecureUserId' },\n" +
+                        "  { new, 'canUserAuthorizationSucceed' })\n" +
+                        "local d = ask('getSecureUserId', 123, { 'LSPHooker_', 'getSecureUserId' },\n" +
+                        "  { new, 'canUserAuthorizationSucceed' })\n" +
+                        "local e = ask('getSecureUserId', 123, { gate, 'getSecureUserId' }, { 'java.lang.reflect.Method', 'invoke' },\n" +
+                        "  { new, 'canUserAuthorizationSucceed' })\n" +
+                        "local f = ask('getAuthenticatorIds', ids, { bm, 'getAuthenticatorIds' }, { bm, 'getAuthenticatorIds' },\n" +
+                        "  { new, 'canUserAuthorizationSucceed' })\n" +
+                        "local g = ask('getAuthenticatorIds', ids, { bm, 'getAuthenticatorIds' }, { app, 'getSystemService' },\n" +
+                        "  { new, 'canUserAuthorizationSucceed' })\n" +
+                        "local h = ask('getAuthenticatorIds', ids, { bm, 'getAuthenticatorIds' }, { old, 'getInvalidKeyException' })\n" +
+                        "local i = ask('getAuthenticatorId', 456, { fm, 'getAuthenticatorId' }, { old, 'getFingerprintOnlySid' })\n" +
+                        "local j = ask('getAuthenticatorId', 456, { fm, 'getAuthenticatorId' },\n" +
+                        "  { utils, 'addUserAuthArgs' })\n" +
+                        "local _, k = ask('getAuthenticatorIds', { length = 0 }, { bm, 'getAuthenticatorIds' }, { app, 'probe' })\n" +
+                        "return a, b, c, d, e, f == ids, g, h == ids, i, j, k");
+        // Making a key, of Android 8.1 to 11 and of later versions, and an app which asks by reflection: none
+        assertEquals(0, result.arg(1).tolong());
+        assertEquals(123, result.arg(2).tolong());
+        assertEquals(123, result.arg(3).tolong());
+        assertEquals(123, result.arg(4).tolong());
+        assertEquals(0, result.arg(5).tolong());
+        assertTrue(result.arg(6).toboolean());
+        // Code of the app below the check, which its getSystemService runs, is no check of keystore
+        assertEquals(0, ((long[]) result.arg(7).touserdata()).length);
+        assertTrue(result.arg(8).toboolean());
+        assertEquals(456, result.arg(9).tolong());
+        assertEquals(0, result.arg(10).tolong());
+        assertFalse(result.arg(11).toboolean());
+    }
+
+    // The texts of a request which allows the screen lock and biometrics name the sensor, like on a device without a
+    // lock, where Android takes the sensor it names for the biometrics alone when none is enrolled, else the one strong
+    // enough; of sensors all too weak there are no texts and no hardware
+    @Test
+    public void textsOfNoScreenLock() throws Exception {
+        Varargs result = Scripts.run(load("device_details"),
+                "local bind = luajava.bindClass\n" +
+                        "local names = { fingerprint_app_setting_name = 'Use fingerprint', face_app_setting_name = 'Use face',\n" +
+                        "  biometric_app_setting_name = 'Use biometrics',\n" +
+                        "  fingerprint_or_screen_lock_dialog_default_subtitle = 'Fingerprint or lock',\n" +
+                        "  face_or_screen_lock_dialog_default_subtitle = 'Face or lock',\n" +
+                        "  biometric_or_screen_lock_dialog_default_subtitle = 'Biometrics or lock' }\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name ~= 'android.content.res.Resources' then return bind(name) end\n" +
+                        "  return { getSystem = function(self) return {\n" +
+                        "    getIdentifier = function(self, name, type, package)\n" +
+                        "      return (type == 'string' and package == 'android' and names[name]) and name or 0 end,\n" +
+                        "    getString = function(self, id) return names[id] end } end }\n" +
+                        "end\n" +
+                        "local label, setting, asked, features, inside, hooked = 'Use fingerprint', nil, nil, {}, false, true\n" +
+                        "local manager = { getStrings = function(self, authenticators) asked = authenticators\n" +
+                        "  hooked = hooked and not inside\n" +
+                        "  return { getButtonLabel = function(self) return label end,\n" +
+                        "    getSettingName = function(self) return setting end } end }\n" +
+                        "local context = { getPackageManager = function(self) return {\n" +
+                        "  hasSystemFeature = function(self, name) hooked = hooked and not inside\n" +
+                        "    return features[name] == true end } end }\n" +
+                        "local values = {}\n" +
+                        "local function ask(method, result, this, ...)\n" +
+                        "  local param = paramof(result, { [0] = ... })\n" +
+                        "  param.this = this\n" +
+                        "  param.getApplicationContext = function(self) return context end\n" +
+                        "  param.unhooked = function(self, f) inside = true local value = f() inside = false return value end\n" +
+                        "  param.getValue = function(self, name, scope) return values[scope] and values[scope][name] end\n" +
+                        "  param.putValue = function(self, name, value, scope)\n" +
+                        "    values[scope] = values[scope] or {} values[scope][name] = value end\n" +
+                        "  local restricted = after(hookof(method), param)\n" +
+                        "  return param.result, restricted\n" +
+                        "end\n" +
+                        "local strings, alone, biometric = {}, {}, {}\n" +
+                        "local _, a = ask('getStrings', strings, manager, 32768 + 15)\n" +
+                        "ask('getStrings', alone, manager, 32768)\n" +
+                        "ask('getStrings', biometric, manager, 255)\n" +
+                        "local b, c = ask('getButtonLabel', 'Use screen lock', strings)\n" +
+                        "local d = asked\n" +
+                        "local e = ask('getPromptMessage', 'Use your screen lock', strings)\n" +
+                        "label = 'Use face'\n" +
+                        "local f = ask('getPromptMessage', 'Use your screen lock', strings)\n" +
+                        "label = 'Use biometrics'\n" +
+                        "local g = ask('getPromptMessage', 'Use your screen lock', strings)\n" +
+                        "label = 'Use iris of a maker'\n" +
+                        "local _, h = ask('getButtonLabel', 'Use screen lock', strings)\n" +
+                        "local _, i = ask('getPromptMessage', 'Use your screen lock', strings)\n" +
+                        "label = nil\n" +
+                        "local _, j = ask('getButtonLabel', 'Use screen lock', strings)\n" +
+                        "label = 'Use fingerprint'\n" +
+                        "local _, k = ask('getButtonLabel', 'Use fingerprint', strings)\n" +
+                        "local _, l = ask('getButtonLabel', 'Use screen lock', alone)\n" +
+                        "local _, m = ask('getButtonLabel', 'Use fingerprint', biometric)\n" +
+                        "local _, n = ask('getButtonLabel', nil, strings)\n" +
+                        // A sensor strong enough but turned off for apps: Android names it, being not enrolled first
+                        "label, setting = nil, 'Use face'\n" +
+                        "local o = ask('getButtonLabel', 'Use screen lock', strings)\n" +
+                        "local p = ask('getPromptMessage', 'Use your screen lock', strings)\n" +
+                        "local q = ask('canAuthenticate', 0, manager, 32768 + 15)\n" +
+                        // Sensors all too weak for the request: no texts and no hardware
+                        "setting, features['android.hardware.biometrics.face'] = nil, true\n" +
+                        "local r, s = ask('getButtonLabel', 'Use screen lock', strings)\n" +
+                        "local t, u = ask('getPromptMessage', 'Use your screen lock', strings)\n" +
+                        "local v = ask('canAuthenticate', 0, manager, 32768 + 15)\n" +
+                        "local w = ask('canAuthenticate', 0, manager, 32768)\n" +
+                        "local x = ask('canAuthenticate', 0, manager, 15)\n" +
+                        // Read.Biometrics made the request of the app one of the lock alone, which this hook does not see:
+                        // through the hooks the biometrics have no texts and the device no sensor, so the lock stays
+                        "features = {}\n" +
+                        "local stored = {}\n" +
+                        "ask('getStrings', stored, manager, 32768 + 15)\n" +
+                        "local _, y = ask('getButtonLabel', 'Use screen lock', stored)\n" +
+                        "local z = ask('canAuthenticate', 0, manager, 32768 + 15)\n" +
+                        "luajava.bindClass = bind\n" +
+                        "return a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, hooked");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals("Use fingerprint", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        // Asked for the biometrics alone, of the same strength
+        assertEquals(15, result.arg(4).toint());
+        assertEquals("Fingerprint or lock", result.arg(5).tojstring());
+        assertEquals("Face or lock", result.arg(6).tojstring());
+        assertEquals("Biometrics or lock", result.arg(7).tojstring());
+        // A sensor named by none of the texts of the app, like of another language: both stay, so they agree
+        assertFalse(result.arg(8).toboolean());
+        assertFalse(result.arg(9).toboolean());
+        // No sensor at all, the same answer, a request of the lock or the biometrics alone and no text stay
+        assertFalse(result.arg(10).toboolean());
+        assertFalse(result.arg(11).toboolean());
+        assertFalse(result.arg(12).toboolean());
+        assertFalse(result.arg(13).toboolean());
+        assertFalse(result.arg(14).toboolean());
+        assertEquals("Use face", result.arg(15).tojstring());
+        assertEquals("Face or lock", result.arg(16).tojstring());
+        assertEquals(11, result.arg(17).toint());
+        assertTrue(result.arg(18).isnil());
+        assertTrue(result.arg(19).toboolean());
+        assertTrue(result.arg(20).isnil());
+        assertTrue(result.arg(21).toboolean());
+        assertEquals(12, result.arg(22).toint());
+        // The lock alone and the biometrics alone answer as before
+        assertEquals(11, result.arg(23).toint());
+        assertEquals(11, result.arg(24).toint());
+        assertFalse(result.arg(25).toboolean());
+        assertEquals(11, result.arg(26).toint());
+        // The sensor was asked through the hooks, like the app asks
+        assertTrue(result.arg(27).toboolean());
+    }
+
+    // With Read.Biometrics restricted too, which hides the sensors, on a device with a lock and a face too weak for the
+    // request: a request it made of the lock alone, of which this hook sees the argument of the app, keeps the texts of
+    // the lock, and so does canAuthenticate of such a request, like on a device without sensors and without a lock
+    @Test
+    public void textsOfNoScreenLockWithHiddenSensors() throws Exception {
+        Globals globals = load("device_details");
+        globals.set("credential", load("biometrics_credential").get("after"));
+        globals.set("biometrics", load("biometrics").get("after"));
+        Varargs result = Scripts.run(globals,
+                "local values = {}\n" +
+                        "local function paramin(result, this, ...)\n" +
+                        "  local param = paramof(result, { [0] = ... })\n" +
+                        "  param.this = this\n" +
+                        "  param.getValue = function(self, name, scope) return values[scope] and values[scope][name] end\n" +
+                        "  param.putValue = function(self, name, value, scope)\n" +
+                        "    values[scope] = values[scope] or {} values[scope][name] = value end\n" +
+                        "  if select('#', ...) == 0 then param.getArgument = function() error('Argument #0') end end\n" +
+                        "  return param\n" +
+                        "end\n" +
+                        // The service answers through the hooks of Read.Biometrics, like for the app
+                        "local hidden = true\n" +
+                        "local function through(script, method, result, this, ...)\n" +
+                        "  local param = paramin(result, this, ...)\n" +
+                        "  if hidden then script(hookof(method), param) end\n" +
+                        "  return param.result\n" +
+                        "end\n" +
+                        "local manager = {}\n" +
+                        "manager.getStrings = function(self, authenticators)\n" +
+                        "  local strings = {}\n" +
+                        "  strings.getButtonLabel = function(s) return through(credential, 'getButtonLabel', nil, s) end\n" +
+                        "  strings.getSettingName = function(s) return through(credential, 'getSettingName', nil, s) end\n" +
+                        "  return through(credential, 'getStrings', strings, self, authenticators)\n" +
+                        "end\n" +
+                        "local context = { getPackageManager = function(self) return {\n" +
+                        "  hasSystemFeature = function(self, name)\n" +
+                        "    local face = (name == 'android.hardware.biometrics.face')\n" +
+                        "    return through(biometrics, 'hasSystemFeature', face, self, name) end } end }\n" +
+                        "local function ask(method, result, this, ...)\n" +
+                        "  local param = paramin(result, this, ...)\n" +
+                        "  param.getApplicationContext = function(self) return context end\n" +
+                        "  local restricted = after(hookof(method), param)\n" +
+                        "  return param.result, restricted\n" +
+                        "end\n" +
+                        "local stored = {}\n" +
+                        "ask('getStrings', stored, manager, 32768 + 15)\n" +
+                        "local a, b = ask('getButtonLabel', 'Use screen lock', stored)\n" +
+                        "local c, d = ask('getPromptMessage', 'Use your screen lock', stored)\n" +
+                        "local e = ask('canAuthenticate', 0, manager, 32768 + 15)\n" +
+                        "local f = ask('canAuthenticate', 0, manager)\n" +
+                        // Without Read.Biometrics the face is there: no texts and no hardware
+                        "hidden = false\n" +
+                        "local g, h = ask('getButtonLabel', 'Use screen lock', stored)\n" +
+                        "local i = ask('canAuthenticate', 0, manager, 32768 + 15)\n" +
+                        "return a, b, c, d, e, f, g, h, i");
+        assertEquals("Use screen lock", result.arg(1).tojstring());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals("Use your screen lock", result.arg(3).tojstring());
         assertFalse(result.arg(4).toboolean());
-        assertFalse(result.arg(5).toboolean());
-        assertFalse(result.arg(6).toboolean());
+        assertEquals(11, result.arg(5).toint());
+        // The one without arguments, of which there is no argument to read
+        assertEquals(11, result.arg(6).toint());
+        assertTrue(result.arg(7).isnil());
+        assertTrue(result.arg(8).toboolean());
+        assertEquals(12, result.arg(9).toint());
+    }
+
+    // No screen lock, like a device without one: not secure, no intent to confirm it, no way to authenticate by it and
+    // no biometrics, which need a lock, no complexity and no secure user id, so keystore makes no key for it
+    @Test
+    public void noScreenLock() throws Exception {
+        // Never locked, which Android answers only with a secure lock, also of a user; and no enrolled fingerprints
+        // by the hidden list either, which has no service (null) stays
+        Varargs locked = Scripts.run(load("device_details"),
+                "local function ask(method, result, ...)\n" +
+                        "  local param = paramof(result, { [0] = ... })\n" +
+                        "  local restricted, old, new = after(hookof(method), param)\n" +
+                        "  return param.result, restricted, old, new\n" +
+                        "end\n" +
+                        "local a = ask('isDeviceLocked', true)\n" +
+                        "local b = ask('isDeviceLocked', true, 10)\n" +
+                        "local _, c = ask('isDeviceLocked', false)\n" +
+                        "local list = luajava.newInstance('java.util.ArrayList')\n" +
+                        "list:add('finger')\n" +
+                        "local d, e, f, g = ask('getEnrolledFingerprints', list)\n" +
+                        "local _, h = ask('getEnrolledFingerprints', luajava.newInstance('java.util.ArrayList'), 10)\n" +
+                        "local i, j = ask('getEnrolledFingerprints', nil)\n" +
+                        "return a, b, c, d:isEmpty(), d ~= list, e, f, g, h, i, j");
+        assertFalse(locked.arg(1).toboolean());
+        assertFalse(locked.arg(2).toboolean());
+        assertFalse(locked.arg(3).toboolean());
+        assertTrue(locked.arg(4).toboolean());
+        assertTrue(locked.arg(5).toboolean());
+        assertTrue(locked.arg(6).toboolean());
+        assertEquals("1", locked.arg(7).tojstring());
+        assertEquals("0", locked.arg(8).tojstring());
+        assertFalse(locked.arg(9).toboolean());
+        assertTrue(locked.arg(10).isnil());
+        assertFalse(locked.arg(11).toboolean());
+
+        Varargs result = Scripts.run(load("device_details"),
+                "local function ask(method, result, ...)\n" +
+                        "  local param = paramof(result, { [0] = ... })\n" +
+                        "  local restricted = after(hookof(method), param)\n" +
+                        "  return param.result, restricted\n" +
+                        "end\n" +
+                        "local a = ask('isDeviceSecure', true)\n" +
+                        "local b = ask('isKeyguardSecure', true)\n" +
+                        "local _, c = ask('isDeviceSecure', false)\n" +
+                        "local d = ask('canAuthenticate', 0, 32768)\n" +
+                        "local e = ask('canAuthenticate', 0, 32768 + 255)\n" +
+                        "local f, g = ask('canAuthenticate', 0, 15)\n" +
+                        "local h, i = ask('canAuthenticate', 11, 32768)\n" +
+                        "local j, k = ask('canAuthenticate', 1, 32768 + 15)\n" +
+                        "local l = ask('getPasswordComplexity', 196608)\n" +
+                        "local _, m = ask('getPasswordComplexity', 0)\n" +
+                        "local n = ask('getSecureUserId', 1234567890123)\n" +
+                        "local _, o = ask('getSecureUserId', 0)\n" +
+                        "local p = ask('isDeviceSecure', true, 10)\n" +
+                        "local q, r = ask('createConfirmDeviceCredentialIntent', 'intent', 'title', 'description')\n" +
+                        "local _, s = ask('createConfirmDeviceCredentialIntent', nil, 'title', 'description')\n" +
+                        "local t = ask('canAuthenticate', 0)\n" +
+                        "local u, v = ask('canAuthenticate', 12, 15)\n" +
+                        "local w = ask('hasEnrolledFingerprints', true) or ask('hasEnrolledFingerprints', true, 10)\n" +
+                        "local x = ask('getLastAuthenticationTime', 1234567, 32768 + 15)\n" +
+                        "local _, y = ask('getLastAuthenticationTime', -1, 15)\n" +
+                        "return a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals(11, result.arg(4).toint());
+        assertEquals(11, result.arg(5).toint());
+        // Biometrics alone, enrolled, which a device without a lock cannot have
+        assertEquals(11, result.arg(6).toint());
         assertTrue(result.arg(7).toboolean());
+        // A device which has no lock or whose sensors are not available answers itself
+        assertEquals(11, result.arg(8).toint());
+        assertFalse(result.arg(9).toboolean());
+        assertEquals(1, result.arg(10).toint());
+        assertFalse(result.arg(11).toboolean());
+        assertEquals(0, result.arg(12).toint());
+        assertFalse(result.arg(13).toboolean());
+        assertEquals(0, result.arg(14).tolong());
+        assertFalse(result.arg(15).toboolean());
+        // Of a user too, and no intent to confirm the lock
+        assertFalse(result.arg(16).toboolean());
+        assertTrue(result.arg(17).isnil());
+        assertTrue(result.arg(18).toboolean());
+        assertFalse(result.arg(19).toboolean());
+        // No biometric enrolled by the old check either, no sensor stays, and no authentication of any kind
+        assertEquals(11, result.arg(20).toint());
+        assertEquals(12, result.arg(21).toint());
+        assertFalse(result.arg(22).toboolean());
+        assertFalse(result.arg(23).toboolean());
+        assertEquals(-1, result.arg(24).tolong());
+        assertFalse(result.arg(25).toboolean());
     }
 }

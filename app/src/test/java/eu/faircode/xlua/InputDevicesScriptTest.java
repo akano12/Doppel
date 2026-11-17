@@ -140,6 +140,271 @@ public class InputDevicesScriptTest {
         assertFalse("without a listener", result.arg(9).toboolean());
     }
 
+    // The devices of a configuration: the built-in ones of every device, a touch screen, the buttons and the virtual
+    // keyboard, and more by id; a Configuration and its text of keyboard, keyboardHidden, hardKeyboardHidden, navigation
+    // and navigationHidden; read(config) is what a configuration read from a parcel becomes and whether it was restricted
+    private static final String CONFIGURATIONS = String.join("\n",
+            Scripts.ARRAYOF,
+            "function deviceof(sources, keyboardType, external, virtual)",
+            "  return { getSources = function(self) return sources end,",
+            "    getKeyboardType = function(self) return keyboardType end,",
+            "    isExternal = function(self) return external end,",
+            "    isVirtual = function(self) return virtual == true end }",
+            "end",
+            "devices = { [1] = deviceof(0x1002, 0), [2] = deviceof(0x101, 1), [-1] = deviceof(0x301, 2, false, true) }",
+            "ids, permanent, ime, depth = arrayof(1, 2, -1), false, 'com.example/.Ime', 0",
+            "luajava = { bindClass = function(name)",
+            "  assert(depth > 0, 'hooked ' .. name)",
+            "  if name == 'android.view.InputDevice' then",
+            "    return { getDeviceIds = function(self) return ids end, getDevice = function(self, id) return devices[id] end }",
+            "  elseif name == 'android.content.res.Resources' then",
+            "    return { getSystem = function(self) return { getIdentifier = function(self, name, type, package)",
+            "      assert(name == 'config_hasPermanentDpad' and type == 'bool' and package == 'android') return 17 end,",
+            "      getBoolean = function(self, id) assert(id == 17) return permanent end } end }",
+            "  end",
+            "  assert(name == 'android.provider.Settings$Secure', name)",
+            "  return { getString = function(self, resolver, setting)",
+            "    assert(resolver == 'resolver' and setting == 'default_input_method') return ime end }",
+            "end, newInstance = function(name, from)",
+            "  assert(name == 'android.content.res.Configuration', name)",
+            "  local copy = {}",
+            "  for key, value in pairs(from) do copy[key] = value end",
+            "  return copy",
+            "end }",
+            "function configof(keyboard, keyboardHidden, hardKeyboardHidden, navigation, navigationHidden)",
+            "  return { keyboard = keyboard, keyboardHidden = keyboardHidden, hardKeyboardHidden = hardKeyboardHidden,",
+            "    navigation = navigation, navigationHidden = navigationHidden }",
+            "end",
+            "function textof(config)",
+            "  return table.concat({ config.keyboard, config.keyboardHidden, config.hardKeyboardHidden, config.navigation,",
+            "    config.navigationHidden }, ' ')",
+            "end",
+            "function configparam(this, argument, result)",
+            "  return { this = this, argument = argument, result = result,",
+            "    getThis = function(self) return self.this end,",
+            "    getArgument = function(self, index) assert(index == 0) return self.argument end,",
+            "    setArgument = function(self, index, value) assert(index == 0) self.argument = value end,",
+            "    getResult = function(self) return self.result end,",
+            "    getException = function(self) return nil end,",
+            "    getApplicationContext = function(self) return { getContentResolver = function(self) return 'resolver' end,",
+            "      getResources = function(self) return app end } end,",
+            "    unhooked = function(self, fn) depth = depth + 1 local value = fn() depth = depth - 1 return value end }",
+            "end",
+            "function read(config)",
+            "  local restricted = after(hookof('readFromParcel'), configparam(config))",
+            "  return textof(config), restricted",
+            "end");
+
+    // A phone with a keyboard with arrow keys connected has the configuration of a phone without it, the one of the
+    // built-in devices (see DisplayContent.computeScreenConfiguration): no keys and no navigation, hidden (see
+    // PhoneWindowManager.adjustConfigurationLw), the keys of letters too without a default input method
+    @Test
+    public void configurationsHaveNoExternalKeys() throws Exception {
+        Globals globals = Scripts.load("input_devices", STUBS + "\n" + CONFIGURATIONS);
+        String[][] cases = {
+                // An external keyboard, with and without an input method
+                {"devices[5] = deviceof(0x301, 2, true) ids = arrayof(1, 2, -1, 5)", "2 1 1 2 1", "1 1 2 1 2 true"},
+                {"ime = nil", "2 1 1 2 1", "1 2 2 1 2 true"},
+                {"ime = ''", "2 1 1 2 1", "1 2 2 1 2 true"},
+                // A configuration of an activity, which overrides only some values, and a phone without external devices
+                {"", "0 0 0 0 0", "0 0 0 0 0 false"},
+                {"", "1 1 2 1 2", "1 1 2 1 2 false"},
+                // A device which always has a d-pad, like a TV
+                {"ime = 'ime' permanent = true", "2 1 1 2 1", "1 1 2 2 1 true"},
+                // A built-in keyboard with arrow keys, like the one of the emulator
+                {"permanent = false devices[3] = deviceof(0x301, 2, false) ids = arrayof(1, 2, -1, 3, 5)",
+                        "2 1 1 2 1", "2 1 1 2 1 false"},
+                // An external trackball and built-in arrow keys
+                {"devices[3] = deviceof(0x201, 1, false) devices[5] = deviceof(0x10004, 0, true)",
+                        "1 1 2 3 1", "1 1 2 2 1 true"},
+        };
+        for (String[] c : cases) {
+            Varargs result = Scripts.run(globals, c[0] + "\nlocal text, restricted = read(configof(" +
+                    c[1].replace(" ", ", ") + "))\nreturn text .. ' ' .. tostring(restricted)");
+            assertEquals(c[0], c[2], result.arg1().tojstring());
+        }
+    }
+
+    // The resources get a copy of their configuration without the external devices, also those made before the hooks
+    // were installed (Resources.mSystem), and so does getDeviceConfigurationInfo, with the features of the keys and the
+    // navigation (INPUT_FEATURE_HARD_KEYBOARD and INPUT_FEATURE_FIVE_WAY_NAV)
+    @Test
+    public void resourcesAndConfigurationInfoHaveNoExternalKeys() throws Exception {
+        Varargs result = Scripts.run(Scripts.load("input_devices", STUBS + "\n" + CONFIGURATIONS),
+                "devices[5] = deviceof(0x301, 2, true)\n" +
+                        "ids = arrayof(1, 2, -1, 5)\n" +
+                        "local config = configof(2, 1, 1, 2, 1)\n" +
+                        "local update = configparam(nil, config)\n" +
+                        "local updated = before(hookof('updateConfigurationImpl'), update)\n" +
+                        "local function resourcesof(config)\n" +
+                        "  return { config = config, getConfiguration = function(self) return self.config end,\n" +
+                        "    updateConfiguration = function(self, config, metrics)\n" +
+                        "      assert(depth > 0 and metrics == nil) self.config = config end }\n" +
+                        "end\n" +
+                        "app = resourcesof(configof(2, 1, 1, 2, 1))\n" +
+                        "local system = resourcesof(configof(2, 1, 1, 2, 1))\n" +
+                        "local installed = after(hookof('#mSystem'), configparam(nil, nil, system))\n" +
+                        "local info = { reqKeyboardType = 2, reqNavigation = 2, reqInputFeatures = 3, reqTouchScreen = 3 }\n" +
+                        "local asked = after(hookof('getDeviceConfigurationInfo'), configparam(nil, nil, info))\n" +
+                        "permanent = true\n" +
+                        "local tv = { reqKeyboardType = 2, reqNavigation = 2, reqInputFeatures = 3, reqTouchScreen = 1 }\n" +
+                        "after(hookof('getDeviceConfigurationInfo'), configparam(nil, nil, tv))\n" +
+                        "devices[5] = nil\n" +
+                        "ids = arrayof(1, 2, -1)\n" +
+                        "local unchanged = resourcesof(configof(1, 1, 2, 1, 2))\n" +
+                        "app = unchanged\n" +
+                        "local none = after(hookof('#mSystem'), configparam(nil, nil, nil))\n" +
+                        "return updated, textof(update.argument), textof(config), installed, textof(app.config),\n" +
+                        "  textof(system.config), asked, table.concat({ info.reqKeyboardType, info.reqNavigation,\n" +
+                        "  info.reqInputFeatures, info.reqTouchScreen }, ' '), table.concat({ tv.reqKeyboardType,\n" +
+                        "  tv.reqNavigation, tv.reqInputFeatures }, ' '), none, textof(unchanged.config)");
+        assertTrue("updated", result.arg(1).toboolean());
+        assertEquals("1 1 2 1 2", result.arg(2).tojstring());
+        assertEquals("the configuration of the caller stays", "2 1 1 2 1", result.arg(3).tojstring());
+        assertTrue("installed", result.arg(4).toboolean());
+        assertEquals("1 1 2 1 2", result.arg(5).tojstring());
+        assertEquals("1 1 2 1 2", result.arg(6).tojstring());
+        assertTrue("asked", result.arg(7).toboolean());
+        assertEquals("1 1 0 3", result.arg(8).tojstring());
+        assertEquals("1 2 2", result.arg(9).tojstring());
+        assertFalse("without external devices", result.arg(10).toboolean());
+        assertEquals("1 1 2 1 2", result.arg(11).tojstring());
+    }
+
+    // The configuration of the process, which was read before the hooks were installed, is unplugged in place when an
+    // activity starts with a copy of it (by setTo in ActivityThread.performLaunchActivity), so the activity and those after it start
+    // without the external devices, like the configurations they get later; copies the app or other framework code
+    // makes stay, and a configuration without keys or navigation does not read the stack
+    @Test
+    public void activitiesStartWithoutExternalKeys() throws Exception {
+        Globals globals = Scripts.load("input_devices", STUBS + "\n" + CONFIGURATIONS);
+        String hook = "'java.lang.Thread.getStackTrace', 'org.luaj.vm2.LuaValue.call', 'eu.faircode.xlua.XHook.before', " +
+                "'LSPHooker_.init', 'android.content.res.Configuration.<init>', ";
+        String[][] cases = {
+                {hook + "'android.app.ActivityThread.performLaunchActivity', 'android.app.ActivityThread.handleLaunchActivity'",
+                        "2 1 1 2 1", "1 1 2 1 2 true"},
+                // The constructor compiled into performLaunchActivity, with the trackball of a device connected
+                {"'java.lang.Thread.getStackTrace', 'LSPHooker_.setTo', 'android.app.ActivityThread.performLaunchActivity'",
+                        "1 1 1 3 1", "1 1 1 1 2 true"},
+                {hook + "'com.example.Main.onCreate', 'android.app.Activity.performCreate', " +
+                        "'android.app.ActivityThread.performLaunchActivity'", "2 1 1 2 1", "2 1 1 2 1 false"},
+                {hook + "'android.app.ResourcesManager.generateConfig', 'android.app.ActivityThread.performLaunchActivity'",
+                        "2 1 1 2 1", "2 1 1 2 1 false"},
+                // A copy in the app's own code which performLaunchActivity calls, by the constructor and by setTo
+                {hook + "'com.example.Factory.instantiateActivity', 'android.app.ActivityThread.performLaunchActivity'",
+                        "2 1 1 2 1", "2 1 1 2 1 false"},
+                {"'java.lang.Thread.getStackTrace', 'LSPHooker_.setTo', 'com.example.Factory.instantiateActivity', " +
+                        "'android.app.ActivityThread.performLaunchActivity'", "2 1 1 2 1", "2 1 1 2 1 false"},
+                {"", "1 1 2 1 2", "1 1 2 1 2 false"},
+        };
+        for (String[] c : cases) {
+            Varargs result = Scripts.run(globals, "devices[5] = deviceof(0x301, 2, true) ids = arrayof(1, 2, -1, 5)\n" +
+                    "stack = " + (c[0].isEmpty() ? "nil" : "stackof(" + c[0] + ")") + "\n" +
+                    "local config = configof(" + c[1].replace(" ", ", ") + ")\n" +
+                    "local restricted = before(hookof('setTo'), configparam(nil, config))\n" +
+                    "return textof(config) .. ' ' .. tostring(restricted)");
+            assertEquals(c[0], c[2], result.arg1().tojstring());
+        }
+        assertFalse(Scripts.run(globals, "return before(hookof('setTo'), configparam(nil, nil))").arg1().toboolean());
+    }
+
+    // KeyCharacterMap.deviceHasKey and deviceHasKeys, and hasKeys of the virtual keyboard, which asks the same, answer for
+    // the built-in devices only, each asked by InputDevice.hasKeys with a Java int[] and answered in a new boolean[]: the
+    // buttons have the volume keys, the keyboard connected has letters and Enter, and the virtual keyboard, which would
+    // ask all devices again, is not asked; hasKeys of the other devices stays
+    @Test
+    public void deviceHasNoExternalKeys() throws Exception {
+        Globals globals = Scripts.load("input_devices", STUBS + "\n" +
+                "local device = 'eu.faircode.xlua.InputDevicesScriptTest$Device'\n" +
+                "devices = { [1] = luajava.newInstance(device, '', false, false),\n" +
+                "  [2] = luajava.newInstance(device, '24', false, false),\n" +
+                "  [5] = luajava.newInstance(device, '45,66', true, false), [-1] = luajava.newInstance(device, '', false, true) }\n" +
+                "depth = 0\n" +
+                "local bind = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name ~= 'android.view.InputDevice' then return bind(name) end\n" +
+                "  assert(depth > 0, name)\n" +
+                "  local ids = bind('java.lang.reflect.Array'):newInstance(bind('java.lang.Integer').TYPE, 4)\n" +
+                "  ids[1], ids[2], ids[3], ids[4] = 1, 2, 5, -1\n" +
+                "  return { getDeviceIds = function(self) return ids end, getDevice = function(self, id) return devices[id] end }\n" +
+                "end\n" +
+                "function javaof(type, ...)\n" +
+                "  local values = { ... }\n" +
+                "  local array = bind('java.lang.reflect.Array'):newInstance(bind(type).TYPE, #values)\n" +
+                "  for index, value in ipairs(values) do array[index] = value end\n" +
+                "  return array\n" +
+                "end\n" +
+                "function haskey(method, argument, result, exception, id)\n" +
+                "  local param = { result = result, getResult = function(self) return self.result end,\n" +
+                "    getThis = function(self) return { getId = function(self) return id end } end,\n" +
+                "    setResult = function(self, value) self.result = value end,\n" +
+                "    getException = function(self) return exception end,\n" +
+                "    getArgument = function(self, index) assert(index == 0) return argument end,\n" +
+                "    unhooked = function(self, fn) depth = depth + 1 local value = fn() depth = depth - 1 return value end }\n" +
+                "  local restricted = after(hookof(method), param)\n" +
+                "  local answer = param.result\n" +
+                "  if type(answer) == 'userdata' then\n" +
+                "    local text = { answer == result and 'same' or 'new' }\n" +
+                "    for index = 1, answer['length'] do text[#text + 1] = tostring(answer[index]) end\n" +
+                "    answer = table.concat(text, ' ')\n" +
+                "  end\n" +
+                "  return tostring(restricted) .. ' ' .. tostring(answer)\n" +
+                "end");
+        String[][] cases = {
+                {"'deviceHasKey', 45, true", "true false"},
+                {"'deviceHasKey', 24, true", "false true"},
+                {"'deviceHasKey', 4, false", "false false"},
+                {"'deviceHasKey', 45, true, 'exception'", "false true"},
+                {"'deviceHasKeys', javaof('java.lang.Integer', 45, 24, 66), javaof('java.lang.Boolean', true, true, true)",
+                        "true new false true false"},
+                {"'deviceHasKeys', javaof('java.lang.Integer', 24, 4), javaof('java.lang.Boolean', true, false)",
+                        "false same true false"},
+                {"'deviceHasKeys', javaof('java.lang.Integer', 4), javaof('java.lang.Boolean', false)", "false same false"},
+                {"'deviceHasKeys', javaof('java.lang.Integer'), javaof('java.lang.Boolean')", "false same"},
+                {"'hasKeys', javaof('java.lang.Integer', 45, 24, 66), javaof('java.lang.Boolean', true, true, true), nil, -1",
+                        "true new false true false"},
+                {"'hasKeys', javaof('java.lang.Integer', 24, 4), javaof('java.lang.Boolean', true, false), nil, -1",
+                        "false same true false"},
+                {"'hasKeys', javaof('java.lang.Integer', 45), javaof('java.lang.Boolean', true), 'exception', -1", "false same true"},
+                {"'hasKeys', javaof('java.lang.Integer', 45, 66), javaof('java.lang.Boolean', true, true), nil, 5",
+                        "false same true true"},
+        };
+        for (String[] c : cases)
+            assertEquals(c[0], c[1], Scripts.run(globals, "return haskey(" + c[0] + ")").arg1().tojstring());
+    }
+
+    // A stand-in of InputDevice with the keys of hasKeys(int...), which the virtual keyboard must not be asked
+    public static class Device {
+        private final Set<Integer> keys = new HashSet<>();
+        private final boolean external;
+        private final boolean virtual;
+
+        public Device(String keys, boolean external, boolean virtual) {
+            for (String key : keys.split(","))
+                if (!key.isEmpty())
+                    this.keys.add(Integer.parseInt(key));
+            this.external = external;
+            this.virtual = virtual;
+        }
+
+        public boolean isExternal() {
+            return external;
+        }
+
+        public boolean isVirtual() {
+            return virtual;
+        }
+
+        public boolean[] hasKeys(int... codes) {
+            if (virtual)
+                throw new IllegalStateException("asked");
+            boolean[] has = new boolean[codes.length];
+            for (int i = 0; i < codes.length; i++)
+                has[i] = keys.contains(codes[i]);
+            return has;
+        }
+    }
+
     // A getter of a device: get(method, device, value, package) gives what the app gets for the value
     private static final String GETTERS = String.join("\n",
             "local values = {}",

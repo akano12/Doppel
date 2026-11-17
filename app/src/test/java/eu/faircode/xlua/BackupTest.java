@@ -23,6 +23,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -81,6 +82,72 @@ public class BackupTest {
         assertTrue(Backup.completing(newer, new HashSet<>(), hooks, "com.example.app", COLLECTION).isEmpty());
         assertTrue(Backup.completing(newer, groups, hooks, "com.example.app",
                 Collections.singletonList("Other")).isEmpty());
+    }
+
+    // Definitions which leave out fewer packages or moved since the backup complete the groups it restricted, told
+    // without the moved ones, like the update did, the ones leaving out fewer packages only for the apps they left out
+    // before, as the others had them, unless their user switched them off; a backup of this version lists them as
+    // moved already, so it gets none, and one of 2.1 to 2.3, which lists the built-in definitions only, was made after
+    // the moves to another group, so it gets only the ones leaving out fewer packages
+    @Test
+    public void movedDefinitionsCompleteRestrictedGroups() throws Exception {
+        String now = "com\\\\.google\\\\.android\\\\.gms,com\\\\.google\\\\.android\\\\.gsf";
+        Map<String, XHook> hooks = new HashMap<>();
+        for (XHook hook : Arrays.asList(
+                hook("Read.Identifiers", "Settings.Secure.getString/android_id", null, true),
+                hook("Read.Identifiers", "ContentResolver.query26/gsf_id", now, true),
+                hook("Read.Identifiers", "ContentProviderClient.query26/gsf_id", now, true),
+                hook("Use.Tracking", "Build.MODEL", null, true),
+                hook("Use.Tracking", "SubscriptionInfo.getMcc", null, true),
+                hook("Use.Tracking", "SubscriptionInfo.getMnc", null, true)))
+            hooks.put(hook.getId(), hook);
+        List<String> ids = Collections.singletonList(PREFIX + "Settings.Secure.getString/android_id");
+        Set<String> gsf = new HashSet<>(Arrays.asList(PREFIX + "ContentResolver.query26/gsf_id",
+                PREFIX + "ContentProviderClient.query26/gsf_id"));
+        // Use.Tracking restricted with SubscriptionInfo.getMcc switched off
+        List<String> tracking = Arrays.asList(PREFIX + "Build.MODEL", PREFIX + "SubscriptionInfo.getMnc");
+        JSONObject v20 = new JSONObject();
+        JSONObject v23 = new JSONObject().put("builtins", new JSONArray());
+        JSONObject current = new JSONObject().put("builtins", new JSONArray()).put("moved", Backup.moved());
+
+        // A backup of before the list, like of YouTube and the Play Store when these left them out, but not of an
+        // app they did not leave out
+        for (JSONObject jroot : new JSONObject[]{v20, v23}) {
+            for (String pkg : new String[]{"com.google.android.youtube", "com.android.vending"})
+                assertEquals(pkg, gsf, new HashSet<>(Backup.completingMoved(jroot, ids, hooks, pkg, COLLECTION)));
+            for (String pkg : new String[]{"com.google.android.gms", "com.example.app"})
+                assertTrue(pkg, Backup.completingMoved(jroot, ids, hooks, pkg, COLLECTION).isEmpty());
+        }
+
+        // A hook moved to another group comes with a backup of 2.0, which was made before the move, but not of 2.1 to
+        // 2.3, which were made after it, so its user switched it off
+        assertEquals(new HashSet<>(Arrays.asList(PREFIX + "SubscriptionInfo.getMcc", PREFIX + "SubscriptionInfo.getMnc")),
+                new HashSet<>(Backup.completingMoved(v20, tracking, hooks, "com.example.app", COLLECTION)));
+        assertTrue(Backup.completingMoved(v23, tracking, hooks, "com.example.app", COLLECTION).isEmpty());
+        assertEquals(Arrays.asList("Build.getRadioVersion", "MediaDrm.getPropertyByteArray", "SubscriptionInfo.getMcc",
+                "SubscriptionInfo.getMccString", "SubscriptionInfo.getMnc", "SubscriptionInfo.getMncString",
+                "SubscriptionInfo.toString/plmn"), firstNames(XDatabase.MOVED, XDatabase.MOVED_UNLISTED));
+
+        // Restricting a moved hook in its former group does not restrict the group it is in now
+        assertTrue(Backup.completingMoved(v20, Collections.singletonList(PREFIX + "SubscriptionInfo.getMcc"), hooks,
+                "com.example.app", COLLECTION).isEmpty());
+
+        // A backup of this version lists the moved hooks it knows, so it gets none of them
+        JSONArray jmoved = Backup.moved();
+        Set<String> listed = new HashSet<>();
+        for (int i = 0; i < jmoved.length(); i++)
+            listed.add(jmoved.getString(i));
+        assertEquals(XDatabase.MOVED.length, listed.size());
+        assertTrue(listed.containsAll(gsf));
+        assertTrue(Backup.completingMoved(current, ids, hooks, "com.google.android.youtube", COLLECTION).isEmpty());
+        assertTrue(Backup.completingMoved(current, tracking, hooks, "com.example.app", COLLECTION).isEmpty());
+    }
+
+    private static List<String> firstNames(String[][] rows, int count) {
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < count; i++)
+            names.add(rows[i][0]);
+        return names;
     }
 
     // A backup lists the built-in definitions for its Android version only, so a restore on a newer Android version

@@ -23,6 +23,11 @@ import org.junit.Test;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -32,22 +37,32 @@ import static org.junit.Assert.assertTrue;
 public class UserAgentClipScriptTest {
     private static final String UA = "Mozilla/5.0 (Linux; Android 15; Pixel 9 Build/AP4A.250105.002; wv)";
 
-    // A WebView of an app with androidx.webkit: the client hints get an empty model
+    // A WebView of an app with androidx.webkit: the client hints get the fake model, and a script is added at the start
+    // of each page for every origin
     private static final String WEBVIEW = String.join("\n",
             "function hook(object, method, fn) end",
-            "metadata = nil",
+            "metadata, script = nil, nil",
+            "real = { getModel = function(self) return model end }",
+            "model = 'Pixel 9'",
             "classes = {",
-            "  ['androidx.webkit.WebViewFeature'] = { isFeatureSupported = function(self, name) return name == 'USER_AGENT_METADATA' end },",
+            "  ['androidx.webkit.WebViewFeature'] = { isFeatureSupported = function(self, name)",
+            "    return name == 'USER_AGENT_METADATA' or name == 'DOCUMENT_START_SCRIPT' end },",
             "  ['androidx.webkit.WebSettingsCompat'] = {",
-            "    getUserAgentMetadata = function(self, settings) return 'real' end,",
+            "    getUserAgentMetadata = function(self, settings) return real end,",
             "    setUserAgentMetadata = function(self, settings, value) metadata = value end },",
-            "  ['androidx.webkit.UserAgentMetadata$Builder'] = 'builder' }",
+            "  ['androidx.webkit.UserAgentMetadata$Builder'] = 'builder',",
+            "  ['androidx.webkit.WebViewCompat'] = { addDocumentStartJavaScript = function(self, webview, js, rules)",
+            "    assert(webview.getSettings and rules == 'rules of *') script = js end } }",
             "luajava = { new = function(class, from)",
-            "  assert(class == 'builder' and from == 'real')",
+            "  assert(class == 'builder' and from == real)",
             "  local builder = {}",
             "  builder.setModel = function(self, model) self.model = model return self end",
             "  builder.build = function(self) return 'model=' .. self.model end",
             "  return builder",
+            "end,",
+            "bindClass = function(name)",
+            "  assert(name == 'java.util.Collections', name)",
+            "  return { singleton = function(self, rule) return 'rules of ' .. rule end }",
             "end }",
             "function paramof(this, classes)",
             "  return { getThis = function(self) return this end,",
@@ -66,14 +81,21 @@ public class UserAgentClipScriptTest {
             "end");
 
     @Test
-    public void clientHintsHaveNoModel() throws Exception {
+    public void clientHintsHaveFakeModel() throws Exception {
         Globals globals = Scripts.load("webview_constructor", WEBVIEW);
         Varargs result = Scripts.run(globals, "return construct(classes)");
         assertTrue(result.arg1().toboolean());
-        assertEquals("Mozilla/5.0 (Linux; Android 15; K; wv)", result.arg(2).tojstring());
-        assertEquals("model=", result.arg(3).tojstring());
+        assertEquals("Mozilla/5.0 (Linux; Android 15; unknown Build/unknown; wv)", result.arg(2).tojstring());
+        assertEquals("model=unknown", result.arg(3).tojstring());
 
-        // Without androidx.webkit, or a WebView without client hints, only the user agent is reduced
+        // An empty model, of a build that is not a release, stays empty; the default one (null) becomes the fake one
+        result = Scripts.run(globals, "metadata, model = nil, '' return construct(classes)");
+        assertTrue(result.arg(3).isnil());
+        result = Scripts.run(globals, "metadata, model = nil, nil return construct(classes)");
+        assertEquals("model=unknown", result.arg(3).tojstring());
+        Scripts.run(globals, "model = 'Pixel 9'");
+
+        // Without androidx.webkit, or a WebView without client hints, only the user agent is changed
         result = Scripts.run(globals, "metadata = nil return construct({})");
         assertTrue(result.arg1().toboolean());
         assertTrue(result.arg(3).isnil());
@@ -82,6 +104,67 @@ public class UserAgentClipScriptTest {
                 "return construct(classes)");
         assertTrue(result.arg1().toboolean());
         assertTrue(result.arg(3).isnil());
+    }
+
+    // Pages of an app with androidx.webkit get a script before their own which leaves out the WebGL extensions naming
+    // the graphics chip or its vendor, gives no WebGPU adapter and 8 processors, and gives the browser's text of these
+    // functions to toString; without the feature, or without androidx.webkit, none is added
+    @Test
+    public void pagesGetScript() throws Exception {
+        Globals globals = Scripts.load("webview_constructor", WEBVIEW);
+        String js = Scripts.run(globals, "construct(classes) return script").arg1().tojstring();
+        assertTrue(js, js.startsWith("(function () {") && js.endsWith("})();"));
+        for (String name : new String[]{"WEBGL_DEBUG_RENDERER_INFO", "WEBGL_DEBUG_SHADERS", "WEBGL_COMPRESSED_TEXTURE_PVRTC",
+                "WEBGL_RENDER_SHARED_EXPONENT", "NV_SHADER_NOPERSPECTIVE_INTERPOLATION", "WEBGL_POLYGON_MODE"})
+            assertTrue(name, js.contains("'" + name + "'"));
+        assertTrue(js, js.contains("apply(processors, this, []);\n          return 8;"));
+        assertTrue(js, js.contains("return apply(resolve, promise, [null]);"));
+        for (String replaced : new String[]{"Function.prototype.toString", "proto.getExtension", "proto.getSupportedExtensions",
+                "concurrency.get", "GPU.prototype.requestAdapter"})
+            assertTrue(replaced, js.contains(replaced + " = mask("));
+        assertTrue(js, js.contains("try {") && js.contains("} catch (e) {"));
+        // Pages can read the functions by toString in a frame without the script
+        assertFalse(js, js.contains("//"));
+
+        assertTrue(Scripts.run(globals, "script = nil\n" +
+                "local supported = classes['androidx.webkit.WebViewFeature']\n" +
+                "classes['androidx.webkit.WebViewFeature'] = {\n" +
+                "  isFeatureSupported = function(self, name) return name ~= 'DOCUMENT_START_SCRIPT' end }\n" +
+                "construct(classes)\n" +
+                "classes['androidx.webkit.WebViewFeature'] = supported\n" +
+                "return script").arg1().isnil());
+        Varargs result = Scripts.run(globals, "script = nil local restricted, ua = construct({}) return script, restricted, ua");
+        assertTrue(result.arg1().isnil());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("Mozilla/5.0 (Linux; Android 15; unknown Build/unknown; wv)", result.arg(3).tojstring());
+    }
+
+    // The page script does what it should when it runs: node runs it in two realms with stand-ins of the browser's
+    // functions (webview_page_test.js), as a page that watches the lookups on objects the page can change which would
+    // get a real value, like a getter on Array.prototype.constructor for the list or on then for the WebGPU adapter.
+    // It fails without node, so a run without it does not pass silently.
+    @Test
+    public void pageScriptRunsInNode() throws Exception {
+        Process version;
+        try {
+            version = new ProcessBuilder("node", "--version").redirectErrorStream(true).start();
+        } catch (IOException ex) {
+            version = null;
+        }
+        assertTrue("node is needed to run the page script", version != null && version.waitFor() == 0);
+
+        Globals globals = Scripts.load("webview_constructor", WEBVIEW);
+        String js = Scripts.run(globals, "construct(classes) return script").arg1().tojstring();
+        File page = File.createTempFile("page", ".js");
+        try {
+            Files.write(page.toPath(), js.getBytes(StandardCharsets.UTF_8));
+            File harness = new File(getClass().getResource("/webview_page_test.js").toURI());
+            Process node = new ProcessBuilder("node", harness.getPath(), page.getPath()).redirectErrorStream(true).start();
+            String out = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertEquals(out, 0, node.waitFor());
+        } finally {
+            page.delete();
+        }
     }
 
     // The default user agent which setUserAgentString(null) brings back is read without the hook of the app's calls
@@ -102,7 +185,7 @@ public class UserAgentClipScriptTest {
                 "  return param",
                 "end"));
         for (String ua : new String[]{"nil", "''"})
-            assertEquals(ua, "Mozilla/5.0 (Linux; Android 15; K; wv)", Scripts.run(globals,
+            assertEquals(ua, "Mozilla/5.0 (Linux; Android 15; unknown Build/unknown; wv)", Scripts.run(globals,
                     "local param = paramof(" + ua + ") setUserAgentString('before', param) return param.ua").arg1().tojstring());
     }
 

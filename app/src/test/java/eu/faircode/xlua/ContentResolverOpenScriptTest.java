@@ -44,7 +44,9 @@ public class ContentResolverOpenScriptTest {
             "  local segments = {}",
             "  for segment in string.gmatch(path, '[^/]+') do table.insert(segments, segment) end",
             "  return { getScheme = function(self) return scheme end,",
-            "    getAuthority = function(self) return authority end,",
+            "    getAuthority = function(self)",
+            "      return (string.gsub(authority, '%%(%x%x)', function(hex) return string.char(tonumber(hex, 16)) end))",
+            "    end,",
             "    getEncodedAuthority = function(self) return authority end,",
             "    getPathSegments = function(self)",
             "      return { size = function(self) return #segments end,",
@@ -101,9 +103,11 @@ public class ContentResolverOpenScriptTest {
             "    unhooked = function(self, run) return run() end,",
             "    setResult = function(self, value) self.result = value end }",
             "end",
-            // The pipe of the last vCard, which fails without a pipe, and the version of Android
+            // The pipe of the last vCard, which fails without a pipe, the version of Android and whether the app may change
+            // system settings
             "pipes = true",
             "sdk = 34",
+            "writes = false",
             "luajava = {",
             "  newInstance = function(name, ...)",
             "    if name == 'android.net.Uri$Builder' then",
@@ -128,6 +132,15 @@ public class ContentResolverOpenScriptTest {
             "      end }",
             "    elseif name == 'android.os.Build$VERSION' then",
             "      return { SDK_INT = sdk }",
+            // Like Integer.parseInt for ASCII digits
+            "    elseif name == 'java.lang.Integer' then",
+            "      return { parseInt = function(self, text)",
+            "        local sign, digits = string.match(text, '^([+-]?)(%d+)$')",
+            "        if digits == nil then error('java.lang.NumberFormatException: For input string: \"' .. text .. '\"') end",
+            "        return (sign == '-' and -1 or 1) * tonumber(digits)",
+            "      end }",
+            "    elseif name == 'android.provider.Settings$System' then",
+            "      return { canWrite = function(self, context) return writes end }",
             "    elseif name == 'android.content.ClipDescription' then",
             // Like ClipDescription.compareMimeTypes
             "      return { compareMimeTypes = function(self, concrete, desired)",
@@ -197,6 +210,82 @@ public class ContentResolverOpenScriptTest {
         Varargs photo = open("ContentProviderClient.openTypedAssetFile/contacts", CLIENT,
                 "content://com.android.contacts/contacts/1/display_photo", "'image/*'");
         assertTrue(photo.arg(1).toboolean());
+    }
+
+    // The copies of the sounds which the settings provider plays them from are missing, like after None was chosen, with
+    // the message of ParcelFileDescriptor.open and for a typed open of another type that of ContentProvider, with the
+    // user, which the settings provider keeps (singleUser), also as Integer.parseInt reads it or encoded, and every mode which
+    // only reads as of Android 10, with w as of Android 13 only for apps which may change system settings; not for
+    // other users or a user which is no number, modes which write or which Android refuses, other uris and other
+    // variants
+    @Test
+    public void soundCopiesAreMissing() {
+        String missing = "open failed: ENOENT (No such file or directory)";
+        for (String uri : new String[]{"content://settings/system/ringtone_cache", "content://0@settings/system/alarm_alert_cache",
+                "content://settings/system/notification_sound_cache", "content://+0@settings/system/ringtone_cache",
+                "content://00@settings/system/ringtone_cache", "content://0%40settings/system/ringtone_cache",
+                "content://%73ettings/system/notification_sound_cache", "content://settings/system//ringtone_cache",
+                "content://0@settings//system/alarm_alert_cache", "content://settings///system//notification_sound_cache",
+                "content://settings/system/ringtone_cache?", "content://settings/system/ringtone_cache#",
+                "content://settings/system/ringtone_cache?#"}) {
+            Varargs result = open("ContentResolver.openAssetFileDescriptor/settings", RESOLVER, uri, "'r'");
+            assertTrue(uri, result.arg(1).toboolean());
+            assertEquals(uri, "java.io.FileNotFoundException", result.arg(2).tojstring());
+            assertEquals(uri, missing, result.arg(3).tojstring());
+            assertEquals(uri, missing, open("ContentProviderClient.openFile/settings", CLIENT, uri, "'r'").arg(3).tojstring());
+        }
+        assertEquals(missing, open("ContentResolver.openTypedAssetFileDescriptor/settings", RESOLVER,
+                "content://settings/system/ringtone_cache", "'vnd.android.cursor.item/*'").arg(3).tojstring());
+        assertEquals("Can't open content://0@settings/system/ringtone_cache as type audio/*",
+                open("ContentProviderClient.openTypedAssetFile/settings", CLIENT,
+                        "content://0@settings/system/ringtone_cache", "'audio/*'").arg(3).tojstring());
+        // Like ContentProvider passes it to SettingsProvider, with one / for each run, also on Android 8.1 and 9, whose
+        // security patches do the same
+        for (String sdk : new String[]{"34", "28", "27"}) {
+            Scripts.run(globals, "sdk = " + sdk);
+            assertEquals("Can't open content://0%40settings/system/ringtone_cache as type audio/*",
+                    open("ContentProviderClient.openTypedAssetFile/settings", CLIENT,
+                            "content://0%40settings//system//ringtone_cache", "'audio/*'").arg(3).tojstring());
+            // An empty query is left out only when the uri is built again
+            assertEquals("Can't open content://settings/system/ringtone_cache as type audio/*",
+                    open("ContentProviderClient.openTypedAssetFile/settings", CLIENT,
+                            "content://settings//system/ringtone_cache?", "'audio/*'").arg(3).tojstring());
+            assertEquals("Can't open content://settings/system/ringtone_cache# as type audio/*",
+                    open("ContentProviderClient.openTypedAssetFile/settings", CLIENT,
+                            "content://settings/system/ringtone_cache#", "'audio/*'").arg(3).tojstring());
+            assertEquals(missing, open("ContentResolver.openAssetFileDescriptor/settings", RESOLVER,
+                    "content://settings//system/ringtone_cache", "'r'").arg(3).tojstring());
+        }
+        Scripts.run(globals, "sdk = 34");
+
+        String[][] others = {{"content://10@settings/system/ringtone_cache", "'r'"}, {"content://settings/system/ringtone_cache", "'w'"},
+                {"content://settings/system/ringtone_cache", "'rw'"}, {"content://settings/system/ringtone", "'r'"},
+                {"content://settings/system/ringtone_cache?x=1", "'r'"}, {"file://settings/system/ringtone_cache", "'r'"},
+                {"content://-1@settings/system/ringtone_cache", "'r'"}, {"content://x@settings/system/ringtone_cache", "'r'"},
+                {"content://@settings/system/ringtone_cache", "'r'"}, {"content://settings/system/ringtone_cache", "'rwt'"},
+                {"content://settings/system/ringtone_cache", "'raw'"}, {"content://settings/system/ringtone_cache", "'x'"},
+                {"content://settings/system/ringtone_cache", "'a'"}, {"content://settings/system/ringtone_cache", "''"},
+                {"content://settings/system/ringtone_cache", "'rx'"}, {"content://settings/system/ringtone_cache#?", "'r'"},
+                {"content://settings/system/ringtone_cache?#x", "'r'"}, {"content://settings/system/ringtone_cache//x", "'r'"}};
+        for (String[] other : others)
+            assertFalse(other[0] + " " + other[1],
+                    open("ContentProviderClient.openFile/settings", CLIENT, other[0], other[1]).arg1().toboolean());
+        assertFalse(open("ContentResolver.openAssetFileDescriptor/contacts", RESOLVER,
+                "content://settings/system/ringtone_cache", "'r'").arg1().toboolean());
+
+        // The modes which read, by the version of Android and whether the app may change system settings
+        String[][] modes = {{"34", "false", "ra", "true"}, {"34", "false", "rr", "true"}, {"34", "false", "rt", "true"},
+                {"34", "true", "raw", "true"}, {"34", "true", "rw", "false"}, {"32", "false", "rtw", "true"},
+                {"29", "false", "rat", "true"}, {"28", "false", "ra", "false"}, {"28", "false", "rr", "false"},
+                {"28", "false", "r", "true"}, {"27", "true", "rt", "false"}};
+        for (String[] mode : modes) {
+            Scripts.run(globals, "sdk = " + mode[0] + "\nwrites = " + mode[1]);
+            Varargs result = open("ContentResolver.openAssetFileDescriptor/settings", RESOLVER,
+                    "content://settings/system/ringtone_cache", "'" + mode[2] + "'");
+            assertEquals(String.join(" ", mode), Boolean.parseBoolean(mode[3]), result.arg1().toboolean());
+            if (result.arg1().toboolean())
+                assertEquals(missing, result.arg(3).tojstring());
+        }
     }
 
     // MmsProvider opens only parts, and with the user in the uri none, since it keeps the user (singleUser), so

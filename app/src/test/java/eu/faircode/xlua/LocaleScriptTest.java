@@ -45,13 +45,23 @@ public class LocaleScriptTest {
             "end",
             "settings = { ['value.locale'] = 'en-US,fr-FR' }",
             "system = { 'de-DE', 'tr-TR' }",
+            "values = {}",
             "function paramof(result, args)",
             "  return { result = result, args = args or {},",
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value end,",
             "    getArgument = function(self, index) return self.args[index] end,",
             "    setArgument = function(self, index, value) self.args[index] = value end,",
+            "    getValue = function(self, name, scope) return values[name] end,",
+            "    putValue = function(self, name, value, scope) values[name] = value end,",
+            "    unhooked = function(self, fn) return fn() end,",
+            "    getPackageName = function(self) return self.packageName or 'com.example.app' end,",
             "    getSetting = function(self, name) return settings[name] end }",
+            "end",
+            // A Configuration with its languages
+            "function configof(tags)",
+            "  return { tags = tags, getLocales = function(self) return listof(self.tags) end,",
+            "    setLocales = function(self, list) self.tags = split(list:toLanguageTags()) end }",
             "end",
             "function listof(tags) local text = table.concat(tags, ',')",
             "  return { toLanguageTags = function(self) return text end } end",
@@ -95,6 +105,259 @@ public class LocaleScriptTest {
         // Without the list of the system all languages are replaced
         assertEquals("en-US,fr-FR", Scripts.run(globals, "return table.concat(merge({ 'ja-JP', 'de-DE' }, nil, { 'en-US', 'fr-FR' }), ',')")
                 .arg1().tojstring());
+    }
+
+    // The system puts the language of the app's texts first when it is no language of the device, like a fake one
+    // (updateLocaleListFromAppContext): it stays first, so Locale.getDefault is the first language of the configuration;
+    // a fake list in another order stays
+    @Test
+    public void languageOfTheTextsStaysFirst() throws Exception {
+        Globals globals = load();
+        Varargs result = Scripts.run(globals,
+                "local param = paramof(nil, { [0] = listof({ 'fr-FR', 'de-DE', 'tr-TR' }) })\n" +
+                        "local changed = before(hookof('android.os.LocaleList', 'setDefault'), param)\n" +
+                        "local same = paramof(nil, { [0] = listof({ 'fr-FR', 'en-US' }) })\n" +
+                        "local kept = before(hookof('android.os.LocaleList', 'setDefault'), same)\n" +
+                        "local fake = { 'en-US', 'fr-FR' }\n" +
+                        "return changed, param.args[0]:toLanguageTags(), kept, same.args[0]:toLanguageTags(),\n" +
+                        "  table.concat(front(fake, 'de-DE', fake), ','), table.concat(front(fake, nil, fake), ','),\n" +
+                        "  table.concat(front({ 'ja-JP', 'en-US' }, 'ja-JP', fake), ',')");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("fr-FR,en-US", result.arg(2).tojstring());
+        assertFalse(result.arg(3).toboolean());
+        assertEquals("fr-FR,en-US", result.arg(4).tojstring());
+        assertEquals("en-US,fr-FR", result.arg(5).tojstring());
+        assertEquals("en-US,fr-FR", result.arg(6).tojstring());
+        assertEquals("ja-JP,en-US", result.arg(7).tojstring());
+    }
+
+    // The configurations of the resources get the languages of the defaults, as a copy, when they hold all the languages
+    // of the device, like those of the system; a configuration the app made with a language stays. Before Android 13
+    // the one the system gives the resources of the system keeps its languages as those of the device.
+    @Test
+    public void configurationsHaveTheFakeLanguages() throws Exception {
+        Globals globals = load();
+        Varargs result = Scripts.run(globals,
+                "local real, sdk = luajava, 34\n" +
+                        "luajava = { bindClass = function(name)\n" +
+                        "    if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                        "    return real.bindClass(name) end,\n" +
+                        "  newInstance = function(name, config)\n" +
+                        "    assert(name == 'android.content.res.Configuration', name)\n" +
+                        "    return configof(config.tags) end }\n" +
+                        "local function update(tags, method)\n" +
+                        "  local config = configof(tags)\n" +
+                        "  local param = paramof(nil, { [0] = config })\n" +
+                        "  local hook = hookof('android.content.res.ResourcesImpl', method or 'updateConfiguration', 3)\n" +
+                        "  local changed = before(hook, param)\n" +
+                        "  return changed, table.concat(param.args[0].tags, ','), param.args[0] ~= config,\n" +
+                        "    table.concat(config.tags, ',')\n" +
+                        "end\n" +
+                        "local a, b, c, d = update({ 'de-DE', 'tr-TR' })\n" +
+                        "local e, f = update({ 'ja-JP', 'tr-TR', 'de-DE' }, 'updateConfigurationImpl')\n" +
+                        "local g, h = update({ 'de-DE' })\n" +
+                        "local i = update({ 'en-US', 'fr-FR' })\n" +
+                        "local j = before(hookof('android.content.res.ResourcesImpl', 'updateConfiguration', 3), paramof(nil, {}))\n" +
+                        "local none = values['locale.device']\n" +
+                        "sdk = 30\n" +
+                        "local k = update({ 'tr-TR', 'de-DE' })\n" +
+                        "local other = values['locale.device']\n" +
+                        "stack = { length = 2, [1] = frameof('android.content.res.Resources', 'updateSystemConfiguration'),\n" +
+                        "  [2] = frameof('android.app.ActivityThread', 'handleConfigurationChanged') }\n" +
+                        "local l, m = update({ 'tr-TR', 'de-DE' })\n" +
+                        // A configuration without languages, like the one of a change of the assets, is no list of the device
+                        "local n = update({})\n" +
+                        "luajava = real\n" +
+                        "return a, b, c, d, e, f, g, h, i, j, none, k, other, l, m, values['locale.device'], n");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("en-US,fr-FR", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("de-DE,tr-TR", result.arg(4).tojstring());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals("ja-JP,en-US,fr-FR", result.arg(6).tojstring());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals("de-DE", result.arg(8).tojstring());
+        assertFalse(result.arg(9).toboolean());
+        assertFalse(result.arg(10).toboolean());
+        // Android 13 asks LocaleManager, before only the resources of the system tell the languages of the device
+        assertTrue(result.arg(11).isnil());
+        assertTrue(result.arg(12).toboolean());
+        assertTrue(result.arg(13).isnil());
+        assertTrue(result.arg(14).toboolean());
+        assertEquals("en-US,fr-FR", result.arg(15).tojstring());
+        assertEquals("tr-TR,de-DE", result.arg(16).tojstring());
+        assertFalse(result.arg(17).toboolean());
+    }
+
+    // The configuration of a change the app is told of gets them too, as a copy: the one of the application, services
+    // and providers, of the multi-window and picture-in-picture modes, and the one of an activity, of which the
+    // configuration it was last told of gets them as well (Activity.mCurrentConfig, of the record from Android 14), so a
+    // change does not seem to change the languages too; without that field the configuration of the change stays
+    @Test
+    public void changesHaveTheFakeLanguages() throws Exception {
+        Globals globals = load();
+        Varargs result = Scripts.run(globals,
+                "local real, listed = luajava, true\n" +
+                        "local function fieldof(name)\n" +
+                        "  return { getName = function(self) return name end, setAccessible = function(self, on) end,\n" +
+                        "    get = function(self, object) return object[name] end,\n" +
+                        "    set = function(self, object, value) object[name] = value end }\n" +
+                        "end\n" +
+                        "local classes = {\n" +
+                        "  ['android.os.Build$VERSION'] = { SDK_INT = 34 },\n" +
+                        "  ['android.app.Activity'] = { fields = { fieldof('mCalled'), fieldof('mCurrentConfig') } },\n" +
+                        "  ['java.lang.Object'] = { getClass = function(object) return object.class end },\n" +
+                        "  ['java.lang.Class'] = { getDeclaredFields = function(class)\n" +
+                        "    local fields = { length = 0 }\n" +
+                        "    for _, field in ipairs(listed and class.fields or {}) do\n" +
+                        "      fields.length = fields.length + 1\n" +
+                        "      fields[fields.length] = field\n" +
+                        "    end\n" +
+                        "    return fields end } }\n" +
+                        "luajava = { bindClass = function(name) return classes[name] or real.bindClass(name) end,\n" +
+                        "  newInstance = function(name, config)\n" +
+                        "    assert(name == 'android.content.res.Configuration', name)\n" +
+                        "    return configof(config.tags) end }\n" +
+                        "local function change(hook, first)\n" +
+                        "  local config = configof({ 'de-DE', 'tr-TR' })\n" +
+                        "  local param = paramof(nil, { [0] = first, [1] = config })\n" +
+                        "  local changed = before(hook, param)\n" +
+                        "  return changed, table.concat(param.args[1].tags, ','), table.concat(config.tags, ',')\n" +
+                        "end\n" +
+                        "local function activityhook(first, count)\n" +
+                        "  local hook = hookof('android.app.ActivityThread', 'performActivityConfigurationChanged', count)\n" +
+                        "  hook.getParameterTypes = function(self) return { length = count, [1] = first } end\n" +
+                        "  return hook\n" +
+                        "end\n" +
+                        "local a, b, c = change(hookof('android.app.ConfigurationController', 'performConfigurationChanged', 2), {})\n" +
+                        "local d, e = change(hookof('android.app.Activity', 'dispatchPictureInPictureModeChanged', 2), true)\n" +
+                        "local activity = { mCurrentConfig = configof({ 'de-DE', 'tr-TR' }) }\n" +
+                        "local launched = activity.mCurrentConfig\n" +
+                        "local f, g = change(activityhook('android.app.Activity', 4), activity)\n" +
+                        "local h, i = table.concat(activity.mCurrentConfig.tags, ','), activity.mCurrentConfig ~= launched\n" +
+                        "local told = activity.mCurrentConfig\n" +
+                        "change(activityhook('android.app.Activity', 4), activity)\n" +
+                        "local j = (activity.mCurrentConfig == told)\n" +
+                        "local record = { class = { fields = { fieldof('activity') } },\n" +
+                        "  activity = { mCurrentConfig = configof({ 'tr-TR', 'de-DE' }) } }\n" +
+                        "local k, l = change(activityhook('android.app.ActivityThread$ActivityClientRecord', 5), record)\n" +
+                        "local m = table.concat(record.activity.mCurrentConfig.tags, ',')\n" +
+                        "listed = false\n" +
+                        "local other = { mCurrentConfig = configof({ 'de-DE', 'tr-TR' }) }\n" +
+                        "local n, o = change(activityhook('android.app.Activity', 5), other)\n" +
+                        "luajava = real\n" +
+                        "return a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, table.concat(other.mCurrentConfig.tags, ',')");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("en-US,fr-FR", result.arg(2).tojstring());
+        assertEquals("de-DE,tr-TR", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("en-US,fr-FR", result.arg(5).tojstring());
+        assertTrue(result.arg(6).toboolean());
+        assertEquals("en-US,fr-FR", result.arg(7).tojstring());
+        assertEquals("en-US,fr-FR", result.arg(8).tojstring());
+        assertTrue(result.arg(9).toboolean());
+        // Told of the fake languages already: it stays
+        assertTrue(result.arg(10).toboolean());
+        assertTrue(result.arg(11).toboolean());
+        assertEquals("en-US,fr-FR", result.arg(12).tojstring());
+        assertEquals("en-US,fr-FR", result.arg(13).tojstring());
+        assertFalse(result.arg(14).toboolean());
+        assertEquals("de-DE,tr-TR", result.arg(15).tojstring());
+        assertEquals("de-DE,tr-TR", result.arg(16).tojstring());
+    }
+
+    // Activity.dump prints the lists of the languages of the device as the fake ones, also after a language chosen for
+    // the app, to the writer it was given, also when the dump failed; other lists and texts stay
+    @Test
+    public void dumpHasTheFakeLanguages() throws Exception {
+        Globals globals = load();
+        Varargs result = Scripts.run(globals,
+                "local function dump(text, fail)\n" +
+                        "  local out = luajava.newInstance('java.io.StringWriter')\n" +
+                        "  local writer = luajava.newInstance('java.io.PrintWriter', out)\n" +
+                        "  local hook = hookof('android.app.Activity', 'dumpInner', 4)\n" +
+                        "  local param = paramof(nil, { [0] = '', [2] = writer })\n" +
+                        "  local changed = before(hook, param)\n" +
+                        "  local given = param.args[2]\n" +
+                        "  given:print(text)\n" +
+                        "  if fail then systemtags = function(param) error('failed') end end\n" +
+                        "  local a, b, c = after(hook, param)\n" +
+                        "  writer:flush()\n" +
+                        "  return changed, given ~= writer, out:toString(), a, b, c\n" +
+                        "end\n" +
+                        "local a, b, c, d, e, f = dump('mCurrentConfig={1.0 [de_DE,tr_TR] sw411dp} global=[ja_JP,de_DE,tr_TR]" +
+                        " other=[de_DE,tr_TR,nl_NL] [xde_DE,tr_TR] de_DE,tr_TR')\n" +
+                        "local h, i, j, k = dump('[de_DE,tr_TR]', true)\n" +
+                        "return a, b, c, d, e, f, select(3, dump('[en_US]')), j, k");
+        assertFalse(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("mCurrentConfig={1.0 [en_US,fr_FR] sw411dp} global=[ja_JP,en_US,fr_FR] other=[de_DE,tr_TR,nl_NL]" +
+                " [xde_DE,tr_TR] de_DE,tr_TR", result.arg(3).tojstring());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("de_DE,tr_TR", result.arg(5).tojstring());
+        assertEquals("en_US,fr_FR", result.arg(6).tojstring());
+        assertEquals("[en_US]", result.arg(7).tojstring());
+        assertEquals("[de_DE,tr_TR]", result.arg(8).tojstring());
+        assertFalse(result.arg(9).toboolean());
+    }
+
+    // After a whole list of the device the direction of the layout becomes that of the first fake language, also after
+    // the grammatical gender of Android 14, both ways; after a language chosen for the app and apart from a list it stays
+    @Test
+    public void dumpHasTheDirectionOfTheFakeLanguages() throws Exception {
+        Globals globals = load();
+        Varargs result = Scripts.run(globals,
+                "local real = luajava\n" +
+                        "luajava = { newInstance = real.newInstance, bindClass = function(name)\n" +
+                        "    if name ~= 'android.text.TextUtils' then return real.bindClass(name) end\n" +
+                        "    return { getLayoutDirectionFromLocale = function(self, locale)\n" +
+                        "      return locale:getLanguage() == 'ar' and 1 or 0 end } end }\n" +
+                        "local function dump(text)\n" +
+                        "  local out = luajava.newInstance('java.io.StringWriter')\n" +
+                        "  local writer = luajava.newInstance('java.io.PrintWriter', out)\n" +
+                        "  local hook = hookof('android.app.Activity', 'dumpInner', 4)\n" +
+                        "  local param = paramof(nil, { [2] = writer })\n" +
+                        "  before(hook, param)\n" +
+                        "  param.args[2]:print(text)\n" +
+                        "  after(hook, param)\n" +
+                        "  writer:flush()\n" +
+                        "  return out:toString()\n" +
+                        "end\n" +
+                        "system, settings['value.locale'] = { 'ar-EG' }, 'en-US'\n" +
+                        "local a = dump('mCurrentConfig={1.0 [ar_EG] ldrtl sw411dp} global=[ja_JP,ar_EG] ldrtl" +
+                        " [ar_EG] feminine ldrtl ldrtl')\n" +
+                        "system, settings['value.locale'] = { 'en-US' }, 'ar-EG'\n" +
+                        "local b = dump('{1.0 [en_US] ?grgend ldltr} [en_US] neuterldltr')\n" +
+                        "luajava = real\n" +
+                        "return a, b");
+        assertEquals("mCurrentConfig={1.0 [en_US] ldltr sw411dp} global=[ja_JP,en_US] ldrtl [en_US] feminine ldltr ldrtl",
+                result.arg(1).tojstring());
+        assertEquals("{1.0 [ar_EG] ?grgend ldrtl} [ar_EG] neuterldltr", result.arg(2).tojstring());
+    }
+
+    // Before Android 13 the languages of the device are those of the resources of the system until they are faked,
+    // then those they had
+    @Test
+    public void languagesOfTheDeviceBeforeAndroid13() throws Exception {
+        Globals globals = Scripts.load("locale", null);
+        Varargs result = Scripts.run(globals, "local real = systemtags\n" + STUBS + "\nsystemtags = real\n" +
+                "local system = { getConfiguration = function(self)\n" +
+                "  return { getLocales = function(self) return listof({ 'de-DE', 'tr-TR' }) end } end }\n" +
+                "local luajavaReal = luajava\n" +
+                "luajava = { bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = 30 } end\n" +
+                "  if name == 'android.content.res.Resources' then return { getSystem = function(self) return system end } end\n" +
+                "  return luajavaReal.bindClass(name) end }\n" +
+                "local first = table.concat(systemtags(paramof()), ',')\n" +
+                "values['locale.device'] = 'nl-NL,fr-FR'\n" +
+                "local known = table.concat(systemtags(paramof()), ',')\n" +
+                "values['locale.device'] = ''\n" +
+                "local empty = table.concat(systemtags(paramof()), ',')\n" +
+                "luajava = luajavaReal\n" +
+                "return first, known, empty");
+        assertEquals("de-DE,tr-TR", result.arg(1).tojstring());
+        assertEquals("nl-NL,fr-FR", result.arg(2).tojstring());
+        assertEquals("de-DE,tr-TR", result.arg(3).tojstring());
     }
 
     // Android 13: the language the user chose for the app is not a language of the device for the merge, also when
@@ -553,6 +816,90 @@ public class LocaleScriptTest {
         assertEquals("en-US,fr-FR", result.arg(2).tojstring());
         assertEquals("en-US", result.arg(3).tojstring());
         assertEquals("en-US", result.arg(4).tojstring());
+    }
+
+    // Once when installed, first: the configurations of the resources of the system and of the app made before, by
+    // Resources.updateConfiguration; the language of the app's texts, which its resources put first, becomes the
+    // locale, and before Android 13 the languages of the device are kept
+    @Test
+    public void configurationsArePushedOnce() throws Exception {
+        Globals globals = load();
+        Varargs result = Scripts.run(globals,
+                "local set, updated = nil, 0\n" +
+                        "local real = luajava\n" +
+                        // The app has texts in French only, which its resources put first, like ResourcesImpl
+                        "local function resourcesof(tags, texts)\n" +
+                        "  return { config = configof(tags), getConfiguration = function(self) return self.config end,\n" +
+                        "    updateConfiguration = function(self, copy, metrics)\n" +
+                        "      assert(metrics == nil)\n" +
+                        "      updated = updated + 1\n" +
+                        "      local tags = { texts }\n" +
+                        "      for _, tag in ipairs(copy.tags) do if tag ~= texts then tags[#tags + 1] = tag end end\n" +
+                        "      self.config = configof(tags)\n" +
+                        "    end }\n" +
+                        "end\n" +
+                        "local sysres = resourcesof({ 'de-DE', 'tr-TR' })\n" +
+                        "local app = resourcesof({ 'de-DE', 'tr-TR' }, 'fr-FR')\n" +
+                        "local classes = {\n" +
+                        "  ['android.os.LocaleList'] = { getDefault = function(self) return listof({ 'de-DE', 'tr-TR' }) end,\n" +
+                        "    setDefault = function(self, list) set = list:toLanguageTags() end },\n" +
+                        "  ['java.lang.System'] = { getProperty = function(self, key) return 'en-US' end },\n" +
+                        "  ['android.content.res.Resources'] = { getSystem = function(self) return sysres end },\n" +
+                        "  ['android.os.Build$VERSION'] = { SDK_INT = 30 } }\n" +
+                        "luajava = { bindClass = function(name) return classes[name] or real.bindClass(name) end,\n" +
+                        "  newInstance = function(name, config)\n" +
+                        "    assert(name == 'android.content.res.Configuration', name)\n" +
+                        "    return configof(config.tags) end }\n" +
+                        "local param = paramof()\n" +
+                        "param.getApplicationContext = function(self) return { getResources = function(self) return app end } end\n" +
+                        "local pushed = after(hookof('android.os.LocaleList', '#sLastExplicitlySetLocaleList', 0), param)\n" +
+                        "local again = pushconfig(param, system, fakes(param))\n" +
+                        "luajava = real\n" +
+                        "return pushed, set, table.concat(sysres.config.tags, ','), table.concat(app.config.tags, ','), updated,\n" +
+                        "  values['locale.device'], again");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("fr-FR,en-US", result.arg(2).tojstring());
+        assertEquals("en-US,fr-FR", result.arg(3).tojstring());
+        assertEquals("fr-FR,en-US", result.arg(4).tojstring());
+        assertEquals(2, result.arg(5).toint());
+        assertEquals("de-DE,tr-TR", result.arg(6).tojstring());
+        // Faked already: not again
+        assertEquals("fr-FR", result.arg(7).tojstring());
+    }
+
+    // Not in system server, where the hooks of the configurations are left out too: its resources keep the languages of
+    // the device, the defaults are set; in an app they are pushed
+    @Test
+    public void configurationsOfSystemServerStay() throws Exception {
+        Globals globals = load();
+        Varargs result = Scripts.run(globals,
+                "local set, updated = nil, 0\n" +
+                        "local real = luajava\n" +
+                        "local resources = { config = configof({ 'de-DE', 'tr-TR' }),\n" +
+                        "  getConfiguration = function(self) return self.config end,\n" +
+                        "  updateConfiguration = function(self, copy, metrics) updated = updated + 1 end }\n" +
+                        "local classes = {\n" +
+                        "  ['android.os.LocaleList'] = { getDefault = function(self) return listof({ 'de-DE', 'tr-TR' }) end,\n" +
+                        "    setDefault = function(self, list) set = list:toLanguageTags() end },\n" +
+                        "  ['java.lang.System'] = { getProperty = function(self, key) return 'en-US' end },\n" +
+                        "  ['android.content.res.Resources'] = { getSystem = function(self) return resources end },\n" +
+                        "  ['android.os.Build$VERSION'] = { SDK_INT = 34 } }\n" +
+                        "luajava = { bindClass = function(name) return classes[name] or real.bindClass(name) end,\n" +
+                        "  newInstance = function(name, config) return configof(config.tags) end }\n" +
+                        "local param = paramof()\n" +
+                        "param.packageName = 'android'\n" +
+                        "param.getApplicationContext = function(self) return { getResources = function(self) return resources end } end\n" +
+                        "local pushed = after(hookof('android.os.LocaleList', '#sLastExplicitlySetLocaleList', 0), param)\n" +
+                        "local server = updated\n" +
+                        "param.packageName = nil\n" +
+                        "pushconfig(param, system, fakes(param))\n" +
+                        "luajava = real\n" +
+                        "return pushed, set, server, table.concat(resources.config.tags, ','), updated");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("en-US,fr-FR", result.arg(2).tojstring());
+        assertEquals(0, result.arg(3).toint());
+        assertEquals("de-DE,tr-TR", result.arg(4).tojstring());
+        assertEquals(2, result.arg(5).toint());
     }
 
     @Test

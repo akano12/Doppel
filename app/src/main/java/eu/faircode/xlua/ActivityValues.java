@@ -105,7 +105,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private static final Object[] SECTIONS = new Object[]{
             R.string.title_values_identifiers,
             new Field(FakeIds.SERIAL, R.string.title_value_serial, Type.TEXT, "unknown"),
-            // Fixed without a value, the app gets one of its own, see FakeIds.getBootValues
+            // Fixed without a value, the app gets one of its developer which stays, see FakeIds.getBootValues
             new Field(FakeIds.ANDROID_ID, R.string.title_value_android_id, Type.TEXT, null),
             new Field(FakeIds.IMEI, R.string.title_value_imei, Type.TEXT, null),
             new Field(FakeIds.MEID, R.string.title_value_meid, Type.TEXT, null),
@@ -295,7 +295,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                     for (XAssignment assignment : app.assignments)
                         restricted.add(assignment.group);
             }
-            // What the app gets until the next restart, of the identifiers new each boot
+            // What the app gets of the identifiers the service derives, new each boot and the default Android ID
             final Map<String, String> boot = (app == null ? new HashMap<>() : Data.getBootValues(context, category, app.uid));
 
             runOnUiThread(() -> {
@@ -533,6 +533,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             return getString(R.string.title_global, fallback);
         else if (field.builtin != null)
             return getString(R.string.title_default, field.builtin);
+        else if (FakeIds.ANDROID_ID.equals(field.key))
+            return getString(R.string.title_default, getString(R.string.title_value_android_id_default));
         else if ("features.keep".equals(field.key))
             return getString(R.string.title_value_features_hint);
         else
@@ -659,7 +661,9 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             String global = FakeIds.getMode(key, globals, null);
             if (FakeIds.FIXED.equals(global)) {
                 text = getString(R.string.title_box_inherit_fixed);
-                value = (globals.get(key) == null ? mode.field.builtin : globals.get(key));
+                // The default Android ID is the one the service derives for the app
+                value = (globals.get(key) != null ? globals.get(key)
+                        : mode.field.builtin != null ? mode.field.builtin : saved ? bootValues.get(key) : null);
             } else {
                 text = getString(FakeIds.BOOT_ALL.equals(global)
                         ? R.string.title_box_inherit_boot_all : R.string.title_box_inherit_boot);

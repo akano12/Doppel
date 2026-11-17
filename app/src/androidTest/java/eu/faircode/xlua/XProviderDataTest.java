@@ -20,6 +20,9 @@
 package eu.faircode.xlua;
 
 import android.content.ContentValues;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
@@ -40,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -155,7 +159,7 @@ public class XProviderDataTest {
             return null;
         });
 
-        int[] counts = db.write(d -> XProvider.assignToRestricting(d, hooks, Arrays.asList(b, other), 0, false));
+        int[] counts = db.write(d -> XProvider.assignToRestricting(d, hooks, Arrays.asList(b, other), 0, false, false));
         assertEquals(1, counts[0]);
         assertEquals(1, counts[1]);
         assertTrue(assigned("app.g", UID, b.getId()));
@@ -174,7 +178,7 @@ public class XProviderDataTest {
         });
 
         // Any collection, all users
-        counts = db.write(d -> XProvider.assignToRestricting(d, hooks, Collections.singletonList(other), null, true));
+        counts = db.write(d -> XProvider.assignToRestricting(d, hooks, Collections.singletonList(other), null, true, false));
         assertEquals(3, counts[0]);
         assertTrue(assigned("app.profile", profile, other.getId()));
         assertFalse(assigned("app.h", UID + 1, other.getId()));
@@ -203,6 +207,46 @@ public class XProviderDataTest {
         assertEquals(Arrays.asList("kept.app:" + (UID + 1)), rows("SELECT package || ':' || uid FROM assignment"));
         assertEquals(Arrays.asList("-1:service", "0:global", "0:kept.app"),
                 rows("SELECT user || ':' || category FROM setting ORDER BY user, category"));
+    }
+
+    // The secret of the default Android ID is made once and read again after a restart of the service, also after
+    // all settings of the users were cleared
+    @Test
+    public void keptSecretStays() throws Throwable {
+        byte[] secret = db.write(XProvider::keptSecret);
+        assertEquals(32, secret.length);
+        db.write(d -> {
+            setting(d, 0, "global", "collection", "Privacy");
+            return d.delete("setting", "user >= 0", null);
+        });
+        assertArrayEquals(secret, db.write(XProvider::keptSecret));
+        assertEquals(Collections.singletonList("-1:service:ids_secret"),
+                rows("SELECT user || ':' || category || ':' || name FROM setting"));
+    }
+
+    // The developer of an app is of the signatures SettingsProvider reads, and kept, so a lookup of the signatures
+    // which fails gives the one read before; never read, it is none, so of the package
+    @Test
+    @SuppressWarnings("deprecation")
+    public void developerOfTheSignaturesIsKept() throws Throwable {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        PackageManager pm = context.getPackageManager();
+        Signature[] own = pm.getPackageInfo(context.getPackageName(), PackageManager.GET_SIGNATURES).signatures;
+        byte[][] signatures = XProvider.getSignatures(pm, context.getPackageName());
+        assertTrue(own.length > 0);
+        assertEquals(own.length, signatures.length);
+        for (int i = 0; i < own.length; i++)
+            assertArrayEquals(own[i].toByteArray(), signatures[i]);
+
+        String developer = FakeIds.signer(signatures);
+        assertNull(XProvider.keptDeveloper(db, PKG, null));
+        assertEquals(developer, XProvider.keptDeveloper(db, PKG, developer));
+        assertEquals(developer, XProvider.keptDeveloper(db, PKG, null));
+        assertEquals("signer:other", XProvider.keptDeveloper(db, PKG, "signer:other"));
+        assertEquals("signer:other", XProvider.keptDeveloper(db, PKG, null));
+        assertNull(XProvider.keptDeveloper(db, "kept.app", null));
+        assertEquals(Collections.singletonList("-1:service:developer." + PKG),
+                rows("SELECT user || ':' || category || ':' || name FROM setting"));
     }
 
     private XProvider.Report write(Bundle report, Map<String, XHook> hooks) throws Throwable {

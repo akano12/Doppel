@@ -44,7 +44,9 @@ import java.util.Set;
 // A backup of an older version restores into the definitions of this version: renamed definitions
 // get the restrictions of their former name, removed ones are left out, and the definitions added since
 // the backup complete the groups it restricted, like an update does for the groups restricted already,
-// for backups which list the built-in definitions they were made with, like the ones of this version.
+// for backups which list the built-in definitions they were made with, like the ones of this version;
+// the definitions moved to another group or leaving out fewer packages since the backup (see XDatabase.MOVED)
+// complete them also for backups without that list.
 // Older versions, which do not know the list, restore the backups of this version too.
 class Backup {
     private static final String TAG = "XLua.Backup";
@@ -85,7 +87,7 @@ class Backup {
         int added; // Restrictions which were not there yet
         int renamed; // Restrictions added of definitions which have another name now
         int removed; // Restrictions of definitions which do not exist anymore
-        int completed; // Restrictions added of definitions added since the backup
+        int completed; // Restrictions added of definitions added, moved or leaving out fewer packages since the backup
         int partial; // Groups partially restricted after a backup without its built-in definitions, like of 2.0
         final List<String> stopped = new ArrayList<>(); // Apps stopped to apply the restrictions
         final List<String> reboot = new ArrayList<>(); // Persistent apps, which apply them after a restart
@@ -116,6 +118,10 @@ class Backup {
         for (String id : builtinsForThisSdk(Data.getBuiltinIds(context), Data.getAllHooks(context, null)))
             jbuiltins.put(id);
         jroot.put("builtins", jbuiltins);
+
+        // The moved definitions this version knows, so a restore by a later version completes the groups with the
+        // ones moved since only, see completingMoved
+        jroot.put("moved", moved());
 
         // Also assignments of hooks which are currently not available, like of a disabled collection
         JSONArray jrestrictions = new JSONArray();
@@ -305,6 +311,9 @@ class Backup {
             for (String id : completing(newer, groups, hooks, packageName, collection))
                 if (ids.add(id) && !existing.contains(id))
                     result.completed++;
+            for (String id : completingMoved(jroot, ids, hooks, packageName, collection))
+                if (ids.add(id) && !existing.contains(id))
+                    result.completed++;
 
             // Only apps whose restrictions changed are stopped; persistent apps apply them after a restart
             int added = Data.assignHooks(context, new ArrayList<>(ids), packageName, uid,
@@ -376,6 +385,45 @@ class Backup {
             if (hook != null && groups.contains(hook.getGroup()) && hook.isAvailable(packageName, collection))
                 result.add(id);
         }
+        return result;
+    }
+
+    // The ids of the moved built-in definitions of this version, which a backup lists, see completingMoved
+    static JSONArray moved() {
+        JSONArray jmoved = new JSONArray();
+        for (String[] moved : XDatabase.MOVED)
+            jmoved.put(XHook.builtinId(moved[0]));
+        return jmoved;
+    }
+
+    // The built-in definitions moved to another group or leaving out fewer packages since a backup, which complete
+    // the groups an app restricted, like the update which moved them does (see XProvider.assignMovedBuiltins): the
+    // groups are told without the moved definitions, so restricting one in its former group does not restrict the
+    // group it is in now, and one leaving out fewer packages goes only to an app it left out before (see
+    // XDatabase.movedFor); moved since are the ones of XDatabase.MOVED which the backup does not list as moved. A
+    // backup which lists its built-in definitions but not the moved ones, of 2.1 to 2.3, was made after the first
+    // moves (see XDatabase.MOVED_UNLISTED), so one of them its user switched off stays off; one which lists neither,
+    // like of 2.0, was made before all of them
+    static List<String> completingMoved(JSONObject jroot, Collection<String> ids, Map<String, XHook> hooks,
+                                        String packageName, List<String> collection) throws JSONException {
+        Set<String> moved = new HashSet<>();
+        for (String[] move : XDatabase.MOVED)
+            moved.add(XHook.builtinId(move[0]));
+        Set<String> groups = new HashSet<>();
+        for (String id : ids)
+            if (!moved.contains(id) && hooks.containsKey(id))
+                groups.add(hooks.get(id).getGroup());
+        JSONArray jmoved = jroot.optJSONArray("moved");
+        if (jmoved != null)
+            for (int i = 0; i < jmoved.length(); i++)
+                moved.remove(renamed(jmoved.getString(i)));
+        else if (jroot.optJSONArray("builtins") != null)
+            for (int i = 0; i < XDatabase.MOVED_UNLISTED; i++)
+                moved.remove(XHook.builtinId(XDatabase.MOVED[i][0]));
+        List<String> result = new ArrayList<>();
+        for (String id : completing(moved, groups, hooks, packageName, collection))
+            if (XDatabase.movedFor(id, packageName))
+                result.add(id);
         return result;
     }
 }

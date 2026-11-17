@@ -87,8 +87,10 @@ function refuses(hook, param)
     local adapter = param:getThis()
     local scanner = (hook:getClassName() == 'android.bluetooth.le.BluetoothLeScanner')
     if scanner then
-        -- The state of Bluetooth is the same for every adapter
-        adapter = luajava.bindClass('android.bluetooth.BluetoothAdapter'):getDefaultAdapter()
+        -- The state of Bluetooth is the same for every adapter; the lookup is hooked itself (see features)
+        adapter = param:unhooked(function()
+            return luajava.bindClass('android.bluetooth.BluetoothAdapter'):getDefaultAdapter()
+        end)
     end
     -- Android gives the scanner while Bluetooth is on, also for LE only, and startLeScan refuses without it;
     -- the scanner itself refuses while LE is off (isLeEnabled), which is on also while Bluetooth turns on or off

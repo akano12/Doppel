@@ -58,12 +58,22 @@ public class DeviceValuesScriptTest {
             "  param.getApplicationContext = function(self)",
             "    return { getApplicationInfo = function(self) return { targetSdkVersion = target } end } end",
             "  param.unhooked = function(self, fn) return fn() end",
+            // The values hooks share in the process, see XParam.putValue
+            "  param.putValue = function(self, name, value, scope) VALUES[name] = value end",
+            "  param.getValue = function(self, name, scope) return VALUES[name] end",
             "  return param",
             "end",
-            // The system properties which are set, for SystemProperties.get(key) of isset
+            "VALUES = {}",
+            // The system properties which are set, for SystemProperties.get(key) of isset, and the fields of Build
             "PROPERTIES = {}",
+            "BUILD = { TYPE = 'userdebug' }",
             "local bind = luajava.bindClass",
+            // The size of a page of memory, which Os.sysconf gives
             "luajava.bindClass = function(name)",
+            "  if name == 'android.system.OsConstants' then return { _SC_PAGESIZE = 39 } end",
+            "  if name == 'android.system.Os' then return { sysconf = function(self, name) assert(name == 39) return 4096 end } end",
+            "  if name == 'android.os.Build' then return BUILD end",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = 34, RELEASE = '14', RELEASE_OR_CODENAME = '14' } end",
             "  if name ~= 'android.os.SystemProperties' then return bind(name) end",
             "  return { get = function(self, key) return PROPERTIES[key] or '' end }",
             "end",
@@ -115,19 +125,173 @@ public class DeviceValuesScriptTest {
                     "paramof(" + real + ", { [0] = '" + key + "', [1] = 'def' }))").arg(2).tojstring());
         }
 
-        // The security patch level per quarter
-        assertEquals("2025-04-01", Scripts.run(globals,
-                "return fakedevice('ro.build.version.security_patch', '2025-05-05')").arg1().tojstring());
-        assertEquals("2024-10-01", Scripts.run(globals,
-                "return fakedevice('ro.vendor.build.security_patch', '2024-12-01')").arg1().tojstring());
-        assertEquals("2025-01-01", Scripts.run(globals,
-                "return fakedevice('ro.build.version.security_patch', '2025-01-05')").arg1().tojstring());
-        assertTrue(Scripts.run(globals, "return fakedevice('ro.build.version.security_patch', 'x')").arg1().isnil());
-
+        // The security patch level, also of the vendor, not set: get gives empty, and the default of get(key, default)
+        for (String key : new String[]{"ro.build.version.security_patch", "ro.vendor.build.security_patch",
+                "ro.system.build.version.security_patch"})
+            assertEquals(key, "", Scripts.run(globals, "return fakedevice('" + key + "', '2025-05-05')").arg1().tojstring());
         Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get/device', 'get'), " +
                 "paramof('2025-05-05', { [0] = 'ro.build.version.security_patch' }))");
         assertTrue(result.arg1().toboolean());
-        assertEquals("2025-04-01", result.arg(2).tojstring());
+        assertEquals("", result.arg(2).tojstring());
+        result = Scripts.run(globals, "return run(hookof('SystemProperties.native_get.default/device', 'native_get'), " +
+                "paramof('2025-05-05', { [0] = 'ro.vendor.build.security_patch', [1] = 'def' }))");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("def", result.arg(2).tojstring());
+        // get(key, default) calls the hooked native_get(key, default), which faked it already
+        Scripts.run(globals, "PROPERTIES = { ['ro.vendor.build.security_patch'] = '2025-05-05' }");
+        assertFalse(Scripts.run(globals, "return run(hookof('SystemProperties.get.default/device', 'get'), " +
+                "paramof('def', { [0] = 'ro.vendor.build.security_patch', [1] = 'def' }))").arg1().toboolean());
+        // Not a number, so getInt gives the default, which stays, like for a property which is not set
+        Scripts.run(globals, "PROPERTIES = { ['ro.build.version.security_patch'] = '2025-05-05' }");
+        assertFalse(typed(globals, "getInt", "ro.build.version.security_patch", "7", "7").arg1().toboolean());
+    }
+
+    // Key attestation, which signs the real security patch, is refused like by a keystore without attestation keys:
+    // keystore of Android 8.1 to 11 gives the code of the keymaster for attestKey, of which the generator makes its
+    // exception (UNIMPLEMENTED of Keymaster 3 and 4.0, ATTESTATION_KEYS_NOT_PROVISIONED from Keymaster 4.1), keystore2
+    // the error for generateKey with the challenge, ATTESTATION_KEYS_NOT_PROVISIONED of KeyMint; other keys are made
+    @Test
+    public void keyAttestationIsRefused() throws Exception {
+        Globals globals = load("key_attestation");
+        Scripts.run(globals, String.join("\n",
+                "local bind, make = luajava.bindClass, luajava.newInstance",
+                "luajava.bindClass = function(name)",
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = SDK } end",
+                "  return bind(name)",
+                "end",
+                "luajava.newInstance = function(name, code, message)",
+                "  if name == 'android.os.ServiceSpecificException' then return { code = code, message = message } end",
+                "  return make(name, code, message)",
+                "end"));
+        for (int[] c : new int[][]{{27, -100}, {29, -100}, {30, -74}}) {
+            Varargs result = Scripts.run(globals, "SDK = " + c[0] + "\nlocal param = paramof(0, {})\n" +
+                    "return before(hookof('KeyStore.attestKey', 'attestKey'), param), param.result");
+            assertTrue(String.valueOf(c[0]), result.arg1().toboolean());
+            assertEquals(String.valueOf(c[0]), c[1], result.arg(2).toint());
+        }
+        // KM_TAG_ALGORITHM and KM_TAG_ATTESTATION_CHALLENGE, like the parameters KeyStoreSecurityLevel passes
+        String generate = "local param = paramof(nil, { [2] = %s })\n" +
+                "return before(hookof('IKeystoreSecurityLevel.generateKey', 'generateKey'), param), param.result";
+        Varargs result = Scripts.run(globals, String.format(generate,
+                "{ length = 2, { tag = 268435458 }, { tag = -1879047484 } }") + ".code, param.result.message");
+        assertTrue(result.arg1().toboolean());
+        assertEquals(-74, result.arg(2).toint());
+        assertTrue(result.arg(3).tojstring(), result.arg(3).tojstring().endsWith("\n\nCaused by:\n    0: " +
+                "system/security/keystore2/src/security_level.rs:620: While generating Key without explicit attestation key.\n" +
+                "    1: Error::Km(r#ATTESTATION_KEYS_NOT_PROVISIONED)"));
+        result = Scripts.run(globals, String.format(generate, "{ length = 1, { tag = 268435458 } }"));
+        assertFalse(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        // A Java array of parameters with their public field, like the binder gets
+        for (boolean challenge : new boolean[]{true, false}) {
+            globals.set("PARAMS", CoerceJavaToLua.coerce(challenge ? new Parameter[]{new Parameter(268435458),
+                    new Parameter(-1879047484)} : new Parameter[]{new Parameter(268435458)}));
+            result = Scripts.run(globals, String.format(generate, "PARAMS"));
+            assertEquals(challenge, result.arg1().toboolean());
+            assertEquals(challenge, !result.arg(2).isnil());
+        }
+    }
+
+    // The patch levels of the system, the vendor and the boot in the characteristics of a key are 0 like for a security
+    // patch not set, in the ones of the hardware and of software, rewritten through a parcel; the other tags of every
+    // type stay, and characteristics without a patch level or with an unknown tag are left alone. The parcel stand-in
+    // counts values instead of bytes, which the script only passes back to it
+    @Test
+    public void patchLevelsOfKeysAreNotSet() throws Exception {
+        Globals globals = load("key_attestation");
+        Scripts.run(globals, String.join("\n",
+                "function parcelof()",
+                "  local p = { items = {}, at = 1, recycled = false }",
+                "  local function put(self, v) self.items[self.at] = v; self.at = self.at + 1 end",
+                "  local function get(self) local v = self.items[self.at]; self.at = self.at + 1; return v end",
+                "  p.writeInt, p.readInt, p.readLong, p.createByteArray = put, get, get, get",
+                "  p.dataPosition = function(self) return self.at - 1 end",
+                "  p.setDataPosition = function(self, at) self.at = at + 1 end",
+                "  p.recycle = function(self) self.recycled = true; PARCEL = self end",
+                // Like Parcel.writeTypedObject and KeyCharacteristics: 1, then writeTypedList of the arguments of
+                // software and of the hardware, each the tag and its value
+                "  p.writeTypedObject = function(self, c, flags)",
+                "    self:writeInt(1)",
+                "    for _, list in ipairs({ c.sw, c.hw }) do",
+                "      self:writeInt(#list)",
+                "      for _, a in ipairs(list) do",
+                "        self:writeInt(1); self:writeInt(a[1])",
+                "        if a[2] ~= nil then self:writeInt(a[2]) end",
+                "      end",
+                "    end",
+                "  end",
+                "  return p",
+                "end",
+                "local bind = luajava.bindClass",
+                "luajava.bindClass = function(name)",
+                "  if name == 'android.os.Parcel' then return { obtain = function(self) return parcelof() end } end",
+                "  return bind(name)",
+                "end",
+                "function characteristicsof(hw, sw)",
+                "  local c = { hw = hw, sw = sw, reads = 0 }",
+                "  c.readFromParcel = function(self, parcel)",
+                "    self.reads = self.reads + 1",
+                "    for _, key in ipairs({ 'sw', 'hw' }) do",
+                "      local list = {}",
+                "      for _ = 1, parcel:readInt() do",
+                "        parcel:readInt()",
+                "        local tag = parcel:readInt()",
+                "        local value = nil",
+                "        if bit32.rshift(tag, 28) ~= 7 then value = parcel:readInt() end",
+                "        list[#list + 1] = { tag, value }",
+                "      end",
+                "      self[key] = list",
+                "    end",
+                "  end",
+                "  local param = paramof(nil, {})",
+                "  param.getThis = function(self) return c end",
+                "  return param, c",
+                "end",
+                "function text(list)",
+                "  local t = {}",
+                "  for _, a in ipairs(list) do t[#t + 1] = a[1] .. '=' .. tostring(a[2]) end",
+                "  return table.concat(t, ' ')",
+                "end",
+                "function patched(hw, sw)",
+                "  local param, c = characteristicsof(hw, sw)",
+                "  local done = after(hookof('KeyCharacteristics.readFromParcel', 'readFromParcel'), param)",
+                "  return done, text(c.hw), text(c.sw), c.reads, PARCEL.recycled",
+                "end"));
+        // KM_TAG_PURPOSE (enum rep), KM_TAG_OS_VERSION, KM_TAG_OS_PATCHLEVEL, KM_TAG_NO_AUTH_REQUIRED (bool, no value),
+        // KM_TAG_VENDOR_PATCHLEVEL, KM_TAG_BOOT_PATCHLEVEL and KM_TAG_CREATION_DATETIME (date)
+        Varargs result = Scripts.run(globals, "return patched({ { 536870913, 2 }, { 805307073, 140000 }, { 805307074, 202309 }, " +
+                "{ 1879048695 }, { 805307086, 20230905 }, { 805307087, 20230905 } }, { { 1610613437, 7 } })");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("536870913=2 805307073=140000 805307074=0 1879048695=nil 805307086=0 805307087=0", result.arg(2).tojstring());
+        assertEquals("1610613437=7", result.arg(3).tojstring());
+        assertEquals(1, result.arg(4).toint());
+        assertTrue(result.arg(5).toboolean());
+        // A keymaster of software puts them in the ones of software, with the ones of the hardware empty
+        result = Scripts.run(globals, "return patched({}, { { 805307074, 202309 } })");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("", result.arg(2).tojstring());
+        assertEquals("805307074=0", result.arg(3).tojstring());
+        // Not read again when they are 0 already, like on the call of readFromParcel of the hook itself, nor with a
+        // tag of an unknown type
+        for (String lists : new String[]{"{ { 805307074, 0 } }, {}", "{ { 805307074, 202309 }, { -1, 1 } }, {}"}) {
+            result = Scripts.run(globals, "return patched(" + lists + ")");
+            assertFalse(lists, result.arg1().toboolean());
+            assertEquals(lists, 0, result.arg(4).toint());
+            assertTrue(lists, result.arg(5).toboolean());
+        }
+        // The other hooks of the script do nothing after the call, and this one nothing before it
+        assertFalse(Scripts.run(globals, "return after(hookof('KeyStore.attestKey', 'attestKey'), paramof(0, {}))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return before(hookof('KeyCharacteristics.readFromParcel', 'readFromParcel'), " +
+                "paramof(nil, {}))").arg1().toboolean());
+    }
+
+    // A stand-in of KeyParameter of KeyMint, of which the script reads the public field
+    public static class Parameter {
+        public final int tag;
+
+        Parameter(int tag) {
+            this.tag = tag;
+        }
     }
 
     // USB debugging off, like adb_enabled 0 (see settingssecure_getstring): adbd stopped, adb left out of the USB
@@ -168,6 +332,142 @@ public class DeviceValuesScriptTest {
         for (String[] c : new String[][]{{"init.svc.adbd", "stopped"}, {"sys.usb.state", "mtp"}, {"sys.usb.state", ""}})
             assertFalse(c[0] + " " + c[1], Scripts.run(globals, "return run(hookof('SystemProperties.get/debugging', " +
                     "'get'), paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))").arg1().toboolean());
+    }
+
+    // A build which is not debuggable is a user build signed with release keys (AOSP main.mk and sysprop.mk, the
+    // properties of the emulator's userdebug build), in the properties of its type, the texts which hold it and the fields
+    // of Build; other values stay, also 'unknown' of Use.Tracking, so both groups give the same in either order
+    @Test
+    public void buildIsAUserBuild() throws Exception {
+        Globals globals = load("systemproperties_get");
+        String[][] cases = {{"ro.build.type", "userdebug", "user"}, {"ro.vendor.build.type", "eng", "user"},
+                {"ro.build.tags", "dev-keys", "release-keys"}, {"ro.system_ext.build.tags", "test-keys,zz", "release-keys,zz"},
+                {"ro.build.fingerprint", "google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.036.A1/11228894:userdebug/dev-keys",
+                        "google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.036.A1/11228894:user/release-keys"},
+                {"ro.bootimage.build.fingerprint", "google/a/b:14/X/1:user/test-keys", "google/a/b:14/X/1:user/release-keys"},
+                {"ro.build.description", "sdk_gphone64_x86_64-userdebug 14 UE1A.230829.036.A1 11228894 dev-keys",
+                        "sdk_gphone64_x86_64-user 14 UE1A.230829.036.A1 11228894 release-keys"},
+                {"ro.build.flavor", "sdk_gphone64_x86_64-userdebug", "sdk_gphone64_x86_64-user"},
+                // The display id of other builds is the description, of user builds signed with release keys the build id
+                {"ro.build.display.id", "sdk_gphone64_x86_64-userdebug 14 UE1A.230829.036.A1 11228894 dev-keys",
+                        "UE1A.230829.036.A1"},
+                {"ro.build.display.id", "UE1A.230829.036.A1 dev-keys", "UE1A.230829.036.A1"},
+                // Of user builds: adb asks to allow each computer and mock locations are off, the lock contention logging
+                // of debuggable builds, checkjni of eng builds and the debuggable build forced by the debug ramdisk are
+                // not set
+                {"ro.adb.secure", "0", "1"}, {"ro.allow.mock.location", "1", "0"}, {"ro.force.debuggable", "1", ""},
+                {"dalvik.vm.lockprof.threshold", "500", ""}, {"ro.kernel.android.checkjni", "1", ""}};
+        for (String[] c : cases) {
+            Varargs result = Scripts.run(globals, "return run(hookof('SystemProperties.get/debugging', 'get'), " +
+                    "paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))");
+            assertTrue(c[0] + " " + c[1], result.arg1().toboolean());
+            assertEquals(c[0] + " " + c[1], c[2], result.arg(2).tojstring());
+            // get(key) calls the hooked native_get(key), which faked it already
+            assertFalse(c[0] + " " + c[2], Scripts.run(globals, "return run(hookof('SystemProperties.get/debugging', " +
+                    "'get'), paramof('" + c[2] + "', { [0] = '" + c[0] + "' }))").arg1().toboolean());
+        }
+        String[][] kept = {{"ro.build.type", "user"}, {"ro.build.type", "unknown"}, {"ro.build.tags", "release-keys"},
+                {"ro.build.fingerprint", "google/a/b:14/X/1:user/release-keys"}, {"ro.build.fingerprint", "unknown"},
+                {"ro.build.display.id", "UE1A.230829.036.A1"}, {"ro.build.display.id", "unknown"},
+                {"ro.build.version.security_patch", "2023-09-05"}, {"ro.build.type.x", "userdebug"}};
+        for (String[] c : kept)
+            assertFalse(c[0] + " " + c[1], Scripts.run(globals, "return run(hookof('SystemProperties.get/debugging', " +
+                    "'get'), paramof('" + c[1] + "', { [0] = '" + c[0] + "' }))").arg1().toboolean());
+        // With Use.Tracking too, whichever hook runs last: unknown, and of the fingerprint the one Android makes of it
+        String unknown = "unknown/unknown/unknown:14/unknown/unknown:unknown/unknown";
+        for (String[] c : new String[][]{cases[0], cases[4], cases[8]}) {
+            Varargs result = Scripts.run(globals, "local arguments = { [0] = '" + c[0] + "' }\n" +
+                    "local _, debugging = run(hookof('SystemProperties.get/debugging', 'get'), paramof('" + c[1] + "', arguments))\n" +
+                    "local _, device = run(hookof('SystemProperties.get/device', 'get'), paramof('" + c[1] + "', arguments))\n" +
+                    "local _, first = run(hookof('SystemProperties.get/device', 'get'), paramof(debugging, arguments))\n" +
+                    "local _, last = run(hookof('SystemProperties.get/debugging', 'get'), paramof(device, arguments))\n" +
+                    "return first, last");
+            String expected = (c == cases[4] ? unknown : "unknown");
+            assertEquals(c[0], expected, result.arg(1).tojstring());
+            assertEquals(c[0], expected, result.arg(2).tojstring());
+        }
+        // The numbers and flags of getInt and getBoolean
+        Scripts.run(globals, "PROPERTIES = { ['dalvik.vm.lockprof.threshold'] = '500', ['ro.adb.secure'] = '0' }");
+        assertEquals(0, Scripts.run(globals, "return run(hookof('SystemProperties.getInt/debugging', 'getInt'), " +
+                "paramof(500, { [0] = 'dalvik.vm.lockprof.threshold', [1] = 0 }))").arg(2).toint());
+        assertTrue(Scripts.run(globals, "return run(hookof('SystemProperties.getBoolean/debugging', 'getBoolean'), " +
+                "paramof(false, { [0] = 'ro.adb.secure', [1] = false }))").arg(2).toboolean());
+        // Not set gives the default, like init reads it, set only by the debug ramdisk
+        Scripts.run(globals, "PROPERTIES = { ['ro.force.debuggable'] = '1' }");
+        Varargs forced = Scripts.run(globals, "return run(hookof('SystemProperties.getBoolean/debugging', 'getBoolean'), " +
+                "paramof(true, { [0] = 'ro.force.debuggable', [1] = false }))");
+        assertTrue(forced.arg1().toboolean());
+        assertFalse(forced.arg(2).toboolean());
+
+        // The fields of Build, which Android sets once from the properties, and the flags of the type
+        String[][] fields = {{"#TYPE", "'userdebug'", "user"}, {"#TAGS", "'dev-keys'", "release-keys"},
+                {"#FINGERPRINT", "'" + cases[4][1] + "'", cases[4][2]}, {"#DISPLAY", "'" + cases[8][1] + "'", cases[8][2]},
+                {"#IS_DEBUGGABLE", "true", "false"}, {"#IS_ENG", "true", "false"}, {"#IS_USERDEBUG", "true", "false"},
+                {"#IS_USER", "false", "true"}};
+        for (String[] c : fields) {
+            String hook = "hookof('Build." + c[0].substring(1) + "/debugging', '" + c[0] + "')";
+            Varargs result = Scripts.run(globals, "return run(" + hook + ", paramof(" + c[1] + ", {}))");
+            assertTrue(c[0], result.arg1().toboolean());
+            assertEquals(c[0], c[2], result.arg(2).tojstring());
+            assertFalse(c[0], Scripts.run(globals, "return run(" + hook + ", paramof(" + (c[1].startsWith("'") ? "'" + c[2] +
+                    "'" : c[2]) + ", {}))").arg1().toboolean());
+        }
+        assertFalse(Scripts.run(globals, "return run(hookof('Build.TYPE/debugging', '#TYPE'), paramof('unknown', {}))")
+                .arg1().toboolean());
+        // The field Build.FINGERPRINT of Use.Tracking is the one Android makes, also after Read.Debugging, which keeps it
+        for (String real : new String[]{cases[4][1], cases[4][2]})
+            assertEquals(real, unknown, Scripts.run(globals, "return run(hookof('Build.FINGERPRINT', '#FINGERPRINT'), " +
+                    "paramof('" + real + "', {}))").arg(2).tojstring());
+        assertFalse(Scripts.run(globals, "return run(hookof('Build.FINGERPRINT/debugging', '#FINGERPRINT'), paramof('" +
+                unknown + "', {}))").arg1().toboolean());
+
+        // The flags of the type agree with Build.TYPE in every order the hooks of the fields run in, also the flags
+        // before TYPE, like by their names: with Use.Tracking none is set, its TYPE being 'unknown', with Read.Debugging
+        // only IS_USER; the TYPE of Use.Tracking is generic_unknown_value
+        Scripts.run(globals, String.join("\n",
+                "function install(order)",
+                "  VALUES = {}",
+                "  BUILD = { TYPE = 'userdebug', IS_USER = false, IS_USERDEBUG = true }",
+                "  for _, name in ipairs(order) do",
+                "    local field = string.match(name, '^Build%.([%w_]+)')",
+                "    if name == 'Build.TYPE' then",
+                "      BUILD.TYPE = 'unknown'",
+                "    else",
+                "      local param = paramof(BUILD[field], {})",
+                "      after(hookof(name, '#' .. field), param)",
+                "      BUILD[field] = param.result",
+                "    end",
+                "  end",
+                "  return BUILD.TYPE .. ' ' .. tostring(BUILD.IS_USER) .. ' ' .. tostring(BUILD.IS_USERDEBUG)",
+                "end",
+                "function permutations(items)",
+                "  if #items <= 1 then return { items } end",
+                "  local all = {}",
+                "  for i = 1, #items do",
+                "    local rest = {}",
+                "    for j = 1, #items do if j ~= i then rest[#rest + 1] = items[j] end end",
+                "    for _, tail in ipairs(permutations(rest)) do",
+                "      local order = { items[i] }",
+                "      for _, item in ipairs(tail) do order[#order + 1] = item end",
+                "      all[#all + 1] = order",
+                "    end",
+                "  end",
+                "  return all",
+                "end",
+                // The different ends of all orders
+                "function installs(...)",
+                "  local ends, list = {}, {}",
+                "  for _, order in ipairs(permutations({ ... })) do ends[install(order)] = true end",
+                "  for value, _ in pairs(ends) do list[#list + 1] = value end",
+                "  table.sort(list)",
+                "  return table.concat(list, '|')",
+                "end"));
+        assertEquals("unknown false false", Scripts.run(globals, "return installs('Build.IS_USER', 'Build.IS_USERDEBUG', " +
+                "'Build.TYPE', 'Build.IS_USER/debugging', 'Build.IS_USERDEBUG/debugging', 'Build.TYPE/debugging')").arg1().tojstring());
+        assertEquals("user true false", Scripts.run(globals, "return installs('Build.IS_USER/debugging', " +
+                "'Build.IS_USERDEBUG/debugging', 'Build.TYPE/debugging')").arg1().tojstring());
+        assertEquals("unknown false false", Scripts.run(globals, "return installs('Build.IS_USER', 'Build.IS_USERDEBUG', " +
+                "'Build.TYPE')").arg1().tojstring());
     }
 
     // get(key, default) gives the default for a property which is not set or empty, so it stays, like on a device
@@ -433,6 +733,128 @@ public class DeviceValuesScriptTest {
         assertFalse(Scripts.run(globals, "return text(TEXT, nil)").arg1().toboolean());
     }
 
+    // The rounded corners of the panel are not there (null), like on panels without them: of the display by its getter,
+    // of the window insets of the system where InsetsState makes them, without the frame, which gives insets without
+    // corners on AOSP android12-release to main; insets without a frame stay
+    @Test
+    public void displayCornersAreNotThere() throws Exception {
+        Globals globals = load("display_panel");
+        String hook = "hookof('Display.getRoundedCorner', 'getRoundedCorner', 'android.view.Display')";
+        Varargs result = Scripts.run(globals, "local param = paramof({}, { [0] = 0 })\n" +
+                "return after(" + hook + ", param), param.result, after(" + hook + ", paramof(nil, { [0] = 0 }))");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).isnil());
+        assertFalse(result.arg(3).toboolean());
+
+        result = Scripts.run(globals, String.join("\n",
+                "local insets = hookof('InsetsState.calculateRelativeRoundedCorners', 'calculateRelativeRoundedCorners',",
+                "  'android.view.InsetsState')",
+                "local function frameof(frame)",
+                "  local param = paramof(nil, { [0] = frame })",
+                "  param.setArgument = function(self, index, value) self.index, self.value = index, value end",
+                "  return param",
+                "end",
+                "local param, none, other = frameof({}), frameof(nil), frameof({})",
+                "return before(insets, param), param.index, param.value, before(insets, none), none.index,",
+                "  before(hookof('Display.getMetrics', 'getMetrics', 'android.view.Display'), other), other.index,",
+                // After the call the result is RoundedCorners, which is no array and has no getMode
+                "  after(insets, paramof({}, { [0] = nil }))"));
+        assertTrue(result.arg1().toboolean());
+        assertEquals(0, result.arg(2).toint());
+        assertTrue(result.arg(3).isnil());
+        assertFalse(result.arg(4).toboolean());
+        assertTrue(result.arg(5).isnil());
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(7).isnil());
+        assertFalse(result.arg(8).toboolean());
+    }
+
+    // The shape of the display and of the window insets of the system is the rectangle Android makes for panels without
+    // a shape of their own, with a ratio of 1 and the rotation, offset and scale of the real one, made from a parcel
+    // like DisplayShape.CREATOR reads it on AOSP android14-release to main, with the spec as native writeString8 writes
+    // it: a length, the bytes and a zero, padded to 4 bytes, here for lengths with and without padding; a shape like that
+    // already, the empty one of insets without a frame, none, the one of a round screen and a parcel of another size stay
+    @Test
+    public void displayShapeIsARectangle() throws Exception {
+        Globals globals = load("display_panel");
+        Varargs result = Scripts.run(globals, String.join("\n",
+                "local parcel = { values = {}, position = 1 }",
+                "function parcel:writeInt(value) self.values[#self.values + 1] = value end",
+                "parcel.writeFloat = parcel.writeInt",
+                "function parcel:readInt() self.position = self.position + 1 return self.values[self.position - 1] end",
+                "parcel.readFloat = parcel.readInt",
+                "function parcel:setDataPosition(position) assert(position == 0) self.position = 1 end",
+                "function parcel:dataSize() return 4 * #self.values end",
+                "function parcel:recycle() self.values, self.recycled = {}, true end",
+                // Native writeString8 and readString8, which checks the zero after the bytes
+                "local function write8(p, text)",
+                "  p:writeInt(#text)",
+                "  local bytes = text .. string.rep(string.char(0), 4)",
+                "  for index = 1, #text + 1, 4 do",
+                "    local a, b, c, d = string.byte(bytes, index, index + 3)",
+                "    p:writeInt(((d * 256 + c) * 256 + b) * 256 + a)",
+                "  end",
+                "end",
+                "local function read8(p)",
+                "  local length, bytes = p:readInt(), ''",
+                "  for _ = 1, math.floor(length / 4) + 1 do",
+                "    local word = p:readInt()",
+                "    for _ = 1, 4 do bytes = bytes .. string.char(word % 256) word = math.floor(word / 256) end",
+                "  end",
+                "  assert(string.byte(bytes, length + 1) == 0)",
+                "  return string.sub(bytes, 1, length)",
+                "end",
+                "local function shapeof(spec, width, height, ratio, rotation, x, y, scale, extra)",
+                "  local shape = { writeToParcel = function(self, p, flags)",
+                "    write8(p, spec)",
+                "    for _, value in ipairs({ width, height, ratio, rotation, x, y, scale, extra }) do p:writeInt(value) end",
+                "  end }",
+                "  local text = string.format('DisplayShape{ spec=%s displayWidth=%d displayHeight=%d '",
+                "    .. 'physicalPixelDisplaySizeRatio=%g rotation=%d offsetX=%d offsetY=%d scale=%g}',",
+                "    spec, width, height, ratio, rotation, x, y, scale)",
+                "  return setmetatable(shape, { __tostring = function() return text end })",
+                "end",
+                "local creator = { createFromParcel = function(self, p)",
+                "  return shapeof(read8(p), p:readInt(), p:readInt(), p:readFloat(), p:readInt(), p:readInt(), p:readInt(),",
+                "    p:readFloat())",
+                "end }",
+                "local bind = luajava.bindClass",
+                "luajava.bindClass = function(name)",
+                "  if name == 'android.os.Parcel' then return { obtain = function(self) return parcel end } end",
+                "  if name == 'android.view.DisplayShape' then return { CREATOR = creator } end",
+                "  return bind(name) end",
+                "local function shape(method, real, round)",
+                "  local param = paramof(real)",
+                "  param.getApplicationContext = function(self) return { getResources = function(self) return {",
+                "    getConfiguration = function(self) return { isScreenRound = function(self) return round end } end } end } end",
+                "  local restricted = after(hookof(method, method, 'android.view.Display'), param)",
+                "  return restricted, param.result and tostring(param.result) or 'nil'",
+                "end",
+                "local spec = 'M 0,147 A 147,147 0 0,1 147,0 L 933,0 A 147,147 0 0,1 1080,147 Z'",
+                "local panel = shapeof(spec, 1080, 2400, 0.75, 1, -10, -20, 1.5)",
+                "local a, b = shape('getShape', panel, false)",
+                "local recycled = parcel.recycled",
+                "local c, d = shape('calculateRelativeDisplayShape', shapeof(spec, 1000, 200, 1, 0, 0, 0, 1), false)",
+                "local e = shape('getShape', shapeof('M0,0 L1080,0 L1080,2400 L0,2400 Z', 1080, 2400, 1, 1, -10, -20, 1.5), false)",
+                "local f = shape('calculateRelativeDisplayShape', shapeof('', 0, 0, 0, 0, 0, 0, 1), false)",
+                "local g = shape('getShape', nil, false)",
+                "local h, i = shape('getShape', panel, true)",
+                "local j, k = shape('getShape', shapeof(spec, 1080, 2400, 0.75, 1, -10, -20, 1.5, 7), false)",
+                "return a, b, recycled, c, d, e, f, g, h, i, j, k"));
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("DisplayShape{ spec=M0,0 L1080,0 L1080,2400 L0,2400 Z displayWidth=1080 displayHeight=2400 " +
+                "physicalPixelDisplaySizeRatio=1.0 rotation=1 offsetX=-10 offsetY=-20 scale=1.5}", result.arg(2).tojstring());
+        assertTrue("recycled", result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertEquals("DisplayShape{ spec=M0,0 L1000,0 L1000,200 L0,200 Z displayWidth=1000 displayHeight=200 " +
+                "physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}", result.arg(5).tojstring());
+        for (int index = 6; index <= 9; index++)
+            assertFalse("case " + index, result.arg(index).toboolean());
+        assertTrue(result.arg(10).tojstring().contains("spec=M 0,147"));
+        assertFalse(result.arg(11).toboolean());
+        assertTrue(result.arg(12).tojstring().contains("spec=M 0,147"));
+    }
+
     // Android 10: the address of the panel, which apps get by reflection, has only its port like the text of the
     // display, made from a parcel like DisplayAddress.Physical writes itself, since its members are hidden from apps;
     // an address without model, of a network display, none, and a parcel read back otherwise stay
@@ -477,17 +899,20 @@ public class DeviceValuesScriptTest {
         assertEquals("{port=129, model=0x401cecae7d6e8a}", result.arg(12).tojstring());
     }
 
-    // A prompt for biometrics gets the error of a device without them on its executor, without the dialog; a prompt
-    // which allows the screen lock too (by its authenticators or without a negative button), and a call without its
-    // arguments, go to Android
+    // A prompt for biometrics gets the error of a device without them on its executor, without the dialog, with the text
+    // of Android from Android 12 and none on Android 11; a prompt which allows the screen lock too (by its authenticators
+    // or without a negative button) gets the error of a device without a screen lock when there is none, 11 on Android 11
+    // and 14 from 12, and goes to Android with a screen lock, as does one for the screen lock alone and a call without
+    // its arguments
     @Test
     public void biometricPromptHasNoHardware() throws Exception {
         Globals globals = load("biometric_prompt");
         Varargs result = Scripts.run(globals,
-                "luajava = { createProxy = function(name, object) return object end,\n" +
-                        "  bindClass = function(name) return { getSystem = function(self) return {\n" +
-                        "    getIdentifier = function(self, n, t, p) return 7 end,\n" +
-                        "    getString = function(self, id) return 'Biometric hardware unavailable' end } end } end }\n" +
+                "sdk, locked = 31, false\n" +
+                        "luajava = { createProxy = function(name, object) return object end,\n" +
+                        "  bindClass = function(name) return { SDK_INT = sdk, getSystem = function(self) return {\n" +
+                        "    getIdentifier = function(self, n, t, p) return n end,\n" +
+                        "    getString = function(self, id) return 'text of ' .. id end } end } end }\n" +
                         "local errors = {}\n" +
                         "local executor = { execute = function(self, runnable) runnable.run() end }\n" +
                         "local callback = { onAuthenticationError = function(self, code, text)\n" +
@@ -497,21 +922,34 @@ public class DeviceValuesScriptTest {
                         "  getNegativeButtonText = function(self) return negative end } end\n" +
                         "local function call(authenticators, args, negative) local param = paramof('real', args)\n" +
                         "  param.getThis = function(self) return prompt(authenticators, negative) end\n" +
+                        "  param.getApplicationContext = function(self) return { getSystemService = function(self, name)\n" +
+                        "    assert(name == 'keyguard') return { isDeviceSecure = function(self) return locked end } end } end\n" +
                         "  local hook = { getParameterTypes = function(self) return { length = 3 } end }\n" +
                         "  return before(hook, param), param.result == nil end\n" +
-                        "local cancel = 'Cancel'\n" +
-                        "local weak, set = call(255, { [0] = 'cancel', [1] = executor, [2] = callback }, cancel)\n" +
-                        "local credential = call(255 + 32768, { [0] = 'cancel', [1] = executor, [2] = callback }, nil)\n" +
-                        "local deprecated = call(0, { [0] = 'cancel', [1] = executor, [2] = callback }, '')\n" +
-                        "local missing = call(255, { [0] = 'cancel', [1] = nil, [2] = callback }, cancel)\n" +
-                        "return weak, set, errors[1], #errors, credential, missing, deprecated");
+                        "local args = { [0] = 'cancel', [1] = executor, [2] = callback }\n" +
+                        "local weak, set = call(255, args, 'Cancel')\n" +
+                        "local credential = call(255 + 32768, args, nil)\n" +
+                        "local deprecated = call(0, args, '')\n" +
+                        "local missing = call(255, { [0] = 'cancel', [1] = nil, [2] = callback }, 'Cancel')\n" +
+                        "local lockonly = call(32768, args, nil)\n" +
+                        "locked = true\n" +
+                        "local withlock = call(255 + 32768, args, nil)\n" +
+                        "sdk, locked = 30, false\n" +
+                        "local eleven = call(255, args, 'Cancel')\n" +
+                        "local elevencredential = call(15 + 32768, args, nil)\n" +
+                        "return weak, set, table.concat(errors, '|'), credential, deprecated, missing, lockonly, withlock,\n" +
+                        "  eleven, elevencredential");
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).toboolean());
-        assertEquals("12 Biometric hardware unavailable", result.arg(3).tojstring());
-        assertEquals(1, result.arg(4).toint());
-        assertFalse(result.arg(5).toboolean());
-        assertFalse(result.arg(6).toboolean());
-        assertFalse(result.arg(7).toboolean());
+        assertEquals("12 text of biometric_error_hw_unavailable|14 text of biometric_error_device_not_secured|" +
+                "14 text of biometric_error_device_not_secured|12 |11 ", result.arg(3).tojstring());
+        assertTrue("credential without a screen lock", result.arg(4).toboolean());
+        assertTrue("deprecated credential without a screen lock", result.arg(5).toboolean());
+        assertFalse("no executor", result.arg(6).toboolean());
+        assertFalse("screen lock alone", result.arg(7).toboolean());
+        assertFalse("credential with a screen lock", result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
+        assertTrue(result.arg(10).toboolean());
     }
 
     // The version of the DRM plugin with the fake build of the firmware, like Build.ID; other properties stay
@@ -695,10 +1133,32 @@ public class DeviceValuesScriptTest {
         assertEquals("nil", result.arg(6).tojstring());
         assertEquals("true", result.arg(7).tojstring());
 
+        // The service of microG has the same interface
+        assertTrue(Scripts.run(globals, "return connect('org.microg.gms.ads.identifier.AdvertisingIdService')").arg1().toboolean());
+
         // Other services keep their binder
         Varargs other = Scripts.run(globals, "return connect('com.example.Service')");
         assertFalse(other.arg(1).toboolean());
         assertTrue(other.arg(2).toboolean());
+
+        // The broker of Play services by the interface of the binder it gives: the advertising id service gets the
+        // binder in front, another interface and a binder whose interface cannot be asked keep their binder
+        String broker = "connect('com.google.android.gms.chimera.PersistentBoundBrokerService', " +
+                "{ transact = service.transact, getInterfaceDescriptor = function(self) ";
+        assertTrue(Scripts.run(globals, "return " + broker +
+                "return 'com.google.android.gms.ads.identifier.internal.IAdvertisingIdService' end })").arg1().toboolean());
+        for (String descriptor : new String[]{"return 'com.google.android.gms.common.internal.IGmsServiceBroker'",
+                "error('DeadObjectException')"}) {
+            Varargs kept = Scripts.run(globals, "local binder = { transact = service.transact,\n" +
+                    "  getInterfaceDescriptor = function(self) " + descriptor + " end }\n" +
+                    "local restricted, _, given = connect('com.google.android.gms.chimera.PersistentBoundBrokerService', binder)\n" +
+                    "return restricted, rawequal(given, binder)");
+            assertFalse(descriptor, kept.arg(1).toboolean());
+            assertTrue(descriptor, kept.arg(2).toboolean());
+        }
+        // The services of Play services and microG are known by their class, without a call to ask the interface
+        assertTrue(Scripts.run(globals, "return connect('com.google.android.gms.ads.identifier.service.AdvertisingIdService',\n" +
+                "  { transact = service.transact, getInterfaceDescriptor = function(self) error('asked') end })").arg1().toboolean());
 
         // The same binder of the service gets the same binder in front, so a second bind of a connection while it is
         // connected calls nothing, like without it (doConnected compares the binders); another binder of the service,
@@ -854,14 +1314,14 @@ public class DeviceValuesScriptTest {
         assertEquals(-1, result.arg(2).toint());
     }
 
+    // Build.VERSION.SECURITY_PATCH not set, like its property, of which Android gives the default ''
     @Test
-    public void securityPatchIsAQuarter() throws Exception {
+    public void securityPatchIsNotSet() throws Exception {
         Globals globals = load("systemproperties_get");
         String hook = "hookof('Build.VERSION.SECURITY_PATCH', '#SECURITY_PATCH')";
         Varargs result = Scripts.run(globals, "return run(" + hook + ", paramof('2025-09-05', {}))");
         assertTrue(result.arg1().toboolean());
-        assertEquals("2025-07-01", result.arg(2).tojstring());
-        assertFalse(Scripts.run(globals, "return run(" + hook + ", paramof('2025-07-01', {}))").arg1().toboolean());
+        assertEquals("", result.arg(2).tojstring());
         assertFalse(Scripts.run(globals, "return run(" + hook + ", paramof('', {}))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return run(" + hook + ", paramof(nil, {}))").arg1().toboolean());
     }
@@ -1651,11 +2111,14 @@ public class DeviceValuesScriptTest {
             "end",
             "stack = stackof('com.example.app.Main.onCreate')",
             "function callers() return stack end",
-            // The classes of the app, also named like the framework, are not of the boot class path; another class loader
-            // is the set of the names it finds, the one of WebView none until WebView is loaded (see webviewclass)
+            // The classes of the app, also named like the framework, and the ones the hook engine makes are not of the boot
+            // class path; another class loader is the set of the names it finds, the one of WebView none until WebView is
+            // loaded (see webviewclass)
             "loaders = { app = {} }",
             "function finds(name, loader)",
-            "  if loader == nil then return not string.find(name, 'example', 1, true) end",
+            "  if loader == nil then",
+            "    return not string.find(name, 'example', 1, true) and not string.find(name, 'Pheendee', 1, true)",
+            "  end",
             "  return loader[name] == true",
             "end",
             "function loaderin(class, name)",
@@ -1677,7 +2140,7 @@ public class DeviceValuesScriptTest {
         String has = "return run(hookof('PackageManager.hasSystemFeature', 'hasSystemFeature'), featureparamof(";
         String keep = "'android.hardware.nfc, android.hardware.camera*'";
 
-        Varargs result = Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))");
+        Varargs result = Scripts.run(globals, has + "true, 'android.hardware.bluetooth', nil))");
         assertTrue(result.arg1().toboolean());
         assertFalse(result.arg(2).toboolean());
         assertTrue(Scripts.run(globals, has + "true, 'com.google.android.feature.PIXEL_EXPERIENCE', " + keep + "))").arg1().toboolean());
@@ -1686,21 +2149,21 @@ public class DeviceValuesScriptTest {
         assertTrue(Scripts.run(globals, has + "true, 'android.hardware.nfc.hce', " + keep + "))").arg1().toboolean());
         assertFalse(Scripts.run(globals, has + "true, 'android.hardware.camera.front', " + keep + "))").arg1().toboolean());
         // A feature the device does not have
-        assertFalse(Scripts.run(globals, has + "false, 'android.hardware.wifi', nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "false, 'android.hardware.bluetooth', nil))").arg1().toboolean());
 
-        // The framework checks features itself, like WebView, which does not start without its feature, and
-        // the Wi-Fi manager, which is null without its feature. The stacks are those of LSPosed, which replaces
+        // The framework checks features itself, like WebView and the managers of Wi-Fi, which are null without their
+        // features. The stacks are those of LSPosed, which replaces
         // the frame of the hooked method by one of a class of its own with a random name.
         String engine = "'eu.faircode.xlua.XCore$6.after', 'eu.faircode.xlua.ModernBackend.lambda$hook$0', " +
                 "'m.proceed', 'android.telephony.PheendeeDaesteampDrenash.hasSystemFeature', ";
-        assertTrue(Scripts.run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
+        assertTrue(Scripts.run(globals, has + "true, 'android.software.leanback', nil))").arg1().toboolean());
         Scripts.run(globals, "stack = stackof(" + engine + "'android.webkit.WebViewFactory.getProvider', " +
                 "'android.webkit.WebView.<init>', 'com.example.app.Main.onCreate')");
-        assertFalse(Scripts.run(globals, has + "true, 'android.software.webview', nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "true, 'android.software.leanback', nil))").arg1().toboolean());
         Scripts.run(globals, "stack = stackof(" + engine +
                 "'android.net.wifi.WifiFrameworkInitializer.lambda$registerServiceWrappers$0', " +
                 "'android.app.SystemServiceRegistry.getSystemService', 'com.example.app.Main.onCreate')");
-        assertFalse(Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "true, 'android.hardware.bluetooth', nil))").arg1().toboolean());
         // The package manager calls the hooked method itself, hasSystemFeature without a version the one with one
         Scripts.run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
                 "'com.android.internal.policy.PhoneWindow.<init>', 'android.app.Activity.attach')");
@@ -1709,54 +2172,54 @@ public class DeviceValuesScriptTest {
         for (String caller : new String[]{"com.example.app.Main.onCreate", "androidx.core.content.ContextCompat.check",
                 "android.support.v4.content.ContextCompat.check"}) {
             Scripts.run(globals, "stack = stackof(" + engine + "'" + caller + "', 'android.app.Activity.performCreate')");
-            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.bluetooth', nil))").arg1().toboolean());
             Scripts.run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
                     "'" + caller + "', 'android.app.Activity.performCreate')");
-            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.bluetooth', nil))").arg1().toboolean());
             // Also by reflection, which is not the framework calling
             Scripts.run(globals, "stack = stackof(" + engine + "'java.lang.reflect.Method.invoke', '" + caller + "', " +
                     "'android.app.Activity.performCreate')");
-            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.bluetooth', nil))").arg1().toboolean());
         }
         // Classes of the app named like the framework, and method handles, are not the framework
         for (String caller : new String[]{"android.example.Check.run", "com.android.internal.example.Check.run"}) {
             Scripts.run(globals, "stack = stackof(" + engine + "'" + caller + "', 'android.app.Activity.performCreate')");
-            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+            assertTrue(caller, Scripts.run(globals, has + "true, 'android.hardware.bluetooth', nil))").arg1().toboolean());
         }
         Scripts.run(globals, "stack = stackof(" + engine + "'java.lang.invoke.MethodHandle.invokeExact', " +
                 "'com.example.app.Main.onCreate', 'android.app.Activity.performCreate')");
-        assertTrue(Scripts.run(globals, has + "true, 'android.hardware.wifi', nil))").arg1().toboolean());
+        assertTrue(Scripts.run(globals, has + "true, 'android.hardware.bluetooth', nil))").arg1().toboolean());
 
-        // WebView, of which the classes are not of the boot class path, gets the touchscreen features it counts the touch
-        // points of pages by, once it is loaded; before, or when its class loader cannot be looked up, it gets false
-        String touch = "'android.hardware.touchscreen.multitouch.jazzhand'";
+        // WebView, of which the classes are not of the boot class path, gets the features it checks, once it is loaded;
+        // before, or when its class loader cannot be looked up, it gets false
+        String other = "'android.software.leanback'";
         String webView = "'org.chromium.ui.base.TouchDevice.maxTouchPoints', 'J.N.MZ', " +
                 "'org.chromium.android_webview.AwContents.<init>', 'android.webkit.WebView.<init>'";
         Scripts.run(globals, "stack = stackof(" + engine + webView + ")");
-        assertTrue(Scripts.run(globals, has + "true, " + touch + ", nil))").arg1().toboolean());
+        assertTrue(Scripts.run(globals, has + "true, " + other + ", nil))").arg1().toboolean());
         Scripts.run(globals, "loaders.webview = { ['org.chromium.ui.base.TouchDevice'] = true, " +
                 "['org.chromium.base.BuildInfo'] = true }\n" +
                 "loaders.app = { ['org.chromium.base.BuildInfo'] = true }\n" +
                 "loaders.failing = true");
-        assertTrue(Scripts.run(globals, has + "true, " + touch + ", nil))").arg1().toboolean());
+        assertTrue(Scripts.run(globals, has + "true, " + other + ", nil))").arg1().toboolean());
         Scripts.run(globals, "loaders.failing = nil");
-        assertFalse(Scripts.run(globals, has + "true, " + touch + ", nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "true, " + other + ", nil))").arg1().toboolean());
         Scripts.run(globals, "stack = stackof(" + engine + "'android.app.ApplicationPackageManager.hasSystemFeature', " +
                 webView + ")");
-        assertFalse(Scripts.run(globals, has + "true, 'android.hardware.touchscreen', nil))").arg1().toboolean());
+        assertFalse(Scripts.run(globals, has + "true, 'android.software.leanback', nil))").arg1().toboolean());
         Scripts.run(globals, "stack = stackof(" + engine.replace(".hasSystemFeature'", ".getSystemAvailableFeatures'") +
                 webView + ")");
-        result = Scripts.run(globals, "local param = featureparamof(featuresof(featureof('android.hardware.wifi'), " +
+        result = Scripts.run(globals, "local param = featureparamof(featuresof(featureof('android.hardware.bluetooth'), " +
                 "featureof(nil)), nil, nil)\n" +
                 "local restricted = after(hookof('PackageManager.getSystemAvailableFeatures', 'getSystemAvailableFeatures'), param)\n" +
                 "return restricted, names(param.result)");
         assertFalse(result.arg1().toboolean());
-        assertEquals("android.hardware.wifi,nil", result.arg(2).tojstring());
+        assertEquals("android.hardware.bluetooth,nil", result.arg(2).tojstring());
         // A class of the app with the name of one of WebView, like of Chromium of its own, and a class of code
         // which neither loads, like code the app loads itself, are not WebView
         for (String caller : new String[]{"org.chromium.base.BuildInfo.getInstance", "com.example.dynamic.Check.run"}) {
             Scripts.run(globals, "stack = stackof(" + engine + "'" + caller + "', 'android.app.Activity.performCreate')");
-            assertTrue(caller, Scripts.run(globals, has + "true, " + touch + ", nil))").arg1().toboolean());
+            assertTrue(caller, Scripts.run(globals, has + "true, " + other + ", nil))").arg1().toboolean());
         }
         Scripts.run(globals, "stack = stackof('com.example.app.Main.onCreate')");
 
@@ -1768,10 +2231,353 @@ public class DeviceValuesScriptTest {
                 "featureof('android.hardware.camera.flash'), featureof('android.software.webview'), " +
                 "featureof('com.samsung.feature.samsung_experience_mobile'), featureof(nil)"));
         assertTrue(result.arg1().toboolean());
-        assertEquals("android.hardware.nfc,android.hardware.camera.flash,nil", result.arg(2).tojstring());
+        assertEquals("android.hardware.wifi,android.hardware.nfc,android.hardware.camera.flash,android.software.webview,nil",
+                result.arg(2).tojstring());
         result = Scripts.run(globals, String.format(list, "featureof('android.hardware.nfc'), featureof(nil)"));
         assertFalse(result.arg1().toboolean());
         assertEquals("android.hardware.nfc,nil", result.arg(2).tojstring());
+    }
+
+    // The features Android adds on every device and the ones apps see working anyway, the touch screen with its levels of
+    // multitouch, which every gesture shows, Wi-Fi, of which ConnectivityManager shows the networks, telephony, of which
+    // it shows the mobile networks and TelephonyManager the phone, and WebView, stay without a setting, for the app too,
+    // by name and in the list; the ones Android adds only on some devices and the other features of Wi-Fi and telephony
+    // stay hidden
+    @Test
+    public void featuresOfEveryDeviceStay() throws Exception {
+        Globals globals = load("features");
+        Scripts.run(globals, FEATURES);
+        String has = "return run(hookof('PackageManager.hasSystemFeature', 'hasSystemFeature'), featureparamof(";
+        for (String name : new String[]{"android.hardware.ram.normal", "android.hardware.ram.low",
+                "android.software.app_enumeration", "android.hardware.touchscreen", "android.hardware.faketouch",
+                "android.hardware.touchscreen.multitouch", "android.hardware.touchscreen.multitouch.distinct",
+                "android.hardware.touchscreen.multitouch.jazzhand", "android.hardware.faketouch.multitouch.distinct",
+                "android.hardware.wifi", "android.software.webview", "android.hardware.telephony",
+                "android.hardware.telephony.gsm", "android.hardware.telephony.cdma", "android.hardware.telephony.data",
+                "android.hardware.telephony.radio.access", "android.hardware.telephony.subscription",
+                "android.hardware.telephony.calling", "android.hardware.telephony.messaging"})
+            assertFalse(name, Scripts.run(globals, has + "true, '" + name + "', nil))").arg1().toboolean());
+        for (String name : new String[]{"android.software.ipsec_tunnels", "android.hardware.wifi.direct",
+                "android.hardware.wifi.aware", "android.hardware.wifi.rtt", "android.hardware.wifi.passpoint",
+                "android.hardware.telephony.euicc", "android.hardware.telephony.ims", "android.hardware.telephony.mbms",
+                "android.hardware.telephony.carrierlock", "android.hardware.telephony.satellite"})
+            assertTrue(name, Scripts.run(globals, has + "true, '" + name + "', nil))").arg1().toboolean());
+
+        Varargs result = Scripts.run(globals, "local param = featureparamof(featuresof(featureof('android.hardware.wifi'), " +
+                "featureof('android.hardware.ram.normal'), featureof('android.software.app_enumeration'), " +
+                "featureof('android.software.ipsec_tunnels'), featureof('android.hardware.touchscreen'), " +
+                "featureof('android.hardware.touchscreen.multitouch'), featureof('android.hardware.wifi.direct'), " +
+                "featureof(nil)), nil, nil)\n" +
+                "local restricted = after(hookof('PackageManager.getSystemAvailableFeatures', 'getSystemAvailableFeatures'), param)\n" +
+                "return restricted, names(param.result)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("android.hardware.wifi,android.hardware.ram.normal,android.software.app_enumeration," +
+                "android.hardware.touchscreen,android.hardware.touchscreen.multitouch,nil", result.arg(2).tojstring());
+    }
+
+    // The managers and adapters Android gives only with a feature are null for the app while the feature is hidden, like
+    // on a device without the hardware (AOSP SystemServer and SystemServiceRegistry or WifiFrameworkInitializer of 8.1 to
+    // main, NfcAdapter.getNfcAdapter, BluetoothAdapter.getDefaultAdapter); kept features, the framework, a null result
+    // and Wi-Fi, whose feature is shown, keep the answer of Android
+    @Test
+    public void managersOfHiddenFeaturesAreNull() throws Exception {
+        Globals globals = load("features");
+        Scripts.run(globals, FEATURES);
+        Scripts.run(globals, String.join("\n",
+                "sdk = 34",
+                "local bind = luajava.bindClass",
+                "luajava.bindClass = function(name)",
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+                "  return bind(name)",
+                "end",
+                // The frames of LSPosed above the hooked method, then whoever called it
+                "function stackfor(method, ...)",
+                "  stack = stackof('eu.faircode.xlua.XCore$6.after', 'm.proceed', 'android.app.PheendeeDaesteampDrenash.' .. method, ...)",
+                "end",
+                "function service(name, keep, none)",
+                "  local hook = hookof('Context.getSystemService/features', 'getSystemService', 'android.app.ContextImpl',",
+                "    'Read.Features')",
+                "  return run(hook, featureparamof(not none and 'manager' or nil, name, keep))",
+                "end",
+                "function adapter(class, method, keep)",
+                "  return run(hookof('x', method, class, 'Read.Features'), featureparamof('adapter', nil, keep))",
+                "end",
+                "BLUETOOTH = 'android.bluetooth.BluetoothAdapter'",
+                "MANAGER = 'android.bluetooth.BluetoothManager'",
+                "NFC = 'android.nfc.NfcAdapter'",
+                "NFC_MANAGER = 'android.nfc.NfcManager'"));
+        // The app by Context.getSystemService(Class) of an activity, which calls getSystemService(String) of its wrappers
+        String app = "stackfor('getSystemService', 'android.view.ContextThemeWrapper.getSystemService', " +
+                "'android.app.Activity.getSystemService', 'android.content.Context.getSystemService', 'com.example.app.Main.onCreate')";
+        Scripts.run(globals, app);
+        for (String name : new String[]{"wifip2p", "wifiaware", "wifirtt", "midi", "consumer_ir"}) {
+            Varargs result = Scripts.run(globals, "return service('" + name + "', nil)");
+            assertTrue(name, result.arg1().toboolean());
+            assertTrue(name, result.arg(2).isnil());
+        }
+        // A kept feature keeps its manager only, and other services stay
+        assertFalse(Scripts.run(globals, "return service('wifip2p', 'android.hardware.wifi.direct')").arg1().toboolean());
+        assertTrue(Scripts.run(globals, "return service('wifiaware', 'android.hardware.wifi.direct')").arg1().toboolean());
+        assertFalse(Scripts.run(globals, "return service('wifiaware', 'android.hardware.wifi*')").arg1().toboolean());
+        Varargs result = Scripts.run(globals, "return service('connectivity', nil)");
+        assertFalse(result.arg1().toboolean());
+        assertEquals("manager", result.arg(2).tojstring());
+        // No manager stays none
+        assertFalse(Scripts.run(globals, "return service('wifip2p', nil, true)").arg1().toboolean());
+        // The manager of Wi-Fi stays on every version, its feature is shown; Android 8.1 has no Wi-Fi RTT, but Wi-Fi
+        // Direct and Aware only with their features
+        for (String sdk : new String[]{"27", "28", "34"}) {
+            Scripts.run(globals, "sdk = " + sdk);
+            assertFalse(sdk, Scripts.run(globals, "return service('wifi', nil)").arg1().toboolean());
+        }
+        Scripts.run(globals, "sdk = 27");
+        assertFalse(Scripts.run(globals, "return service('wifirtt', nil)").arg1().toboolean());
+        assertTrue(Scripts.run(globals, "return service('wifip2p', nil)").arg1().toboolean());
+        assertTrue(Scripts.run(globals, "return service('wifiaware', nil)").arg1().toboolean());
+        Scripts.run(globals, "sdk = 28");
+        assertTrue(Scripts.run(globals, "return service('wifirtt', nil)").arg1().toboolean());
+        // MIDI only with its feature on every version, consumer IR from Android 14, before every handheld has its manager
+        assertTrue(Scripts.run(globals, "return service('midi', nil)").arg1().toboolean());
+        Scripts.run(globals, "sdk = 33");
+        assertFalse(Scripts.run(globals, "return service('consumer_ir', nil)").arg1().toboolean());
+        Scripts.run(globals, "sdk = 34");
+        assertFalse(Scripts.run(globals, "return service('consumer_ir', 'android.hardware.consumerir')").arg1().toboolean());
+        // WifiManager tells no Wi-Fi Direct or RTT while their features are hidden, like a device without them
+        for (String method : new String[]{"isP2pSupported", "isDeviceToApRttSupported"}) {
+            String call = "return run(hookof('WifiManager." + method + "', '" + method + "', 'android.net.wifi.WifiManager', " +
+                    "'Read.Features'), featureparamof(%s, nil, %s))";
+            Scripts.run(globals, "stackfor('" + method + "', 'com.example.app.Main.onCreate')");
+            result = Scripts.run(globals, String.format(call, "true", "nil"));
+            assertTrue(method, result.arg1().toboolean());
+            assertFalse(method, result.arg(2).toboolean());
+            assertFalse(method, Scripts.run(globals, String.format(call, "false", "nil")).arg1().toboolean());
+            assertFalse(method, Scripts.run(globals, String.format(call, "true", "'android.hardware.wifi*'")).arg1().toboolean());
+            Scripts.run(globals, "stackfor('" + method + "', 'android.net.wifi.p2p.WifiP2pManager.check', " +
+                    "'com.example.app.Main.onCreate')");
+            assertFalse(method, Scripts.run(globals, String.format(call, "true", "nil")).arg1().toboolean());
+            // Android 8.1 has no feature of RTT, so its answer stays, but Wi-Fi Direct is hidden there too
+            Scripts.run(globals, "sdk = 27\nstackfor('" + method + "', 'com.example.app.Main.onCreate')");
+            assertEquals(method, method.equals("isP2pSupported"),
+                    Scripts.run(globals, String.format(call, "true", "nil")).arg1().toboolean());
+            Scripts.run(globals, "sdk = 34");
+        }
+        // Wi-Fi Display R2 runs over Wi-Fi Direct, the direct links of Android 15 are of Wi-Fi Direct and Aware, so with
+        // either kept they keep the answer of Android, and the IR manager tells no emitter, also of Android 8.1 to 13
+        String[][] supported = {{"isWifiDisplayR2Supported", "android.net.wifi.WifiManager", "'android.hardware.wifi.direct'"},
+                {"isD2dSupportedWhenInfraStaDisabled", "android.net.wifi.WifiManager", "'android.hardware.wifi.aware'"},
+                {"hasIrEmitter", "android.hardware.ConsumerIrManager", "'android.hardware.consumerir'"}};
+        Scripts.run(globals, "sdk = 35");
+        for (String[] method : supported) {
+            String call = "return run(hookof('x', '" + method[0] + "', '" + method[1] + "', 'Read.Features'), " +
+                    "featureparamof(true, nil, %s))";
+            Scripts.run(globals, "stackfor('" + method[0] + "', 'com.example.app.Main.onCreate')");
+            result = Scripts.run(globals, String.format(call, "nil"));
+            assertTrue(method[0], result.arg1().toboolean());
+            assertFalse(method[0], result.arg(2).toboolean());
+            assertFalse(method[0], Scripts.run(globals, String.format(call, method[2])).arg1().toboolean());
+        }
+        Scripts.run(globals, "sdk = 34");
+        assertFalse(Scripts.run(globals, "return run(hookof('x', 'isD2dSupportedWhenInfraStaDisabled', nil, 'Read.Features'), " +
+                "featureparamof(true, nil, nil))").arg1().toboolean());
+        Scripts.run(globals, "sdk = 27");
+        assertTrue(Scripts.run(globals, "return run(hookof('x', 'hasIrEmitter', nil, 'Read.Features'), " +
+                "featureparamof(true, nil, nil))").arg1().toboolean());
+        // The frequencies of the IR emitter of Android 8.1 to 13 are the exception of its service without the hardware,
+        // after the permission it checks first; kept, the framework and an exception keep the answer of Android
+        String frequencies = "local param = featureparamof('ranges', nil, %s)\n" +
+                "param.getException = function(self) return %s end\n" +
+                "local restricted = after(hookof('x', 'getCarrierFrequencies', 'android.hardware.ConsumerIrManager', " +
+                "'Read.Features'), param)\n" +
+                "return restricted, param.result";
+        Scripts.run(globals, "stackfor('getCarrierFrequencies', 'com.example.app.Main.onCreate')");
+        result = Scripts.run(globals, String.format(frequencies, "nil", "nil"));
+        assertTrue(result.arg1().toboolean());
+        Object thrown = result.arg(2).touserdata();
+        assertEquals(UnsupportedOperationException.class, thrown.getClass());
+        assertEquals("IR emitter not available", ((Throwable) thrown).getMessage());
+        assertEquals("ranges", Scripts.run(globals, String.format(frequencies, "'android.hardware.consumerir'", "nil"))
+                .arg(2).tojstring());
+        assertEquals("ranges", Scripts.run(globals, String.format(frequencies, "nil", "'denied'")).arg(2).tojstring());
+        Scripts.run(globals, "stackfor('getCarrierFrequencies', 'android.hardware.ConsumerIrManager.check', " +
+                "'com.example.app.Main.onCreate')");
+        assertEquals("ranges", Scripts.run(globals, String.format(frequencies, "nil", "nil")).arg(2).tojstring());
+        // A pattern to transmit is refused the same way before it reaches the emitter, after the checks of the service
+        // which come first: the permission, a null pattern, a slice which is not positive and a pattern over two seconds
+        String transmit = "local param = featureparamof(nil, nil, %s)\n" +
+                "param.getArgument = function(self, index) assert(index == 1) return %s end\n" +
+                "param.getApplicationContext = function(self)\n" +
+                "  return { checkSelfPermission = function(self, name)\n" +
+                "    assert(name == 'android.permission.TRANSMIT_IR', name) return %s end } end\n" +
+                "local restricted = before(hookof('x', 'transmit', 'android.hardware.ConsumerIrManager', 'Read.Features'), param)\n" +
+                "return restricted, param.result";
+        String pattern = "luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('java.lang.Integer').TYPE, 2)";
+        Scripts.run(globals, "stackfor('transmit', 'com.example.app.Main.onCreate')\n" +
+                "function slices(first, second) local array = " + pattern + " array[1] = first array[2] = second return array end");
+        result = Scripts.run(globals, String.format(transmit, "nil", "slices(1, 1999999)", "0"));
+        assertTrue(result.arg1().toboolean());
+        thrown = result.arg(2).touserdata();
+        assertEquals(UnsupportedOperationException.class, thrown.getClass());
+        assertEquals("IR emitter not available", ((Throwable) thrown).getMessage());
+        for (String[] passed : new String[][]{{"nil", "slices(1, 1)", "-1"}, {"nil", "nil", "0"}, {"nil", "slices(1, 0)", "0"},
+                {"nil", "slices(1, 2000000)", "0"}, {"'android.hardware.consumerir'", "slices(1, 1)", "0"}}) {
+            result = Scripts.run(globals, String.format(transmit, (Object[]) passed));
+            assertFalse(String.join(" ", passed), result.arg1().toboolean());
+            assertTrue(String.join(" ", passed), result.arg(2).isnil());
+        }
+        Scripts.run(globals, "stackfor('transmit', 'android.hardware.ConsumerIrManager.check', 'com.example.app.Main.onCreate')");
+        assertFalse(Scripts.run(globals, String.format(transmit, "nil", "slices(1, 1)", "0")).arg1().toboolean());
+        Scripts.run(globals, "sdk = 34");
+
+        // A method of the app with the name of the hooked one, between the hooked frame and a caller of the framework, is
+        // the app asking, like getSystemService of its own wrapper of a context which LayoutInflater.from calls
+        Scripts.run(globals, "stackfor('getSystemService', 'android.content.ContextWrapper.getSystemService', " +
+                "'com.example.app.Wrapper.getSystemService', 'android.view.LayoutInflater.from', 'com.example.app.Main.onCreate')");
+        assertTrue(Scripts.run(globals, "return service('wifip2p', nil)").arg(2).isnil());
+        Scripts.run(globals, "stackfor('getSystemService', 'com.example.app.Wrapper.getSystemService', " +
+                "'android.view.LayoutInflater.from', 'com.example.app.Main.onCreate')");
+        assertTrue(Scripts.run(globals, "return service('wifip2p', nil)").arg(2).isnil());
+        // The hook engine is not the app: its frame of the outer of two hooked methods of the same name, which the framework
+        // calls, like hasSystemFeature without a version calling the one with a version
+        Scripts.run(globals, "stack = stackof('eu.faircode.xlua.XCore$6.after', 'm.proceed', " +
+                "'android.app.PheendeeDaesteampDrenash.getSystemService', 'android.app.ContextImpl.getSystemService', " +
+                "'java.lang.reflect.Method.invoke', 'm.proceed', 'android.app.PheendeeDaesteampDrenash.getSystemService', " +
+                "'android.view.LayoutInflater.from', 'com.example.app.Main.onCreate')");
+        assertEquals("manager", Scripts.run(globals, "return service('wifip2p', nil)").arg(2).tojstring());
+        // The framework gets the manager
+        Scripts.run(globals, "stackfor('getSystemService', 'android.net.ConnectivityManager.getActiveNetwork', " +
+                "'com.example.app.Main.onCreate')");
+        assertFalse(Scripts.run(globals, "return service('wifi', nil)").arg1().toboolean());
+
+        // The Bluetooth adapter, by both ways, only with android.hardware.bluetooth, which SystemServer checks
+        for (String[] lookup : new String[][]{{"BLUETOOTH", "getDefaultAdapter"}, {"MANAGER", "getAdapter"}}) {
+            String call = "return adapter(" + lookup[0] + ", '" + lookup[1] + "', %s)";
+            Scripts.run(globals, "stackfor('" + lookup[1] + "', 'com.example.app.Main.onCreate')");
+            result = Scripts.run(globals, String.format(call, "nil"));
+            assertTrue(lookup[1], result.arg1().toboolean());
+            assertTrue(lookup[1], result.arg(2).isnil());
+            assertTrue(lookup[1], Scripts.run(globals, String.format(call, "'android.hardware.bluetooth_le'")).arg1().toboolean());
+            assertFalse(lookup[1], Scripts.run(globals, String.format(call, "'android.hardware.bluetooth'")).arg1().toboolean());
+        }
+        // The manager of Android 8.1 to 11 takes the adapter itself, the framework gets it
+        Scripts.run(globals, "stackfor('getDefaultAdapter', 'android.bluetooth.BluetoothManager.<init>', " +
+                "'android.app.SystemServiceRegistry$8.createService', 'android.app.ContextImpl.getSystemService', " +
+                "'android.app.Activity.getSystemService', 'com.example.app.Main.onCreate')");
+        assertFalse(Scripts.run(globals, "return adapter(BLUETOOTH, 'getDefaultAdapter', nil)").arg1().toboolean());
+
+        // The NFC adapter exists with any of the features the version checks: off-host card emulation from Android 14
+        for (String[] lookup : new String[][]{{"NFC", "getDefaultAdapter"}, {"NFC_MANAGER", "getDefaultAdapter"}}) {
+            String call = "return adapter(" + lookup[0] + ", '" + lookup[1] + "', %s)";
+            Scripts.run(globals, "stackfor('" + lookup[1] + "', 'com.example.app.Main.onCreate')");
+            result = Scripts.run(globals, String.format(call, "nil"));
+            assertTrue(lookup[0], result.arg1().toboolean());
+            assertTrue(lookup[0], result.arg(2).isnil());
+            assertFalse(lookup[0], Scripts.run(globals, String.format(call, "'android.hardware.nfc.hce'")).arg1().toboolean());
+            assertFalse(lookup[0], Scripts.run(globals, String.format(call, "'android.hardware.nfc.uicc'")).arg1().toboolean());
+            Scripts.run(globals, "sdk = 33");
+            assertTrue(lookup[0], Scripts.run(globals, String.format(call, "'android.hardware.nfc.uicc'")).arg1().toboolean());
+            Scripts.run(globals, "sdk = 34");
+        }
+
+        // The hook of getSystemService runs for these services only, the ones of the adapters have no argument to filter by
+        result = Scripts.run(globals, "local names = filter(hookof('x', 'getSystemService', 'android.app.ContextImpl', " +
+                "'Read.Features'))\n" +
+                "table.sort(names)\n" +
+                "return table.concat(names, ','), filter(hookof('x', 'getDefaultAdapter', NFC, 'Read.Features'))");
+        assertEquals("consumer_ir,midi,wifiaware,wifip2p,wifirtt", result.arg1().tojstring());
+        assertTrue(result.arg(2).isnil());
+    }
+
+    // The broadcasts of hardware whose features are hidden, sticky ones too, like the state of Wi-Fi Direct
+    // (WifiP2pServiceImpl.sendP2pStateChangedBroadcast), are marked when the app reads them, reach no receiver, also not
+    // as the first sticky broadcast of one which registers, and registerReceiver gives none, like on a device without the
+    // hardware; other broadcasts, kept features and versions without the feature stay
+    @Test
+    public void broadcastsOfHiddenFeaturesAreLeftOut() throws Exception {
+        Globals globals = load("features");
+        Scripts.run(globals, FEATURES);
+        Scripts.run(globals, String.join("\n",
+                "sdk = 34",
+                "local bind = luajava.bindClass",
+                "luajava.bindClass = function(name)",
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+                "  return bind(name)",
+                "end",
+                "store = {}",
+                "function intentof(action) return { getAction = function(self) return action end } end",
+                // Whether restricted, whether the result stays and whether the intent is marked
+                "function broadcast(method, action, keep)",
+                "  local intent = intentof(action)",
+                "  local param = featureparamof(intent, nil, keep)",
+                "  param.putValue = function(self, name, value, scope) store[scope] = { [name] = value } end",
+                "  local restricted = after(hookof('x', method, 'android.app.ContextImpl', 'Read.Features'), param)",
+                "  return restricted, param.result == intent, store[intent] ~= nil and store[intent]['features.hidden']",
+                "end"));
+        String read = "return broadcast('CREATOR:createFromParcel', %s, %s)";
+        for (String action : new String[]{"android.net.wifi.p2p.STATE_CHANGED", "android.net.wifi.p2p.CONNECTION_STATE_CHANGE",
+                "android.net.wifi.aware.action.WIFI_AWARE_STATE_CHANGED", "android.net.wifi.rtt.action.WIFI_RTT_STATE_CHANGED",
+                "android.bluetooth.adapter.action.STATE_CHANGED", "android.nfc.action.ADAPTER_STATE_CHANGED"}) {
+            Varargs result = Scripts.run(globals, String.format(read, "'" + action + "'", "nil"));
+            assertFalse(action, result.arg1().toboolean());
+            assertTrue(action, result.arg(2).toboolean());
+            assertTrue(action, result.arg(3).toboolean());
+        }
+        for (String[] stays : new String[][]{{"'android.net.wifi.STATE_CHANGE'", "nil"}, {"nil", "nil"},
+                {"'android.net.wifi.p2p.STATE_CHANGED'", "'android.hardware.wifi.direct'"},
+                {"'android.nfc.action.ADAPTER_STATE_CHANGED'", "'android.hardware.nfc.hce'"}})
+            assertFalse(stays[0], Scripts.run(globals, String.format(read, stays[0], stays[1])).arg(3).toboolean());
+        Scripts.run(globals, "sdk = 27");
+        assertFalse(Scripts.run(globals, String.format(read, "'android.net.wifi.rtt.action.WIFI_RTT_STATE_CHANGED'", "nil"))
+                .arg(3).toboolean());
+        Scripts.run(globals, "sdk = 34");
+
+        // registerReceiver gives no sticky broadcast of hidden hardware, also to an app which registers no receiver
+        String register = "return broadcast('registerReceiverInternal', %s, %s)";
+        Varargs result = Scripts.run(globals, String.format(register, "'android.net.wifi.p2p.STATE_CHANGED'", "nil"));
+        assertTrue(result.arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
+        result = Scripts.run(globals, String.format(register, "'android.net.wifi.p2p.STATE_CHANGED'", "'android.hardware.wifi.*'"));
+        assertFalse(result.arg1().toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(Scripts.run(globals, String.format(register, "'android.intent.action.BATTERY_CHANGED'", "nil"))
+                .arg(2).toboolean());
+
+        // receiver_skip leaves out the marked ones, the first sticky one of a receiver which registers too, but not ordered
+        // ones and, from Android 14, ones Android waits for
+        Globals skip = load("receiver_skip");
+        Scripts.run(skip, String.join("\n",
+                "hidden = { getAction = function(self) return 'android.net.wifi.p2p.STATE_CHANGED' end }",
+                "other = { getAction = function(self) return 'android.intent.action.BATTERY_CHANGED' end }",
+                "marks = { [hidden] = { ['features.hidden'] = true } }",
+                "function deliver(name, method, count, args)",
+                "  calls = {}",
+                "  local hook = { getName = function(self) return name end, getMethodName = function(self) return method end,",
+                "    getParameterTypes = function(self) return { length = count } end }",
+                "  local param = { getArgument = function(self, index) return args[index] end,",
+                "    getValue = function(self, name, scope) return marks[scope] and marks[scope][name] end,",
+                "    setResult = function(self, value) calls[#calls + 1] = 'skip' end }",
+                "  local skipped = before(hook, param)",
+                "  return skipped, table.concat(calls, ',')",
+                "end",
+                "function dataof(intent)",
+                "  return { intent = intent, finish = function(self) calls[#calls + 1] = 'finish' end }",
+                "end"));
+        String receive = "'ReceiverDispatcher.performReceive/features', 'performReceive', 7, ";
+        String sender = "'ReceiverDispatcher.performReceive.sender/features', 'performReceive', 10, ";
+        for (String[] test : new String[][]{
+                {"'ActivityThread.handleReceiver/features', 'handleReceiver', 1, { [0] = dataof(hidden) }", "true", "finish,skip"},
+                {"'ActivityThread.handleReceiver/features', 'handleReceiver', 1, { [0] = dataof(other) }", "false", ""},
+                {receive + "{ [0] = hidden, [4] = false, [5] = false }", "true", "skip"},
+                {receive + "{ [0] = hidden, [4] = false, [5] = true }", "true", "skip"},
+                {receive + "{ [0] = hidden, [4] = true, [5] = false }", "false", ""},
+                {receive + "{ [0] = other, [4] = false, [5] = true }", "false", ""},
+                {sender + "{ [0] = hidden, [4] = false, [5] = true, [6] = true }", "true", "skip"},
+                {sender + "{ [0] = hidden, [4] = false, [5] = false, [6] = false }", "false", ""},
+                {"'ReceiverDispatcher.performReceive/vpn', 'performReceive', 7, { [0] = hidden, [4] = false, [5] = false }",
+                        "false", ""}}) {
+            result = Scripts.run(skip, "return deliver(" + test[0] + ")");
+            assertEquals(test[0], Boolean.parseBoolean(test[1]), result.arg(1).toboolean());
+            assertEquals(test[0], test[2], result.arg(2).tojstring());
+        }
     }
 
     // Static fields for the lookup of the class loader of WebView, which runs on the JVM (see classLoadersAreLookedUp)
@@ -1812,9 +2618,9 @@ public class DeviceValuesScriptTest {
         for (String name : new String[]{"android.hardware.camera.front", "android.hardware.microphone",
                 "android.hardware.sensor.accelerometer", "android.hardware.fingerprint"})
             assertFalse(name, hasFeature(globals, "nil", name));
-        assertTrue(hasFeature(globals, "nil", "android.hardware.wifi"));
+        assertTrue(hasFeature(globals, "nil", "android.hardware.bluetooth"));
         assertTrue(hasFeature(globals, "'Use.Camera'", "android.hardware.camera.front"));
-        assertFalse(hasFeature(globals, "'Use.Camera'", "android.hardware.wifi"));
+        assertFalse(hasFeature(globals, "'Use.Camera'", "android.hardware.bluetooth"));
         assertFalse(hasFeature(globals, "'Use.Camera'", "android.hardware.microphone"));
         assertTrue(hasFeature(globals, "'Record.Audio'", "android.hardware.microphone"));
         assertFalse(hasFeature(globals, "'Record.Audio'", "android.hardware.camera"));
@@ -1822,7 +2628,7 @@ public class DeviceValuesScriptTest {
         assertFalse(hasFeature(globals, "'Get.Sensors'", "android.hardware.microphone"));
 
         // The list of Read.Features keeps the features of the groups; the list of Use.Camera hides the camera only
-        String list = "local param = featureparamof(featuresof(featureof('android.hardware.wifi'), " +
+        String list = "local param = featureparamof(featuresof(featureof('android.hardware.bluetooth'), " +
                 "featureof('android.hardware.camera.flash'), featureof('android.hardware.microphone'), " +
                 "featureof('android.hardware.sensor.light'), featureof('android.hardware.fingerprint'), featureof(nil)), nil, nil)\n" +
                 "local restricted = after(hookof('PackageManager.getSystemAvailableFeatures', 'getSystemAvailableFeatures', nil, %s), param)\n" +
@@ -1833,7 +2639,7 @@ public class DeviceValuesScriptTest {
                 "android.hardware.fingerprint,nil", result.arg(2).tojstring());
         result = Scripts.run(globals, String.format(list, "'Use.Camera'"));
         assertTrue(result.arg1().toboolean());
-        assertEquals("android.hardware.wifi,android.hardware.microphone,android.hardware.sensor.light," +
+        assertEquals("android.hardware.bluetooth,android.hardware.microphone,android.hardware.sensor.light," +
                 "android.hardware.fingerprint,nil", result.arg(2).tojstring());
 
         // The hooks of a group filter hasSystemFeature for its own features only, and the list of features not at all
@@ -2108,57 +2914,230 @@ public class DeviceValuesScriptTest {
         assertFalse(Scripts.run(globals, String.format(personalized, "false")).arg1().toboolean());
     }
 
+    // A total tells only the size the device would be sold with and is no sold size itself: the memory 0.93 of it, like
+    // 3.72 GiB of 4 GiB, in whole pages of 16 KiB but no whole MiB, the same for all totals of one size, which a second
+    // hook keeps; a file system 0.875 of it in whole MiB, below the sold size, the same for 110 GB and 118 GB, also when
+    // rounded again; free space down to two digits of whole MiB, which a second rounding keeps too
     @Test
     public void sizesAreRounded() throws Exception {
         Globals globals = load("resources");
-        // 3919 MiB of memory is sold as 4 GiB, 118 GB of storage as 128 GB, free space has two digits
-        assertEquals(4294967296L, Scripts.run(globals, "return memorysize(4109369344)").arg1().tolong());
+        assertEquals(3994304512L, Scripts.run(globals, "return memorysize(4109369344)").arg1().tolong());
+        assertEquals(3994304512L, Scripts.run(globals, "return memorysize(3865470566)").arg1().tolong());
+        for (double size : new double[]{1, 1.5, 2, 3, 4, 6, 8, 10, 12, 16, 18, 20, 24, 32, 48, 64}) {
+            long sold = (long) (size * 1073741824L);
+            long total = Scripts.run(globals, "return memorysize(" + sold + ")").arg1().tolong();
+            assertTrue(size + " GiB", total < sold && total > sold * 0.9);
+            // At most the size in GB, so both ways Android rounds it give the same advertised size
+            assertTrue(size + " GiB", total <= size * 1e9);
+            assertEquals(roundStorageSize(33, total), roundStorageSize(34, total));
+            assertEquals(0, total % 16384);
+            assertTrue(size + " GiB", total % 1048576 != 0);
+            assertEquals(total, Scripts.run(globals, "return memorysize(" + total + ")").arg1().tolong());
+        }
         assertEquals(128000000000L, Scripts.run(globals, "return storagesize(118000000000)").arg1().tolong());
+        // The advertised memory of the faked totals, the same on the first release of Android 14, which compares with
+        // powers of GiB, and on its quarterly releases and later ones, which compare with powers of GB, like 4 GB of 4 GiB
+        Scripts.run(globals, "local prior = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = SDK } end\n" +
+                "  return prior(name)\n" +
+                "end");
+        for (int version : new int[]{34, 35, 36})
+            for (int size : new int[]{4, 8, 16}) {
+                globals.set("SDK", version);
+                long advertised = Scripts.run(globals, "return storagesize(memorysize(" + size * 1073741824L + "))").arg1().tolong();
+                assertEquals(version + " " + size, size * 1000000000L, advertised);
+            }
+        // A small size is rounded too, like the advertised memory of 1 GiB, 1 GB; small file systems keep theirs
+        globals.set("SDK", 35);
+        assertEquals(1000000000L, Scripts.run(globals, "return storagesize(memorysize(1073741824))").arg1().tolong());
+        assertEquals(500000000L, Scripts.run(globals, "return partitionsize(500000000)").arg1().tolong());
         assertEquals(7900, Scripts.run(globals, "return freesize(7917)").arg1().toint());
         assertEquals(99, Scripts.run(globals, "return freesize(99)").arg1().toint());
 
         Varargs result = Scripts.run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(118000000000, {}))");
         assertTrue(result.arg1().toboolean());
-        assertEquals(128000000000L, result.arg(2).tolong());
-        // The free space an app can allocate is rounded like other free space
-        result = Scripts.run(globals, "return run(hookof('StorageManager.getAllocatableBytes', 'getAllocatableBytes'), paramof(7917, {}))");
-        assertTrue(result.arg1().toboolean());
-        assertEquals(7900, result.arg(2).toint());
+        assertEquals(111999451136L, result.arg(2).tolong());
+        assertEquals(0, 111999451136L % 1048576);
+        result = Scripts.run(globals, "return partitionsize(110000000000), partitionsize(111999451136), " +
+                "spacesize(7917000000), spacesize(spacesize(7917000000))");
+        assertEquals(111999451136L, result.arg(1).tolong());
+        assertEquals(111999451136L, result.arg(2).tolong());
+        assertEquals(7864320000L, result.arg(3).tolong());
+        assertEquals(7864320000L, result.arg(4).tolong());
         // Small file systems keep their size
         assertFalse(Scripts.run(globals, "return run(hookof('File.getTotalSpace', 'getTotalSpace'), paramof(500000000, {}))")
                 .arg1().toboolean());
 
         // statvfs: the blocks are rounded, and the inodes with them, of which ext4 has a fixed number per size,
-        // so their total does not give the exact size back
-        result = Scripts.run(globals, "luajava = { newInstance = function(name, ...) return { name = name, args = { ... } } end }\n" +
+        // so their total does not give the exact size back; the free blocks like the free bytes
+        result = Scripts.run(globals, "luajava = { newInstance = function(name, ...) return { name = name, args = { ... } } end,\n" +
+                "  bindClass = luajava.bindClass }\n" +
                 "local real = { f_bsize = 4096, f_frsize = 4096, f_blocks = 28808593, f_bfree = 12000000, f_bavail = 11900000,\n" +
                 "  f_files = 7208960, f_ffree = 6000000, f_favail = 6000000, f_fsid = 1, f_flag = 0, f_namemax = 255 }\n" +
                 "local param = paramof(real, {})\n" +
                 "local restricted = run(hookof('Os.statvfs', 'statvfs'), param)\n" +
                 "local a = param.result.args\n" +
-                "return restricted, a[3], a[6], a[7], a[8]");
+                "return restricted, a[3], a[6], a[7], a[8], a[4], a[5]");
         assertTrue(result.arg(1).toboolean());
         long blocks = result.arg(2).tolong();
-        assertEquals(31250000L, blocks);
+        assertEquals(111999451136L / 4096, blocks);
         assertEquals((long) Math.floor(7208960.0 * blocks / 28808593), result.arg(3).tolong());
         assertEquals((long) Math.floor(6000000.0 * blocks / 28808593), result.arg(4).tolong());
         assertEquals((long) Math.floor(6000000.0 * blocks / 28808593), result.arg(5).tolong());
+        // 46875 MiB and 46484 MiB free, 46000 MiB each
+        assertEquals(46000L * 256, result.arg(6).tolong());
+        assertEquals(46000L * 256, result.arg(7).tolong());
+    }
+
+    // Byte sizes of storage are whole blocks, the same by StatFs, File, FileStore and statvfs, like on a device, where
+    // getAvailableBytes is getAvailableBlocksLong times getBlockSizeLong, also on a small file system, which keeps its
+    // total; free space is not above the faked total of a nearly empty file system whose real total is above that, of
+    // which the real one is read without the hooks
+    @Test
+    public void storageSizesAreWholeBlocks() throws Exception {
+        Globals globals = load("resources");
+        Scripts.run(globals, "luajava = { newInstance = function(name, ...) return { name = name, args = { ... } } end,\n" +
+                "  bindClass = function(name)\n" +
+                "    return { SDK_INT = 33, UUID_DEFAULT = { equals = function(self, other) return other == 'default' end },\n" +
+                "      allowThreadDiskReads = function(self) return 'policy' end,\n" +
+                "      setThreadPolicy = function(self, policy) assert(policy == 'policy') end,\n" +
+                "      getDataDirectory = function(self) return { getTotalSpace = function() return DATA end } end }\n" +
+                "  end }\n" +
+                "function call(name, method, result, this, uuid)\n" +
+                "  local param = paramof(result, { [0] = uuid })\n" +
+                "  param.getThis = function(self) return this end\n" +
+                "  param.unhooked = function(self, fn) UNHOOKED = true local value = fn() UNHOOKED = false return value end\n" +
+                "  after(hookof(name, method), param)\n" +
+                "  return param.result\n" +
+                "end\n" +
+                "function classof(name) return function() return { getName = function() return name end } end end\n" +
+                "function sizes(blocks, avail)\n" +
+                "  local size = 4096\n" +
+                "  local statfs = { getBlockSizeLong = function() return size end, getClass = classof('android.os.StatFs'),\n" +
+                "    getTotalBytes = function() assert(UNHOOKED) return blocks * size end }\n" +
+                "  local file = { getTotalSpace = function() assert(UNHOOKED) return blocks * size end,\n" +
+                "    getClass = classof('java.io.File') }\n" +
+                "  local own = { getTotalSpace = function() error('code of the app') end, getClass = classof('app.Own') }\n" +
+                "  local real = { f_bsize = size, f_frsize = size, f_blocks = blocks, f_bfree = avail, f_bavail = avail,\n" +
+                "    f_files = 1000, f_ffree = 900, f_favail = 900, f_fsid = 1, f_flag = 0, f_namemax = 255 }\n" +
+                "  local vfs = call('Os.statvfs', 'statvfs', real)\n" +
+                "  vfs = vfs.args or { [3] = blocks, [5] = avail }\n" +
+                "  DATA = blocks * size\n" +
+                "  return call('StatFs.getAvailableBytes', 'getAvailableBytes', avail * size, statfs),\n" +
+                "    call('StatFs.getAvailableBlocksLong', 'getAvailableBlocksLong', avail, statfs) * size,\n" +
+                "    call('File.getUsableSpace', 'getUsableSpace', avail * size, file),\n" +
+                "    call('UnixFileStore.getUsableSpace', 'getUsableSpace', avail * size, file),\n" +
+                "    vfs[5] * size,\n" +
+                "    call('StatFs.getTotalBytes', 'getTotalBytes', blocks * size, statfs),\n" +
+                "    call('StatFs.getBlockCountLong', 'getBlockCountLong', blocks, statfs) * size,\n" +
+                "    call('File.getTotalSpace', 'getTotalSpace', blocks * size, file),\n" +
+                "    vfs[3] * size,\n" +
+                "    call('StorageStatsManager.getFreeBytes', 'getFreeBytes', avail * size, nil, 'default'),\n" +
+                "    call('File.getUsableSpace', 'getUsableSpace', avail * size, own)\n" +
+                "end");
+        // 125 GB with 50,123,456,512 bytes free, of which 47801 MiB become 47000 MiB, 120 GB free of it, which is above
+        // the faked total of 106811 MiB and becomes that total rounded like free space, 100000 MiB, and 500 MB with
+        // 123,457,536 bytes free, of which 117 MiB become 110 MiB
+        long[][] cases = {{30517578, 12237172, 47000L << 20, 111999451136L}, {30517578, 29296875, 100000L << 20, 111999451136L},
+                {122070, 30141, 110L << 20, 122070L * 4096}};
+        for (long[] c : cases) {
+            Varargs result = Scripts.run(globals, "return sizes(" + c[0] + ", " + c[1] + ")");
+            for (int i = 1; i <= 5; i++)
+                assertEquals(c[1] + " " + i, c[2], result.arg(i).tolong());
+            for (int i = 6; i <= 9; i++)
+                assertEquals(c[1] + " " + i, c[3], result.arg(i).tolong());
+            assertEquals(c[2], result.arg(10).tolong());
+            assertEquals(0, c[2] % 4096);
+            assertTrue(c[2] < c[3]);
+        }
+        // The limited free space is kept by a second rounding
+        assertEquals(100000L << 20, Scripts.run(globals,
+                "return spacesize(spacesize(120000000000, 124999999488), 124999999488)").arg1().tolong());
+        // A File of a subclass of the app is not asked for its total, so it gets no limit
+        assertEquals(110000L << 20, Scripts.run(globals, "return sizes(30517578, 29296875)").arg(11).tolong());
+    }
+
+    // The total of the internal storage of StorageStatsManager is what Android derives of the totals of /data and
+    // /system (StorageManager.getPrimaryStorageSize), here of their faked totals, so these add up to it like on a
+    // device, with /data below it, which Android 8.1 counts alone; on the first release of Android 14 a size up to a power
+    // of GiB rounds to that power of GB, like 130 GB to 128 GB, on the others to the next power, the small /data of an
+    // emulator gets the next size, and after 512 GB comes 1 TB, 1000 GB; the block device of the internal storage has
+    // the same size, so it agrees with the total; another volume keeps what Android gave
+    @Test
+    public void deviceStorageAgreesWithItsPartitions() throws Exception {
+        Globals globals = load("resources");
+        Scripts.run(globals, "function totalbytes(sdk, data, system, uuid, result)\n" +
+                "  luajava.bindClass = function(name)\n" +
+                "    return { SDK_INT = sdk, UUID_DEFAULT = { equals = function(self, other) return other == 'default' end },\n" +
+                "      allowThreadDiskReads = function(self) return 'policy' end, setThreadPolicy = function(self, policy) end,\n" +
+                "      getDataDirectory = function(self) return { getTotalSpace = function() return data end } end,\n" +
+                "      getRootDirectory = function(self) return { getTotalSpace = function() return system end } end }\n" +
+                "  end\n" +
+                "  local param = paramof(result, { [0] = uuid })\n" +
+                "  local restricted = after(hookof('StorageStatsManager.getTotalBytes', 'getTotalBytes'), param)\n" +
+                "  local block = paramof(result + 35676160, {})\n" +
+                "  after(hookof('IStorageManager.getInternalStorageBlockDeviceSize', 'getInternalStorageBlockDeviceSize'), block)\n" +
+                "  return restricted, param.result, partitionsize(data), partitionsize(system), block.result\n" +
+                "end");
+        long[][] cases = {{33, 110000000000L, 3000000000L, 128000000000L}, {33, 25000000000L, 3000000000L, 32000000000L},
+                {34, 130000000000L, 3000000000L, 128000000000L}, {33, 130000000000L, 3000000000L, 256000000000L},
+                {34, 5900000000L, 1500000000L, 16000000000L}, {33, 950000000000L, 3000000000L, 1000000000000L},
+                {34, 950000000000L, 3000000000L, 1000000000000L}, {35, 130000000000L, 3000000000L, 256000000000L},
+                {35, 950000000000L, 3000000000L, 1000000000000L}, {36, 62000000000L, 3000000000L, 64000000000L},
+                {27, 13000000000L, 3000000000L, 16000000000L}, {28, 13000000000L, 3000000000L, 32000000000L}};
+        for (long[] c : cases) {
+            // Android 8.1 counts /data alone
+            long counted = c[0] < 28 ? 0 : 1;
+            Varargs result = Scripts.run(globals, "return totalbytes(" + c[0] + ", " + c[1] + ", " + c[2] + ", 'default', " +
+                    roundStorageSize((int) c[0], c[1] + counted * c[2]) + ")");
+            long device = result.arg(2).tolong(), data = result.arg(3).tolong(), system = result.arg(4).tolong();
+            assertEquals(c[1] + " " + c[0], c[3], device);
+            assertEquals(roundStorageSize((int) c[0], data + counted * system), device);
+            // The block device of the internal storage has the size of the device
+            assertEquals(device, result.arg(5).tolong());
+            assertTrue(data < device);
+        }
+        Varargs other = Scripts.run(globals, "return totalbytes(34, 110000000000, 3000000000, 'card', 64000000000)");
+        assertFalse(other.arg1().toboolean());
+        assertEquals(64000000000L, other.arg(2).tolong());
+        // A block device whose size the service could not give keeps it
+        assertFalse(Scripts.run(globals, "return after(hookof('IStorageManager.getInternalStorageBlockDeviceSize', " +
+                "'getInternalStorageBlockDeviceSize'), paramof(0, {}))").arg1().toboolean());
+    }
+
+    // FileUtils.roundStorageSize of Android 8.1 to 13 and 15 and later and, comparing with powers of GiB, of the first
+    // release of Android 14, which its quarterly releases left again
+    private static long roundStorageSize(int sdk, long size) {
+        long val = 1, kiloPow = 1, kibiPow = 1;
+        while (val * (sdk == 34 ? kibiPow : kiloPow) < size) {
+            val <<= 1;
+            if (val > 512) {
+                val = 1;
+                kibiPow *= 1024;
+                kiloPow *= 1000;
+            }
+        }
+        return val * kiloPow;
     }
 
     // ActivityManager.getMemoryInfo and the binder proxy fake the info through its parcel, which has the thresholds the
     // runtime hides from apps that target Android 12 or later, with the advertised size first from Android 14: the total
-    // and the thresholds grow like the total, the free memory is the one of the faked /proc/meminfo, MemFree and Cached,
-    // MemAvailable from Android 16, rounded when the file cannot be read, and low memory follows them like
-    // ProcessList.getMemoryInfo computes it: below the middle between the thresholds of the home app and of the cached
-    // apps. The second hook of one call keeps what the first faked. A parcel of another layout and a subclass of the app,
-    // whose parcel methods are not called, get their fields faked, low memory by the middle when the hidden thresholds are
-    // fields, else at least below the threshold of the home app; a call which threw or did not fill the info keeps it.
+    // like the one of /proc/meminfo, the thresholds the levels Android gives every device of 700 MB or more without the
+    // settings of a maker, the ones of the cached apps higher with 64-bit ABIs, the free memory the one of the faked
+    // /proc/meminfo, MemFree and Cached, MemAvailable from Android 16, in whole pages also when the file cannot be read,
+    // and low memory follows them like ProcessList.getMemoryInfo computes it: below the middle between the thresholds of
+    // the home app and of the cached apps. The second hook of one call keeps what the first faked. A parcel of another
+    // layout and a subclass of the app, whose parcel methods are not called, get their fields faked, the hidden
+    // thresholds where they are fields; a call which threw or did not fill the info keeps it.
     @Test
     public void memoryInfoIsFakedThroughItsParcel() throws Exception {
         Globals globals = load("resources");
         Scripts.run(globals, "local prior = luajava.bindClass\n" +
+                "ABIS = 1\n" +
                 "luajava.bindClass = function(name)\n" +
                 "  if name == 'android.os.Build$VERSION' then return { SDK_INT = SDK } end\n" +
+                "  if name == 'android.os.Build' then return { SUPPORTED_64_BIT_ABIS = { length = ABIS } } end\n" +
                 "  if name == 'android.os.Parcel' then return prior('eu.faircode.xlua.DeviceValuesScriptTest$Parcel') end\n" +
                 "  if name == 'android.app.ActivityManager$MemoryInfo' then\n" +
                 "    return prior('eu.faircode.xlua.DeviceValuesScriptTest$MemoryInfo')\n" +
@@ -2174,13 +3153,15 @@ public class DeviceValuesScriptTest {
         String text = String.join("\n",
                 "MemTotal:        2537472 kB",
                 "MemFree:           60000 kB",
-                "MemAvailable:     300000 kB",
-                "Cached:           200000 kB",
+                "MemAvailable:     200000 kB",
+                "Cached:           150000 kB",
                 "");
         globals.set("text", text);
-        // 2.42 GiB is sold as 3 GiB; the real free memory, MemFree and Cached, is above the middle of the real thresholds
-        double scale = 3221225472.0 / 2598371328L;
-        long home = (long) Math.floor(226492416 * scale), cached = (long) Math.floor(301989888 * scale);
+        // 2.42 GiB is sold as 3 GiB, which gives 2.79 GiB, and on Android 14 and later an advertised 4 GB, like Android
+        // gives it of that total without a DDR size, no power of two of GiB; the real free memory is above the middle of
+        // the real thresholds of a maker, the faked one below the threshold of the home app
+        long home = 221184L * 1024;
+        long[] levels = {home, home, 92160L * 1024};
         assertFalse(266240000L < 226492416L + (301989888L - 226492416L) / 2);
         for (int version : new int[]{33, 34, 35, 36}) {
             MemoryInfo info = new MemoryInfo(version >= 34);
@@ -2190,59 +3171,71 @@ public class DeviceValuesScriptTest {
                     "getmemoryinfo('ActivityManager.getMemoryInfo', text)");
             assertTrue(result.arg1().toboolean());
             assertFalse(result.arg(2).toboolean());
-            assertEquals(version >= 34 ? 3221225472L : 2684354560L, info.advertisedMem);
-            assertEquals(3221225472L, info.totalMem);
-            // 59570 kB of MemFree in the faked file, 292968 kB of MemAvailable
-            long avail = (version >= 36 ? 292968L : 59570L + 200000) * 1024;
+            assertEquals(version >= 34 ? 4000000000L : 2684354560L, info.advertisedMem);
+            assertEquals(2995732480L, info.totalMem);
+            // 59572 kB of MemFree in the faked file, 195316 kB of MemAvailable, whole pages of 4 KiB
+            long avail = (version >= 36 ? 195316L : 59572L + 150000) * 1024;
             assertEquals(avail, info.availMem);
+            assertEquals(0, info.availMem % 4096);
             assertEquals(home, info.threshold);
-            assertArrayEquals(new long[]{cached, (long) Math.floor(150994944 * scale), (long) Math.floor(113246208 * scale)},
-                    info.hidden);
-            assertEquals((long) Math.floor(75497472 * scale), info.foregroundAppThreshold);
-            assertTrue(avail < home + (cached - home) / 2);
+            assertArrayEquals(levels, info.hidden);
+            assertEquals(73728L * 1024, info.foregroundAppThreshold);
             assertTrue(info.lowMemory);
         }
-
-        MemoryInfo info = new MemoryInfo(false);
+        // Without 64-bit ABIs the levels of the cached apps are lower
+        MemoryInfo narrow = new MemoryInfo(false);
         globals.set("SDK", 33);
+        globals.set("ABIS", 0);
+        globals.set("info", CoerceJavaToLua.coerce(narrow));
+        assertTrue(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', text)").arg1().toboolean());
+        assertEquals(147456L * 1024, narrow.threshold);
+        assertArrayEquals(new long[]{147456L * 1024, 147456L * 1024, 92160L * 1024}, narrow.hidden);
+        assertEquals(73728L * 1024, narrow.foregroundAppThreshold);
+        globals.set("ABIS", 1);
+
+        // The real free memory in whole pages when the file cannot be read, above the threshold of the home app
+        MemoryInfo info = new MemoryInfo(false);
         globals.set("info", CoerceJavaToLua.coerce(info));
         assertTrue(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', nil)").arg1().toboolean());
-        assertEquals(260000000L, info.availMem);
-        assertTrue(info.lowMemory);
+        assertEquals(260001792L, info.availMem);
+        assertEquals(0, info.availMem % 4096);
+        assertFalse(info.lowMemory);
 
-        // A parcel of another layout: the faked free memory is below the threshold of the home app, so low memory
+        // A parcel of another layout: the faked free memory is below the threshold of the home app, so low memory; the
+        // hidden thresholds are no fields
         long[] real = {301989888, 150994944, 113246208};
         MemoryInfo other = new MemoryInfo(true);
         globals.set("info", CoerceJavaToLua.coerce(other));
         assertTrue(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', text)").arg1().toboolean());
-        assertEquals(3221225472L, other.advertisedMem);
-        assertEquals(3221225472L, other.totalMem);
-        assertEquals((59570L + 200000) * 1024, other.availMem);
+        assertEquals(4000000000L, other.advertisedMem);
+        assertEquals(2995732480L, other.totalMem);
+        assertEquals((59572L + 150000) * 1024, other.availMem);
         assertEquals(home, other.threshold);
-        assertEquals((long) Math.floor(75497472 * scale), other.foregroundAppThreshold);
+        assertEquals(73728L * 1024, other.foregroundAppThreshold);
         assertArrayEquals(real, other.hidden);
         assertTrue(other.lowMemory);
-        // With more cached memory, between the threshold of the home app and the middle: low memory stays without the
-        // threshold of the cached apps, and follows the middle with it, of a subclass of an app that targets Android 11
-        String more = text.replace("200000 kB", "233000 kB");
-        long between = (59570L + 233000) * 1024;
-        assertTrue(home < between && between < home + (cached - home) / 2);
+        // With more cached memory, above the threshold of the home app: no low memory, also of a subclass of an app that
+        // targets Android 11, which sees the threshold of the cached apps, and of which the real info told low memory
+        String more = text.replace("150000 kB", "233000 kB");
+        long above = (59572L + 233000) * 1024;
+        assertTrue(home < above);
         other = new MemoryInfo(true);
         globals.set("info", CoerceJavaToLua.coerce(other));
         globals.set("more", more);
         assertTrue(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', more)").arg1().toboolean());
-        assertEquals(between, other.availMem);
+        assertEquals(above, other.availMem);
         assertFalse(other.lowMemory);
         AppMemoryInfo own = new AppMemoryInfo();
+        own.lowMemory = true;
         globals.set("info", CoerceJavaToLua.coerce(own));
         assertTrue(Scripts.run(globals, "return getmemoryinfo('ActivityManager.getMemoryInfo', more)").arg1().toboolean());
         assertEquals(0, own.writes);
         assertEquals(0, own.reads);
-        assertEquals(3221225472L, own.totalMem);
-        assertEquals(between, own.availMem);
+        assertEquals(2995732480L, own.totalMem);
+        assertEquals(above, own.availMem);
         assertEquals(home, own.threshold);
-        assertEquals(cached, own.hiddenAppThreshold);
-        assertTrue(own.lowMemory);
+        assertEquals(home, own.hiddenAppThreshold);
+        assertFalse(own.lowMemory);
 
         // A subclass of the app whose readFromParcel reads nothing keeps the zeros of the call
         AppMemoryInfo empty = new AppMemoryInfo();
@@ -2267,7 +3260,6 @@ public class DeviceValuesScriptTest {
         assertArrayEquals(real, failed.hidden);
         assertFalse(failed.lowMemory);
     }
-
     // A parcel of the longs and ints written to it, in their order, like android.os.Parcel, of which the script uses
     // only the start
     public static class Parcel {
@@ -2370,49 +3362,76 @@ public class DeviceValuesScriptTest {
         }
     }
 
-    // A disk of StorageManager, made of its parcel: an SD card of 64 GB has the size of the totals, a small USB disk keeps
-    // its size like a small file system
+    // A disk of StorageManager, made of its parcel: its size is the one getTotalBytes of a volume on it gives, which Android
+    // rounds of the size of the disk: an SD card of 64 GB has that size, a small USB disk is rounded too, to 512 MB, and a
+    // disk of 64.1 GB is 64 GB on the first release of Android 14, which compares with powers of GiB, and 128 GB on the
+    // others
     @Test
     public void diskSizesAreRounded() throws Exception {
         Globals globals = load("resources");
-        Varargs result = Scripts.run(globals,
-                "local hook = hookof('DiskInfo.createFromParcel', 'CREATOR:createFromParcel')\n" +
-                        "local card, stick = { size = 63864569856 }, { size = 511705088 }\n" +
-                        "local restricted, old, new = after(hook, paramof(card, {}))\n" +
-                        "return restricted, old, new, card.size, after(hook, paramof(stick, {})), stick.size,\n" +
-                        "  after(hook, paramof(nil, {}))");
+        Scripts.run(globals, "local prior = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = SDK } end\n" +
+                "  return prior(name)\n" +
+                "end\n" +
+                "function disk(size)\n" +
+                "  local disk = { size = size }\n" +
+                "  local hook = hookof('DiskInfo.createFromParcel', 'CREATOR:createFromParcel')\n" +
+                "  local restricted, old, new = after(hook, paramof(disk, {}))\n" +
+                "  return restricted, old, new, disk.size\n" +
+                "end");
+        globals.set("SDK", 33);
+        Varargs result = Scripts.run(globals, "return disk(63864569856)");
         assertTrue(result.arg(1).toboolean());
         assertEquals("63864569856", result.arg(2).tojstring());
         assertEquals("64000000000", result.arg(3).tojstring());
         assertEquals(64000000000L, result.arg(4).tolong());
-        assertFalse(result.arg(5).toboolean());
-        assertEquals(511705088L, result.arg(6).tolong());
-        assertFalse(result.arg(7).toboolean());
+        assertEquals(512000000L, Scripts.run(globals, "return disk(511705088)").arg(4).tolong());
+        // A disk of no known size keeps it
+        result = Scripts.run(globals, "return disk(0)");
+        assertFalse(result.arg1().toboolean());
+        assertEquals(0L, result.arg(4).tolong());
+        assertFalse(Scripts.run(globals, "return after(hookof('DiskInfo.createFromParcel', 'CREATOR:createFromParcel'), " +
+                "paramof(nil, {}))").arg1().toboolean());
+        for (int version : new int[]{27, 33, 34, 35, 36}) {
+            globals.set("SDK", version);
+            long size = Scripts.run(globals, "return disk(64100000000)").arg(4).tolong();
+            assertEquals(String.valueOf(version), version == 34 ? 64000000000L : 128000000000L, size);
+            assertEquals(roundStorageSize(version, 64100000000L), size);
+        }
     }
 
-    // Pages of memory tell the same sizes as getMemoryInfo; Os.sysconf and ForwardingOs.sysconf both run for one call,
-    // which must not round the free pages twice; other names of sysconf stay
+    // Pages of memory tell the same sizes as getMemoryInfo and the faked /proc/meminfo, the free pages MemFree and
+    // Buffers like bionic counts them, or rounded like MemFree when the file cannot be read; Os.sysconf and
+    // ForwardingOs.sysconf both run for one call, which must not round the free pages twice; other names of sysconf stay
     @Test
     public void memoryPagesAreRounded() throws Exception {
         Globals globals = load("resources");
         Varargs result = Scripts.run(globals,
                 "luajava.bindClass = function(name)\n" +
                         "  return { _SC_PHYS_PAGES = 85, _SC_AVPHYS_PAGES = 86, _SC_PAGESIZE = 30,\n" +
-                        "    sysconf = function(self, name) assert(name == 30) return 4096 end }\n" +
+                        "    sysconf = function(self, name) assert(name == 30) return 4096 end,\n" +
+                        "    allowThreadDiskReads = function(self) return 'policy' end, setThreadPolicy = function(self, p) end }\n" +
+                        "end\n" +
+                        "local function read(param, text)\n" +
+                        "  param.readFile = function(self, path) assert(path == '/proc/meminfo') return text end\n" +
+                        "  return param\n" +
                         "end\n" +
                         "local hook = hookof('Os.sysconf/resources', 'sysconf')\n" +
                         "local total = paramof(1003486, { [0] = 85 })\n" +
-                        "local free = paramof(300000, { [0] = 86 })\n" +
+                        "local free = read(paramof(300000, { [0] = 86 }), nil)\n" +
+                        "local file = read(paramof(37732, { [0] = 86 }),\n" +
+                        "  'MemFree:          147624 kB\\nBuffers:            3304 kB\\n')\n" +
                         "local size = paramof(4096, { [0] = 30 })\n" +
                         "local count = paramof(1234567, { [0] = 96 })\n" +
                         "local a, b, c = after(hook, total), after(hook, free), after(hook, size)\n" +
                         "local d = after(hook, count)\n" +
                         "local rounded = free.result\n" +
                         "return a, total.result, b, rounded, c, size.result, d, count.result,\n" +
-                        "  after(hook, total), after(hook, free), free.result");
+                        "  after(hook, total), after(hook, free), free.result, after(hook, file), file.result, after(hook, file)");
         assertTrue(result.arg(1).toboolean());
-        // 4110278656 bytes become 4 GiB
-        assertEquals(1048576L, result.arg(2).tolong());
+        // 4110278656 bytes become 3.72 GiB, the total of 4 GiB
+        assertEquals(3994304512L / 4096, result.arg(2).tolong());
         assertTrue(result.arg(3).toboolean());
         // 1228800000 bytes become 1200000000, up to a whole page
         assertEquals(292969L, result.arg(4).tolong());
@@ -2424,6 +3443,10 @@ public class DeviceValuesScriptTest {
         assertFalse(result.arg(9).toboolean());
         assertFalse(result.arg(10).toboolean());
         assertEquals(292969L, result.arg(11).tolong());
+        // 146488 kB of MemFree in the faked file and 3304 kB of Buffers, also for the second hook
+        assertTrue(result.arg(12).toboolean());
+        assertEquals((146488L + 3304) / 4, result.arg(13).tolong());
+        assertFalse(result.arg(14).toboolean());
     }
 
     // The hidden natives behind the sizes, which apps reach by reflection, give the sizes of getMemoryInfo and of
@@ -2444,9 +3467,9 @@ public class DeviceValuesScriptTest {
                 "  after(hookof('Process.getFreeMemory', 'getFreeMemory'), nothing), nothing.result,\n" +
                 "  filter(hookof('Debug.getMemInfo', 'getMemInfo')) == nil");
         assertTrue(result.arg(1).toboolean());
-        assertEquals(4294967296L, result.arg(2).tolong());
+        assertEquals(3994304512L, result.arg(2).tolong());
         assertTrue(result.arg(3).toboolean());
-        assertEquals(1200000000L, result.arg(4).tolong());
+        assertEquals(1200001024L, result.arg(4).tolong());
         assertFalse(result.arg(5).toboolean());
         assertEquals(-1L, result.arg(6).tolong());
         assertFalse(result.arg(7).toboolean());
@@ -2472,35 +3495,40 @@ public class DeviceValuesScriptTest {
                     "free.readFile = function(self, path) assert(path == '/proc/meminfo') return [[" + meminfo + "]] end\n" +
                     "return after(hookof('Process.getFreeMemory', 'getFreeMemory'), free), free.result");
             assertTrue(result.arg1().toboolean());
-            // 146484 kB of MemFree and 546875 kB of MemAvailable in the faked file
-            assertEquals((version >= 36 ? 546875L : 146484L + 1500000) * 1024, result.arg(2).tolong());
+            // 146488 kB of MemFree and 546876 kB of MemAvailable in the faked file
+            assertEquals((version >= 36 ? 546876L : 146488L + 1500000) * 1024, result.arg(2).tolong());
         }
 
-        // Total, free, cached and swap total of the real file in kB, and the available memory at index 19
-        long swap = (long) Math.floor(1900580.0 * 1024 * (4294967296.0 / 4109369344L) / 1024);
+        // Total, free, cached, swap total and swap free, almost all of it, of the real file in kB, and the available memory
+        // at index 19; the swap free shrinks with the swap total, so it stays below it
+        long swap = (long) Math.floor(1900580.0 * 1024 * (3994304512.0 / 4109369344L) / 4096) * 4;
+        long swapfree = (long) Math.floor(1900000.0 * 1024 * (3994304512.0 / 4109369344L) / 4096) * 4;
         for (int version : new int[]{34, 33}) {
             long[] sizes = new long[26];
             sizes[0] = 4013056;
             sizes[1] = 147624;
             sizes[3] = 1500000;
             sizes[8] = 1900580;
+            sizes[9] = 1900000;
             sizes[19] = 551824;
             globals.set("SDK", version);
             globals.set("sizes", CoerceJavaToLua.coerce(sizes));
             assertTrue(Scripts.run(globals, "return after(hookof('Debug.getMemInfo', 'getMemInfo'), paramof(nil, { [0] = sizes }))")
                     .arg1().toboolean());
-            assertEquals(4194304L, sizes[0]);
-            assertEquals(146484L, sizes[1]);
+            assertEquals(3900688L, sizes[0]);
+            assertEquals(146488L, sizes[1]);
             assertEquals(1500000L, sizes[3]);
             assertEquals(swap, sizes[8]);
-            assertEquals(version >= 34 ? 546875L : 551824L, sizes[19]);
+            assertEquals(swapfree, sizes[9]);
+            assertTrue(sizes[9] <= sizes[8]);
+            assertEquals(version >= 34 ? 546876L : 551824L, sizes[19]);
         }
         long[] short81 = {4013056, 147624};
         globals.set("SDK", 27);
         globals.set("sizes", CoerceJavaToLua.coerce(short81));
         assertTrue(Scripts.run(globals, "return after(hookof('Debug.getMemInfo', 'getMemInfo'), paramof(nil, { [0] = sizes }))")
                 .arg1().toboolean());
-        assertArrayEquals(new long[]{4194304, 146484}, short81);
+        assertArrayEquals(new long[]{3900688, 146488}, short81);
 
         // readProcLines: the first field a line starts with gets the number after it and its spaces, others keep 0,
         // like a name without its colon; a line the faked file leaves out gives 0, and the sizes after the fields stay
@@ -2534,7 +3562,7 @@ public class DeviceValuesScriptTest {
         assertFalse(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
         assertTrue(result.arg(4).toboolean());
-        assertArrayEquals(new long[]{4194304, 1500000, 0, 0, 146484, 12, 7}, out);
+        assertArrayEquals(new long[]{3900688, 1500000, 0, 0, 146488, 12, 7}, out);
 
         // readProcFile: the faked file, without the line of the maker, and the format and arrays of the app go to the
         // parser, of which the app gets the result; another file is not parsed again
@@ -2543,8 +3571,8 @@ public class DeviceValuesScriptTest {
                 "Active:           900000 kB", "Inactive:         800000 kB", "Active(anon):     400000 kB",
                 "RbinTotal:        409600 kB", "Inactive(anon):   100000 kB", "Active(file):     500000 kB",
                 "Inactive(file):   400000 kB"};
-        String faked = String.join("\n", "MemTotal:        4194304 kB", "MemFree:          146484 kB",
-                "MemAvailable:     546875 kB", lines[3], lines[4], lines[5], lines[6], lines[7], lines[8], lines[10],
+        String faked = String.join("\n", "MemTotal:        3900688 kB", "MemFree:          146488 kB",
+                "MemAvailable:     546876 kB", lines[3], lines[4], lines[5], lines[6], lines[7], lines[8], lines[10],
                 lines[11], lines[12], "");
         int[] format = {32, 8224, 10};
         globals.set("format", CoerceJavaToLua.coerce(format));
@@ -2609,8 +3637,8 @@ public class DeviceValuesScriptTest {
         for (int i = 0; i < 80; i++)
             makers.append("RbinTotal:        409600 kB\n");
         makers.append("Cached:          1500000 kB\n").append("HugePages_Total:      12\n");
-        Object[][] cases = {{27, kept, new long[]{4194304, 150, 0}}, {28, kept, new long[]{4194304, 1500000, 12}},
-                {27, makers, new long[]{4194304, 1500000, 12}}};
+        Object[][] cases = {{27, kept, new long[]{3900688, 150, 0}}, {28, kept, new long[]{3900688, 1500000, 12}},
+                {27, makers, new long[]{3900688, 1500000, 12}}};
         for (Object[] c : cases) {
             long[] out = new long[3];
             globals.set("SDK", (Integer) c[0]);
@@ -2649,12 +3677,12 @@ public class DeviceValuesScriptTest {
     public void nativeGetIsFakedOnce() throws Exception {
         Globals globals = load("systemproperties_get");
         String[][] cases = {{"device", "ro.product.model", "Pixel 7", "unknown"},
-                {"device", "ro.build.version.security_patch", "2025-05-05", "2025-04-01"},
+                {"device", "ro.build.version.security_patch", "2025-05-05", ""},
                 {"serial", "ro.serialno", "R58M", "unknown"}, {"serial", "ril.iccid.sim1", "8949", ""},
                 {"operator", "gsm.operator.alpha", "Carrier", "unknown"},
                 {"timezone", "persist.sys.timezone", "Europe/Berlin", "UTC"},
                 {"debugging", "ro.debuggable", "1", "0"}, {"debugging", "sys.usb.config", "mtp,adb", "mtp"},
-                {"resources", "dalvik.vm.heapsize", "333m", "256m"}};
+                {"resources", "dalvik.vm.heapsize", "333m", "256m"}, {"resources", "ro.boot.ddr_size", "8GB", ""}};
         for (String[] c : cases) {
             Varargs result = Scripts.run(globals, "local hook = hookof('SystemProperties.native_get/" + c[0] + "', 'native_get')\n" +
                     "local restricted, fake = run(hook, paramof('" + c[2] + "', { [0] = '" + c[1] + "' }))\n" +
@@ -3087,7 +4115,7 @@ public class DeviceValuesScriptTest {
                 "paramof(arrayof('PATH=/system/bin', 'TZ=America/New_York'), {}))").arg1().toboolean());
     }
 
-    // The Java system properties lose the build of the kernel and the model and build in http.agent
+    // The Java system properties get the kernel release of the newest AOSP build and lose the model and build in http.agent
     @Test
     public void systemPropertiesAreReduced() throws Exception {
         Globals globals = load("system_properties");
@@ -3098,10 +4126,11 @@ public class DeviceValuesScriptTest {
                 "local restricted, old, new = after(hookof('System.props', '#props'), paramof(props, {}))\n" +
                 "return restricted, values['os.version'], values['http.agent'], new");
         assertTrue(result.arg1().toboolean());
-        assertEquals("6.1.75", result.arg(2).tojstring());
+        assertEquals("6.1.177-android14-11-maybe-dirty", result.arg(2).tojstring());
         // Like RuntimeInit makes it of the fake Build.MODEL and Build.ID
         assertEquals("Dalvik/2.1.0 (Linux; U; Android 15; unknown Build/unknown)", result.arg(3).tojstring());
-        assertEquals("6.1.75 Dalvik/2.1.0 (Linux; U; Android 15; unknown Build/unknown)", result.arg(4).tojstring());
+        assertEquals("6.1.177-android14-11-maybe-dirty Dalvik/2.1.0 (Linux; U; Android 15; unknown Build/unknown)",
+                result.arg(4).tojstring());
         // A preview build has no model
         Varargs preview = Scripts.run(globals, "local values = { ['http.agent'] = 'Dalvik/2.1.0 (Linux; U; Android Baklava Build/BP21.250103.003)' }\n" +
                 "local props = { get = function(self, key) return values[key] end,\n" +
@@ -3144,6 +4173,6 @@ public class DeviceValuesScriptTest {
                 "local restricted = after(hookof('open', 'open'), param)\n" +
                 "return restricted, param.text");
         assertTrue(result.arg1().toboolean());
-        assertEquals("MemTotal:       3221225472 kB\nMemFree:          146484 kB\n", result.arg(2).tojstring());
+        assertEquals("MemTotal:       3221225472 kB\nMemFree:          146488 kB\n", result.arg(2).tojstring());
     }
 }

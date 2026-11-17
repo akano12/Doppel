@@ -37,8 +37,9 @@ end
 
 -- Extras left out of broadcasts, per variant and action: the names of the Bluetooth devices around and the name of
 -- the device, which the hooks of Bluetooth hide, of each action of Bluetooth (network), whose device is a stand-in (see
--- DEVICE); on Android 8.1 the access point of the Wi-Fi state and the network name of the connectivity (network); the
--- number of a call (call_log)
+-- DEVICE); on Android 8.1 the access point and the Wi-Fi info, with the address of the device, of the Wi-Fi state,
+-- which Android 9 and later leave out too, and the network name of the connectivity (network); the number of a call
+-- (call_log)
 local BLUETOOTH = { 'android.bluetooth.device.extra.NAME', 'android.bluetooth.adapter.extra.LOCAL_NAME' }
 -- The device a broadcast of Bluetooth is about, which Android always sends with it, so receivers use it without a check:
 -- a device of the address Android gives for hidden ones, and the broadcast is marked, so it does not reach the receivers
@@ -52,7 +53,7 @@ local A2DP_ACTIVE = 'android.bluetooth.a2dp.profile.action.ACTIVE_DEVICE_CHANGED
 local TYPE_VPN = 17
 local EXTRAS = {
     network = {
-        ['android.net.wifi.STATE_CHANGE'] = { 'bssid' },
+        ['android.net.wifi.STATE_CHANGE'] = { 'bssid', 'wifiInfo' },
         ['android.net.conn.CONNECTIVITY_CHANGE'] = { 'extraInfo' },
         -- The saved network that changed, with its name, of Android 8.1 to 10 for any app; without it, like the
         -- broadcast Android sends when several networks changed (multipleChanges)
@@ -217,7 +218,10 @@ function after(hook, param)
         if remove == BLUETOOTH and extras:containsKey(DEVICE) then
             local device = extras:getParcelable(DEVICE)
             if device ~= nil then
-                local adapter = luajava.bindClass('android.bluetooth.BluetoothAdapter'):getDefaultAdapter()
+                -- The lookup is hooked itself (see features)
+                local adapter = param:unhooked(function()
+                    return luajava.bindClass('android.bluetooth.BluetoothAdapter'):getDefaultAdapter()
+                end)
                 if adapter == nil then
                     extras:remove(DEVICE)
                 else

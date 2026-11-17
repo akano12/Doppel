@@ -29,7 +29,7 @@ import static org.junit.Assert.assertTrue;
 
 // What Fake values writes for an identifier, its value and its mode, see FakeIds.putChanges
 public class FakeIdsChangesTest {
-    private static final String KEY = FakeIds.IMEI;
+    private static final String KEY = FakeIds.ANDROID_ID;
     private static final String MODE = KEY + FakeIds.MODE;
 
     // Like ActivityValues.getChanges
@@ -39,7 +39,7 @@ public class FakeIdsChangesTest {
         return changed;
     }
 
-    // Clearing a value fixed only because it was set keeps it fixed, else it would be new each boot
+    // Clearing a value fixed only because it was set keeps it fixed, whatever the default mode
     @Test
     public void clearingImplicitlyFixedKeepsFixed() {
         Map<String, String> values = new HashMap<>();

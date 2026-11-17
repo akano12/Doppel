@@ -19,7 +19,12 @@
 -- The events of the cells stay, so Android calls the listener like on a device without Doppel, at the registration
 -- too, and the methods which get the cells get them without their location (variant of Read.Network, nocells, like
 -- telephonymanager_registertelephonycallback); the call state, of which the listener gets the number of an incoming
--- call empty, like apps without the permission of the call log (call_log).
+-- call empty, like apps without the permission of the call log (call_log). Only the listeners the app registered for
+-- those events are changed: the methods are hooked for their class, and a call the app makes itself on another object
+-- of it gets its own arguments, like on Android (see nonumber and nocells). A listener stays changed when it listens
+-- without them again, like with LISTEN_NONE, since the executor of the app can still run what Android sent before.
+-- shortcut: a call the app makes itself on a listener it registered once is changed too; tell it from the calls of
+-- Android by the frames of the dispatcher, which differ per version, if apps call their listeners so.
 -- The parameter is not named hook, the function to hook a method is.
 
 -- The events with cells and the methods of the listener which get them, and whether Android refuses the event to apps
@@ -45,10 +50,15 @@ function before(h, param)
     local events = param:getArgument(1)
     if string.match(name, '/(.*)$') == 'call_log' then
         local listener = param:getArgument(0)
-        if listener == nil or bit32.band(events, 32) == 0 then -- call state
+        if listener == nil then
+            return false
+        end
+        if bit32.band(events, 32) == 0 then -- call state
             return false
         end
         hook(listener, 'onCallStateChanged', nonumber)
+        -- Kept by the identity of the listener, after the hook and in a pcall, like nocells below
+        pcall(param.putValue, param, 'call_log', true, listener)
         return true
     end
 
@@ -73,10 +83,12 @@ function before(h, param)
     if events ~= kept then
         param:setArgument(1, events)
     end
-    -- Android sends the first location again at each registration (see nocells). Kept by the identity of the listener,
-    -- so hashCode and equals of the app do not run; after the hooks and in a pcall, since the log of debug builds names
-    -- the listener by its toString, which is of the app and can throw
-    pcall(param.putValue, param, 'nocells', false, listener)
+    -- Android sends the first location again at each registration for the cells (see nocells), which marks the listener
+    -- as registered. Kept by the identity of the listener, so hashCode and equals of the app do not run; after the hooks
+    -- and in a pcall, since the log of debug builds names the listener by its toString, which is of the app and can throw
+    if restricted then
+        pcall(param.putValue, param, 'nocells', false, listener)
+    end
     return restricted
 end
 
@@ -87,9 +99,14 @@ function unlocated(param)
             context:checkSelfPermission('android.permission.ACCESS_FINE_LOCATION') ~= 0
 end
 
--- onCallStateChanged(state, number) of the listener, with the number empty
+-- onCallStateChanged(state, number) of a listener the app registered for the call state, with the number empty; one
+-- whose mark cannot be read is taken for registered, see nocells
 function nonumber(when, param)
-    if when == 'before' then
+    if when ~= 'before' then
+        return
+    end
+    local known, registered = pcall(param.getValue, param, 'call_log', param:getThis())
+    if not known or registered then
         param:setArgument(1, '')
     end
 end
@@ -99,6 +116,12 @@ end
 function nocells(when, param)
     local value = param:getArgument(0)
     if when ~= 'before' or value == nil then
+        return
+    end
+    -- Not of an object the app never registered; one whose mark cannot be read, like when the log of debug builds names
+    -- it by a toString of the app which throws, is taken for registered
+    local known, mark = pcall(param.getValue, param, 'nocells', param:getThis())
+    if known and mark == nil then
         return
     end
     local ok, without = pcall(function()

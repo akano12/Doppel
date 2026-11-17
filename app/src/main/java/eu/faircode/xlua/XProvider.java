@@ -27,6 +27,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.ComponentInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -46,6 +47,7 @@ import java.lang.reflect.Method;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,6 +55,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 // The service in system server, called through the settings provider (see XCore.hookSettings).
 // Apps can report usage and read their own restrictions and settings, everything else
@@ -81,6 +85,7 @@ class XProvider {
     private static volatile Map<String, XHook> hooks = null;
     private static volatile Map<String, XHook> builtins = null;
     private static byte[] bootSecret = null; // See getBootSecret
+    private static byte[] keptSecret = null; // See getKeptSecret
     private static volatile boolean failureNotified = false; // See loadData
 
     // Callers the service answers, see answers
@@ -310,7 +315,7 @@ class XProvider {
     }
 
     // What apps with assignments may call and query, for themselves only, which each method checks: their usage,
-    // their hooks, their settings and their values new each boot. Anything else would let a hooked app read or change
+    // their hooks, their settings and the values the service derives. Anything else would let a hooked app read or change
     // the data of other apps, see XProviderTest.
     static final Set<String> APP_CALLS = Collections.singleton("reports");
     static final Set<String> APP_QUERIES = Collections.unmodifiableSet(
@@ -599,7 +604,7 @@ class XProvider {
                 for (String id : added)
                     if (all.containsKey(id))
                         targets.add(all.get(id));
-                int[] counts = assignToRestricting(d, all, targets, null, false);
+                int[] counts = assignToRestricting(d, all, targets, null, false, false);
                 Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + counts[0]);
             }
 
@@ -631,8 +636,10 @@ class XProvider {
         return known;
     }
 
-    // Built-in hooks moved to another group (see XDatabase.MOVED) are assigned once to the apps which restrict
-    // the group they moved to, else a fully restricted group would show as partially restricted after the update.
+    // Built-in hooks moved to another group or leaving out fewer packages (see XDatabase.MOVED) are assigned once to
+    // the apps which restrict the group they are in, else a fully restricted group would show as partially restricted
+    // after the update, and the hook would not restrict the apps it left out before; one leaving out fewer packages
+    // only to the apps it left out before, see XDatabase.movedFor.
     // Which groups an app restricts is told without the moved hooks: an app restricting a moved hook in its former
     // group does not restrict the group it moved to.
     private static void assignMovedBuiltins() throws Throwable {
@@ -659,7 +666,7 @@ class XProvider {
                 if (!done.contains(id) && all.containsKey(id))
                     targets.add(all.get(id));
             if (!targets.isEmpty()) {
-                int[] counts = assignToRestricting(d, others, targets, null, false);
+                int[] counts = assignToRestricting(d, others, targets, null, false, true);
                 Log.i(TAG, "Moved built-in hooks=" + targets.size() + " assigned=" + counts[0] + " apps=" + counts[1]);
             }
             writeSetting(d, -1, "service", "builtins_moved", TextUtils.join(",", ids));
@@ -668,55 +675,68 @@ class XProvider {
     }
 
     // Assigns hooks to the apps which restrict a hook of the same group, of all users or of one user,
-    // optionally also when the collection of a hook is not enabled (yet). Existing assignments are kept,
-    // replacing one would reset its usage data. Returns the number of assignments and apps.
+    // optionally also when the collection of a hook is not enabled (yet), of moved hooks only to the apps they go to
+    // (see XDatabase.movedFor). Existing assignments are kept, replacing one would reset its usage data. Returns the
+    // number of assignments and apps.
     static int[] assignToRestricting(SQLiteDatabase d, Map<String, XHook> hooks, List<XHook> targets,
-                                     Integer user, boolean anyCollection) throws Throwable {
-        // Groups restricted per app
-        Map<String, Set<String>> restricted = new HashMap<>();
-        Set<String> assigned = new HashSet<>();
+                                     Integer user, boolean anyCollection, boolean moved) throws Throwable {
+        List<String[]> rows = new ArrayList<>();
         String[] range = (user == null ? null : getUidRange(user));
         try (Cursor cursor = d.query("assignment", new String[]{"package", "uid", "hook"},
                 range == null ? null : WHERE_USER, range, null, null, null)) {
-            while (cursor.moveToNext()) {
-                String key = cursor.getInt(1) + ":" + cursor.getString(0);
-                assigned.add(key + "/" + cursor.getString(2));
-                XHook hook = hooks.get(cursor.getString(2));
-                if (hook == null)
-                    continue;
-                if (!restricted.containsKey(key))
-                    restricted.put(key, new HashSet<>());
-                restricted.get(key).add(hook.getGroup());
-            }
+            while (cursor.moveToNext())
+                rows.add(new String[]{cursor.getString(0), Integer.toString(cursor.getInt(1)), cursor.getString(2)});
         }
 
         Map<Integer, List<String>> collections = new HashMap<>();
-        int count = 0;
+        List<String[]> added = completing(rows, hooks, targets,
+                userid -> collections.computeIfAbsent(userid, id -> readCollection(d, id)), anyCollection, moved);
         Set<String> apps = new HashSet<>();
+        for (String[] row : added) {
+            Log.i(TAG, row[0] + ":" + row[1] + "/" + row[2] + " added (restricted group)");
+            // Completing a restricted group does not make the app restricted recently
+            insertAssignment(d, row[0], Integer.parseInt(row[1]), row[2], -1);
+            apps.add(row[1] + ":" + row[0]);
+        }
+        return new int[]{added.size(), apps.size()};
+    }
+
+    // The assignments which complete the groups apps restrict, as rows of the assignment table (package, uid, hook):
+    // each target to each app which has a hook of its group but not the target, when it is available for the app with
+    // the collection of its user, and for moved targets when it goes to the app (see XDatabase.movedFor); an app
+    // restricts the groups of its hooks found in the map only
+    static List<String[]> completing(List<String[]> rows, Map<String, XHook> hooks, List<XHook> targets,
+                                     Function<Integer, List<String>> collectionOf, boolean anyCollection, boolean moved) {
+        // Groups restricted per app
+        Map<String, Set<String>> restricted = new HashMap<>();
+        Set<String> assigned = new HashSet<>();
+        for (String[] row : rows) {
+            String key = row[1] + ":" + row[0];
+            assigned.add(key + "/" + row[2]);
+            XHook hook = hooks.get(row[2]);
+            if (hook != null)
+                restricted.computeIfAbsent(key, k -> new HashSet<>()).add(hook.getGroup());
+        }
+
+        List<String[]> added = new ArrayList<>();
         for (Map.Entry<String, Set<String>> entry : restricted.entrySet()) {
-            int uid = Integer.parseInt(entry.getKey().substring(0, entry.getKey().indexOf(':')));
+            String uid = entry.getKey().substring(0, entry.getKey().indexOf(':'));
             String packageName = entry.getKey().substring(entry.getKey().indexOf(':') + 1);
-            int userid = Util.getUserId(uid);
-            if (!collections.containsKey(userid))
-                collections.put(userid, readCollection(d, userid));
+            List<String> collection = collectionOf.apply(Util.getUserId(Integer.parseInt(uid)));
             for (XHook hook : targets) {
-                List<String> collection = collections.get(userid);
-                if (anyCollection && !collection.contains(hook.getCollection())) {
-                    collection = new ArrayList<>(collection);
-                    collection.add(hook.getCollection());
+                List<String> enabled = collection;
+                if (anyCollection && !enabled.contains(hook.getCollection())) {
+                    enabled = new ArrayList<>(enabled);
+                    enabled.add(hook.getCollection());
                 }
                 if (!assigned.contains(entry.getKey() + "/" + hook.getId()) &&
                         entry.getValue().contains(hook.getGroup()) &&
-                        hook.isAvailable(packageName, collection)) {
-                    Log.i(TAG, packageName + ":" + uid + "/" + hook.getId() + " added (restricted group)");
-                    // Completing a restricted group does not make the app restricted recently
-                    insertAssignment(d, packageName, uid, hook.getId(), -1);
-                    count++;
-                    apps.add(entry.getKey());
-                }
+                        hook.isAvailable(packageName, enabled) &&
+                        (!moved || XDatabase.movedFor(hook.getId(), packageName)))
+                    added.add(new String[]{packageName, uid, hook.getId()});
             }
         }
-        return new int[]{count, apps.size()};
+        return added;
     }
 
     // Hooks installed by the user are assigned to the apps of the user which restrict their group
@@ -728,7 +748,7 @@ class XProvider {
         for (String id : hookids)
             if (all.containsKey(id))
                 targets.add(all.get(id));
-        int[] counts = db.write(d -> assignToRestricting(d, all, targets, userid, true));
+        int[] counts = db.write(d -> assignToRestricting(d, all, targets, userid, true, false));
         Log.i(TAG, "Assigned hooks=" + hookids + " assignments=" + counts[0] + " apps=" + counts[1]);
 
         Bundle result = new Bundle();
@@ -1006,7 +1026,7 @@ class XProvider {
     }
 
     private static Cursor getAssignedHooks(Context context, String[] selection, boolean permitted) throws Throwable {
-        int uid = ownUid(context, "getAssignedHooks2", selection, permitted, null);
+        int uid = ownUid(context, "getAssignedHooks2", selection, permitted);
         final String packageName = selection[0];
 
         final List<String> collection = getCollection(Util.getUserId(uid));
@@ -1067,7 +1087,8 @@ class XProvider {
             } catch (Throwable ex) {
                 Log.e(TAG, Log.getStackTraceString(ex));
             }
-        return new Bundle();
+        // No answer, like the settings provider gives any app for this method, see XCore.serve and Data.reports
+        return null;
     }
 
     // A report of a hook of an app, see reports
@@ -1215,7 +1236,7 @@ class XProvider {
     // or those of one app, see ReceiverPackage.added
     private static Cursor getAssignments(Context context, String[] selection, boolean permitted) throws Throwable {
         if (selection != null) {
-            final String[] where = {selection[0], Integer.toString(ownUid(context, "getAssignments", selection, permitted, null))};
+            final String[] where = {selection[0], Integer.toString(ownUid(context, "getAssignments", selection, permitted))};
             return db.read(d -> copy(d.query("assignment", new String[]{"package", "uid", "hook"},
                     WHERE_APP, where, null, null, "hook")));
         }
@@ -1412,7 +1433,7 @@ class XProvider {
 
     // Settings of a category (global or a package name) of an app
     private static Cursor getSettings(Context context, String[] selection, boolean permitted) throws Throwable {
-        int uid = ownUid(context, "getSettings", selection, permitted, true);
+        int uid = ownUid(context, "getSettings", selection, permitted);
         final String category = selection[0];
         MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
         for (Map.Entry<String, String> entry : readSettings(Util.getUserId(uid), category).entrySet())
@@ -1420,20 +1441,73 @@ class XProvider {
         return result;
     }
 
-    // The fake identifiers of an app which are new each boot, see FakeIds; apps read their own only, like their settings,
-    // so apps sharing a user id read each other's, and the values for all apps are the same for every app.
-    // The secret they are derived from is the service's own, new each boot, which no app can read.
+    // The fake identifiers of an app which are new each boot and the default Android ID, see FakeIds; apps read their
+    // own only, like their settings, so apps sharing a user id read each other's, and the values for all apps are the
+    // same for every app. The secrets they are derived from are the service's own, which no app can read, but the
+    // values are not secret from the app they are for.
+    // shortcut: the restricted app's code which gets past XCore.hideService reads these like its hooks do (see answers),
+    // the key of the offsets of its fake locations too, so it can work out the offsets of its coarse locations during
+    // a boot; upgrade to coarse locations made in system server, where the key can stay, like the LocationFudger of Android
     private static Cursor getBootValues(Context context, String[] selection, boolean permitted) throws Throwable {
-        int uid = ownUid(context, "getBootValues", selection, permitted, false);
+        int uid = ownUid(context, "getBootValues", selection, permitted);
         final String packageName = selection[0];
         final int userid = Util.getUserId(uid);
 
         Map<String, String> global = readSettings(userid, "global");
         Map<String, String> app = readSettings(userid, packageName);
+        String developer = keptDeveloper(db, packageName, FakeIds.signer(getSignatures(context, userid, packageName)));
         MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
-        for (Map.Entry<String, String> entry : FakeIds.getBootValues(getBootSecret(), userid, packageName, global, app).entrySet())
+        for (Map.Entry<String, String> entry :
+                FakeIds.getBootValues(getBootSecret(), getKeptSecret(), userid, packageName, developer, global, app).entrySet())
             result.addRow(new String[]{entry.getKey(), entry.getValue()});
         return result;
+    }
+
+    // The signatures SettingsProvider derives the Android ID of, of the user's package; null when the package
+    // cannot be read
+    private static byte[][] getSignatures(Context context, int userid, String packageName) {
+        long ident = Binder.clearCallingIdentity();
+        try {
+            return getSignatures(Util.createContextForUser(context, userid).getPackageManager(), packageName);
+        } catch (Throwable ex) {
+            Log.w(TAG, "Signatures of " + packageName + ": " + ex);
+            return null;
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
+    }
+
+    // The signatures of a package, the oldest signer of a rotated key, like SettingsProvider reads them
+    @SuppressWarnings("deprecation")
+    static byte[][] getSignatures(PackageManager pm, String packageName) throws PackageManager.NameNotFoundException {
+        Signature[] signatures = Util.getPackageInfo(pm, packageName, PackageManager.GET_SIGNATURES).signatures;
+        if (signatures == null)
+            return null;
+        byte[][] result = new byte[signatures.length][];
+        for (int i = 0; i < signatures.length; i++)
+            result[i] = signatures[i].toByteArray();
+        return result;
+    }
+
+    // The developer of an app (FakeIds.signer), which the service keeps (user -1, like the kept secret), so the
+    // identifiers stay the same when the signatures cannot be read once; null, so of the package, only when they were
+    // never read. It is written only when it changed, and a database which fails keeps the developer just read.
+    // shortcut: the developers of removed apps stay, upgrade to removing them in removeData if they become too many
+    static String keptDeveloper(XDatabase db, String packageName, String developer) {
+        String name = "developer." + packageName;
+        try {
+            String kept = db.read(d -> readSetting(d, -1, "service", name));
+            if (developer == null)
+                return kept;
+            if (!developer.equals(kept))
+                db.write(d -> {
+                    writeSetting(d, -1, "service", name, developer);
+                    return null;
+                });
+        } catch (Throwable ex) {
+            Log.w(TAG, "Developer of " + packageName + ": " + ex);
+        }
+        return developer;
     }
 
     private static Map<String, String> readSettings(int userid, String category) throws Throwable {
@@ -1456,6 +1530,26 @@ class XProvider {
             new SecureRandom().nextBytes(bootSecret);
         }
         return bootSecret;
+    }
+
+    // Read once per start of system server, see keptSecret
+    private static synchronized byte[] getKeptSecret() throws Throwable {
+        if (keptSecret == null)
+            keptSecret = db.write(XProvider::keptSecret);
+        return keptSecret;
+    }
+
+    // Made once and kept by the service (user -1, which is no user, so no app reads it, no backup has it and clearing
+    // the data keeps it), so the default Android ID stays the same after a restart, like Android keeps its own
+    static byte[] keptSecret(SQLiteDatabase d) throws Throwable {
+        String saved = readSetting(d, -1, "service", "ids_secret");
+        if (saved == null) {
+            byte[] secret = new byte[32];
+            new SecureRandom().nextBytes(secret);
+            saved = Base64.getEncoder().encodeToString(secret);
+            writeSetting(d, -1, "service", "ids_secret", saved);
+        }
+        return Base64.getDecoder().decode(saved);
     }
 
     // All settings of the user of the caller, for backup
@@ -1495,8 +1589,13 @@ class XProvider {
 
     // The service answers system server, the app and apps with assignments, which are hooked. Other apps get
     // the answers of a device without Doppel, so they cannot detect it nor read the values of settings.
-    // Apps with assignments can detect it: their own code can ask for their hooks and the global settings,
-    // like the hooks in their process do, which the service cannot tell apart.
+    // Apps with assignments get the answers of a device without Doppel for everything but their start-up queries and
+    // reports, see XCore.serve, and their own code gets them for these too, see XCore.hideService.
+    // shortcut: code of theirs which gets past hideService, like their AppComponentFactory or a binder transaction of
+    // their own, can still ask for their hooks, settings and fake values like the engine does at their start, which
+    // the service cannot tell apart, so it can detect Doppel; answering only the first of these queries of a process
+    // is no fix, since the AppComponentFactory of the app runs before the engine and could take the answers, leaving
+    // its process without restrictions; upgrade to a token the code of the app cannot get.
     // Assignments of a removed package do not count, its uid can be of another app now.
     static int answers(Context context) throws RemoteException {
         loadData(context);
@@ -1505,7 +1604,7 @@ class XProvider {
             // System server and the app first: system server has the assignments of Android too;
             // the packages of the caller are looked up once for both
             String[] packages = getPackagesForUid(context, cuid);
-            if (permitted(cuid, packages))
+            if (permitted(context, cuid, packages))
                 return CALLER_PERMITTED;
 
             if (packages != null && packages.length > 0) {
@@ -1540,9 +1639,9 @@ class XProvider {
         }
     }
 
-    // The uid of a selection of a package or category and a uid, which a hooked app may ask about for itself only,
-    // and with global not null about its own packages only (see mayRead), else the app is needed, of its own user only
-    private static int ownUid(Context context, String method, String[] selection, boolean permitted, Boolean global) {
+    // The uid of a selection of a package or category and a uid, which a hooked app may ask about for itself and its own
+    // packages only (see mayAsk), else the app is needed, of its own user only
+    private static int ownUid(Context context, String method, String[] selection, boolean permitted) {
         if (selection == null || selection.length != 2)
             throw new IllegalArgumentException("selection invalid");
         int uid = Integer.parseInt(selection[1]);
@@ -1550,10 +1649,15 @@ class XProvider {
             throw new SecurityException("Other user cuid=" + Binder.getCallingUid());
         if (!permitted) {
             enforceCallerOrPermission(context, uid);
-            if (global != null && !mayRead(selection[0], global, getPackagesForUid(context, uid)))
+            if (!mayAsk(method, selection[0], getPackagesForUid(context, uid)))
                 enforcePermission(context);
         }
         return uid;
+    }
+
+    // Each query of a hooked app is about one of its packages, the settings also about global, see XProviderTest
+    static boolean mayAsk(String method, String category, String[] packages) {
+        return mayRead(category, "getSettings".equals(method), packages);
     }
 
     // Hooked apps may read their own data only
@@ -1566,13 +1670,43 @@ class XProvider {
     // Apps signed with the same key are not let in: there is no companion app anymore.
     private static void enforcePermission(Context context) throws SecurityException {
         int callingUid = Binder.getCallingUid();
-        if (!permitted(callingUid, getPackagesForUid(context, callingUid)))
+        if (!permitted(context, callingUid, getPackagesForUid(context, callingUid)))
             throw new SecurityException("Permission error cuid=" + callingUid);
     }
 
-    // Whether a caller with the packages of its uid is system server or the app, see XProviderTest
-    static boolean permitted(int callingUid, String[] packages) {
+    // The signers of the module which system server loaded, read when it is ready (see XCore.hookAndroid) and never
+    // again: once the module is removed, any app can take its name until the next boot
+    static volatile Set<String> moduleSigners = null;
+
+    private static boolean permitted(Context context, int callingUid, String[] packages) {
+        return permitted(callingUid, packages, moduleSigners, () -> getModuleSigners(context));
+    }
+
+    // Whether a caller with the packages of its uid is system server or the app with the signers of the module which
+    // runs; only a caller with the name of the app costs the lookup of its signers, see XProviderTest
+    static boolean permitted(int callingUid, String[] packages, Set<String> module, Supplier<Set<String>> signers) {
         return (Util.getAppId(callingUid) == Process.SYSTEM_UID ||
-                mayRead(BuildConfig.APPLICATION_ID, false, packages));
+                (mayRead(BuildConfig.APPLICATION_ID, false, packages) && module != null && module.equals(signers.get())));
+    }
+
+    // The signers of the package with the name of the app, as a set, since Android does not keep their order;
+    // null when it is not installed
+    @SuppressWarnings("deprecation")
+    static Set<String> getModuleSigners(Context context) {
+        long ident = Binder.clearCallingIdentity();
+        try {
+            PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), BuildConfig.APPLICATION_ID,
+                    PackageManager.GET_SIGNATURES | ReceiverPackage.MATCH_ANY_USER);
+            if (pi.signatures == null || pi.signatures.length == 0)
+                return null;
+            Set<String> signers = new HashSet<>();
+            for (Signature signature : pi.signatures)
+                signers.add(signature.toCharsString());
+            return signers;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return null;
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 }

@@ -22,6 +22,18 @@
 -- so the app gets the answer of Android itself, like an exception with the same message and stack trace,
 -- in which the name is replaced by the name the app asked for.
 -- An intent Android hands back, like to the callback of a sent PendingIntent, gets the names the app asked for too.
+-- Usage access (the app op android:get_usage_stats, code 43) of the app itself reads as not granted, like the usage
+-- statistics and events which need it (see usageevents_query): a check for the app's own uid which Android answers
+-- with allowed gets MODE_DEFAULT, the mode of an app which never got access, and a note or start for the app itself
+-- (also as the proxied package) which Android would allow is not made, so no access is recorded, and answers
+-- MODE_DEFAULT too. An app of which the user switched access off (MODE_IGNORED) and a package which is not of the uid
+-- keep the answer of Android. From Android 11 the idle state of another app needs usage access too, so another app is
+-- not idle, and from Android 9 the standby bucket of a package of another uid does, which throws the SecurityException
+-- of UsageStatsService. Processes of the system keep all of these, like the usage statistics.
+-- shortcut: a proxy note or start of usage access for another package is still made and answers like with access (the
+-- mode of that package, and a note), where Android without access answers MODE_DEFAULT, from Android 14 MODE_ERRORED
+-- for a package it does not find; and an app which holds PACKAGE_USAGE_STATS as a permission (privileged, or granted
+-- by adb) has usage access by MODE_DEFAULT, which checkSelfPermission tells; upgrade when apps are seen doing either.
 
 -- The arguments with a package, else it is the first argument
 local arguments = {
@@ -51,6 +63,57 @@ local arguments = {
 
 -- The substitutes of the calls in progress on this thread, for after, which comes in reverse order
 local calls = {}
+
+-- The calls of the app ops with the argument of the uid, and for notes and starts, which record the access, of the
+-- package (the proxied one of proxy calls). The packages of notes and starts are not looked up under another name: the
+-- framework in the app notes with them for the apps calling it, like for a provider of the app, which would deny them
+local ops = {
+    checkOp = { uid = 1 },
+    checkOpNoThrow = { uid = 1 },
+    unsafeCheckOp = { uid = 1 },
+    unsafeCheckOpNoThrow = { uid = 1 },
+    unsafeCheckOpRaw = { uid = 1 },
+    unsafeCheckOpRawNoThrow = { uid = 1 },
+    checkOpRawNoThrow = { uid = 1 },
+    noteOp = { uid = 1, package = 2, records = true },
+    noteOpNoThrow = { uid = 1, package = 2, records = true },
+    startOp = { uid = 1, package = 2, records = true },
+    startOpNoThrow = { uid = 1, package = 2, records = true },
+    noteProxyOp = { uid = 2, package = 1, records = true },
+    noteProxyOpNoThrow = { uid = 2, package = 1, records = true },
+    startProxyOp = { uid = 1, package = 2, records = true },
+    startProxyOpNoThrow = { uid = 1, package = 2, records = true }
+}
+
+-- Whether a call of the app ops is about usage access of the app itself; a proxy note without a uid is for the uid
+-- calling, like Android takes it
+function ownusage(param, op)
+    local code = param:getArgument(0)
+    if param:isSystem() or code ~= 43 and code ~= 'android:get_usage_stats' then
+        return false
+    end
+    local ok, uid = pcall(param.getArgument, param, op.uid)
+    if not ok or type(uid) ~= 'number' then
+        uid = luajava.bindClass('android.os.Binder'):getCallingUid()
+    end
+    return uid == param:getUid()
+end
+
+-- Whether a package is of the app's own uid, looked up without the hooks of the app; one which is not installed is not
+function ownuid(param, name)
+    local ok, uid = pcall(param.unhooked, param, function()
+        return param:getApplicationContext():getPackageManager():getPackageUid(name, 0)
+    end)
+    return ok and uid == param:getUid()
+end
+
+-- Whether Android allows usage access to the package of a call, asked without the hooks of the app
+function granted(param, op)
+    local ok, mode = pcall(param.unhooked, param, function()
+        return param:getThis():checkOpNoThrow('android:get_usage_stats', param:getUid(), param:getArgument(op.package))
+    end)
+    return ok and mode == 0
+end
 
 -- The suffix of the names which are not installed, random, so an app cannot ask for a name which looks like a substitute
 -- (see hide): of the app and new each boot (see FakeIds), so every process of the app uses the same names, like for a
@@ -218,10 +281,19 @@ function before(hook, param)
         indexes = { 0 }
     end
 
-    -- A provider of the app checks the app calling it, ContentProvider.getCallingPackage, which is not a probe
-    if hook:getMethodName() == 'checkPackage' and
-            param:getArgument(0) == luajava.bindClass('android.os.Binder'):getCallingUid() then
+    if checked(param, hook:getMethodName()) then
         table.insert(calls, false)
+        return false
+    end
+
+    -- A note or start of usage access of the app itself which Android would allow is not made
+    local op = ops[hook:getMethodName()]
+    if op ~= nil and op.records then
+        table.insert(calls, false)
+        if ownusage(param, op) and granted(param, op) then
+            param:setResult(3) -- AppOpsManager.MODE_DEFAULT
+            return true
+        end
         return false
     end
 
@@ -232,6 +304,12 @@ function before(hook, param)
             param:setArgument(index, value)
         end
     end
+    if #substitutes == 0 and hook:getMethodName() == 'getServiceInfo' then
+        local component = inaccessible(param, suffix, substitutes)
+        if component ~= nil then
+            param:setArgument(0, component)
+        end
+    end
 
     -- Each call has an entry, so the entries of nested calls on this thread match
     if #substitutes == 0 then
@@ -240,6 +318,84 @@ function before(hook, param)
     end
     table.insert(calls, substitutes)
     return true, substitutes[1][2]
+end
+
+-- The component of an accessibility service of another app, also of a system app, whose package stays visible, under
+-- a class its package does not have, so Android itself throws NameNotFoundException, like for a component which is not
+-- there (see identifier_services), and after gives it the name the app asked for; nil for other components. The
+-- service is looked up with the flags of the app without the hooks; the app's own package, and a class which is a
+-- substitute already, like of getServiceInfo calling its overload of Android 13, are not.
+function inaccessible(param, suffix, substitutes)
+    local component = param:getArgument(0)
+    if component == nil or component:getPackageName() == param:getPackageName() or
+            string.sub(component:getClassName(), -string.len(suffix)) == suffix then
+        return nil
+    end
+    local ok, info = pcall(param.unhooked, param, function()
+        return param:getThis():getServiceInfo(component, param:getArgument(1))
+    end)
+    if not ok or info == nil or not otheraccessibility(param, info) then
+        return nil
+    end
+    local name = component:getClassName() .. suffix
+    table.insert(substitutes, { name, component:getClassName() })
+    return luajava.newInstance('android.content.ComponentName', component:getPackageName(), name)
+end
+
+-- Whether a service is an accessibility service of another app, which AccessibilityManager does not list to the app;
+-- the same function as in generic_filter_by_uid, see there
+function otheraccessibility(param, info)
+    local ai = info.applicationInfo
+    return info.permission == 'android.permission.BIND_ACCESSIBILITY_SERVICE' and
+            not (ai == nil or param:isSystem() or ai.uid == param:getUid())
+end
+
+-- Whether Android checks the app calling the app inside the app, which is not a probe: a provider of the app checks the
+-- package of that app (ContentProvider.getCallingPackage, getCallingAttributionSource from Android 12), a speech
+-- recognizer of the app its app op to record audio on Android 11 (RecognitionService.checkPermissions, see
+-- package_resolve), and a slice of the app gets its label for the slice which asks for the permission
+-- (SliceProvider.getPermissionString, from Android 9), which throws without it. Found by that method on the stack too,
+-- because the app can set any user id as the calling one (Binder.restoreCallingIdentity) and ask for any package of it
+-- itself (see caller of package_resolve).
+function checked(param, method)
+    if method ~= 'checkPackage' and method ~= 'unsafeCheckOpRawNoThrow' and method ~= 'getApplicationInfo' and
+            method ~= 'getApplicationInfoAsUser' then
+        return false
+    end
+    local calling = luajava.bindClass('android.os.Binder'):getCallingUid()
+    if method == 'checkPackage' then
+        return param:getArgument(0) == calling and
+                onstack('android.content.ContentProvider', { getCallingPackage = true, getCallingAttributionSource = true })
+    elseif method == 'unsafeCheckOpRawNoThrow' then
+        return param:getArgument(1) == calling and
+                onstack('android.speech.RecognitionService', { checkPermissions = true })
+    end
+    return calling ~= param:getUid() and onstack('android.app.slice.SliceProvider', { getPermissionString = true }) and
+            uidof(param, param:getArgument(0)) == calling
+end
+
+-- Whether one of the methods of a class of Android is on the stack, whose name the classes of the app cannot have,
+-- since Android loads its own class of that name first; an own class loader of the app which does not ask the boot
+-- class loader first can have it (see onstack and caller of package_resolve)
+function onstack(class, methods)
+    local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
+    for index = 1, frames['length'] do
+        local frame = frames[index]
+        if methods[frame:getMethodName()] and frame:getClassName() == class then
+            return true
+        end
+    end
+    return false
+end
+
+-- The user id of a package for the user of the app, nil when it is not installed; asked without the hooks of the app
+function uidof(param, name)
+    local ok, uid = pcall(function()
+        return param:unhooked(function()
+            return param:getApplicationContext():getPackageManager():getPackageUid(name, 0)
+        end)
+    end)
+    return (ok and uid or nil)
 end
 
 -- The app which defines a permission, nil when none does; asked without the hooks of the app, once per process,
@@ -263,6 +419,29 @@ end
 -- Android answered for a package which is not installed, an exception has the name the app asked for
 function after(hook, param)
     local substitutes = table.remove(calls)
+    -- A check of usage access of the app itself which Android allows reads as not granted; MODE_FOREGROUND comes from
+    -- the raw checks
+    local op = ops[hook:getMethodName()]
+    if op ~= nil and not op.records and param:getException() == nil and ownusage(param, op) and
+            (param:getResult() == 0 or param:getResult() == 4) then
+        param:setResult(3) -- AppOpsManager.MODE_DEFAULT
+        return true
+    end
+    -- From Android 11 the idle state of another app needs usage access, without which Android answers not idle
+    if hook:getMethodName() == 'isAppInactive' and param:getException() == nil and param:getResult() == true and
+            not param:isSystem() and luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 30 and
+            param:getArgument(0) ~= param:getApplicationContext():getOpPackageName() then
+        param:setResult(false)
+        return true
+    end
+    -- The standby bucket of a package of another uid needs usage access, without which Android throws before it looks
+    -- the package up, so also for one which is not installed, like a hidden one
+    if hook:getMethodName() == 'getAppStandbyBucket' and not param:isSystem() and (param:getException() == nil or
+            param:isInstance(param:getException(), 'java.lang.IllegalArgumentException')) and
+            not ownuid(param, param:getArgument(0)) then
+        param:setResult(luajava.newInstance('java.lang.SecurityException', "Don't have permission to query app standby bucket"))
+        return true
+    end
     -- A permission of a hidden app which a visible package holds: a permission no app defines, which is denied
     if not substitutes and hook:getMethodName() == 'checkPermission' and param:getException() == nil and
             param:getResult() == 0 then

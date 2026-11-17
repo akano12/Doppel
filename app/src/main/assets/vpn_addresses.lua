@@ -22,8 +22,9 @@
 -- addresses for all networks still (see network_address). Without that network they are left out, and the MTU is 0.
 -- The HTTP proxy a VPN can set from Android 10 (VpnService.Builder.setHttpProxy), often on 127.0.0.1, is null, like
 -- on a network without a proxy.
--- The text of the VPN has the same ones, from the network found the same way (see vpn).
--- LinkProperties gets the real ones when it checks, compares, copies or parcels itself.
+-- The text of the VPN has the same ones, from the network found the same way (see vpn), and so has its parcel (see
+-- vpn_parcel). LinkProperties gets the real ones when it checks, compares, copies or parcels itself, apart from where
+-- vpn_parcel fakes its parcel, hash or comparison.
 -- shortcut: the other fields stay the VPN's, in their getters and the text alike: the DHCP server, the private DNS,
 -- the P-CSCF servers, the TCP buffer sizes, the NAT64 prefix and the stacked links, so a VPN over IPv6-only mobile
 -- data has no NAT64 prefix; the hidden getAll* getters do include the links stacked on the network under it.
@@ -44,6 +45,37 @@ function isvpninterface(name)
         end
     end
     return false
+end
+
+-- Whether link properties or a route with the interface of a VPN, like tun0, are of a network of the device: those the
+-- app makes itself and names like that, without such a network, keep what it set, like on Android. Kept for the object,
+-- which keeps its interface; found without the hooks, which hide the VPN, and taken as one when that fails. The same
+-- function as in vpn, vpn_addresses and vpn_parcel; a test compares them.
+-- shortcut: an object the app makes with the name of a VPN which is up gets the fakes; upgrade by marking the objects
+-- Android reads from its parcels if apps are seen to check that
+function devicevpn(param, object, name)
+    local known
+    if object ~= nil then
+        known = param:getValue('vpn.device', object)
+    end
+    if known == nil then
+        local ok, found = pcall(param.unhooked, param, function()
+            local cm = param:getApplicationContext():getSystemService('connectivity')
+            local networks = cm:getAllNetworks()
+            for index = 1, networks['length'] do
+                local lp = cm:getLinkProperties(networks[index])
+                if lp ~= nil and lp:getInterfaceName() == name then
+                    return true
+                end
+            end
+            return false
+        end)
+        known = (not ok or found)
+        if object ~= nil then
+            param:putValue('vpn.device', known, object)
+        end
+    end
+    return known
 end
 
 -- Called by LinkProperties itself where it copies, parcels or compares itself: it reads its interface, routes and
@@ -98,7 +130,9 @@ function after(hook, param)
     local name = param:unhooked(function()
         return properties:getInterfaceName()
     end)
-    if not isvpninterface(name) or linkproperties() then
+    -- Also where LinkProperties parcels or compares itself while vpn_parcel fakes that, which marks it
+    if not isvpninterface(name) or (linkproperties() and not param:getValue('vpn.parcel', properties)) or
+            not devicevpn(param, properties, name) then
         return false
     end
     -- Also for an empty list or no search domains of the VPN, which the network under it can have; not for the HTTP

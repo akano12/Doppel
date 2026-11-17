@@ -16,12 +16,23 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
--- The switch is the last argument, like optOut(optOut) and setNonBehavioral(nonBehavioral)
+-- The switch is the last boolean argument, like optOut(optOut), setNonBehavioral(nonBehavioral) and
+-- setDoNotSell(doNotSell, context) of AppLovin
 function before(hook, param)
-    local index = hook:getParameterTypes()['length'] - 1
+    local index = switch(hook)
     local optout = param:getArgument(index)
     if not optout then
         param:setArgument(index, true)
     end
     return not optout
+end
+
+-- The index of the last boolean argument (see generic_false_argument)
+function switch(hook)
+    local types = hook:getParameterTypes()
+    local index = types['length']
+    while index > 1 and types[index] ~= 'boolean' and types[index] ~= 'java.lang.Boolean' do
+        index = index - 1
+    end
+    return index - 1
 end

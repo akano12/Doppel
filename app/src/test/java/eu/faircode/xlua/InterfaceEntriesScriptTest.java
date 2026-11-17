@@ -48,12 +48,16 @@ public class InterfaceEntriesScriptTest {
             "end",
             // The descriptors Os.close closed, and the exceptions made like ErrnoException
             "closed = {}",
+            "sdk = 34", // Build.VERSION.SDK_INT
             "luajava = { bindClass = function(name)",
             "  if name == 'android.system.Os' then",
             "    return { close = function(self, fd) closed[#closed + 1] = fd end }",
             "  end",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+            "  if name == 'java.lang.Byte' then return { TYPE = 'byte' } end",
             "  assert(name == 'java.lang.reflect.Array', name)",
-            "  return { newInstance = function(self, type, length) assert(type == component) return { length = length } end }",
+            "  return { newInstance = function(self, type, length)",
+            "    assert(type == component or type == 'byte') return { length = length } end }",
             "end, newInstance = function(name, method, errno)",
             "  return { class = name, method = method, errno = errno }",
             "end, new = function(type, name, flags, address, netmask, broadcast, hw)",
@@ -158,6 +162,32 @@ public class InterfaceEntriesScriptTest {
         assertTrue(off.arg(1).toboolean());
         assertEquals("lo=127.0.0.1,wlan0=-", off.arg(2).tojstring());
         assertEquals(4098, off.arg(3).toint());
+    }
+
+    // Before Android 11 an interface with a hardware address keeps one, 02:00:00:00:00:00, which NetworkInterface gives
+    // like Android 10 does; one already like that and one of zeros, like of lo, stay as they are
+    @Test
+    public void hardwareAddressesAreMaskedBeforeAndroid11() throws Exception {
+        Varargs result = Scripts.run(Scripts.load("interface_entries", STUBS), String.join("\n",
+                "sdk = 29",
+                "local real = { length = 6, 2, 21, 178, 0, 0, 0 }",
+                "local masked = { length = 6, 2, 0, 0, 0, 0, 0 }",
+                "local zeros = { length = 6, 0, 0, 0, 0, 0, 0 }",
+                "local restricted, kept, entries = run('mac', arrayof({ entryof('wlan0', nil, real),",
+                "  entryof('lo', nil, zeros) }))",
+                "local hw = entries[1].hwaddr",
+                "local unchanged = run('mac', arrayof({ entryof('wlan0', nil, masked), entryof('lo', nil, zeros) }))",
+                "sdk = 30",
+                "local _, later = run('mac', arrayof({ entryof('wlan0', nil, real) }))",
+                "return restricted, kept, hw.length, hw[1], hw[2], entries[2].hwaddr == zeros, unchanged, later"));
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("wlan0=hw,lo=hw", result.arg(2).tojstring());
+        assertEquals(6, result.arg(3).toint());
+        assertEquals(2, result.arg(4).toint());
+        assertTrue("the other bytes of the new array are 0", result.arg(5).isnil());
+        assertTrue(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertEquals("wlan0=-", result.arg(8).tojstring());
     }
 
     // Nothing to leave out, and fields which reflection does not find (a framework which does not let the module use

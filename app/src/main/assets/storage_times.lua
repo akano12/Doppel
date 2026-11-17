@@ -20,22 +20,31 @@
 -- changed later, like of Download. Their times become those of the files of reproducible builds
 -- (2009-01-01 00:00 UTC), like the install times of other apps (see packageinfo_createfromparcel).
 -- The files of other apps in /data/app, like their APKs, have the time they were installed or updated, which
--- apps read by applicationInfo.sourceDir: their times become the install times their package info gives (see there),
--- the time of the firmware for updates of apps of the system and FAKE for the others; /data/app itself changes with
--- each install. The files of the app itself keep their times. The folders at the top of /data are made when the
--- device is set up too, and all apps can read their times (SELinux allows getattr of system_data_file folders).
+-- apps read by applicationInfo.sourceDir: their times become FAKE, the update time their package info gives (see
+-- there), also for updates of apps of the system; /data/app itself changes with each install. The files of the app
+-- itself keep their times. The folders at the top of /data are made when the device is set up too, and all apps can
+-- read their times (SELinux allows getattr of system_data_file folders).
 -- The times are read with Os.stat and Os.lstat, Os.fstat of a descriptor, File.lastModified and java.nio.file.Files
 -- (also the time the folder was made), also by the links of the descriptors of the app, like /proc/self/fd/9 and
--- /dev/fd/9 of the opened DCIM; not covered are the times of files in the folders, the attributes of entries
--- of a SecureDirectoryStream of java.nio (fstatat, like Files.newDirectoryStream of the storage gives) and native
--- code.
+-- /dev/fd/9 of the opened DCIM, by links the app makes itself, which the filter lets in by the path they lead to (see
+-- XCore.Filter), by the descriptor of a folder and a name, by which a SecureDirectoryStream of java.nio reads the
+-- attributes of its entries (fstatat, of the stream Files.newDirectoryStream of the storage gives), and by the
+-- descriptor alone, by which it reads those of the folder of the stream itself (fstat of java.nio); not covered are the
+-- times of files in the folders, native code and the last change of a folder in the cursor of DocumentsContract of a
+-- tree the user granted, which ExternalStorageProvider reads in its own process.
+-- shortcut: the entries of a SecureDirectoryStream deeper in /data/app than the folders of packages and their APKs,
+-- lib and oat keep their times, since the name alone tells which entries can lead to the folders (see leads); upgrade
+-- if an app reads the libraries of other apps that way.
+-- shortcut: the times of a folder do not follow the entries the app makes or removes in it, so a folder can read
+-- older than a file the app just made there; its real times since the app was installed would be the same, to the
+-- nanosecond, for all apps and tell when other apps were installed (Android/data), which their package infos hide;
+-- upgrade when the script can tell the changes of the app itself apart.
 -- shortcut: Libcore.os.fstat by reflection keeps the real times, since Android calls it for every file it opens
 -- (IoBridge.open) and the script would run for all of them; upgrade if an app reads the times that way.
 -- shortcut: /data/app itself gets the fake time for all its times, while up to Android 10 init sets its mode on each
 -- boot, which gives it a change of status of the boot; upgrade to the rule of the folders of DATA if an app compares
 -- it with the boot.
 local FAKE = 1230768000
-local FLAG_SYSTEM = 1
 
 -- The folders the system makes, which apps can read the times of
 local FOLDERS = { 'Alarms', 'Android', 'Android/data', 'Android/media', 'Android/obb', 'Audiobooks', 'DCIM',
@@ -72,9 +81,11 @@ end
 -- /./, // or /../ run the script too, which compares them resolved (see after). Not covered are other mixes of
 -- case, like /sdcard/DownLoad: the script would have to run for every file of the storage. Paths through a
 -- descriptor, with /fd/, like /proc/self/fd/9, run the script too, which resolves them (see after). Os.fstat has a
--- descriptor, not a path, so the script runs for each of its calls.
+-- descriptor, not a path, like fstat of java.nio, and fstatat a descriptor and a name, so the script runs for each of
+-- their calls.
 function filter(hook)
-    if hook ~= nil and hook:getMethodName() == 'fstat' then
+    local method = (hook ~= nil and hook:getMethodName() or nil)
+    if method == 'fstat' or method == 'fstatat' then
         return nil
     end
     local paths = { '/storage/emulated', '/storage/emulated/', '*/./*', '*//*', '*/../*' }
@@ -140,9 +151,9 @@ function storage(path)
     return STORAGE[string.lower(path)] == true
 end
 
--- The time of a path of /data/app, in milliseconds, by the package in it (/data/app/~~...==/com.example-...==/
--- since Android 11, /data/app/com.example-.../ before); nil for the paths of the app itself, which keep their time.
--- Per path, since files are read often and the packages do not change while the app runs.
+-- The time of a path of /data/app, in milliseconds; nil for the paths of the app itself (/data/app/~~...==/
+-- com.example-...==/ since Android 11, /data/app/com.example-.../ before), which keep their time.
+-- Per path, since files are read often and the path of the app does not change while it runs.
 local TIMES = {}
 
 function apptime(param, path)
@@ -161,20 +172,6 @@ function apptime(param, path)
         if path == folder or string.sub(path, 1, #folder + 1) == folder .. '/' or
                 (root ~= '/data/app' and path == root) then
             time = false
-        end
-    end
-    -- Names of packages have no -, the random part of the folder can
-    local name = string.match(path, '^/data/app/~~[^/]+/([^/%-]+)%-') or string.match(path, '^/data/app/([^/~][^/%-]*)%-')
-    if time and name ~= nil then
-        -- Without the hook of package infos, which would fake the times the same way; updates of apps of the system
-        -- have the time of the firmware there
-        local ok, info = pcall(function()
-            return param:unhooked(function()
-                return context:getPackageManager():getPackageInfo(name, 0)
-            end)
-        end)
-        if ok and info ~= nil and math.floor(info.applicationInfo.flags / FLAG_SYSTEM) % 2 == 1 then
-            time = info.firstInstallTime
         end
     end
     -- Not before the app has a context, which tells its own files
@@ -199,14 +196,16 @@ function quietly(param, read)
     return ok and result or nil
 end
 
--- The path of the file of the descriptor of Os.fstat by its link in /proc/self/fd, like /storage/emulated/0/DCIM; nil
--- when it fails, like for a file which was deleted. The number is read from the descriptor of the app itself, not of a
--- copy: closing a copy of a file would release the locks of the app on it (FileChannel.lock takes fcntl locks). LuaJ
--- finds the hidden getInt$ by listing the methods, which Android does not report as a use of a hidden API.
+-- The path of the file of the descriptor of the first argument by its link in /proc/self/fd, like
+-- /storage/emulated/0/DCIM; nil when it fails, like for a file which was deleted. java.nio passes the number, Os.fstat
+-- the descriptor of the app itself, the number of which is read, not of a copy: closing a copy of a file would release
+-- the locks of the app on it (FileChannel.lock takes fcntl locks). LuaJ finds the hidden getInt$ by listing the
+-- methods, which Android does not report as a use of a hidden API.
 function descriptor(param)
     local fd = param:getArgument(0)
     return quietly(param, function()
-        return luajava.bindClass('android.system.Os'):readlink('/proc/self/fd/' .. fd['getInt$'](fd))
+        local number = (type(fd) == 'number' and fd or fd['getInt$'](fd))
+        return luajava.bindClass('android.system.Os'):readlink('/proc/self/fd/' .. number)
     end)
 end
 
@@ -236,11 +235,59 @@ function booted(param)
     return boot and math.floor(boot / 1000) or nil
 end
 
+-- The last parts of the paths of the folders in lower case, see leads
+local NAMES = nil
+
+-- Whether an entry of a folder can be one of the folders by its name alone, so fstatat reads the link of the descriptor
+-- of the folder only for those, not for every entry of every SecureDirectoryStream of the app: a path, . and .., the
+-- last part of a folder of the shared storage, of its paths or of /data, and in /data/app the folders of packages,
+-- which end with the == of their random part, their APKs, lib and oat
+function leads(name)
+    if string.find(name, '/', 1, true) or name == '.' or name == '..' or string.sub(name, -2) == '==' or
+            string.sub(name, -4) == '.apk' or name == 'lib' or name == 'oat' then
+        return true
+    end
+    if NAMES == nil then
+        local names = { emulated = true, app = true }
+        for _, path in ipairs(tops()) do
+            names[string.lower(string.match(path, '[^/]*$'))] = true
+        end
+        for _, folder in ipairs(FOLDERS) do
+            names[string.lower(string.match(folder, '[^/]*$'))] = true
+        end
+        for path in pairs(DATA) do
+            names[string.match(path, '[^/]*$')] = true
+        end
+        NAMES = names
+    end
+    return NAMES[string.lower(name)] == true
+end
+
+-- The path of fstatat, by which a SecureDirectoryStream of java.nio reads the attributes of its entries: the name, which
+-- is relative to the folder of the descriptor before it (its link in /proc/self/fd) unless it is absolute; nil when the
+-- link cannot be read or the name cannot lead to one of the folders
+function atpath(param)
+    local name = luajava.newInstance('java.lang.String', param:getArgument(1))
+    if string.sub(name, 1, 1) == '/' then
+        return name
+    elseif not leads(name) then
+        return nil
+    end
+    local folder = descriptor(param)
+    return (folder ~= nil and folder .. '/' .. name or nil)
+end
+
+-- The attributes java.nio reads the times into: the last argument, after the path, or the descriptor, the name and the
+-- flags of fstatat
+function attributesof(hook, param)
+    return param:getArgument(hook:getMethodName() == 'fstatat' and 3 or 1)
+end
+
 -- The mode and the times, in seconds, of what the hooked method read: the attributes of java.nio, a StructStat, or
 -- the milliseconds of File.lastModified, which are the time of the last change only, without a mode
 function stated(hook, param)
     if hook:getClassName() == 'sun.nio.fs.UnixNativeDispatcher' then
-        local attributes = param:getArgument(1)
+        local attributes = attributesof(hook, param)
         if attributes == nil then
             return nil, {}
         end
@@ -256,9 +303,14 @@ function stated(hook, param)
     return result.st_mode, { atime = result.st_atime, mtime = result.st_mtime, ctime = result.st_ctime }
 end
 
--- Whether lstat gave a symbolic link: the type bits of st_mode are 0xA000
+-- Whether a path is one of the folders of the script by its text, without resolving its links
+function known(path)
+    return path == '/data/app' or string.sub(path, 1, 10) == '/data/app/' or DATA[path] or storage(path)
+end
+
+-- Whether lstat, or fstatat without following links, gave a symbolic link: the type bits of st_mode are 0xA000
 function islink(method, mode)
-    return method == 'lstat' and mode ~= nil and math.floor(mode / 4096) % 16 == 10
+    return (method == 'lstat' or method == 'fstatat') and mode ~= nil and math.floor(mode / 4096) % 16 == 10
 end
 
 -- The key of the inode of a path: the spellings of a folder of the shared storage have one, like Android gives them
@@ -278,6 +330,24 @@ function inodekey(path, link)
     return lower
 end
 
+-- Whether java.nio reads the times to set them: setTimes of its attribute views, also of a SecureDirectoryStream, with
+-- one of the times null reads the other one to keep it, which would write the fake time to the real folder, for every
+-- app and the user to read; by the classes which declare it, which the views of POSIX and Unix take over, so a class of
+-- the app cannot read the real times this way
+local SETTERS = { ['sun.nio.fs.UnixFileAttributeViews$Basic'] = true,
+                  ['sun.nio.fs.UnixSecureDirectoryStream$BasicFileAttributeViewImpl'] = true }
+
+function settingtimes()
+    local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
+    for index = 1, frames['length'] do
+        local frame = frames[index]
+        if frame:getMethodName() == 'setTimes' and SETTERS[frame:getClassName()] then
+            return true
+        end
+    end
+    return false
+end
+
 function after(hook, param)
     if param:getException() ~= nil then
         return false
@@ -287,21 +357,32 @@ function after(hook, param)
     if method == 'fstat' then
         -- Only a folder or a file is one of them: the type bits of st_mode are 0x4000 or 0x8000; the links of sockets
         -- and pipes are not read
-        local result = param:getResult()
-        local kind = (result ~= nil and math.floor(result.st_mode / 4096) % 16 or nil)
+        local mode = (stated(hook, param))
+        local kind = (mode ~= nil and math.floor(mode / 4096) % 16 or nil)
         path = ((kind == 4 or kind == 8) and descriptor(param) or nil)
         if path == nil then
             return false
         end
     else
-        local argument = tostring(param:getArgument(0))
+        local argument
+        if method == 'fstatat' then
+            argument = atpath(param)
+            if argument == nil then
+                return false
+            end
+        else
+            argument = tostring(param:getArgument(0))
+        end
         path = normal(argument)
         -- Through a descriptor of the app, like /proc/self/fd/9 or /dev/fd/9 of the opened DCIM, or /proc/self/fd/9/DCIM
         -- of the opened storage: the path the file system leads to, by File.getCanonicalPath, like hardware_files
         -- resolves them. Its realpath reads the links by lstat and readlink up to Android 10, and by a descriptor of
         -- O_PATH from Android 11, closing which releases no locks of the app, unlike closing a copy of its descriptor.
-        -- lstat of the link itself gives the link in /proc, which keeps its answer.
-        if string.find(argument, '/fd/', 1, true) then
+        -- lstat of the link itself gives the link in /proc, which keeps its answer. Likewise a path the filter let in by
+        -- the path its links lead to, like a link of the app itself to /storage/emulated/0/DCIM (see XCore.Filter).
+        -- shortcut: such a path is resolved by the filter and here once more, pass the path the filter resolved to
+        -- the scripts if apps slow down
+        if string.find(argument, '/fd/', 1, true) or not known(path) then
             if islink(method, (stated(hook, param))) then
                 return false
             end
@@ -338,23 +419,29 @@ function after(hook, param)
         -- Other paths with /./, //, /../ or /fd/
         return false
     end
+    -- Only for the folders, so the stack is read for few calls
+    if hook:getClassName() == 'sun.nio.fs.UnixNativeDispatcher' and settingtimes() then
+        return false
+    end
     local seconds = math.floor(time / 1000)
     local nanos = (time % 1000) * 1000000
-    -- The inode of a folder stays too, so apps would read the same number: one of its own for each app, of its fake
-    -- Android ID (see Fake values), which lets file systems tell folders apart as before; the mode decides the key.
-    -- The root of a file system has the same inode on all devices, which /data keeps.
+    -- The inode of a folder stays too, so apps would read the same number: one of its own for each app, of the seed
+    -- of the service of its DRM id (see FakeIds), which the app cannot read, so it cannot compute the inode from a
+    -- value it reads, like its Android ID, and tell it is fake; it lets file systems tell folders apart as before, and
+    -- the mode decides the key. The root of a file system has the same inode on all devices, which /data keeps, and
+    -- without the seed, when the boot values could not be read, the inode stays too.
     local function inode(link, real)
-        if path == '/data' then
+        local seed = param:getSetting('value.drm_id')
+        if path == '/data' or seed == nil then
             return real
         end
-        local key = (param:getSetting('value.android_id') or '') .. inodekey(path, link)
-        return tonumber(string.sub(param:uuidOf(key), 1, 7), 16) + 1000
+        return tonumber(string.sub(param:uuidOf(seed .. inodekey(path, link)), 1, 7), 16) + 1000
     end
 
     -- java.nio reads the times into the attributes of its argument; the boot image has the methods calling this
     -- one (UnixFileAttributes.get) compiled inline, so their hooks would not apply
     if hook:getClassName() == 'sun.nio.fs.UnixNativeDispatcher' then
-        local attributes = param:getArgument(1)
+        local attributes = attributesof(hook, param)
         if attributes == nil or (attributes.st_atime_sec == seconds and attributes.st_mtime_sec == seconds and
                 attributes.st_ctime_sec == seconds) then
             return false

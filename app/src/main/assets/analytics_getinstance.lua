@@ -18,7 +18,9 @@
 
 -- SDKs which collect by themselves are turned off when the app gets their instance, once per instance:
 -- apps get the instance for each event they log. Each SDK by its own opt-out, which is stable across versions;
--- a method missing in a version fails the call and the SDK stays as it is.
+-- a method missing in a version fails the call and the SDK stays as it is. Most SDKs store the opt-out, which then
+-- stays after the restriction is lifted. Firebase Analytics, which the fake meta-data turns off without storing it
+-- (see analytics_metadata), only gets the consent.
 local METHODS = {
     ['com.appsflyer.AppsFlyerLib'] = function(param, sdk)
         -- stopTracking before version 6
@@ -29,13 +31,16 @@ local METHODS = {
         -- from version 6 by a class with a name R8 changes in each version
         pcall(hook, sdk, name, stays)
     end,
+    -- Collection is off by the fake meta-data, so only the consent is set, which Firebase stores: with
+    -- ANALYTICS_STORAGE denied, getAppInstanceId gives null (the documentation), and a default consent in the meta-data
+    -- would not beat a consent the app stored before; before version 18 no consent
     ['com.google.firebase.analytics.FirebaseAnalytics'] = function(param, sdk)
-        sdk:setAnalyticsCollectionEnabled(false)
-        -- With ANALYTICS_STORAGE denied, getAppInstanceId gives null (the documentation); before version 18 no consent
-        pcall(function()
-            sdk:setConsent(denied(param))
-        end)
+        sdk:setConsent(denied(param))
     end,
+    -- Stored, unlike the fake meta-data: the crashes Crashlytics kept on the device while restricted are not sent by
+    -- themselves after the restriction is lifted, which they would be with collection on by default.
+    -- shortcut: only when the app gets the instance, upgrade when apps are seen which only let Crashlytics start
+    -- itself.
     ['com.google.firebase.crashlytics.FirebaseCrashlytics'] = function(param, sdk)
         sdk:setCrashlyticsCollectionEnabled(false)
     end,
@@ -43,10 +48,19 @@ local METHODS = {
     ['com.google.android.gms.analytics.GoogleAnalytics'] = function(param, sdk)
         sdk:setAppOptOut(true)
     end,
-    -- Amazon Publisher Services (also by Aps.initialize): the consent of the non-IAB API, which bids carry;
-    -- static, it needs the instance first
+    -- Amazon Publisher Services (also by Aps.initialize): the consent of the non-IAB API, which bids carry, since the
+    -- IAB strings are not there; where GDPR applies, also as iab_consent answers, it reads no advertising id and keeps
+    -- no storage without them; static, it needs the instance first
     ['com.amazon.device.ads.AdRegistration'] = function(param, sdk)
         sdk:setConsentStatus(declined(param))
+    end,
+    -- AppLovin: no consent for personalized ads and do not sell, which it stores; the app gets the instance before it
+    -- initializes the SDK, which is when AppLovin says to set them; static, the setters with the context are in every
+    -- version (9 to 13)
+    ['com.applovin.sdk.AppLovinSdk'] = function(param, sdk)
+        local privacy = param:findClass('com.applovin.sdk.AppLovinPrivacySettings')
+        privacy:setHasUserConsent(false, param:getApplicationContext())
+        privacy:setDoNotSell(true, param:getApplicationContext())
     end,
 }
 

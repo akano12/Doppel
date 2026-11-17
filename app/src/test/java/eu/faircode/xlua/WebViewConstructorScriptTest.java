@@ -51,12 +51,12 @@ public class WebViewConstructorScriptTest {
                         "local restricted = after({ getMethodName = function(self) return nil end }, paramof(webview))\n" +
                         "return restricted, webview.settings.ua, hooked, scoped");
         assertTrue(result.arg1().toboolean());
-        assertEquals("Mozilla/5.0 (Linux; Android 15; K; wv)", result.arg(2).tojstring());
+        assertEquals("Mozilla/5.0 (Linux; Android 15; unknown Build/unknown; wv)", result.arg(2).tojstring());
         assertEquals(1, result.arg(3).toint());
         assertEquals("shared values used", 0, result.arg(4).toint());
     }
 
-    // User-Agent headers of HttpURLConnection and OkHttp lose the model and build, other headers and user agents stay
+    // User-Agent headers of HttpURLConnection and OkHttp get the fake model and build, other headers and user agents stay
     @Test
     public void userAgentHeaderIsReduced() throws Exception {
         Varargs result = Scripts.run(Scripts.load("webview_constructor", STUBS),
@@ -71,8 +71,8 @@ public class WebViewConstructorScriptTest {
                         "return header('set', 'User-Agent', ua), header('setRequestProperty', 'user-agent', ua),\n" +
                         "  header('add', 'Accept', ua), header('add', 'User-Agent', 'MyApp/1.0'),\n" +
                         "  header('set', 'User-Agent', nil), header(nil, 'User-Agent', ua)");
-        assertEquals("true Mozilla/5.0 (Linux; Android 15; K; wv)", result.arg(1).tojstring());
-        assertEquals("true Mozilla/5.0 (Linux; Android 15; K; wv)", result.arg(2).tojstring());
+        assertEquals("true Mozilla/5.0 (Linux; Android 15; unknown Build/unknown; wv)", result.arg(1).tojstring());
+        assertEquals("true Mozilla/5.0 (Linux; Android 15; unknown Build/unknown; wv)", result.arg(2).tojstring());
         assertTrue(result.arg(3).tojstring().startsWith("false "));
         assertEquals("false MyApp/1.0", result.arg(4).tojstring());
         assertEquals("false nil", result.arg(5).tojstring());

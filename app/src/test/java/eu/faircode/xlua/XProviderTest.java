@@ -28,11 +28,16 @@ import android.content.pm.ServiceInfo;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -80,29 +85,61 @@ public class XProviderTest {
         assertTrue(XProvider.mayRead("global", true, own));
         assertTrue(XProvider.mayRead("shared.app", true, own));
         assertTrue(XProvider.mayRead("own.app", false, own));
-        // The fake values new each boot are of a package, global is no package
+        // The fake values the service derives (getBootValues) are of a package, global is no package
         assertFalse(XProvider.mayRead("global", false, own));
         assertFalse(XProvider.mayRead("other.app", true, own));
         assertFalse(XProvider.mayRead("other.app", true, null));
         assertFalse(XProvider.mayRead(null, true, own));
     }
 
+    // Each start-up query of a hooked app is about one of its own packages, the settings also about global, so another
+    // package gets the answer of the settings provider
+    @Test
+    public void hookedAppsAskAboutTheirOwnPackagesOnly() {
+        String[] own = {"own.app"};
+        for (String method : XProvider.APP_QUERIES) {
+            assertTrue(method, XProvider.mayAsk(method, "own.app", own));
+            assertFalse(method, XProvider.mayAsk(method, "com.any.other", own));
+            assertEquals(method, "getSettings".equals(method), XProvider.mayAsk(method, "global", own));
+        }
+    }
+
     // Only system server, of any user, and the app get the answers which need the permission; a hooked app
-    // only those of APP_CALLS and APP_QUERIES, see XProvider.call and query
+    // only those of APP_CALLS and APP_QUERIES, see XProvider.call and query. Only callers with the name of the app
+    // cost the lookup of their signers.
     @Test
     public void permittedCallers() {
         String[] app = {BuildConfig.APPLICATION_ID};
         String[] other = {"other.app", "shared.app"};
-        assertTrue(XProvider.permitted(android.os.Process.SYSTEM_UID, null));
-        assertTrue(XProvider.permitted(Util.getUserUid(10, android.os.Process.SYSTEM_UID), null));
-        assertTrue(XProvider.permitted(10123, app));
-        assertTrue(XProvider.permitted(Util.getUserUid(10, 10123), new String[]{"shared.app", BuildConfig.APPLICATION_ID}));
-        assertFalse(XProvider.permitted(10124, other));
-        assertFalse(XProvider.permitted(10124, null));
-        assertFalse(XProvider.permitted(10124, new String[0]));
+        Set<String> module = Collections.singleton("3082aa");
+        Supplier<Set<String>> same = () -> new HashSet<>(module);
+        Supplier<Set<String>> unused = () -> {
+            throw new AssertionError("Signers looked up");
+        };
+        assertTrue(XProvider.permitted(android.os.Process.SYSTEM_UID, null, null, unused));
+        assertTrue(XProvider.permitted(Util.getUserUid(10, android.os.Process.SYSTEM_UID), null, module, unused));
+        assertTrue(XProvider.permitted(10123, app, module, same));
+        assertTrue(XProvider.permitted(Util.getUserUid(10, 10123), new String[]{"shared.app", BuildConfig.APPLICATION_ID},
+                module, same));
+        assertFalse(XProvider.permitted(10124, other, module, unused));
+        assertFalse(XProvider.permitted(10124, null, module, unused));
+        assertFalse(XProvider.permitted(10124, new String[0], module, unused));
         // Root and the shell are not system server
-        assertFalse(XProvider.permitted(0, null));
-        assertFalse(XProvider.permitted(2000, other));
+        assertFalse(XProvider.permitted(0, null, module, unused));
+        assertFalse(XProvider.permitted(2000, other, module, unused));
+    }
+
+    // An app which took the name of the app after it was removed, signed by another key, is not the app; nor is any app
+    // before system server read the signers of the module which runs, or with the module not installed anymore
+    @Test
+    public void appOfOtherSignersIsNotPermitted() {
+        String[] app = {BuildConfig.APPLICATION_ID};
+        Set<String> module = Collections.singleton("3082aa");
+        assertFalse(XProvider.permitted(10123, app, module, () -> Collections.singleton("3082bb")));
+        assertFalse(XProvider.permitted(10123, app, module, () -> new HashSet<>(Arrays.asList("3082aa", "3082bb"))));
+        assertFalse(XProvider.permitted(10123, app, module, () -> null));
+        assertFalse(XProvider.permitted(10123, app, null, () -> module));
+        assertFalse(XProvider.permitted(10123, app, null, () -> null));
     }
 
     // Assignments of apps which are not known anymore, or of a uid another app has now, are removed at boot;
@@ -281,6 +318,48 @@ public class XProviderTest {
                 .contains(Util.COLLECTION_DEFAULT + ".TelephonyManager.getSimOperator"));
     }
 
+    // A hook which leaves out fewer packages than before goes once to the apps which restrict its group and which it
+    // left out (see assignMovedBuiltins): a Google app and the Play Store restricting Read.Identifiers get the gsf_id
+    // hooks, Play services, which they still leave out, an app they did not leave out, which had them unless its user
+    // switched them off, and an app restricting another group do not, and a second run adds nothing; new hooks, which
+    // are not moved, go to every app restricting their group
+    @Test
+    public void narrowedBuiltinsCompleteRestrictedGroups() throws Exception {
+        XHook androidId = hook("Settings.Secure.getStringForUser/android_id", "Read.Identifiers", "android");
+        XHook other = hook("Build.getSerial", "Use.Tracking", null);
+        String now = "com\\.google\\.android\\.gms,com\\.google\\.android\\.gsf";
+        List<XHook> gsf = Arrays.asList(hook("ContentResolver.query26/gsf_id", "Read.Identifiers", now),
+                hook("ContentProviderClient.query26/gsf_id", "Read.Identifiers", now));
+        Map<String, XHook> hooks = new HashMap<>();
+        for (XHook hook : Arrays.asList(androidId, other, gsf.get(0), gsf.get(1)))
+            hooks.put(hook.getId(), hook);
+        List<String[]> rows = new ArrayList<>(Arrays.asList(new String[]{"com.google.android.youtube", "10100", androidId.getId()},
+                new String[]{"com.google.android.gms", "10050", androidId.getId()},
+                new String[]{"com.android.vending", "10060", androidId.getId()},
+                new String[]{"com.example.app", "10300", androidId.getId()},
+                new String[]{"com.example", "10200", other.getId()}));
+        Function<Integer, List<String>> collection = userid -> Collections.singletonList(Util.COLLECTION_DEFAULT);
+
+        Set<String> added = new HashSet<>();
+        for (String[] row : XProvider.completing(rows, hooks, gsf, collection, false, true))
+            added.add(String.join(":", row));
+        Set<String> expected = new HashSet<>();
+        for (String app : new String[]{"com.google.android.youtube:10100", "com.android.vending:10060"})
+            for (XHook hook : gsf)
+                expected.add(app + ":" + hook.getId());
+        assertEquals(expected, added);
+        assertEquals(6, XProvider.completing(rows, hooks, gsf, collection, false, false).size());
+
+        rows.addAll(XProvider.completing(rows, hooks, gsf, collection, false, true));
+        assertTrue(XProvider.completing(rows, hooks, gsf, collection, false, true).isEmpty());
+
+        // The start-up step assigns the hooks of the list once
+        Set<String> moved = new HashSet<>();
+        for (String[] move : XDatabase.MOVED)
+            moved.add(move[0]);
+        assertTrue(moved.containsAll(Arrays.asList("ContentResolver.query26/gsf_id", "ContentProviderClient.query26/gsf_id")));
+    }
+
     private static Set<String> minus(List<String> ids, Set<String> known) {
         Set<String> result = new HashSet<>(ids);
         result.removeAll(known);
@@ -289,6 +368,14 @@ public class XProviderTest {
 
     private static String id(String name) {
         return Util.COLLECTION_DEFAULT + "." + name;
+    }
+
+    private static XHook hook(String name, String group, String excludePackages) throws Exception {
+        org.json.JSONObject jhook = hook(name, android.os.Build.VERSION.SDK_INT, true).toJSONObject();
+        jhook.put("group", group);
+        if (excludePackages != null)
+            jhook.put("excludePackages", excludePackages);
+        return XHook.fromJSONObject(jhook);
     }
 
     private static XHook hook(String name, int minSdk, boolean enabled) throws Exception {

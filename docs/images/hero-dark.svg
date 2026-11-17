@@ -27,8 +27,8 @@
   <text x="744" y="224" font-family="PlexMono" font-size="19" fill="#ff8a8a" opacity=".9">358240051111110</text>
   <rect x="744" y="217" width="171.0" height="1.6" fill="#ff8a8a"/>
   <text x="680" y="264" font-family="PlexMono" font-size="16" fill="#8f8a99">gets</text>
-  <text x="744" y="264" font-family="PlexMono" font-size="19" fill="#8fe3b0">004402917305662</text>
-  <rect class="caret" x="919.0" y="248" width="9" height="20" fill="#8fe3b0"/>
+  <text x="744" y="264" font-family="PlexMono" font-size="19" fill="#8fe3b0">null</text>
+  <rect class="caret" x="793.6" y="248" width="9" height="20" fill="#8fe3b0"/>
 </g><g class="r r1">
   <text x="680" y="140" font-family="PlexMono" font-size="16" fill="#8f8a99">com.game.app asks</text>
   <text x="680" y="172" font-family="PlexMono" font-size="20" fill="#f4f2f7">Settings.Secure.ANDROID_ID</text>

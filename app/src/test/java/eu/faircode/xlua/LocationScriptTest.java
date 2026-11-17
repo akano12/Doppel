@@ -263,7 +263,8 @@ public class LocationScriptTest {
     // Callbacks with cells are registered as they are, for their other events too, like the call state, and their
     // methods of the cells are hooked (telephonymanager_registertelephonycallback); callbacks without cells stay, and the
     // callback of a network scan is known first, without the classes of TelephonyCallback, which Android 8.1 to 11 lack;
-    // the reset of the first location, which runs code of the app (the hashCode of the callback), comes after the hooks
+    // the reset of the first location, which runs code of the app (the hashCode of the callback), comes after the hooks,
+    // also of the callback of a network scan
     @Test
     public void telephonyCallbacksKeepTheirOtherEvents() throws Exception {
         Globals callbacks = Scripts.load("telephonymanager_registertelephonycallback", String.join("\n",
@@ -300,7 +301,7 @@ public class LocationScriptTest {
                         "local thrown = paramof({ ['android.telephony.TelephonyCallback$CellLocationListener'] = true }, 1)\n" +
                         "thrown.putValue = function() error('hashCode') end\n" +
                         "return restricted, param.result, cells, quiet, calls.result, scanned, scanhooked, param.reset,\n" +
-                        "  before(hookof(2), thrown), table.concat(hooked, ',')");
+                        "  before(hookof(2), thrown), table.concat(hooked, ','), scan.reset");
         assertTrue(result.arg(1).toboolean());
         // Registered as it is
         assertEquals("none", result.arg(2).tojstring());
@@ -313,12 +314,14 @@ public class LocationScriptTest {
         assertFalse(result.arg(8).isnil() || result.arg(8).toboolean());
         assertTrue(result.arg(9).toboolean());
         assertEquals("onCellLocationChanged", result.arg(10).tojstring());
+        assertFalse(result.arg(11).isnil() || result.arg(11).toboolean());
     }
 
     // The methods of the cells run, at the registration too, with the cells without their location: no cells in a list,
     // the cell location made empty, the cell of a registration failure and of the barring info like Android gives them
     // to apps without fine location; null stays, and when the argument cannot be made the method does not run; a
-    // registration gets one empty location, which Android does not send again while it stays the same
+    // registration gets one empty location, which Android does not send again while it stays the same; a call of the
+    // app itself on a callback it never registered keeps its arguments, and one whose mark cannot be read is restricted
     @Test
     public void telephonyCallbacksGetNoCells() throws Exception {
         Globals callbacks = Scripts.load("telephonymanager_registertelephonycallback", String.join("\n",
@@ -345,7 +348,8 @@ public class LocationScriptTest {
                 "  return valueof('android.telephony.CellLocation', { cid = cid, setStateInvalid = function(self) self.cid = -1 end })",
                 "end"));
         Varargs result = Scripts.run(callbacks,
-                "local list = cells(valueof('java.util.List', {}))\n" +
+                "values['callback'] = { nocells = false }\n" +
+                        "local list = cells(valueof('java.util.List', {}))\n" +
                         "local location = valueof('android.telephony.CellLocation', { cid = 1234,\n" +
                         "  setStateInvalid = function(self) self.cid = -1 end })\n" +
                         "local empty, ran = cells(location)\n" +
@@ -381,6 +385,7 @@ public class LocationScriptTest {
         // registration (before, which resets the value) the callback gets one again, once
         result = Scripts.run(callbacks, "local handover = locationof(5678)\n" +
                 "local _, repeated = cells(handover)\n" +
+                "values['other'] = { nocells = false }\n" +
                 "local other = locationof(5678)\n" +
                 "local _, otherran = cells(other, nil, 'other')\n" +
                 "values['callback'].nocells = false\n" +
@@ -395,6 +400,20 @@ public class LocationScriptTest {
         assertEquals("none", result.arg(5).tojstring());
         assertEquals(-1, result.arg(6).toint());
         assertTrue(result.arg(7).isnil());
+
+        result = Scripts.run(callbacks, "local list = valueof('java.util.List', {})\n" +
+                "local location = locationof(5678)\n" +
+                "local kept, ran = cells(list, nil, 'stranger')\n" +
+                "local _, located = cells(location, nil, 'stranger')\n" +
+                "local unread = paramof(valueof('java.util.List', {}), 'unread')\n" +
+                "unread.getValue = function() error('toString') end\n" +
+                "nocells('before', unread)\n" +
+                "return kept == list, ran, located, location.cid, unread.args[0].class");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("none", result.arg(2).tojstring());
+        assertEquals("none", result.arg(3).tojstring());
+        assertEquals(5678, result.arg(4).toint());
+        assertEquals("java.util.ArrayList", result.arg(5).tojstring());
         // The copy in telephonymanager_listen, which is loaded apart, is the same
         assertEquals(Scripts.function("telephonymanager_registertelephonycallback", "nocells"),
                 Scripts.function("telephonymanager_listen", "nocells"));

@@ -53,22 +53,27 @@ public class IdentifierServicesScriptTest {
             "  assert(name == 'android.content.ComponentName', name)",
             "  return componentof(pkg, cls)",
             "end",
-            "function intentof(component, pkg, action)",
+            // The data is a Uri like chimera-action:<action>, see dataof
+            "function intentof(component, pkg, action, data)",
             "  return { component = component, pkg = pkg,",
             "    getComponent = function(self) return self.component end,",
             "    getPackage = function(self) return self.pkg end, getAction = function(self) return action end,",
+            "    getData = function(self) return data end,",
             "    setSelector = function(self, value) self.selector = value end,",
             "    setComponent = function(self, value) self.component = value end,",
             "    setPackage = function(self, value)", // Throws like Android
             "      assert(value == nil or self.selector == nil, 'Cannot set package name when selector is already set')",
             "      self.pkg = value end,",
             "    clone = function(self)",
-            "      local copy = intentof(self.component, self.pkg, action)",
+            "      local copy = intentof(self.component, self.pkg, action, data)",
             "      copy.selector = self.selector",
             "      return copy end }",
             "end",
             "function uriof(authority)",
             "  return { getAuthority = function(self) return authority end }",
+            "end",
+            "function dataof(scheme, part)",
+            "  return { getScheme = function(self) return scheme end, getSchemeSpecificPart = function(self) return part end }",
             "end",
             // The Android version the app targets, like ApplicationInfo.targetSdkVersion
             "target = 34",
@@ -107,13 +112,16 @@ public class IdentifierServicesScriptTest {
             "    getValue = function(self, name, scope) return values[name] end,",
             "    putValue = function(self, name, value, scope) values[name] = value end,",
             "    unhooked = function(self, f) return f() end,",
+            // XParam.plainIntent: the intent itself, which a test of the copy replaces
+            "    plainIntent = function(self, intent) return intent end,",
             "    getArgument = function(self, i) return arg end,",
             "    setArgument = function(self, i, v) self.sent = v end,",
             "    setResult = function(self, v) self.result = v; self.set = true end }",
             "end",
-            "function hookof(method, class)",
+            "function hookof(method, class, count)",
             "  return { getMethodName = function(self) return method end,",
-            "    getClassName = function(self) return class or 'android.content.ContentResolver' end }",
+            "    getClassName = function(self) return class or 'android.content.ContentResolver' end,",
+            "    getParameterTypes = function(self) return { length = count or 4 } end }",
             "end",
             // Restricted, the result, the reported package, the package of the intent Android gets and of its component
             "function bind(intent, method)",
@@ -142,8 +150,13 @@ public class IdentifierServicesScriptTest {
         return Scripts.run(globals, lua);
     }
 
+    // The install referrer service of the Play Store and its action, from the library com.android.installreferrer 2.2
+    private static final String REFERRER = "com.google.android.finsky.externalreferrer.GetInstallReferrerService";
+    private static final String REFERRER_ACTION = "com.google.android.finsky.BIND_GET_INSTALL_REFERRER_SERVICE";
+
     // Each way the OAID SDKs bind the services, like gzu-liyujiang/Android_CN_OAID and the SDKs of Huawei and Honor;
-    // Android fails the binding itself, with the connection registered, so unbindService does not throw
+    // Android fails the binding itself, with the connection registered, so unbindService does not throw, and a start
+    // finds no service and returns null and a stop returns false
     @Test
     public void servicesOfManufacturersAreNotFound() throws Exception {
         String[][] intents = {
@@ -160,8 +173,13 @@ public class IdentifierServicesScriptTest {
                 {"nil", "'com.huawei.hwid'", "'com.uodis.opendevice.OPENIDS_SERVICE'"},
                 {"nil", "'com.huawei.hwid.tv'", "'com.uodis.opendevice.OPENIDS_SERVICE'"},
                 {"nil", "'com.huawei.hms'", "'com.uodis.opendevice.OPENIDS_SERVICE'"},
-                {"nil", "'com.freeme.secureguard'", "'android.service.action.msa'"}};
-        for (String method : new String[]{"bindService", "bindIsolatedService", "bindServiceAsUser"})
+                {"nil", "'com.freeme.secureguard'", "'android.service.action.msa'"},
+                // The install referrer of the Play Store, like the library builds the intent, by its class or action
+                {"componentof('com.android.vending', '" + REFERRER + "')", "nil", "'" + REFERRER_ACTION + "'"},
+                {"componentof('com.android.vending', '" + REFERRER + "')", "nil", "nil"},
+                {"nil", "'com.android.vending'", "'" + REFERRER_ACTION + "'"}};
+        for (String method : new String[]{"bindService", "bindIsolatedService", "bindServiceAsUser", "startService",
+                "startForegroundService", "startServiceAsUser", "startForegroundServiceAsUser", "stopService", "stopServiceAsUser"})
             for (String[] intent : intents) {
                 Varargs result = run("return bind(intentof(" + String.join(", ", intent) + "), '" + method + "')");
                 assertTrue(method + " " + String.join(" ", intent), result.arg(1).toboolean());
@@ -202,13 +220,17 @@ public class IdentifierServicesScriptTest {
         assertEquals("com.huawei.hwid:hidden", result.arg(4).tojstring());
     }
 
-    // Other services of the same packages stay, like the push service of ColorOS and the account of Honor
+    // Other services of the same packages stay, like the push service of ColorOS, the account of Honor and the billing
+    // and licensing of the Play Store
     @Test
     public void otherServicesStay() throws Exception {
         String[][] intents = {
                 {"componentof('com.coloros.mcs', 'com.heytap.mcssdk.PushService')", "nil", "'com.coloros.mcs.action.RECEIVE_MCS_MESSAGE'"},
                 {"nil", "'com.hihonor.id'", "'com.hihonor.id.ACCOUNT_SERVICE'"},
                 {"nil", "'com.android.creator'", "'android.intent.action.MAIN'"},
+                {"nil", "'com.android.vending'", "'com.android.vending.billing.InAppBillingService.BIND'"},
+                {"nil", "'com.android.vending'", "'com.android.vending.licensing.ILicensingService'"},
+                {"componentof('com.android.vending', 'com.google.android.finsky.billing.iab.InAppBillingService')", "nil", "nil"},
                 {"componentof('com.example.app', 'com.example.app.Service')", "nil", "nil"},
                 {"nil", "nil", "'com.example.action.SERVICE'"}};
         for (String[] intent : intents) {
@@ -253,6 +275,39 @@ public class IdentifierServicesScriptTest {
         assertEquals(2, failed.arg(3).toint());
     }
 
+    // The app set id service of Play services fails by its action only: by the package, like the library binds it
+    // without the lookup of Play services, by a class with the action, and by the intent the lookup gives, the action
+    // BoundService.START with the action of the API in its data chimera-action:<action> and a class of Play services
+    // which does not offer the action itself; its class serves the other APIs of Play services too, so other actions,
+    // also in the data, and the class without an action stay, also when the class offers the action
+    @Test
+    public void appSetServiceOfPlayServicesByItsActionOnly() throws Exception {
+        String appset = "'com.google.android.gms.appset.service.START'", auth = "'com.google.android.gms.auth.service.START'";
+        String api = "componentof('com.google.android.gms', 'com.google.android.gms.chimera.GmsApiService')";
+        String bound = "componentof('com.google.android.gms', 'com.google.android.gms.chimera.GmsBoundBrokerService')";
+        String start = "'com.google.android.chimera.BoundService.START'";
+        String offer = "offered['com.google.android.gms/com.google.android.gms.appset.service.START'] = " +
+                "{ 'com.google.android.gms.chimera.GmsApiService' }\n";
+        for (String intent : new String[]{"intentof(nil, 'com.google.android.gms', " + appset + ")",
+                "intentof(" + api + ", nil, " + appset + ")",
+                "intentof(" + bound + ", nil, " + start + ", dataof('chimera-action', " + appset + "))",
+                "intentof(nil, 'com.google.android.gms', " + start + ", dataof('chimera-action', " + appset + "))"}) {
+            Varargs result = run(offer + "return bind(" + intent + ")");
+            assertTrue(intent, result.arg(1).toboolean());
+            assertEquals("com.google.android.gms", result.arg(3).tojstring());
+            assertEquals("com.google.android.gms:hidden", result.arg(4).tojstring());
+        }
+        for (String intent : new String[]{"intentof(nil, 'com.google.android.gms', " + auth + ")",
+                "intentof(" + api + ", nil, " + auth + ")", "intentof(" + api + ", nil, nil)",
+                "intentof(" + bound + ", nil, " + start + ", dataof('chimera-action', " + auth + "))",
+                "intentof(" + bound + ", nil, " + start + ", dataof('other', " + appset + "))",
+                "intentof(" + bound + ", nil, " + start + ", nil)"}) {
+            Varargs result = run(offer + "return bind(" + intent + "), lookups");
+            assertFalse(intent, result.arg(1).toboolean());
+            assertEquals(intent, 0, result.arg(2).toint());
+        }
+    }
+
     // The connection to a service with the interface of an identifier service gets no binder, like a service giving
     // none, also of a package not known; other services and the services of the app itself stay
     @Test
@@ -280,7 +335,8 @@ public class IdentifierServicesScriptTest {
                 "flags['com.example.user'] = 0x8000 - 0x80000000");
         for (String descriptor : new String[]{"com.bun.lib.MsaIdInterface", "com.android.creator.IdsSupplier",
                 "com.samsung.android.deviceidservice.IDeviceIdService", "com.hihonor.cloudservice.oaid.IOAIDService",
-                "com.uodis.opendevice.aidl.OpenDeviceIdentifierService", "com.oplus.stdid.IStdID"}) {
+                "com.uodis.opendevice.aidl.OpenDeviceIdentifierService", "com.oplus.stdid.IStdID",
+                "com.google.android.finsky.externalreferrer.IGetInstallReferrerService"}) {
             Varargs result = run(connect + "\nreturn connect('com.new.vendor', '" + descriptor + "')");
             assertTrue(descriptor, result.arg(1).toboolean());
             assertFalse(descriptor, result.arg(2).toboolean());
@@ -375,6 +431,59 @@ public class IdentifierServicesScriptTest {
             }
     }
 
+    // The lookup of Play services gives no intent for the app set id service, by the Uri or the name of either of its
+    // authorities and by a client of the provider, also of Android 8.1 and 9, which does not tell the provider, so the
+    // library binds its action by the package; other actions and methods and other providers get their own answer, a
+    // client is never one of the providers which cannot be acquired, and without Play services Android's exception
+    // stays, which the library catches
+    @Test
+    public void lookupOfPlayServicesGivesNoIntentForAppSet() throws Exception {
+        String call = String.join("\n",
+                "function lookupof(target, method, action, ex, class, count)",
+                "  local extras = { getString = function(self, key)",
+                "    assert(key == 'serviceActionBundleKey', key) return action end }",
+                "  local param = paramof(nil)",
+                "  param.result = (ex == nil and 'bundle' or nil)",
+                "  param.ex = ex",
+                // The client of Android 8.1 and 9 has no authority, and XParam throws for an argument it does not have
+                "  param.args = (count == 3 and { method, nil, extras } or { target, method, nil, extras })",
+                "  param.getArgument = function(self, i) assert(i < (count or 4), i) return self.args[i + 1] end",
+                "  local early = before(hookof('call', class, count), param)",
+                "  local restricted, old = after(hookof('call', class, count), param)",
+                "  return early, restricted, param.set, param.result, old",
+                "end");
+        String appset = "'com.google.android.gms.appset.service.START'";
+        String client = "'android.content.ContentProviderClient'";
+        String lookup = "'serviceIntentCall', " + appset;
+        for (String target : new String[]{"'com.google.android.gms.chimera', " + lookup,
+                "uriof('com.google.android.gms.chimera'), " + lookup,
+                "'com.google.android.chimera', " + lookup, "uriof('com.google.android.chimera'), " + lookup,
+                "'com.google.android.chimera', " + lookup + ", nil, " + client + ", 4",
+                "'com.google.android.gms.chimera', " + lookup + ", nil, " + client + ", 4",
+                "nil, " + lookup + ", nil, " + client + ", 3"}) {
+            Varargs result = run(call + "\nreturn lookupof(" + target + ")");
+            assertFalse(target, result.arg(1).toboolean());
+            assertTrue(target, result.arg(2).toboolean());
+            assertTrue(target, result.arg(3).toboolean());
+            assertTrue(target, result.arg(4).isnil());
+            assertEquals("com.google.android.gms.appset.service.START", result.arg(5).tojstring());
+        }
+        String[] others = {"'com.google.android.gms.chimera', 'serviceIntentCall', 'com.google.android.gms.auth.service.START'",
+                "'com.google.android.gms.chimera', 'serviceIntentCall', nil",
+                "'com.google.android.gms.chimera', 'other', " + appset,
+                "'com.example.provider', 'serviceIntentCall', " + appset,
+                "'com.google.android.gms.chimera', 'serviceIntentCall', " + appset + ", 'Unknown authority'",
+                "'com.example.provider', 'serviceIntentCall', " + appset + ", nil, " + client + ", 4",
+                "nil, 'other', " + appset + ", nil, " + client + ", 3",
+                "'cn.nubia.identity', 'getOAID', nil, nil, " + client + ", 4"};
+        for (String other : others) {
+            Varargs result = run(call + "\nreturn lookupof(" + other + ")");
+            assertFalse(other, result.arg(1).toboolean());
+            assertFalse(other, result.arg(2).toboolean());
+            assertFalse(other, result.arg(3).toboolean());
+        }
+    }
+
     // The identifier service of Honor, which offers the action, and a sibling of the same package which does not
     private static final String HONOR = "offered['com.hihonor.id/com.hihonor.id.HnOaIdService'] = { 'com.hihonor.id.OaIdService' }\n";
 
@@ -415,8 +524,10 @@ public class IdentifierServicesScriptTest {
                     resolved("com.coloros.mcs", "com.oplus.stdid.IdentifyService"),
                     resolved("com.coloros.mcs", "com.heytap.mcssdk.PushService"),
                     resolved("com.samsung.android.deviceidservice", "com.samsung.android.deviceidservice.DeviceIdService"),
-                    resolved("com.example.app", "com.example.app.Service")));
-            List<ResolveInfo> kept = new ArrayList<>(Arrays.asList(list.get(1), list.get(3), list.get(4), list.get(5)));
+                    resolved("com.example.app", "com.example.app.Service"),
+                    resolved("com.android.vending", REFERRER),
+                    resolved("com.android.vending", "com.google.android.finsky.billing.iab.InAppBillingService")));
+            List<ResolveInfo> kept = new ArrayList<>(Arrays.asList(list.get(1), list.get(3), list.get(4), list.get(5), list.get(7)));
             Globals globals = globals("list", list);
             Varargs result = Scripts.run(globals, HONOR + "return after(lookup('" + method + "', list))");
             assertTrue(method, result.arg(1).toboolean());
@@ -454,6 +565,69 @@ public class IdentifierServicesScriptTest {
         Globals globals = globals("other", other);
         assertFalse(Scripts.run(globals, HONOR + "return after(lookup('resolveService', other, 'intent', 0))").arg1().toboolean());
         assertFalse(Scripts.run(globals, "return after(lookup('resolveService', nil, 'intent', 0))").arg1().toboolean());
+
+        // The lookup without the hooks gets a copy of the intent of Android's own class (XParam.plainIntent), so no code
+        // of an intent of the app runs without them; without a copy it asks with the intent of the app and the hooks, so
+        // the service agrees with the list of queryIntentServices
+        for (String copy : new String[]{"'plain'", "nil"}) {
+            Globals copied = globals("honor", honor, "query", Arrays.asList(honor, other));
+            Varargs result = Scripts.run(copied, HONOR +
+                    "local hook, param = lookup('resolveService', honor, 'intent', 0)\n" +
+                    "local asked, unhooked, hooked = nil, false, nil\n" +
+                    "param.unhooked = function(self, f) unhooked = true local value = f() unhooked = false return value end\n" +
+                    "param.this = { queryIntentServices = function(self, intent, flags)\n" +
+                    "  asked, hooked = intent, not unhooked return query end }\n" +
+                    "param.plainIntent = function(self, intent) assert(intent == 'intent') return " + copy + " end\n" +
+                    "local restricted = after(hook, param)\n" +
+                    "return restricted, param.result, asked, hooked");
+            assertTrue(copy, result.arg(1).toboolean());
+            assertSame(copy, other, result.arg(2).touserdata());
+            assertEquals(copy, copy.equals("nil") ? "intent" : "plain", result.arg(3).tojstring());
+            assertEquals(copy, copy.equals("nil"), result.arg(4).toboolean());
+        }
+    }
+
+    // Lookups of the action of the app set id service find none of Play services, like the binding, also by the intent
+    // the lookup of Play services gives; its class stays in lookups of other actions and in the package, as it serves
+    // the other APIs of Play services
+    @Test
+    public void lookupsOfAppSetActionFindNoPlayServices() throws Exception {
+        String cls = "com.google.android.gms.chimera.GmsApiService";
+        ResolveInfo api = resolved("com.google.android.gms", cls);
+        ResolveInfo other = resolved("com.example.app", "com.example.app.Service");
+        List<ResolveInfo> list = new ArrayList<>(Arrays.asList(api, other));
+        PackageInfo gms = new PackageInfo();
+        gms.packageName = "com.google.android.gms";
+        ServiceInfo[] services = {service(gms.packageName, cls)};
+        gms.services = services;
+        Globals globals = globals("list", list, "api", api, "query", Arrays.asList(api), "gms", gms);
+        Scripts.run(globals, "appset = intentof(nil, nil, 'com.google.android.gms.appset.service.START')\n" +
+                "bound = intentof(nil, 'com.google.android.gms', 'com.google.android.chimera.BoundService.START',\n" +
+                "  dataof('chimera-action', 'com.google.android.gms.appset.service.START'))\n" +
+                "auth = intentof(nil, 'com.google.android.gms', 'com.google.android.gms.auth.service.START')\n" +
+                "apppm = { queryIntentServices = function(self, intent, flags) return query end }");
+        assertFalse(Scripts.run(globals, "return after(lookup('queryIntentServices', list, auth, 0))").arg1().toboolean());
+        assertEquals(2, list.size());
+        for (String intent : new String[]{"appset", "bound"}) {
+            List<ResolveInfo> both = new ArrayList<>(list);
+            globals.set("both", CoerceJavaToLua.coerce(both));
+            Varargs queried = Scripts.run(globals, "return after(lookup('queryIntentServices', both, " + intent + ", 0))");
+            assertTrue(intent, queried.arg(1).toboolean());
+            assertEquals("com.google.android.gms", queried.arg(2).tojstring());
+            assertEquals(Arrays.asList(other), both);
+            Varargs resolved = Scripts.run(globals, "local hook, param = lookup('resolveService', api, " + intent + ", 0)\n" +
+                    "param.this = apppm\n" +
+                    "local restricted = after(hook, param)\n" +
+                    "return restricted, param.result, after(lookup('resolveService', api, auth, 0))");
+            assertTrue(intent, resolved.arg(1).toboolean());
+            assertTrue(intent, resolved.arg(2).isnil());
+            assertFalse(intent, resolved.arg(3).toboolean());
+        }
+        assertFalse(Scripts.run(globals, "return after(lookup('getPackageInfo', gms))").arg1().toboolean());
+        assertSame(services, gms.services);
+        Scripts.run(globals, "local hook, param = lookup('getServiceInfo', nil, componentof('com.google.android.gms', '" +
+                cls + "'), 0)\n" +
+                "assert(not before(hook, param), 'renamed')");
     }
 
     // Thrown for the class which no app has, like Android throws NameNotFoundException

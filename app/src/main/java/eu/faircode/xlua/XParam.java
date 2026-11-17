@@ -21,12 +21,15 @@
 package eu.faircode.xlua;
 
 import android.annotation.SuppressLint;
+import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.os.Binder;
+import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.os.StrictMode;
@@ -273,7 +276,8 @@ public class XParam {
                 visible = packageName.equals(webView);
             }
         } catch (PackageManager.NameNotFoundException ignored) {
-            // The hooked call found the package, the lookup, which finds system packages, did not;
+            // The hooked call found the package, the lookup did not, like a system app which the package visibility of
+            // Android hides from the app, which then stays hidden like a missing one, also for starting its screens;
             // not kept, the package can be installed while the app runs
             return false;
         } finally {
@@ -284,12 +288,16 @@ public class XParam {
         return visible;
     }
 
-    // Whether a uid stays visible to the app: its own uid, the uid calling it, the uids of the system (app ids below
-    // 10000) and the uids with a visible package, see isVisible
+    // Whether a uid stays visible to the app: its own uid, the uids of the system (app ids below 10000) and the uids
+    // with a visible package, see isVisible. An app calling this one, like Binder.getCallingUid in a service, stays
+    // hidden too, so its uid and its packages agree, like a uid which Android does not show the app; the checks Android
+    // itself makes of that app inside the app get the real answers (see caller in package_resolve).
+    // shortcut: the uids of system apps stay visible like their packages, so the app's own code can list the system apps
+    // by trying uids (getPackagesForUid, getNameForUid); hide them with the lookups of their packages by name, which a
+    // uid would else contradict, when XParam.isVisible is split (see generic_filter_by_uid)
     @SuppressWarnings("unused")
     public boolean isUidVisible(int uid) {
-        if (isSystem() || uid == getUid() || uid == Binder.getCallingUid() ||
-                Util.getAppId(uid) < Process.FIRST_APPLICATION_UID)
+        if (isSystem() || uid == getUid() || Util.getAppId(uid) < Process.FIRST_APPLICATION_UID)
             return true;
 
         Boolean visible = visibleUids.get(uid);
@@ -324,6 +332,23 @@ public class XParam {
         return visible;
     }
 
+    // Whether a package is the app itself or another package of its user id: all that the lists of whole apps keep, like
+    // the launchers, tasks, widgets and sync adapters, which the Android code in the app does not read, unlike the
+    // lookups and the components of isPackageVisible and isVisible, so system apps are left out of them too
+    @SuppressWarnings("unused")
+    public boolean isOwnPackage(String packageName) {
+        if (packageName == null || isSystem() || packageName.equals(this.context.getPackageName()))
+            return true;
+        // The lookup calls hooked methods, see isPackageVisible
+        XCore.enterService();
+        try {
+            String[] own = this.context.getPackageManager().getPackagesForUid(getUid());
+            return (own != null && Arrays.asList(own).contains(packageName));
+        } finally {
+            XCore.leaveService();
+        }
+    }
+
     // Whether the package manager tells the app about a package, which is installed for the user
     // and not hidden by the package visibility rules of Android, and it stays visible, see isVisible.
     // Not kept, the package can be installed or removed while the app runs.
@@ -355,6 +380,59 @@ public class XParam {
         } finally {
             XCore.leaveService();
         }
+    }
+
+    // A copy of an intent of the app for a lookup of a script without the hooks, see unhooked: the package manager
+    // runs methods of the intent, like resolveTypeIfNeeded, and writes it to a parcel with its selector, extras and
+    // clip data, all of which can be of classes of the app, whose code would run without the hooks. The copy is made by
+    // the copy constructor of Intent, which reads the fields only, with the flags and the selector, which the lookup
+    // matches, without the extras and the clip data, which it does not; its type is resolved here, with the hooks, as the
+    // provider of a content uri can be of the app itself and run in this thread. Null when that type stays unknown, which
+    // the lookup would ask the provider for again.
+    // shortcut: the original intent of component aliases (Android 13 and later) stays, which only the hidden
+    // setOriginalIntent sets; clear it too if an app gets past the hidden API rules for that
+    // shortcut: the provider of a content uri without a type in the intent is asked for the type once more here, and for
+    // one which stays unknown once more by each lookup with the intent of the app (see best in package_resolve), which a
+    // provider of the app itself can count; upgrade by passing the type the hooked call resolved, once a hook sees it
+    @SuppressWarnings("unused")
+    public Intent plainIntent(Intent intent) {
+        Intent copy = new Intent(intent);
+        for (Intent part = copy; part != null; part = part.getSelector()) {
+            part.replaceExtras((Bundle) null);
+            part.setClipData(null);
+        }
+        Uri data = copy.getData();
+        String type = copy.resolveTypeIfNeeded(this.context.getContentResolver());
+        if (type == null)
+            return (data != null && ContentResolver.SCHEME_CONTENT.equals(data.getScheme()) ? null : copy);
+        return copy.setDataAndType(data, type);
+    }
+
+    // A copy of the query arguments of a Bundle of the app for a query of a script without the hooks, see unhooked: the
+    // query writes its Bundle to a parcel, where values of classes of the app, also in a nested Bundle, would run their
+    // writeToParcel. The copy has the keys of ContentResolver (android:query-arg-) with their strings, arrays of strings
+    // and ints, and null for values of other classes, which getString, getStringArray and getInt, all the provider of
+    // Android 8.1 and 9 reads them with, answer for those too, while containsKey stays. Read here, with the hooks, from a
+    // copy of the Bundle, since unparcelling one runs the creators of its values and the app's own stays as it was;
+    // unlike those getters, instanceof logs no warning with a stack trace for a value of another class.
+    @SuppressWarnings({"unused", "deprecation"})
+    public Bundle plainQueryArgs(Bundle bundle) {
+        if (bundle == null)
+            return null;
+        Bundle from = new Bundle(bundle);
+        Bundle copy = new Bundle();
+        for (String key : from.keySet()) {
+            if (key == null || !key.startsWith("android:query-arg-"))
+                continue;
+            Object value = from.get(key);
+            if (value instanceof String[])
+                copy.putStringArray(key, (String[]) value);
+            else if (value instanceof Integer)
+                copy.putInt(key, (Integer) value);
+            else
+                copy.putString(key, value instanceof String ? (String) value : null);
+        }
+        return copy;
     }
 
     // Also packages which only some flags of hooked calls find: hidden, archived, uninstalled with data kept
@@ -506,14 +584,19 @@ public class XParam {
     }
 
     static boolean isPath(String path, String file) {
-        if (plainPath("/" + path).equals(file))
-            return true;
-        // Without the hooks of the app, which give the canonical path of a hidden file as of one which does not exist
+        return (plainPath("/" + path).equals(file) || file.equals(canonicalPath(path)));
+    }
+
+    // The path a path leads to by its links, like the file system resolves them, null when it cannot be resolved; without
+    // the hooks of the app, which give the canonical path of a hidden file as of one which does not exist. Android
+    // disables the caches of canonical paths, so it reports no disk read to StrictMode (AOSP UnixFileSystem.canonicalize of
+    // Android 8.1 to 16 and main).
+    static String canonicalPath(String path) {
         XCore.enterService();
         try {
-            return new File(path).getCanonicalPath().equals(file);
+            return new File(path).getCanonicalPath();
         } catch (IOException ignored) {
-            return false;
+            return null;
         } finally {
             XCore.leaveService();
         }
@@ -611,10 +694,11 @@ public class XParam {
     // which dup2 clears, so the next file the app opens gets the number it would without the fake, the next free one;
     // false when the number cannot be read or moved, then the fake keeps a number of its own, like before.
     // shortcut: on Android 9 and 10 the fake of a file opened with O_CLOEXEC keeps a number of its own (see movable); a
-    // fake in memory is open for reading and writing (F_GETFL, a write succeeds), since reopening it read-only by
+    // fake in memory is open for reading and writing (a write succeeds, and the native fcntl F_GETFL and
+    // /proc/self/fdinfo tell it, while Os.fcntlInt answers read-only, see unfaked), since reopening it read-only by
     // /proc/self/fd needs the SELinux open permission of the files in memory of apps; native code can map a fake but a
     // pipe, and /proc/self/fdinfo tells the inode of each; upgrade when apps open files of /proc with O_CLOEXEC on
-    // Android 9 and 10 or check how a file of /proc is open.
+    // Android 9 and 10 or check how a file of /proc is open natively.
     // NewApi: Os.fcntlInt is public from Android 11 and hidden on Android 8.1, which checks no hidden APIs (see hasFcntl).
     @SuppressLint("NewApi")
     private static boolean renumbered(Object opened, FileDescriptor fake, Object[] args) throws Exception {
@@ -812,9 +896,9 @@ public class XParam {
 
     // The answers about a descriptor of setFileBytes like about the file it replaced: its stat (Os.fstat), the bytes left
     // to read (FileInputStream.available), its length (RandomAccessFile.length), the size of a FileChannel
-    // (FileDispatcherImpl.size) and its link in /proc/self/fd, also by /dev/fd and java.nio (readlink), and the stat,
-    // length and modification time by that link (BlockGuardOs.stat, UnixFileSystem.getLength and getLastModifiedTime);
-    // whether the hooked method answered about one
+    // (FileDispatcherImpl.size), its access mode (Os.fcntlInt F_GETFL) and its link in /proc/self/fd, also by /dev/fd and
+    // java.nio (readlink), and the stat, length and modification time by that link (BlockGuardOs.stat,
+    // UnixFileSystem.getLength and getLastModifiedTime); whether the hooked method answered about one
     @SuppressWarnings("unused")
     public boolean unfakeFile() throws Throwable {
         Object result = this.param.getResult();
@@ -863,6 +947,12 @@ public class XParam {
             case "readlink":
                 file = call.args[0].toString();
                 break;
+            case "fcntlInt":
+                // Only the status flags with the access mode (F_GETFL)
+                if (!Integer.valueOf(F_GETFL).equals(call.args[1]))
+                    return null;
+                file = call.args[0];
+                break;
             default:
                 return null;
         }
@@ -884,8 +974,19 @@ public class XParam {
         }
         if (name.equals("getLastModifiedTime"))
             return lastModified(faked.stat, (Long) result);
+        if (name.equals("fcntlInt")) {
+            // Read-only, like the file replaced: the scripts fake files the app reads, of which those of the system,
+            // like /proc and /sys, cannot be opened for writing
+            int flags = ((Integer) result & ~O_ACCMODE) | O_RDONLY;
+            return (flags == (Integer) result ? null : flags);
+        }
         return faked.size;
     }
+
+    // The command and the access mode of fcntl, the same on every ABI of Linux; OsConstants has them only on a device
+    private static final int F_GETFL = 3;
+    private static final int O_ACCMODE = 3;
+    private static final int O_RDONLY = 0;
 
     // Like File.lastModified of the file replaced: its modification time in whole seconds, like libcore up to Android 13,
     // or to the millisecond, like libcore of Android 14, which updates of the ART module may bring to Android 12 and 13,

@@ -55,7 +55,7 @@ public class IntentScriptTest {
             "    getSetting = function(self, name) return settings and settings[name] end,",
             // XParam.unhooked, and XParam.uuidOf with an offset of the sequence of the battery of 0xc for the key, which
             // would be far larger if more than its first digit were read
-            "    unhooked = function(self, fn) return fn() end,",
+            "    unhooked = function(self, fn) unhooked = true local value = fn() unhooked = false return value end,",
             "    uuidOf = function(self, seed) assert(seed == 'battery.seq/key', seed)",
             "      return 'c1f4c0de-0000-4000-8000-000000000000' end }",
             "end",
@@ -103,7 +103,10 @@ public class IntentScriptTest {
             "adapter = { getRemoteDevice = function(self, address) return 'device ' .. address end }",
             "luajava = { bindClass = function(name)",
             "  if name == 'android.net.Uri' then return { parse = function(self, text) return text end } end",
-            "  if name == 'android.bluetooth.BluetoothAdapter' then return { getDefaultAdapter = function(self) return adapter end } end",
+            // The lookup of the adapter is hooked itself (see features)
+            "  if name == 'android.bluetooth.BluetoothAdapter' then",
+            "    return { getDefaultAdapter = function(self) assert(unhooked, 'hooked lookup') return adapter end }",
+            "  end",
             "  if name == 'android.net.NetworkInfo$DetailedState' then return { CONNECTED = 'CONNECTED' } end",
             "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
             "  if name == 'android.media.AudioManager' then return { GET_DEVICES_ALL = 3 } end",
@@ -440,17 +443,20 @@ public class IntentScriptTest {
                         "return intent.extras['android.bluetooth.adapter.extra.LOCAL_NAME']");
         assertTrue(name.arg1().isnil());
         Varargs wifi = run(
-                "local state = intentof('android.net.wifi.STATE_CHANGE', { bssid = '02:11:22:33:44:55', networkInfo = 'info' })\n" +
+                "local state = intentof('android.net.wifi.STATE_CHANGE', { bssid = '02:11:22:33:44:55', networkInfo = 'info',\n" +
+                        "  wifiInfo = 'info with the address' })\n" +
                         "local connectivity = intentof('android.net.conn.CONNECTIVITY_CHANGE', { extraInfo = 'Home', networkType = 1 })\n" +
                         "return after(hookof('Intent.createFromParcel/network'), paramof(state)), state.extras.bssid,\n" +
                         "  state.extras.networkInfo, after(hookof('Intent.createFromParcel/network'), paramof(connectivity)),\n" +
-                        "  connectivity.extras.extraInfo, connectivity.extras.networkType");
+                        "  connectivity.extras.extraInfo, connectivity.extras.networkType, state.extras.wifiInfo");
         assertTrue(wifi.arg(1).toboolean());
         assertTrue(wifi.arg(2).isnil());
         assertEquals("info", wifi.arg(3).tojstring());
         assertTrue(wifi.arg(4).toboolean());
         assertTrue(wifi.arg(5).isnil());
         assertEquals(1, wifi.arg(6).toint());
+        // The Wi-Fi info of Android 8.1, with the address of the device, which Android 9 and later leave out too
+        assertTrue(wifi.arg(7).isnil());
         // The saved network that changed, like the broadcast of Android when several networks changed
         Varargs saved = run(
                 "local changed = intentof('android.net.wifi.CONFIGURED_NETWORKS_CHANGE', { wifiConfiguration = 'Home',\n" +
@@ -980,7 +986,7 @@ public class IntentScriptTest {
     // The broadcast of a time zone change, which Android sends only when the zone changed, does not reach the receivers,
     // since the fake zone stays the same (see receiver_skip): a receiver of the manifest is finished first, a registered
     // one only when nothing goes back to Android, not of an ordered broadcast or, from Android 14, of one Android does
-    // not assume delivered; other broadcasts and other variants are delivered
+    // not assume delivered; other broadcasts and other variants are delivered; a change of the languages likewise
     @Test
     public void timeZoneChangeIsNotDelivered() throws Exception {
         Globals skip = Scripts.load("receiver_skip", STUBS + "\n" + String.join("\n",
@@ -1022,6 +1028,13 @@ public class IntentScriptTest {
                         "{ [0] = intentof(zone, {}), [4] = false, [6] = false }", "false", ""},
                 {"dispatchof('ReceiverDispatcher.performReceive.sender/timezone', 'performReceive', 10), " +
                         "{ [0] = intentof(zone, {}), [4] = true, [6] = true }", "false", ""},
+                // The same for a change of the languages, of which the fake ones stay the same
+                {"dispatchof('ActivityThread.handleReceiver/locale', 'handleReceiver', 1), " +
+                        "{ [0] = dataof('android.intent.action.LOCALE_CHANGED') }", "true", "finish,skip"},
+                {"dispatchof('ReceiverDispatcher.performReceive/locale', 'performReceive', 7), " +
+                        "{ [0] = intentof('android.intent.action.LOCALE_CHANGED', {}), [4] = false, [5] = false }", "true", "skip"},
+                {"dispatchof('ActivityThread.handleReceiver/locale', 'handleReceiver', 1), { [0] = dataof(zone) }",
+                        "false", ""},
         };
         for (String[] test : cases) {
             Varargs result = Scripts.run(skip, "return deliver(" + test[0] + ")");

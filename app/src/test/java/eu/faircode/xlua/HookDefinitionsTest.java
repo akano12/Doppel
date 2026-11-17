@@ -71,10 +71,12 @@ public class HookDefinitionsTest {
     private static final Set<String> HIDDEN = new HashSet<>(Arrays.asList(
             "android.os.SystemProperties", "android.app.ContextImpl", "android.app.Instrumentation",
             "android.app.LoadedApk$ServiceDispatcher", "android.content.pm.PackageInstaller$SessionCallbackDelegate",
+            "android.content.pm.LauncherApps$CallbackMessageHandler",
             "android.app.PendingIntent$FinishedDispatcher", "android.content.IntentSender$FinishedDispatcher",
             "android.app.ActivityThread", "android.app.LoadedApk$ReceiverDispatcher", "android.hardware.SystemSensorManager",
             "android.hardware.input.InputDeviceSensorManager$InputSensorManager",
-            "android.app.SharedPreferencesImpl"));
+            "android.app.SharedPreferencesImpl", "android.security.KeyStore",
+            "android.system.keystore2.IKeystoreSecurityLevel$Stub$Proxy", "android.security.keymaster.KeyCharacteristics"));
 
     // The defaults XHook.fromJSONObject uses for missing attributes, see docs/DEFINE.md
     private static final Map<String, Object> DEFAULTS = new HashMap<>();
@@ -323,7 +325,17 @@ public class HookDefinitionsTest {
     public void storageTimesByDescriptor() throws Exception {
         check("Os.fstat", "android.system.Os fstat(java.io.FileDescriptor) @storage_times 27-");
         assertEquals("Use.Tracking", hook("Os.fstat").getString("group"));
-        assertEquals("value.android_id", hook("Os.fstat").getJSONArray("settings").getString(0));
+        assertEquals("value.drm_id", hook("Os.fstat").getJSONArray("settings").getString(0));
+        // The entries of a SecureDirectoryStream, by the descriptor of its folder and their name
+        String name = "UnixNativeDispatcher.fstatat/storage_times";
+        check(name, "sun.nio.fs.UnixNativeDispatcher fstatat(int,byte[],int,sun.nio.fs.UnixFileAttributes) @storage_times 27-");
+        assertEquals("Use.Tracking", hook(name).getString("group"));
+        assertEquals("value.drm_id", hook(name).getJSONArray("settings").getString(0));
+        // The folder of a SecureDirectoryStream itself, by its descriptor alone
+        name = "UnixNativeDispatcher.fstat/storage_times";
+        check(name, "sun.nio.fs.UnixNativeDispatcher fstat(int,sun.nio.fs.UnixFileAttributes) @storage_times 27-");
+        assertEquals("Use.Tracking", hook(name).getString("group"));
+        assertEquals("value.drm_id", hook(name).getJSONArray("settings").getString(0));
     }
 
     // A hook of a library in the app which does not use the result must not require a return type: R8 makes methods
@@ -333,15 +345,18 @@ public class HookDefinitionsTest {
             "ActivityRecognitionResult.extractResult", "ActivityTransitionResult.extractResult",
             "SleepSegmentEvent.extractEvents", "SleepClassifyEvent.extractEvents",
             "ActivityRecognitionResult.createFromParcel", "ActivityTransitionResult.createFromParcel",
+            "ActivityRecognition.getClient", "ActivityRecognition.getClient/activity", "ActivityRecognitionApi.requestActivityUpdates",
             "LocationJsonUtil.parseLocationFromJsonObject", "LocationResult.createFromParcel", "LocationResult.create",
             "ActivityIdentificationResponse.getDataFromIntent", "ActivityConversionResponse.getDataFromIntent",
             "ActivityIdentificationResponse.createFromParcel", "ActivityConversionResponse.createFromParcel",
-            "AdvertisingIdClient$Info.getId", "HuaweiAdvertisingIdClient$Info.getId", "AppSetIdInfo.getId",
-            "AdvertisingIdClient$Info.isLimitAdTrackingEnabled", "HuaweiAdvertisingIdClient$Info.isLimitAdTrackingEnabled",
+            "AppSetIdInfo.getId", "AmplitudeClient.getOptOut", "AmplitudeClient.logEvent", "AmplitudeClient.logEvent/extra",
+            "AmplitudeClient.logEvent/foreground", "AmplitudeClient.logEvent/api", "AmplitudeClient.logEvent/user",
+            "AmplitudeClient.logEvent/groups",
             "Amplitude.getOptOut", "Amplitude.getOptOut/android", "AmplitudeClient.isOptedOut", "Branch.isTrackingDisabled",
             "Branch.isTrackingDisabled/context", "Singular.isAllTrackingStopped",
             "FirebaseAnalytics.getInstance", "GoogleAnalytics.getInstance/optout", "AdRegistration.getInstance",
             "FirebaseCrashlytics.getInstance", "AppsFlyerLib.getInstance", "SegmentAnalytics.build",
+            "AppLovinSdk.getInstance", "AppLovinSdk.getInstance/key",
             "MixpanelAPI.hasOptedOutTracking",
             "GL10.glGetString", "EGL10.eglQueryString", "RadarJobScheduler.onStartJob"));
 
@@ -871,6 +886,13 @@ public class HookDefinitionsTest {
                 "android.app.LoadedApk$ReceiverDispatcher performReceive(" + args + "int) @receiver_skip 27-33");
         check("ReceiverDispatcher.performReceive.sender/timezone", "android.app.LoadedApk$ReceiverDispatcher performReceive(" +
                 args + "boolean,int,int,java.lang.String) @receiver_skip 34-");
+        // The same for the broadcast of a change of the languages
+        check("ActivityThread.handleReceiver/locale",
+                "android.app.ActivityThread handleReceiver(android.app.ActivityThread$ReceiverData) @receiver_skip 27-");
+        check("ReceiverDispatcher.performReceive/locale",
+                "android.app.LoadedApk$ReceiverDispatcher performReceive(" + args + "int) @receiver_skip 27-33");
+        check("ReceiverDispatcher.performReceive.sender/locale", "android.app.LoadedApk$ReceiverDispatcher performReceive(" +
+                args + "boolean,int,int,java.lang.String) @receiver_skip 34-");
         for (String variant : new String[]{"timezone", "locale"}) {
             check("BlockGuardOs.open/" + variant, "libcore.io.BlockGuardOs open(java.lang.String,int,int) @" + variant + " 27-");
             check("UnixNativeDispatcher.open/" + variant,
@@ -891,8 +913,8 @@ public class HookDefinitionsTest {
         }
     }
 
-    // The stat, size and link of faked files answer like for the file the app opened, also by the path of the link, by
-    // the methods beneath the public ones (AOSP libcore oreo-mr1-release to main)
+    // The stat, size, access mode and link of faked files answer like for the file the app opened, also by the path of
+    // the link, by the methods beneath the public ones (AOSP libcore oreo-mr1-release to main)
     @Test
     public void fakedFilesAnswerLikeTheFileOpened() throws Exception {
         String d = "java.io.FileDescriptor";
@@ -907,9 +929,11 @@ public class HookDefinitionsTest {
         check("UnixFileSystem.getLength/faked_files", "java.io.UnixFileSystem getLength(java.io.File) @faked_files 27-");
         check("UnixFileSystem.getLastModifiedTime/faked_files",
                 "java.io.UnixFileSystem getLastModifiedTime(java.io.File) @faked_files 27-");
+        // The access mode, read-only like the file opened, by the public Os.fcntlInt of Android 11
+        check("Os.fcntlInt/faked_files", "android.system.Os fcntlInt(" + d + ",int,int) @faked_files 30-");
         for (String name : new String[]{"Os.fstat", "FileInputStream.available", "RandomAccessFile.length", "FileDispatcherImpl.size",
                 "Os.readlink", "UnixNativeDispatcher.readlink", "BlockGuardOs.stat", "UnixFileSystem.getLength",
-                "UnixFileSystem.getLastModifiedTime"}) {
+                "UnixFileSystem.getLastModifiedTime", "Os.fcntlInt"}) {
             assertEquals(name, hook("BlockGuardOs.open/boot_id").getString("group"), hook(name + "/faked_files").getString("group"));
             // The same for the mount tables Read.Debugging rewrites without the mounts of Magisk (see hardware_files)
             JSONObject model = hook(name + "/faked_files"), copy = hook(name + "/faked_files_debugging");
@@ -950,6 +974,18 @@ public class HookDefinitionsTest {
         check("Context.bindServiceAsUser.flags.handler/identifiers", "android.app.ContextImpl bindServiceAsUser(" + i +
                 "android.content.ServiceConnection,android.content.Context$BindServiceFlags,android.os.Handler," +
                 "android.os.UserHandle) @identifier_services 34- optional");
+        check("Context.startService/identifiers", "android.app.ContextImpl startService(android.content.Intent) " +
+                "@identifier_services 27-");
+        check("Context.startForegroundService/identifiers", "android.app.ContextImpl startForegroundService(" +
+                "android.content.Intent) @identifier_services 27-");
+        check("Context.startServiceAsUser/identifiers", "android.app.ContextImpl startServiceAsUser(" + i +
+                "android.os.UserHandle) @identifier_services 27-");
+        check("Context.startForegroundServiceAsUser/identifiers", "android.app.ContextImpl startForegroundServiceAsUser(" + i +
+                "android.os.UserHandle) @identifier_services 27-");
+        check("Context.stopService/identifiers", "android.app.ContextImpl stopService(android.content.Intent) " +
+                "@identifier_services 27-");
+        check("Context.stopServiceAsUser/identifiers", "android.app.ContextImpl stopServiceAsUser(" + i +
+                "android.os.UserHandle) @identifier_services 27-");
         String r = "android.content.ContentResolver ";
         check("ContentResolver.acquireContentProviderClient/identifiers",
                 r + "acquireContentProviderClient(android.net.Uri) @identifier_services 27-");
@@ -963,6 +999,9 @@ public class HookDefinitionsTest {
                 "android.os.Bundle) @identifier_services 27-28");
         check("ContentResolver.call/oaid", r + "call(java.lang.String,java.lang.String,java.lang.String," +
                 "android.os.Bundle) @identifier_services 29-");
+        String client = "android.content.ContentProviderClient call(java.lang.String,java.lang.String,";
+        check("ContentProviderClient.call/appset", client + "android.os.Bundle) @identifier_services 27-28");
+        check("ContentProviderClient.call.authority/appset", client + "java.lang.String,android.os.Bundle) @identifier_services 29-");
         // The hidden methods giving the provider itself, which apps call by reflection and the others of ContentResolver
         for (String[] acquire : new String[][]{{"acquireProvider/identifiers", "android.net.Uri"},
                 {"acquireProvider.authority/identifiers", "java.lang.String"},
@@ -1037,6 +1076,16 @@ public class HookDefinitionsTest {
         // Coosea: hidden methods of the keyguard manager, which other devices do not have
         for (String method : new String[]{"obtainOaid", "obtainAaid", "obtainVaid"})
             check("KeyguardManager." + method, "android.app.KeyguardManager " + method + "() @generic_null_value 27- optional");
+        // The GSF id is hidden from Google's own apps too, only Play services and the services framework own it
+        for (String name : new String[]{"ContentResolver.query26/gsf_id", "ContentProviderClient.query26/gsf_id"})
+            for (String pkg : new String[]{"com.google.android.youtube", "com.google.android.apps.maps", "com.android.chrome",
+                    "com.android.vending", "com.google.android.gms", "com.google.android.gsf", "com.google.android.gms.x"}) {
+                boolean excluded = false;
+                for (String regex : hook(name).getString("excludePackages").split(","))
+                    excluded |= pkg.matches(regex);
+                assertEquals(name + " " + pkg, pkg.equals("com.google.android.gms") || pkg.equals("com.google.android.gsf"),
+                        excluded);
+            }
     }
 
     // The graphics chip by each version of OpenGL ES: GLES11 inherits glGetString of GLES10, GLES30 to GLES32 the one of
@@ -1083,6 +1132,80 @@ public class HookDefinitionsTest {
                 "java.lang.String) @generic_block 27- optional");
         check("UMConfigure.submitPolicyGrantResult", umeng + "submitPolicyGrantResult(android.content.Context,boolean) " +
                 "@generic_false_argument 27- optional");
+    }
+
+    // AppLovin and LevelPlay get no consent and do not sell, OneSignal requires consent and gets none, before each way
+    // to start and by their setters (see analytics_getinstance and analytics_start), also those with the switch first;
+    // the configuration of OneSignal keeps it, and its GET requests and log uploads fail, also in version 4; Bugsnag
+    // enables no release stage in the client each way to start makes
+    @Test
+    public void analyticsOfAdSdksOneSignalAndBugsnag() throws Exception {
+        String sdk = "com.applovin.sdk.AppLovinSdk getInstance(";
+        check("AppLovinSdk.getInstance", sdk + "android.content.Context) @analytics_getinstance 27- optional");
+        check("AppLovinSdk.getInstance/key", sdk + "java.lang.String,com.applovin.sdk.AppLovinSdkSettings,android.content.Context) " +
+                "@analytics_getinstance 27- optional");
+        String privacy = "com.applovin.sdk.AppLovinPrivacySettings ";
+        check("AppLovinPrivacySettings.setHasUserConsent", privacy + "setHasUserConsent(boolean,android.content.Context) " +
+                "@generic_false_argument 27- optional");
+        check("AppLovinPrivacySettings.setDoNotSell", privacy + "setDoNotSell(boolean,android.content.Context) " +
+                "@generic_true_argument 27- optional");
+        String level = "com.unity3d.mediation.LevelPlay ";
+        String iron = "com.ironsource.mediationsdk.IronSource ";
+        String units = "com.ironsource.mediationsdk.IronSource$AD_UNIT[]";
+        check("LevelPlay.init", level + "init(android.content.Context,com.unity3d.mediation.LevelPlayInitRequest," +
+                "com.unity3d.mediation.LevelPlayInitListener) @analytics_start 27- optional");
+        check("IronSource.init", iron + "init(android.content.Context,java.lang.String," + units + ") @analytics_start 27- optional");
+        check("IronSource.init/listener", iron + "init(android.content.Context,java.lang.String," +
+                "com.ironsource.mediationsdk.sdk.InitializationListener," + units + ") @analytics_start 27- optional");
+        check("IronSource.initISDemandOnly", iron + "initISDemandOnly(android.content.Context,java.lang.String," + units + ") " +
+                "@analytics_start 27- optional");
+        for (String c : new String[]{level, iron}) {
+            String name = c.substring(c.lastIndexOf('.') + 1).trim();
+            check(name + ".setConsent", c + "setConsent(boolean) @generic_false_argument 27- optional");
+            check(name + ".setMetaData", c + "setMetaData(java.lang.String,java.lang.String) @analytics_start 27- optional");
+            check(name + ".setMetaData/list", c + "setMetaData(java.lang.String,java.util.List) @analytics_start 27- optional");
+        }
+        String one = "com.onesignal.OneSignal ";
+        String coroutine = "kotlin.coroutines.Continuation";
+        check("OneSignal.initWithContext", one + "initWithContext(android.content.Context,java.lang.String) @analytics_start 27- optional");
+        check("OneSignal.initWithContext/coroutine", one + "initWithContext(android.content.Context," + coroutine + ") " +
+                "@analytics_start 27- optional");
+        check("OneSignal.initWithContextSuspend", one + "initWithContextSuspend(android.content.Context,java.lang.String," +
+                coroutine + ") @analytics_start 27- optional");
+        check("OneSignal.initWithContext/v4", one + "initWithContext(android.content.Context) @analytics_start 27- optional");
+        check("OneSignal.setConsentRequired", one + "setConsentRequired(boolean) @generic_true_argument 27- optional");
+        check("OneSignal.setConsentGiven", one + "setConsentGiven(boolean) @generic_false_argument 27- optional");
+        check("OneSignal.setConsentRequiredSuspend", one + "setConsentRequiredSuspend(boolean," + coroutine + ") " +
+                "@generic_true_argument 27- optional");
+        check("OneSignal.setConsentGivenSuspend", one + "setConsentGivenSuspend(boolean," + coroutine + ") " +
+                "@generic_false_argument 27- optional");
+        check("OneSignal.setRequiresUserPrivacyConsent", one + "setRequiresUserPrivacyConsent(boolean) " +
+                "@generic_true_argument 27- optional");
+        check("OneSignal.provideUserConsent", one + "provideUserConsent(boolean) @generic_false_argument 27- optional");
+        String config = "com.onesignal.core.internal.config.ConfigModel ";
+        check("ConfigModel.setConsentRequired", config + "setConsentRequired(java.lang.Boolean) @generic_true_argument 27- optional");
+        check("ConfigModel.setConsentGiven", config + "setConsentGiven(java.lang.Boolean) @generic_false_argument 27- optional");
+        check("OneSignalHttpClient.get", "com.onesignal.core.internal.http.impl.HttpClient get(java.lang.String," +
+                "com.onesignal.core.internal.http.impl.OptionalHeaders," + coroutine + ") @analytics_start 27- optional");
+        check("OneSignalLogHttpSender.send", "com.onesignal.debug.internal.logging.logger.android.OneSignalLogHttpSender " +
+                "send(com.onesignal.logger.LogHttpRequest," + coroutine + ") @analytics_start 27- optional");
+        check("OSRemoteParamController.savePrivacyConsentRequired", "com.onesignal.OSRemoteParamController " +
+                "savePrivacyConsentRequired(boolean) @generic_true_argument 27- optional");
+        for (String get : new String[]{"get", "getSync"})
+            check("OneSignalRestClient." + get, "com.onesignal.OneSignalRestClient " + get + "(java.lang.String," +
+                    "com.onesignal.OneSignalRestClient$ResponseHandler,java.lang.String) @generic_block 27- optional");
+        // A constructor, which check does not describe
+        JSONObject client = hook("BugsnagClient.constructor");
+        assertFalse(client.has("methodName"));
+        assertEquals("com.bugsnag.android.Client", client.getString("className"));
+        assertEquals("[\"android.content.Context\",\"com.bugsnag.android.Configuration\"]",
+                client.getJSONArray("parameterTypes").toString());
+        assertEquals("@analytics_start", client.getString("luaScript"));
+        assertTrue(client.getBoolean("optional"));
+        for (JSONObject hook : hooks)
+            if (hook.getString("luaScript").equals("@analytics_start") ||
+                    hook.getString("name").matches("(AppLovin|ConfigModel|OSRemote|OneSignalRest).*"))
+                assertEquals(hook.getString("name"), "Use.Analytics", hook.getString("group"));
     }
 
     // Mixpanel by its opt-out, which also stops what the track hooks do not; stored crash reports are not sent;
@@ -1185,6 +1308,89 @@ public class HookDefinitionsTest {
             assertEquals(name, "Read.Features", hook(name).getString("group"));
     }
 
+    // The managers and adapters which Android gives only with their features, on every version (see features); the system
+    // server is not an app, so it keeps them
+    @Test
+    public void managersOfHiddenFeatures() throws Exception {
+        check("Context.getSystemService/features", "android.app.ContextImpl getSystemService(java.lang.String) @features 27-");
+        check("BluetoothAdapter.getDefaultAdapter", "android.bluetooth.BluetoothAdapter getDefaultAdapter() @features 27-");
+        check("BluetoothManager.getAdapter", "android.bluetooth.BluetoothManager getAdapter() @features 27-");
+        check("NfcAdapter.getDefaultAdapter", "android.nfc.NfcAdapter getDefaultAdapter(android.content.Context) @features 27-");
+        check("NfcManager.getDefaultAdapter", "android.nfc.NfcManager getDefaultAdapter() @features 27-");
+        check("WifiManager.isP2pSupported", "android.net.wifi.WifiManager isP2pSupported() @features 27-");
+        check("WifiManager.isDeviceToApRttSupported", "android.net.wifi.WifiManager isDeviceToApRttSupported() @features 27-");
+        check("WifiManager.isWifiDisplayR2Supported", "android.net.wifi.WifiManager isWifiDisplayR2Supported() @features 31-");
+        check("WifiManager.isD2dSupportedWhenInfraStaDisabled",
+                "android.net.wifi.WifiManager isD2dSupportedWhenInfraStaDisabled() @features 35-");
+        check("ConsumerIrManager.hasIrEmitter", "android.hardware.ConsumerIrManager hasIrEmitter() @features 27-");
+        check("ConsumerIrManager.getCarrierFrequencies", "android.hardware.ConsumerIrManager getCarrierFrequencies() @features 27-");
+        check("ConsumerIrManager.transmit", "android.hardware.ConsumerIrManager transmit(int,int[]) @features 27-33");
+        // Their broadcasts, marked when read, are not given by registerReceiver (ContextImpl of AOSP oreo-mr1 to main) and
+        // reach no receiver, with the signature of ReceiverDispatcher of each version
+        check("Intent.createFromParcel/features", "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) @features 27-");
+        check("Context.registerReceiverInternal/features", "android.app.ContextImpl registerReceiverInternal(" +
+                "android.content.BroadcastReceiver,int,android.content.IntentFilter,java.lang.String,android.os.Handler," +
+                "android.content.Context,int) @features 27-");
+        String args = "android.content.Intent,int,java.lang.String,android.os.Bundle,boolean,boolean,";
+        check("ActivityThread.handleReceiver/features",
+                "android.app.ActivityThread handleReceiver(android.app.ActivityThread$ReceiverData) @receiver_skip 27-");
+        check("ReceiverDispatcher.performReceive/features",
+                "android.app.LoadedApk$ReceiverDispatcher performReceive(" + args + "int) @receiver_skip 27-33");
+        check("ReceiverDispatcher.performReceive.sender/features", "android.app.LoadedApk$ReceiverDispatcher performReceive(" +
+                args + "boolean,int,int,java.lang.String) @receiver_skip 34-");
+        for (String name : new String[]{"Context.getSystemService/features", "BluetoothAdapter.getDefaultAdapter",
+                "BluetoothManager.getAdapter", "NfcAdapter.getDefaultAdapter", "NfcManager.getDefaultAdapter",
+                "WifiManager.isP2pSupported", "WifiManager.isDeviceToApRttSupported", "WifiManager.isWifiDisplayR2Supported",
+                "WifiManager.isD2dSupportedWhenInfraStaDisabled", "ConsumerIrManager.hasIrEmitter",
+                "ConsumerIrManager.getCarrierFrequencies", "ConsumerIrManager.transmit", "Intent.createFromParcel/features",
+                "Context.registerReceiverInternal/features"}) {
+            assertEquals(name, "Read.Features", hook(name).getString("group"));
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
+            assertEquals(name, "[\"features.keep\"]", hook(name).getJSONArray("settings").toString());
+        }
+        for (String name : new String[]{"ActivityThread.handleReceiver/features", "ReceiverDispatcher.performReceive/features",
+                "ReceiverDispatcher.performReceive.sender/features"})
+            assertEquals(name, "Read.Features", hook(name).getString("group"));
+    }
+
+    // The keys and the navigation of the configuration, which Android sets from the input devices: in the configurations
+    // the app reads from parcels, in its resources, also those made before the hooks (once, by Resources.mSystem), and in
+    // getDeviceConfigurationInfo; not in system server, whose configuration all apps get (see input_devices)
+    @Test
+    public void inputDevicesInTheConfiguration() throws Exception {
+        String r = "android.content.res.ResourcesImpl ";
+        String c = "android.content.res.Configuration,android.util.DisplayMetrics,android.content.res.CompatibilityInfo";
+        check("Configuration.readFromParcel", "android.content.res.Configuration readFromParcel(android.os.Parcel) @input_devices 27-");
+        check("ResourcesImpl.updateConfiguration/input_devices", r + "updateConfiguration(" + c + ") @input_devices 27-34 optional");
+        check("ResourcesImpl.updateConfigurationImpl/input_devices", r + "updateConfigurationImpl(" + c +
+                ",boolean) @input_devices 34- optional");
+        check("Resources.mSystem/input_devices", "android.content.res.Resources #mSystem() @input_devices 27- optional");
+        check("ActivityManager.getDeviceConfigurationInfo", "android.app.ActivityManager getDeviceConfigurationInfo() @input_devices 27-");
+        for (String name : new String[]{"Configuration.readFromParcel", "ResourcesImpl.updateConfiguration/input_devices",
+                "ResourcesImpl.updateConfigurationImpl/input_devices", "Resources.mSystem/input_devices",
+                "ActivityManager.getDeviceConfigurationInfo"}) {
+            assertEquals(name, "Read.Features", hook(name).getString("group"));
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
+        }
+    }
+
+    // The configuration of the process, which every activity starts with a copy of, and whether any device has keys; not
+    // in system server (see input_devices)
+    @Test
+    public void inputDevicesInCopiesAndKeys() throws Exception {
+        check("Configuration.setTo/input_devices", "android.content.res.Configuration setTo(android.content.res.Configuration) " +
+                "@input_devices 27-");
+        assertFalse(hook("Configuration.setTo/input_devices").optBoolean("usage", true));
+        check("KeyCharacterMap.deviceHasKey", "android.view.KeyCharacterMap deviceHasKey(int) @input_devices 27-");
+        check("KeyCharacterMap.deviceHasKeys", "android.view.KeyCharacterMap deviceHasKeys(int[]) @input_devices 27-");
+        check("InputDevice.hasKeys", "android.view.InputDevice hasKeys(int[]) @input_devices 27-");
+        for (String name : new String[]{"Configuration.setTo/input_devices", "KeyCharacterMap.deviceHasKey",
+                "KeyCharacterMap.deviceHasKeys", "InputDevice.hasKeys"}) {
+            assertEquals(name, "Read.Features", hook(name).getString("group"));
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
+        }
+    }
+
     // The location updates of a PendingIntent, which stay parcelled in the extras of the intent
     @Test
     public void locationUpdatesOfIntents() throws Exception {
@@ -1197,6 +1403,29 @@ public class HookDefinitionsTest {
                 "@location 27-");
         assertEquals("Get.Location", hook("Intent.setExtrasClassLoader/location").getString("group"));
         assertEquals("android", hook("Intent.setExtrasClassLoader/location").getString("excludePackages"));
+        // The results of Play services by the names of their extras, which R8 does not rename: geofence events
+        // (Get.Location) and the activity, its transitions and sleep events (Determine.Activity)
+        for (String variant : new String[]{"geofence", "activity"}) {
+            check("Intent.createFromParcel/" + variant, "android.content.Intent CREATOR:createFromParcel(android.os.Parcel) " +
+                    "@intent_results 27-");
+            check("Intent.setExtrasClassLoader/" + variant, "android.content.Intent setExtrasClassLoader(java.lang.ClassLoader) " +
+                    "@intent_results 27-");
+            // The intents with them do not reach the receivers, with the signature of ReceiverDispatcher of each version
+            String args = "android.content.Intent,int,java.lang.String,android.os.Bundle,boolean,boolean,";
+            check("ActivityThread.handleReceiver/" + variant,
+                    "android.app.ActivityThread handleReceiver(android.app.ActivityThread$ReceiverData) @receiver_skip 27-");
+            check("ReceiverDispatcher.performReceive/" + variant,
+                    "android.app.LoadedApk$ReceiverDispatcher performReceive(" + args + "int) @receiver_skip 27-33");
+            check("ReceiverDispatcher.performReceive.sender/" + variant, "android.app.LoadedApk$ReceiverDispatcher " +
+                    "performReceive(" + args + "boolean,int,int,java.lang.String) @receiver_skip 34-");
+            for (String method : new String[]{"Intent.createFromParcel/", "Intent.setExtrasClassLoader/",
+                    "ActivityThread.handleReceiver/", "ReceiverDispatcher.performReceive/",
+                    "ReceiverDispatcher.performReceive.sender/"}) {
+                assertEquals(variant.equals("geofence") ? "Get.Location" : "Determine.Activity",
+                        hook(method + variant).getString("group"));
+                assertEquals("android", hook(method + variant).getString("excludePackages"));
+            }
+        }
     }
 
     // Geofences get the fake region in the parcel of their request, not in the builder, of which the app reads it back
@@ -1340,6 +1569,96 @@ public class HookDefinitionsTest {
         check("TelecomManager.getUserSelectedOutgoingPhoneAccount", t + "getUserSelectedOutgoingPhoneAccount() @generic_null_value 27-32");
         check("TelecomManager.getSimCallManager", t + "getSimCallManager() @generic_null_value 27-32");
         check("TelephonyManager.getPhoneAccountHandle", "android.telephony.TelephonyManager getPhoneAccountHandle() @generic_null_value 31-32");
+        // The same accounts by the proxy, which apps for Android 8.1 reach by reflection, and the account of a subscription,
+        // which the phone service of Android 10 and 11 gives without a permission
+        String p = "com.android.internal.telecom.ITelecomService$Stub$Proxy ";
+        check("ITelecomService.getCallCapablePhoneAccounts", p + "getCallCapablePhoneAccounts(boolean,java.lang.String) " +
+                "@generic_empty 27-29 optional");
+        assertEquals("java.util.List", hook("ITelecomService.getCallCapablePhoneAccounts").getString("returnType"));
+        check("ITelecomService.getDefaultOutgoingPhoneAccount", p + "getDefaultOutgoingPhoneAccount(java.lang.String," +
+                "java.lang.String) @generic_null_value 27-29 optional");
+        check("ITelecomService.getUserSelectedOutgoingPhoneAccount", p + "getUserSelectedOutgoingPhoneAccount() " +
+                "@generic_null_value 27-28 optional");
+        check("TelephonyManager.getPhoneAccountHandleForSubscriptionId", "android.telephony.TelephonyManager " +
+                "getPhoneAccountHandleForSubscriptionId(int) @generic_null_value 29-30 optional");
+        // The subscriptions, which are hidden where the SIM accounts are: null on Android 8.1, then an empty list, of
+        // all subscriptions Collections.emptyList on Android 12, a count of 0 and no single subscription
+        String sm = "android.telephony.SubscriptionManager ";
+        check("SubscriptionManager.getActiveSubscriptionInfoList.27", sm + "getActiveSubscriptionInfoList() @generic_null_value 27-27");
+        check("SubscriptionManager.getActiveSubscriptionInfoList", sm + "getActiveSubscriptionInfoList() @generic_empty 28-32");
+        check("SubscriptionManager.getCompleteActiveSubscriptionInfoList", sm + "getCompleteActiveSubscriptionInfoList() " +
+                "@generic_empty 30-32");
+        check("SubscriptionManager.getOpportunisticSubscriptions", sm + "getOpportunisticSubscriptions() @generic_empty 29-32");
+        check("SubscriptionManager.getAllSubscriptionInfoList", sm + "getAllSubscriptionInfoList() @generic_empty 27-30 optional");
+        check("SubscriptionManager.getAllSubscriptionInfoList.31", sm + "getAllSubscriptionInfoList() @generic_empty_list 31-32 optional");
+        check("SubscriptionManager.getAllSubscriptionInfoCount", sm + "getAllSubscriptionInfoCount() @generic_zero_value 27-32 optional");
+        check("SubscriptionManager.getActiveSubscriptionInfoCount", sm + "getActiveSubscriptionInfoCount() @generic_zero_value 27-32");
+        check("SubscriptionManager.getActiveSubscriptionInfo", sm + "getActiveSubscriptionInfo(int) @generic_null_value 27-32");
+        check("SubscriptionManager.getActiveSubscriptionInfoForSimSlotIndex", sm +
+                "getActiveSubscriptionInfoForSimSlotIndex(int) @generic_null_value 27-32");
+        check("SubscriptionManager.getSubscriptionsInGroup", sm + "getSubscriptionsInGroup(android.os.ParcelUuid) @generic_empty 29-32");
+        // The methods for which the service throws then
+        check("SubscriptionManager.isActiveSubscriptionId", sm + "isActiveSubscriptionId(int) @subscription_denied 29-32");
+        check("SubscriptionManager.isActiveSubId", sm + "isActiveSubId(int) @subscription_denied 29-32 optional");
+        check("SubscriptionManager.getAvailableSubscriptionInfoList", sm + "getAvailableSubscriptionInfoList() " +
+                "@subscription_denied 27-30 optional");
+        // The same by the proxy of the subscription service, which apps for Android 8.1 reach by reflection, with the
+        // answers of the service, null for all subscriptions
+        String isub = "com.android.internal.telephony.ISub$Stub$Proxy ";
+        String[][] proxies = {
+                {"getActiveSubscriptionInfoList.27", "(java.lang.String) @generic_null_value 27-27", "java.util.List"},
+                {"getActiveSubscriptionInfoList", "(java.lang.String) @generic_empty 28-29", "java.util.List"},
+                {"getAllSubInfoList", "(java.lang.String) @generic_null_value 27-29", "java.util.List"},
+                {"getAllSubInfoCount", "(java.lang.String) @generic_zero_value 27-29", "int"},
+                {"getActiveSubInfoCount", "(java.lang.String) @generic_zero_value 27-29", "int"},
+                {"getActiveSubscriptionInfo", "(int,java.lang.String) @generic_null_value 27-29", "android.telephony.SubscriptionInfo"},
+                {"getActiveSubscriptionInfoForSimSlotIndex", "(int,java.lang.String) @generic_null_value 27-29",
+                        "android.telephony.SubscriptionInfo"},
+                {"getActiveSubscriptionInfoForIccId", "(java.lang.String,java.lang.String) @generic_null_value 27-29",
+                        "android.telephony.SubscriptionInfo"},
+                {"getSubscriptionProperty", "(int,java.lang.String,java.lang.String) @generic_null_value 27-29", "java.lang.String"},
+                {"getAvailableSubscriptionInfoList", "(java.lang.String) @subscription_denied 27-29", "java.util.List"}};
+        List<String> names = new ArrayList<>();
+        for (String[] proxy : proxies) {
+            String name = "ISub." + proxy[0];
+            check(name, isub + proxy[0].replace(".27", "") + proxy[1] + " optional");
+            assertEquals(name, proxy[2], hook(name).getString("returnType"));
+            names.add(name);
+        }
+        names.addAll(Arrays.asList("TelecomManager.getCallCapablePhoneAccounts", "TelecomManager.getCallCapablePhoneAccounts/disabled",
+                "ITelecomService.getPhoneAccountsForPackage", "TelecomManager.getDefaultOutgoingPhoneAccount",
+                "TelecomManager.getUserSelectedOutgoingPhoneAccount", "TelecomManager.getSimCallManager",
+                "TelecomManager.getSimCallManager/user", "TelecomManager.getSimCallManagerForSubscription",
+                "TelephonyManager.getPhoneAccountHandle",
+                "ITelecomService.getCallCapablePhoneAccounts", "ITelecomService.getDefaultOutgoingPhoneAccount",
+                "ITelecomService.getUserSelectedOutgoingPhoneAccount", "TelephonyManager.getPhoneAccountHandleForSubscriptionId",
+                "SubscriptionManager.getActiveSubscriptionInfoList.27", "SubscriptionManager.getActiveSubscriptionInfoList",
+                "SubscriptionManager.getCompleteActiveSubscriptionInfoList", "SubscriptionManager.getOpportunisticSubscriptions",
+                "SubscriptionManager.getAllSubscriptionInfoList", "SubscriptionManager.getAllSubscriptionInfoList.31",
+                "SubscriptionManager.getAllSubscriptionInfoCount", "SubscriptionManager.getActiveSubscriptionInfoCount",
+                "SubscriptionManager.getActiveSubscriptionInfo", "SubscriptionManager.getActiveSubscriptionInfoForSimSlotIndex",
+                "SubscriptionManager.getSubscriptionsInGroup", "SubscriptionManager.isActiveSubscriptionId",
+                "SubscriptionManager.isActiveSubId", "SubscriptionManager.getAvailableSubscriptionInfoList"));
+        // The phone process, Settings and the system UI keep the SIMs, which they keep for the whole device; without
+        // them the lock screen would not ask for the PIN of a locked SIM
+        String kept = "android,com\\.android\\.phone,com\\.android\\.settings,com\\.android\\.systemui";
+        for (String name : names) {
+            assertEquals(name, "Read.Telephony", hook(name).getString("group"));
+            assertEquals(name, kept, hook(name).getString("excludePackages"));
+        }
+        // The service state and the network types of the same failed check, null and unknown up to Android 12, and the
+        // network type only from Android 10, since Android 8.1 and 9 give it without the check; the processes which keep
+        // the SIMs keep them too, so they show the network of the SIMs they list
+        String phone = "android.telephony.TelephonyManager ";
+        check("TelephonyManager.getServiceState", phone + "getServiceState() @generic_null_value 27-32");
+        check("TelephonyManager.getDataNetworkType", phone + "getDataNetworkType() @generic_zero_value 27-32");
+        check("TelephonyManager.getVoiceNetworkType", phone + "getVoiceNetworkType() @generic_zero_value 27-32");
+        check("TelephonyManager.getNetworkType", phone + "getNetworkType() @telephony_network_type 29-32");
+        for (String name : new String[]{"TelephonyManager.getServiceState", "TelephonyManager.getDataNetworkType",
+                "TelephonyManager.getVoiceNetworkType", "TelephonyManager.getNetworkType"}) {
+            assertEquals(name, "Read.Telephony", hook(name).getString("group"));
+            assertEquals(name, kept, hook(name).getString("excludePackages"));
+        }
         // The number of a SIM is the address of its phone account
         for (String method : new String[]{"getAddress", "getSubscriptionAddress"})
             check("PhoneAccount." + method, "android.telecom.PhoneAccount " + method + "() @phone_account_address 27-");
@@ -1439,6 +1758,9 @@ public class HookDefinitionsTest {
         // by the hidden methods
         check("TelephonyManager.getNai", "android.telephony.TelephonyManager getNai() @generic_null_value 27-");
         check("TelephonyManager.getNai/slot", "android.telephony.TelephonyManager getNai(int) @generic_null_value 27- optional");
+        // The ESN of a CDMA phone by the hidden methods, which privileged apps call by reflection
+        check("TelephonyManager.getEsn", "android.telephony.TelephonyManager getEsn() @value_device_esn 27- optional");
+        check("TelephonyManager.getEsn/subid", "android.telephony.TelephonyManager getEsn(int) @value_device_esn 27- optional");
         // The EID of the eSIM chip and the ICCIDs of the cards and their ports, which apps with carrier privileges get
         check("EuiccManager.getEid", "android.telephony.euicc.EuiccManager getEid() @generic_null_value 28-");
         check("UiccCardInfo.getEid", "android.telephony.UiccCardInfo getEid() @generic_null_value 29-");
@@ -1446,7 +1768,7 @@ public class HookDefinitionsTest {
         check("UiccPortInfo.getIccId", "android.telephony.UiccPortInfo getIccId() @uiccportinfo_iccid 33-");
         // The card id of a slot, its EID or ICCID, which privileged apps get
         check("UiccSlotInfo.getCardId", "android.telephony.UiccSlotInfo getCardId() @generic_null_value 28- optional");
-        // The software version of the IMEI, a common one instead of the null a phone with a modem does not give
+        // The software version of the IMEI, a common one with a fake IMEI, else none like a phone without an IMEI
         check("TelephonyManager.getDeviceSoftwareVersion", "android.telephony.TelephonyManager getDeviceSoftwareVersion() " +
                 "@value_device_svn 27-");
         check("TelephonyManager.getDeviceSoftwareVersion/slot", "android.telephony.TelephonyManager getDeviceSoftwareVersion(int) " +
@@ -1481,14 +1803,11 @@ public class HookDefinitionsTest {
                 "@generic_null_value 27- optional");
         check("TelephonyManager.getVoiceMailAlphaTag", "android.telephony.TelephonyManager getVoiceMailAlphaTag() " +
                 "@value_voicemail_tag 27-");
-        // The ids of AdServices, which Android 12 has by the shared library android.ext.adservices of ExtServices, with the
-        // constructors, which make the ids agree with the getters
-        String ad = "android.adservices.adid.AdId ";
-        check("AdId.getAdId", ad + "getAdId() @advertisingidclient$info_getid 31- optional");
-        check("AdId.isLimitAdTrackingEnabled", ad + "isLimitAdTrackingEnabled() @generic_true_value 31- optional");
-        check("AppSetId.getId", "android.adservices.appsetid.AppSetId getId() @advertisingidclient$info_getid 31- optional");
-        for (String name : new String[]{"AdId.constructor", "AppSetId.constructor"})
-            assertEquals(name, 31, hook(name).getInt("minSdk"));
+        // The ids of AdServices, which Android 12 has by the shared library android.ext.adservices of ExtServices, in the
+        // results of the service, so the ids an app makes itself keep their values
+        String result = "CREATOR:createFromParcel(android.os.Parcel) @adservices_id 31- optional";
+        check("GetAdIdResult.createFromParcel", "android.adservices.adid.GetAdIdResult " + result);
+        check("GetAppSetIdResult.createFromParcel", "android.adservices.appsetid.GetAppSetIdResult " + result);
         // The ICCID by the hidden getters of the card, and in the text of a subscription with the number and the group
         String sub = "android.telephony.SubscriptionInfo ";
         check("SubscriptionInfo.getCardId", sub + "getCardId() @generic_empty_text 28-28 optional");
@@ -1599,17 +1918,60 @@ public class HookDefinitionsTest {
         check("LauncherApps.getAllPackageInstallerSessions", a + "getAllPackageInstallerSessions() @install_sessions 29-");
         // The callbacks of LauncherApps get the same delegate, filtered above, so Android's checks of the call stay
         assertFalse(hooks.stream().anyMatch(h -> h.optString("name").equals("LauncherApps.registerPackageInstallerSessionCallback")));
-        check("LauncherApps.registerCallback", a + "registerCallback(android.content.pm.LauncherApps$Callback) @generic_block 27-");
-        check("LauncherApps.registerCallback/handler", a + "registerCallback(android.content.pm.LauncherApps$Callback," +
-                "android.os.Handler) @generic_block 27-");
+        // The callbacks of package changes register, and the handler of each one posts only the changes of the app
+        // itself, with the signatures of AOSP oreo-mr1 to main
+        assertFalse(hooks.stream().anyMatch(h -> h.optString("name").startsWith("LauncherApps.registerCallback")));
+        String handler = "android.content.pm.LauncherApps$CallbackMessageHandler ";
+        String posted = "LauncherApps.CallbackMessageHandler.";
+        String user = "android.os.UserHandle";
+        String packages = "java.lang.String[]," + user;
+        check(posted + "postOnPackageAdded", handler + "postOnPackageAdded(java.lang.String," + user + ") @launcher_callbacks 27-");
+        check(posted + "postOnPackageRemoved", handler + "postOnPackageRemoved(java.lang.String," + user + ") @launcher_callbacks 27-");
+        check(posted + "postOnPackageChanged", handler + "postOnPackageChanged(java.lang.String," + user + ") @launcher_callbacks 27-");
+        check(posted + "postOnPackagesAvailable", handler + "postOnPackagesAvailable(" + packages + ",boolean) @launcher_callbacks 27-");
+        check(posted + "postOnPackagesUnavailable", handler + "postOnPackagesUnavailable(" + packages + ",boolean) @launcher_callbacks 27-");
+        check(posted + "postOnPackagesSuspended.27", handler + "postOnPackagesSuspended(" + packages + ") @launcher_callbacks 27-27");
+        check(posted + "postOnPackagesSuspended", handler + "postOnPackagesSuspended(java.lang.String[],android.os.Bundle," +
+                user + ") @launcher_callbacks 28-");
+        check(posted + "postOnPackagesUnsuspended", handler + "postOnPackagesUnsuspended(" + packages + ") @launcher_callbacks 27-");
+        check(posted + "postOnShortcutChanged", handler + "postOnShortcutChanged(java.lang.String," + user +
+                ",java.util.List) @launcher_callbacks 27-");
+        check(posted + "postOnPackageLoadingProgressChanged", handler + "postOnPackageLoadingProgressChanged(" + user +
+                ",java.lang.String,float) @launcher_callbacks 31-");
+        check(posted + "postOnUserConfigChanged", handler + "postOnUserConfigChanged(android.content.pm.LauncherUserInfo) " +
+                "@launcher_callbacks 35- optional");
+        // Android 16 QPR2 and 17 log an added package before posting it, so its listener drops another package first
+        check("LauncherApps.AppsChangedListener.onPackageAdded", "android.content.pm.LauncherApps$1 onPackageAdded(" + user +
+                ",java.lang.String) @launcher_callbacks 36- optional");
         // Usage access tells about other apps by their package
         check("UsageStatsManager.isAppInactive", "android.app.usage.UsageStatsManager isAppInactive(java.lang.String) @package_probe 27-");
         check("StorageStatsManager.queryStatsForPackage", "android.app.usage.StorageStatsManager queryStatsForPackage(" +
                 "java.util.UUID,java.lang.String,android.os.UserHandle) @package_probe 27-");
+        // The storage of other uids, packages and the user needs usage access, which reads as not granted
+        String ss = "android.app.usage.StorageStatsManager ";
+        check("StorageStatsManager.queryStatsForUid", ss + "queryStatsForUid(java.util.UUID,int) @storage_stats_uid 27-");
+        check("StorageStatsManager.queryStatsForPackage/usage", ss + "queryStatsForPackage(" +
+                "java.util.UUID,java.lang.String,android.os.UserHandle) @storage_stats_uid 27-");
+        check("StorageStatsManager.queryStatsForUser", ss + "queryStatsForUser(java.util.UUID,android.os.UserHandle) " +
+                "@storage_stats_uid 27-");
+        check("StorageStatsManager.queryExternalStatsForUser", ss + "queryExternalStatsForUser(java.util.UUID," +
+                "android.os.UserHandle) @storage_stats_uid 27-");
         // So does the data usage by uid, by both ways to iterate it, which must agree
         check("NetworkStats.getNextBucket", "android.app.usage.NetworkStats getNextBucket(android.app.usage.NetworkStats$Bucket) " +
                 "@network_stats_filter 27-");
         check("NetworkStats.hasNextBucket", "android.app.usage.NetworkStats hasNextBucket() @network_stats_filter 27-");
+        // The device summary, the total of the user and the history of other uids answer like without usage access
+        String nsm = "android.app.usage.NetworkStatsManager ";
+        String query = "int,java.lang.String,long,long";
+        check("NetworkStatsManager.querySummaryForDevice", nsm + "querySummaryForDevice(" + query + ") @network_stats_filter 27-");
+        check("NetworkStatsManager.querySummaryForUser", nsm + "querySummaryForUser(" + query + ") @network_stats_filter 27-");
+        check("NetworkStats.getSummaryAggregate", "android.app.usage.NetworkStats getSummaryAggregate() " +
+                "@network_stats_filter 27- optional");
+        check("NetworkStatsManager.queryDetailsForUid", nsm + "queryDetailsForUid(" + query + ",int) @network_stats_filter 27-");
+        check("NetworkStatsManager.queryDetailsForUidTag", nsm + "queryDetailsForUidTag(" + query + ",int,int) " +
+                "@network_stats_filter 27-");
+        check("NetworkStatsManager.queryDetailsForUidTagState", nsm + "queryDetailsForUidTagState(" + query + ",int,int,int) " +
+                "@network_stats_filter 28-");
         // The exact free space, Bluetooth input devices, battery saver, NSD by a request, sleep of Play services
         check("StorageManager.getAllocatableBytes", "android.os.storage.StorageManager getAllocatableBytes(java.util.UUID) @resources 27-");
         check("BluetoothHidDevice.getConnectedDevices", "android.bluetooth.BluetoothHidDevice getConnectedDevices() @generic_empty 28-");
@@ -1685,6 +2047,30 @@ public class HookDefinitionsTest {
                     c.toLowerCase() + "_extractresult 27- optional");
             assertEquals("Determine.Activity", hook(c + ".createFromParcel").getString("group"));
         }
+        // The clients of activity recognition, whose requests succeed without registering: those of getClient, and of the
+        // constructors of the client class of play-services-location 20 and older
+        String client = "com.google.android.gms.location.ActivityRecognitionClient";
+        for (String[] variant : new String[][]{{"", "android.content.Context"}, {"/activity", "android.app.Activity"}}) {
+            check("ActivityRecognition.getClient" + variant[0], "com.google.android.gms.location.ActivityRecognition " +
+                    "getClient(" + variant[1] + ") @activityrecognition_getclient 27- optional");
+            assertEquals(client, hook("ActivityRecognition.getClient" + variant[0]).getString("returnType"));
+            JSONObject constructor = hook("ActivityRecognitionClient.constructor" + variant[0]);
+            assertEquals(client, constructor.getString("className"));
+            assertFalse(constructor.has("methodName"));
+            assertEquals(variant[1], constructor.getJSONArray("parameterTypes").getString(0));
+            assertEquals(1, constructor.getJSONArray("parameterTypes").length());
+            assertEquals("@activityrecognition_getclient", constructor.getString("luaScript"));
+            assertTrue(constructor.getBoolean("optional"));
+            for (String name : new String[]{"ActivityRecognition.getClient", "ActivityRecognitionClient.constructor"})
+                assertEquals("Determine.Activity", hook(name + variant[0]).getString("group"));
+        }
+        // The request of the older ActivityRecognitionApi, of the class of the object in its static field
+        check("ActivityRecognitionApi.requestActivityUpdates", "com.google.android.gms.location.ActivityRecognition " +
+                "ActivityRecognitionApi:requestActivityUpdates(com.google.android.gms.common.api.GoogleApiClient,long," +
+                "android.app.PendingIntent) @activityrecognition_getclient 27- optional");
+        assertEquals("com.google.android.gms.common.api.PendingResult",
+                hook("ActivityRecognitionApi.requestActivityUpdates").getString("returnType"));
+        assertEquals("Determine.Activity", hook("ActivityRecognitionApi.requestActivityUpdates").getString("group"));
         // The activity and its conversions of HMS, like those of Play services, also by their creators
         for (String c : new String[]{"ActivityIdentificationResponse", "ActivityConversionResponse"}) {
             check(c + ".getDataFromIntent", "com.huawei.hms.location." + c + " getDataFromIntent(android.content.Intent) " +
@@ -1748,6 +2134,27 @@ public class HookDefinitionsTest {
             assertEquals(name, "Read.Resources", hook(name).getString("group"));
     }
 
+    // The size of the block device of the internal storage, which the binder proxy gives from Android 14 QPR3 and the
+    // system server reads itself for its own total
+    @Test
+    public void blockDeviceSizeOfTheInternalStorage() throws Exception {
+        String name = "IStorageManager.getInternalStorageBlockDeviceSize";
+        check(name, "android.os.storage.IStorageManager$Stub$Proxy getInternalStorageBlockDeviceSize() @resources 34- optional");
+        assertEquals("Read.Resources", hook(name).getString("group"));
+        assertEquals("android", hook(name).getString("excludePackages"));
+    }
+
+    // A SecureDirectoryStream opens /proc/cpuinfo and the uevent and modalias of the processors by openat too, of which
+    // the script checks the file itself (see openedat of cpuinfo)
+    @Test
+    public void cpuinfoByDescriptor() throws Exception {
+        check("UnixNativeDispatcher.openat/cpuinfo", "sun.nio.fs.UnixNativeDispatcher openat(int,byte[],int,int) @cpuinfo 27-");
+        assertEquals("Use.Tracking", hook("UnixNativeDispatcher.openat/cpuinfo").getString("group"));
+        // And the processors of /sys/devices/system/cpu and the status files of /proc, so their count agrees
+        check("UnixNativeDispatcher.openat/cpu_count", "sun.nio.fs.UnixNativeDispatcher openat(int,byte[],int,int) @cpu_count 27-");
+        assertEquals("Use.Tracking", hook("UnixNativeDispatcher.openat/cpu_count").getString("group"));
+    }
+
     // Apps targeting Android 9 or older still get the neighboring cells on Android 10 and newer; the method is not
     // in the android.jar of recent versions, so it is optional
     @Test
@@ -1807,6 +2214,72 @@ public class HookDefinitionsTest {
                 "android.speech.RecognitionListener) @speech_recognizer 34- optional");
         check("SpeechRecognizerImpl.cancel", "android.speech.SpeechRecognizerImpl cancel() @speech_recognizer 34- optional");
         check("SpeechRecognizerImpl.destroy", "android.speech.SpeechRecognizerImpl destroy() @speech_recognizer 34- optional");
+    }
+
+    // The screens of speech recognizers are started and looked up by the same methods as those of hidden apps (see
+    // component_hidden and package_resolve), here for Record.Audio
+    @Test
+    public void speechRecognizerScreens() throws Exception {
+        String start = "android.content.Context,android.os.IBinder,android.os.IBinder,";
+        String i = "android.content.Intent";
+        String pm = "android.content.pm.PackageManager";
+        String pi = "android.app.PendingIntent";
+        String[][] hooks = {
+                {"Instrumentation.execStartActivity/speech", "android.app.Instrumentation execStartActivity(" + start +
+                        "android.app.Activity," + i + ",int,android.os.Bundle) @recognizer_intent 27-"},
+                {"Instrumentation.execStartActivity.fragment/speech", "android.app.Instrumentation execStartActivity(" + start +
+                        "java.lang.String," + i + ",int,android.os.Bundle) @recognizer_intent 27-"},
+                {"Instrumentation.execStartActivity.user/speech", "android.app.Instrumentation execStartActivity(" + start +
+                        "java.lang.String," + i + ",int,android.os.Bundle,android.os.UserHandle) @recognizer_intent 27-"},
+                {"Instrumentation.execStartActivitiesAsUser/speech", "android.app.Instrumentation execStartActivitiesAsUser(" +
+                        start + "android.app.Activity," + i + "[],android.os.Bundle,int) @recognizer_intent 27-"},
+                {"Activity.startActivityIfNeeded/speech", "android.app.Activity startActivityIfNeeded(" + i +
+                        ",int,android.os.Bundle) @recognizer_intent 27-"},
+                {"ActivityManager.AppTask.startActivity/speech", "android.app.ActivityManager$AppTask startActivity(" +
+                        "android.content.Context," + i + ",android.os.Bundle) @recognizer_intent 27-"},
+                {"PackageManager.resolveActivity/speech", pm + " resolveActivity(" + i + ",int) @recognizer_intent 27-"},
+                {"PackageManager.resolveActivity/flags/speech", pm + " resolveActivity(" + i + "," + pm +
+                        "$ResolveInfoFlags) @recognizer_intent 33-"},
+                {"PackageManager.queryIntentActivities/speech", pm + " queryIntentActivities(" + i + ",int) @recognizer_intent 27-"},
+                {"PackageManager.queryIntentActivities/flags/speech", pm + " queryIntentActivities(" + i + "," + pm +
+                        "$ResolveInfoFlags) @recognizer_intent 33-"},
+                {"PackageManager.queryIntentActivityOptions/speech", pm + " queryIntentActivityOptions(" +
+                        "android.content.ComponentName," + i + "[]," + i + ",int) @recognizer_intent 27-"},
+                {"PackageManager.queryIntentActivityOptions.33/speech", pm + " queryIntentActivityOptions(" +
+                        "android.content.ComponentName,java.util.List," + i + "," + pm + "$ResolveInfoFlags) @recognizer_intent 33-"},
+                {"PendingIntent.getActivity/speech", pi + " getActivity(android.content.Context,int," + i +
+                        ",int) @recognizer_intent 27-"},
+                {"PendingIntent.getActivity/options/speech", pi + " getActivity(android.content.Context,int," + i +
+                        ",int,android.os.Bundle) @recognizer_intent 27-"},
+                {"PendingIntent.getActivities/speech", pi + " getActivities(android.content.Context,int," + i +
+                        "[],int) @recognizer_intent 27-"},
+                {"PendingIntent.getActivities/options/speech", pi + " getActivities(android.content.Context,int," + i +
+                        "[],int,android.os.Bundle) @recognizer_intent 27-"},
+                // The fill-ins, where Android makes the call on each version
+                {"Activity.startIntentSenderForResultInner/speech", "android.app.Activity startIntentSenderForResultInner(" +
+                        "android.content.IntentSender,java.lang.String,int," + i + ",int,int,android.os.Bundle)" +
+                        " @recognizer_intent 27- optional"},
+                {"Context.startIntentSender/speech", "android.app.ContextImpl startIntentSender(android.content.IntentSender," + i +
+                        ",int,int,int,android.os.Bundle) @recognizer_intent 27-"},
+                {"PendingIntent.send/speech", pi + " send(android.content.Context,int," + i + "," + pi +
+                        "$OnFinished,android.os.Handler,java.lang.String,android.os.Bundle) @recognizer_intent 27-"},
+                {"PendingIntent.sendAndReturnResult/speech", pi + " sendAndReturnResult(android.content.Context,int," + i + "," + pi +
+                        "$OnFinished,android.os.Handler,java.lang.String,android.os.Bundle) @recognizer_intent 28- optional"},
+                {"IntentSender.sendIntent/speech", "android.content.IntentSender sendIntent(android.content.Context,int," + i +
+                        ",android.content.IntentSender$OnFinished,android.os.Handler) @recognizer_intent 27-"},
+                {"IntentSender.sendIntent/permission/speech", "android.content.IntentSender sendIntent(android.content.Context,int," + i +
+                        ",android.content.IntentSender$OnFinished,android.os.Handler,java.lang.String) @recognizer_intent 27-"},
+                {"IntentSender.sendIntent/options/speech", "android.content.IntentSender sendIntent(android.content.Context,int," + i +
+                        ",android.content.IntentSender$OnFinished,android.os.Handler,java.lang.String,android.os.Bundle)" +
+                        " @recognizer_intent 34- optional"},
+                {"IntentSender.sendIntent/executor/speech", "android.content.IntentSender sendIntent(android.content.Context,int," + i +
+                        ",java.lang.String,android.os.Bundle,java.util.concurrent.Executor,android.content.IntentSender$OnFinished)" +
+                        " @recognizer_intent 36-"},
+        };
+        for (String[] hook : hooks) {
+            check(hook[0], hook[1]);
+            assertEquals(hook[0], "Record.Audio", hook(hook[0]).getString("group"));
+        }
     }
 
     // The clipboard of the app is read by the clipboard manager; data of a parcel is also of drag and drop and of
@@ -1937,6 +2410,9 @@ public class HookDefinitionsTest {
         check("AppOpsManager.checkOp/code", "android.app.AppOpsManager checkOp(int,int," + s + ") @package_probe 27- optional");
         check("AppOpsManager.checkOpNoThrow/code", "android.app.AppOpsManager checkOpNoThrow(int,int," + s +
                 ") @package_probe 27- optional");
+        for (String method : new String[]{"noteOp", "noteOpNoThrow", "startOp", "startOpNoThrow"})
+            check("AppOpsManager." + method + "/code", "android.app.AppOpsManager " + method + "(int,int," + s +
+                    ") @package_probe 27- optional");
         check("Context.bindServiceAsUser.handler/hidden", "android.app.ContextImpl bindServiceAsUser(" + i +
                 ",android.content.ServiceConnection,int,android.os.Handler," + u + ") @component_hidden 27- optional");
         check("Context.bindServiceAsUser.flags.handler/hidden", "android.app.ContextImpl bindServiceAsUser(" + i +
@@ -1954,8 +2430,24 @@ public class HookDefinitionsTest {
                 "getCurrentInputMethodInfoAsUser(" + u + ") @service_filter 34- optional");
         check("SpellCheckerSession.getSpellChecker", "android.view.textservice.SpellCheckerSession getSpellChecker() " +
                 "@service_filter 27-");
+        // Accessibility on, with the lists of the services empty
+        for (String state : new String[]{"isEnabled", "isTouchExplorationEnabled"})
+            check("AccessibilityManager." + state, "android.view.accessibility.AccessibilityManager " + state + "() " +
+                    "@service_filter 27-");
         check("InstallSourceInfo.getInitiatingPackageSigningInfo", "android.content.pm.InstallSourceInfo " +
                 "getInitiatingPackageSigningInfo() @package_result 30-");
+        check("AutofillManager.isEnabled", "android.view.autofill.AutofillManager isEnabled() @package_result 27-");
+        check("AutofillManager.ensureServiceClientAddedIfNeededLocked", "android.view.autofill.AutofillManager " +
+                "ensureServiceClientAddedIfNeededLocked() @package_result 27-30 optional");
+        check("AutofillManager.tryAddServiceClientIfNeededLocked", "android.view.autofill.AutofillManager " +
+                "tryAddServiceClientIfNeededLocked() @package_result 31-34 optional");
+        check("AutofillManager.tryAddServiceClientIfNeededLocked.credman", "android.view.autofill.AutofillManager " +
+                "tryAddServiceClientIfNeededLocked(boolean) @package_result 35- optional");
+        check("AutofillManager.setState", "android.view.autofill.AutofillManager setState(int) @package_result 28- optional");
+        check("AutofillManager.setState.enabled", "android.view.autofill.AutofillManager " +
+                "setState(boolean,boolean,boolean) @package_result 27-27 optional");
+        check("AutofillManager.enableCompatibilityMode", "android.view.autofill.AutofillManager " +
+                "enableCompatibilityMode() @package_result 28- optional");
         for (String[] acquire : new String[][]{{"acquireProvider/hidden", "android.net.Uri"},
                 {"acquireProvider.authority/hidden", s}, {"acquireUnstableProvider/hidden", "android.net.Uri"},
                 {"acquireUnstableProvider.authority/hidden", s}})
@@ -2104,7 +2596,31 @@ public class HookDefinitionsTest {
         check("AppOpsManager.checkOpNoThrow", "android.app.AppOpsManager checkOpNoThrow(" + s + ",int," + s + ") @package_probe 27-");
         check("AppOpsManager.unsafeCheckOpNoThrow", "android.app.AppOpsManager unsafeCheckOpNoThrow(" + s + ",int," + s +
                 ") @package_probe 29-");
+        // Notes and starts record usage access, which reads as not granted for the app itself; each overload calls Android
+        String o = "android.app.AppOpsManager ";
+        String[][] notes = {
+                {"noteOp", "noteOp(" + s + ",int," + s + ") @package_probe 27-"},
+                {"noteOp/attribution", "noteOp(" + s + ",int," + s + "," + s + "," + s + ") @package_probe 30-"},
+                {"noteOpNoThrow", "noteOpNoThrow(" + s + ",int," + s + ") @package_probe 27-"},
+                {"noteOpNoThrow/attribution", "noteOpNoThrow(" + s + ",int," + s + "," + s + "," + s + ") @package_probe 30-"},
+                {"startOp", "startOp(" + s + ",int," + s + ") @package_probe 27-"},
+                {"startOp/attribution", "startOp(" + s + ",int," + s + "," + s + "," + s + ") @package_probe 30-"},
+                {"startOpNoThrow", "startOpNoThrow(" + s + ",int," + s + ") @package_probe 27-"},
+                {"startOpNoThrow/attribution", "startOpNoThrow(" + s + ",int," + s + "," + s + "," + s + ") @package_probe 30-"},
+                {"noteProxyOp", "noteProxyOp(" + s + "," + s + ") @package_probe 27-"},
+                {"noteProxyOp/attribution", "noteProxyOp(" + s + "," + s + ",int," + s + "," + s + ") @package_probe 30-"},
+                {"noteProxyOpNoThrow", "noteProxyOpNoThrow(" + s + "," + s + ") @package_probe 27-"},
+                {"noteProxyOpNoThrow/uid", "noteProxyOpNoThrow(" + s + "," + s + ",int) @package_probe 29-"},
+                {"noteProxyOpNoThrow/attribution", "noteProxyOpNoThrow(" + s + "," + s + ",int," + s + "," + s + ") @package_probe 30-"},
+                {"startProxyOp", "startProxyOp(" + s + ",int," + s + "," + s + "," + s + ") @package_probe 31-"},
+                {"startProxyOpNoThrow", "startProxyOpNoThrow(" + s + ",int," + s + "," + s + "," + s + ") @package_probe 31-"}};
+        for (String[] note : notes)
+            check("AppOpsManager." + note[0], o + note[1]);
         check("BlockGuardOs.open/kernel", "libcore.io.BlockGuardOs open(" + s + ",int,int) @kernel_version 27-");
+        // The kernel by Os and by Linux beneath Libcore.os
+        check("Os.uname", "android.system.Os uname() @uname 27-");
+        check("Linux.uname", "libcore.io.Linux uname() @uname 27-");
+        assertEquals("Use.Tracking", hook("Linux.uname").getString("group"));
         check("CameraManager2.getCameraCharacteristics", "android.hardware.camera2.CameraManager getCameraCharacteristics(" + s +
                 ") @camera2_open 27-");
         // The version of the camera hardware in the characteristics, which apps of Use.Tracking read without the camera
@@ -2130,6 +2646,14 @@ public class HookDefinitionsTest {
         check("Display.getDeviceProductInfo", "android.view.Display getDeviceProductInfo() @display_panel 31-");
         check("Display.toString", "android.view.Display toString() @display_panel 27-");
         check("Display.getAddress", "android.view.Display getAddress() @display_panel 29-29 optional");
+        check("Display.getRoundedCorner", "android.view.Display getRoundedCorner(int) @display_panel 31-");
+        check("InsetsState.calculateRelativeRoundedCorners",
+                "android.view.InsetsState calculateRelativeRoundedCorners(android.graphics.Rect) @display_panel 31- optional");
+        check("Display.getShape", "android.view.Display getShape() @display_panel 34-");
+        check("InsetsState.calculateRelativeDisplayShape",
+                "android.view.InsetsState calculateRelativeDisplayShape(android.graphics.Rect) @display_panel 34- optional");
+        for (String name : new String[]{"InsetsState.calculateRelativeRoundedCorners", "InsetsState.calculateRelativeDisplayShape"})
+            assertEquals(name, "[\"android.view.InsetsState.calculateInsets\"]", hook(name).getJSONArray("deoptimize").toString());
         // The fingerprint made like its property, the base OS empty like not set
         check("Build.FINGERPRINT", "android.os.Build #FINGERPRINT() @systemproperties_get 27-");
         check("Build.VERSION.BASE_OS", "android.os.Build$VERSION #BASE_OS() @generic_empty_text 27-");
@@ -2142,6 +2666,13 @@ public class HookDefinitionsTest {
         check("CarrierConfigManager.getConfigForSubId", "android.telephony.CarrierConfigManager getConfigForSubId(int) @mms_useragent 27-");
         check("UsageStatsManager.queryUsageStats", "android.app.usage.UsageStatsManager queryUsageStats(int,long,long) " +
                 "@usageevents_query 27-");
+        check("UsageStatsManager.queryEventStats", "android.app.usage.UsageStatsManager queryEventStats(int,long,long) " +
+                "@usageevents_query 28-");
+        check("UsageStatsManager.queryConfigurations", "android.app.usage.UsageStatsManager queryConfigurations(int,long,long) " +
+                "@usageevents_query 27-");
+        // The task roots in the app's own events come with usage access, from Android 10
+        check("UsageStatsManager.queryEventsForSelf", "android.app.usage.UsageStatsManager queryEventsForSelf(long,long) " +
+                "@usageevents_query 29-");
         // R8 can make Clarity.initialize return void
         check("Clarity.initialize/context", "com.microsoft.clarity.Clarity initialize(android.content.Context," +
                 "com.microsoft.clarity.ClarityConfig) @generic_block_untyped 27- optional");
@@ -2171,14 +2702,47 @@ public class HookDefinitionsTest {
         // NetworkRequest.Builder(NetworkCapabilities), are system APIs, which apps cannot use
         check("NetworkRequest.Builder.addTransportType", "android.net.NetworkRequest$Builder addTransportType(int) @vpn_request 27-");
         check("NetworkRequest.Builder.removeTransportType", "android.net.NetworkRequest$Builder removeTransportType(int) @vpn_request 27-");
+        // An app which is a VPN starts no tunnel, like one without the consent of the user (see vpn_service);
+        // startProvisionedVpnProfile is refused itself also from Android 13, where it calls the session one, in case the
+        // boot image inlined that call, and the state of a platform VPN is the null of a package which runs none
+        check("VpnService.prepare", "android.net.VpnService prepare(android.content.Context) @vpn_service 27-");
+        check("VpnService.Builder.establish", "android.net.VpnService$Builder establish() @vpn_service 27-");
+        check("VpnService.isAlwaysOn", "android.net.VpnService isAlwaysOn() @vpn_service 29-");
+        check("VpnService.isLockdownEnabled", "android.net.VpnService isLockdownEnabled() @vpn_service 29-");
+        check("VpnManager.provisionVpnProfile",
+                "android.net.VpnManager provisionVpnProfile(android.net.PlatformVpnProfile) @vpn_service 30-");
+        check("VpnManager.startProvisionedVpnProfile", "android.net.VpnManager startProvisionedVpnProfile() @vpn_service 30-");
+        check("VpnManager.startProvisionedVpnProfileSession",
+                "android.net.VpnManager startProvisionedVpnProfileSession() @vpn_service 33-");
+        check("VpnManager.getProvisionedVpnProfileState",
+                "android.net.VpnManager getProvisionedVpnProfileState() @vpn_service 33-");
         // NetworkRequest compares the fields of the capabilities of a VPN, which lack NOT_VPN
         check("NetworkRequest.canBeSatisfiedBy", "android.net.NetworkRequest canBeSatisfiedBy(android.net.NetworkCapabilities) @vpn 30-");
+        // The parcels of the capabilities, network info and link properties of a VPN, which are made of their fields, not
+        // in system server, which parcels them for every app
+        for (String cls : new String[]{"NetworkCapabilities", "NetworkInfo", "LinkProperties"}) {
+            check(cls + ".writeToParcel/vpn", "android.net." + cls + " writeToParcel(android.os.Parcel,int) @vpn_parcel 27-");
+            assertEquals(cls, "Read.VPN", hook(cls + ".writeToParcel/vpn").getString("group"));
+            assertEquals(cls, "android", hook(cls + ".writeToParcel/vpn").getString("excludePackages"));
+        }
+        // The capabilities and link properties of a VPN compare and hash like their parcel, not in system server either
+        for (String cls : new String[]{"NetworkCapabilities", "LinkProperties"}) {
+            check(cls + ".equals/vpn", "android.net." + cls + " equals(java.lang.Object) @vpn_parcel 27-");
+            check(cls + ".hashCode/vpn", "android.net." + cls + " hashCode() @vpn_parcel 27-");
+            for (String method : new String[]{"equals", "hashCode"}) {
+                assertEquals(cls, "Read.VPN", hook(cls + "." + method + "/vpn").getString("group"));
+                assertEquals(cls, "android", hook(cls + "." + method + "/vpn").getString("excludePackages"));
+            }
+        }
         // The signal strength of the Wi-Fi network under a VPN, hidden before Android 10, and the subtype, extra info
         // and roaming of the network under it
         check("NetworkCapabilities.getSignalStrength", "android.net.NetworkCapabilities getSignalStrength() @vpn 27-");
         check("NetworkInfo.getSubtype", "android.net.NetworkInfo getSubtype() @vpn 27-");
         check("NetworkInfo.getSubtypeName", "android.net.NetworkInfo getSubtypeName() @vpn 27-");
         check("NetworkInfo.getExtraInfo/vpn", "android.net.NetworkInfo getExtraInfo() @vpn 27-");
+        // Empty like the extra info of a Wi-Fi network from Android 11, not null, which a connected network does not have
+        check("NetworkInfo.getExtraInfo", "android.net.NetworkInfo getExtraInfo() @generic_empty_text 30-");
+        check("NetworkInfo.getExtraInfo/29", "android.net.NetworkInfo getExtraInfo() @generic_null_value 27-29");
         check("NetworkInfo.isRoaming", "android.net.NetworkInfo isRoaming() @vpn 27-");
         // The local address of sockets through a VPN, by the methods of Read.Network
         for (String name : new String[]{"Socket.getLocalAddress", "Socket.getLocalSocketAddress", "DatagramSocket.getLocalAddress",
@@ -2217,7 +2781,38 @@ public class HookDefinitionsTest {
                 ") @hardware_files 27-");
         for (String name : new String[]{"Os.listxattr", "Os.chmod", "Os.link", "UnixNativeDispatcher.chmod"})
             assertEquals(name, "Get.Applications", hook(name + "/privapp_files").getString("group"));
+        // Opening by FileInputStream and FileOutputStream of Android 8.1 and 9, which open natively, like the root
+        // files, and the link count of a descriptor of a folder of system apps
+        for (String name : new String[]{"FileInputStream.open0", "FileOutputStream.open0"}) {
+            JSONObject root = hook(name + "/root"), apps = hook(name + "/privapp_files");
+            assertNotNull(name + "/privapp_files", apps);
+            for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk", "maxSdk",
+                    "optional", "luaScript"})
+                assertEquals(name + " " + key, String.valueOf(root.opt(key)), String.valueOf(apps.opt(key)));
+            assertEquals(name, "Get.Applications", apps.getString("group"));
+        }
+        check("Os.fstat/privapp_files", "android.system.Os fstat(java.io.FileDescriptor) @hardware_files 27-");
+        assertEquals("Get.Applications", hook("Os.fstat/privapp_files").getString("group"));
+        // Making a folder, a pipe, a node or a symbolic link by its name, which gave EEXIST where stat gave ENOENT, like
+        // the calls of the root files
+        for (String name : PRIVAPP_MAKING) {
+            JSONObject root = hook(name + "/root"), apps = hook(name + "/privapp_files");
+            assertNotNull(name + "/privapp_files", apps);
+            for (String key : new String[]{"className", "methodName", "parameterTypes", "returnType", "minSdk", "maxSdk",
+                    "optional", "luaScript"})
+                assertEquals(name + " " + key, String.valueOf(root.opt(key)), String.valueOf(apps.opt(key)));
+            assertEquals(name, "Get.Applications", apps.getString("group"));
+        }
     }
+
+    // The calls of making by a name of Get.Applications, which the groups of the sensor files do not all have
+    private static final List<String> PRIVAPP_MAKING = Arrays.asList("Os.mkdir", "Os.mkfifo", "Os.symlink",
+            "UnixNativeDispatcher.mkdir", "UnixNativeDispatcher.symlink", "UnixNativeDispatcher.mknod");
+
+    // The calls of Get.Applications which the groups of the sensor files do not have: opening by FileInputStream and
+    // FileOutputStream of Android 8.1 and 9 and the link count of a descriptor of a folder of system apps
+    private static final List<String> PRIVAPP_ONLY = Arrays.asList("FileInputStream.open0", "FileOutputStream.open0",
+            "Os.fstat");
 
     // The same calls for the ids of /sys, and removing a hidden id and making a folder or a pipe by its name, which tell
     // it exists (EACCES, EEXIST) where a missing name gives ENOENT and EACCES
@@ -2314,6 +2909,58 @@ public class HookDefinitionsTest {
         }
     }
 
+    // The fields of Build of a user build, which Android sets once from the properties, in the group of the properties;
+    // the flags of the type are hidden (Build.java oreo-mr1-release to main), so not in the SDK
+    @Test
+    public void userBuildFields() throws Exception {
+        String group = hook("SystemProperties.get/debugging").getString("group");
+        for (String field : new String[]{"TYPE", "TAGS", "FINGERPRINT", "DISPLAY", "IS_DEBUGGABLE", "IS_ENG", "IS_USERDEBUG",
+                "IS_USER"}) {
+            boolean flag = field.startsWith("IS_");
+            String name = "Build." + field + "/debugging";
+            check(name, "android.os.Build #" + field + "() @systemproperties_get 27-" + (flag ? " optional" : ""));
+            assertEquals(name, flag ? "boolean" : "java.lang.String", hook(name).getString("returnType"));
+            assertEquals(name, group, hook(name).getString("group"));
+        }
+    }
+
+    // Key attestation, which signs the real security patch, refused below the key pair generator, by keystore of
+    // Android 8.1 to 11 and the binder of keystore2 from Android 12 (frameworks/base oreo-mr1-release to
+    // android16-release, system/hardware/interfaces keystore2 AIDL), not in system server; and the flags of the type of
+    // the build, which Use.Tracking gives as 'unknown', in the group of the security patch
+    @Test
+    public void keyAttestationAndBuildFlagsOfTracking() throws Exception {
+        String group = hook("Build.VERSION.SECURITY_PATCH").getString("group");
+        check("KeyStore.attestKey", "android.security.KeyStore attestKey(java.lang.String,android.security.keymaster." +
+                "KeymasterArguments,android.security.keymaster.KeymasterCertificateChain) @key_attestation 27-30");
+        check("IKeystoreSecurityLevel.generateKey", "android.system.keystore2.IKeystoreSecurityLevel$Stub$Proxy generateKey(" +
+                "android.system.keystore2.KeyDescriptor,android.system.keystore2.KeyDescriptor," +
+                "android.hardware.security.keymint.KeyParameter[],int,byte[]) @key_attestation 31-");
+        // The characteristics of the keys, with the patch levels, read from the parcel of keystore of Android 8.1 to 11
+        // (frameworks/base oreo-mr1-release to android11-release KeyCharacteristics, IKeystoreService and its callback)
+        check("KeyCharacteristics.readFromParcel", "android.security.keymaster.KeyCharacteristics readFromParcel(" +
+                "android.os.Parcel) @key_attestation 27-30");
+        assertEquals("void", hook("KeyCharacteristics.readFromParcel").getString("returnType"));
+        assertEquals("[\"android.security.keymaster.KeyCharacteristics.<init>\"," +
+                "\"android.security.keymaster.KeyCharacteristics$1.createFromParcel\"," +
+                "\"android.security.IKeystoreService$Stub$Proxy.generateKey\"," +
+                "\"android.security.IKeystoreService$Stub$Proxy.getKeyCharacteristics\"," +
+                "\"android.security.IKeystoreService$Stub$Proxy.importKey\"," +
+                "\"android.security.IKeystoreService$Stub$Proxy.importWrappedKey\"]",
+                hook("KeyCharacteristics.readFromParcel").getJSONArray("deoptimize").toString());
+        for (String name : new String[]{"KeyStore.attestKey", "IKeystoreSecurityLevel.generateKey", "KeyCharacteristics.readFromParcel"}) {
+            assertEquals(name, group, hook(name).getString("group"));
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
+        }
+        assertEquals("int", hook("KeyStore.attestKey").getString("returnType"));
+        assertEquals("android.system.keystore2.KeyMetadata", hook("IKeystoreSecurityLevel.generateKey").getString("returnType"));
+        for (String field : new String[]{"IS_ENG", "IS_USERDEBUG", "IS_USER"}) {
+            check("Build." + field, "android.os.Build #" + field + "() @systemproperties_get 27- optional");
+            assertEquals(field, "boolean", hook("Build." + field).getString("returnType"));
+            assertEquals(field, group, hook("Build." + field).getString("group"));
+        }
+    }
+
     // The names of the file stores of java.nio, which getFileStores makes of the mount entries it reads natively, on
     // every version (AOSP oreo-mr1-release to android17-release declare both in UnixFileStore)
     @Test
@@ -2373,7 +3020,9 @@ public class HookDefinitionsTest {
                 {"/microphone_files", "Record.Audio"}};
         int files = 0;
         for (JSONObject hook : hooks)
-            if (hook.getString("name").endsWith("/privapp_files")) {
+            if (hook.getString("name").endsWith("/privapp_files") &&
+                    !PRIVAPP_MAKING.contains(hook.getString("name").replace("/privapp_files", "")) &&
+                    !PRIVAPP_ONLY.contains(hook.getString("name").replace("/privapp_files", ""))) {
                 files++;
                 for (String[] variant : variants) {
                     String name = hook.getString("name").replace("/privapp_files", variant[0]);
@@ -2425,16 +3074,73 @@ public class HookDefinitionsTest {
                 assertEquals(hook.getString("group"), hook("Os.execv" + suffix).getString("group"));
                 assertEquals(hook.getString("group"), hook("Os.execve" + suffix).getString("group"));
             }
-        assertEquals(13, groups);
+        assertEquals(14, groups);
+        assertEquals("Read.Telephony", hook("ProcessBuilder.start/telephony").getString("group"));
+    }
+
+    // The hooks of the stat of BlockGuardOs behind Os.stat (Android 12 and 13), of the time of UnixFileSystem behind
+    // File.lastModified and of the creator of Intent behind the sticky intent registerReceiver returns (Android 12) did not
+    // run on the emulators, likely since the boot image compiled them into those callers, not yet confirmed on a device:
+    // every hook of these methods, in each group, names the callers to deoptimize, so the hook runs for them too
+    @Test
+    public void inlinedMethodsAreDeoptimized() throws Exception {
+        Map<String, String> callers = new HashMap<>();
+        callers.put("libcore.io.BlockGuardOs stat", "[\"android.system.Os.stat\",\"libcore.io.ForwardingOs.stat\"]");
+        callers.put("libcore.io.BlockGuardOs lstat", "[\"android.system.Os.lstat\",\"libcore.io.ForwardingOs.lstat\"]");
+        callers.put("java.io.UnixFileSystem getLastModifiedTime", "[\"java.io.File.lastModified\"]");
+        callers.put("android.content.Intent CREATOR:createFromParcel", "[" +
+                "\"android.app.IActivityManager$Stub$Proxy.registerReceiver\"," +
+                "\"android.app.IActivityManager$Stub$Proxy.registerReceiverWithFeature\"]");
+        Map<String, Integer> found = new HashMap<>();
+        for (JSONObject hook : hooks) {
+            String method = hook.optString("className") + " " + hook.optString("methodName");
+            if (callers.containsKey(method)) {
+                assertEquals(hook.getString("name"), callers.get(method), hook.getJSONArray("deoptimize").toString());
+                found.merge(method, 1, Integer::sum);
+            }
+        }
+        assertEquals(13, (int) found.get("libcore.io.BlockGuardOs stat"));
+        assertEquals(11, (int) found.get("libcore.io.BlockGuardOs lstat"));
+        assertEquals(13, (int) found.get("java.io.UnixFileSystem getLastModifiedTime"));
+        assertEquals(16, (int) found.get("android.content.Intent CREATOR:createFromParcel"));
+    }
+
+    // The checks of access for running a program agree with its exec in every group which refuses it (see
+    // commands_blocked): Os.access, Libcore.os.access, UnixNativeDispatcher.access, of the checkAccess of java.nio, which
+    // is deoptimized, since the boot image can have access compiled into it, and File.canExecute and Files.isExecutable,
+    // after their real check on every version
+    @Test
+    public void programsMayNotRunByAccess() throws Exception {
+        String s = "java.lang.String";
+        int groups = 0;
+        for (JSONObject hook : hooks)
+            if (hook.getString("name").startsWith("ProcessBuilder.start")) {
+                groups++;
+                String suffix = "/programs" + hook.getString("name").substring("ProcessBuilder.start".length());
+                check("Os.access" + suffix, "android.system.Os access(" + s + ",int) @commands_blocked 27-");
+                check("BlockGuardOs.access" + suffix, "libcore.io.BlockGuardOs access(" + s + ",int) @commands_blocked 27-");
+                check("File.canExecute" + suffix, "java.io.File canExecute() @commands_blocked 27-");
+                check("UnixNativeDispatcher.access" + suffix,
+                        "sun.nio.fs.UnixNativeDispatcher access(sun.nio.fs.UnixPath,int) @commands_blocked 27-");
+                assertEquals("[\"sun.nio.fs.UnixFileSystemProvider.checkAccess\"]",
+                        hook("UnixNativeDispatcher.access" + suffix).getJSONArray("deoptimize").toString());
+                check("Files.isExecutable" + suffix, "java.nio.file.Files isExecutable(java.nio.file.Path) @commands_blocked 27-");
+                for (String name : new String[]{
+                        "Os.access", "BlockGuardOs.access", "File.canExecute", "UnixNativeDispatcher.access", "Files.isExecutable"})
+                    assertEquals(hook.getString("group"), hook(name + suffix).getString("group"));
+            }
+        assertEquals(14, groups);
     }
 
     // The methods beneath ProcessBuilder.start and Os.execv and execve, which apps can call by reflection, for the
-    // hidden apps and for commands themselves
+    // hidden apps, for the phone services, which the service tool asks with the app's permissions, and for commands
+    // themselves
     @Test
     public void programsBeneathTheWaysToRun() throws Exception {
         String s = "java.lang.String";
         // Use.Tracking for its own commands, by the names without a suffix
-        String[][] groups = {{"/packages", "Get.Applications"}, {"/commands", "Run.Commands"}, {"", "Use.Tracking"}};
+        String[][] groups = {{"/packages", "Get.Applications"}, {"/commands", "Run.Commands"}, {"", "Use.Tracking"},
+                {"/telephony", "Read.Telephony"}};
         for (String[] group : groups) {
             String suffix = group[0];
             check("UNIXProcess.forkAndExec" + suffix,
@@ -2512,6 +3218,47 @@ public class HookDefinitionsTest {
         for (String name : new String[]{"getCurrentInputMethodSubtype", "getLastInputMethodSubtype",
                 "getEnabledInputMethodSubtypeList", "getShortcutInputMethodsAndSubtypes"})
             assertEquals(name, "Read.Locale", hook("InputMethodManager." + name).getString("group"));
+        // And the subtypes in the secure settings, and the languages of the configurations of the resources where Android
+        // fills them, like display_panel, for apps only
+        check("Settings.Secure.getStringForUser/locale", "android.provider.Settings$Secure getStringForUser(" +
+                "android.content.ContentResolver,java.lang.String,int) @settingssecure_getstring 27- optional");
+        String config = "android.content.res.Configuration,android.util.DisplayMetrics,android.content.res.CompatibilityInfo";
+        check("ResourcesImpl.updateConfiguration/locale", "android.content.res.ResourcesImpl updateConfiguration(" +
+                config + ") @locale 27-34 optional");
+        check("ResourcesImpl.updateConfigurationImpl/locale", "android.content.res.ResourcesImpl updateConfigurationImpl(" +
+                config + ",boolean) @locale 34- optional");
+        // And of the changes the app is told of, with the signature of each version (AOSP oreo-mr1 to android11-release,
+        // android12-release to android13-release, android14-release to main)
+        String callbacks = "(android.content.ComponentCallbacks2,android.content.res.Configuration) @locale ";
+        check("ActivityThread.performConfigurationChanged/locale",
+                "android.app.ActivityThread performConfigurationChanged" + callbacks + "27-30 optional");
+        check("ConfigurationController.performConfigurationChanged/locale",
+                "android.app.ConfigurationController performConfigurationChanged" + callbacks + "31- optional");
+        String activity = "android.app.ActivityThread performActivityConfigurationChanged(";
+        String configs = "android.content.res.Configuration,android.content.res.Configuration,int";
+        check("ActivityThread.performActivityConfigurationChanged/locale",
+                activity + "android.app.Activity," + configs + ",boolean) @locale 27-30 optional");
+        check("ActivityThread.performActivityConfigurationChanged.display/locale",
+                activity + "android.app.Activity," + configs + ") @locale 31-33 optional");
+        check("ActivityThread.performActivityConfigurationChanged.record/locale",
+                activity + "android.app.ActivityThread$ActivityClientRecord," + configs + ",boolean) @locale 34- optional");
+        for (String mode : new String[]{"MultiWindow", "PictureInPicture"})
+            check("Activity.dispatch" + mode + "ModeChanged/locale", "android.app.Activity dispatch" + mode +
+                    "ModeChanged(boolean,android.content.res.Configuration) @locale 27- optional");
+        check("Activity.dumpInner/locale", "android.app.Activity dumpInner(java.lang.String,java.io.FileDescriptor," +
+                "java.io.PrintWriter,java.lang.String[]) @locale 27- optional");
+        for (String name : new String[]{"Settings.Secure.getStringForUser/locale", "ResourcesImpl.updateConfiguration/locale",
+                "ResourcesImpl.updateConfigurationImpl/locale", "ActivityThread.performConfigurationChanged/locale",
+                "ConfigurationController.performConfigurationChanged/locale",
+                "ActivityThread.performActivityConfigurationChanged/locale",
+                "ActivityThread.performActivityConfigurationChanged.display/locale",
+                "ActivityThread.performActivityConfigurationChanged.record/locale",
+                "Activity.dispatchMultiWindowModeChanged/locale", "Activity.dispatchPictureInPictureModeChanged/locale",
+                "Activity.dumpInner/locale"}) {
+            assertEquals(name, "Read.Locale", hook(name).getString("group"));
+            assertEquals(name, "[\"value.locale\"]", hook(name).getJSONArray("settings").toString());
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
+        }
         check("ResourcesImpl.updateConfigurationImpl", "android.content.res.ResourcesImpl updateConfigurationImpl(" +
                 "android.content.res.Configuration,android.util.DisplayMetrics,android.content.res.CompatibilityInfo,boolean) " +
                 "@display_panel 34- optional");
@@ -2523,6 +3270,54 @@ public class HookDefinitionsTest {
                 ") @generic_null_value 31- optional");
         check("BiometricManager.canAuthenticate/lock",
                 "android.hardware.biometrics.BiometricManager canAuthenticate(int) @device_details 30-");
+        // No screen lock also by its complexity and by the secure user id, which keystore asks (oreo-mr1 to main)
+        check("DevicePolicyManager.getPasswordComplexity",
+                "android.app.admin.DevicePolicyManager getPasswordComplexity() @device_details 29-");
+        check("GateKeeper.getSecureUserId", "android.security.GateKeeper getSecureUserId() @device_details 27- optional");
+        check("GateKeeper.getSecureUserId/user", "android.security.GateKeeper getSecureUserId(int) @device_details 35- optional");
+        // No lock also of a user (oreo-mr1 to main, with a device from android15-release) and no intent to confirm it
+        String kg = "android.app.KeyguardManager ";
+        check("KeyguardManager.isDeviceSecure/user", kg + "isDeviceSecure(int) @device_details 27- optional");
+        check("KeyguardManager.isDeviceSecure/device", kg + "isDeviceSecure(int,int) @device_details 35- optional");
+        check("KeyguardManager.createConfirmDeviceCredentialIntent", kg + "createConfirmDeviceCredentialIntent(" +
+                "java.lang.CharSequence,java.lang.CharSequence) @device_details 27-");
+        // Never locked without a secure lock, also of a user and of a device (oreo-mr1 to main, android15-release)
+        check("KeyguardManager.isDeviceLocked", kg + "isDeviceLocked() @device_details 27-");
+        check("KeyguardManager.isDeviceLocked/user", kg + "isDeviceLocked(int) @device_details 27- optional");
+        check("KeyguardManager.isDeviceLocked/device", kg + "isDeviceLocked(int,int) @device_details 35- optional");
+        // No biometrics enrolled without a lock: the checks of apps, the ids keystore asks (KeymasterUtils of
+        // oreo-mr1 to android10-release, then BiometricManager) and the last authentication
+        String bm = "android.hardware.biometrics.BiometricManager ", fm = "android.hardware.fingerprint.FingerprintManager ";
+        check("BiometricManager.canAuthenticate/lock/biometric", bm + "canAuthenticate() @device_details 29-");
+        check("FingerprintManager.hasEnrolledFingerprints/lock", fm + "hasEnrolledFingerprints() @device_details 27- optional");
+        // The hidden overload of a user, which apps of Android 8.1 reach by reflection (oreo-mr1 FingerprintManager)
+        check("FingerprintManager.hasEnrolledFingerprints/user/lock",
+                fm + "hasEnrolledFingerprints(int) @device_details 27- optional");
+        check("FingerprintManager.getEnrolledFingerprints/lock", fm + "getEnrolledFingerprints() @device_details 27- optional");
+        check("FingerprintManager.getEnrolledFingerprints/user/lock",
+                fm + "getEnrolledFingerprints(int) @device_details 27- optional");
+        check("BiometricManager.getAuthenticatorIds/lock", bm + "getAuthenticatorIds() @device_details 30- optional");
+        check("BiometricManager.getAuthenticatorIds/user/lock", bm + "getAuthenticatorIds(int) @device_details 31- optional");
+        check("FingerprintManager.getAuthenticatorId/lock", fm + "getAuthenticatorId() @device_details 27- optional");
+        check("FaceManager.getAuthenticatorId/lock",
+                "android.hardware.face.FaceManager getAuthenticatorId() @device_details 29- optional");
+        check("BiometricManager.getLastAuthenticationTime/lock", bm + "getLastAuthenticationTime(int) @device_details 35-");
+        // The texts of a request of the lock and biometrics, which name the lock only with a lock (android12 to main)
+        String strings = "android.hardware.biometrics.BiometricManager$Strings ";
+        check("BiometricManager.getStrings/lock", bm + "getStrings(int) @device_details 31-");
+        check("BiometricManager.Strings.getButtonLabel/lock", strings + "getButtonLabel() @device_details 31-");
+        check("BiometricManager.Strings.getPromptMessage/lock", strings + "getPromptMessage() @device_details 31-");
+        for (String name : new String[]{"KeyguardManager.isDeviceSecure/user", "BiometricManager.canAuthenticate/lock/biometric",
+                "BiometricManager.getAuthenticatorIds/lock", "FingerprintManager.getAuthenticatorId/lock",
+                "KeyguardManager.isDeviceLocked", "FingerprintManager.getEnrolledFingerprints/lock",
+                "FingerprintManager.hasEnrolledFingerprints/user/lock", "BiometricManager.getStrings/lock",
+                "BiometricManager.Strings.getButtonLabel/lock", "BiometricManager.Strings.getPromptMessage/lock"})
+            assertEquals(name, "Use.Tracking", hook(name).getString("group"));
+        // The least buffer of a track agrees with the faked frames per buffer
+        check("AudioTrack.getMinBufferSize", "android.media.AudioTrack getMinBufferSize(int,int,int) @device_details 27-");
+        // The accepted issuers of the platform trust manager agree with the aliases of AndroidCAStore
+        check("NetworkSecurityTrustManager.getAcceptedIssuers",
+                "android.security.net.config.NetworkSecurityTrustManager getAcceptedIssuers() @device_details 27- optional");
         check("PowerManager.addThermalStatusListener", p + " addThermalStatusListener(" + status + ") @device_details 29-");
         check("PowerManager.addThermalStatusListener/executor", p + " addThermalStatusListener(" + e + status + ") @device_details 29-");
         check("PowerManager.removeThermalStatusListener", p + " removeThermalStatusListener(" + status + ") @device_details 29-");
@@ -2554,6 +3349,30 @@ public class HookDefinitionsTest {
             check(name, "android.net.LinkProperties " + getter[0] + "() @network_address 27-" + getter[1] + " optional");
             check(name + "/vpn", "android.net.LinkProperties " + getter[0] + "() @vpn_addresses 27-" + getter[1] + " optional");
         }
+    }
+
+    // LinkProperties is parcelled, compared and hashed as a copy with what its getters show, also by the hidden
+    // comparisons of the addresses, the DNS servers and the routes
+    @Test
+    public void linkPropertiesParcelledAsShown() throws Exception {
+        String lp = "android.net.LinkProperties ";
+        check("LinkProperties.writeToParcel", lp + "writeToParcel(android.os.Parcel,int) @network_address 27-");
+        check("LinkProperties.equals", lp + "equals(java.lang.Object) @network_address 27-");
+        check("LinkProperties.hashCode", lp + "hashCode() @network_address 27-");
+        for (String method : new String[]{"isIdenticalAddresses", "isIdenticalDnses", "isIdenticalRoutes"})
+            check("LinkProperties." + method, lp + method + "(android.net.LinkProperties) @network_address 27- optional");
+        for (String method : new String[]{"compareAddresses", "compareDnses", "compareAllRoutes", "compareAllInterfaceNames"})
+            check("LinkProperties." + method, lp + method + "(android.net.LinkProperties) @network_address 27-27 optional");
+        check("LinkProperties.isPrivateDnsActive", lp + "isPrivateDnsActive() @network_address 28-");
+        check("LinkProperties.isWakeOnLanSupported", lp + "isWakeOnLanSupported() @network_address 30-");
+    }
+
+    // The Wi-Fi info is made again without its address, for its parcel, hashCode and equals
+    @Test
+    public void wifiInfoWithoutAddress() throws Exception {
+        check("WifiManager.getConnectionInfo", "android.net.wifi.WifiManager getConnectionInfo() @network_address 27-");
+        check("NetworkCapabilities.getTransportInfo/network",
+                "android.net.NetworkCapabilities getTransportInfo() @network_address 31-");
     }
 
     // The text of socket channels, which has their local address, and the values of an interface by ioctl
@@ -2620,6 +3439,22 @@ public class HookDefinitionsTest {
         check("TelephonyManager.isDataRoamingEnabled/settings", "android.telephony.TelephonyManager isDataRoamingEnabled() " +
                 "@settingssecure_getstring 29-");
         assertEquals("Read.Settings", hook("TelephonyManager.isDataRoamingEnabled/settings").getString("group"));
+        // The copies of the sounds of the settings provider, like the files of the contacts
+        String opened = "(android.net.Uri," + s + ",android.os.CancellationSignal) @contentresolver_open 27-";
+        String typed = "(android.net.Uri," + s + ",android.os.Bundle,android.os.CancellationSignal) @contentresolver_open ";
+        check("ContentResolver.openAssetFileDescriptor/settings", "android.content.ContentResolver openAssetFileDescriptor" + opened);
+        check("ContentResolver.openTypedAssetFileDescriptor/settings",
+                "android.content.ContentResolver openTypedAssetFileDescriptor" + typed + "27-");
+        check("ContentProviderClient.openFile/settings", "android.content.ContentProviderClient openFile" + opened);
+        check("ContentProviderClient.openAssetFile/settings", "android.content.ContentProviderClient openAssetFile" + opened);
+        check("ContentProviderClient.openTypedAssetFileDescriptor/settings",
+                "android.content.ContentProviderClient openTypedAssetFileDescriptor" + typed + "27-28");
+        check("ContentProviderClient.openTypedAssetFile/settings",
+                "android.content.ContentProviderClient openTypedAssetFile" + typed + "29-");
+        for (String method : new String[]{"ContentResolver.openAssetFileDescriptor", "ContentResolver.openTypedAssetFileDescriptor",
+                "ContentProviderClient.openFile", "ContentProviderClient.openAssetFile",
+                "ContentProviderClient.openTypedAssetFileDescriptor", "ContentProviderClient.openTypedAssetFile"})
+            assertEquals(method, "Read.Settings", hook(method + "/settings").getString("group"));
         check("CameraManager2.setTorchMode", "android.hardware.camera2.CameraManager setTorchMode(" + s + ",boolean) @camera2_open 27-");
         check("CameraManager2.turnOnTorchWithStrengthLevel", "android.hardware.camera2.CameraManager turnOnTorchWithStrengthLevel(" +
                 s + ",int) @camera2_open 33-");
@@ -2635,6 +3470,19 @@ public class HookDefinitionsTest {
             check("MediaRecorder.setOutputFormat." + group,
                     "android.media.MediaRecorder setOutputFormat(int) @mediarecorder_startstop 27-");
         }
+        // Screen capture gets the result of a declined consent, by the dispatcher of each version, and no projection
+        // from a consent which reaches the app otherwise (see mediaprojection_result)
+        String result = "android.app.Activity dispatchActivityResult(java.lang.String,int,int,android.content.Intent";
+        check("Activity.dispatchActivityResult/projection", result + ") @mediaprojection_result 27-27 optional");
+        check("Activity.dispatchActivityResult.reason/projection", result + ",java.lang.String) @mediaprojection_result 28-34 optional");
+        check("Activity.internalDispatchActivityResult/projection", "android.app.Activity internalDispatchActivityResult(" +
+                "java.lang.String,int,int,android.content.Intent,android.app.ComponentCaller,java.lang.String) " +
+                "@mediaprojection_result 34- optional");
+        check("MediaProjectionManager.getMediaProjection", "android.media.projection.MediaProjectionManager " +
+                "getMediaProjection(int,android.content.Intent) @generic_block 27-");
+        for (String name : new String[]{"Activity.dispatchActivityResult/projection", "Activity.dispatchActivityResult.reason/projection",
+                "Activity.internalDispatchActivityResult/projection", "MediaProjectionManager.getMediaProjection"})
+            assertEquals(name, "Record.Video", hook(name).getString("group"));
         check("AudioManager.getCommunicationDevice", "android.media.AudioManager getCommunicationDevice() @audio_devices 31-");
         // The hidden dispatcher of the device for calls to the listeners of the app
         check("AudioManager.dispatchCommunicationDeviceChanged", "android.media.AudioManager$CommunicationDeviceDispatcherStub " +
@@ -2698,6 +3546,32 @@ public class HookDefinitionsTest {
         check("AppEventsLogger.activateApp/companion/app", "com.facebook.appevents.AppEventsLogger$Companion activateApp(" +
                 "android.app.Application) @generic_block 27- optional");
         check("Amplitude.getOptOut/android", "com.amplitude.android.Configuration getOptOut() @generic_true_value 27- optional");
+        // The SDKs which read their own field or tell plugins opt out when the app opts in, so the field and its other views
+        // agree with the hooked getter: the setter of Kotlin Amplitude, the Boolean getter, setOptOut and the events
+        // of legacy Amplitude, which answer -1 like when opted out, Branch before and from 5.11
+        check("Amplitude.setOptOut", "com.amplitude.core.Amplitude setOptOut(boolean) @generic_true_argument 27- optional");
+        String event = "com.amplitude.api.AmplitudeClient logEvent(java.lang.String,org.json.JSONObject,org.json.JSONObject," +
+                "org.json.JSONObject,org.json.JSONObject,org.json.JSONObject,long,boolean";
+        check("AmplitudeClient.logEvent", event + ") @amplitude_logevent 27- optional");
+        check("AmplitudeClient.logEvent/extra", event + ",com.amplitude.api.MiddlewareExtra) @amplitude_logevent 27- optional");
+        check("AmplitudeClient.logEvent/foreground", event +
+                ",com.amplitude.api.MiddlewareExtra,boolean) @amplitude_logevent 27- optional");
+        // Before 2.20 with fewer properties; the return type long keeps the form of 2.0 off the public void logEvent of 2.12
+        String old = "com.amplitude.api.AmplitudeClient logEvent(java.lang.String,org.json.JSONObject,org.json.JSONObject,";
+        check("AmplitudeClient.logEvent/api", old + "long,boolean) @amplitude_logevent 27- optional");
+        check("AmplitudeClient.logEvent/user", old + "org.json.JSONObject,long,boolean) @amplitude_logevent 27- optional");
+        check("AmplitudeClient.logEvent/groups", old +
+                "org.json.JSONObject,org.json.JSONObject,long,boolean) @amplitude_logevent 27- optional");
+        for (String form : new String[]{"", "/extra", "/foreground", "/api", "/user", "/groups"})
+            assertEquals(form, "long", hook("AmplitudeClient.logEvent" + form).getString("returnType"));
+        check("AmplitudeClient.getOptOut", "com.amplitude.api.AmplitudeClient getOptOut() @generic_true_value 27- optional");
+        assertEquals("java.lang.Boolean", hook("AmplitudeClient.getOptOut").getString("returnType"));
+        check("AmplitudeClient.setOptOut", "com.amplitude.api.AmplitudeClient setOptOut(boolean) " +
+                "@generic_true_argument 27- optional");
+        String branch = "io.branch.referral.TrackingController disableTracking(android.content.Context,boolean";
+        check("Branch.disableTracking", branch + ") @branch_tracking 27- optional");
+        check("Branch.disableTracking/callback", branch +
+                ",io.branch.referral.Branch$TrackingStateCallback) @branch_tracking 27- optional");
         // The settings provider sees the system settings of the developer options too
         assertTrue(Arrays.asList(hook("Settings.System.getStringForUser/adb").optString("excludePackages", "").split(","))
                 .contains("android"));
@@ -2723,11 +3597,36 @@ public class HookDefinitionsTest {
                 ",int) @analytics_metadata 27-");
         check("PackageManager.getPackageInfo/flags/analytics", "android.content.pm.PackageManager getPackageInfo(" + s +
                 ",android.content.pm.PackageManager$PackageInfoFlags) @analytics_metadata 33-");
+        // The other answers with the app's meta-data: the hidden overload under getApplicationInfo, each info read from
+        // a parcel and the app's own APK file
+        check("PackageManager.getApplicationInfoAsUser/analytics", "android.content.pm.PackageManager getApplicationInfoAsUser(" +
+                s + ",int,int) @analytics_metadata 27- optional");
+        check("PackageManager.getApplicationInfoAsUser/flags/analytics", "android.content.pm.PackageManager " +
+                "getApplicationInfoAsUser(" + s + ",android.content.pm.PackageManager$ApplicationInfoFlags,int) " +
+                "@analytics_metadata 33- optional");
+        check("ApplicationInfo.createFromParcel/analytics", "android.content.pm.ApplicationInfo " +
+                "CREATOR:createFromParcel(android.os.Parcel) @analytics_metadata 27-");
+        check("PackageManager.getPackageArchiveInfo/analytics", "android.content.pm.PackageManager getPackageArchiveInfo(" + s +
+                ",int) @analytics_metadata 27-");
+        check("PackageManager.getPackageArchiveInfo/flags/analytics", "android.content.pm.PackageManager getPackageArchiveInfo(" +
+                s + ",android.content.pm.PackageManager$PackageInfoFlags) @analytics_metadata 33-");
+        for (String name : new String[]{"ApplicationInfo.createFromParcel/analytics", "PackageManager.getPackageArchiveInfo/analytics"})
+            assertEquals(name, "android", hook(name).getString("excludePackages"));
         // The settings of Crashlytics and Facebook stored for the app, which they read before the meta-data
         check("SharedPreferences.getBoolean/analytics", "android.app.SharedPreferencesImpl getBoolean(" + s +
                 ",boolean) @analytics_metadata 27-");
         check("SharedPreferences.getString/analytics", "android.app.SharedPreferencesImpl getString(" + s + "," + s +
                 ") @analytics_metadata 27-");
+        // The consent strings of the IAB a consent tool stored are not there
+        String prefs = "android.app.SharedPreferencesImpl ";
+        check("SharedPreferences.getString/iab", prefs + "getString(" + s + "," + s + ") @iab_consent 27-");
+        check("SharedPreferences.getInt/iab", prefs + "getInt(" + s + ",int) @iab_consent 27-");
+        check("SharedPreferences.getBoolean/iab", prefs + "getBoolean(" + s + ",boolean) @iab_consent 27-");
+        check("SharedPreferences.getLong/iab", prefs + "getLong(" + s + ",long) @iab_consent 27-");
+        check("SharedPreferences.getFloat/iab", prefs + "getFloat(" + s + ",float) @iab_consent 27-");
+        check("SharedPreferences.getStringSet/iab", prefs + "getStringSet(" + s + ",java.util.Set) @iab_consent 27-");
+        check("SharedPreferences.contains/iab", prefs + "contains(" + s + ") @iab_consent 27-");
+        check("SharedPreferences.getAll/iab", prefs + "getAll() @iab_consent 27-");
         check("NetworkCapabilities.getTransportTypes", "android.net.NetworkCapabilities getTransportTypes() @vpn 27- optional");
         for (String name : new String[]{"UserManager.isUserRunning", "UserManager.isUserRunningOrStopping",
                 "UserManager.getUserRestrictions", "UserManager.isUserUnlocked", "UserManager.isQuietModeEnabled",

@@ -21,7 +21,9 @@
 -- is not there. With contacts.starred, the files of the contacts which the queries keep, like their photos
 -- (contacts/<id>/photo, display_photo/<id>) and vCards, are found. An app which may not open them gets the answer
 -- of Android, like a SecurityException, and uris and modes which the providers answer without looking at their files
--- go to them.
+-- go to them. With the variant settings, the copies of the ringtone, notification and alarm sounds which the settings
+-- provider plays them from (content://settings/system/ringtone_cache and the others), which any app can read, are
+-- missing, like after the user chose None, since the settings name no sound (see settingssecure_getstring).
 
 local FLAG_GRANT_READ_URI_PERMISSION = 1
 local FLAG_GRANT_WRITE_URI_PERMISSION = 2
@@ -45,7 +47,79 @@ function restricts(name, authority)
             (name == 'call_log' and authority == 'call_log') or
             (name == 'mmssms' and authority == 'mms') or
             (name == 'mmssms' and authority == 'com.google.android.apps.messaging.shared.datamodel.BugleContentProvider') or
-            (name == 'mmssms' and authority == 'com.android.voicemail')
+            (name == 'mmssms' and authority == 'com.android.voicemail') or
+            (name == 'settings' and authority == 'settings')
+end
+
+-- The copies of the sounds, by the uri without the user, which SettingsProvider compares as text (Uri.equals)
+local CACHES = {
+    ['content://settings/system/ringtone_cache'] = true,
+    ['content://settings/system/notification_sound_cache'] = true,
+    ['content://settings/system/alarm_alert_cache'] = true,
+}
+
+-- The text of a settings uri like SettingsProvider gets it. ContentProvider.validateIncomingUri builds it again with
+-- runs of / in its path as one when it has any, which Android 10 and later and the security patches of 8.1 and 9 do, so
+-- content://settings/system//ringtone_cache opens the copy too; with compared, also when it has none, like
+-- getUriWithoutUserId builds it again before SettingsProvider compares it. Uri.Builder leaves out an empty query and
+-- fragment then, so content://settings/system/ringtone_cache?# is the copy too.
+-- shortcut: runs of / are one also on 8.1 and 9 without those patches, where such a uri is not a copy ("Direct file
+-- access no longer supported"), since the version does not tell the patch, upgrade by the security patch level.
+function settingsuri(uri, compared)
+    local text = uri:toString()
+    local head, rest = string.match(text, '^([^:/?#]+://[^/?#]*)(.*)$')
+    if head == nil then
+        return text
+    end
+    local fragment = string.match(rest, '#(.*)$')
+    rest = string.match(rest, '^[^#]*')
+    local query = string.match(rest, '%?(.*)$')
+    local path = string.match(rest, '^[^?]*')
+    if not compared and not string.find(path, '//', 1, true) then
+        return text
+    end
+    return head .. (string.gsub(path, '//+', '/')) .. ((query or '') ~= '' and '?' .. query or '') ..
+            ((fragment or '') ~= '' and '#' .. fragment or '')
+end
+
+-- Whether a uri is of a copy of a sound of the app's own user and the mode only reads: SettingsProvider refuses another
+-- user without INTERACT_ACROSS_USERS (SecurityException), makes the file for modes which write, and answers other uris,
+-- like with a query or another scheme of a ContentProviderClient, that it opens no files. The user is the text before
+-- the last @ as Integer.parseInt reads it, else none, which Android does not find (ContentProvider.getUserIdFromAuthority).
+-- Android 8.1 and 9 read only for r and refuse modes they do not know ("Bad mode", ParcelFileDescriptor.parseMode);
+-- later versions read for any mode of r, w, t and a which starts with r but not with rw
+-- (FileUtils.translateModeStringToPosix), and as of Android 13 throw a SecurityException first for a mode with w
+-- without the permission to change system settings.
+-- shortcut: modes which write, like rw and w, open the real copy, which Android 8.1 to 12 let any app do and later
+-- versions apps which may change system settings (WRITE_SETTINGS), where Android would make an empty file, upgrade with
+-- an empty file when apps are seen opening it so.
+-- shortcut: a Ringtone of the default sounds (Settings.System.DEFAULT_RINGTONE_URI and the others) which the app cannot
+-- play itself plays through the ringtone player of SystemUI (IRingtonePlayer), which plays the real sound out loud and
+-- tells Ringtone.isPlaying while it plays, upgrade when apps are seen timing it.
+function soundcache(param, uri, mode)
+    local user = string.match(uri:getAuthority(), '^(.*)@')
+    if user ~= nil then
+        local ok, id = pcall(function() return luajava.bindClass('java.lang.Integer'):parseInt(user) end)
+        if not ok or id ~= math.floor(luajava.bindClass('android.os.Process'):myUid() / 100000) then
+            return false
+        end
+    end
+    local sdk = luajava.bindClass('android.os.Build$VERSION').SDK_INT
+    if mode ~= 'r' and (sdk < 29 or not string.match(mode, '^r[rwta]*$') or string.sub(mode, 1, 2) == 'rw') then
+        return false
+    end
+    if sdk >= 33 and string.find(mode, 'w', 1, true) then
+        -- When this fails the copy is missing
+        local ok, allowed = pcall(param.unhooked, param, function()
+            return luajava.bindClass('android.provider.Settings$System'):canWrite(param:getApplicationContext())
+        end)
+        if ok and not allowed then
+            return false
+        end
+    end
+    -- Like SettingsProvider compares it, rebuilt with the authority without the user (getUriWithoutUserId), which the
+    -- caller found to be settings, also when encoded, like 0%40settings
+    return CACHES[(string.gsub(settingsuri(uri, true), '^([^:/?#]+://)[^/?#]*', '%1settings', 1))] == true
 end
 
 -- The path of a uri as a table, like { 'contacts', '1', 'photo' }
@@ -212,6 +286,8 @@ end
 function typeof(uri, authority, segments)
     if authority == 'call_log' then
         return 'application/octet-stream'
+    elseif authority == 'settings' then
+        return 'vnd.android.cursor.item/system'
     elseif authority == 'com.android.voicemail' then
         return 'vnd.android.cursor.item/voicemail'
     elseif authority == 'com.android.contacts' then
@@ -227,9 +303,15 @@ end
 
 -- The answer of the provider for a file which is not there, like of a contact or a message which the queries hide,
 -- for a typed open with the filter, which is nil for the other methods.
--- The providers get the uri without the user (ContentProvider.Transport), but for MMS, whose uris have none here.
+-- The providers get the uri without the user (ContentProvider.Transport), but for MMS, whose uris have none here, and
+-- the settings provider, which serves all users (singleUser).
 function missing(uri, authority, segments, filter)
-    local text = (string.gsub(uri:toString(), '^([^:/?#]+://)[^/?#]*@', '%1', 1))
+    local text = uri:toString()
+    if authority == 'settings' then
+        text = settingsuri(uri, false)
+    else
+        text = (string.gsub(text, '^([^:/?#]+://)[^/?#]*@', '%1', 1))
+    end
     if filter ~= nil and filter ~= '*/*' then
         local base = typeof(uri, authority, segments)
         if base == nil or not luajava.bindClass('android.content.ClipDescription'):compareMimeTypes(base, filter) then
@@ -239,7 +321,10 @@ function missing(uri, authority, segments, filter)
 
     -- Like ContentProvider.openFileHelper, which MmsProvider and VoicemailContentProvider use
     local message = 'No entry for ' .. text
-    if authority == 'call_log' then
+    if authority == 'settings' then
+        -- Like ParcelFileDescriptor.open of a file which is not there
+        message = 'open failed: ENOENT (No such file or directory)'
+    elseif authority == 'call_log' then
         message = text .. ' does not correspond to a valid file.'
     elseif authority == 'com.android.contacts' then
         local count = #segments
@@ -306,7 +391,11 @@ function before(hook, param)
     -- in the uri, which it keeps since it serves all users (singleUser), so its uris do not match (null);
     -- CallLogProvider opens only call composer pictures, and only for r and w (UnsupportedOperationException).
     -- MmsProvider and VoicemailContentProvider look for the file for every mode, also for writing only.
-    if authority == 'com.android.contacts' then
+    if authority == 'settings' then
+        if not soundcache(param, uri, mode) then
+            return false
+        end
+    elseif authority == 'com.android.contacts' then
         if method == 'openFile' or (mode ~= 'r' and (string.find(mode, 'w', 1, true) or not israwphoto(segments) or
                 luajava.bindClass('android.os.Build$VERSION').SDK_INT < 31)) then
             return false

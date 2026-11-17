@@ -13,6 +13,10 @@ When no other user has Doppel installed anymore, all data is cleared, also the c
 *Settings* > *Clear restrictions and settings* removes all restrictions and settings, including the fake values, of the current user
 and keeps the custom hook definitions.
 
+The default Android IDs, one for each app developer, are made of a secret the Doppel service keeps for itself,
+which neither clearing nor uninstalling Doppel removes, so they stay the same until a factory reset, like the Android ID of Android.
+Choose *Each boot* or set a value in *Fake values* for other ones.
+
 All data is stored in the system folder */data/system_de/0/xlua*, which apps cannot see, so regular backup apps cannot back it up.
 Older versions used */data/system/xlua*, which Doppel moves there on the first start.
 Use *Settings* > *Backup* and *Restore* for all restrictions, settings and custom hook definitions.
@@ -65,7 +69,7 @@ You can ask for new restrictions with an [issue](https://github.com/akano12/Dopp
 
 The downloaded file may be corrupt, for example because of a connection problem or a virus scanner.
 
-Or the Android version is not supported: Doppel needs Android 8.1 or later.
+Or the Android version is not supported: Doppel needs Android 9 or later.
 
 <a name="faq6"></a>
 **(6) Why does a switch show a dash?**
@@ -172,9 +176,17 @@ Do not restrict your SMS app with *Get messages*, else it cannot show your messa
 **(21) Can apps detect Doppel?**
 
 Apps you did not restrict cannot ask Doppel anything: they get the same answers as on a device without Doppel.
-Apps you restricted can detect it. The hooks run in the process of the app, so the app can ask the Doppel service
-for its own hooks and read the fake values for all apps, like the hooks do, or look for Xposed itself.
+Apps you restricted get these answers too when they ask through Android, but they can still detect it.
+The hooks run in the process of the app, so code of the app which runs before the hooks are installed, like its
+AppComponentFactory, or which talks to the Doppel service with a binder transaction of its own, can ask for its own
+hooks and read the fake values for all apps, like the hooks do. Apps can also look for Xposed itself.
 They cannot change your settings or restrictions, nor read the restrictions of other apps.
+
+Doppel hides its own notifications from other apps with notification access, like the companion app of a watch,
+and from apps with usage access, and sends accessibility services no notification event of them
+(not yet checked on a device). So a screen reader does not read them out when they arrive, also not to you.
+Accessibility services can still read them in the notification shade and when they pop up,
+and an app paired with a companion device can still change their channels if it guesses their names.
 
 LSPosed loads into every app in the scope of Doppel, also when the app is not restricted,
 and apps can look for LSPosed itself, so add only the apps you restrict to the scope.

@@ -178,12 +178,12 @@ public class NetworkScriptsTest {
             assertEquals(owner + rest, tostring(globals, "android.net.wifi.p2p.WifiP2pGroup", owner + client + client + rest));
             assertEquals(owner + rest, tostring(globals, "android.net.wifi.p2p.WifiP2pGroup", owner + rest));
         }
-        // The fake network of the getters, its name with its access point and id
+        // From Android 12 the network of the copy Android gives apps without the location permission, like the getters
         String wifi = tostring(globals, "android.net.wifi.WifiInfo",
                 "SSID: \"Home\", BSSID: 12:34:56:78:9a:bc, MAC: 02:00:00:00:00:00, IP: /192.168.1.5, Security type: 2, " +
                         "Net ID: 3, Metered hint: false");
-        assertEquals("SSID: \"private\", BSSID: a6:3e:91:5c:0d:72, MAC: 02:00:00:00:00:00, IP: null, " +
-                "Security type: 2, Net ID: 0, Metered hint: false", wifi);
+        assertEquals("SSID: <unknown ssid>, BSSID: 02:00:00:00:00:00, MAC: 02:00:00:00:00:00, IP: null, " +
+                "Security type: 2, Net ID: -1, Metered hint: false", wifi);
         // The network Android hides from apps without location permission stays hidden, the access point and the id too
         globals.set("text", LuaValue.valueOf("SSID: <unknown ssid>, BSSID: 02:00:00:00:00:00, MAC: 02:00:00:00:00:00, " +
                 "Security type: 2, Net ID: -1, Metered hint: false"));
@@ -204,12 +204,13 @@ public class NetworkScriptsTest {
                 "Requesting package name: <none>\"Home, 5G\"pskMLO Information: , AP MLD Address: 00:11:22:33:44:55");
         assertFalse(mlo, mlo.contains("5G"));
         assertTrue(mlo, mlo.contains("MLO Information: "));
-        // From Android 12 the text has getSSID, also its hex of a name which is no UTF-8, which the getter fakes
+        // From Android 12 the text has getSSID, also its hex of a name which is no UTF-8, which the getter hides
         assertTrue(tostring(globals, "android.net.wifi.WifiInfo", "SSID: 0x48e96d65, BSSID: 02:00:00:00:00:00, MAC: " +
-                "02:00:00:00:00:00").startsWith("SSID: \"private\", BSSID: "));
+                "02:00:00:00:00:00").startsWith("SSID: <unknown ssid>, BSSID: "));
 
-        // Before Android 12 the name itself, without quotes, and the empty name of an app without location permission
-        // stays, like getSSID keeps <unknown ssid> for it
+        // Before Android 12 the fake network of the getters, its name with its access point and id, here of the name
+        // itself, without quotes; the empty name of an app without location permission stays, like getSSID keeps
+        // <unknown ssid> for it
         sdk(globals, 30);
         assertEquals("SSID: private, BSSID: a6:3e:91:5c:0d:72, MAC: 02:00:00:00:00:00, Supplicant state: COMPLETED, " +
                 "RSSI: -50, Net ID: 0, Metered hint: false, score: 60", tostring(globals, "android.net.wifi.WifiInfo",
@@ -276,6 +277,23 @@ public class NetworkScriptsTest {
         assertEquals(0, result.arg(9).toint());
         // Android 8.1 shows no access point as zeros when Wi-Fi is on but not connected, with <unknown ssid> and id -1
         assertFalse(result.arg(10).toboolean());
+
+        // From Android 12 the values of the copy Android gives apps without the location permission, which the infos of
+        // the connection and of the network capabilities are (see wifishown of network_address)
+        sdk(globals, 31);
+        result = Scripts.run(globals,
+                "local ssid, bssid, id = paramof('\"Home\"'), paramof('12:34:56:78:9a:bc'), paramof(3)\n" +
+                        "return after(hookof('getSSID'), ssid), ssid.result, after(hookof('getBSSID'), bssid), bssid.result,\n" +
+                        "  after(hookof('getNetworkId'), id), id.result, after(hookof('getSSID'), paramof('<unknown ssid>')),\n" +
+                        "  after(hookof('getBSSID'), paramof('02:00:00:00:00:00')), after(hookof('getNetworkId'), paramof(-1))");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("<unknown ssid>", result.arg(2).tojstring());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("02:00:00:00:00:00", result.arg(4).tojstring());
+        assertTrue(result.arg(5).toboolean());
+        assertEquals(-1, result.arg(6).toint());
+        for (int i = 7; i <= 9; i++)
+            assertFalse(String.valueOf(i), result.arg(i).toboolean());
     }
 
     // The link id of a Wi-Fi 7 access point is -1, like without multi-link operation, which its hidden MLD address and
@@ -291,7 +309,9 @@ public class NetworkScriptsTest {
         assertFalse(result.arg(3).toboolean());
     }
 
-    // The name as bytes is the same network as getSSID: a real name becomes the fake one, unknown and empty ones stay
+    // The name as bytes is the same network as getSSID: from Android 12 a real name becomes the one of the copy Android
+    // makes without the location, which the Wi-Fi module decides (null from Android 13), like getSSID gives
+    // <unknown ssid> then, before the fake one; unknown and empty ones stay
     @Test
     public void wifiSsidAgreesWithGetSsid() throws Exception {
         Globals globals = load("wifiinfo_ssid_bssid");
@@ -301,65 +321,123 @@ public class NetworkScriptsTest {
                         "luajava = setmetatable({ bindClass = function(name)\n" +
                         "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
                         "  if name ~= 'android.net.wifi.WifiSsid' then return real.bindClass(name) end\n" +
-                        // Android 13 quotes the text, before it is the name itself
-                        "  return { fromBytes = function(self, bytes)\n" +
-                        "    local text = '\"' .. tostring(real.newInstance('java.lang.String', bytes)) .. '\"'\n" +
-                        "    return { toString = function() return text end } end,\n" +
-                        "    createFromAsciiEncoded = function(self, name) return { toString = function() return name end } end } end },\n" +
+                        // Before Android 13 the text is the name itself
+                        "  return { createFromAsciiEncoded = function(self, name)\n" +
+                        "    return { toString = function() return name end } end } end },\n" +
                         "  { __index = real })\n" +
                         "local function ssidof(text) return { toString = function() return text end } end\n" +
-                        "local home = paramof(ssidof('\"Home\"'))\n" +
+                        // The copy is made without the hooks
+                        "local info = { makeCopy = function(self, redactions) assert(redactions == 1 and unhooked)\n" +
+                        "  return { getWifiSsid = function(self) return nil end } end }\n" +
+                        "local home = paramof(ssidof('\"Home\"'), nil, info)\n" +
+                        "home.unhooked = function(self, f) unhooked = true local value = f() unhooked = false return value end\n" +
                         "local ssid = paramof('\"Home\"')\n" +
                         "after(hookof('getSSID'), ssid)\n" +
-                        "return after(hookof('getWifiSsid'), home), home.result:toString(), ssid.result,\n" +
+                        "return after(hookof('getWifiSsid'), home), home.set and home.result == nil, ssid.result,\n" +
                         "  after(hookof('getWifiSsid'), paramof(ssidof('<unknown ssid>'))),\n" +
                         "  after(hookof('getWifiSsid'), paramof(ssidof(''))),\n" +
                         "  (function() sdk = 30 local old = paramof(ssidof('Home')) after(hookof('getWifiSsid'), old)\n" +
                         "    return old.result:toString() end)(), after(hookof('getWifiSsid'), paramof(ssidof('private')))");
         assertTrue(result.arg(1).toboolean());
-        assertEquals(result.arg(3).tojstring(), result.arg(2).tojstring());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("<unknown ssid>", result.arg(3).tojstring());
         assertFalse(result.arg(4).toboolean());
         assertFalse(result.arg(5).toboolean());
-        // Before Android 13 the hidden method, of a WifiSsid whose text has no quotes
+        // Before Android 12 the fake one, by the hidden method, of a WifiSsid whose text has no quotes
         assertEquals("private", result.arg(6).tojstring());
         assertFalse(result.arg(7).toboolean());
     }
 
-    // The local address of sockets: those of the device become the wildcard address of their family, also in a
-    // socket address with its port; loopback, wildcard, link-local and other socket addresses stay
+    // The local address of sockets: those of the device become the wildcard address the way Android gives it for a
+    // socket bound to it, of IPv6 also for IPv4, as the sockets of Java are of IPv6 there: Socket and DatagramSocket
+    // give the one InetSocketAddress takes for no address (InetAddress.anyLocalAddress, which the JVM of the tests has
+    // of IPv4), the channels, their adaptors and getsockname :: without a name, getsockname 0.0.0.0 for an address of
+    // IPv4; also in a socket address with its port, and link-local addresses of IPv6 and IPv4 too. Loopback, wildcard,
+    // multicast and other socket addresses stay
     @Test
     public void localAddressOfSocketsIsHidden() throws Exception {
         Globals globals = load("network_address");
         Varargs result = Scripts.run(globals,
                 "local inet = luajava.bindClass('java.net.InetAddress')\n" +
-                        "local function bound(method, value)\n" +
-                        "  local param = paramof(value)\n" +
-                        "  return tostring(after(hookof(method), param)) .. ' ' .. tostring(param.result)\n" +
+                        "local real = luajava\n" +
+                        // No hidden call of Os tells the family of a descriptor, which apps may not make
+                        "luajava = setmetatable({ bindClass = function(name)\n" +
+                        "  assert(name ~= 'android.system.Os', name) return real.bindClass(name) end },\n" +
+                        "  { __index = real })\n" +
+                        "local function bound(method, value, class, fd)\n" +
+                        "  local param = paramof(value, { [0] = fd })\n" +
+                        "  param.unhooked = function(self, call) unhooked = true local found = call() unhooked = false return found end\n" +
+                        "  return tostring(after(hookof(method, class), param)) .. ' ' .. tostring(param.result)\n" +
                         "end\n" +
                         "local function socket(host, port)\n" +
                         "  return luajava.newInstance('java.net.InetSocketAddress', inet:getByName(host), port)\n" +
                         "end\n" +
-                        "return bound('getLocalAddress', inet:getByName('192.168.1.5')),\n" +
-                        "  bound('getLocalAddress', inet:getByName('2001:db8::5')),\n" +
-                        "  bound('getLocalSocketAddress', socket('10.0.0.7', 4321)),\n" +
-                        "  bound('getsockname', socket('2001:db8::5', 443)),\n" +
-                        "  bound('getLocalAddress', inet:getByName('127.0.0.1')),\n" +
-                        "  bound('getLocalAddress', inet:getByName('0.0.0.0')),\n" +
-                        "  bound('getLocalAddress', inet:getByName('fe80::1')),\n" +
-                        "  bound('getLocalSocketAddress', socket('::1', 80)),\n" +
-                        "  bound('getsockname', 'unix'),\n" +
-                        "  bound('ioctlInetAddress', inet:getByName('255.255.255.0'))");
-        assertEquals("true /0.0.0.0", result.arg(1).tojstring());
-        assertEquals("true /0:0:0:0:0:0:0:0", result.arg(2).tojstring());
-        assertEquals("true /0.0.0.0:4321", result.arg(3).tojstring());
+                        "return bound('getLocalAddress', inet:getByName('192.168.1.5'), 'java.net.Socket'),\n" +
+                        "  bound('getLocalAddress', inet:getByName('2001:db8::5'), 'java.net.DatagramSocket'),\n" +
+                        "  bound('getLocalSocketAddress', socket('10.0.0.7', 4321), 'java.net.Socket'),\n" +
+                        "  bound('getsockname', socket('2001:db8::5', 443), 'android.system.Os', 'ipv6'),\n" +
+                        "  bound('getLocalAddress', inet:getByName('127.0.0.1'), 'java.net.Socket'),\n" +
+                        "  bound('getLocalAddress', inet:getByName('0.0.0.0'), 'java.net.Socket'),\n" +
+                        "  bound('getLocalAddress', inet:getByName('fe80::1'), 'java.net.Socket'),\n" +
+                        "  bound('getLocalSocketAddress', socket('::1', 80), 'java.net.DatagramSocket'),\n" +
+                        "  bound('getsockname', 'unix', 'android.system.Os', 'ipv6'),\n" +
+                        "  bound('ioctlInetAddress', inet:getByName('255.255.255.0'), 'libcore.io.ForwardingOs'),\n" +
+                        "  bound('getsockname', socket('10.0.0.7', 80), 'android.system.Os', 'ipv4'),\n" +
+                        "  bound('getsockname', socket('10.0.0.7', 80), 'android.system.Os', 'ipv6'),\n" +
+                        "  bound('getLocalAddress', inet:getByName('192.168.1.5'), 'sun.nio.ch.SocketAdaptor'),\n" +
+                        "  bound('getLocalAddress', socket('192.168.1.5', 5353), 'sun.nio.ch.DatagramChannelImpl'),\n" +
+                        "  bound('getLocalAddress', inet:getByName('169.254.3.4'), 'java.net.DatagramSocket'),\n" +
+                        "  bound('getsockname', socket('fe80::1', 5353), 'android.system.Os', 'ipv6'),\n" +
+                        "  bound('getLocalAddress', inet:getByName('ff02::fb'), 'java.net.DatagramSocket'),\n" +
+                        "  bound('getLocalSocketAddress', socket('224.0.0.251', 5353), 'java.net.DatagramSocket')");
+        java.net.InetAddress any = new java.net.InetSocketAddress(0).getAddress();
+        assertEquals("true " + any, result.arg(1).tojstring());
+        assertEquals("true " + any, result.arg(2).tojstring());
+        assertEquals("true " + new java.net.InetSocketAddress(any, 4321), result.arg(3).tojstring());
         assertEquals("true /[0:0:0:0:0:0:0:0]:443", result.arg(4).tojstring());
         assertEquals("false /127.0.0.1", result.arg(5).tojstring());
         assertEquals("false /0.0.0.0", result.arg(6).tojstring());
-        assertEquals("false /fe80:0:0:0:0:0:0:1", result.arg(7).tojstring());
+        assertEquals("true " + any, result.arg(7).tojstring());
         assertEquals("false /[0:0:0:0:0:0:0:1]:80", result.arg(8).tojstring());
         assertEquals("false unix", result.arg(9).tojstring());
         // The values of an interface by ioctl are decided before the call, by the address of the interface
         assertEquals("false /255.255.255.0", result.arg(10).tojstring());
+        // getsockname with an address of IPv4 has the wildcard of IPv4, also of a socket of IPv6 (a shortcut)
+        assertEquals("true /0.0.0.0:80", result.arg(11).tojstring());
+        assertEquals("true /0.0.0.0:80", result.arg(12).tojstring());
+        assertEquals("true /0:0:0:0:0:0:0:0", result.arg(13).tojstring());
+        assertEquals("true /[0:0:0:0:0:0:0:0]:5353", result.arg(14).tojstring());
+        assertEquals("true " + any, result.arg(15).tojstring());
+        assertEquals("true /[0:0:0:0:0:0:0:0]:5353", result.arg(16).tojstring());
+        // The group a socket is bound to is of the app, not of the device
+        assertEquals("false /ff02:0:0:0:0:0:0:fb", result.arg(17).tojstring());
+        assertEquals("false /224.0.0.251:5353", result.arg(18).tojstring());
+    }
+
+    // The local address of a socket keeps the same addresses of the device as NetworkInterface, loopback only, so a
+    // socket never shows one the interfaces hide
+    @Test
+    public void localAddressOfSocketsAgreesWithInterfaces() throws Exception {
+        Globals globals = load("network_address");
+        Varargs result = Scripts.run(globals,
+                "local inet = luajava.bindClass('java.net.InetAddress')\n" +
+                        "local collections = luajava.bindClass('java.util.Collections')\n" +
+                        "local hosts = { '127.0.0.1', '::1', '192.168.1.5', '10.0.0.7', '2001:db8::5', 'fe80::1', '169.254.3.4' }\n" +
+                        "local list = luajava.newInstance('java.util.ArrayList')\n" +
+                        "for _, host in ipairs(hosts) do list:add(inet:getByName(host)) end\n" +
+                        "local listed = paramof(collections:enumeration(list))\n" +
+                        "after(hookof('getInetAddresses'), listed)\n" +
+                        "local kept = collections:list(listed.result)\n" +
+                        "local differ = {}\n" +
+                        "for _, host in ipairs(hosts) do\n" +
+                        "  local address = inet:getByName(host)\n" +
+                        "  local param = paramof(address)\n" +
+                        "  after(hookof('getLocalAddress', 'java.net.DatagramSocket'), param)\n" +
+                        "  if (param.result == address) ~= kept:contains(address) then differ[#differ + 1] = host end\n" +
+                        "end\n" +
+                        "return kept:size(), table.concat(differ, ' ')");
+        assertEquals(2, result.arg(1).toint());
+        assertEquals("", result.arg(2).tojstring());
     }
 
     // The text of a socket channel has the same fake local address as getLocalAddress, written the same way; an
@@ -378,14 +456,16 @@ public class NetworkScriptsTest {
                         "  local param = paramof('java.nio.channels.SocketChannel[connected local=' ..\n" +
                         "    (bound and bound:toString() or '') .. ' remote=example.com/93.184.215.14:443]', {}, channel)\n" +
                         "  param.unhooked = function(self, call) return call() end\n" +
-                        "  return tostring(after(hookof('toString'), param)) .. ' ' .. param.result\n" +
+                        "  return tostring(after(hookof('toString', 'sun.nio.ch.SocketChannelImpl'), param)) .. ' ' .. param.result\n" +
                         "end\n" +
                         "local broken = paramof('java.nio.channels.SocketChannel[connected local=/192.168.1.23:41234]', {}, {})\n" +
                         "broken.unhooked = function(self, call) return call() end\n" +
                         "return text('192.168.1.23'), text('2001:db8::5'), text('127.0.0.1'), text('192.168.1.23', true),\n" +
-                        "  text(nil), pcall(after, hookof('toString'), broken)");
+                        "  text(nil), pcall(after, hookof('toString', 'sun.nio.ch.SocketChannelImpl'), broken), text('fe80::1%1')");
         String remote = " remote=example.com/93.184.215.14:443]";
-        assertEquals("true java.nio.channels.SocketChannel[connected local=/0.0.0.0:41234" + remote, result.arg(1).tojstring());
+        // The channel is of IPv6 also for IPv4, like getLocalAddress gives it
+        assertEquals("true java.nio.channels.SocketChannel[connected local=/[0:0:0:0:0:0:0:0]:41234" + remote,
+                result.arg(1).tojstring());
         assertEquals("true java.nio.channels.SocketChannel[connected local=/[0:0:0:0:0:0:0:0]:41234" + remote,
                 result.arg(2).tojstring());
         assertEquals("false java.nio.channels.SocketChannel[connected local=/127.0.0.1:41234" + remote, result.arg(3).tojstring());
@@ -394,6 +474,9 @@ public class NetworkScriptsTest {
         assertEquals("false java.nio.channels.SocketChannel[connected local=" + remote, result.arg(5).tojstring());
         // An error of the script goes to the log of the hook
         assertFalse(result.arg(6).toboolean());
+        // A link-local address with its scope
+        assertEquals("true java.nio.channels.SocketChannel[connected local=/[0:0:0:0:0:0:0:0]:41234" + remote,
+                result.arg(7).tojstring());
     }
 
     // The values of an interface by ioctl (SIOCGIFADDR, SIOCGIFNETMASK, SIOCGIFBRDADDR, SIOCGIFDSTADDR) come from its
@@ -548,6 +631,39 @@ public class NetworkScriptsTest {
                         "return after(hookof('getType'), type), type.result");
         assertTrue(fallback.arg(1).toboolean());
         assertEquals(1, fallback.arg(2).toint());
+    }
+
+    // Link properties the app makes itself and names like a VPN, without a network of that interface, keep what it set,
+    // in the getter, the text and the HTTP proxy, like on Android; those of the VPN of the device get the fakes
+    @Test
+    public void ownLinkPropertiesOfTheApp() throws Exception {
+        Globals globals = load("vpn");
+        Scripts.run(globals, NETWORKS);
+        Varargs result = Scripts.run(globals,
+                "local own = lpof('tun9')\n" +
+                        "local name = paramof('tun9', {}, own, context)\n" +
+                        "local text = paramof('{InterfaceName: tun9 LinkAddresses: [ ] Routes: [ ]}', {}, own, context)\n" +
+                        "local vpn = paramof('tun0', {}, lps.vpn, context)\n" +
+                        "return after(hookof('getInterfaceName'), name), after(hookof('toString', 'android.net.LinkProperties'), text),\n" +
+                        "  after(hookof('getInterfaceName'), vpn), vpn.result");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertEquals("rmnet_data0", result.arg(4).tojstring());
+
+        Globals addresses = load("vpn_addresses");
+        Scripts.run(addresses, NETWORKS);
+        Varargs proxy = Scripts.run(addresses,
+                "linkproperties = function() return false end\n" +
+                        "local own = lpof('tun9')\n" +
+                        "own.getHttpProxy = function(self) return 'proxy' end\n" +
+                        "local param = paramof('proxy', {}, own, context)\n" +
+                        "local vpn = paramof('proxy', {}, lps.vpn, context)\n" +
+                        "return after(hookof('getHttpProxy'), param), param.result, after(hookof('getHttpProxy'), vpn), vpn.result");
+        assertFalse(proxy.arg(1).toboolean());
+        assertEquals("proxy", proxy.arg(2).tojstring());
+        assertTrue(proxy.arg(3).toboolean());
+        assertTrue(proxy.arg(4).isnil());
     }
 
     // The index of the interface of a VPN by its name and back is like for an interface which does not exist
@@ -733,13 +849,23 @@ public class NetworkScriptsTest {
         assertEquals("connected", reason.arg(4).tojstring());
     }
 
-    // The empty extra info Android leaves most apps is (none) in the text, like the hooked getter gives no extra info
+    // The extra info is empty in the text, like the hooked getter gives and Android gives a Wi-Fi network from Android
+    // 11, also the APN of mobile data; none, which Android prints for null, stays
     @Test
-    public void emptyExtraInfoIsNone() throws Exception {
+    public void extraInfoIsEmpty() throws Exception {
         Globals globals = load("network_tostring");
-        assertEquals("[type: WIFI[], state: CONNECTED/CONNECTED, reason: (unspecified), extra: (none), failover: false]",
-                Scripts.run(globals, "return (networkinfo('[type: WIFI[], state: CONNECTED/CONNECTED, reason: (unspecified), " +
-                        "extra: , failover: false]'))").arg1().tojstring());
+        String text = "[type: MOBILE[LTE], state: CONNECTED/CONNECTED, reason: (unspecified), extra: %s, failover: false]";
+        // From Android 11 empty like the getter, before null, which Android prints as (none)
+        String[][][] cases = {{{"internet", ""}, {"", ""}, {"(none)", "(none)"}}, {{"internet", "(none)"}, {"", "(none)"}}};
+        int[] sdks = {30, 29};
+        for (int i = 0; i < sdks.length; i++) {
+            Scripts.run(globals, "luajava = { bindClass = function(name) return { SDK_INT = " + sdks[i] + " } end }");
+            for (String[] c : cases[i]) {
+                globals.set("text", LuaValue.valueOf(String.format(text, c[0])));
+                assertEquals(sdks[i] + " " + c[0], String.format(text, c[1]),
+                        Scripts.run(globals, "return (networkinfo(text))").arg1().tojstring());
+            }
+        }
     }
 
     // The runtime of a script stays after an error (see XCore), so an error must not leave the guard of nested calls set
@@ -803,8 +929,17 @@ public class NetworkScriptsTest {
                         "stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.getInterfaceName'," +
                         " 'android.net.LinkProperties.getAllInterfaceNames', 'com.example.App.run' }\n" +
                         "local names = call('getInterfaceName', 'android.net.LinkProperties')\n" +
+                        // Its parcel keeps the real name, apart from where vpn_parcel fakes it and marks it
+                        "stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.getInterfaceName'," +
+                        " 'android.net.LinkProperties.writeToParcel' }\n" +
+                        "local parcelled = call('getInterfaceName', 'android.net.LinkProperties')\n" +
+                        "local lp = {}\n" +
+                        "values[lp] = { ['vpn.parcel'] = true }\n" +
+                        "local marked = paramof('tun0', {}, lp, context)\n" +
+                        "after(hookof('getInterfaceName', 'android.net.LinkProperties'), marked)\n" +
                         "stack = { 'java.lang.Thread.getStackTrace', 'com.example.App.run' }\n" +
-                        "return route, copy, own, call('getInterface', 'android.net.RouteInfo'), copied, added, names");
+                        "return route, copy, own, call('getInterface', 'android.net.RouteInfo'), copied, added, names,\n" +
+                        "  parcelled, marked.result");
         assertEquals("tun0", result.arg(1).tojstring());
         assertEquals("tun0", result.arg(2).tojstring());
         assertEquals("rmnet_data0", result.arg(3).tojstring());
@@ -812,6 +947,8 @@ public class NetworkScriptsTest {
         assertEquals("tun0", result.arg(5).tojstring());
         assertEquals(result.arg(3).tojstring(), result.arg(6).tojstring());
         assertEquals("rmnet_data0", result.arg(7).tojstring());
+        assertEquals("tun0", result.arg(8).tojstring());
+        assertEquals("rmnet_data0", result.arg(9).tojstring());
     }
 
     // LinkProperties compares and copies its routes, addresses and DNS servers through the getters (equals, the copy
@@ -836,8 +973,7 @@ public class NetworkScriptsTest {
         assertEquals("true", result.arg(4).tojstring());
 
         // The hidden getters, which apps reach by reflection, and with which LinkProperties compares itself
-        for (String method : new String[]{"getAllAddresses", "getAddresses", "getAllLinkAddresses", "getAllRoutes",
-                "getAllInterfaceNames"}) {
+        for (String method : new String[]{"getAllAddresses", "getAddresses", "getAllLinkAddresses", "getAllRoutes"}) {
             result = Scripts.run(globals,
                     "local param = paramof({ isEmpty = function() return false end })\n" +
                             "stack = { 'android.net.LinkProperties." + method + "', 'com.example.App.run' }\n" +
@@ -847,6 +983,354 @@ public class NetworkScriptsTest {
             assertTrue(method, result.arg(1).toboolean());
             assertFalse(method, result.arg(2).toboolean());
         }
+    }
+
+    // A link is parcelled, compared and hashed as a copy with what its getters show: the interface as the getter gives
+    // it, the MTU and the proxy. The copy is written without the hooks in place of the link, whose write is skipped;
+    // links which differ only in what the getters hide are the same, also by the hidden comparisons. The processes of
+    // Android itself, which send their links to system server, leave all of them to the link
+    @Test
+    public void linkPropertiesParcelledAndComparedAsShown() throws Exception {
+        Globals globals = load("network_address");
+        Varargs result = Scripts.run(globals,
+                "local real = luajava\n" +
+                        "sdk, uid = 34, 10123\n" +
+                        "luajava = setmetatable({ bindClass = function(name)\n" +
+                        "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                        "  if name == 'android.os.Process' then return { myUid = function() return uid end } end\n" +
+                        "  return real.bindClass(name) end,\n" +
+                        "  newInstance = function(name, ...)\n" +
+                        "  if name ~= 'android.net.LinkProperties' then return real.newInstance(name, ...) end\n" +
+                        "  local function diff(self, other) assert(unhooked)\n" +
+                        "    return self.name .. '>' .. (other and other.name or 'none') end\n" +
+                        "  return { compareAddresses = diff, compareDnses = diff, compareAllInterfaceNames = diff,\n" +
+                        "    setInterfaceName = function(self, name) self.name = name end,\n" +
+                        "    setMtu = function(self, mtu) self.mtu = mtu end,\n" +
+                        "    setHttpProxy = function(self, proxy) self.proxy = proxy end,\n" +
+                        "    writeToParcel = function(self, parcel, flags) assert(unhooked)\n" +
+                        "      parcel[#parcel + 1] = self.name .. ' ' .. self.mtu .. ' ' .. tostring(self.proxy) .. ' ' .. flags end,\n" +
+                        "    hashCode = function(self) assert(unhooked) return #self.name * 31 + self.mtu end,\n" +
+                        "    equals = function(self, other) assert(unhooked)\n" +
+                        "      return self.name == other.name and self.mtu == other.mtu and self.proxy == other.proxy end }\n" +
+                        "end }, { __index = real })\n" +
+                        // A link as Lua sees it, whose interface getter has the fake of another group, so it is read
+                        // with the hooks
+                        "local function linkof(name, mtu)\n" +
+                        "  return { kind = 'android.net.LinkProperties',\n" +
+                        "    getInterfaceName = function() assert(not unhooked) return 'fake-' .. name end,\n" +
+                        "    getMtu = function() assert(not unhooked) return mtu end,\n" +
+                        "    getHttpProxy = function() assert(not unhooked) return nil end }\n" +
+                        "end\n" +
+                        "local function call(method, link, result, ...)\n" +
+                        "  local param = paramof(result, { [0] = select(1, ...), select(2, ...) }, link)\n" +
+                        "  param.isInstance = function(self, object, name) return type(object) == 'table' and object.kind == name end\n" +
+                        "  param.unhooked = function(self, call) unhooked = true local found = call() unhooked = false return found end\n" +
+                        "  local changed\n" +
+                        "  if method == 'writeToParcel' then changed = before(hookof(method), param)\n" +
+                        "  else changed = after(hookof(method), param) end\n" +
+                        "  return tostring(changed) .. ' ' .. tostring(param.set) .. ' ' .. tostring(param.result)\n" +
+                        "end\n" +
+                        "local wifi, other, mobile = linkof('wlan0', 1500), linkof('wlan0', 1500), linkof('rmnet0', 1500)\n" +
+                        "local parcel = {}\n" +
+                        "local written = call('writeToParcel', wifi, nil, parcel, 1)\n" +
+                        "local function all()\n" +
+                        "  return written, tostring(parcel[1]), #parcel, call('writeToParcel', wifi, nil, nil, 0),\n" +
+                        "    call('hashCode', wifi, 12345),\n" +
+                        "    call('equals', wifi, false, other), call('equals', wifi, false, mobile), call('equals', wifi, true, wifi),\n" +
+                        "    call('equals', wifi, false, 'text'), call('isIdenticalAddresses', wifi, false, other),\n" +
+                        "    call('isIdenticalRoutes', wifi, true, other), call('isIdenticalDnses', wifi, nil, nil),\n" +
+                        "    call('compareAddresses', wifi, 'real', mobile), call('compareAllInterfaceNames', wifi, 'real', mobile),\n" +
+                        "    call('compareDnses', wifi, 'real', nil)\n" +
+                        "end\n" +
+                        "local now = { all() }\n" +
+                        // A process of Android itself, like phone, which sends its links to system server
+                        "sdk, uid = 34, 1001\n" +
+                        "parcel = {}\n" +
+                        "written = call('writeToParcel', wifi, nil, parcel, 1)\n" +
+                        "local system = { all() }\n" +
+                        "return table.concat(now, '|'), table.concat(system, '|')");
+        assertEquals(String.join("|", "true true nil", "fake-wlan0 1500 nil 1", "1", "false false nil",
+                // The hash of the copy, 10 * 31 + 1500
+                "true true 1810",
+                "true true true", "false false false", "false false true", "false false false",
+                // Android's comparisons of what the getters show none of; a missing link fails like in Android
+                "true true true", "false false true", "false false nil",
+                // The differences of Android 8.1 as the getters show them
+                "true true fake-wlan0>fake-rmnet0", "true true fake-wlan0>fake-rmnet0", "true true fake-wlan0>none"),
+                result.arg(1).tojstring());
+        String real = String.join("|", "false false nil", "nil", "0", "false false nil", "false false 12345",
+                "false false false", "false false false", "false false true", "false false false",
+                "false false false", "false false true", "false false nil",
+                "false false real", "false false real", "false false real");
+        assertEquals(real, result.arg(2).tojstring());
+    }
+
+    // A parcel and the parameters of the parcel hooks, for the scripts which write an object to a parcel and read it back
+    private static final String PARCEL = String.join("\n",
+            "-- A parcel of slots of 4 bytes each, which knows what kind of value each slot has, like the reads of Android expect",
+            "function parcelof()",
+            "  local p = { items = {}, at = 1, recycled = false }",
+            "  local function put(kind) return function(self, value) self.items[#self.items + 1] = { kind, value } end end",
+            "  local function get(kind)",
+            "    return function(self)",
+            "      local item = self.items[self.at]",
+            // Like Android, which reads 0 at the end of a parcel
+            "      if item == nil and kind == 'i' then return 0 end",
+            "      -- Ints read the slot of any value, like Android reads its bytes",
+            "      assert(item and (item[1] == kind or kind == 'i'), kind .. ' at ' .. self.at)",
+            "      self.at = self.at + 1",
+            "      return item[2]",
+            "    end",
+            "  end",
+            "  p.writeInt, p.readInt, p.writeByte, p.readByte = put('i'), get('i'), put('i'), get('i')",
+            "  p.writeString, p.readString, p.createByteArray = put('s'), get('s'), get('a')",
+            "  -- An object with a creator in creators is written with its class name and read by that creator",
+            "  p.writeParcelable = function(self, value, flags)",
+            "    if type(value) == 'table' and creators[value.kind] then",
+            "      put('s')(self, value.kind)",
+            "      value:writeToParcel(self, flags)",
+            "    else",
+            "      put('p')(self, value)",
+            "    end",
+            "  end",
+            "  p.readParcelable = function(self, loader)",
+            "    assert(loader == nil)",
+            "    local item = self.items[self.at]",
+            "    if item and item[1] == 's' then return creators[get('s')(self)](self) end",
+            "    return get('p')(self)",
+            "  end",
+            "  p.writeList = function(self, list) put('l')(self, list) end",
+            "  p.readList = function(self, list, loader) get('l')(self) end",
+            "  p.setDataPosition = function(self, at) assert(at % 4 == 0) self.at = at / 4 + 1 end",
+            "  p.dataPosition = function(self) return (self.at - 1) * 4 end",
+            "  p.dataSize = function(self) return #self.items * 4 end",
+            "  p.appendFrom = function(self, from, at, length)",
+            "    assert(at % 4 == 0 and length % 4 == 0)",
+            "    for index = at / 4 + 1, (at + length) / 4 do self.items[#self.items + 1] = from.items[index] end",
+            "  end",
+            "  p.recycle = function(self) self.recycled = true parcels[#parcels + 1] = self end",
+            "  p.ints = function(self)",
+            "    local ints = {}",
+            "    for index, item in ipairs(self.items) do ints[index] = tostring(item[2]) end",
+            "    return table.concat(ints, ',')",
+            "  end",
+            "  return p",
+            "end",
+            "parcels, creators = {}, {}",
+            "function paramwith(result, args, this)",
+            "  local param = paramof(result, args, this)",
+            "  param.isInstance = function(self, object, name) return type(object) == 'table' and object.kind == name end",
+            "  param.unhooked = function(self, call) unhooked = true local found = call() unhooked = false return found end",
+            "  return param",
+            "end");
+
+    // Android 9 has the copy of a link only hidden, so it is read by the creator of Android from a parcel written the way
+    // Android 9 writes a link, with the MTU of the parcel of the link, whose getter is hidden there too; a link whose
+    // parcel has other fields stays as it is
+    @Test
+    public void linkPropertiesOfAndroid9CopiedByParcel() throws Exception {
+        Globals globals = load("network_address");
+        Scripts.run(globals, PARCEL);
+        Varargs result = Scripts.run(globals, String.join("\n",
+            "local real = luajava",
+            "luajava = setmetatable({ bindClass = function(name)",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = 28 } end",
+            "  if name == 'android.os.Process' then return { myUid = function() return 10123 end } end",
+            "  if name == 'android.os.Parcel' then return { obtain = function() return parcelof() end } end",
+            "  if name ~= 'android.net.LinkProperties' then return real.bindClass(name) end",
+            "  -- The creator of Android 9, which reads the copy back",
+            "  return { CREATOR = { createFromParcel = function(self, p)",
+            "    local copy = { name = p:readString() }",
+            "    assert(p:readInt() == 0 and p:readInt() == 0 and p:readInt() == 0 and p:readInt() == 0)",
+            "    assert(p:readString() == nil and p:readString() == nil)",
+            "    copy.mtu = p:readInt()",
+            "    assert(p:readString() == nil and p:readInt() == 0)",
+            "    if p:readByte() == 1 then copy.proxy = p:readParcelable(nil) end",
+            "    p:readList({}, nil)",
+            "    copy.writeToParcel = function(self, parcel, flags) assert(unhooked)",
+            "      parcel[#parcel + 1] = self.name .. ' ' .. self.mtu .. ' ' .. tostring(self.proxy) .. ' ' .. flags end",
+            "    copy.hashCode = function(self) assert(unhooked) return #self.name * 31 + self.mtu end",
+            "    return copy end } }",
+            "end }, { __index = real })",
+            "-- A link as Android 9 writes it, with an address, a DNS server, private DNS, domains, a route and maybe a proxy; one",
+            "-- of a device which writes another field after them does not read whole",
+            "local function linkof(proxy, extra)",
+            "  return { kind = 'android.net.LinkProperties',",
+            "    getInterfaceName = function() assert(not unhooked) return 'fake-wlan0' end,",
+            "    getMtu = function() error('hidden on Android 9') end,",
+            "    getHttpProxy = function() assert(not unhooked) return proxy end,",
+            "    writeToParcel = function(self, p, flags) assert(unhooked and flags == 0)",
+            "      p:writeString('wlan0') p:writeInt(1) p:writeParcelable('192.168.1.5/24', 0) p:writeInt(1) put = p.items",
+            "      put[#put + 1] = { 'a', '192.168.1.1' } p:writeInt(0) p:writeInt(1) p:writeString('dns.example')",
+            "      p:writeString('example.com') p:writeInt(1500) p:writeString('4096,87380') p:writeInt(1)",
+            "      p:writeParcelable('0.0.0.0/0 -> 192.168.1.1', 0)",
+            "      if proxy == nil then p:writeByte(0) else p:writeByte(1) p:writeParcelable(proxy, 0) end",
+            "      p:writeList({})",
+            "      if extra then p:writeInt(7) end",
+            "    end }",
+            "end",
+            "local function written(link)",
+            "  local parcel = {}",
+            "  local changed = before(hookof('writeToParcel'), paramwith(nil, { [0] = parcel, 1 }, link))",
+            "  return tostring(changed) .. ' ' .. tostring(parcel[1])",
+            "end",
+            "local param = paramwith(12345, {}, linkof(nil))",
+            "local hashed = tostring(after(hookof('hashCode'), param)) .. ' ' .. tostring(param.result)",
+            "return written(linkof(nil)), written(linkof('proxy:8080')), written(linkof(nil, true)), hashed, #parcels"));
+        assertEquals("true fake-wlan0 1500 nil 1", result.arg(1).tojstring());
+        assertEquals("true fake-wlan0 1500 proxy:8080 1", result.arg(2).tojstring());
+        assertEquals("false nil", result.arg(3).tojstring());
+        // The hash of the copy, 10 * 31 + 1500
+        assertEquals("true 1810", result.arg(4).tojstring());
+        // Each call recycles the parcel of the link and the one of the copy
+        assertEquals(8, result.arg(5).toint());
+    }
+
+    // The interface names of a link are the one getInterfaceName gives, like its copy has; it has no private DNS and no
+    // Wake-on-LAN like its copy, while LinkProperties itself compares the real ones
+    @Test
+    public void linkPropertiesNamesAndPrivateDnsAsCopied() throws Exception {
+        Globals globals = load("network_address");
+        Scripts.run(globals, STACK);
+        Varargs result = Scripts.run(globals, String.join("\n",
+            "local function call(method, result, frame)",
+            "  stack = { 'java.lang.Thread.getStackTrace', 'android.net.LinkProperties.' .. method, frame or 'com.example.App.run' }",
+            "  local link = { getInterfaceName = function() return 'fake-wlan0' end }",
+            "  local param = paramof(result, {}, link)",
+            "  local changed = after(hookof(method), param)",
+            "  return tostring(changed) .. ' ' .. tostring(param.result)",
+            "end",
+            "local names = luajava.newInstance('java.util.ArrayList')",
+            "names:add('wlan0')",
+            "names:add('v4-wlan0')",
+            "local same = luajava.newInstance('java.util.ArrayList')",
+            "same:add('fake-wlan0')",
+            "return call('getAllInterfaceNames', names), call('getAllInterfaceNames', same),",
+            "  call('getAllInterfaceNames', names, 'android.net.LinkProperties.compareAllInterfaceNames'),",
+            "  call('isPrivateDnsActive', true), call('isPrivateDnsActive', false), call('isWakeOnLanSupported', true),",
+            "  call('isPrivateDnsActive', true, 'android.net.LinkProperties.isIdenticalPrivateDns')"));
+        assertEquals("true [fake-wlan0]", result.arg(1).tojstring());
+        assertEquals("false [fake-wlan0]", result.arg(2).tojstring());
+        assertEquals("false [wlan0, v4-wlan0]", result.arg(3).tojstring());
+        assertEquals("true false", result.arg(4).tojstring());
+        assertEquals("false false", result.arg(5).tojstring());
+        assertEquals("true false", result.arg(6).tojstring());
+        assertEquals("false true", result.arg(7).tojstring());
+    }
+
+    // The Wi-Fi info is made again by its creator from its parcel without the address, so its parcel, hashCode and equals
+    // have none; it stays when the address is not in the parcel once or the new info does not write the same parcel
+    @Test
+    public void wifiInfoMadeWithoutAddress() throws Exception {
+        Globals globals = load("network_address");
+        Scripts.run(globals, PARCEL);
+        Varargs result = Scripts.run(globals, String.join("\n",
+            "local real = luajava",
+            "luajava = setmetatable({ bindClass = function(name)",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = 27 } end",
+            "  if name == 'android.os.Parcel' then return { obtain = function() return parcelof() end } end",
+            "  return real.bindClass(name) end }, { __index = real })",
+            "-- The creator of Android 8.1: network id, RSSI, link speed, frequency, the address, the SSID and the BSSID",
+            "creators['android.net.wifi.WifiInfo'] = function(p)",
+            "    local ints = { p:readInt(), p:readInt(), p:readInt(), p:readInt() }",
+            "    local ip = 0",
+            "    if p:readByte() == 1 then assert(p:readInt() == 4) ip = p:readInt() end",
+            "    ints[5], ints[6] = p:readInt(), p:readInt()",
+            // A device with another field after them, which the parcel does not have, so it writes one more back
+            "    local info = infoof(ints, ip)",
+            "    if creator == 'other' then info.extra = p:readInt() end",
+            "    return info",
+            "end",
+            "function infoof(ints, ip, twice)",
+            "  return { kind = 'android.net.wifi.WifiInfo', ints = ints, ip = ip,",
+            "    getIpAddress = function(self) assert(unhooked) return self.ip end,",
+            "    writeToParcel = function(self, p, flags) assert(unhooked and flags == 0)",
+            "      for index = 1, 4 do p:writeInt(self.ints[index]) end",
+            "      if self.ip == 0 then p:writeByte(0) else p:writeByte(1) p:writeInt(4) p:writeInt(self.ip) end",
+            "      p:writeInt(self.ints[5]) p:writeInt(twice and 1 or self.ints[6])",
+            "      if twice then p:writeInt(4) p:writeInt(self.ip) end",
+            "      if self.extra then p:writeInt(self.extra) end",
+            "    end }",
+            "end",
+            "local function connection(info)",
+            "  local param = paramwith(info, {}, nil)",
+            "  local changed = after(hookof('getConnectionInfo', 'android.net.wifi.WifiManager'), param)",
+            "  return tostring(changed) .. ' ' .. (param.result == info and 'same' or param.result.ip)",
+            "end",
+            "local wifi = infoof({ 7, -50, 72, 2412, 0, 42 }, 84060352)",
+            "local param = paramwith(wifi, {}, nil)",
+            "after(hookof('getConnectionInfo', 'android.net.wifi.WifiManager'), param)",
+            "local again = parcelof()",
+            "unhooked = true again:writeParcelable(param.result, 0) unhooked = false",
+            "-- The transport info of capabilities, the same one made again for each call",
+            "local function transport(info, capabilities)",
+            "  local param = paramwith(info, {}, capabilities)",
+            "  local changed = after(hookof('getTransportInfo', 'android.net.NetworkCapabilities'), param)",
+            "  return changed, param.result",
+            "end",
+            "local capabilities = {}",
+            "local first, made = transport(wifi, capabilities)",
+            "local second, cached = transport(wifi, capabilities)",
+            "local vpn = transport({ kind = 'android.net.VpnTransportInfo' }, {})",
+            "creator = 'other'",
+            "local other = connection(infoof({ 7, -50, 72, 2412, 0, 42 }, 84060352))",
+            "creator = nil",
+            "return again:ints(), connection(infoof({ 7, -50, 72, 2412, 0, 42 }, 0)),",
+            "  connection(infoof({ 7, -50, 72, 2412, 0, 42 }, 84060352, true)), other,",
+            "  tostring(first) .. ' ' .. tostring(second) .. ' ' .. tostring(made == cached) .. ' ' .. made.ip .. ' ' .. tostring(vpn)"));
+        assertEquals("android.net.wifi.WifiInfo,7,-50,72,2412,0,0,42", result.arg(1).tojstring());
+        assertEquals("false same", result.arg(2).tojstring());
+        assertEquals("false same", result.arg(3).tojstring());
+        assertEquals("false same", result.arg(4).tojstring());
+        assertEquals("true true true 0 false", result.arg(5).tojstring());
+    }
+
+    // From Android 12 the Wi-Fi info is also made without the network name, access point and network id, like Android
+    // gives it to apps without the location permission, by makeCopy of the info made without the address, also for an
+    // info without an IPv4 address; the capabilities give the same copy on each call
+    @Test
+    public void wifiInfoRedactedFromAndroid12() throws Exception {
+        Globals globals = load("network_address");
+        Scripts.run(globals, PARCEL);
+        Varargs result = Scripts.run(globals, String.join("\n",
+            "local real = luajava",
+            "luajava = setmetatable({ bindClass = function(name)",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = 31 } end",
+            "  if name == 'android.os.Parcel' then return { obtain = function() return parcelof() end } end",
+            "  return real.bindClass(name) end }, { __index = real })",
+            "creators['android.net.wifi.WifiInfo'] = function(p)",
+            "  local ssid = p:readString()",
+            "  local ip = 0",
+            "  if p:readByte() == 1 then assert(p:readInt() == 4) ip = p:readInt() end",
+            "  return infoof(ssid, ip)",
+            "end",
+            "function infoof(ssid, ip)",
+            "  return { kind = 'android.net.wifi.WifiInfo', ssid = ssid, ip = ip,",
+            "    getIpAddress = function(self) assert(unhooked) return self.ip end,",
+            "    makeCopy = function(self, redactions) assert(unhooked and redactions == 1)",
+            "      return infoof(nil, self.ip) end,",
+            "    writeToParcel = function(self, p, flags) assert(unhooked and flags == 0)",
+            "      p:writeString(self.ssid)",
+            "      if self.ip == 0 then p:writeByte(0) else p:writeByte(1) p:writeInt(4) p:writeInt(self.ip) end",
+            "    end }",
+            "end",
+            "local function connection(info)",
+            "  local param = paramwith(info, {}, nil)",
+            "  local changed = after(hookof('getConnectionInfo', 'android.net.wifi.WifiManager'), param)",
+            "  return tostring(changed) .. ' ' .. tostring(param.result.ssid) .. ' ' .. param.result.ip",
+            "end",
+            "local function transport(info, capabilities)",
+            "  local param = paramwith(info, {}, capabilities)",
+            "  after(hookof('getTransportInfo', 'android.net.NetworkCapabilities'), param)",
+            "  return param.result",
+            "end",
+            "local capabilities, wifi = {}, infoof('Home', 84060352)",
+            "local first = transport(wifi, capabilities)",
+            "return connection(wifi), connection(infoof('Home', 0)),",
+            "  tostring(first ~= wifi and first == transport(wifi, capabilities)) .. ' ' .. tostring(first.ssid) .. ' ' .. first.ip"));
+        assertEquals("true nil 0", result.arg(1).tojstring());
+        assertEquals("true nil 0", result.arg(2).tojstring());
+        assertEquals("true nil 0", result.arg(3).tojstring());
     }
 
     // A request for VPN networks, which Android matches itself, asks for LoWPAN networks instead, also to remove it again;
@@ -902,6 +1386,84 @@ public class NetworkScriptsTest {
         assertFalse(shown.arg(6).toboolean());
         assertEquals("[ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED ]", shown.arg(7).tojstring());
         assertEquals("[ Transports: VPN Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED ]", shown.arg(8).tojstring());
+    }
+
+    // An app which is a VPN starts no tunnel: prepare gives the Intent of the consent dialog of the device without the
+    // call, provisionVpnProfile in place of null, establish gives null and isAlwaysOn and isLockdownEnabled false without
+    // the call, starting a platform VPN throws like without consent and its state is null. A null context of prepare,
+    // an Intent of Android, a null state, their exceptions and the other methods stay.
+    @Test
+    public void vpnServiceNotAllowed() throws Exception {
+        Globals globals = load("vpn_service");
+        Scripts.run(globals,
+                "local strings = { [1] = 'com.android.vpndialogs/com.android.vpndialogs.ConfirmDialog',\n" +
+                        "  [2] = 'com.android.vpndialogs/com.android.vpndialogs.PlatformVpnConfirmDialog' }\n" +
+                        "local ids = { config_customVpnConfirmDialogComponent = 1, config_platformVpnConfirmDialogComponent = 2 }\n" +
+                        "luajava = {\n" +
+                        "  bindClass = function(name)\n" +
+                        "    if name == 'android.content.res.Resources' then\n" +
+                        "      return { getSystem = function() return {\n" +
+                        "        getIdentifier = function(self, n, type, package)\n" +
+                        "          assert(type == 'string' and package == 'android') return ids[n] end,\n" +
+                        "        getString = function(self, id) return strings[id] end } end }\n" +
+                        "    end\n" +
+                        "    assert(name == 'android.content.ComponentName', name)\n" +
+                        "    return { unflattenFromString = function(self, text) return { flat = text } end }\n" +
+                        "  end,\n" +
+                        "  newInstance = function(name, message)\n" +
+                        "    if name == 'android.content.Intent' then\n" +
+                        "      return { setComponent = function(self, c) self.component = c return self end }\n" +
+                        "    end\n" +
+                        "    return { class = name, message = message }\n" +
+                        "  end }\n" +
+                        "context = { getOpPackageName = function() return 'com.example.vpn' end }");
+        Varargs result = Scripts.run(globals,
+                "local function call(method, class, result, ex, args)\n" +
+                        "  local param = paramof(result, args or { [0] = context }, nil, context)\n" +
+                        "  if ex then param.getException = function() return ex end end\n" +
+                        "  local hook = hookof(method, class)\n" +
+                        "  local b = before(hook, param)\n" +
+                        "  local a = after(hook, param)\n" +
+                        "  return b or a, param.set, param.result\n" +
+                        "end\n" +
+                        "local p, _, prepared = call('prepare', 'android.net.VpnService', nil)\n" +
+                        "local _, _, allowed = call('prepare', 'android.net.VpnService', 'allowed')\n" +
+                        "local pn, pns = call('prepare', 'android.net.VpnService', nil, nil, {})\n" +
+                        "local a, as, always = call('isAlwaysOn', 'android.net.VpnService', true)\n" +
+                        "local _, _, lockdown = call('isLockdownEnabled', 'android.net.VpnService', true)\n" +
+                        "local e, es, established = call('establish', 'android.net.VpnService$Builder', nil)\n" +
+                        "local _, _, provisioned = call('provisionVpnProfile', 'android.net.VpnManager', nil)\n" +
+                        "local ve, ves = call('provisionVpnProfile', 'android.net.VpnManager', nil, 'invalid profile')\n" +
+                        "local _, _, started = call('startProvisionedVpnProfile', 'android.net.VpnManager')\n" +
+                        "local _, _, session = call('startProvisionedVpnProfileSession', 'android.net.VpnManager')\n" +
+                        "local o, os = call('protect', 'android.net.VpnService', true)\n" +
+                        "local st, sts, state = call('getProvisionedVpnProfileState', 'android.net.VpnManager', 'connected')\n" +
+                        "local sn, sns = call('getProvisionedVpnProfileState', 'android.net.VpnManager', nil)\n" +
+                        "local se, ses = call('getProvisionedVpnProfileState', 'android.net.VpnManager', 'connected', 'restricted')\n" +
+                        "return p, prepared.component.flat, allowed.component.flat, pn, pns, a and as and not always and not lockdown,\n" +
+                        "  e, es, established == nil,\n" +
+                        "  provisioned.component.flat, ve, ves, started.class, started.message, session.message, o, os,\n" +
+                        "  st and sts and state == nil, sn or sns, se or ses");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals("com.android.vpndialogs/com.android.vpndialogs.ConfirmDialog", result.arg(2).tojstring());
+        assertEquals("com.android.vpndialogs/com.android.vpndialogs.ConfirmDialog", result.arg(3).tojstring());
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+        assertTrue(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean());
+        assertTrue(result.arg(9).toboolean());
+        assertEquals("com.android.vpndialogs/com.android.vpndialogs.PlatformVpnConfirmDialog", result.arg(10).tojstring());
+        assertFalse(result.arg(11).toboolean());
+        assertFalse(result.arg(12).toboolean());
+        assertEquals("java.lang.SecurityException", result.arg(13).tojstring());
+        assertEquals("User consent not granted for package com.example.vpn", result.arg(14).tojstring());
+        assertEquals("User consent not granted for package com.example.vpn", result.arg(15).tojstring());
+        assertFalse(result.arg(16).toboolean());
+        assertFalse(result.arg(17).toboolean());
+        assertTrue(result.arg(18).toboolean());
+        assertFalse(result.arg(19).toboolean());
+        assertFalse(result.arg(20).toboolean());
     }
 
     // NOT_VPN in its place in bit order, like a real network has it: after TRUSTED (14), before VALIDATED (16)
@@ -1102,6 +1664,354 @@ public class NetworkScriptsTest {
         assertFalse(other.arg(2).toboolean());
         assertFalse(other.arg(3).toboolean());
         assertTrue(other.arg(4).toboolean());
+    }
+
+    // The objects of vpn_parcel: a parcel as typed slots by position, which fail to read as another type, like a misread
+    // parcel; the capabilities, network info and link properties with the fields Android writes on version sdk, and the
+    // values their hooked getters give, which the script reads without the hooks (unhooked) as the fields
+    private static final String PARCELS = String.join("\n",
+            "function bitsof(...) local bits = 0 for _, bit in ipairs({ ... }) do bits = bits + 2 ^ bit end return bits end",
+            "function has(bits, bit) return math.floor(bits / 2 ^ bit) % 2 == 1 end",
+            "function parcelof() return { slots = {}, position = 0, size = 0,",
+            "  put = function(self, kind, value) self.slots[self.position] = { kind, value }",
+            "    self.position = self.position + 1 self.size = math.max(self.size, self.position) end,",
+            "  take = function(self, kind) local slot = self.slots[self.position]",
+            "    assert(slot and slot[1] == kind, kind .. ' at ' .. self.position)",
+            "    self.position = self.position + 1 return slot[2] end,",
+            "  writeInt = function(self, v) self:put('int', v) end, readInt = function(self) return self:take('int') end,",
+            "  writeLong = function(self, v) self:put('long', v) end, readLong = function(self) return self:take('long') end,",
+            "  writeString = function(self, v) self:put('string', v) end, readString = function(self) return self:take('string') end,",
+            "  writeByteArray = function(self, v) self:put('bytes', v) end,",
+            "  createByteArray = function(self) return self:take('bytes') end,",
+            "  writeParcelable = function(self, v, flags) self:put('parcelable', v) end,",
+            "  readParcelable = function(self, loader) return self:take('parcelable') end,",
+            "  dataPosition = function(self) return self.position end, dataSize = function(self) return self.size end,",
+            "  setDataPosition = function(self, position) self.position = position end,",
+            "  appendFrom = function(self, other, offset, length)",
+            "    for i = offset, offset + length - 1 do self:put(other.slots[i][1], other.slots[i][2]) end end,",
+            "  recycle = function(self) self.recycled = true end } end",
+            "function addressof(length, name, scope) return { name = name, scope = scope, getScopeId = function() return scope or 0 end,",
+            "  getAddress = function() return { length = length, name = name, scope = scope } end } end",
+            "function listof(items) return { size = function() return #items end, get = function(self, i) return items[i + 1] end } end",
+            "function names(items) local list = {} for i, item in ipairs(items) do",
+            "  list[i] = type(item) == 'table' and (item.name .. '%' .. (item.scope or 0)) or item end",
+            "  return table.concat(list, ',') end",
+            "local io = {",
+            "  addresses = { function(p, v) p:writeInt(#v) for _, a in ipairs(v) do",
+            "      local bytes = a:getAddress() p:writeByteArray(bytes)",
+            "      if sdk >= 30 and bytes.length == 16 then p:writeInt(a:getScopeId() ~= 0 and 1 or 0)",
+            "        if a:getScopeId() ~= 0 then p:writeInt(a:getScopeId()) end end end end,",
+            "    function(p) local v = {} for i = 1, p:readInt() do local bytes = p:createByteArray() local scope",
+            "      if sdk >= 30 and bytes.length == 16 and p:readInt() ~= 0 then scope = p:readInt() end",
+            "      v[i] = addressof(bytes.length, bytes.name, scope) end return v end },",
+            "  address = { function(p, v) p:writeByteArray(v and v:getAddress()) end,",
+            "    function(p) local bytes = p:createByteArray() return bytes and addressof(bytes.length, bytes.name) end },",
+            "  parcelables = { function(p, v) p:writeInt(#v) for _, item in ipairs(v) do p:writeParcelable(item, 0) end end,",
+            "    function(p) local v = {} for i = 1, p:readInt() do v[i] = p:readParcelable(nil) end return v end },",
+            "  proxy = { function(p, v) p:writeInt(v and 1 or 0) if v then p:writeParcelable(v, 0) end end,",
+            "    function(p) return p:readInt() == 1 and p:readParcelable(nil) or nil end } }",
+            "for _, kind in ipairs({ 'Int', 'Long', 'String', 'Parcelable' }) do",
+            "  io[string.lower(kind)] = { function(p, v) p['write' .. kind](p, v, 0) end, function(p) return p['read' .. kind](p) end }",
+            "end",
+            "function layout(class)",
+            "  local fields = {}",
+            "  local function add(min, ...) if sdk >= min then for _, f in ipairs({ ... }) do fields[#fields + 1] = f end end end",
+            "  if class == 'android.net.NetworkCapabilities' then",
+            "    add(27, 'long values') add(28, 'long forbidden') add(27, 'long transports') add(oem or 99, 'int oem')",
+            "    add(27, 'int up', 'int down', 'parcelable specifier') add(29, 'parcelable info') add(27, 'int signal')",
+            "    add(28, 'int uids', 'string ssid')",
+            "  elseif class == 'android.net.NetworkInfo' then",
+            "    add(27, 'int type', 'int subtype', 'string typeName', 'string subtypeName', 'string state', 'string detailed',",
+            "      'int failover', 'int available', 'int roaming', 'string reason', 'string extra')",
+            "  else",
+            "    add(27, 'string iface', 'parcelables addresses', 'addresses dnses')",
+            "    add(28, 'addresses validated', 'int usepd', 'string pdname') add(29, 'addresses pcscfs')",
+            "    add(27, 'string domains') add(30, 'address dhcp') add(27, 'int mtu', 'string tcp', 'parcelables routes', 'proxy proxy')",
+            "    add(29, 'parcelable nat64') add(27, 'int stacked') add(30, 'int wol', 'parcelable url', 'parcelable data')",
+            "  end",
+            "  return fields",
+            "end",
+            "hooked = true",
+            // Counts the reads through the hooks, and those while vpn_parcel marks the object
+            "reads, marked = 0, 0",
+            "function objectof(class, fields, shown)",
+            "  local object = { class = class, fields = fields, shown = shown or {} }",
+            "  local function value(name) local v = object.fields[name]",
+            "    if hooked then reads = reads + 1",
+            "      if values[object] and values[object]['vpn.parcel'] then marked = marked + 1 end end",
+            "    if hooked and object.shown[name] ~= nil then v = object.shown[name] end",
+            "    if v == false then return nil end return v end",
+            "  function object:writeToParcel(parcel, flags) assert(not hooked)",
+            "    for _, f in ipairs(layout(class)) do local kind, name = string.match(f, '(%S+) (%S+)')",
+            "      io[kind][1](parcel, self.fields[name]) end end",
+            "  function object:hasTransport(t) return has(value('transports'), t) end",
+            "  function object:hasCapability(c) return has(value('values'), c) end",
+            "  function object:getTransportInfo() return value('info') end",
+            "  function object:getSignalStrength() return value('signal') end",
+            "  function object:getType() return value('type') end",
+            "  function object:isConnectedOrConnecting() return value('state') == 'CONNECTED' end",
+            "  for _, name in ipairs({ 'subtype', 'typeName', 'subtypeName', 'reason', 'domains', 'mtu' }) do",
+            "    object['get' .. string.upper(string.sub(name, 1, 1)) .. string.sub(name, 2)] = function() return value(name) end",
+            "  end",
+            "  function object:getExtraInfo() return value('extra') end",
+            "  function object:toString() return value('text') end",
+            "  function object:isRoaming() return value('roaming') == 1 end",
+            "  function object:getInterfaceName() return value('iface') end",
+            "  function object:getLinkAddresses() return listof(value('addresses')) end",
+            "  function object:getDnsServers() return listof(value('dnses')) end",
+            "  function object:getRoutes() return listof(value('routes')) end",
+            "  function object:getHttpProxy() return value('proxy') end",
+            // Compares and hashes its fields, like Android
+            "  function object:hashCode() assert(not hooked) local list = {}",
+            "    for _, f in ipairs(layout(class)) do local name = string.match(f, '%S+ (%S+)')",
+            "      local v = self.fields[name]",
+            "      if type(v) == 'table' then v = v.name and names({ v }) or names(v) end",
+            "      list[#list + 1] = name .. '=' .. tostring(v) end return table.concat(list, ';') end",
+            "  function object:equals(other) assert(not hooked)",
+            "    return type(other) == 'table' and other.class == class and other:hashCode() == self:hashCode() end",
+            "  return object",
+            "end",
+            // What the CREATOR of the class reads, like Android
+            "function read(class, parcel)",
+            "  local fields = {}",
+            "  for _, f in ipairs(layout(class)) do local kind, name = string.match(f, '(%S+) (%S+)')",
+            "    fields[name] = io[kind][2](parcel) end",
+            "  return objectof(class, fields)",
+            "end",
+            "creators = {}",
+            "obtained = {}",
+            // The classes of the frames on the stack
+            "stack = {}",
+            "luajava = { bindClass = function(name)",
+            "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
+            "  if name == 'java.lang.Thread' then return { currentThread = function() return { getStackTrace = function()",
+            "    local frames = { length = #stack }",
+            "    for i, cls in ipairs(stack) do frames[i] = { getClassName = function() return cls end } end",
+            "    return frames end } end } end",
+            "  if name == 'android.os.Parcel' then",
+            "    return { obtain = function(self) local p = parcelof() obtained[#obtained + 1] = p return p end } end",
+            "  return { CREATOR = { createFromParcel = function(self, parcel) return (creators[name] or read)(name, parcel) end } } end }",
+            // The object written by the hook to a parcel with a value of the app before it, and the object read back
+            // in a process of an app, or of the system with system set
+            "function paramfor(object, args)",
+            "  local param = paramof('none', args, object)",
+            "  param.unhooked = function(self, call) local was = hooked hooked = false local ok, r = pcall(call) hooked = was",
+            "    if not ok then error(r, 0) end return r end",
+            "  param.isSystem = function() return system == true end",
+            "  param.isInstance = function(self, other, name) return type(other) == 'table' and other.class == name end",
+            "  return param",
+            "end",
+            "function parcelled(object)",
+            "  obtained = {}",
+            "  local dest = parcelof()",
+            "  dest:writeInt(7)",
+            "  local param = paramfor(object, { [0] = dest, [1] = 0 })",
+            "  local ok, restricted = pcall(before, hookof('writeToParcel', object.class), param)",
+            "  local recycled = #obtained == 2 and obtained[1].recycled and obtained[2].recycled",
+            "  dest:setDataPosition(0)",
+            "  assert(dest:readInt() == 7)",
+            "  local again = dest:dataSize() > 1 and read(object.class, dest)",
+            "  return ok and restricted, param.set and param.result == nil, again and again.fields,",
+            "    dest:dataPosition() == dest:dataSize(), recycled",
+            "end",
+            // Whether the hook of equals or hashCode restricted, its result, and whether the object is no longer marked
+            "function compared(method, object, other)",
+            "  local param = paramfor(object, { [0] = other })",
+            "  local restricted = before(hookof(method, object.class), param)",
+            "  return restricted, param.result, not (values[object] and values[object]['vpn.parcel'])",
+            "end");
+
+    // The parcel of the capabilities, network info and link properties of a VPN has the values of their hooked getters,
+    // like the parcel of the network under it, and the other fields as Android wrote them, on each layout of Android
+    @Test
+    public void vpnParcelsLikeTheGetters() throws Exception {
+        Globals globals = load("vpn_parcel");
+        Scripts.run(globals, PARCELS);
+        String nc = "local nc = 'android.net.NetworkCapabilities'\n" +
+                "local function vpn(transports) return objectof(nc, { values = bitsof(12, 13, 14, 16), forbidden = bitsof(5),\n" +
+                "  transports = transports, up = 1000, down = 2000, info = 'VpnTransportInfo', signal = -2147483648, uids = -1 },\n" +
+                "  { values = bitsof(12, 13, 14, 15, 16), transports = bitsof(1), info = 'WifiInfo', signal = -55,\n" +
+                "  text = '[ Transports: WIFI Capabilities: INTERNET&NOT_VPN SignalStrength: -55]' }) end\n" +
+                "local function text(fields) return table.concat({ tostring(fields.values == bitsof(12, 13, 14, 15, 16)),\n" +
+                "  tostring(fields.forbidden), tostring(fields.transports), fields.up, fields.down, tostring(fields.specifier),\n" +
+                "  tostring(fields.info), fields.signal, tostring(fields.uids), tostring(fields.ssid) }, ' ') end\n";
+        for (Object[] version : new Object[][]{
+                // A VPN over Wi-Fi from Android 12 with VpnTransportInfo, and its transport info and signal strength
+                {34, "bitsof(1, 4)", "true 32 2 1000 2000 nil WifiInfo -55 -1 nil"},
+                {29, "bitsof(1, 4)", "true 32 2 1000 2000 nil WifiInfo -55 -1 nil"},
+                // A VPN without another transport, like on Android 8.1, has the one hasTransport shows, and the signal
+                // strength of the text, whose getter is hidden there
+                {28, "bitsof(4)", "true 32 2 1000 2000 nil nil -55 -1 nil"},
+                {27, "bitsof(4)", "true nil 2 1000 2000 nil nil -55 nil nil"}}) {
+            globals.set("sdk", LuaValue.valueOf((int) version[0]));
+            Varargs result = Scripts.run(globals, nc +
+                    "local restricted, skipped, fields, alone, recycled = parcelled(vpn(" + version[1] + "))\n" +
+                    "return restricted, skipped, text(fields), alone, recycled");
+            String at = "SDK " + version[0];
+            assertTrue(at, result.arg(1).toboolean());
+            assertTrue(at, result.arg(2).toboolean());
+            assertEquals(at, version[2], result.arg(3).tojstring());
+            assertTrue(at, result.arg(4).toboolean());
+            assertTrue(at, result.arg(5).toboolean());
+        }
+
+        // Capabilities without VPN and a VPN which is not connected are written by Android
+        globals.set("sdk", LuaValue.valueOf(34));
+        Varargs others = Scripts.run(globals, nc +
+                "local wifi = parcelled(objectof(nc, { values = bitsof(12, 13, 14, 15), transports = bitsof(1) }))\n" +
+                "local info = parcelled(objectof('android.net.NetworkInfo', { type = 17, state = 'DISCONNECTED' }))\n" +
+                "local lp = parcelled(objectof('android.net.LinkProperties', { iface = 'wlan0' }))\n" +
+                "return wifi, info, lp");
+        assertFalse(others.arg(1).toboolean());
+        assertFalse(others.arg(2).toboolean());
+        assertFalse(others.arg(3).toboolean());
+
+        // Another layout, which the script misreads, and a parcel which reads back with the VPN fail the hook, and the
+        // parcel of the app gets the real one from Android
+        Varargs failed = Scripts.run(globals, nc +
+                "oem = 27\n" +
+                "local ok, _, fields, _, recycled = parcelled(vpn(bitsof(1, 4)))\n" +
+                "oem = nil\n" +
+                "creators[nc] = function(name, parcel) parcel:setDataPosition(parcel:dataSize()) return vpn(bitsof(1, 4)) end\n" +
+                "local again, _, other = parcelled(vpn(bitsof(1, 4)))\n" +
+                "creators[nc] = nil\n" +
+                "return ok, fields, recycled, again, other");
+        assertFalse(failed.arg(1).toboolean());
+        assertFalse(failed.arg(2).toboolean());
+        assertTrue(failed.arg(3).toboolean());
+        assertFalse(failed.arg(4).toboolean());
+        assertFalse(failed.arg(5).toboolean());
+
+        // The network info of a connected VPN has the type, subtype, names, roaming, reason and extra info of the network
+        // under it, like the getters; the states, failover and availability stay
+        Varargs info = Scripts.run(globals,
+                "local info = objectof('android.net.NetworkInfo', { type = 17, subtype = 0, typeName = 'VPN', subtypeName = '',\n" +
+                        "  state = 'CONNECTED', detailed = 'CONNECTED', failover = 0, available = 1, roaming = 0,\n" +
+                        "  reason = 'agentConnect' }, { type = 0, subtype = 13, typeName = 'MOBILE', subtypeName = 'LTE',\n" +
+                        "  roaming = 1, reason = false, extra = 'internet' })\n" +
+                        "local restricted, skipped, f, alone = parcelled(info)\n" +
+                        "return restricted, skipped, table.concat({ f.type, f.subtype, f.typeName, f.subtypeName, f.state, f.detailed,\n" +
+                        "  f.failover, f.available, f.roaming, tostring(f.reason), f.extra }, ' '), alone");
+        assertTrue(info.arg(1).toboolean());
+        assertTrue(info.arg(2).toboolean());
+        assertEquals("0 13 MOBILE LTE CONNECTED CONNECTED 0 1 1 nil internet", info.arg(3).tojstring());
+        assertTrue(info.arg(4).toboolean());
+
+        // The link properties of a VPN have the interface, addresses, DNS servers, search domains, MTU, routes and proxy of
+        // the network under it, like the getters (see vpn_addresses), with the scope of IPv6 DNS servers from Android 11;
+        // the private DNS, P-CSCF and DHCP servers, the TCP buffer sizes and the fields after the proxy stay
+        String lp = "local lp = objectof('android.net.LinkProperties', { iface = 'tun0', addresses = { 'la:10.8.0.2/32' },\n" +
+                "  dnses = { addressof(4, '10.8.0.1') }, validated = { addressof(16, 'fd00::53', 3) }, usepd = 1,\n" +
+                "  pdname = 'dns.example', pcscfs = { addressof(4, '10.0.0.9') }, domains = 'vpn.example',\n" +
+                "  dhcp = addressof(4, '10.8.0.1'), mtu = 1420, tcp = '4096,87380', routes = { 'route:0.0.0.0/0 tun0' },\n" +
+                "  proxy = 'proxy:127.0.0.1:8080', nat64 = 'prefix:64:ff9b::/96', stacked = 0, wol = 0 },\n" +
+                "  { iface = 'wlan0', addresses = { 'la:192.168.1.5/24' }, dnses = { addressof(4, '192.168.1.1'),\n" +
+                "  addressof(16, 'fe80::1', 2) }, domains = false, mtu = 1500,\n" +
+                "  routes = { 'route:192.168.1.0/24 wlan0', 'route:0.0.0.0/0 192.168.1.1 wlan0' }, proxy = false,\n" +
+                // The text has the MTU before Android 10, where the getter is hidden, and that of a stacked link after it
+                "  text = '{InterfaceName: wlan0 Domains: null MTU: 1500 Stacked: [[ {InterfaceName: v4-wlan0 MTU: 1280} ]]}' })\n" +
+                "local restricted, skipped, f, alone = parcelled(lp)\n" +
+                "return restricted, skipped, table.concat({ f.iface, names(f.addresses), names(f.dnses),\n" +
+                "  tostring(f.validated and names(f.validated)), tostring(f.usepd), tostring(f.pdname),\n" +
+                "  tostring(f.pcscfs and names(f.pcscfs)), tostring(f.domains), tostring(f.dhcp and f.dhcp.name), f.mtu, f.tcp,\n" +
+                "  names(f.routes), tostring(f.proxy), tostring(f.nat64), f.stacked, tostring(f.wol) }, ' '), alone";
+        String routes = "route:192.168.1.0/24 wlan0,route:0.0.0.0/0 192.168.1.1 wlan0";
+        for (Object[] version : new Object[][]{
+                {34, "wlan0 la:192.168.1.5/24 192.168.1.1%0,fe80::1%2 fd00::53%3 1 dns.example 10.0.0.9%0 nil 10.8.0.1 1500" +
+                        " 4096,87380 " + routes + " nil prefix:64:ff9b::/96 0 0"},
+                {29, "wlan0 la:192.168.1.5/24 192.168.1.1%0,fe80::1%0 fd00::53%0 1 dns.example 10.0.0.9%0 nil nil 1500" +
+                        " 4096,87380 " + routes + " nil prefix:64:ff9b::/96 0 nil"},
+                {28, "wlan0 la:192.168.1.5/24 192.168.1.1%0,fe80::1%0 fd00::53%0 1 dns.example nil nil nil 1500" +
+                        " 4096,87380 " + routes + " nil nil 0 nil"},
+                {27, "wlan0 la:192.168.1.5/24 192.168.1.1%0,fe80::1%0 nil nil nil nil nil nil 1500" +
+                        " 4096,87380 " + routes + " nil nil 0 nil"}}) {
+            globals.set("sdk", LuaValue.valueOf((int) version[0]));
+            Varargs result = Scripts.run(globals, lp);
+            String at = "SDK " + version[0];
+            assertTrue(at, result.arg(1).toboolean());
+            assertTrue(at, result.arg(2).toboolean());
+            assertEquals(at, version[1], result.arg(3).tojstring());
+            assertTrue(at, result.arg(4).toboolean());
+        }
+    }
+
+    // The capabilities of a VPN compare and hash like the copy of their parcel, so that copy equals them, on either side,
+    // and they equal themselves; others are left to Android. Processes of the system and a NetworkAgent, which give their
+    // networks to ConnectivityService, keep the real parcel.
+    @Test
+    public void vpnComparesLikeItsParcel() throws Exception {
+        Globals globals = load("vpn_parcel");
+        Scripts.run(globals, PARCELS);
+        globals.set("sdk", LuaValue.valueOf(34));
+        Varargs result = Scripts.run(globals,
+                "local nc = 'android.net.NetworkCapabilities'\n" +
+                        "local function vpn() return objectof(nc, { values = bitsof(12, 13, 14), forbidden = 0,\n" +
+                        "  transports = bitsof(1, 4), up = 0, down = 0, info = 'VpnTransportInfo', signal = -2147483648, uids = -1 },\n" +
+                        "  { values = bitsof(12, 13, 14, 15), transports = bitsof(1), info = 'WifiInfo', signal = -55 }) end\n" +
+                        "local object = vpn()\n" +
+                        "local _, _, fields = parcelled(object)\n" +
+                        "local copy = objectof(nc, fields)\n" +
+                        "local wifi = objectof(nc, fields)\n" +
+                        "local r1, equal, unmarked = compared('equals', object, copy)\n" +
+                        "local r2, reverse = compared('equals', copy, object)\n" +
+                        "local r3, itself = compared('equals', object, object)\n" +
+                        "local r4, other = compared('equals', object, vpn())\n" +
+                        "local r5, none = compared('equals', object, nil)\n" +
+                        "local r6, hash, unhashed = compared('hashCode', object)\n" +
+                        "local plain = compared('equals', copy, wifi)\n" +
+                        "local plainhash = compared('hashCode', copy)\n" +
+                        "hooked = false\n" +
+                        "local same = hash == copy:hashCode()\n" +
+                        "hooked = true\n" +
+                        "return table.concat({ tostring(r1 and equal), tostring(unmarked), tostring(r2 and reverse),\n" +
+                        "  tostring(r3 and itself), tostring(r4 and other), tostring(r5), tostring(none), tostring(r6 and same),\n" +
+                        "  tostring(unhashed), tostring(plain), tostring(plainhash) }, ' ')");
+        assertEquals("true true true true true true false true true false false", result.arg(1).tojstring());
+
+        // Link properties too, whose fields come from the getters only while they are marked
+        Varargs lp = Scripts.run(globals,
+                "local function vpn() return objectof('android.net.LinkProperties', { iface = 'tun0', addresses = { 'la:10.8.0.2/32' },\n" +
+                        "  dnses = { addressof(4, '10.8.0.1') }, validated = {}, usepd = 0, pdname = 'dns', pcscfs = {},\n" +
+                        "  domains = false, dhcp = addressof(4, '10.8.0.1'), mtu = 1420, tcp = '4096',\n" +
+                        "  routes = { 'route:0.0.0.0/0 tun0' }, proxy = false, nat64 = false,\n" +
+                        "  stacked = 0, wol = 0 }, { iface = 'wlan0', addresses = { 'la:192.168.1.5/24' },\n" +
+                        "  dnses = { addressof(4, '192.168.1.1') }, mtu = 1500, routes = { 'route:0.0.0.0/0 192.168.1.1 wlan0' } }) end\n" +
+                        "local object = vpn()\n" +
+                        "local _, _, fields = parcelled(object)\n" +
+                        "local copy = objectof('android.net.LinkProperties', fields)\n" +
+                        "reads, marked = 0, 0\n" +
+                        "local r1, equal, unmarked = compared('equals', object, copy)\n" +
+                        "local r2, reverse = compared('equals', copy, object)\n" +
+                        "local r3, hash = compared('hashCode', object)\n" +
+                        "local faked = reads > 0 and reads == marked\n" +
+                        "hooked = false\n" +
+                        "local same = hash == copy:hashCode()\n" +
+                        "hooked = true\n" +
+                        "return table.concat({ copy.fields.iface, tostring(r1 and equal), tostring(unmarked), tostring(r2 and reverse),\n" +
+                        "  tostring(r3 and same), tostring(faked) }, ' ')");
+        assertEquals("wlan0 true true true true true", lp.arg(1).tojstring());
+
+        Varargs kept = Scripts.run(globals,
+                "local nc = 'android.net.NetworkCapabilities'\n" +
+                        "local object = objectof(nc, { values = bitsof(12), forbidden = 0, transports = bitsof(1, 4), up = 0,\n" +
+                        "  down = 0, info = 'VpnTransportInfo', signal = 0, uids = -1 }, { transports = bitsof(1), info = 'WifiInfo' })\n" +
+                        "system = true\n" +
+                        "local parcel = parcelled(object)\n" +
+                        "local hash = compared('hashCode', object)\n" +
+                        "system = nil\n" +
+                        "stack = { 'java.lang.Thread', 'android.net.NetworkCapabilities', 'android.net.NetworkAgent$1' }\n" +
+                        "local inner = parcelled(object)\n" +
+                        "stack = { 'java.lang.Thread', 'android.net.NetworkAgent' }\n" +
+                        "local agent = parcelled(object)\n" +
+                        "stack = { 'java.lang.Thread', 'android.net.NetworkAgentInfo', 'com.example.App' }\n" +
+                        "local app = parcelled(object)\n" +
+                        "stack = {}\n" +
+                        "return parcel, hash, inner, agent, app");
+        assertFalse(kept.arg(1).toboolean());
+        assertFalse(kept.arg(2).toboolean());
+        assertFalse(kept.arg(3).toboolean());
+        assertFalse(kept.arg(4).toboolean());
+        assertTrue(kept.arg(5).toboolean());
     }
 
     // The network info of the type VPN stays, not connected, like on a device without a VPN, by its type or in the
@@ -1998,7 +2908,8 @@ public class NetworkScriptsTest {
             "  luajava = { bindClass = function(name)",
             "      if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end",
             "      assert(name == ADAPTER, name)",
-            "      return { getDefaultAdapter = function(self) return adapter end } end,",
+            // The lookup of the adapter is hooked itself (see features)
+            "      return { getDefaultAdapter = function(self) assert(unhooked, 'hooked lookup') return adapter end } end,",
             "    newInstance = function(name)",
             "      if name == le .. 'ScanFilter$Builder' then return { build = function(self) return 'empty' end } end",
             "      assert(name == le .. 'ScanSettings$Builder', name)",
@@ -2013,6 +2924,7 @@ public class NetworkScriptsTest {
             "    for index, value in pairs(args) do copy[index] = value end",
             "    local param = paramof(nil, copy, class == ADAPTER and adapter or 'scanner', context)",
             "    param.setArgument = function(self, index, value) self.args[index] = value end",
+            "    param.unhooked = function(self, fn) unhooked = true local value = fn() unhooked = false return value end",
             "    return param",
             "  end",
             "  refuses(hook, parameter())",
@@ -2287,6 +3199,129 @@ public class NetworkScriptsTest {
         assertFalse(result.arg(8).toboolean());
     }
 
+    // The requests of the client of getClient and of the constructor, and the one of the older ActivityRecognitionApi
+    // once its client is connected, succeed without registering and remove a registration kept of the same
+    // PendingIntent. They go on like without the hook, so they answer like on a device without Doppel: without the
+    // PendingIntent or the request of transitions, while a sleep segment request of null is the default one, with an
+    // interval below 0, for an app without the permission of activity recognition, from Android 10 the one of Android
+    // and before the one of Play services, and for the client with Play services missing, to be updated, disabled or
+    // invalid, which the script asks like the app does, not unhooked; while it updates itself, or without the class of
+    // its availability, the request succeeds without registering. A connected client of the older API shows that Play
+    // services can be used, and a client without a connection, which the client of version 17 and older passes on,
+    // goes on
+    @Test
+    public void activityRequestsDoNotRegister() throws Exception {
+        Globals globals = load("activityrecognition_getclient");
+        Varargs result = Scripts.run(globals,
+                "sdk = 34\n" +
+                        "local real = luajava\n" +
+                        "luajava = setmetatable({ bindClass = function(name) assert(name == 'android.os.Build$VERSION')\n" +
+                        "  return { SDK_INT = sdk } end }, { __index = real })\n" +
+                        "local hooked, removed = {}, {}\n" +
+                        "function hook(object, method, fn, name) hooked[method] = { object = object, fn = fn, name = name } end\n" +
+                        "local granted, status = { ['android.permission.ACTIVITY_RECOGNITION'] = true }, 0\n" +
+                        "local context = { checkSelfPermission = function(self, name) assert(unhooked)\n" +
+                        "  return granted[name] and 0 or -1 end }\n" +
+                        "local google = { hasConnectedApi = function(self, api) assert(api == 'API') return connected end }\n" +
+                        "local connectionless = { hasConnectedApi = function(self, api) error('connectionless') end }\n" +
+                        "local types = {\n" +
+                        "  ['com.google.android.gms.tasks.Tasks'] = { forResult = function(self, value) assert(value == nil)\n" +
+                        "    return 'success' end },\n" +
+                        "  ['com.google.android.gms.common.GoogleApiAvailability'] = { getInstance = function(self)\n" +
+                        "    assert(not unhooked) return self end,\n" +
+                        "    isGooglePlayServicesAvailable = function(self, c) assert(c == context) return status end },\n" +
+                        "  ['com.google.android.gms.location.ActivityRecognition'] = { API = 'API' },\n" +
+                        "  ['com.google.android.gms.common.api.Status'] = 'Status',\n" +
+                        "  ['com.google.android.gms.common.api.PendingResults'] = { immediatePendingResult = function(self, s, c)\n" +
+                        "    assert(c == google) return 'pending ' .. s end } }\n" +
+                        "luajava.new = function(class, code) assert(class == 'Status') return 'success ' .. code end\n" +
+                        "local client, api = {}, {}\n" +
+                        "for _, name in ipairs({ 'removeActivityUpdates', 'removeActivityTransitionUpdates',\n" +
+                        "    'removeSleepSegmentUpdates' }) do\n" +
+                        "  client[name] = function(self, intent) assert(self == client and unhooked)\n" +
+                        "    removed[#removed + 1] = name .. ' ' .. intent end\n" +
+                        "end\n" +
+                        "function api:removeActivityUpdates(c, intent) assert(self == api and c == google and unhooked)\n" +
+                        "  removed[#removed + 1] = 'api ' .. intent end\n" +
+                        "local made = paramof(nil, {}, client)\n" +
+                        "local function paramfor(args, this)\n" +
+                        "  local param = paramof(nil, args, this, context)\n" +
+                        "  param.unhooked = function(self, fn) unhooked = true local ok, value = pcall(fn) unhooked = false\n" +
+                        "    assert(ok, value) return value end\n" +
+                        "  param.findClass = function(self, name) return types[name] or error(name) end\n" +
+                        "  return param\n" +
+                        "end\n" +
+                        "local function request(method, args)\n" +
+                        "  local param = paramfor(args, client)\n" +
+                        "  local h = hooked[method]\n" +
+                        "  assert(h.object == client and h.name == method)\n" +
+                        "  h.fn('after', param, h.name)\n" +
+                        "  assert(not param.set)\n" +
+                        "  h.fn('before', param, h.name)\n" +
+                        "  return tostring(param.result)\n" +
+                        "end\n" +
+                        "local function legacy(args)\n" +
+                        "  local param = paramfor(args, api)\n" +
+                        "  local restricted = before(hookof('ActivityRecognitionApi:requestActivityUpdates'), param)\n" +
+                        "  assert(restricted == param.set)\n" +
+                        "  return tostring(param.result)\n" +
+                        "end\n" +
+                        "local restricted = after(hookof('getClient'), paramof(client))\n" +
+                        "local count = 0 for _ in pairs(hooked) do count = count + 1 end\n" +
+                        "hooked = {}\n" +
+                        "local legacyAfter = after(hookof('ActivityRecognitionApi:requestActivityUpdates'), paramfor({}, api))\n" +
+                        "local legacyHooked = next(hooked) ~= nil\n" +
+                        "local constructed = after(hookof(nil), made)\n" +
+                        "local outcomes = {\n" +
+                        "  request('requestActivityUpdates', { [0] = 0, [1] = 'updates' }),\n" +
+                        "  request('requestActivityTransitionUpdates', { [0] = 'transitions', [1] = 'pi' }),\n" +
+                        "  request('requestSleepSegmentUpdates', { [0] = 'sleep' }),\n" +
+                        "  request('requestActivityUpdates', { [0] = 0 }),\n" +
+                        "  request('requestActivityTransitionUpdates', { [1] = 'pi' }),\n" +
+                        "  request('requestSleepSegmentUpdates', { [1] = 'request' }) }\n" +
+                        "connected = true\n" +
+                        "outcomes[#outcomes + 1] = legacy({ [0] = google, [1] = 1000, [2] = 'legacy' })\n" +
+                        "outcomes[#outcomes + 1] = legacy({ [0] = google, [1] = 1000 })\n" +
+                        "connected = false\n" +
+                        "outcomes[#outcomes + 1] = legacy({ [0] = google, [1] = 1000, [2] = 'connecting' })\n" +
+                        "connected = true\n" +
+                        "granted = { ['com.google.android.gms.permission.ACTIVITY_RECOGNITION'] = true }\n" +
+                        "outcomes[#outcomes + 1] = request('requestActivityUpdates', { [0] = 0, [1] = 'gms' })\n" +
+                        "sdk = 28\n" +
+                        "outcomes[#outcomes + 1] = request('requestActivityUpdates', { [0] = 0, [1] = 'older' })\n" +
+                        "sdk = 29\n" +
+                        "outcomes[#outcomes + 1] = legacy({ [0] = google, [1] = 1000, [2] = 'gms' })\n" +
+                        "granted = {}\n" +
+                        "outcomes[#outcomes + 1] = request('requestSleepSegmentUpdates', { [0] = 'denied' })\n" +
+                        "outcomes[#outcomes + 1] = legacy({ [0] = google, [1] = 1000, [2] = 'denied' })\n" +
+                        "granted = { ['android.permission.ACTIVITY_RECOGNITION'] = true }\n" +
+                        "outcomes[#outcomes + 1] = request('requestActivityUpdates', { [0] = -1, [1] = 'negative' })\n" +
+                        "outcomes[#outcomes + 1] = legacy({ [0] = google, [1] = -1, [2] = 'negative' })\n" +
+                        "outcomes[#outcomes + 1] = legacy({ [0] = connectionless, [1] = 1000, [2] = 'connectionless' })\n" +
+                        "for _, code in ipairs({ 1, 2, 3, 9 }) do status = code\n" +
+                        "  outcomes[#outcomes + 1] = request('requestActivityTransitionUpdates', { [0] = 't', [1] = 'missing' })\n" +
+                        "end\n" +
+                        "outcomes[#outcomes + 1] = legacy({ [0] = google, [1] = 1000, [2] = 'available' })\n" +
+                        "status = 18\n" +
+                        "outcomes[#outcomes + 1] = request('requestActivityUpdates', { [0] = 0, [1] = 'updating' })\n" +
+                        "types['com.google.android.gms.common.GoogleApiAvailability'] = nil\n" +
+                        "outcomes[#outcomes + 1] = request('requestActivityUpdates', { [0] = 0, [1] = 'shrunk' })\n" +
+                        "return restricted, count, constructed, after(hookof('getClient'), paramof(nil)), legacyAfter, legacyHooked,\n" +
+                        "  table.concat(outcomes, ','), table.concat(removed, ',')");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(3, result.arg(2).toint());
+        assertTrue(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean());
+        assertFalse(result.arg(5).toboolean());
+        assertFalse(result.arg(6).toboolean());
+        assertEquals(String.join(",", "success", "success", "success", "nil", "nil", "nil",
+                "pending success 0", "nil", "nil", "nil", "success", "nil", "nil", "nil", "nil", "nil", "nil",
+                "nil", "nil", "nil", "nil", "pending success 0", "success", "success"), result.arg(7).tojstring());
+        assertEquals(String.join(",", "removeActivityUpdates updates", "removeActivityTransitionUpdates pi",
+                "removeSleepSegmentUpdates sleep", "api legacy", "removeActivityUpdates older", "api available",
+                "removeActivityUpdates updating", "removeActivityUpdates shrunk"), result.arg(8).tojstring());
+    }
+
     // Bundles and application infos as Lua sees them: a bundle read back from a parcel stays parcelled until it is
     // read, putAll also reads the other bundle, and a parcel copies all fields of an info, also hidden ones
     private static final String ANALYTICS = String.join("\n",
@@ -2390,7 +3425,8 @@ public class NetworkScriptsTest {
                         "  info.applicationInfo.metaData.items.firebase_analytics_collection_deactivated,\n" +
                         "  info.applicationInfo.metaData.items['com.google.android.geo.API_KEY'],\n" +
                         "  copy.applicationInfo.metaData.items['com.google.android.geo.API_KEY'],\n" +
-                        "  after(hookof('getPackageInfo'), other), after(hookof('getPackageInfo'), flags)");
+                        "  after(hookof('getPackageInfo'), other), after(hookof('getPackageInfo'), flags),\n" +
+                        "  copy.applicationInfo.metaData.items.firebase_analytics_collection_enabled");
         assertTrue(result.arg(1).toboolean());
         assertTrue(result.arg(2).toboolean());
         assertTrue(result.arg(3).toboolean());
@@ -2399,6 +3435,9 @@ public class NetworkScriptsTest {
         assertTrue(result.arg(6).toboolean());
         assertFalse(result.arg(7).toboolean());
         assertFalse(result.arg(8).toboolean());
+        // Also not enabled, for 9.0.0, which reads deactivated inverted
+        assertFalse(result.arg(9).isnil());
+        assertFalse(result.arg(9).toboolean());
     }
 
     // The fake meta-data is parcelled like a binder answer, whose text shows only its size until it is read, and the
@@ -2472,6 +3511,144 @@ public class NetworkScriptsTest {
         assertTrue(result.arg(4).isnil()); // The cached original is not changed
         assertTrue(result.arg(5).toboolean());
         assertFalse(result.arg(6).toboolean());
+    }
+
+    // Each info of the app read from a parcel, like of getActivityInfo or getInstalledApplications, gets the keys in a
+    // parcelled copy of its meta-data, once, and the getters by package name then keep it; other apps and an info
+    // without meta-data stay; the hidden overload under getApplicationInfo fakes a cached info like the public one
+    @Test
+    public void analyticsAreOffInEveryParcelledInfo() throws Exception {
+        Globals globals = load("analytics_metadata");
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
+                "classes['com.google.firebase.crashlytics.CrashlyticsRegistrar'] = true\n" +
+                        "local creator = hookof('CREATOR:createFromParcel')\n" +
+                        "local real = bundleof(true)\n" +
+                        "real.items['com.google.android.geo.API_KEY'] = true\n" +
+                        "local info = { packageName = 'com.example', metaData = real }\n" +
+                        "local param = paramof(info, { [0] = 'parcel' }, nil, context)\n" +
+                        "local restricted = after(creator, param)\n" +
+                        "local fake = info.metaData\n" +
+                        "local first = fake.parcelled\n" +
+                        "local again = after(creator, paramof(info, { [0] = 'parcel' }, nil, context))\n" +
+                        "local other = { packageName = 'com.other', metaData = bundleof(true) }\n" +
+                        "local none = { packageName = 'com.example' }\n" +
+                        "local get = paramof(info, { [0] = 'com.example', [1] = 128 }, nil, context)\n" +
+                        "local cached = { packageName = 'com.example', metaData = bundleof(true) }\n" +
+                        "local user = paramof(cached, { [0] = 'com.example', [1] = 128, [2] = 0 }, nil, context)\n" +
+                        "local byUser = after(hookof('getApplicationInfoAsUser'), user)\n" +
+                        "local public = paramof(cached, { [0] = 'com.example', [1] = 128 }, nil, context)\n" +
+                        "after(hookof('getApplicationInfo'), public)\n" +
+                        "return restricted, param.set, rawequal(param.result, info), fake ~= real, first,\n" +
+                        "  fake.items.firebase_crashlytics_collection_enabled, fake.items['com.google.android.geo.API_KEY'],\n" +
+                        "  real.parcelled, again, rawequal(info.metaData, fake), fake.parcelled,\n" +
+                        "  after(creator, paramof(other, {}, nil, context)), other.metaData.parcelled,\n" +
+                        "  after(creator, paramof(none, {}, nil, context)), none.metaData,\n" +
+                        "  after(hookof('getApplicationInfo'), get), get.set,\n" +
+                        "  byUser, user.result.metaData.items.firebase_crashlytics_collection_enabled,\n" +
+                        "  rawequal(public.result, user.result)");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean()); // The same info, faked where it is
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+        assertTrue(result.arg(5).toboolean());
+        assertFalse(result.arg(6).isnil());
+        assertFalse(result.arg(6).toboolean());
+        assertTrue(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean()); // The real one is not read
+        // Read again, like the info shared by components from Android 11: already faked, and not read
+        assertFalse(result.arg(9).toboolean());
+        assertTrue(result.arg(10).toboolean());
+        assertTrue(result.arg(11).toboolean());
+        assertFalse(result.arg(12).toboolean());
+        assertTrue(result.arg(13).toboolean());
+        assertFalse(result.arg(14).toboolean());
+        assertTrue(result.arg(15).isnil()); // Without GET_META_DATA or without meta-data in the manifest
+        assertFalse(result.arg(16).toboolean());
+        assertFalse(result.arg(17).toboolean());
+        assertTrue(result.arg(18).toboolean());
+        assertFalse(result.arg(19).isnil());
+        assertFalse(result.arg(19).toboolean());
+        assertTrue(result.arg(20).toboolean()); // The same fake for the same cached info
+    }
+
+    // The app's own APK file, parsed in its process, gets the keys in its meta-data, which is not parcelled and which
+    // the components share; other packages and a parse without meta-data stay
+    @Test
+    public void analyticsAreOffInOwnArchive() throws Exception {
+        Globals globals = load("analytics_metadata");
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
+                "classes['com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar'] = true\n" +
+                        "classes['com.facebook.FacebookSdk'] = true\n" +
+                        "local archive = hookof('getPackageArchiveInfo')\n" +
+                        "local bundle = bundleof()\n" +
+                        "bundle:putBoolean('com.facebook.sdk.AdvertiserIDCollectionEnabled', true)\n" +
+                        "local pkg = { packageName = 'com.example', applicationInfo = { metaData = bundle },\n" +
+                        "  activities = { { applicationInfo = { metaData = bundle } } } }\n" +
+                        "local param = paramof(pkg, { [0] = '/data/app/com.example/base.apk', [1] = 128 }, nil, context)\n" +
+                        "local restricted = after(archive, param)\n" +
+                        "local items = pkg.applicationInfo.metaData.items\n" +
+                        "local other = { packageName = 'com.other', applicationInfo = { metaData = bundleof() } }\n" +
+                        "local none = { packageName = 'com.example', applicationInfo = {} }\n" +
+                        "return restricted, param.set, rawequal(pkg.applicationInfo.metaData, bundle), bundle.parcelled,\n" +
+                        "  items.firebase_analytics_collection_deactivated, items['com.facebook.sdk.AutoLogAppEventsEnabled'],\n" +
+                        "  items['com.facebook.sdk.AdvertiserIDCollectionEnabled'],\n" +
+                        "  pkg.activities[1].applicationInfo.metaData.items.firebase_analytics_collection_deactivated,\n" +
+                        "  after(archive, paramof(pkg, { [0] = 'base.apk', [1] = 128 }, nil, context)),\n" +
+                        "  after(archive, paramof(other, { [0] = 'other.apk', [1] = 128 }, nil, context)),\n" +
+                        "  next(other.applicationInfo.metaData.items),\n" +
+                        "  after(archive, paramof(none, { [0] = 'base.apk', [1] = 0 }, nil, context)), after(archive, paramof(nil))");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertFalse(result.arg(4).toboolean()); // Not parcelled, like the bundle of the parser
+        assertTrue(result.arg(5).toboolean());
+        assertFalse(result.arg(6).isnil());
+        assertFalse(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertTrue(result.arg(8).toboolean()); // The same bundle as the component's
+        assertFalse(result.arg(9).toboolean()); // Already off
+        assertFalse(result.arg(10).toboolean());
+        assertTrue(result.arg(11).isnil());
+        assertFalse(result.arg(12).toboolean());
+        assertFalse(result.arg(13).toboolean());
+    }
+
+    // An APK of the app without meta-data in its manifest gets one new bundle with GET_META_DATA, like getApplicationInfo
+    // gives it, on its info and on the components which share it or have a copy of it; without the flag it stays null
+    @Test
+    public void analyticsAreOffInOwnArchiveWithoutMetaData() throws Exception {
+        Globals globals = load("analytics_metadata");
+        Scripts.run(globals, ANALYTICS);
+        Varargs result = Scripts.run(globals,
+                "classes['com.google.firebase.crashlytics.CrashlyticsRegistrar'] = true\n" +
+                        "local ai = {}\n" +
+                        "local copy = {}\n" +
+                        "local own = { metaData = bundleof() }\n" +
+                        "local pkg = { packageName = 'com.example', applicationInfo = ai,\n" +
+                        "  activities = { length = 2, { applicationInfo = ai }, { applicationInfo = copy } },\n" +
+                        "  providers = { length = 1, { applicationInfo = own } } }\n" +
+                        "local archive = hookof('getPackageArchiveInfo')\n" +
+                        "local restricted = after(archive, paramof(pkg, { [0] = 'base.apk', [1] = 129 }, nil, context))\n" +
+                        "local flags = { getValue = function(self) return 128 end }\n" +
+                        "local overload = { packageName = 'com.example', applicationInfo = {} }\n" +
+                        "local none = { packageName = 'com.example', applicationInfo = {} }\n" +
+                        "return restricted, ai.metaData and ai.metaData.items.firebase_crashlytics_collection_enabled,\n" +
+                        "  rawequal(copy.metaData, ai.metaData), next(own.metaData.items),\n" +
+                        "  after(archive, paramof(overload, { [0] = 'base.apk', [1] = flags }, nil, context)),\n" +
+                        "  overload.applicationInfo.metaData ~= nil,\n" +
+                        "  after(archive, paramof(none, { [0] = 'base.apk', [1] = 1 }, nil, context)),\n" +
+                        "  none.applicationInfo.metaData");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).isnil());
+        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).isnil()); // An info which has meta-data is not given the new bundle
+        assertTrue(result.arg(5).toboolean());
+        assertTrue(result.arg(6).toboolean());
+        assertFalse(result.arg(7).toboolean());
+        assertTrue(result.arg(8).isnil());
     }
 
     // A setting the app stored before beats the meta-data: Crashlytics reads a boolean, Facebook JSON, which is then

@@ -16,25 +16,30 @@
 -- Copyright 2026 akano12
 
 -- The activity of HMS Location Kit of Huawei, like that of Play services: the identification is OTHERS (104), which
--- HMS gives when it cannot tell the activity, at 100, in a mutable list like the one of a parcel, at the time of the
--- real response; the conversions (transitions) are none. Of getDataFromIntent and of the creators, which make the
--- responses of the extras it reads, also when the app reads them itself. An intent without a response stays without
--- one.
+-- HMS gives when it cannot tell the activity, at 100, in a mutable list like the one of a parcel, detected now rather
+-- than at the time of the real response, which would tell when the device last moved; the conversions (transitions)
+-- are none. Of getDataFromIntent and of the creators, which make the responses of the extras it reads, also when the
+-- app reads them itself. An intent without a response stays without one.
+-- shortcut: two reads of one response differ in their times by the time between them, where HMS gives the same, and
+-- a response the app made itself differs in them from its copy read back from a parcel; keep the first times per
+-- response should apps compare them
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
         return false
     end
 
-    -- luajava.bindClass uses the thread context class loader, which cannot see the HMS classes of the app on all threads
+    -- luajava.bindClass uses the thread context class loader, which cannot see the HMS classes of the app on all threads,
+    -- but sees the clocks
     local ok, fake = pcall(function()
         if param:isInstance(result, 'com.huawei.hms.location.ActivityConversionResponse') then
             return luajava.new(param:findClass('com.huawei.hms.location.ActivityConversionResponse'))
         end
         local datas = luajava.newInstance('java.util.ArrayList')
         datas:add(luajava.new(param:findClass('com.huawei.hms.location.ActivityIdentificationData'), 104, 100))
-        return luajava.new(param:findClass('com.huawei.hms.location.ActivityIdentificationResponse'),
-                datas, result:getTime(), result:getElapsedTimeFromReboot())
+        return luajava.new(param:findClass('com.huawei.hms.location.ActivityIdentificationResponse'), datas,
+                luajava.bindClass('java.lang.System'):currentTimeMillis(),
+                luajava.bindClass('android.os.SystemClock'):elapsedRealtime())
     end)
     -- Without the members, which the rule Huawei documents for apps keeps (see hooks.json): no response, like an intent without
     -- one, rather than the real one; the creator keeps the real one, like that of Play services, since a creator never gives none

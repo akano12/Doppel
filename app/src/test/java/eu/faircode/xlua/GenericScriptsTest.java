@@ -25,9 +25,11 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 // The generic scripts which many definitions share: skipping a method and emptying its result,
@@ -175,6 +177,64 @@ public class GenericScriptsTest {
             assertFalse(value, result.arg(1).toboolean());
             assertFalse(value, result.arg(2).toboolean());
         }
+    }
+
+    // The subscriptions of Android 12 for a caller who cannot read the phone state are Collections.emptyList, which an
+    // ArrayList would differ from in its class and in taking changes; an empty list and no list stay
+    @Test
+    public void listsBecomeCollectionsEmptyList() throws Exception {
+        Globals globals = load("generic_empty_list");
+        Varargs result = Scripts.run(globals, "local param = paramof(collectionof('java.util.List', false))\n" +
+                "return after(nil, param), param.result");
+        assertTrue(result.arg(1).toboolean());
+        assertSame(Collections.emptyList(), result.arg(2).checkuserdata());
+        for (String value : new String[]{"collectionof('java.util.List', true)", "nil"}) {
+            result = Scripts.run(globals, "local param = paramof(" + value + ")\nreturn after(nil, param), param.set");
+            assertFalse(value, result.arg(1).toboolean());
+            assertFalse(value, result.arg(2).toboolean());
+        }
+    }
+
+    // The subscription methods for which the service throws at a caller who fails the phone state check throw its
+    // SecurityException, with the message of each; a call which Android refused keeps its exception. The system and
+    // apps with READ_PRIVILEGED_PHONE_STATE, which Android never refuses, get the answer of a device without a SIM.
+    @Test
+    public void subscriptionChecksThrowLikeAFailedPhoneStateCheck() throws Exception {
+        Globals globals = Scripts.load("subscription_denied", "function paramof(exception, system, granted, result)\n" +
+                "  return { result = result, getException = function(self) return exception end,\n" +
+                "    getResult = function(self) return self.result end, isSystem = function(self) return system end,\n" +
+                "    unhooked = function(self, f) unhooked = true local value = f() unhooked = false return value end,\n" +
+                "    getApplicationContext = function(self) return { checkSelfPermission = function(self, name)\n" +
+                "      assert(unhooked) if granted == nil then error('dead') end\n" +
+                "      return (granted and name == 'android.permission.READ_PRIVILEGED_PHONE_STATE') and 0 or -1 end } end,\n" +
+                "    setResult = function(self, value) self.set = true self.result = value end }\n" +
+                "end\n" +
+                "function hookof(method) return { getMethodName = function(self) return method end } end");
+        for (String caller : new String[]{"true, false", "false, true", "false, nil"})
+            for (String[] method : new String[][]{{"isActiveSubId", "true", "false"},
+                    {"isActiveSubscriptionId", "false", "false"},
+                    {"getAvailableSubscriptionInfoList", "{}", "nil"}, {"getAvailableSubscriptionInfoList", "nil", "nil"}}) {
+                Varargs result = Scripts.run(globals, "local param = paramof(nil, " + caller + ", " + method[1] + ")\n" +
+                        "return after(hookof('" + method[0] + "'), param), param.result, param.set");
+                String label = caller + " " + method[0] + " " + method[1];
+                assertEquals(label, !method[1].equals(method[2]), result.arg(1).toboolean());
+                assertEquals(label, method[2], result.arg(2).tojstring());
+                assertEquals(label, result.arg(1).toboolean(), result.arg(3).toboolean());
+            }
+        for (String[] method : new String[][]{{"isActiveSubscriptionId", "Requires READ_PHONE_STATE permission."},
+                {"isActiveSubId", "Requires READ_PHONE_STATE permission."},
+                {"getAvailableSubscriptionInfoList", "Need READ_PHONE_STATE to call  getAvailableSubscriptionInfoList"}}) {
+            Varargs result = Scripts.run(globals, "local param = paramof(nil, false, false, true)\n" +
+                    "return after(hookof('" + method[0] + "'), param), param.result");
+            assertTrue(method[0], result.arg(1).toboolean());
+            Object fake = result.arg(2).checkuserdata();
+            assertEquals(method[0], SecurityException.class, fake.getClass());
+            assertEquals(method[0], method[1], ((SecurityException) fake).getMessage());
+        }
+        Varargs result = Scripts.run(globals, "local param = paramof('refused', true)\n" +
+                "return after(hookof('isActiveSubId'), param), param.set");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
     }
 
     // No value stays, like Build.getRadioVersion of a device without a radio, while a value becomes unknown, which

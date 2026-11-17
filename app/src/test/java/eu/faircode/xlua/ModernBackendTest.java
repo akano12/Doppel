@@ -246,6 +246,33 @@ public class ModernBackendTest {
         }
     }
 
+    // The after callback gets the exception without the frames of the hook already, so a copy a script makes of it, like
+    // with another message, has none either: setResult takes the frames of Doppel out of the copy by their names, after
+    // which the others, which the framework obfuscates, are no longer found by their place
+    @Test
+    public void originalExceptionWithoutHookFramesInAfter() throws Throwable {
+        targetThrows = true;
+        List<StackTraceElement[]> seen = new ArrayList<>();
+        backend.hook(method, new XBackend.Callback() {
+            @Override
+            void after(XCall call) {
+                seen.add(call.getThrowable().getStackTrace());
+                seen.add(call.getThrowable().getCause().getStackTrace());
+            }
+        });
+        StackTraceElement[] direct = new Throwable().getStackTrace();
+        try {
+            new Stub().target("a", 1);
+            fail("No exception");
+        } catch (IllegalStateException ignored) {
+        }
+        assertEquals(2, seen.size());
+        for (StackTraceElement[] trace : seen) {
+            assertEquals("originalExceptionWithoutHookFramesInAfter", trace[1].getMethodName());
+            assertArrayEquals(Arrays.copyOfRange(direct, 1, direct.length), Arrays.copyOfRange(trace, 2, trace.length));
+        }
+    }
+
     // The frames of a hook on the rooted Android 14 emulator: LSPosed calls the original method by its obfuscated
     // HookBridge and chain, under the interceptor of Doppel, which the chain calls from the stub LSPlant made
     private static final StackTraceElement HOOK_BRIDGE = new StackTraceElement(

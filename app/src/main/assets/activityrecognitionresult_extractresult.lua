@@ -26,22 +26,27 @@ function after(hook, param)
         return false
     end
 
-    -- The unknown activity at 100%, in a mutable list like Play services gives, at the time of the real result and with
-    -- its detector id, which equals, hashCode and the parcel compare too, by the constructor the creator uses;
-    -- luajava.bindClass uses the thread context class loader, which cannot see the Play services classes of the app on
-    -- all threads
+    -- The unknown activity at 100%, in a mutable list like Play services gives, detected now rather than at the time of
+    -- the real result, which would tell when the device last moved, and with the detector id of the real result, which
+    -- equals, hashCode and the parcel compare too, by the constructor the creator uses; luajava.bindClass uses the thread
+    -- context class loader, which cannot see the Play services classes of the app on all threads, but sees the clocks.
+    -- shortcut: two reads of one result differ in their times by the time between them, where Play services gives the
+    -- same, and a result the app made itself differs in them from its copy read back from a parcel; keep the first
+    -- times per result should apps compare them
     local ok, fake = pcall(function()
         local classActivity = param:findClass('com.google.android.gms.location.DetectedActivity')
         local activities = luajava.newInstance('java.util.ArrayList')
         activities:add(luajava.new(classActivity, 4, 100))
         local classResult = param:findClass('com.google.android.gms.location.ActivityRecognitionResult')
-        local fake = luajava.new(classResult, activities, result:getTime(), result:getElapsedRealtimeMillis(), 0, nil)
+        local now = luajava.bindClass('java.lang.System'):currentTimeMillis()
+        local elapsed = luajava.bindClass('android.os.SystemClock'):elapsedRealtime()
+        local fake = luajava.new(classResult, activities, now, elapsed, 0, nil)
         -- The detector id has no getter and a name which changes with each version and R8, and in 10.0.1 and older it is
         -- not the only int field: every int field is copied, so the version code of those versions, which the creator
         -- reads from the parcel, comes along whatever the order of the fields. A field which cannot be copied keeps the
         -- value of a new result; once accessible, ART lets the final version code be set too.
         -- shortcut: the extras, whose content Play services does not document, are left out, since with the creator
-        -- faked too they would be the only part of the real result left besides its times and int fields; a real result
+        -- faked too they would be the only part of the real result left besides its int fields; a real result
         -- with extras then differs in equals, hashCode and the parcel, copy them like the ints when it is known what
         -- they hold
         pcall(function()
@@ -62,9 +67,10 @@ function after(hook, param)
     -- Without the members, which R8 can remove or rename in an app which does not use them: no result, like an intent
     -- without one, rather than the real one.
     -- shortcut: the creator keeps the real result then, since readers like the snapshot of Awareness fail on none,
-    -- which is so in every app R8 shrank: no rule keeps the name of DetectedActivity, so there the extras the app
-    -- reads itself and the snapshots of Awareness stay real; replace the list of the result in place, found by its
-    -- type, when minified apps need it
+    -- which is so in every app R8 shrank: no rule keeps the name of DetectedActivity, so there the snapshots of
+    -- Awareness and the results the app parcels itself stay real (the results of Play services in the intents are
+    -- fake ones, see intent_results); replace the list of the result in place, found by its type, when minified apps
+    -- need it
     if not ok then
         if hook:getMethodName() ~= 'extractResult' then
             return false

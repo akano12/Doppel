@@ -20,7 +20,13 @@
 -- registration and on changes, only with the location access it requires, on the executor of the app, together with
 -- their other events, like the call state. The methods which get the cells get them without their location (nocells),
 -- like a callback of listen (see telephonymanager_listen). Also the callback of a network scan (Android 8.1, hidden
--- there), which is the last parameter too. The parameter is not named hook, the function to hook a method is.
+-- there), which is the last parameter too. Only the callbacks the app registered are changed: the methods are hooked
+-- for their class, and a call the app makes itself on another object of it gets its own arguments, like on Android
+-- (see nocells). A callback stays changed after the app unregisters it, since the executor of the app can still run
+-- what Android sent before.
+-- shortcut: a call the app makes itself on a callback it registered once is changed too; tell it from the calls of
+-- Android by the frames of the dispatcher, which differ per version, if apps call their callbacks so.
+-- The parameter is not named hook, the function to hook a method is.
 
 -- The listeners of TelephonyCallback (Android 12) which get cells, and their methods
 local LISTENERS = {
@@ -39,6 +45,7 @@ function before(h, param)
     -- First, since before Android 12 the classes of TelephonyCallback do not exist
     if param:isInstance(callback, 'android.telephony.TelephonyScanManager$NetworkScanCallback') then
         hook(callback, 'onResults', nocells)
+        pcall(param.putValue, param, 'nocells', false, callback)
         return true
     end
     local restricted = false
@@ -61,7 +68,8 @@ end
 -- location (system APIs, which apps may call). Null stays, which Android gives before the first cells up to Android 12.
 -- If the argument cannot be made, the method does not run, rather than get the cells; neither does it for a second
 -- empty location of a registration, which a device without Doppel does not send: it sends a location only when it
--- changes (TelephonyRegistry from Android 12, before that ServiceStateTracker.pollStateDone).
+-- changes (TelephonyRegistry from Android 12, before that ServiceStateTracker.pollStateDone). A callback or listener
+-- the app never registered is left as it is (see before).
 -- shortcut: Android sends the same location again after a switch of the user, and up to Android 11 when another app
 -- or process asks for it, which the callback does not get, and a request of the app lets one through also when Android
 -- sends none (an update already pending or continuous); send them if an app tells.
@@ -70,6 +78,12 @@ end
 function nocells(when, param)
     local value = param:getArgument(0)
     if when ~= 'before' or value == nil then
+        return
+    end
+    -- Not of an object the app never registered; one whose mark cannot be read, like when the log of debug builds names
+    -- it by a toString of the app which throws, is taken for registered
+    local known, mark = pcall(param.getValue, param, 'nocells', param:getThis())
+    if known and mark == nil then
         return
     end
     local ok, without = pcall(function()

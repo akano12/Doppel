@@ -16,9 +16,6 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
--- The security patch level per quarter, like 2025-04-01 for 2025-05-05: a date of fewer values,
--- which apps can still parse and compare, where 'unknown' would make them fail; also Build.VERSION.SECURITY_PATCH
-local QUARTER = {}
 -- The fingerprint Android makes of the faked build properties (see fingerprint); also Build.FINGERPRINT
 local FINGERPRINT = {}
 
@@ -69,8 +66,11 @@ local DEVICE = {
     -- Not set: the fingerprint of the build an update was made for, which most devices do not set, like
     -- Build.VERSION.BASE_OS, and the thumbprint, which only some makers set
     { '', { 'ro.build.version.base_os', 'ro.build.thumbprint', 'ro.*.build.thumbprint' } },
-    { QUARTER, { 'ro.build.version.security_patch', 'ro.*.build.version.security_patch',
-                 'ro.*.build.security_patch' } },
+    -- The security patch, also of the vendor, not set, which is Android's own answer for a property which is not set
+    -- (Build.VERSION.SECURITY_PATCH reads it with the default ''): a date, even rounded to a quarter, narrows down
+    -- the device and when it was updated. Key attestation, which signs the real one (the keymaster reads these
+    -- properties in its own process), is refused like by a device without attestation keys (see key_attestation).
+    { '', { 'ro.build.version.security_patch', 'ro.*.build.version.security_patch', 'ro.*.build.security_patch' } },
     { '0', { 'ro.build.date.utc', 'ro.*.build.date.utc' } },
 }
 
@@ -121,11 +121,98 @@ local DEBUGGING = {
     ['init.svc.adbd'] = 'stopped',
     ['sys.usb.config'] = NOADB, ['sys.usb.state'] = NOADB, ['persist.sys.usb.config'] = NOADB,
     ['ro.debuggable'] = '0', ['ro.secure'] = '1',
+    -- The other properties AOSP sets by the type of the build (build/make core/main.mk up to Android 14, then
+    -- gen_build_prop.py of Soong) as of a user build: adb asks to allow each computer and mock locations are off;
+    -- lock contention logging of debuggable builds and checkjni of eng builds not set, and neither the debuggable
+    -- build forced, which only the prop file of the debug ramdisk sets (init reads it, property_service.cpp)
+    ['ro.force.debuggable'] = '',
+    -- shortcut: a property a user build sets but this build does not, like ro.adb.secure of AOSP userdebug builds, stays
+    -- not set like all faked properties, set it in get and the property areas if apps check that it is there.
+    ['ro.adb.secure'] = '1', ['ro.allow.mock.location'] = '0',
+    ['dalvik.vm.lockprof.threshold'] = '', ['ro.kernel.android.checkjni'] = '',
     -- The port of adb over the network (adb tcpip), which apps can read
     ['service.adb.tcp.port'] = '',
     ['persist.logd.size'] = '', ['persist.logd.size.main'] = '', ['persist.logd.size.crash'] = '',
     ['persist.log.tag'] = LOGTAG, ['persist.log.tag.snet_event_log'] = '',
 }
+
+-- The properties which hold the type and the tags of the build, also of the partitions, like ro.vendor.build.type, for
+-- the filter, which checks the names by their parts (see userbuild); the property files of the partitions, like
+-- /system/build.prop, which hold them too, do not exist where apps can read them (see hardware_files)
+local BUILD = { '*.build.type*', '*.build.tags*', '*.build.fingerprint*', '*.build.thumbprint*', '*.build.flavor*',
+                'ro.build.description', 'ro.build.display.id' }
+
+-- A debuggable type of build as user, other types stay
+function usertype(variant)
+    return ((variant == 'userdebug' or variant == 'eng') and 'user' or variant)
+end
+
+-- Tags with test or dev keys with release keys instead, sorted, like signing the build for release makes them
+-- (EditTags of sign_target_files_apks); other tags stay
+-- shortcut: a build signed with the public test keys of AOSP still shows them in the signing certificate of the
+-- package android (getPackageInfo with GET_SIGNING_CERTIFICATES, hidden only by Get.Applications) and in
+-- /system/etc/security/otacerts.zip, which every device has, so hiding it alone would tell; fake both if apps compare
+-- them with the test keys.
+function usertags(tags)
+    local kept, signed = {}, false
+    for item in string.gmatch(tags, '[^,]+') do
+        if item == 'test-keys' or item == 'dev-keys' then
+            signed = true
+        elseif item ~= 'release-keys' then
+            kept[#kept + 1] = item
+        end
+    end
+    if not signed then
+        return tags
+    end
+    kept[#kept + 1] = 'release-keys'
+    table.sort(kept)
+    return table.concat(kept, ',')
+end
+
+-- A property of the build as on a user build signed with release keys (sysprop.mk and RewriteProps of
+-- sign_target_files_apks): the type and the tags, also inside the fingerprint, the description and the flavor, and the
+-- display id, which is the description on other builds and the build id on these; nil when it stays, like 'unknown' of
+-- Use.Tracking, so the two groups give the same whichever hook runs last
+function userbuild(key, value)
+    if value == nil then
+        return nil
+    end
+    local part = string.match(key, '^ro%.build%.(.+)$') or string.match(key, '^ro%.[^%.]+%.build%.(.+)$')
+    local fake
+    if part == 'type' then
+        fake = usertype(value)
+    elseif part == 'tags' then
+        fake = usertags(value)
+    elseif part == 'fingerprint' or part == 'thumbprint' then
+        -- Like google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.036.A1/11228894:userdebug/dev-keys
+        local front, variant, tags = string.match(value, '^(.*):([^:/]+)/([^:/]+)$')
+        if front ~= nil then
+            fake = front .. ':' .. usertype(variant) .. '/' .. usertags(tags)
+        end
+    elseif key == 'ro.build.description' then
+        -- Like sdk_gphone64_x86_64-userdebug 14 UE1A.230829.036.A1 11228894 dev-keys
+        local product, variant, middle, tags = string.match(value, '^(%S+)%-(%a+)( .+ )(%S+)$')
+        if product ~= nil then
+            fake = product .. '-' .. usertype(variant) .. middle .. usertags(tags)
+        end
+    elseif part == 'flavor' then
+        local product, variant = string.match(value, '^(.+)%-(%a+)$')
+        if product ~= nil then
+            fake = product .. '-' .. usertype(variant)
+        end
+    elseif key == 'ro.build.display.id' then
+        local variant, id = string.match(value, '^%S+%-(%a+) %S+ (%S+) ')
+        local build, keys = string.match(value, '^(.+) (%S+)$')
+        if variant ~= nil and usertype(variant) ~= variant then
+            fake = id
+        elseif keys == 'test-keys' or keys == 'dev-keys' then
+            -- A user build with test or dev keys, like UE1A.230829.036.A1 dev-keys
+            fake = build
+        end
+    end
+    return (fake ~= value and fake or nil)
+end
 
 -- The heap of apps, which Android sets per model, like 256m and 512m: rounded down to a step like memory_class
 -- (STEPS, which a test compares), in megabytes. The other settings of the heap (heapstartsize, heapminfree,
@@ -133,6 +220,9 @@ local DEBUGGING = {
 -- answers the real target and the free memory after a garbage collection follows them, so a fixed value would
 -- disagree with the runtime.
 local HEAP = { ['dalvik.vm.heapgrowthlimit'] = true, ['dalvik.vm.heapsize'] = true }
+-- The memory a device is sold with, like 8GB, which the bootloader of some devices sets: not set, like the advertised
+-- memory of ActivityManager.MemoryInfo, which resources.lua fakes as Android gives it without the property
+local DDRSIZE = 'ro.boot.ddr_size'
 local STEPS = { 128, 192, 256, 384, 512 }
 
 -- A heap size like 384m rounded down to a step, nil for other values
@@ -241,9 +331,7 @@ function fakedevice(key, result)
             end
         end
     end
-    if fake == QUARTER then
-        fake = quarter(result)
-    elseif fake == FINGERPRINT then
+    if fake == FINGERPRINT then
         -- A partition without the property stays without it, like on the device
         if result == nil or result == '' then
             return nil
@@ -261,15 +349,6 @@ function fingerprint()
     local version = luajava.bindClass('android.os.Build$VERSION')
     local release = (version.SDK_INT >= 31 and version.RELEASE_OR_CODENAME or version.RELEASE)
     return 'unknown/unknown/unknown:' .. release .. '/unknown/unknown:unknown/unknown'
-end
-
--- The first day of the quarter of a date like 2025-05-05, nil when it is no date
-function quarter(date)
-    local year, month = string.match(date, '^(%d%d%d%d)%-(%d%d)%-%d%d$')
-    if year == nil then
-        return nil
-    end
-    return string.format('%s-%02d-01', year, math.floor((tonumber(month) - 1) / 3) * 3 + 1)
 end
 
 -- The number of a property value, like SystemProperties.getInt and getLong parse it (android::base::ParseInt):
@@ -339,6 +418,9 @@ end
 function filter(hook)
     if hook:getMethodName() == 'open' then
         return { '/dev/__properties__/*' }
+    elseif string.sub(hook:getMethodName(), 1, 1) == '#' then
+        -- The fields of Build are set once, without an argument to filter by
+        return nil
     end
     local name = string.match(hook:getName(), '/(.*)$')
     if name == 'serial' then
@@ -374,9 +456,12 @@ function filter(hook)
         for key, _ in pairs(DEBUGGING) do
             table.insert(keys, key)
         end
+        for _, key in ipairs(BUILD) do
+            table.insert(keys, key)
+        end
         return keys
     elseif name == 'resources' then
-        local keys = {}
+        local keys = { DDRSIZE }
         for key, _ in pairs(HEAP) do
             table.insert(keys, key)
         end
@@ -410,7 +495,7 @@ end
 -- ro.product.model in u:object_r:build_prop:s0, of debugging the ones of DEBUGGING, like sys.usb.config and
 -- init.svc.adbd. A property with an empty value stays, like for get.
 -- shortcut: the variant resources has no hooks of opening files, so the areas keep the real heap sizes, like
--- dalvik.vm.heapsize, give it the hooks too if apps read the areas for them.
+-- dalvik.vm.heapsize, and ro.boot.ddr_size, give it the hooks too if apps read the areas for them.
 -- shortcut: FileInputStream and FileReader of Android 8.1 and 9 open natively, not by the hooks of open (see
 -- hardware_files), so they read the areas unchanged, put the fake in place of the descriptor of the stream if apps
 -- read the areas that way.
@@ -433,6 +518,8 @@ function area(hook, param)
             fake = fakedevice(key, properties[index + 1])
         elseif name == 'debugging' and DEBUGGING[key] ~= nil then
             fake = fakedebugging(key, properties[index + 1], '')
+        elseif name == 'debugging' then
+            fake = userbuild(key, properties[index + 1])
         end
         if fake ~= nil then
             keys[#keys + 1] = key
@@ -459,29 +546,52 @@ end
 -- The getters of numbers by the natives they call (AOSP oreo-mr1 to main)
 local NATIVES = { native_get_int = 'getInt', native_get_long = 'getLong', native_get_boolean = 'getBoolean' }
 
+-- The fields of android.os.Build of the build type with their properties (see userbuild), and the flags of the type and
+-- IS_DEBUGGABLE, of ro.debuggable (Build.java oreo-mr1-release to main), see flag
+local FIELDS = { ['#TYPE'] = 'ro.build.type', ['#TAGS'] = 'ro.build.tags', ['#FINGERPRINT'] = 'ro.build.fingerprint',
+                 ['#DISPLAY'] = 'ro.build.display.id' }
+local FLAGS = { ['#IS_DEBUGGABLE'] = true, ['#IS_ENG'] = true, ['#IS_USERDEBUG'] = true, ['#IS_USER'] = true }
+
+-- The flags of the type are of Build.TYPE ("user".equals(TYPE) for IS_USER), which Use.Tracking gives as 'unknown'
+-- (generic_unknown_value), so none is set, and Read.Debugging as user (see usertype), so IS_USER is set unless the type
+-- is 'unknown' by Use.Tracking; a build which is not debuggable for Read.Debugging. The hooks of the fields run once,
+-- by the order of their names (getAssignedHooks of XProvider), so the flags before TYPE: the hooks of Use.Tracking
+-- leave a mark of their type for the one of Read.Debugging, which else looks at the type as it is, and set IS_USER
+-- false in case they run after it.
+function flag(hook, param, method)
+    if string.match(hook:getName(), '/(.*)$') ~= 'debugging' then
+        param:putValue('Build.TYPE', 'unknown', nil)
+        return false
+    elseif method ~= '#IS_USER' then
+        return false
+    end
+    local variant = param:getValue('Build.TYPE', nil) or luajava.bindClass('android.os.Build').TYPE
+    return (variant ~= nil and usertype(variant) == 'user')
+end
+
 function after(hook, param)
-    -- The field Build.VERSION.SECURITY_PATCH of the property, without an argument; not set it stays empty
-    if hook:getMethodName() == '#SECURITY_PATCH' then
+    -- The fields, set once, without an argument: Build.VERSION.SECURITY_PATCH not set, like its property, of which
+    -- Android gives the default ''
+    local method = hook:getMethodName()
+    if method == '#SECURITY_PATCH' or FIELDS[method] ~= nil or FLAGS[method] ~= nil then
         local result = param:getResult()
-        local fake = (result ~= nil and quarter(result) or nil)
+        local fake
+        if method == '#SECURITY_PATCH' then
+            fake = (result ~= nil and '' or nil)
+        elseif method == '#FINGERPRINT' and string.match(hook:getName(), '/(.*)$') ~= 'debugging' then
+            -- The field Build.FINGERPRINT of Use.Tracking, the same as its property
+            fake = ((result ~= nil and result ~= '') and fingerprint() or nil)
+        elseif FIELDS[method] ~= nil then
+            fake = userbuild(FIELDS[method], result)
+        else
+            fake = flag(hook, param, method)
+        end
         if fake == nil or fake == result then
             return false
         end
         param:setResult(fake)
-        return true, result, fake
-    elseif hook:getMethodName() == '#FINGERPRINT' then
-        -- The field Build.FINGERPRINT, the same as its property
-        local result = param:getResult()
-        if result == nil or result == '' then
-            return false
-        end
-        local fake = fingerprint()
-        if fake == result then
-            return false
-        end
-        param:setResult(fake)
-        return true, result, fake
-    elseif hook:getMethodName() == 'open' then
+        return true, tostring(result), tostring(fake)
+    elseif method == 'open' then
         return area(hook, param)
     end
 
@@ -495,7 +605,7 @@ function after(hook, param)
 
     local result = param:getResult()
     -- The natives of getInt, getLong and getBoolean, which apps reach by reflection, read the property like them
-    local method = NATIVES[hook:getMethodName()] or hook:getMethodName()
+    method = NATIVES[method] or method
     if method == 'getInt' or method == 'getLong' or method == 'getBoolean' then
         return typed(hook, param, key, result, method)
     end
@@ -540,6 +650,16 @@ function after(hook, param)
     elseif name == 'debugging' and DEBUGGING[key] ~= nil then
         local fake = fakedebugging(key, result, empty)
         if fake == result then
+            return false
+        end
+        param:setResult(fake)
+        return true, result, fake
+    elseif name == 'resources' and key == DDRSIZE then
+        param:setResult(empty)
+        return true, result, empty
+    elseif name == 'debugging' then
+        local fake = userbuild(key, result)
+        if fake == nil then
             return false
         end
         param:setResult(fake)

@@ -24,6 +24,7 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -48,12 +49,12 @@ public class SystemPropertiesFilterTest {
         assertFalse("no filter for the device properties", values.isnil());
 
         Class<?> type = Class.forName("eu.faircode.xlua.XCore$Filter");
-        Constructor<?> constructor = type.getDeclaredConstructor();
+        Constructor<?> constructor = type.getDeclaredConstructor(Member.class);
         constructor.setAccessible(true);
-        Object filter = constructor.newInstance();
+        Object filter = constructor.newInstance(XCoreTest.Target.class.getMethod("get"));
         Method add = type.getDeclaredMethod("add", String.class);
         add.setAccessible(true);
-        Method matches = type.getDeclaredMethod("matches", String.class);
+        Method matches = type.getDeclaredMethod("matches", Object[].class, boolean.class);
         matches.setAccessible(true);
         for (int i = 1; i <= values.length(); i++)
             add.invoke(filter, values.get(i).checkjstring());
@@ -66,18 +67,19 @@ public class SystemPropertiesFilterTest {
         int keys = 0;
         while (m.find()) {
             String key = m.group(1).replace("*", "vendor");
-            assertTrue(key, (Boolean) matches.invoke(filter, key));
+            assertTrue(key, (Boolean) matches.invoke(filter, new Object[]{key}, false));
             keys++;
         }
         // Else a changed format of the table would check nothing
         assertTrue("Keys=" + keys, keys > 50);
         // Properties the framework reads often do not run the script
         for (String key : new String[]{"debug.hwui.renderer", "persist.sys.locale", "log.tag.Foo"})
-            assertFalse(key, (Boolean) matches.invoke(filter, key));
+            assertFalse(key, (Boolean) matches.invoke(filter, new Object[]{key}, false));
     }
 
-    // USB debugging and the heap of apps: the script runs for the properties of the variant, not for those of the other;
-    // the settings of the heap other than its sizes stay real, so it runs for them in neither
+    // USB debugging, the heap of apps and the memory size of the bootloader: the script runs for the properties of the
+    // variant, not for those of the other; the settings of the heap other than its sizes stay real, so it runs for them
+    // in neither
     @Test
     public void debuggingAndHeapPropertiesAreFiltered() throws Exception {
         Globals globals = Scripts.load("systemproperties_get", STUBS);
@@ -86,11 +88,15 @@ public class SystemPropertiesFilterTest {
         Object resources = FileScriptsTest.xcoreFilter(
                 Scripts.run(globals, "return filter(hookof('SystemProperties.get/resources'))").arg1().checktable().unpack());
         for (String key : new String[]{"init.svc.adbd", "sys.usb.config", "sys.usb.state", "persist.sys.usb.config",
-                "ro.debuggable", "ro.secure", "persist.logd.size", "persist.logd.size.main", "persist.logd.size.crash"}) {
+                "ro.debuggable", "ro.secure", "persist.logd.size", "persist.logd.size.main", "persist.logd.size.crash",
+                // The user build, also of the partitions
+                "ro.adb.secure", "dalvik.vm.lockprof.threshold", "ro.build.type", "ro.vendor.build.type", "ro.build.tags",
+                "ro.odm.build.tags", "ro.build.fingerprint", "ro.bootimage.build.fingerprint", "ro.build.description",
+                "ro.build.display.id", "ro.build.flavor"}) {
             assertTrue(key, FileScriptsTest.filterMatches(debugging, key));
             assertFalse(key, FileScriptsTest.filterMatches(resources, key));
         }
-        for (String key : new String[]{"dalvik.vm.heapgrowthlimit", "dalvik.vm.heapsize"}) {
+        for (String key : new String[]{"dalvik.vm.heapgrowthlimit", "dalvik.vm.heapsize", "ro.boot.ddr_size"}) {
             assertTrue(key, FileScriptsTest.filterMatches(resources, key));
             assertFalse(key, FileScriptsTest.filterMatches(debugging, key));
         }
@@ -99,5 +105,8 @@ public class SystemPropertiesFilterTest {
             assertFalse(key, FileScriptsTest.filterMatches(resources, key));
             assertFalse(key, FileScriptsTest.filterMatches(debugging, key));
         }
+        // Not for the other properties of the build, which the framework reads often
+        for (String key : new String[]{"ro.build.version.sdk", "ro.build.version.release", "ro.build.id"})
+            assertFalse(key, FileScriptsTest.filterMatches(debugging, key));
     }
 }

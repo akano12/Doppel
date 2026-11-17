@@ -36,7 +36,9 @@ import static org.junit.Assert.assertTrue;
 // see service_filter
 public class ServiceFilterScriptTest {
     // A visible and a hidden service; accessibility services have their app in the resolve info,
-    // the others in the service info, so a script reading the wrong one fails
+    // the others in the service info, so a script reading the wrong one fails. The app has uid 10100, and
+    // isVisible keeps the services of the system, like com.google.android.marvin.talkback; the accessibility service of
+    // "android" has the uid of the system, like the one autofill reports in its compatibility mode
     private static final String STUBS = String.join("\n",
             Scripts.ARRAYOF,
             "function hookof(cls, method)",
@@ -46,6 +48,8 @@ public class ServiceFilterScriptTest {
             "  return { result = result, set = false,",
             "    getResult = function(self) return self.result end,",
             "    setResult = function(self, value) self.result = value self.set = true end,",
+            "    getUid = function(self) return 10100 end,",
+            "    isSystem = function(self) return system == true end,",
             "    isVisible = function(self, ai) return ai.packageName ~= 'com.other.hidden' end }",
             "end",
             "function serviceof(pkg)",
@@ -54,7 +58,7 @@ public class ServiceFilterScriptTest {
             "    getPackageName = function(self) return pkg end }",
             "end",
             "function accessibilityof(pkg)",
-            "  local ai = { packageName = pkg }",
+            "  local ai = { packageName = pkg, uid = (pkg == 'com.example.app' and 10100 or pkg == 'android' and 1000 or 10200) }",
             "  return { getResolveInfo = function(self) return { serviceInfo = { applicationInfo = ai } } end }",
             "end",
             "function listof(...)",
@@ -79,39 +83,254 @@ public class ServiceFilterScriptTest {
 
     @Test
     public void listsLeaveOutHiddenServices() throws Exception {
+        // With the service which stays: of the system, or of the app itself for accessibility services
         String[][] lists = {
-                {"service_filter", "android.view.inputmethod.InputMethodManager", "getInputMethodList", "serviceof"},
-                {"service_filter", "android.view.inputmethod.InputMethodManager", "getEnabledInputMethodList", "serviceof"},
-                {"service_filter", "android.view.accessibility.AccessibilityManager", "getEnabledAccessibilityServiceList", "accessibilityof"},
-                {"service_filter", "android.view.accessibility.AccessibilityManager", "getInstalledAccessibilityServiceList", "accessibilityof"},
-                {"service_filter", "android.view.textservice.TextServicesManager", "getEnabledSpellCheckerInfos", "serviceof"}};
+                {"service_filter", "android.view.inputmethod.InputMethodManager", "getInputMethodList", "serviceof",
+                        "com.android.inputmethod"},
+                {"service_filter", "android.view.inputmethod.InputMethodManager", "getEnabledInputMethodList", "serviceof",
+                        "com.android.inputmethod"},
+                {"service_filter", "android.view.accessibility.AccessibilityManager", "getEnabledAccessibilityServiceList",
+                        "accessibilityof", "com.example.app"},
+                {"service_filter", "android.view.accessibility.AccessibilityManager", "getInstalledAccessibilityServiceList",
+                        "accessibilityof", "com.example.app"},
+                {"service_filter", "android.view.textservice.TextServicesManager", "getEnabledSpellCheckerInfos", "serviceof",
+                        "com.android.inputmethod"}};
         for (String[] list : lists) {
             Globals globals = Scripts.load(list[0], STUBS);
             String call = "filter('" + list[1] + "', '" + list[2] + "', ";
+            String kept = list[3] + "('" + list[4] + "')";
 
             Varargs result = Scripts.run(globals, "local restricted, set, list, old, new = " + call +
-                    "listof(" + list[3] + "('com.android.inputmethod'), " + list[3] + "('com.other.hidden')))\n" +
+                    "listof(" + kept + ", " + list[3] + "('com.other.hidden')))\n" +
                     "return restricted, set, packages('" + list[1] + "', list), old, new");
             assertTrue(list[2], result.arg(1).toboolean());
             assertTrue(list[2], result.arg(2).toboolean());
-            assertEquals(list[2], "com.android.inputmethod", result.arg(3).tojstring());
+            assertEquals(list[2], list[4], result.arg(3).tojstring());
             // The log tells how many there were and how many are left
             assertEquals(list[2], "2", result.arg(4).tojstring());
             assertEquals(list[2], "1", result.arg(5).tojstring());
             // Accessibility services come in an unmodifiable list, like AccessibilityManager returns them
             Varargs kind = Scripts.run(globals, "local restricted, set, list = " + call +
-                    "listof(" + list[3] + "('com.android.inputmethod'), " + list[3] + "('com.other.hidden')))\n" +
+                    "listof(" + kept + ", " + list[3] + "('com.other.hidden')))\n" +
                     "return pcall(function() list:add(list:get(0)) end)");
             assertEquals(list[2], !list[1].endsWith("AccessibilityManager"), kind.arg1().toboolean());
 
             // Nothing hidden or no list: the result stays
-            result = Scripts.run(globals, "return " + call + "listof(" + list[3] + "('com.android.inputmethod')))");
+            result = Scripts.run(globals, "return " + call + "listof(" + kept + "))");
             assertFalse(list[2], result.arg(1).toboolean());
             assertFalse(list[2], result.arg(2).toboolean());
             assertFalse(list[2], Scripts.run(globals, "return " + call + "nil)").arg(1).toboolean());
         }
     }
 
+    // Accessibility services of system apps are hidden too, since they tell how the user uses the device, like a
+    // preinstalled screen reader, and so is the service of "android" which autofill reports in its compatibility mode,
+    // which tells that the user has a password manager; processes of the system see them
+    @Test
+    public void accessibilityServicesOfSystemAppsAreHidden() throws Exception {
+        Globals globals = Scripts.load("service_filter", STUBS);
+        for (String method : new String[]{"getEnabledAccessibilityServiceList", "getInstalledAccessibilityServiceList"})
+            for (String service : new String[]{"com.google.android.marvin.talkback", "android"}) {
+                String call = "local restricted, set, list = filter('android.view.accessibility.AccessibilityManager', '" +
+                        method + "', listof(accessibilityof('" + service + "')))\n" +
+                        "return restricted, set, set and list:size()";
+                Varargs result = Scripts.run(globals, call);
+                assertTrue(method, result.arg(1).toboolean());
+                assertTrue(method, result.arg(2).toboolean());
+                assertEquals(method, 0, result.arg(3).toint());
+                Scripts.run(globals, "system = true");
+                assertFalse(method, Scripts.run(globals, call).arg1().toboolean());
+                Scripts.run(globals, "system = false");
+            }
+    }
+
+    // Accessibility and touch exploration are off for the app when only hidden services turn them on, like on a device
+    // without them; the framework, whose views send their events only while accessibility is on, gets them on
+    @Test
+    public void accessibilityIsOffForOnlyHiddenServices() throws Exception {
+        Globals globals = Scripts.load("service_filter", STUBS + "\n" + String.join("\n",
+                // Enabled services by their package, flags and capabilities; with flag 4 a service asks for touch
+                // exploration, which capability 2 lets it turn on
+                "function enabledof(...)",
+                "  local items = {}",
+                "  for index, spec in ipairs({ ... }) do",
+                "    items[index] = accessibilityof(spec[1])",
+                "    items[index].flags = spec[2]",
+                "    items[index].getCapabilities = function(self) return spec[3] or 0 end",
+                "  end",
+                "  enabled = listof(table.unpack(items))",
+                "end",
+                // Frames named like class.method; the stacks are those of LSPosed, which replaces the frame of the
+                // hooked method by one of a class of its own with a random name
+                "function stackof(...)",
+                "  local frames = {}",
+                "  for index, frame in ipairs({ 'eu.faircode.xlua.XCore$6.after', 'eu.faircode.xlua.ModernBackend.lambda$hook$0',",
+                "      'm.proceed', 'android.view.accessibility.QuoaghiehZeiphoo.' .. method, ... }) do",
+                "    local class, called = string.match(frame, '^(.*)%.([^.]*)$')",
+                "    frames[index] = { getClassName = function(self) return class end,",
+                "      getMethodName = function(self) return called end }",
+                "  end",
+                "  frames.length = #frames",
+                "  stack = frames",
+                "end",
+                "walks, reads, lookups = 0, 0, 0",
+                "function callers() walks = walks + 1 return stack end",
+                // The classes of the app, also named like the framework, and of the hook engine are not of the boot class path
+                "function boot(class) return not string.find(class, 'example', 1, true) and string.sub(class, 1, 12) ~= 'org.lsposed.' end",
+                "function state(name, result)",
+                "  local param = paramof(result)",
+                "  param.getApplicationContext = function(self)",
+                "    return { getSystemService = function(self, service)",
+                "      assert(service == 'accessibility', service) lookups = lookups + 1",
+                "      return { getEnabledAccessibilityServiceList = function(self, type)",
+                "        assert(type == -1) reads = reads + 1 return enabled end }",
+                "    end }",
+                "  end",
+                // The values are kept only for the test of the cache
+                "  param.getValue = function(self, name, scope) return values and values[name] end",
+                "  param.putValue = function(self, name, value, scope) if values then values[name] = value end end",
+                "  param.unhooked = function(self, fn) return fn() end",
+                "  local restricted = after(hookof('android.view.accessibility.AccessibilityManager', name), param)",
+                "  return restricted, param.result",
+                "end"));
+        String enabled = "return state('isEnabled', true)", touch = "return state('isTouchExplorationEnabled', true)";
+
+        // The app gets them off, also by reflection, also when the framework calls them by reflection for the app, like
+        // android.util.Property and an ObjectAnimator of it, and from within a method of the framework of the same name
+        Scripts.run(globals, "enabledof({ 'com.other.hidden', 4 })");
+        for (String callers : new String[]{"'com.example.app.Main.onCreate'", "'java.lang.reflect.Method.invoke', " +
+                "'com.example.app.Main.onCreate'", "'java.lang.reflect.Method.invoke', 'android.util.ReflectiveProperty.get', " +
+                "'com.example.app.Main.onCreate'", "'java.lang.reflect.Method.invoke', 'android.util.ReflectiveProperty.get', " +
+                "'android.animation.PropertyValuesHolder.setupSetterAndGetter', 'android.animation.ObjectAnimator.initAnimation', " +
+                "'android.animation.ValueAnimator.start', 'android.view.Choreographer.doFrame'",
+                "'com.example.app.Main.check', 'android.widget.ArrayAdapter.isEnabled', " +
+                "'android.widget.ListView.layoutChildren'", "'android.example.Check.run'"})
+            for (String call : new String[]{enabled, touch}) {
+                Scripts.run(globals, "method = '" + (call.equals(enabled) ? "isEnabled" : "isTouchExplorationEnabled") +
+                        "' stackof(" + callers + ")");
+                Varargs result = Scripts.run(globals, call);
+                assertTrue(callers, result.arg1().toboolean());
+                assertFalse(callers, result.arg(2).toboolean());
+            }
+        // Also for a service of a system app alone, like a preinstalled screen reader, which asks for touch exploration
+        // and can turn it on
+        Scripts.run(globals, "enabledof({ 'com.google.android.marvin.talkback', 4, 2 })");
+        for (String call : new String[]{enabled, touch}) {
+            Scripts.run(globals, "method = '" + (call.equals(enabled) ? "isEnabled" : "isTouchExplorationEnabled") +
+                    "' stackof('com.example.app.Main.onCreate')");
+            Varargs result = Scripts.run(globals, call);
+            assertTrue(call, result.arg1().toboolean());
+            assertFalse(call, result.arg(2).toboolean());
+        }
+        // And for the service of "android" alone, which autofill reports in its compatibility mode, where it turns
+        // accessibility on for the app (see the README limit)
+        Scripts.run(globals, "enabledof({ 'android', 0 }) method = 'isEnabled' stackof('com.example.app.Main.onCreate')");
+        Varargs compat = Scripts.run(globals, enabled);
+        assertTrue(compat.arg1().toboolean());
+        assertFalse(compat.arg(2).toboolean());
+        // The framework gets them on, also from within a method of the app of the same name, and so does AccessibilityManager
+        // itself, also for an event the app sends itself, by reflection too, which would throw "Accessibility off" for an app
+        // whose listeners heard accessibility go on
+        for (String callers : new String[]{"'android.view.View.sendAccessibilityEventInternal', 'com.example.app.Main.onCreate'",
+                "'android.view.accessibility.AccessibilityManager.sendAccessibilityEvent', 'com.example.app.Main.onCreate'",
+                "'android.view.accessibility.AccessibilityManager.interrupt', 'com.example.app.Main.onCreate'",
+                "'android.view.accessibility.AccessibilityManager.sendAccessibilityEvent', 'java.lang.reflect.Method.invoke', " +
+                        "'com.example.app.Main.onCreate'",
+                "'android.view.accessibility.AccessibilityManager.sendAccessibilityEvent', " +
+                        "'android.view.ViewRootImpl.requestSendAccessibilityEvent', 'android.view.View.sendAccessibilityEvent'",
+                // The listeners, also of the framework, which keeps its windows reachable for the services by them
+                "'android.view.accessibility.AccessibilityManager.notifyAccessibilityStateChanged', " +
+                        "'android.view.accessibility.AccessibilityManager.setStateLocked', " +
+                        "'android.view.accessibility.AccessibilityManager$1.setState', 'android.os.Binder.execTransact'",
+                "'android.view.View.notifyViewAccessibilityStateChangedIfNeeded', 'com.example.app.Row.isEnabled', " +
+                        "'com.example.app.Main.onCreate'"}) {
+            Scripts.run(globals, "method = 'isEnabled' stackof(" + callers + ")");
+            Varargs result = Scripts.run(globals, enabled);
+            assertFalse(callers, result.arg1().toboolean());
+            assertTrue(callers, result.arg(2).toboolean());
+        }
+
+        // AccessibilityManager asks while it is made, within the lookup of it by the context of the app, for which a lookup
+        // of it would wait forever: it gets them as they are without a lookup, also when the app makes it by reflection, and
+        // when it connects again to its service within another hooked method of it, below the frames of the hook engine
+        String made = "'android.view.accessibility.AccessibilityManager.setStateLocked', " +
+                "'android.view.accessibility.AccessibilityManager.tryConnectToServiceLocked', " +
+                "'android.view.accessibility.AccessibilityManager.<init>', 'android.view.accessibility.AccessibilityManager.getInstance', ";
+        for (String callers : new String[]{made + "'android.app.SystemServiceRegistry$8.createService', " +
+                "'android.app.SystemServiceRegistry$CachedServiceFetcher.getService', " +
+                "'android.app.SystemServiceRegistry.getSystemService', 'android.app.ContextImpl.getSystemService', " +
+                "'android.content.ContextWrapper.getSystemService', " +
+                "'com.example.app.App.onCreate'", made + "'java.lang.reflect.Method.invoke', 'com.example.app.App.onCreate'",
+                "'android.view.accessibility.AccessibilityManager.setStateLocked', " +
+                        "'android.view.accessibility.AccessibilityManager.tryConnectToServiceLocked', " +
+                        "'android.view.accessibility.AccessibilityManager.getServiceLocked', " +
+                        "'android.view.accessibility.AccessibilityManager.isTouchExplorationEnabled', " +
+                        "'org.lsposed.lspd.impl.LSPosedBridge$NativeHooker.callback', 'com.example.app.Main.onCreate'"}) {
+            Scripts.run(globals, "method = 'isEnabled' stackof(" + callers + ") lookups = 0");
+            Varargs result = Scripts.run(globals, enabled);
+            assertFalse(callers, result.arg1().toboolean());
+            assertTrue(callers, result.arg(2).toboolean());
+            assertEquals(callers, 0, Scripts.run(globals, "return lookups").arg1().toint());
+        }
+
+        // A service of the app itself keeps accessibility on, and touch exploration when it asks for it, without a walk of
+        // the stack once the services are kept
+        Scripts.run(globals, "method = 'isEnabled' stackof('com.example.app.Main.onCreate') " +
+                "values, now = {}, 100 os.time = function() return now end");
+        Scripts.run(globals, "enabledof({ 'com.other.hidden', 4 }, { 'com.example.app', 0 })");
+        assertFalse(Scripts.run(globals, enabled).arg1().toboolean());
+        Scripts.run(globals, "walks = 0");
+        assertFalse(Scripts.run(globals, enabled).arg1().toboolean());
+        assertEquals(0, Scripts.run(globals, "return walks").arg1().toint());
+        // Also when the framework asks first, for which they are read again too, else each of its calls would walk the stack
+        Scripts.run(globals, "stackof('android.view.View.sendAccessibilityEventInternal') values = {}");
+        assertFalse(Scripts.run(globals, enabled).arg1().toboolean());
+        Scripts.run(globals, "walks = 0");
+        assertFalse(Scripts.run(globals, enabled).arg1().toboolean());
+        assertEquals(0, Scripts.run(globals, "return walks").arg1().toint());
+        Scripts.run(globals, "method = 'isTouchExplorationEnabled' stackof('com.example.app.Main.onCreate')");
+        assertTrue(Scripts.run(globals, touch).arg1().toboolean());
+        // Only with the capability, without which a service asking for it cannot turn it on
+        Scripts.run(globals, "enabledof({ 'com.other.hidden', 4, 2 }, { 'com.example.app', 4 }) values = {}");
+        assertTrue(Scripts.run(globals, touch).arg1().toboolean());
+        Scripts.run(globals, "enabledof({ 'com.other.hidden', 0 }, { 'com.example.app', 4, 2 }) values = {}");
+        assertFalse(Scripts.run(globals, touch).arg1().toboolean());
+        Scripts.run(globals, "walks = 0");
+        assertFalse(Scripts.run(globals, touch).arg1().toboolean());
+        assertEquals(0, Scripts.run(globals, "return walks").arg1().toint());
+        // No services, like for a UiAutomation, and off stay, also without a walk of the stack
+        Scripts.run(globals, "enabledof() values = {}");
+        assertFalse(Scripts.run(globals, touch).arg1().toboolean());
+        Scripts.run(globals, "walks = 0");
+        assertFalse(Scripts.run(globals, touch).arg1().toboolean());
+        Scripts.run(globals, "enabledof({ 'com.other.hidden', 4 }) values = {}");
+        assertFalse(Scripts.run(globals, "return state('isTouchExplorationEnabled', false)").arg1().toboolean());
+        assertEquals(0, Scripts.run(globals, "return walks").arg1().toint());
+
+        // The services are read once a second, so a change, like a hidden service bound after the list was empty,
+        // shows within a second
+        Scripts.run(globals, "method = 'isEnabled' stackof('com.example.app.Main.onCreate') " +
+                "values, now, reads = {}, 100, 0 os.time = function() return now end enabledof()");
+        assertFalse(Scripts.run(globals, enabled).arg1().toboolean());
+        Scripts.run(globals, "enabledof({ 'com.other.hidden', 4 })");
+        assertFalse(Scripts.run(globals, enabled).arg1().toboolean());
+        assertEquals(1, Scripts.run(globals, "return reads").arg1().toint());
+        Scripts.run(globals, "now = 101");
+        assertTrue(Scripts.run(globals, enabled).arg1().toboolean());
+        assertTrue(Scripts.run(globals, enabled).arg1().toboolean());
+        assertEquals(2, Scripts.run(globals, "return reads").arg1().toint());
+    }
+
+    // settingssecure_getstring tells accessibility_enabled and touch_exploration_enabled, and which services stay, with the
+    // same functions
+    @Test
+    public void accessibilityStateIsTheSameAsOfSettings() throws Exception {
+        assertEquals(Scripts.function("service_filter", "onlyhidden"), Scripts.function("settingssecure_getstring", "onlyhidden"));
+        assertEquals(Scripts.function("service_filter", "ownservice"), Scripts.function("settingssecure_getstring", "ownservice"));
+    }
+
+    // Without a list to choose another one from, here because the lookups fail; the one Android would choose is
+    // tested with the settings, see SettingsScriptTest.currentServicesAgreeWithTheSettings
     @Test
     public void currentServiceOfHiddenAppIsNone() throws Exception {
         String[][] currents = {

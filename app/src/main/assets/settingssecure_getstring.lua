@@ -17,11 +17,20 @@
 -- Copyright 2026 akano12
 
 -- Settings people change, which together recognize a device (the device state of FingerprintJS),
--- with their values on a new device; NONE for settings which are not set on a new device.
+-- with their values on a new device; NONE for settings which appear not set. The ringtone, notification and alarm
+-- sounds appear set to None, like a user who chose silence, which leaves ringtone_set and the others at 1: the sound
+-- the user chose tells about the user, the one of a new device the maker, and the copies Android plays them from are
+-- missing too (see contentresolver_open).
 -- The 12/24 hour clock is not included, because apps show times with it. Neither are the font scale,
 -- the animator duration scale and whether accessibility or touch exploration is on: the framework
 -- gives the real values too (Configuration.fontScale, ValueAnimator.getDurationScale, AccessibilityManager),
 -- which cannot be faked without changing how the app works, and fake settings next to them would stand out.
+-- The animations of the app itself run at the animator duration scale (ValueAnimator, RenderNodeAnimator and
+-- AnimatedVectorDrawable read it in the app), which Remove animations of accessibility sets to 0, so faking it would
+-- turn animations on; developer options set it apart from the window and transition scales, which the system applies
+-- to the windows, so those two can have the value of a new device next to it.
+-- Get.Applications turns accessibility and touch exploration off only when hidden services alone turn them on,
+-- and AccessibilityManager agrees then (see SWITCHES).
 -- Nor is the proxy (http_proxy), its host and port: the app process puts them in the System properties http.proxyHost
 -- and http.proxyPort for its connections from ConnectivityManager.getDefaultProxy (ActivityThread), so a fake setting
 -- would disagree with them, and hiding them there would break proxied networking.
@@ -57,6 +66,8 @@ local COMPONENTS = {
     enabled_input_methods = 'input_method',
     input_methods_subtype_history = 'input_method',
     selected_spell_checker = 'input_method',
+    -- The subtype of the spell checker, a hash code, which goes with it (see components)
+    selected_spell_checker_subtype = 'input_method',
     enabled_accessibility_services = 'accessibility',
     touch_exploration_granted_accessibility_services = 'accessibility',
     accessibility_shortcut_target_service = 'accessibility',
@@ -83,16 +94,20 @@ local COMPONENTS = {
     media_button_receiver = 'packages',
 }
 
+-- Whether accessibility and touch exploration are on (true for touch exploration), which Android sets for the services
+-- it binds; off when only hidden services turn them on, like AccessibilityManager tells the app (see service_filter)
+local SWITCHES = { accessibility_enabled = false, touch_exploration_enabled = true }
+
+-- The settings of COMPONENTS which keep a system app, like the other calls which name the app do: the default SMS and
+-- phone apps (see default_app_filter) and the autofill service (see package_result), see components
+local SYSTEM_KEPT = { sms_default_application = true, dialer_default_application = true, autofill_service = true }
+
 -- Lists of COMPONENTS which Android separates by a comma (DreamManagerService.componentsFromString) instead of a colon
 local COMMAS = {
     screensaver_components = true,
 }
 
--- Shortcut targets of the framework itself, like com.android.server.accessibility/ColorInversion;
--- magnification has no package, like com.android.server.accessibility.MagnificationController
-local FRAMEWORK = { android = true, ['com.android.server.accessibility'] = true }
-
--- Whether packages of keyboards or accessibility services are visible, see XParam.isVisible.
+-- Whether packages of keyboards are visible, see XParam.isVisible, and of accessibility services, see ownservice.
 -- These come from the services, because the package manager does not tell about apps
 -- which are hidden by the package visibility rules, like a system keyboard. See service_filter too.
 -- Kept for a few seconds, apps read the settings often, like for each text field, and the lists rarely change
@@ -124,10 +139,58 @@ function systemservices(param, source)
     end)
     local packages = {}
     for _, ai in ipairs(infos) do
-        packages[ai.packageName] = (packages[ai.packageName] or param:isVisible(ai))
+        local visible
+        if source == 'accessibility' then
+            visible = ownservice(param, ai)
+        else
+            visible = param:isVisible(ai)
+        end
+        packages[ai.packageName] = (packages[ai.packageName] or visible)
     end
     param:putValue('services.' .. source, { at = os.time(), packages = packages }, context)
     return packages
+end
+
+-- Whether an accessibility service is of the app itself, the only ones the app sees: those of system apps tell how the
+-- user uses the device too, like a preinstalled screen reader. Processes of the system see all, like for
+-- XParam.isVisible. The same function as in service_filter; a test compares them.
+function ownservice(param, ai)
+    return (ai == nil or param:isSystem() or ai.uid == param:getUid())
+end
+
+-- Whether accessibility, or touch exploration for touch, is on only for services of hidden apps, so it would be off on a
+-- device without them. Android turns accessibility on while it binds services or runs a UiAutomation, and touch
+-- exploration for bound services which ask for it (AccessibilityManagerService.updateAccessibilityEnabledSettingLocked
+-- and updateTouchExplorationLocked); the enabled services are the bound ones, so without any, like for a UiAutomation,
+-- it stays. Kept for a second, so a change shows within a second; with kept, only what is kept, nil when the services
+-- are to be read again. The same function as in service_filter, which tells it for AccessibilityManager; a test
+-- compares them.
+function onlyhidden(param, touch, kept)
+    local context = param:getApplicationContext()
+    local cached = param:getValue('accessibility.onlyhidden', context)
+    if cached == nil or os.time() - cached.at >= 1 then
+        if kept then
+            return nil
+        end
+        -- The list is hooked itself, which would filter it and report it as a call of the app
+        local items = param:unhooked(function()
+            return context:getSystemService('accessibility'):getEnabledAccessibilityServiceList(-1):toArray()
+        end)
+        cached = { at = os.time(), visible = {}, hidden = {} }
+        for index = 1, items['length'] do
+            local service = items[index]
+            local hidden = not ownservice(param, service:getResolveInfo().serviceInfo.applicationInfo)
+            local of = (hidden and cached.hidden or cached.visible)
+            of.enabled = true
+            -- FLAG_REQUEST_TOUCH_EXPLORATION_MODE turns it on with CAPABILITY_CAN_REQUEST_TOUCH_EXPLORATION, or for a service
+            -- of an app for Android 4.2 or older with a grant of the user (canRequestAndRequestsTouchExplorationLocked); a
+            -- hidden service counts by the flag alone and a visible one only with the capability, so neither keeps it on
+            of.touch = (of.touch or bit32.band(service.flags, 4) ~= 0 and (hidden or bit32.band(service:getCapabilities(), 2) ~= 0))
+        end
+        param:putValue('accessibility.onlyhidden', cached, context)
+    end
+    local kind = (touch and 'touch' or 'enabled')
+    return (cached.hidden[kind] == true and cached.visible[kind] ~= true)
 end
 
 -- The default app of a device on which the user did not choose one: the dialer of the system, or the SMS app
@@ -184,6 +247,113 @@ function systemdefault(param, dialer)
     end)
 end
 
+local FLAG_SYSTEM = 1
+
+-- Whether a keyboard or spell checker is of a system app, like InputMethodInfo.isSystem
+function system(info)
+    return bit32.band(info:getServiceInfo().applicationInfo.flags, FLAG_SYSTEM) ~= 0
+end
+
+-- Whether a keyboard only adds to the others, like InputMethodInfo.isAuxiliaryIme, which apps may not call (hidden):
+-- it has subtypes and all are auxiliary. shortcut: also the subtypes the keyboard added later, which isAuxiliaryIme
+-- leaves out, upgrade when a keyboard is seen adding others than those of its kind.
+function auxiliary(info)
+    local count = info:getSubtypeCount()
+    for index = 0, count - 1 do
+        if not info:getSubtypeAt(index):isAuxiliary() then
+            return false
+        end
+    end
+    return count > 0
+end
+
+-- Whether a keyboard has a subtype of the keyboard mode, of English when asked, like containsSubtypeOf of
+-- InputMethodUtils without the country
+function typing(info, english)
+    for index = 0, info:getSubtypeCount() - 1 do
+        local subtype = info:getSubtypeAt(index)
+        if string.lower(subtype:getMode()) == 'keyboard' and
+                (not english or string.lower(string.match(subtype:getLocale(), '^[^_]*')) == 'en') then
+            return true
+        end
+    end
+    return false
+end
+
+-- The enabled keyboards of a device without the hidden apps, in their order: the ones which stay visible, and when one
+-- is hidden and no keyboard is left which is not auxiliary (like voice typing), or on Android 8.1 none at all, after
+-- them the installed system keyboards, which InputMethodManagerService enables then (buildInputMethodListLocked).
+-- shortcut: all visible system keyboards with a keyboard subtype, where Android enables those which are default for
+-- the system language (getDefaultEnabledImes) and with none left voice typing too, upgrade when devices with more than
+-- one system keyboard are seen. The same function as in service_filter, which gives them as the enabled ones.
+function keyboards(param, items)
+    -- The lists are hooked themselves (see service_filter), which would report them as calls of the app
+    return param:unhooked(function()
+        local manager = param:getApplicationContext():getSystemService('input_method')
+        items = items or manager:getEnabledInputMethodList():toArray()
+        local kept = {}
+        local typed = false
+        for index = 1, items['length'] do
+            local info = items[index]
+            if param:isVisible(info:getServiceInfo().applicationInfo) then
+                kept[#kept + 1] = info
+                typed = typed or not auxiliary(info)
+            end
+        end
+        if #kept < items['length'] and not typed and
+                (#kept == 0 or luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 28) then
+            local installed = manager:getInputMethodList():toArray()
+            for index = 1, installed['length'] do
+                local info = installed[index]
+                if system(info) and param:isVisible(info:getServiceInfo().applicationInfo) and not auxiliary(info) and
+                        typing(info, false) then
+                    kept[#kept + 1] = info
+                end
+            end
+        end
+        return kept
+    end)
+end
+
+-- The keyboard a device without the hidden apps would use, of its enabled ones (see keyboards), like
+-- InputMethodManagerService chooses one (getMostApplicableDefaultIME): searching from the last one, the first system
+-- keyboard which is not auxiliary and has an English keyboard subtype, else the first system keyboard which is not
+-- auxiliary the search met, else the first enabled one; nil when none is left. The same function as in service_filter,
+-- which gives it as the current keyboard; a test compares them.
+function keyboard(param)
+    local items = keyboards(param)
+    local found
+    for index = #items, 1, -1 do
+        local info = items[index]
+        if system(info) and not auxiliary(info) then
+            if typing(info, true) then
+                return info
+            end
+            found = found or info
+        end
+    end
+    return found or items[1]
+end
+
+-- The spell checker a device without the hidden apps would use: the first one of a system app which stays visible;
+-- nil when none is left. shortcut: TextServicesManagerService takes the first one with a subtype of the system language
+-- (findAvailSystemSpellCheckerLocked), upgrade when devices with more than one system spell checker are seen. The same
+-- function as in service_filter; a test compares them.
+function spellchecker(param)
+    return param:unhooked(function()
+        local manager = param:getApplicationContext():getSystemService('textservices')
+        -- Public as of Android 12, hidden before, as an array which is null when there are none
+        local ok, list = pcall(manager.getEnabledSpellCheckerInfos, manager)
+        local items = (ok and list:toArray() or manager:getEnabledSpellCheckers())
+        for index = 1, (items ~= nil and items['length'] or 0) do
+            if system(items[index]) and param:isVisible(items[index]:getServiceInfo().applicationInfo) then
+                return items[index]
+            end
+        end
+        return nil
+    end)
+end
+
 -- Whether the app can change secure settings: the system (see XParam.isSystem), like the system server,
 -- Settings and Phone, and apps given the permission, like with adb
 function writer(param)
@@ -194,12 +364,31 @@ function writer(param)
     return (context:checkSelfPermission('android.permission.WRITE_SECURE_SETTINGS') == 0)
 end
 
--- The entries of a list which name visible apps, nil when none are left;
--- the one default SMS or phone app becomes the one of the system, apps expect there is one
+-- The entries of a list which name visible apps, nil when none are left; the one default SMS or phone app becomes
+-- the one of the system, apps expect there is one, the current keyboard and spell checker the ones Android would
+-- choose instead, see keyboard and spellchecker, and the enabled keyboards get the ones Android enables when none is
+-- left, see keyboards
 function components(param, key, value)
+    -- The subtype of the spell checker, which Android 9 and later reset when they choose another spell checker
+    -- (TextServicesData.setCurrentSpellChecker) and 8.1 keeps; reset too when the spell checker cannot be read
+    if key == 'selected_spell_checker_subtype' then
+        if luajava.bindClass('android.os.Build$VERSION').SDK_INT < 28 then
+            return value
+        end
+        local ok, current = pcall(param.unhooked, param, function()
+            return luajava.bindClass('android.provider.Settings$Secure'):getString(
+                    param:getApplicationContext():getContentResolver(), 'selected_spell_checker')
+        end)
+        if ok and (current == nil or components(param, 'selected_spell_checker', current) == current) then
+            return value
+        end
+        return '0'
+    end
+
     local source = COMPONENTS[key]
     local services
     local kept = {}
+    local dropped = false
     -- A setting without entries stays as it is, like an empty accessibility_shortcut_target_service of Android 14
     if value == '' then
         return value
@@ -207,39 +396,54 @@ function components(param, key, value)
     local separator = (COMMAS[key] and ',' or ':')
     for entry in string.gmatch(value, '[^' .. separator .. ']+') do
         local packageName = string.match(entry, '^[^/;]+')
-        local visible
-        if source == 'accessibility' and (not string.find(entry, '/', 1, true) or FRAMEWORK[packageName]) then
-            visible = true
-        else
-            if services == nil then
-                services = systemservices(param, source)
-            end
-            visible = services[packageName]
-            if visible == nil then
-                -- Whether the package manager tells about the app, and it is a system app or the app itself;
-                -- an app hidden by the package visibility rules is not visible
+        if services == nil then
+            services = systemservices(param, source)
+        end
+        local visible = services[packageName]
+        if visible == nil then
+            if source == 'accessibility' then
+                -- Of the app itself only, also a service it no longer has; the features of the framework, like
+                -- com.android.server.accessibility/ColorInversion and magnification, which has no package, like
+                -- com.android.server.accessibility.MagnificationController, tell how the user uses the device too
+                visible = (packageName == param:getPackageName())
+            elseif SYSTEM_KEPT[key] then
+                -- Whether the package manager tells about the app, and it is a system app or the app itself, like the
+                -- app's other calls which name it; an app hidden by the package visibility rules is not visible
                 visible = param:isInstalledVisible(packageName)
+            else
+                -- Only the app itself: no other app, also of the system, like the screensaver of the clock, which the
+                -- Android code in the app does not read from these settings
+                visible = (packageName == param:getPackageName())
             end
         end
         if visible then
             kept[#kept + 1] = entry
+        else
+            dropped = true
+        end
+    end
+    if key == 'enabled_input_methods' and dropped then
+        -- After them the keyboards Android enables when none is left, without subtypes, like it adds them
+        -- (appendAndPutEnabledInputMethodLocked)
+        local ids = {}
+        for _, entry in ipairs(kept) do
+            ids[string.match(entry, '^[^;]+')] = true
+        end
+        local ok, infos = pcall(keyboards, param)
+        for _, info in ipairs(ok and infos or {}) do
+            if not ids[info:getId()] then
+                kept[#kept + 1] = info:getId()
+            end
         end
     end
     local fake = table.concat(kept, separator)
     if fake == '' then
         fake = nil
-        if key == 'default_input_method' then
-            -- A device always has a keyboard: the first of the enabled ones which stays visible
-            local ok, enabled = pcall(function()
-                return param:unhooked(function()
-                    return luajava.bindClass('android.provider.Settings$Secure'):getString(
-                            param:getApplicationContext():getContentResolver(), 'enabled_input_methods')
-                end)
-            end)
-            if ok and enabled ~= nil and enabled ~= value then
-                local others = components(param, 'enabled_input_methods', enabled)
-                fake = (others ~= nil and string.match(others, '^[^:;]+') or nil)
-            end
+        if key == 'default_input_method' or key == 'selected_spell_checker' then
+            -- The keyboard or spell checker a device without the hidden apps would use, else none, which Android keeps
+            -- as an empty setting (InputMethodManagerService, TextServicesManagerService)
+            local ok, info = pcall(key == 'default_input_method' and keyboard or spellchecker, param)
+            fake = (ok and info ~= nil and info:getId() or '')
         elseif key == 'sms_default_application' or key == 'dialer_default_application' then
             fake = systemdefault(param, key == 'dialer_default_application')
         end
@@ -299,7 +503,7 @@ local DEVELOPER = {
 local HOOKED = {
     android_id = true, bluetooth_name = true, device_name = true, wifi_p2p_device_name = true, boot_count = true,
     low_power = true, low_power_sticky = true, system_locales = true, private_dns_specifier = true, private_dns_mode = true,
-    bluetooth_address = true,
+    bluetooth_address = true, selected_input_method_subtype = true,
 }
 
 -- The value of a setting of PERSONAL on a new device, nil for other settings. Devices with more than one SIM keep data
@@ -315,7 +519,7 @@ end
 -- Whether hooks change the setting; the hooked methods are called for all settings, so check the name first
 function hooked(key)
     return key ~= nil and (HOOKED[key] ~= nil or DEVELOPER[key] ~= nil or ALWAYSON[key] ~= nil or COMPONENTS[key] ~= nil or personal(key) ~= nil or
-            BIOMETRIC[key] ~= nil or identifier(key))
+            BIOMETRIC[key] ~= nil or SWITCHES[key] ~= nil or identifier(key))
 end
 
 -- The fake languages, normalized, without tags which are no language (und) and without repeats,
@@ -346,12 +550,135 @@ function split(text)
     return items
 end
 
+-- The language of a subtype of a keyboard: its language tag (Android 7), else its locale like en_US; '' for none.
+-- The same function as in locale, which a test compares.
+function subtypetag(subtype)
+    local tag = subtype:getLanguageTag()
+    if tag == nil or tag == '' then
+        tag = string.gsub(subtype:getLocale() or '', '_', '-')
+    end
+    return tag
+end
+
+-- Whether a subtype of a keyboard has a fake language, or none, like one for handwriting; a tag of a language alone,
+-- like uk, is one of the fake ones with that language. The same function as in locale, which a test compares.
+function typed(subtype, fake)
+    local tag = subtypetag(subtype)
+    if tag == '' then
+        return true
+    end
+    local locale = luajava.bindClass('java.util.Locale')
+    tag = locale:forLanguageTag(tag):toLanguageTag()
+    for _, item in ipairs(fake) do
+        if tag == item or tag == locale:forLanguageTag(item):getLanguage() then
+            return true
+        end
+    end
+    return false
+end
+
+-- Secure settings which name subtypes of keyboards by their hashCode (InputMethodInfo.getSubtypeAt): the enabled ones of
+-- each keyboard, like com.example/.Keyboard;-921088104;529847764:com.other/.Keyboard, the ones used last, like
+-- com.example/.Keyboard;-921088104, and the selected one of the keyboard in use, -1 for none
+local SUBTYPES = { enabled_input_methods = true, input_methods_subtype_history = true, selected_input_method_subtype = true }
+
+-- Whether the subtypes of all keyboards have a fake language (see typed), by the id of the keyboard and the hashCode of
+-- the subtype, also of keyboards the hooks of other groups hide from the app; nil when the keyboards cannot be read.
+-- Kept for a few seconds, like systemservices.
+function typedids(param, fake)
+    local context = param:getApplicationContext()
+    local cached = param:getValue('subtypes.typed', context)
+    if cached ~= nil and os.time() - cached.at < 10 then
+        return cached.keyboards
+    end
+    local ok, keyboards = pcall(param.unhooked, param, function()
+        local all = {}
+        local infos = context:getSystemService('input_method'):getInputMethodList():toArray()
+        for index = 1, infos['length'] do
+            local ids = {}
+            for at = 0, infos[index]:getSubtypeCount() - 1 do
+                local subtype = infos[index]:getSubtypeAt(at)
+                ids[tostring(subtype:hashCode())] = typed(subtype, fake)
+            end
+            all[infos[index]:getId()] = ids
+        end
+        return all
+    end)
+    if not ok then
+        return nil
+    end
+    param:putValue('subtypes.typed', { at = os.time(), keyboards = keyboards }, context)
+    return keyboards
+end
+
+-- A setting of SUBTYPES with only the subtypes of the fake languages or of none, which the getters of InputMethodManager
+-- keep too (see locale): an entry of the history with another one goes, and the selected one becomes the one in use the
+-- app gets, the first enabled subtype of the keyboard with a fake language, else none. An id which is no subtype of the
+-- keyboard goes too, the getters leave it out; when the keyboards cannot be read every id goes.
+function subtyped(param, key, value)
+    local fake = fakes(param)
+    local keyboards = typedids(param, fake)
+    -- Whether an id of a subtype of a keyboard goes; for the selected one, which does not name its keyboard, by all of them
+    local function hidden(keyboard, id)
+        if id == '-1' then
+            return false
+        elseif keyboards == nil then
+            return true
+        elseif keyboard ~= nil then
+            return (keyboards[keyboard] or {})[id] ~= true
+        end
+        local known = false
+        for _, ids in pairs(keyboards) do
+            if ids[id] == false then
+                return true
+            end
+            known = (known or ids[id] == true)
+        end
+        return not known
+    end
+
+    if key == 'selected_input_method_subtype' then
+        if not hidden(nil, value) then
+            return value
+        end
+        local found, id = pcall(param.unhooked, param, function()
+            local manager = param:getApplicationContext():getSystemService('input_method')
+            local items = manager:getEnabledInputMethodSubtypeList(nil, true):toArray()
+            for index = 1, items['length'] do
+                if typed(items[index], fake) then
+                    return tostring(items[index]:hashCode())
+                end
+            end
+            return '-1'
+        end)
+        return (found and id or '-1')
+    end
+
+    local entries = {}
+    for entry in string.gmatch(value, '[^:]+') do
+        local ids = {}
+        for id in string.gmatch(entry, '[^;]+') do
+            ids[#ids + 1] = id
+        end
+        local kept = { ids[1] }
+        for index = 2, #ids do
+            if not hidden(ids[1], ids[index]) then
+                kept[#kept + 1] = ids[index]
+            end
+        end
+        if key == 'enabled_input_methods' or #kept == #ids then
+            entries[#entries + 1] = table.concat(kept, ';')
+        end
+    end
+    return table.concat(entries, ':')
+end
+
 -- The fake value of a setting for a variant: true and the fake value, or false when it stays
 function fakesetting(param, name, key, result)
     if name == 'android_id' and key == 'android_id' then
         local fake = param:getSetting('value.android_id')
         if fake == nil then
-            -- Only if the boot values could not be read: value.android_id comes from Fake values (new each boot)
+            -- Only if the boot values could not be read: value.android_id is the one of Fake values or of the service
             fake = '0000000000000000'
         end
         -- Settings.Secure.getString calls the hooked getStringForUser
@@ -391,6 +718,16 @@ function fakesetting(param, name, key, result)
             return false
         end
         return true, fake
+    elseif name == 'accessibility' and SWITCHES[key] ~= nil then
+        -- Also for apps which can change the settings, like AccessibilityManager tells them: Android sets them from the
+        -- services it binds, never reads accessibility_enabled and sets touch_exploration_enabled again when an app writes
+        -- it (updateTouchExplorationLocked), so writing back what they read turns no service off.
+        -- shortcut: a 0 written back to accessibility_enabled stays stored, for other apps to read, until the services or
+        -- the state of accessibility change next (updateServicesLocked); upgrade if apps restoring settings do that.
+        if result ~= '1' or not onlyhidden(param, SWITCHES[key]) then
+            return false
+        end
+        return true, '0'
     elseif name == 'settings' and personal(key) ~= nil then
         local fake = personal(key)
         if fake == NONE then
@@ -414,6 +751,17 @@ function fakesetting(param, name, key, result)
         -- The languages the user chose, the fake ones, like Settings.System.getStringForUser of locale
         local fake = table.concat(fakes(param), ',')
         if result == '' or fake == result then
+            return false
+        end
+        return true, fake
+    elseif name == 'locale' and SUBTYPES[key] then
+        -- The subtypes of the keyboards; apps which can change the settings get them as they are, like the keyboards
+        -- above, else they would disable the subtypes for good when they write back what they read
+        if result == nil or writer(param) then
+            return false
+        end
+        local fake = subtyped(param, key, result)
+        if fake == result then
             return false
         end
         return true, fake

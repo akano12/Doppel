@@ -15,12 +15,20 @@
 
 -- Copyright 2026 akano12
 
--- Apps can ask the advertising id service of Play services themselves, with their own copy of its interface,
--- instead of AdvertisingIdClient (see advertisingidclient$info_getid). The connection to the service gets a
--- binder in front of it, which answers like the service after the user deleted the advertising id: the id of
--- zeros and limited ad tracking; other calls go to the service. All connections of an app pass here, also with
--- an executor, and unbindService still finds the connection of the app.
-local SERVICE = 'com.google.android.gms.ads.identifier.service.AdvertisingIdService'
+-- AdvertisingIdClient asks the advertising id service of Play services, and apps can ask it themselves with their own
+-- copy of its interface. The connection to the service gets a binder in front of it, which answers like the service
+-- after the user deleted the advertising id: the id of zeros and limited ad tracking; other calls go to the service.
+-- The Info the app gets is made of these, so an Info the app makes itself keeps its values. All connections of an app
+-- pass here, also with an executor, and unbindService still finds the connection of the app.
+-- The services by their class: of Play services and of microG, which has the same interface
+local SERVICES = {
+    ['com.google.android.gms.ads.identifier.service.AdvertisingIdService'] = true,
+    ['org.microg.gms.ads.identifier.AdvertisingIdService'] = true,
+}
+-- The broker of Play services, which the library versions 15 to 17 bind for the id when a flag of Play services asks
+-- for it, serves other interfaces too, whose calls 1 and 2 are others, so only the binder of the interface counts
+local BROKER = 'com.google.android.gms.chimera.PersistentBoundBrokerService'
+local DESCRIPTOR = 'com.google.android.gms.ads.identifier.internal.IAdvertisingIdService'
 local GET_ID = 1 -- IAdvertisingIdService.getId
 local IS_LIMITED = 2 -- IAdvertisingIdService.isLimitAdTrackingEnabled
 local ZEROS = '00000000-0000-0000-0000-000000000000'
@@ -28,7 +36,8 @@ local ZEROS = '00000000-0000-0000-0000-000000000000'
 function before(hook, param)
     local name = param:getArgument(0)
     local service = param:getArgument(1)
-    if name == nil or service == nil or name:getClassName() ~= SERVICE then
+    local class = (name ~= nil and name:getClassName() or nil)
+    if service == nil or not (SERVICES[class] or class == BROKER) then
         return false
     end
 
@@ -39,6 +48,12 @@ function before(hook, param)
     if binder ~= nil then
         param:setArgument(1, binder)
         return true
+    end
+    if class == BROKER then
+        local ok, descriptor = pcall(service.getInterfaceDescriptor, service)
+        if not ok or descriptor ~= DESCRIPTOR then
+            return false
+        end
     end
 
     -- Every method of IBinder goes to the service, also hashCode and toString, since a proxy answers false, 0 or null

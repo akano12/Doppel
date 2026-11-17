@@ -22,8 +22,9 @@
 -- descriptors on other devices) with its manufacturer and model, the
 -- calibration of the light sensor, the files of the touchscreen (/sys/class/sec/tsp) and of the fingerprint
 -- sensor (/sys/class/fingerprint/fingerprint), the chip and storage models (see FILES), the folders of VPN
--- interfaces and su and Magisk (Read.Debugging). For restricted apps the files do not exist: they cannot be opened,
--- read, listed or found, with java.io, android.system.Os and java.nio.file. The paths are resolved first,
+-- interfaces and su, Magisk and Xposed and the property files with the type of the build (Read.Debugging). For
+-- restricted apps the files do not exist: they cannot be opened, read, listed or found, with java.io, android.system.Os
+-- and java.nio.file. The paths are resolved first,
 -- so the links of /sys do not lead to the files either, like /sys/bus/mmc/devices/mmc0:0001/cid.
 -- Each variant hides the files of its group, and folders listed with java.nio.file leave the names of hidden files out.
 -- The feature files of the system which stay are read without the features the group hides (see FEATURES), but by
@@ -32,9 +33,9 @@
 -- folder and reads their attributes by the descriptor of the folder and their name (openat, unlinkat, renameat and
 -- fstatat, see atpath), which only the groups which hook those calls cover. Not covered is native code. FileInputStream,
 -- which FileReader opens too, and FileOutputStream of Android 8.1 and 9 open natively (open0), not by the hooks of open;
--- Read.VPN, Read.Debugging and Read.Biometrics hook open0 to hide their files (see before), but not to rewrite them
--- (see tables and featuretext). The property areas of /dev/__properties__ have the fake values of the properties, see
--- systemproperties_get.
+-- Read.VPN, Read.Debugging, Read.Biometrics and Get.Applications hook open0 to hide their files (see before), but not
+-- to rewrite them (see tables, featuretext and packagetext). The property areas of /dev/__properties__ have the fake
+-- values of the properties, see systemproperties_get.
 -- shortcut: the other groups do not hook open0, so on Android 8.1 and 9 FileInputStream and FileReader still open their
 -- files, add the hooks of Read.VPN to them if apps read the files that way.
 -- shortcut: a SecureDirectoryStream of a folder in the one of the stream (its newDirectoryStream) has no filter, so it
@@ -68,19 +69,27 @@ local FILES = {
         '/block/sd%a+/device/model$', '/block/sd%a+/device/vendor$', '/block/sd%a+/device/rev$',
         '/%d+:%d+:%d+:%d+/model$', '/%d+:%d+:%d+:%d+/vendor$', '/%d+:%d+:%d+:%d+/rev$',
         '/sensors/light_sensor/light_cal$', '/sec/tsp$', '/sec/tsp/', '/class/camera/', '/virtual/camera/',
-        -- The speeds, layout, caches and idle states of the processors, like cpu7/cpufreq/cpuinfo_max_freq, and the
-        -- features and flaws of their cores; of the folders of the processors cpu0 to cpu7 stay (see cpu_count), and
-        -- a device with fewer processors keeps the ones it has, since folders cannot be made up
+        -- The speeds, caches and idle states of the processors, like cpu7/cpufreq/cpuinfo_max_freq, and the features
+        -- and flaws of their cores: the cpufreq and cpuidle folders of each processor like a kernel without the drivers
+        -- of the speeds and idle states, and its regs like older kernels without them; of the folders of the processors
+        -- cpu0 to cpu7 stay (see cpu_count), and a device with fewer processors keeps the ones it has, since folders
+        -- cannot be made up. The layout (topology) and capacity of each, which every kernel of arm64 has, stay and are
+        -- those of 8 equal cores (see cpu_count), and the uevent of each processor and modalias stay with the
+        -- instructions of a common core (see cpuinfo).
+        -- shortcut: cpufreq and cpuidle of /sys/devices/system/cpu itself are missing, which the kernel makes whenever
+        -- it is built with them, without a driver too, and so is vulnerabilities, which kernels of arm64 from 5.x
+        -- always have, so no stock kernel of arm64 with these answers like this; show them as empty folders and the
+        -- flaws as a kernel without known flaws if apps look for them.
+        -- shortcut: the caches of the processors stay hidden, which kernels of arm64 and x86 always list, like
+        -- cache/index0; show them as a kernel without their sizes does if apps look for the folder.
         '/devices/system/cpu/cpu[89]$', '/devices/system/cpu/cpu[89]/', '/devices/system/cpu/cpu%d%d+$',
         '/devices/system/cpu/cpu%d%d+/',
         '/devices/system/cpu/cpufreq$', '/devices/system/cpu/cpufreq/', '/devices/system/cpu/cpuidle$',
         '/devices/system/cpu/cpuidle/', '/devices/system/cpu/vulnerabilities$', '/devices/system/cpu/vulnerabilities/',
-        '/devices/system/cpu/modalias$', '/devices/system/cpu/cpu%d+/cpufreq$', '/devices/system/cpu/cpu%d+/cpufreq/',
-        '/devices/system/cpu/cpu%d+/topology$', '/devices/system/cpu/cpu%d+/topology/',
+        '/devices/system/cpu/cpu%d+/cpufreq$', '/devices/system/cpu/cpu%d+/cpufreq/',
         '/devices/system/cpu/cpu%d+/cpuidle$', '/devices/system/cpu/cpu%d+/cpuidle/',
         '/devices/system/cpu/cpu%d+/cache$', '/devices/system/cpu/cpu%d+/cache/',
-        '/devices/system/cpu/cpu%d+/cpu_capacity$', '/devices/system/cpu/cpu%d+/regs$',
-        '/devices/system/cpu/cpu%d+/regs/',
+        '/devices/system/cpu/cpu%d+/regs$', '/devices/system/cpu/cpu%d+/regs/',
         -- The model, clocks and load of the GPU: of Samsung and newer Qualcomm kernels (/sys/kernel/gpu, like
         -- gpu_model and gpu_clock), of Adreno (/sys/class/kgsl/kgsl-3d0, a link into its device, with devfreq)
         -- and of Mali (the device, like /sys/devices/platform/18500000.mali, and /sys/class/misc/mali0)
@@ -127,9 +136,33 @@ local FILES = {
         '^/vendor/xbin/su$', '^/product/bin/su$', '^/system_ext/bin/su$', '^/odm/bin/su$',
         '^/system/app/Superuser%.apk$', '^/system/app/Superuser/', '^/system/app/SuperSU/',
         '^/system/bin/magisk', '^/system/bin/resetprop$', '^/system/bin/supolicy$', '^/sbin/magisk', '^/sbin/%.magisk',
-        '^/debug_ramdisk/', '^/data/adb/' },
+        '^/debug_ramdisk/', '^/data/adb/',
+        -- The files Xposed of rovo89 installs in /system on Android 8.1 (flash-script.sh of XposedTools): its
+        -- properties, its jar, its app_process next to the original, its library of ART, the backups of the files of
+        -- ART it replaced (.orig.gz, or .no_orig where there was none) and the odex files it moved aside; the links
+        -- app_process32 and app_process64 to its app_process stay (see matched). Riru and EdXposed, modules of Magisk
+        -- (customize.sh and post-fs-data.sh of Riru v19 to v23 and of EdXposed 0.2.9 to master), which Magisk mounts
+        -- in /system: the libraries of Riru, from v22 libriru.so, libriruhide.so and libriruloader.so, up to v20 the
+        -- copy of libmemtrack.so it replaces, libmemtrack_real.so, and up to v21 its folder /data/misc/riru, also of the
+        -- modules; the libraries of Riru modules, like libriru_edxp.so, and the files of EdXposed up to 0.4.6.2, its jars
+        -- and dex files in /system/framework, like edxp.jar, its libraries .edxp.so and its list of libraries in
+        -- /system/etc. Later versions of both name these files randomly, in /data/adb and a folder of /data/misc.
+        -- shortcut: zygote puts XposedBridge.jar in the environment CLASSPATH and maps it and libxposed_art.so into every
+        -- app, so System.getenv and /proc/self/maps still name them, the folders oat of the moved odex files still list
+        -- them, Riru v22 and later set ro.dalvik.vm.native.bridge to libriruloader.so, and the copy of libmemtrack.so of
+        -- Riru v21 has a random name; leave them out there too if apps look for Xposed that way.
+        '^/system/xposed%.prop$', '^/system/framework/XposedBridge%.jar$', '^/system/bin/app_process%d*_xposed$',
+        '^/system/bin/app_process%d*_original$', '^/system/lib%d*/libxposed_art%.so$', '^/system/bin/[^/]+%.orig%.gz$',
+        '^/system/bin/[^/]+%.no_orig$', '^/system/lib%d*/[^/]+%.orig%.gz$', '^/system/lib%d*/[^/]+%.no_orig$',
+        '^/system/.+%.odex%.gz%.xposed$', '^/vendor/.+%.odex%.gz%.xposed$', '^/system/lib%d*/libriru[^/]*%.so$',
+        '^/system/lib%d*/libmemtrack_real%.so$', '^/data/misc/riru$', '^/data/misc/riru/', '^/system/lib%d*/[^/]+%.edxp%.so$',
+        '^/system/framework/edxp%.jar$', '^/system/framework/edconfig%.jar$', '^/system/framework/eddalvikdx%.jar$',
+        '^/system/framework/eddexmaker%.jar$', '^/system/framework/edxposed%.dex$', '^/system/framework/edconfig%.dex$',
+        '^/system/framework/eddalvikdx%.dex$', '^/system/framework/eddexmaker%.dex$',
+        '^/system/etc/public%.libraries%-edxp%.txt$' },
     -- The files of the features, libraries and system apps of the device (/system/etc/permissions, also of /vendor,
-    -- /product and the others, and sysconfig), like com.samsung.feature.*, which apps can read
+    -- /product and the others, and sysconfig), like com.samsung.feature.*, which apps can read; the folders of
+    -- /system/etc stay, with the files every Android has (see BASE)
     ['Read.Features'] = {},
     ['Get.Applications'] = {},
     ['Get.Sensors'] = {},
@@ -152,8 +185,14 @@ for group, names in pairs({
     ['Use.Tracking'] = { 'media_codecs[^/]*%.xml$', 'build%.prop$', 'fstab%.[^/]*$', 'selinux/vendor_[^/]*_contexts$',
                          'selinux/nonplat_[^/]*_contexts$', 'displayconfig$', 'displayconfig/' },
     ['Read.Features'] = { 'permissions$', 'permissions/', 'sysconfig$', 'sysconfig/' },
-    -- The permissions of the system apps, a file per app, like privapp-permissions-com.samsung.android.dialer.xml
-    ['Get.Applications'] = { 'permissions/privapp%-permissions%-[^/]*$' },
+    -- The properties of the partitions for Read.Debugging too, which hold the type and tags of the build, like
+    -- ro.build.type=userdebug and its fingerprint, and the default properties of init, which hold ro.debuggable
+    -- (prop.default of /system/etc where the properties of the vendor are split off, build/make core/Makefile)
+    ['Read.Debugging'] = { 'build%.prop$', 'prop%.default$' },
+    -- The permissions of the system apps, a file per app, like privapp-permissions-com.samsung.android.dialer.xml, but
+    -- of the platform (see matched), and the permissions the system grants apps by default, of which a device without
+    -- them has no folder; files of other names are of privappfile
+    ['Get.Applications'] = { 'permissions/privapp%-permissions%-[^/]*$', 'default%-permissions$', 'default%-permissions/' },
     -- The files of the sensor features, a file per feature, like android.hardware.sensor.gyroscope.xml, from which
     -- the system has the features hasSystemFeature answers (see features); the other feature files stay, without
     -- the sensor features (see FEATURES). Android 10 and later also read a folder for the SKU of the device in there,
@@ -184,10 +223,17 @@ for group, names in pairs({
     end
 end
 -- The properties at the root of a partition too, like /system/build.prop and /vendor/build.prop, and fstab at the
--- root of devices of Android 8.1 and 9 without system as root
-table.insert(FILES['Use.Tracking'], '^/[%w_]+/build%.prop$')
-table.insert(FILES['Use.Tracking'], '^/system/[%w_]+/build%.prop$')
+-- root of devices of Android 8.1 and 9 without system as root, and for Read.Debugging the default properties of
+-- init there, /default.prop, which leads to /system/etc/prop.default where that is made, and /prop.default, and those
+-- init reads at the root of /vendor and /odm on Android 8.1 to 10, like /vendor/default.prop
+for _, group in ipairs({ 'Use.Tracking', 'Read.Debugging' }) do
+    table.insert(FILES[group], '^/[%w_]+/build%.prop$')
+    table.insert(FILES[group], '^/system/[%w_]+/build%.prop$')
+end
 table.insert(FILES['Use.Tracking'], '^/fstab%.[^/]*$')
+table.insert(FILES['Read.Debugging'], '^/default%.prop$')
+table.insert(FILES['Read.Debugging'], '^/prop%.default$')
+table.insert(FILES['Read.Debugging'], '^/[%w_]+/default%.prop$')
 -- The HALs of the vendor in the manifests of vintf of its partitions, like vendor.qti.hardware.*, also in fragments from
 -- Android 10 and at the root of the partitions on Android 8.1, and of /odm also by the path it leads to without an odm
 -- partition (see ETC). The manifest of the framework stays, of /system and its link /etc, which every device has with
@@ -204,17 +250,47 @@ for _, partition in ipairs({ '/vendor', '/odm', '/system/vendor', '/vendor/odm',
     end
 end
 
--- The folders of the apps of the system, of which only the names are left out for Get.Applications: the files stay,
--- since the system loads apps from them, like WebView
-local APPS = { '^/[%w_]+/app/?$', '^/[%w_]+/priv%-app/?$', '^/system/[%w_]+/app/?$', '^/system/[%w_]+/priv%-app/?$' }
+-- The folders of the apps of the system and of their overlays, of each partition, also by the links of /system to the
+-- partitions, like SettingsProvider__auto_generated_rro_product.apk of /product/overlay, and of the APEX modules,
+-- which Android 11 and later install apps from too (see APEX_APPS): for Get.Applications they list without names and
+-- stat gives the link count of an empty folder (see linkcount), but for the folder of the app itself, since it can be
+-- an app of the system too, which stays listed and counted (see ownname). /data/app lists and counts only the folder of
+-- the app too, since each app the user installed adds one; the folders of hidden apps in it do not exist on Android
+-- 8.1 to 10 (see APP_FOLDERS), and from Android 11 they have random names.
+-- shortcut: the names in these folders, like /system/priv-app/SettingsProvider, and the folders in /data/app of
+-- updated system apps on Android 8.1 to 10 still exist, since the lookups of single apps keep system apps visible
+-- (XParam.isVisible) and give their paths, like ApplicationInfo.sourceDir; hide them, but for the class loaders and the
+-- loaders of WebView which the framework itself makes, once those lookups hide system apps too.
+-- shortcut: the folders of system apps of the partitions of makers, like /my_product/app of OPPO, still list their
+-- names, add them when known.
+local APPS = {}
+for _, partition in ipairs({ '/system', '/product', '/system_ext', '/vendor', '/odm', '/oem', '/system/product',
+                             '/system/system_ext', '/system/vendor', '/vendor/odm', '/system/vendor/odm' }) do
+    for _, folder in ipairs({ '/app', '/priv-app', '/overlay' }) do
+        table.insert(APPS, partition .. folder)
+    end
+end
+local APEX_APPS = { '^/apex/[^/]+/app$', '^/apex/[^/]+/priv%-app$', '^/apex/[^/]+/overlay$' }
+
+-- Whether a folder, without // and /./, is one of the apps of an APEX module, like /apex/com.android.permission/priv-app
+function apexapps(folder)
+    for _, pattern in ipairs(APEX_APPS) do
+        if string.find(folder, pattern) then
+            return true
+        end
+    end
+    return false
+end
 
 -- The folders named after apps, of which those of hidden apps do not exist for Get.Applications: the private data of
--- apps, which Android 8.1 to 10 let other apps find (app data isolation hides it from Android 11), and the folders
+-- apps, which Android 8.1 to 10 let other apps find (app data isolation hides it from Android 11), their code in
+-- /data/app, <package>-<random>, of which the name is random from Android 11 (/data/app/~~<random>), and the folders
 -- of apps in the shared storage: data and obb, which scoped storage hides from Android 11, and media, which all
 -- versions let apps list. Each pattern captures the name of the app, with the last version which needs it.
 local APP_FOLDERS = {
     { '^/data/data/([^/]+)', 29 }, { '^/data/user/%d+/([^/]+)', 29 }, { '^/data/user_de/%d+/([^/]+)', 29 },
     { '^/data/misc/profiles/cur/%d+/([^/]+)', 29 }, { '^/data/misc/profiles/ref/([^/]+)', 29 },
+    { '^/data/app/([^/]-)%-', 29 },
 }
 for _, storage in ipairs({ '^/storage/emulated/%d+', '^/storage/self/primary', '^/sdcard', '^/mnt/sdcard',
                            '^/storage/%x%x%x%x%-%x%x%x%x' }) do
@@ -228,13 +304,18 @@ end
 -- it too, and so do paths with /../ to su and Magisk, like /vendor/../data/adb, which the prefixes do not match.
 -- The folders of su and of the codec files are there for listing them, like File.list of /system/xbin, and so are
 -- the folders of etc, which list the names the group hides, like fstab.* of /etc, a link to /system/etc, the folders
--- of the drivers of the GPU and the partitions, which list the manifests of Android 8.1.
+-- of the drivers of the GPU and the partitions, which list the manifests of Android 8.1 and the property files.
+-- shortcut: the roots and folders etc of other partitions of makers than /oem and the my_ ones of OPPO, like /mi_ext,
+-- still list build.prop for Use.Tracking and Read.Debugging, and so do those of the APEX modules; add them when known.
 local FILTERS = {
     ['Use.Tracking'] = { '*sys/*', '*proc/scsi/*', '*proc/bus/input/*', '*/fonts*', '*etc/media_codecs*',
                          '*/build.prop*', '*etc/fstab.*', '/fstab.*', '/', '*misc/user/*', '*/./*', '*//*',
                          '/system/etc', '/vendor/etc', '/odm/etc', '/vendor/odm/etc', '/product/etc', '/system_ext/etc',
                          '/etc', '*etc/vintf*', '*etc/selinux*', '*etc/displayconfig*', '*lib64/egl*', '*lib/egl*',
-                         '*/manifest.xml*', '/system', '/vendor', '/odm', '/system/vendor' },
+                         '*/manifest.xml*', '/system', '/vendor', '/odm', '/system/vendor', '/product', '/system_ext',
+                         '/product_services', '/system/product', '/system/system_ext', '/system/product_services',
+                         '/system/vendor/etc', '/system/product/etc', '/system/system_ext/etc', '/system/vendor/odm/etc',
+                         '/oem', '/oem/etc', '/my_*' },
     ['Read.Network'] = { '*net/*', '*/./*', '*//*' },
     ['Read.VPN'] = { '*net/*', '*/./*', '*//*' },
     ['Read.Debugging'] = { '/system/bin/*', '/system/xbin/*', '/system/sd/*', '/system/usr/*', '/system/app/Super*',
@@ -242,7 +323,18 @@ local FILTERS = {
                            '/vendor/xbin/*', '/product/bin/*', '/system_ext/bin/*', '/odm/bin/*', '/debug_ramdisk*',
                            '/data/adb*', '*bin/su*', '*magisk*', '*debug_ramdisk*', '*/./*', '*//*', '*/../*',
                            '/system/bin', '/system/xbin', '/sbin', '/data/local', '/cache', '/dev', '/vendor/bin',
-                           '/vendor/xbin', '/product/bin', '/system_ext/bin', '/odm/bin', '/system/app' },
+                           '/vendor/xbin', '/product/bin', '/system_ext/bin', '/odm/bin', '/system/app',
+                           '*xposed*', '*XposedBridge*', '*.orig.gz*', '*.no_orig*', '*libriru*', '*libmemtrack_real*',
+                           '/data/misc/riru*', '*edxp*', '/system/framework/ed*', '/system/framework', '/system/lib',
+                           '/system/lib64',
+                           -- The property files and the folders which list them, like for Use.Tracking: the roots of
+                           -- the partitions, which hold them on Android 10 and 11, and the folders etc
+                           '*/build.prop*', '*/default.prop*', '*/prop.default*', '/', '/system', '/vendor', '/odm',
+                           '/system/vendor', '/product', '/system_ext', '/product_services', '/system/product',
+                           '/system/system_ext', '/system/product_services', '/system/etc', '/vendor/etc', '/odm/etc',
+                           '/vendor/odm/etc', '/product/etc', '/system_ext/etc', '/etc', '/system/vendor/etc',
+                           '/system/product/etc', '/system/system_ext/etc', '/system/vendor/odm/etc', '/oem', '/oem/etc',
+                           '/my_*' },
     -- The folders etc of every path of ETC, which list the hidden folders: also by the links of /system to the
     -- partitions, like /system/vendor/etc, of /oem and the partitions my_ of OPPO, and of all APEX modules, which the
     -- filter can only pass as all of /apex, so the script also runs for the certificates of the system which Android 14
@@ -252,16 +344,29 @@ local FILTERS = {
                           '/odm/etc', '/vendor/odm/etc', '/product/etc', '/system_ext/etc', '/etc', '/system/vendor/etc',
                           '/system/product/etc', '/system/system_ext/etc', '/system/vendor/odm/etc', '/oem/etc', '/my_*',
                           '/apex/*' },
-    ['Get.Applications'] = { '*etc/permissions*', '*/./*', '*//*', '/system/app', '/system/priv-app', '/product/app',
-                             '/product/priv-app', '/system_ext/app', '/system_ext/priv-app', '/vendor/app',
-                             '/vendor/priv-app', '/odm/app', '/odm/priv-app', '/system/product/app',
-                             '/system/product/priv-app', '/system/system_ext/app', '/system/system_ext/priv-app',
-                             '/system/vendor/app', '/system/vendor/priv-app' },
+    -- Also the folders of APPS and the folders etc, which list the folders of default-permissions (see after), and the
+    -- configuration files, which name apps (see packagetext)
+    ['Get.Applications'] = { '*etc/permissions*', '*etc/default-permissions*', '*etc/sysconfig*', '*/./*', '*//*', '/etc',
+                             '/vendor/odm/etc', '/system/vendor/odm/etc' },
     ['Get.Sensors'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
     ['Use.Camera'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
     ['Record.Audio'] = { '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
     ['Read.Biometrics'] = { '*sys/*', '*etc/permissions*', '*etc/sysconfig*', '*/./*', '*//*' },
 }
+-- The folders etc and those of APPS of the partitions, also by the links of /system to them, the latter with a / at the
+-- end too, which Os.stat does not take off, and the names in them
+for _, partition in ipairs({ '/system', '/product', '/system_ext', '/vendor', '/odm', '/oem', '/system/product',
+                             '/system/system_ext', '/system/vendor' }) do
+    table.insert(FILTERS['Get.Applications'], partition .. '/etc')
+end
+for _, folder in ipairs(APPS) do
+    table.insert(FILTERS['Get.Applications'], folder)
+    table.insert(FILTERS['Get.Applications'], folder .. '/')
+end
+table.insert(FILTERS['Get.Applications'], '/data/app')
+table.insert(FILTERS['Get.Applications'], '/data/app/')
+-- The folders of APEX_APPS, which the filter can only pass as all of /apex (see matched)
+table.insert(FILTERS['Get.Applications'], '/apex/*')
 
 -- The folders of the shared libraries of the partitions, which apps can list (system_file and vendor_framework_file of
 -- the SELinux policy of AOSP), also by the links of /system to the partitions and the folder /odm/framework leads to
@@ -280,6 +385,79 @@ local FEATURES = { ['Get.Sensors'] = { 'android.hardware.sensor.*' },
                    ['Use.Camera'] = { 'android.hardware.camera*' }, ['Record.Audio'] = { 'android.hardware.microphone' },
                    ['Read.Biometrics'] = { 'android.hardware.fingerprint', 'android.hardware.biometrics.face',
                                            'android.hardware.biometrics.iris' } }
+
+-- The files of /system/etc/permissions and sysconfig which every build of AOSP has (base.mk and from Android 10
+-- base_system.mk of build/make, with runtime_libart.mk from Android 9, oreo-mr1-release to android17-release), which
+-- stay for Read.Features with their folders: they declare no features, and their libraries are of the platform, like
+-- android.test.base, which getSystemSharedLibraryNames keeps (see features), and so do the files of those libraries
+-- (see basefile). A name of a later version on an earlier one is of a maker who added the file, which tells little.
+-- They stay for Get.Applications too, read without the apps they name (see packagetext), like allow-in-power-save of
+-- platform.xml.
+-- shortcut: they are read as they are, with what a maker changed in them, like permissions of its own in platform.xml,
+-- give the text of AOSP of the version if apps read them for the maker.
+-- shortcut: the folders sysconfig of the other partitions do not exist, and their folders permissions have only the
+-- files of the features shown (see shownfile); keep the folders sysconfig if apps look for them.
+local BASE = { ['permissions/platform.xml'] = true, ['permissions/privapp-permissions-platform.xml'] = true,
+               ['sysconfig/framework-sysconfig.xml'] = true, ['sysconfig/hiddenapi-package-whitelist.xml'] = true,
+               ['sysconfig/preinstalled-packages-platform.xml'] = true, ['sysconfig/initial-package-stopped-states.xml'] = true,
+               ['sysconfig/preinstalled-packages-asl-files.xml'] = true, ['sysconfig/enhanced-confirmation.xml'] = true,
+               ['sysconfig/package-shareduid-allowlist.xml'] = true,
+               ['sysconfig/preinstalled-packages-strict-signature.xml'] = true, ['sysconfig/app-lock-exempt.xml'] = true }
+
+-- The features Read.Features shows, the same as in features, which a test compares
+local SHOWN = { 'android.hardware.touchscreen*', 'android.hardware.faketouch*', 'android.hardware.wifi',
+                'android.hardware.telephony', 'android.hardware.telephony.gsm', 'android.hardware.telephony.cdma',
+                'android.hardware.telephony.data', 'android.hardware.telephony.radio.access',
+                'android.hardware.telephony.subscription', 'android.hardware.telephony.calling',
+                'android.hardware.telephony.messaging', 'android.software.webview' }
+
+-- Whether a canonical path is the folder permissions of etc of a partition, like /vendor/etc/permissions, which most
+-- devices have, or a file in it named after a feature Read.Features shows (see SHOWN) or the user keeps (setting
+-- features.keep), like android.hardware.wifi.xml, which in AOSP declares that feature and those it implies alone
+-- (frameworks/native/data/etc), so the files declare what hasSystemFeature reports.
+-- shortcut: such a file is read as it is, with a feature a maker added to it, and the features shown which only other
+-- files declare, like the touch screen and WebView of handheld_core_hardware.xml, are declared by no file the app sees;
+-- keep those files without the hidden features (see withoutfeatures) if apps compare them
+function shownfile(path, param)
+    for _, etc in ipairs(ETC) do
+        if string.find(path, etc .. 'permissions$') then
+            return true
+        end
+        local name = string.match(path, etc .. 'permissions/([^/]+)%.xml$')
+        if name ~= nil then
+            if featured(name, SHOWN) then
+                return true
+            end
+            local keep, names = (param ~= nil and param:getSetting('features.keep') or nil), {}
+            for feature in string.gmatch(keep or '', '[^,%s]+') do
+                names[#names + 1] = feature
+            end
+            return featured(name, names)
+        end
+    end
+    return false
+end
+
+-- Whether a canonical path is the folder permissions or sysconfig of /system/etc, a file of BASE or of a library of the
+-- platform which getSystemSharedLibraryNames keeps (see sharedlibraries), or a path under one, which the kernel answers
+-- ENOTDIR for, as without Doppel
+function basefile(path, param)
+    local rest = string.match(path, '^/system/etc/(.+)$')
+    if rest == nil then
+        return false
+    end
+    local folder, name = string.match(rest, '^(%a+)/([^/]+)')
+    if folder == nil then
+        return rest == 'permissions' or rest == 'sysconfig'
+    end
+    if folder == 'permissions' then
+        local _, kept = sharedlibraries(param)
+        if kept ~= nil and kept[name] then
+            return true
+        end
+    end
+    return BASE[folder .. '/' .. name] == true
+end
 
 -- The feature files of the system, which it reads its features from, in the folders permissions and sysconfig of etc
 -- and in their folders of the SKU of the device, like sku_X, which Android 10 and later read too (see Get.Sensors)
@@ -307,14 +485,20 @@ end
 
 -- The error of a file which does not exist, OsConstants.ENOENT, the error of making a file in a folder the app cannot
 -- write, EACCES, and on a file system mounted read-only, EROFS, the flag of open which makes the file, O_CREAT, the bits
--- of open for reading or writing, O_ACCMODE (0 is O_RDONLY), and the flag of statvfs of a file system mounted
--- read-only, ST_RDONLY, the same on every Linux
+-- of open for reading or writing, O_ACCMODE (0 is O_RDONLY), the flag of open which fails for a file which exists,
+-- O_EXCL, the flag of fstatat which does not follow a link, AT_SYMLINK_NOFOLLOW, the flag of statvfs of a file system
+-- mounted read-only, ST_RDONLY, and the bits of the type of a file in its mode, S_IFMT, of a folder S_IFDIR, the same on
+-- every Linux; O_NOFOLLOW is not (see followslink)
 local ENOENT = 2
 local EACCES = 13
 local EROFS = 30
 local O_CREAT = 64
+local O_EXCL = 128
 local O_ACCMODE = 3
+local AT_SYMLINK_NOFOLLOW = 256
 local ST_RDONLY = 1
+local S_IFMT = 61440
+local S_IFDIR = 16384
 
 -- The texts of those errors, which java.io puts in its messages, the same as strerror of bionic
 local REASONS = { [ENOENT] = 'No such file or directory', [EACCES] = 'Permission denied', [EROFS] = 'Read-only file system' }
@@ -323,13 +507,14 @@ local REASONS = { [ENOENT] = 'No such file or directory', [EACCES] = 'Permission
 -- the others), also by other paths, like /proc/self/root/sys/..., /data/../sys/...
 -- or sys/... relative to /, the folder apps run in; see XCore.getFilter. It also runs for the paths through the
 -- descriptor of a folder the app opened, like /proc/self/fd/57/cid and /dev/fd/57/cid, which name no folder of
--- the group and which matched resolves. Not covered are links of apps themselves to the files, which have paths
--- without sys/. The calls by the descriptor of a folder, openat, unlinkat, renameat and fstatat, have no path the
--- filter could compare, and link, symlink, rename and renameat have a second path, which the filter does not see, so the
--- script compares their paths itself (see atpath and renaming). The name and the text of a file store have no
--- argument at all (see storename).
+-- the group and which matched resolves, and for links of apps themselves to the files, which the filter compares by
+-- the path they lead to. The calls by the descriptor of a folder, openat, unlinkat, renameat and fstatat, have no path
+-- the filter could compare, and link, symlink, rename and renameat have a second path, which the filter does not see,
+-- so the script compares their paths itself like the filter, also by links (see atpath, renaming and filtered). The name
+-- and the text of a file store have no argument at all (see storename), and Os.fstat has a descriptor, which the script
+-- looks up itself (see linkcount).
 local UNFILTERED = { openat = true, unlinkat = true, renameat = true, fstatat = true, link = true, symlink = true,
-                     rename = true, name = true, toString = true }
+                     rename = true, name = true, toString = true, fstat = true }
 
 -- Parts of the paths of the tables of the process (see tables), which only the hooks of open of the groups run for: the
 -- maps and the mount tables for Use.Tracking, the mount tables for Read.Debugging
@@ -372,7 +557,7 @@ function paths(group)
     -- The folders of APP_FOLDERS, only on the versions which need them, since apps use their own ones often
     values[#values + 1] = '*Android/media*'
     if sdkversion() <= 29 then
-        for _, value in ipairs({ '/data/data/*', '/data/user/*', '/data/user_de/*', '/data/misc/profiles/*',
+        for _, value in ipairs({ '/data/data/*', '/data/user/*', '/data/user_de/*', '/data/misc/profiles/*', '/data/app/*',
                                  '*Android/data*', '*Android/obb*' }) do
             values[#values + 1] = value
         end
@@ -419,12 +604,72 @@ function hiddenapp(param, name)
     return installed
 end
 
+-- Whether a permission file of the system grants permissions to another app by its package, like the privileged
+-- permissions of com.android.launcher3.xml of /system_ext/etc/permissions (privapp-permissions) or those of an app of
+-- the vendor (oem-permissions), whatever the name of the file; by its text, since the app cannot look up most system
+-- apps from Android 11 (package visibility), read without the hooks of the app, which hide it. The files of the
+-- features and libraries of the platform start with android., like android.hardware.wifi.xml and android.test.base.xml,
+-- and are not read, nor are the files FILES hides by name.
+-- The other files are read without the elements which name apps, like allow-in-power-save of platform.xml and the
+-- files of etc/sysconfig, like preinstalled-packages-*.xml (see packagetext).
+function privappfile(path, param)
+    local name
+    -- Also in a folder of the SKU of the device, like /odm/etc/permissions/sku_X, which Android 10 and later read too
+    for _, etc in ipairs(ETC) do
+        name = name or string.match(path, etc .. 'permissions/([^/]+)%.xml$') or
+                string.match(path, etc .. 'permissions/sku_[^/]+/([^/]+)%.xml$')
+    end
+    if name == nil or string.sub(name, 1, 8) == 'android.' or string.find(name, '^privapp%-permissions%-') then
+        return false
+    end
+    local ok, text = pcall(function()
+        return param:unhooked(function()
+            return param:readFile(path)
+        end)
+    end)
+    if not ok or text == nil then
+        return false
+    end
+    for package in string.gmatch(text, '<[%a%-]*permissions%s+package%s*=%s*["\']([^"\']+)') do
+        if package ~= param:getPackageName() then
+            return true
+        end
+    end
+    return false
+end
+
 -- Whether paths are hidden for a group, per thread, since a script runs once per thread (see docs/DEFINE.md): files
 -- of /sys are read often, like the frequencies of the processors, and resolving their paths takes a system call.
 -- A file which exists stays what it is while the app runs, but one which does not can come, like the cid of an SD card
--- the user inserts, so only the answers for files which exist are kept; the cache starts over when it is full.
+-- the user inserts, so only the answers for files which exist are kept, and not those of paths which can lead through
+-- a link of the app, which can lead elsewhere the next time (see ownlinked); the cache starts over when it is full.
 local HIDDEN = {}
 local cached = 0
+
+-- Whether a path can lead through a link the app made, which it can point elsewhere at any time: apps can only make
+-- links in their own folders, which have the name of the app in their paths (the shared storage takes none); so can
+-- the links of the kernel to the files the app mapped and to the folder it runs in, which relative paths start from,
+-- and /dev/stdin, /dev/stdout and /dev/stderr, links to the descriptors 0 to 2, which the app can replace by dup2
+-- shortcut: the folders of another app of the same shared user id have the name of that app, keep its paths out of
+-- the cache too if such apps probe like that
+-- shortcut: the paths of the app which the filter lets in, like with // or by the path a link leads to, are resolved
+-- on each call; the cost was not measured on a device, keep them by the path they lead to if apps slow down
+function ownlinked(path, param)
+    if string.sub(path, 1, 1) ~= '/' or string.find(path, '/cwd', 1, true) or
+            string.find(path, '/map_files/', 1, true) or string.find(path, '^/dev/std') then
+        return true
+    end
+    return ownfile(path, param)
+end
+
+-- Whether a path is in the own folders of the app, which have its name in their paths, the only ones it can make
+-- links in
+function ownfile(path, param)
+    local ok, name = pcall(function()
+        return param:getPackageName()
+    end)
+    return ok and name ~= nil and string.find(path, name, 1, true) ~= nil
+end
 
 -- The links of the descriptors of the app, like /proc/self/fd/9 of a file another app shared with it: the file is open
 -- already, only a path on through the descriptor of a folder leads to files the app could not open
@@ -470,12 +715,13 @@ end
 -- name (EACCES), like all of /sys/class/net, and a fake answer for only the hidden names would tell the hook is there,
 -- and nothing is hidden for a file which does not exist, like su on a phone without root
 -- Read.Network only denies reading its files (see denied): of /proc/net apps can tell they exist, but not read them.
--- The property files of the partitions and fstab are there on every device, so the ones apps cannot read, like
+-- The property files of the partitions and of init and fstab are there on every device, so the ones apps cannot read, like
 -- /system/build.prop of Android 14 (EACCES), stay as they are: hiding them would turn EACCES into ENOENT; the same for
 -- the manifests and SELinux contexts of vintf and the drivers of the GPU (EVERYWHERE, the files of every device). So do
 -- the ids of Read.Identifiers which SELinux lets apps find but not read: the id stays unknown, and the driver
 -- makes the file with the others of its folder, like cid with csd and date of an SD card.
-local EVERYWHERE = { 'build%.prop$', '/fstab%.[^/]*$', '/manifest%.xml$', '/vintf/', '/selinux/', '/egl/' }
+local EVERYWHERE = { 'build%.prop$', '/default%.prop$', 'prop%.default$', '/fstab%.[^/]*$', '/manifest%.xml$', '/vintf/',
+                     '/selinux/', '/egl/' }
 
 function reachable(group, path, param)
     local ok, exists = pcall(function()
@@ -509,8 +755,8 @@ end
 -- a pattern. The interfaces of VPNs come and go, and so does the folder of a descriptor, which the app can close and
 -- open again for another folder by the same number, and so do files which do not exist yet, see HIDDEN, and the files of
 -- /proc/net of an interface, like dev_snmp6/tun0; the rest stays while the app runs. The group is the one of the hook,
--- unless another is given.
-function hidden(hook, path, param, group)
+-- unless another is given. With nofollow a link at the end of the path counts by itself, by its text, see linked.
+function hidden(hook, path, param, group, nofollow)
     group = group or about(hook).group
     if FILES[group] == nil then
         return false
@@ -521,12 +767,12 @@ function hidden(hook, path, param, group)
             return false
         end
     end
-    local key = group .. '|' .. path
+    local key = group .. (nofollow and '|-' or '|') .. path
     local known = HIDDEN[key]
     if known ~= nil then
         return known
     end
-    local named = matched(group, path, param)
+    local named = matched(group, path, param, nofollow)
     local found = named and reachable(group, path, param)
     -- Nothing is under a hidden file either, like .../privapp-permissions-com.example.xml/x or its /., for which the
     -- kernel answers ENOTDIR, which would tell the file is there; a path with /../ counts by the file it leads to (see
@@ -540,8 +786,11 @@ function hidden(hook, path, param, group)
         local folder = string.match(path, '^(.+)/[^/]*$')
         found = folder ~= nil and hidden(hook, folder, param, group)
     end
-    if group == 'Read.VPN' or string.find(path, '/fd/', 1, true) or (not found and not present(path, param)) or
-            (found and group == 'Read.Network') then
+    -- Of Get.Applications the paths in the folders of apps are found by the name of the folder (see matched), whatever
+    -- links they lead through
+    if group == 'Read.VPN' or string.find(path, '/fd/', 1, true) or (ownlinked(plain, param) and
+            not (group == 'Get.Applications' and not string.find(plain, '/../', 1, true) and appfolder(plain))) or
+            (not found and not present(path, param)) or (found and group == 'Read.Network') then
         return found
     end
     if cached >= 1000 then
@@ -716,8 +965,11 @@ end
 
 -- The tables of the process which the app opened with a hook of open of a group of TABLES, by the path they lead to
 -- through /proc or a descriptor, like /proc/self/maps, /proc/thread-self/smaps, /proc/mounts, a link to self/mounts,
--- and /dev/fd/9/maps of a descriptor of /proc/self, not by links of the app itself: for Use.Tracking the maps without
--- the files of the vendor (see unmapped) and the mount tables with the partitions by name (see byname), for
+-- and /dev/fd/9/maps of a descriptor of /proc/self, and by links of the app itself, which the filter lets in by the
+-- path they lead to (see XCore.Filter), whatever else of the filter the text of their path matches, like files//m,
+-- files/./m, a folder of the app named sys or the descriptor of a folder of the app; so every path is resolved but the
+-- files of /sys, in which no app can make a link and whose links lead only within /sys. For Use.Tracking the maps
+-- without the files of the vendor (see unmapped) and the mount tables with the partitions by name (see byname), for
 -- Read.Debugging the mount tables without the mounts of Magisk (see unmagisked). Both hooks of an open replace the
 -- text, each the one the other left (see XParam.getFileText), and the faked_files hooks of both groups give the stat,
 -- size and link of the descriptor of the table, not of the fake.
@@ -728,11 +980,17 @@ end
 -- (see before), put the fake in place of the descriptor of the stream there (Os.dup2) if apps read the tables that way.
 function tables(hook, param)
     local path, group = pathof(param), about(hook).group
-    if param:getException() ~= nil or param:getResult() == nil or
-            not (string.find(path, 'proc/', 1, true) or string.find(path, '/fd/', 1, true)) or not tabled(group, path) then
+    if param:getException() ~= nil or param:getResult() == nil then
         return false
     end
-    local resolved = resolve(path, param)
+    -- shortcut: each open of the groups outside /sys resolves its path once more, also when the filter resolved it
+    -- already; the cost was not measured on a device, take the path the filter resolved if apps slow down
+    local plain = collapsed(path)
+    local absolute = unrooted(string.sub(plain, 1, 1) == '/' and plain or '/' .. plain)
+    if string.sub(absolute, 1, 5) == '/sys/' and not string.find(absolute, '/..', 1, true) then
+        return false
+    end
+    local resolved = resolve(plain, param)
     local name = string.match(resolved, '^/proc/[^/]+/(%a+)$') or string.match(resolved, '^/proc/[^/]+/task/%d+/(%a+)$')
     local text, left
     local mounts = name == 'mounts' or name == 'mountinfo' or name == 'mountstats'
@@ -772,12 +1030,16 @@ function storename(param)
     return true, result, renamed
 end
 
--- Whether a file is one of a group, without the cache, so other threads can ask too (see listing)
-function matched(group, path, param)
+-- Whether a file is one of a group, without the cache, so other threads can ask too (see listing); with nofollow the
+-- folder of the path is resolved already and a link at its end counts by its own name (see linked)
+function matched(group, path, param, nofollow)
+    local function follow(text)
+        return nofollow and text or resolve(text, param)
+    end
     local plain = unrooted(path)
     -- Only the file it leads to counts: the filter passes all paths with /../, like ones through a folder of the app
     if string.find(plain, '/../', 1, true) then
-        plain = resolve(plain, param)
+        plain = follow(plain)
     end
     -- A file the app makes itself in the shared storage, like /sdcard/etc/permissions/android.hardware.sensor.light.xml,
     -- is no feature file of the system, of sensors, cameras, microphones or biometrics, as for featurefile.
@@ -786,31 +1048,51 @@ function matched(group, path, param)
     if FEATURES[group] ~= nil and string.find(plain, '^/sdcard/') then
         return false
     end
+    -- app_process32 and app_process64, which every device has, stay, also where Xposed made them links to its own.
+    -- shortcut: readlink, getCanonicalPath and stat give the name, size and inode of the app_process of Xposed, answer
+    -- with those of the hidden _original if apps compare them.
+    if group == 'Read.Debugging' and string.find(plain, '/app_process%d*$') then
+        return false
+    end
     -- Resolved once, when needed: getCanonicalPath reads the file system
     local resolved
     if group == 'Get.Applications' then
+        -- Of /apex only the permission files are hidden, the folders of APEX_APPS only list without names; the other
+        -- paths are not resolved, like the certificates of the system of Android 14 and later
+        if string.find(plain, '^/apex/') and not string.find(plain, '/etc/', 1, true) then
+            return false
+        end
         -- A folder named after an app, by its path or the path it leads to, like /sdcard to /storage/emulated/0;
         -- the paths in the own folders of the app, which apps use often, do not read the file system
+        -- shortcut: so on Android 8.1 to 10 a link in the private folders of the app to the folder of a hidden app,
+        -- like files/l to /data/data/com.hidden, is found as a file of the app and leads there; resolve the paths of
+        -- the own folders, at the cost of a call each, if apps probe like that
         local name = appfolder(plain)
         if name == nil then
-            resolved = resolve(plain, param)
+            resolved = follow(plain)
             name = appfolder(resolved)
         end
         if name ~= nil then
             return hiddenapp(param, name)
         end
-        -- The permissions of the platform itself, which every AOSP build has, name no app of a maker
+        -- The permissions of the platform itself, which every AOSP build has, name no app of a maker (see BASE), and
+        -- are read without the apps they name (see packagetext)
         if string.find(plain, '/privapp%-permissions%-platform%.xml$') then
             return false
         end
+        -- A permission file of the privileged permissions of a system app by another name (see privappfile)
+        if privappfile(plain, param) or (resolved ~= plain and privappfile(resolved, param)) then
+            return true
+        end
     end
-    -- Also through the descriptor of a folder, like /proc/self/fd/57/SamsungOne.ttf of /system/fonts
+    -- Also through the descriptor of a folder, like /proc/self/fd/57/SamsungOne.ttf of /system/fonts, and through a link
+    -- of the app itself to the folder, which the filter lets in by the path it leads to (see below)
     if group == 'Use.Tracking' and (string.find(path, 'fonts', 1, true) or string.find(path, 'egl', 1, true) or
             string.find(path, '/fd/', 1, true)) then
         if brandfont(plain) or gpudriver(plain) then
             return true
         end
-        resolved = resolve(plain, param)
+        resolved = follow(plain)
         if brandfont(resolved) or gpudriver(resolved) then
             return true
         end
@@ -831,13 +1113,21 @@ function matched(group, path, param)
         end
     end
     if not found then
-        resolved = resolved or resolve(plain, param)
+        resolved = resolved or follow(plain)
+        if group == 'Use.Tracking' and (brandfont(resolved) or gpudriver(resolved)) then
+            return true
+        end
         for _, pattern in ipairs(patterns) do
             if matches(resolved, pattern) then
                 found = true
                 break
             end
         end
+    end
+    -- By the path it leads to, like /etc/permissions/platform.xml and /system/etc/permissions/.
+    if found and group == 'Read.Features' then
+        local canonical = resolved or follow(plain)
+        return not basefile(canonical, param) and not shownfile(canonical, param)
     end
     return found
 end
@@ -881,13 +1171,16 @@ end
 -- O_CREAT, which FileOutputStream always sets, mkdir, mkfifo, mknod) like a missing name in a folder of /sys, which apps
 -- cannot write (EACCES), unless making answers first, since Linux never gives ENOENT for a name it makes in a folder
 -- which exists; of removing it (remove) EROFS on a file system mounted read-only, like the fonts of /system, which
--- Linux checks before it looks the name up; else of a name no lookup finds
+-- Linux checks before it looks the name up; else of a name no lookup finds. A call which follows a link at the end of
+-- the path makes the file the link leads to (see target), so by the folder of that file.
+-- shortcut: making a name of a hidden app in the shared storage, like Android/media/<package>, answers EACCES like a
+-- folder apps cannot write; answer what the storage gives for a missing name of another app once that is known.
 function failing(hook, path, param)
     local class, method = about(hook).class, about(hook).method
     local flags = (method == 'open' and param:getArgument(1)) or (method == 'openat' and param:getArgument(2)) or 0
     if method == 'mkdir' or method == 'mkfifo' or method == 'mknod' or class == 'java.io.FileOutputStream' or
             bit32.band(flags, O_CREAT) ~= 0 then
-        return making(hook, path, param) or EACCES
+        return making(hook, followslink(method, param) and target(path, param) or path, param) or EACCES
     elseif method == 'remove' then
         return making(hook, path, param) or ENOENT
     end
@@ -903,9 +1196,11 @@ end
 -- files of its folder, also to read or change their attributes, and reads their attributes: the name of an argument,
 -- which is relative to the folder of the descriptor in the argument before it (its link in /proc/self/fd) unless it is
 -- absolute; nil when the folder is not known or the filter of the other hooks would not run the script for the path,
--- like for the files of the app, which libraries remove this way
-function atpath(hook, param, index)
+-- like for the files of the app, which libraries remove this way. The folder of the descriptor is the one its links
+-- lead to already, so a name in it of a call which acts on a link itself (follows false) is compared by its text.
+function atpath(hook, param, index, follows)
     local path = luajava.newInstance('java.lang.String', param:getArgument(index))
+    local single = (string.sub(path, 1, 1) ~= '/' and not string.find(path, '/', 1, true))
     if string.sub(path, 1, 1) ~= '/' then
         local ok, folder = pcall(function()
             return param:unhooked(function()
@@ -917,20 +1212,105 @@ function atpath(hook, param, index)
         end
         path = (folder == '/' and '' or folder) .. '/' .. path
     end
-    return filtered(about(hook).group, path) and path or nil
+    return filtered(about(hook).group, path, (follows or not single) and param or nil, follows) and path or nil
+end
+
+-- Whether a call acts on the file a link at the end of its path leads to, like XCore.Filter tells: open and openat
+-- not with O_NOFOLLOW of the platform, which differs between ARM and x86, nor with O_CREAT and O_EXCL, which fails with
+-- EEXIST for any link, fstatat not with AT_SYMLINK_NOFOLLOW, and not the calls of NOFOLLOW, which act on the link
+-- itself; the others, like stat, FileOutputStream and the listings, follow it
+local nofollow = nil
+local NOFOLLOW = { lstat = true, readlink = true, lchown = true, remove = true, mkdir = true, mkfifo = true, mknod = true,
+                   createFileExclusively = true, unlinkat = true }
+
+function followslink(method, param)
+    if method == 'fstatat' then
+        return bit32.band(param:getArgument(2), AT_SYMLINK_NOFOLLOW) == 0
+    elseif method ~= 'openat' and method ~= 'open' then
+        return not NOFOLLOW[method]
+    end
+    if nofollow == nil then
+        local ok, value = pcall(function()
+            return luajava.bindClass('android.system.OsConstants').O_NOFOLLOW
+        end)
+        nofollow = (ok and type(value) == 'number') and value or 0
+    end
+    -- The flags of open follow its path, of openat its descriptor and path; a call without them follows, like the
+    -- filter of XCore
+    local flags = param:getArgument(method == 'open' and 1 or 2)
+    if type(flags) ~= 'number' then
+        return true
+    end
+    return bit32.band(flags, nofollow) == 0 and bit32.band(flags, O_CREAT + O_EXCL) ~= O_CREAT + O_EXCL
 end
 
 -- Whether the filter of a group runs the script for a path, like XCore.Filter compares it: a value ending in * is the
 -- start of the path, starting with * too a part of it, other values the path, also of the path without a link to the
--- root in front and of a relative path from the root; paths with /.. always run the script
-function filtered(group, path)
+-- root in front and of a relative path from the root; paths with /.. always run the script. With a param also by the
+-- path its links lead to, of a call which acts on a link itself (follows false) by its name in the folder the links
+-- before it lead to; without one by its text only.
+-- shortcut: a path no value matches by its text is resolved for each call of link, symlink, rename and the calls by a
+-- descriptor, up to two folders for rename; the cost was not measured on a device, pass the paths the filter resolved
+-- if apps slow down
+function filtered(group, path, param, follows)
     local absolute = string.sub(path, 1, 1) == '/' and path or '/' .. path
     if string.find(absolute, '/../', 1, true) or string.find(absolute, '/%.%.$') then
         return true
     end
+    if textmatches(group, { path, unrooted(path), absolute }) then
+        return true
+    end
+    if param == nil then
+        return false
+    end
+    local resolved = follows and resolve(absolute, param) or linkfolder(absolute, param)
+    return resolved ~= absolute and textmatches(group, { resolved })
+end
+
+-- The path of a name in the folder the links before it lead to, like of a call on a link itself
+function linkfolder(path, param)
+    local folder, name = string.match(path, '^(.*)/([^/]+)$')
+    if folder == nil or folder == '' then
+        return path
+    end
+    folder = resolve(folder, param)
+    return (folder == '/' and '' or folder) .. '/' .. name
+end
+
+-- Whether a path is hidden for a call (follows, see followslink). A call which acts on a link at the end of its path
+-- itself, like lstat, readlink, remove, rename or open with O_NOFOLLOW, judges a link the app made in its own folders
+-- by the link, its name in the folder the links before it lead to, like the filter of XCore, also when the filter let
+-- the path in by its text, like files//s, so it answers like on Android: with the attributes and the text of the link,
+-- ELOOP or EEXIST. Links of the system, which the app cannot change, and the paths of the other calls count by the file
+-- they lead to, like a link the group hides by that file only.
+function linked(hook, path, param, follows, group)
+    if not follows and not string.find(path, '/%.?%.?$') then
+        local link = linkfolder(path, param)
+        if ownfile(link, param) then
+            return hidden(hook, link, param, group, true)
+        end
+    end
+    return hidden(hook, path, param, group)
+end
+
+-- The file a call which follows a link at the end of its path makes: of a link the app made in its own folders the one
+-- it leads to, like /system/fonts/SamsungOne.ttf of files/f, which Linux makes in /system/fonts (EROFS), not in files;
+-- else the path itself, by the folder of its own path (see making), also of a hidden link of the system, which does not
+-- exist for the app. The hidden file exists, so the link resolves.
+function target(path, param)
+    local link = linkfolder(path, param)
+    if not ownfile(link, param) then
+        return path
+    end
+    local resolved = resolve(path, param)
+    return resolved ~= link and resolved or path
+end
+
+-- Whether one of the texts of a path matches a value of the filter of a group by its text, see filtered
+function textmatches(group, texts)
     for _, value in ipairs(paths(group)) do
         local part, start = string.match(value, '^%*(.+)%*$'), string.match(value, '^(.*)%*$')
-        for _, text in ipairs({ path, unrooted(path), absolute }) do
+        for _, text in ipairs(texts) do
             if text == value or (part ~= nil and string.find(text, part, 1, true)) or
                     (part == nil and start ~= nil and string.sub(text, 1, #start) == start) then
                 return true
@@ -969,13 +1349,14 @@ function renaming(hook, param)
     local renamed
     for _, index in ipairs(RENAMED[known.method]) do
         local path
+        -- None of them follows a link at the end of a path: link makes a link to a link, rename moves the link
         if known.method == 'renameat' then
-            path = atpath(hook, param, index)
+            path = atpath(hook, param, index, false)
         else
             path = tostring(param:getArgument(index))
-            path = filtered(known.group, path) and path or nil
+            path = filtered(known.group, path, param, false) and path or nil
         end
-        if path ~= nil and hidden(hook, path, param) then
+        if path ~= nil and linked(hook, path, param, false) then
             local other = standin(hook, path, param)
             -- The names of renameat are bytes, which XParam makes of a text (and absolute, so not of the descriptor)
             if known.class == 'android.system.Os' or known.method == 'renameat' then
@@ -999,16 +1380,20 @@ end
 -- the tables of this one, so it does not use the cache. Without a filter Android throws NullPointerException.
 function listing(hook, param, folder)
     local original = param:getArgument(1)
+    local group = about(hook).group
     if original == nil or hidden(hook, folder, param) then
         return false
     end
-    local group = about(hook).group
     local none, jars = unlisted(group, folder, param), libraries(group, folder, param) or {}
+    local own = none and ownname(folder, param)
     param:setArgument(1, luajava.createProxy('java.nio.file.DirectoryStream$Filter', {
         accept = function(entry)
             -- Left out as File.list does, so a matched file the app cannot read stays listed, as Android lists it;
             -- of Read.VPN only the names of the interfaces of VPNs are looked up (see after)
             local path = tostring(entry)
+            if none and string.match(path, '[^/]*$') == own then
+                return original:accept(entry)
+            end
             if none or jars[string.match(path, '[^/]*$')] or
                     ((group ~= 'Read.VPN' or isvpninterface(string.match(path, '[^/]+$'))) and
                     matched(group, path, param) and reachable(group, path, param)) then
@@ -1035,34 +1420,172 @@ function truststore()
     return false
 end
 
--- The path of a folder the file system lists, the same for the forms of a path which it lists the same, like
--- /system/app/., /system//priv-app, /system/app/ and /x/../app, also the descriptor of the folder, like /proc/self/fd/57
--- of /system/priv-app, which only its resolved path names
-function listedpath(folder, param)
-    local plain = unrooted(folder)
-    if string.find(plain, '/../', 1, true) or string.find(plain, '/%.%.$') or string.find(plain, '/fd/', 1, true) then
-        plain = resolve(plain, param)
-    end
+-- A path without // and /./ and without /. or / at its end, which the file system reads the same
+function collapsed(path)
     local previous
     repeat
-        previous = plain
-        plain = string.gsub(string.gsub(plain, '/%./', '/'), '//+', '/')
-    until plain == previous
-    return (string.gsub(string.gsub(plain, '/%.$', ''), '(.)/$', '%1'))
+        previous = path
+        path = string.gsub(string.gsub(path, '/%./', '/'), '//+', '/')
+    until path == previous
+    return (string.gsub(string.gsub(path, '/%.$', ''), '(.)/$', '%1'))
 end
 
--- Whether the names of a folder are left out of a listing, the files themselves stay (see APPS)
+-- The path of a folder the file system lists, the same for the forms of a path which it lists the same, like
+-- /system/app/., /system//priv-app, /system/app/ and /x/../app, also the descriptor of the folder, like /proc/self/fd/57
+-- of /system/priv-app, and a link of the app to it, which only its resolved path names: a path which names no folder
+-- of APPS or FRAMEWORKS by its text is resolved.
+-- shortcut: so each listing of Get.Applications and Read.Features of another folder resolves its path once more; the
+-- cost was not measured on a device, take the path the filter resolved if apps slow down
+function listedpath(folder, param)
+    local plain = unrooted(folder)
+    -- Relative to the root, which apps run in, like system/priv-app and ../system/priv-app, as the filter takes them
+    if string.sub(plain, 1, 1) ~= '/' then
+        plain = '/' .. plain
+    end
+    plain = collapsed(plain)
+    if FRAMEWORKS[plain] then
+        return plain
+    end
+    -- Only the folder itself, so /system/app/../priv-app is resolved too
+    for _, apps in ipairs(APPS) do
+        if plain == apps then
+            return plain
+        end
+    end
+    return resolve(plain, param)
+end
+
+-- Whether the names of a folder are left out of a listing, but the one of the app itself (see ownname); the files
+-- themselves stay (see APPS)
 function unlisted(group, folder, param)
     if group ~= 'Get.Applications' then
         return false
     end
     local plain = listedpath(folder, param)
-    for _, pattern in ipairs(APPS) do
-        if string.find(plain, pattern) then
+    if plain == '/data/app' or apexapps(plain) then
+        return true
+    end
+    for _, apps in ipairs(APPS) do
+        if plain == apps then
             return true
         end
     end
     return false
+end
+
+-- A folder of APPS or /data/app by the path it has on every device, without the links of /system to the partitions,
+-- like /product/app of /system/product/app
+function samefolder(folder)
+    for _, partition in ipairs({ 'product', 'system_ext', 'vendor' }) do
+        folder = string.gsub(folder, '^/system/' .. partition .. '/', '/' .. partition .. '/')
+    end
+    return folder
+end
+
+-- The folder of APPS or /data/app a path is in and its name there, like /system/priv-app and SettingsProvider of
+-- /system/priv-app/SettingsProvider/SettingsProvider.apk, nil for other paths, and whether it is a folder
+function appentry(path, apps)
+    for _, folder in ipairs(apps or APPS) do
+        if string.sub(path, 1, #folder + 1) == folder .. '/' then
+            local name = string.match(path, '^[^/]+', #folder + 2)
+            if name ~= nil then
+                return samefolder(folder), name, #path > #folder + 1 + #name
+            end
+        end
+    end
+    return nil
+end
+
+-- The folder of APPS or /data/app the app itself is installed in, its name there and whether it is a folder, like
+-- /data/app and ~~x== of /data/app/~~x==/com.example-y==/base.apk, read once; false when it is in none, nil when the
+-- path of its APK cannot be read
+local OWN = nil
+
+function ownentry(param)
+    if OWN == nil then
+        local ok, source = pcall(function()
+            return param:getApplicationContext():getApplicationInfo().sourceDir
+        end)
+        if not ok or source == nil then
+            return nil
+        end
+        local apps = { '/data/app', string.match(source, '^/apex/[^/]+/[^/]+') }
+        for _, folder in ipairs(APPS) do
+            apps[#apps + 1] = folder
+        end
+        local folder, name, nested = appentry(source, apps)
+        OWN = folder and { folder = folder, name = name, nested = nested } or false
+    end
+    return OWN or nil
+end
+
+-- The name of the app itself in a folder whose names are left out (see unlisted), which stays, nil when it is not in
+-- there; and whether it is a folder, which adds a link to the folder
+function ownname(folder, param)
+    local own = ownentry(param)
+    if own == nil or own.folder ~= samefolder(listedpath(folder, param)) then
+        return nil
+    end
+    return own.name, own.nested
+end
+
+-- The link count of a folder whose names are left out (see unlisted), by stat and lstat, of Os and java.nio, and by
+-- Os.fstat of a descriptor of it: 2, its name and its own ., like an empty folder, since each folder in it adds one by
+-- its .. (ext4 and erofs), and 3 with the folder of the app itself in it, like /data/app.
+-- shortcut: Libcore.os.fstat by reflection, which Android calls for every file it opens, so a hook of it would run the
+-- script for each, and fstat of java.nio, of the descriptor of a SecureDirectoryStream, still count the folders in it;
+-- hook them too if apps use them on these folders.
+function linkcount(hook, param)
+    local known = about(hook)
+    if known.returnType == 'int' or param:getException() ~= nil then
+        return false
+    end
+    local path
+    if known.method == 'fstat' then
+        local result = param:getResult()
+        -- Only a folder (S_IFDIR) with folders in it, which needs the path of the descriptor
+        if result == nil or bit32.band(result.st_mode, S_IFMT) ~= S_IFDIR or result.st_nlink <= 2 then
+            return false
+        end
+        path = folderof(param)
+    else
+        path = pathof(param)
+    end
+    if path == nil or not unlisted(known.group, path, param) then
+        return false
+    end
+    local own, nested = ownname(path, param)
+    local links = (own ~= nil and nested) and 3 or 2
+    if known.class == 'sun.nio.fs.UnixNativeDispatcher' then
+        -- java.nio reads them into the attributes of its argument, like storage_times changes them
+        local attributes = param:getArgument(1)
+        local old = attributes and attributes.st_nlink
+        if old == nil or old <= links then
+            return false
+        end
+        attributes.st_nlink = links
+        return true, tostring(old), tostring(links)
+    end
+    local result = param:getResult()
+    if result == nil or result.st_nlink <= links then
+        return false
+    end
+    param:setResult(luajava.newInstance('android.system.StructStat', result.st_dev, result.st_ino, result.st_mode, links,
+            result.st_uid, result.st_gid, result.st_rdev, result.st_size, result.st_atim, result.st_mtim, result.st_ctim,
+            result.st_blksize, result.st_blocks))
+    return true, tostring(result.st_nlink), tostring(links)
+end
+
+-- The path of the descriptor of Os.fstat by its link in /proc/self/fd, nil when it fails; the number is read from the
+-- descriptor of the app, by the hidden getInt$, which LuaJ finds by listing the methods (see storage_times)
+function folderof(param)
+    local fd = param:getArgument(0)
+    local ok, path = pcall(function()
+        return param:unhooked(function()
+            return luajava.bindClass('android.system.Os'):readlink('/proc/self/fd/' .. fd['getInt$'](fd))
+        end)
+    end)
+    return ok and path or nil
 end
 
 -- The libraries of the Android platform and the ones of Google on every device, which features does not hide from
@@ -1094,12 +1617,19 @@ end
 -- shortcut: the files compiled from the jars in the folders oat of FRAMEWORKS, like oat/arm64/<library>.odex, and the
 -- folders framework of other partitions, like /oem and /my_product, still list the names, leave them out too if apps
 -- list those folders.
-local JARS = nil
+local JARS, KEPT = nil, nil
 
 function libraries(group, folder, param)
     if group ~= 'Read.Features' or not FRAMEWORKS[listedpath(folder, param)] then
         return nil
     end
+    return (sharedlibraries(param))
+end
+
+-- The jars of the libraries features hides and the permission files of the ones it keeps, like javax.obex.xml, which
+-- the build of AOSP makes for each library of the platform in /system/etc/permissions (see basefile), nil when the
+-- names cannot be read
+function sharedlibraries(param)
     if JARS == nil then
         local ok, names = pcall(function()
             return param:unhooked(function()
@@ -1107,16 +1637,20 @@ function libraries(group, folder, param)
             end)
         end)
         if not ok or names == nil then
-            return nil
+            return nil, nil
         end
-        JARS = {}
+        -- Made apart and kept at once, since the filter of a listing can ask on another thread (see listing)
+        local jars, kept = {}, {}
         for index = 1, names['length'] do
             if vendor(names[index]) then
-                JARS[names[index] .. '.jar'] = true
+                jars[names[index] .. '.jar'] = true
+            else
+                kept[names[index] .. '.xml'] = true
             end
         end
+        JARS, KEPT = jars, kept
     end
-    return JARS
+    return JARS, KEPT
 end
 
 -- The bit of reading of access, R_OK, the same on every Linux, and also FileSystem.ACCESS_READ of java.io, while
@@ -1169,12 +1703,12 @@ end
 function before(hook, param)
     local class, method = about(hook).class, about(hook).method
     local path
-    if method == 'name' or method == 'toString' then
+    if method == 'name' or method == 'toString' or method == 'fstat' then
         return false
     elseif method == 'openat' or method == 'fstatat' or method == 'unlinkat' then
         -- unlinkat of a hidden id: ENOENT (see failing), which Linux gives for a missing name before it checks the
         -- permissions; the ids are in /sys, which is mounted read-write, so EROFS does not come first
-        path = atpath(hook, param, 1)
+        path = atpath(hook, param, 1, followslink(method, param))
         if path == nil then
             return false
         end
@@ -1184,9 +1718,13 @@ function before(hook, param)
         path = pathof(param)
     end
     -- Files which only the parts of the tables of the process let in, like in a folder maps of the app, are no hidden
-    -- files; paths of /proc run the script, since filtered does not know all its links to the root
-    local group = about(hook).group
-    if method == 'open' and not string.find(path, '^/?proc/') and tabled(group, path) and not filtered(group, path) then
+    -- files; paths of /proc run the script, since filtered does not know all its links to the root, and so does a link
+    -- of the app named like a table to a hidden file, like files/mounts to su, which the filter lets in by its target
+    -- shortcut: so each open of a path with such a part outside /proc resolves it once more, also when the filter
+    -- resolved it already; the cost was not measured on a device, take the path the filter resolved if apps slow down
+    local group, follows = about(hook).group, followslink(method, param)
+    if method == 'open' and not string.find(path, '^/?proc/') and tabled(group, path) and
+            not filtered(group, path, param, follows) then
         return false
     end
     if class == 'sun.nio.fs.UnixFileSystemProvider' and method == 'newDirectoryStream' then
@@ -1196,9 +1734,9 @@ function before(hook, param)
     -- a VPN, its counters, addresses and routes, like tun0 in /proc/net/dev; the names of its interfaces in there, like
     -- /proc/net/dev_snmp6/tun0, do not exist (ENOENT, not EACCES). The check of Read.Network leaves the links of the
     -- descriptors of the app alone, like for Read.Network itself (see hidden).
-    local found = hidden(hook, path, param)
+    local found = linked(hook, path, param, follows)
     if group == 'Read.Network' and found or
-            group == 'Read.VPN' and not found and hidden(hook, path, param, 'Read.Network') then
+            group == 'Read.VPN' and not found and linked(hook, path, param, follows, 'Read.Network') then
         return denied(hook, param, path)
     end
     if not found or (string.find(path, 'cacerts', 1, true) and truststore()) then
@@ -1284,8 +1822,9 @@ function before(hook, param)
     return true, path
 end
 
--- Whether a path is of a feature file of the system, by the path or the path it leads to, like with /../ or relative
--- to the root; not the same names in a folder of the app, nor in /sdcard/etc, shared storage apps can write to
+-- Whether a path is of a feature file of the system, by the path or the path it leads to, like with /../, relative to
+-- the root, through the descriptor of a folder or a link of the app; not the same names in a folder of the app, nor in
+-- /sdcard/etc, shared storage apps can write to
 function featurefile(path, param)
     local function found(text)
         if string.find(text, '^/sdcard/') then
@@ -1298,11 +1837,18 @@ function featurefile(path, param)
         end
         return false
     end
-    -- Resolved only with etc/ or the descriptor of a folder in the path, like /proc/self/fd/57/handheld_core_hardware.xml,
-    -- since the filter also passes every path with // and /./
-    local plain = unrooted(path)
-    local linked = string.find(plain, 'etc/', 1, true) ~= nil or string.find(plain, '/fd/', 1, true) ~= nil
-    return found(plain) or (linked and found(resolve(plain, param)))
+    -- The filter lets in links of the app by the path they lead to, like files/h to handheld_core_hardware.xml, also as
+    -- files//h, so any other path is resolved, but the files of /sys, which lead to no feature file, while the hooks
+    -- of Read.Biometrics run for all of them (see tables)
+    local plain = unrooted(collapsed(path))
+    if found(plain) then
+        return true
+    end
+    local absolute = string.sub(plain, 1, 1) == '/' and plain or '/' .. plain
+    if string.sub(absolute, 1, 5) == '/sys/' and not string.find(absolute, '/..', 1, true) then
+        return false
+    end
+    return found(resolve(plain, param))
 end
 
 -- Whether a feature is one of the names of FEATURES
@@ -1357,16 +1903,87 @@ function featuretext(hook, param)
     return true, tostring(count)
 end
 
--- File.list of a folder with hidden files: without their names; a feature file opened: without hidden features; the
--- tables of the process an app opened (see tables) and the names of the file stores of java.nio (see storename)
+-- Whether a path is of a permission or configuration file of the system (see packagetext), by the path or the path it
+-- leads to, like featurefile
+function configfile(path, param)
+    local function found(text)
+        if string.find(text, '^/sdcard/') then
+            return false
+        end
+        for _, etc in ipairs(ETC) do
+            if string.find(text, etc .. 'permissions/.+%.xml$') or string.find(text, etc .. 'sysconfig/.+%.xml$') then
+                return true
+            end
+        end
+        return false
+    end
+    local plain = unrooted(path)
+    local linked = string.find(plain, 'etc/', 1, true) ~= nil or string.find(plain, '/fd/', 1, true) ~= nil
+    return found(plain) or (linked and found(resolve(plain, param)))
+end
+
+-- The text of a permission or configuration file without the elements which name another app by its package, like
+-- <privapp-permissions package="com.android.settings"> with its permissions and allow-in-power-save of platform.xml,
+-- or by the service of a transport of backup, package/class, and the number left out; as long as the file (see
+-- withoutfeatures). The elements of the app itself stay.
+-- shortcut: other attributes which name apps stay, like target and allowed of allow-association; leave those elements
+-- out too if apps read them for the apps of the system.
+function withoutpackages(text, own)
+    local count = 0
+    local function strip(attributes)
+        local package = string.match(attributes, '%spackage%s*=%s*"([^"]*)"') or
+                string.match(attributes, "%spackage%s*=%s*'([^']*)'") or
+                string.match(attributes, '%sservice%s*=%s*"([^"/]*)/') or string.match(attributes, "%sservice%s*=%s*'([^'/]*)/")
+        if package == nil or package == own then
+            return nil
+        end
+        count = count + 1
+        return ''
+    end
+    -- Empty elements first, then those with content, of which only the ones with a package are looked at, so the
+    -- elements in another one, like the root, are not passed over
+    local result = string.gsub(text, '%s*<%a[%w%-]*(%s[^<>]-)/>', strip)
+    result = string.gsub(result, '%s*<(%a[%w%-]*)(%s[^<>]-package%s*=[^<>]-[^/<>])>.-</%1%s*>', function(_, attributes)
+        return strip(attributes)
+    end)
+    if #result < #text then
+        result = result .. string.rep(' ', #text - #result)
+    end
+    return result, count
+end
+
+-- A permission or configuration file the app opened, without the other apps it names (see withoutpackages), for
+-- Get.Applications; only when opened for reading, like featuretext.
+-- shortcut: FileInputStream and FileReader of Android 8.1 and 9 open natively (open0), which returns no descriptor to
+-- replace, so they read these files with the apps, like the feature files (see featuretext).
+function packagetext(hook, param)
+    if bit32.band(param:getArgument(1), O_ACCMODE) ~= 0 or param:getException() ~= nil or param:getResult() == nil or
+            not configfile(pathof(param), param) then
+        return false
+    end
+    local text, count = withoutpackages(param:getFileText(), param:getPackageName())
+    if count == 0 then
+        return false
+    end
+    param:setFileText(text)
+    return true, tostring(count)
+end
+
+-- File.list of a folder with hidden files: without their names; a feature file opened: without hidden features; a
+-- permission file opened: without other apps; the tables of the process an app opened (see tables), the names of the
+-- file stores of java.nio (see storename) and the link count of a folder without names (see linkcount)
 function after(hook, param)
     if about(hook).method == 'open' then
         if TABLES[about(hook).group] then
             return tables(hook, param)
+        elseif about(hook).group == 'Get.Applications' then
+            return packagetext(hook, param)
         end
         return featuretext(hook, param)
     elseif about(hook).method == 'name' or about(hook).method == 'toString' then
         return storename(param)
+    elseif about(hook).method == 'stat' or about(hook).method == 'lstat' or about(hook).method == 'fstat' then
+        return linkcount(hook, param)
     end
     if about(hook).method ~= 'list0' or param:getException() ~= nil then
         return false
@@ -1385,13 +2002,14 @@ function after(hook, param)
     -- of /proc/sys/net/ipv4/conf/tun0, stay, look them up too if apps list such descriptors
     local vpn = about(hook).group == 'Read.VPN'
     local jars = libraries(about(hook).group, folder, param) or {}
-    if not unlisted(about(hook).group, folder, param) then
+    local none = unlisted(about(hook).group, folder, param)
+    local own = none and ownname(folder, param)
+    for index = 1, names['length'] do
         -- Of the root the path is /name, not //name, which the patterns of the root do not match
-        for index = 1, names['length'] do
-            if not jars[names[index]] and ((vpn and not isvpninterface(names[index])) or
-                    not hidden(hook, (folder == '/' and '' or folder) .. '/' .. names[index], param)) then
-                table.insert(kept, names[index])
-            end
+        if (none and names[index] == own) or (not none and not jars[names[index]] and
+                ((vpn and not isvpninterface(names[index])) or
+                not hidden(hook, (folder == '/' and '' or folder) .. '/' .. names[index], param))) then
+            table.insert(kept, names[index])
         end
     end
     if #kept == names['length'] then

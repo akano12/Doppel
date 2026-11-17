@@ -16,14 +16,29 @@
 -- Copyright 2017-2019 Marcel Bokhorst (M66B)
 -- Copyright 2026 akano12
 
--- Lists of other apps keep only the app itself. The lists of components, like of the activities for an intent,
--- and of properties also keep system apps, like the lookups of single packages (see package_probe), because the
+-- Lists of other apps keep only the app itself, also the lists of whole apps which the Android framework does not read
+-- in the app process, so system apps are left out of them too: the launchers, the launcher activities, the tasks, the
+-- widgets and the searchables of the global search (see OWN). The lists of components, like of the activities for an
+-- intent, and of properties also keep system apps, like the lookups of single packages (see package_probe), because the
 -- Android framework uses them in the app process, like for launch intents, text to speech and speech recognition.
--- shortcut: system apps, also the framework package android, stay in the lists of components and in lookups while the
--- lists of packages leave them out, so the two disagree; hiding them needs XParam.isVisible split into the packages an
--- app names (lookups, lists, getPackagesForUid) and the system components every Android has which serve the app, like
--- the settings provider, which Settings gets by ContentResolver.acquireProvider inside every app and which would else
--- be gone (see provider_hidden); upgrade when Get.Applications gets that split for all its scripts, checked on a device
+-- shortcut: system apps, also the framework package android, stay in the lists of components, in lookups and by their
+-- user ids while the lists of packages and of whole apps leave them out, so these disagree, like the launchers of
+-- getHomeActivities and the activities for the home intent; hiding them needs XParam.isVisible split into the packages
+-- an app names (lookups, lists of components, user ids) and the system components every Android has which serve the
+-- app, like the settings provider, which Settings gets by ContentResolver.acquireProvider inside every app and which
+-- would else be gone (see provider_hidden); upgrade when Get.Applications gets that split for all its scripts, checked
+-- on a device
+
+-- The lists of whole apps, by the name of the hook without its version and user (see after), which keep only the app
+-- itself and the packages of its user id (XParam.isOwnPackage); also the widgets (AppWidgetManager) and the launchers
+-- (PackageManager.getHomeActivities, see after)
+local OWN = {
+    ['LauncherApps.getActivityList'] = true,
+    ['LauncherApps.getShortcutConfigActivityList'] = true,
+    ['SearchManager.getSearchablesInGlobalSearch'] = true,
+    ['SearchManager.getGlobalSearchActivities'] = true,
+    ['ActivityManager.getRunningTasks'] = true,
+}
 
 local MATCH_ALL = 0x20000 -- PackageManager
 
@@ -39,17 +54,38 @@ function matchall(flags)
     return luajava.bindClass('android.content.pm.PackageManager$ResolveInfoFlags'):of(value)
 end
 
+-- Whether a service is an accessibility service of another app, also of a system app, like a preinstalled TalkBack,
+-- which AccessibilityManager does not list to the app either (see ownservice of service_filter, whose rule this is):
+-- Android lists only services which require this permission to bind (AccessibilitySecurityPolicy.canRegisterService),
+-- so PackageManager leaves those out, by any intent and by their name. The same function as in package_resolve and
+-- package_probe; a test compares them.
+-- shortcut: the services of the PackageInfo of a visible package (GET_SERVICES) still list it; upgrade when apps are
+-- seen reading accessibility services from there
+function otheraccessibility(param, info)
+    local ai = info.applicationInfo
+    return info.permission == 'android.permission.BIND_ACCESSIBILITY_SERVICE' and
+            not (ai == nil or param:isSystem() or ai.uid == param:getUid())
+end
+
 -- The next four functions are the same as in package_resolve, so a link lists the apps it resolves to (see best there)
 
 -- The visible apps of a query, only the browsers when asked; of all apps when none of them is visible, because of a
 -- link Android gives only the default browser unless asked for all, which leaves none when it is hidden. The second
--- value is true for those of all apps, so the browsers of a link whose default browser is hidden.
-function visibleof(param, pm, intent, flags, browsers)
+-- value is true for those of all apps, so the browsers of a link whose default browser is hidden. Asked without the
+-- hooks, or with them when hooked, which best of package_resolve does for the intent of the app itself; never here,
+-- where the query with the hooks would come back to this hook.
+function visibleof(param, pm, intent, flags, browsers, hooked)
     local visible = {}
     for pass, asked in ipairs({ flags, matchall(flags) }) do
-        local all = param:unhooked(function()
+        local function query()
             return pm:queryIntentActivities(intent, asked)
-        end)
+        end
+        local all
+        if hooked then
+            all = query()
+        else
+            all = param:unhooked(query)
+        end
         for index = 0, all:size() - 1 do
             local info = all:get(index)
             if param:isPackageVisible(info.activityInfo.packageName) and (not browsers or info.handleAllWebDataURI) then
@@ -154,17 +190,17 @@ function after(hook, param)
     end
 
     -- PackageManager.getHomeActivities fills a list of the app with the launchers and returns the default one, null
-    -- without one: the hidden launchers are left out of the list, and a hidden default is none
+    -- without one: the launchers of other apps, also of the system, are left out of the list, and such a default is none
     if hook:getName() == 'PackageManager.getHomeActivities' then
         local activities, home = param:getArgument(0), param:getResult()
         local removed = 0
         for index = (activities ~= nil and activities:size() or 0) - 1, 0, -1 do
-            if not param:isVisible(activities:get(index).activityInfo.applicationInfo) then
+            if activities:get(index).activityInfo.applicationInfo.uid ~= param:getUid() then
                 activities:remove(index)
                 removed = removed + 1
             end
         end
-        if home ~= nil and not param:isPackageVisible(home:getPackageName()) then
+        if home ~= nil and not param:isOwnPackage(home:getPackageName()) then
             param:setResult(nil)
             return true, home:getPackageName()
         end
@@ -176,20 +212,11 @@ function after(hook, param)
         return false
     end
 
-    -- The standby buckets of all apps, a map by package, which needs usage access only (UsageStatsService)
+    -- The standby buckets of all apps need usage access, which reads as not granted (see package_probe), so a map
+    -- Android gave becomes the SecurityException which UsageStatsService throws itself for an app without usage access
     if hook:getName() == 'UsageStatsManager.getAppStandbyBuckets' then
-        local names = list:keySet():toArray()
-        local kept = luajava.newInstance('java.util.HashMap')
-        for index = 1, names['length'] do
-            if param:isPackageVisible(names[index]) then
-                kept:put(names[index], list:get(names[index]))
-            end
-        end
-        if kept:size() == names['length'] then
-            return false
-        end
-        param:setResult(kept)
-        return true, tostring(names['length']), tostring(kept:size())
+        param:setResult(luajava.newInstance('java.lang.SecurityException', "Don't have permission to query app standby bucket"))
+        return true
     end
 
     local filtered = false
@@ -207,6 +234,7 @@ function after(hook, param)
         local uid
         local ai -- The app of a component
         local packageName -- A package without its app
+        local hidden = false -- A component hidden whatever its app
         if item == nil then
             uid = -1
         elseif name == 'PackageManager.getInstalledPackages' or
@@ -221,6 +249,7 @@ function after(hook, param)
             ai = item.providerInfo.applicationInfo -- ResolveInfo
         elseif name == 'PackageManager.queryIntentServices' then
             ai = item.serviceInfo.applicationInfo -- ResolveInfo
+            hidden = otheraccessibility(param, item.serviceInfo)
         elseif name == 'PackageManager.queryContentProviders' then
             ai = item.applicationInfo -- ProviderInfo
         elseif name == 'LauncherApps.getActivityList' or name == 'LauncherApps.getShortcutConfigActivityList' then
@@ -234,7 +263,7 @@ function after(hook, param)
         elseif name == 'SearchManager.getGlobalSearchActivities' then
             ai = item.activityInfo.applicationInfo -- ResolveInfo
         elseif name == 'ActivityManager.getRunningTasks' then
-            -- RunningTaskInfo, like the task of the launcher, which Android 8.1 to 11 lists to any app
+            -- RunningTaskInfo, like the task of the launcher, which Android 9 to 11 lists to any app and 12 does not
             local component = item.baseActivity or item.topActivity
             packageName = (component ~= nil and component:getPackageName() or param:getPackageName())
         elseif name == 'TelecomManager.getSelfManagedPhoneAccounts' then
@@ -252,7 +281,14 @@ function after(hook, param)
         end
 
         local visible
-        if ai ~= nil then
+        local own = (OWN[name] or string.match(name, '^AppWidgetManager%.') ~= nil)
+        if hidden then
+            visible = false
+        elseif own and ai ~= nil then
+            visible = (ai.uid == cuid)
+        elseif own and packageName ~= nil then
+            visible = param:isOwnPackage(packageName)
+        elseif ai ~= nil then
             -- A document the user picked stays a document (DocumentsContract.isDocumentUri), see provider_hidden
             visible = param:isVisible(ai) or (name == 'PackageManager.queryIntentContentProviders' and
                     picked(param, item.providerInfo.authority))
@@ -298,7 +334,12 @@ function after(hook, param)
     -- browser (the same steps as best of package_resolve, with its shortcuts)
     -- shortcut: queryIntentActivitiesAsUser asks for the own user, which is the user of nearly every call
     if filtered and name == 'PackageManager.queryIntentActivities' and list:isEmpty() then
-        local pm, intent, flags = param:getThis(), param:getArgument(0), param:getArgument(1)
+        -- A copy of Android's own class, so no code of the app runs without the hooks; none when the type of its uri
+        -- stays unknown (see XParam.plainIntent), which leaves the list empty
+        local pm, intent, flags = param:getThis(), param:plainIntent(param:getArgument(0)), param:getArgument(1)
+        if intent == nil then
+            return filtered
+        end
         local visible, hidden = visibleof(param, pm, intent, flags)
         if #visible == 0 and weblink(intent) then
             visible, hidden = visibleof(param, pm, unclaimed(intent), flags, true)

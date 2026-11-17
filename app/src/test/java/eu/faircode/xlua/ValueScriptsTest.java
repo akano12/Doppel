@@ -40,9 +40,10 @@ import static org.junit.Assert.assertTrue;
 // the script makes Android objects, which are stubs in unit tests
 public class ValueScriptsTest {
     private static final String STUBS = String.join("\n",
-            "function hookof(method, class)",
+            "function hookof(method, class, count)",
             "  return { getMethodName = function(self) return method end,",
-            "    getClassName = function(self) return class end }",
+            "    getClassName = function(self) return class end,",
+            "    getParameterTypes = function(self) return { length = count or 0 } end }",
             "end",
             "settings = {}",
             "values = setmetatable({}, { __mode = 'k' })",
@@ -78,43 +79,177 @@ public class ValueScriptsTest {
         assertEquals(lua, result, varargs.arg(3).isnil() ? null : varargs.arg(3).tojstring());
     }
 
-    // getDeviceId gives the id of the phone type, getImei and getMeid only their own, nothing without a setting
+    // The exception of PhoneInterfaceManager.getPrimaryImei of Android 14 to 17 when no phone has a primary IMEI
+    private static final String UNSUPPORTED = "java.lang.UnsupportedOperationException: Operation not supported";
+
+    // getImei and getMeid give their own id whatever the phone type, like Android when the modem reports both, also on a
+    // tablet without voice (phone type 0); getDeviceId the kind of id Android gives, an IMEI of 15 digits or an MEID of
+    // 14, also of a CDMA phone which gives the IMEI, and none for an ESN; nothing without a setting
     @Test
-    public void deviceIdOfThePhoneType() throws Exception {
+    public void deviceIdOfItsKind() throws Exception {
         Globals globals = load("value_device_id");
         Scripts.run(globals, "gsm = { getPhoneType = function(self) return 1 end }\n" +
                 "cdma = { getPhoneType = function(self) return 2 end }\n" +
+                "tablet = { getPhoneType = function(self) return 0 end }\n" +
                 "settings['value.imei'] = 'fake-imei' settings['value.meid'] = 'fake-meid'");
+        String imei = "'490154203237518'";
+        String meid = "'A0000049FBC2A1'";
+        String esn = "'8099A1B2'";
         for (String[] c : new String[][]{
-                {"gsm", "getDeviceId", "fake-imei"}, {"gsm", "getImei", "fake-imei"}, {"gsm", "getPrimaryImei", "fake-imei"},
-                {"gsm", "getMeid", null}, {"gsm", "getDeviceIdGemini", "fake-imei"}, {"gsm", "getDeviceIdDs", "fake-imei"},
-                {"cdma", "getDeviceIdGemini", "fake-meid"},
-                {"cdma", "getDeviceId", "fake-meid"}, {"cdma", "getMeid", "fake-meid"},
-                {"cdma", "getImei", null}, {"cdma", "getPrimaryImei", null}})
-            check(globals, "return after_(hookof('" + c[1] + "'), paramof('real', {}, " + c[0] + "))", true, true, c[2]);
+                {"gsm", "getImei", imei, "fake-imei"}, {"gsm", "getPrimaryImei", imei, "fake-imei"},
+                {"gsm", "getMeid", meid, "fake-meid"}, {"cdma", "getImei", imei, "fake-imei"},
+                {"cdma", "getPrimaryImei", imei, "fake-imei"}, {"cdma", "getMeid", meid, "fake-meid"},
+                {"tablet", "getImei", imei, "fake-imei"}, {"tablet", "getMeid", meid, "fake-meid"},
+                {"tablet", "getPrimaryImei", imei, "fake-imei"}, {"tablet", "getDeviceIdDs", imei, "fake-imei"},
+                {"gsm", "getDeviceId", imei, "fake-imei"}, {"gsm", "getDeviceIdGemini", imei, "fake-imei"},
+                {"gsm", "getDeviceIdDs", imei, "fake-imei"}, {"cdma", "getDeviceId", meid, "fake-meid"},
+                {"cdma", "getDeviceIdGemini", meid, "fake-meid"}, {"cdma", "getDeviceId", imei, "fake-imei"},
+                {"gsm", "getDeviceId", meid, "fake-meid"}, {"tablet", "getDeviceId", imei, "fake-imei"},
+                {"cdma", "getDeviceId", esn, null}})
+            check(globals, "return after_(hookof('" + c[1] + "'), paramof(" + c[2] + ", {}, " + c[0] + "))", true, true, c[3]);
 
-        // The fake already, like getImei() calling the hooked getImei(slot): not reported twice
+        // A MEID alone is no IMEI on any phone type: the primary IMEI throws like on a device without one
+        Scripts.run(globals, "settings['value.imei'] = nil");
+        for (String[] c : new String[][]{
+                {"gsm", "getDeviceId", imei, null}, {"tablet", "getDeviceId", imei, null},
+                {"cdma", "getDeviceId", meid, "fake-meid"}, {"cdma", "getImei", imei, null},
+                {"tablet", "getPrimaryImei", imei, UNSUPPORTED}, {"gsm", "getMeid", meid, "fake-meid"}})
+            check(globals, "return after_(hookof('" + c[1] + "'), paramof(" + c[2] + ", {}, " + c[0] + "))", true, true, c[3]);
+        Scripts.run(globals, "settings['value.imei'] = 'fake-imei'");
+
+        // The fake already, like getImei() calling the hooked getImei(slot): not reported twice, also a value set
+        // which is not of the kind of the id
         check(globals, "return after_(hookof('getImei'), paramof('fake-imei', {}, gsm))", false, false, "fake-imei");
+        check(globals, "return after_(hookof('getDeviceId'), paramof('fake-meid', {}, cdma))", false, false, "fake-meid");
 
-        // Without a setting the real id is gone; no id and no setting stays
+        // An empty or all-zero id, which Android gives when the modem has no such id (an IMEI on every version, an
+        // all-zero MEID up to 11 and an empty one up to 10), stays as it is when a fake of its kind is set; an empty
+        // one of getDeviceId is of the IMEI, like getDeviceId of a GSM phone, else it would disagree with getImei
+        String zeroImei = "000000000000000";
+        String zeroMeid = "00000000000000";
+        for (String[] c : new String[][]{{"gsm", "getMeid", ""}, {"gsm", "getMeid", zeroMeid},
+                {"cdma", "getImei", ""}, {"gsm", "getImei", zeroImei}, {"cdma", "getPrimaryImei", zeroImei},
+                {"gsm", "getDeviceId", ""}, {"gsm", "getDeviceId", zeroImei}})
+            check(globals, "return after_(hookof('" + c[1] + "'), paramof('" + c[2] + "', {}, " + c[0] + "))", false, false, c[2]);
+        // With a fake of the other kind only, it is gone like any other id
+        Scripts.run(globals, "settings['value.meid'] = nil");
+        check(globals, "return after_(hookof('getMeid'), paramof('" + zeroMeid + "', {}, gsm))", true, true, null);
+        check(globals, "return after_(hookof('getDeviceId'), paramof('', {}, gsm))", false, false, "");
+        Scripts.run(globals, "settings['value.meid'] = 'fake-meid' settings['value.imei'] = nil");
+        check(globals, "return after_(hookof('getImei'), paramof('" + zeroImei + "', {}, gsm))", true, true, null);
+        check(globals, "return after_(hookof('getDeviceId'), paramof('', {}, gsm))", true, true, null);
+        check(globals, "return after_(hookof('getMeid'), paramof('" + zeroMeid + "', {}, gsm))", false, false, zeroMeid);
+
+        // Without a setting the real id is gone, also an empty or all-zero one, like on a device without a modem;
+        // no id and no setting stays
         Scripts.run(globals, "settings = {}");
-        check(globals, "return after_(hookof('getImei'), paramof('real', {}, gsm))", true, true, null);
+        for (String[] c : new String[][]{{"getImei", imei}, {"getMeid", meid}, {"getDeviceId", imei}, {"getDeviceId", meid},
+                {"getImei", "'" + zeroImei + "'"}, {"getImei", "''"}, {"getMeid", "'" + zeroMeid + "'"}, {"getMeid", "''"},
+                {"getDeviceId", "'" + zeroImei + "'"}, {"getDeviceId", "''"}})
+            check(globals, "return after_(hookof('" + c[0] + "'), paramof(" + c[1] + ", {}, gsm))", true, true, null);
         check(globals, "return after_(hookof('getImei'), paramof(nil, {}, gsm))", false, false, null);
+        // The primary IMEI is never null: without one Android throws
+        check(globals, "return after_(hookof('getPrimaryImei'), paramof('real', {}, gsm))", true, true, UNSUPPORTED);
+        check(globals, "return after_(hookof('getPrimaryImei'), paramof('" + zeroImei + "', {}, gsm))", true, true, UNSUPPORTED);
         // Apps without permission keep the exception, static calls stay
-        check(globals, "return after_(hookof('getImei'), paramof('real', {}, gsm, 'security'))", false, false, "real");
-        check(globals, "return after_(hookof('getImei'), paramof('real', {}, nil))", false, false, "real");
+        check(globals, "return after_(hookof('getImei'), paramof(" + imei + ", {}, gsm, 'security'))", false, false,
+                "490154203237518");
+        check(globals, "return after_(hookof('getImei'), paramof(" + imei + ", {}, nil))", false, false, "490154203237518");
     }
 
-    // The software version of the IMEI is a common 2-digit one, not null, which a phone with a modem does not give;
-    // no version, the "0" of CDMA phones, the fake of the overload with a slot and the exception stay
+    // Each SIM slot has an id of its own, of the same model: the next serial numbers after the one of Fake values,
+    // which the first slot gets, with an IMEI check digit of its own and the decimal or hexadecimal digits of a MEID;
+    // the overloads without a slot keep the fake of a slot which the overload with the slot made already
     @Test
-    public void deviceSoftwareVersionIsPlausible() throws Exception {
+    public void deviceIdOfEachSlot() throws Exception {
+        Globals globals = load("value_device_id");
+        String imei = "490154203237518";
+        String second = "49015420323752" + FakeIds.luhn("49015420323752");
+        // Real ids of the shape Android gives, an IMEI of 15 digits and an MEID of 14 hexadecimal digits
+        String real = "'356938035643809'";
+        String realMeid = "'A1000012345678'";
+        Scripts.run(globals, "gsm = { getPhoneType = function(self) return 1 end, getPhoneCount = function(self) return 3 end }\n" +
+                "cdma = { getPhoneType = function(self) return 2 end, getPhoneCount = function(self) return 3 end }\n" +
+                "settings['value.imei'] = '" + imei + "' settings['value.meid'] = '49015420323751'");
+        check(globals, "return after_(hookof('getImei', nil, 1), paramof(" + real + ", {[0] = 0}, gsm))", true, true, imei);
+        check(globals, "return after_(hookof('getImei', nil, 1), paramof(" + real + ", {[0] = 1}, gsm))", true, true, second);
+        check(globals, "return after_(hookof('getDeviceId', nil, 1), paramof(" + real + ", {[0] = 1}, gsm))", true, true, second);
+        check(globals, "return after_(hookof('getImei'), paramof('" + second + "', {}, gsm))", false, false, second);
+        check(globals, "return after_(hookof('getImei'), paramof(" + real + ", {}, gsm))", true, true, imei);
+        // The fake of a slot which another overload made, like a vendor getDeviceId() calling getMeid(slot), stays too
+        check(globals, "return after_(hookof('getDeviceId'), paramof('49015420323752', {}, cdma))", false, false,
+                "49015420323752");
+        // Also when it is of the other kind than the one of this method, like a vendor getImei() giving the MEID of a slot
+        check(globals, "return after_(hookof('getImei'), paramof('49015420323752', {}, gsm))", false, false, "49015420323752");
+        // An index which is no phone is the first one, like the default slot getImei() passes without a SIM and
+        // getDeviceId(slot) of any index which is no phone
+        check(globals, "return after_(hookof('getImei', nil, 1), paramof(" + real + ", {[0] = 2147483647}, gsm))", true, true,
+                imei);
+        check(globals, "return after_(hookof('getDeviceId', nil, 1), paramof(" + real + ", {[0] = 5}, gsm))", true, true, imei);
+        check(globals, "return after_(hookof('getDeviceId', nil, 1), paramof(" + real + ", {[0] = -1}, gsm))", true, true, imei);
+        check(globals, "return after_(hookof('getImei', nil, 1), paramof(nil, {[0] = 5}, gsm))", false, false, null);
+        check(globals, "return after_(hookof('getMeid', nil, 1), paramof(" + realMeid + ", {[0] = 1}, cdma))", true, true,
+                second.substring(0, 14));
+        check(globals, "return after_(hookof('getDeviceId', nil, 1), paramof(" + realMeid + ", {[0] = 1}, cdma))", true, true,
+                second.substring(0, 14));
+        // An empty or all-zero id of a slot stays as it is when a fake of its kind is set
+        check(globals, "return after_(hookof('getMeid', nil, 1), paramof('00000000000000', {[0] = 1}, gsm))", false, false,
+                "00000000000000");
+        // A hexadecimal MEID counts in hexadecimal, an id of another form is the same for all slots
+        Scripts.run(globals, "settings['value.meid'] = 'A0000049FFFFFF' settings['value.imei'] = 'fake-imei'");
+        check(globals, "return after_(hookof('getMeid', nil, 1), paramof(" + realMeid + ", {[0] = 2}, cdma))", true, true,
+                "A0000049000001");
+        check(globals, "return after_(hookof('getImei', nil, 1), paramof(" + real + ", {[0] = 1}, gsm))", true, true, "fake-imei");
+        // A slot without a phone stays without an id
+        check(globals, "return after_(hookof('getImei', nil, 1), paramof(nil, {[0] = 1}, gsm))", false, false, null);
+    }
+
+    // The software version of the IMEI is a common 2-digit one with a fake IMEI, else none, like the type allocation
+    // code of a phone without an IMEI; no version, the "0" of CDMA phones, the fake of the overload with a slot and the
+    // exception stay
+    @Test
+    public void deviceSoftwareVersionFollowsTheImei() throws Exception {
         Globals globals = load("value_device_svn");
+        check(globals, "return after_(nil, paramof('23'))", true, true, null);
+        check(globals, "return after_(nil, paramof(nil))", false, false, null);
+        check(globals, "return after_(nil, paramof('0'))", false, false, "0");
+        Scripts.run(globals, "settings['value.imei'] = '490154203237518'");
         check(globals, "return after_(nil, paramof('23'))", true, true, "01");
         check(globals, "return after_(nil, paramof(nil))", false, false, null);
         check(globals, "return after_(nil, paramof('0'))", false, false, "0");
         check(globals, "return after_(nil, paramof('01'))", false, false, "01");
         check(globals, "return after_(nil, paramof('23', {}, nil, 'security'))", false, false, "23");
+    }
+
+    // The ESN of a CDMA phone is none, like getDeviceId gives for it; the "0" of GSM phones, no ESN and the exception
+    // stay
+    @Test
+    public void esnIsNone() throws Exception {
+        Globals globals = load("value_device_esn");
+        Scripts.run(globals, "settings['value.imei'] = '490154203237518' settings['value.meid'] = 'A0000049FBC2A1'");
+        check(globals, "return after_(nil, paramof('8099A1B2'))", true, true, null);
+        check(globals, "return after_(nil, paramof('0'))", false, false, "0");
+        check(globals, "return after_(nil, paramof(nil))", false, false, null);
+        check(globals, "return after_(nil, paramof('8099A1B2', {}, nil, 'security'))", false, false, "8099A1B2");
+    }
+
+    // The network type is unknown for an app for Android 10 or later, like the phone service of Android 10 to 12 gives
+    // it after a failed check of the phone state app op; an app for Android 9 or earlier, an unknown type and the
+    // exception of a refused call stay
+    @Test
+    public void networkTypeIsUnknownForNewApps() throws Exception {
+        Globals globals = load("telephony_network_type");
+        Scripts.run(globals, "function typeof(type, target, exception)\n" +
+                "  local param = paramof(type, {}, nil, exception)\n" +
+                "  param.getApplicationContext = function(self)\n" +
+                "    return { getApplicationInfo = function(self) return { targetSdkVersion = target } end } end\n" +
+                "  return param\n" +
+                "end");
+        check(globals, "return after_(nil, typeof(13, 29))", true, true, "0");
+        check(globals, "return after_(nil, typeof(13, 35))", true, true, "0");
+        check(globals, "return after_(nil, typeof(13, 28))", false, false, "13");
+        check(globals, "return after_(nil, typeof(0, 35))", false, false, "0");
+        check(globals, "return after_(nil, typeof(nil, 35, 'security'))", false, false, null);
     }
 
     // The address of the phone account of a SIM is its number (tel:): the fake number, else none; the accounts of the app
@@ -821,7 +956,13 @@ public class ValueScriptsTest {
                 "now = now + 1 request('TelephonyManager.updateServiceLocation')\n" +
                 "local system = deliver('a')\n" +
                 "now = now + 1 request() now = now + 10001\n" +
-                "return first, other, handover, requested, resent, twice, next, both, once, deliver('a'), system");
+                "local late = deliver('a')\n" +
+                // A listener the app never registered gets its own location, one which listens for nothing again not
+                "local stranger = deliver('c')\n" +
+                "before({ getName = function(self) return 'TelephonyManager.listen' end },\n" +
+                "  paramof(nil, { [0] = 'b', [1] = 0 }))\n" +
+                "return first, other, handover, requested, resent, twice, next, both, once, late, system, stranger,\n" +
+                "  deliver('b')");
         assertEquals(-1, result.arg(1).toint());
         assertEquals(-1, result.arg(2).toint());
         assertTrue(result.arg(3).isnil());
@@ -833,10 +974,14 @@ public class ValueScriptsTest {
         assertTrue(result.arg(9).isnil());
         assertTrue(result.arg(10).isnil());
         assertEquals(-1, result.arg(11).toint());
+        assertEquals(1234, result.arg(12).toint());
+        assertTrue(result.arg(13).isnil());
     }
 
     // The call state (LISTEN_CALL_STATE, 32) comes with the number of an incoming call, like the call log: the listener
-    // gets it empty, like apps without the permission of the call log; its events stay
+    // gets it empty, like apps without the permission of the call log; its events stay. A call of the app itself on a
+    // listener it never registered for the call state keeps the number; one registered once stays without it, since the
+    // executor of the app can still run what Android sent before, and so does one whose mark cannot be read
     @Test
     public void callStateWithoutNumber() throws Exception {
         Globals globals = load("telephonymanager_listen");
@@ -845,35 +990,56 @@ public class ValueScriptsTest {
                 "local hook_ = { getName = function(self) return 'TelephonyManager.listen/call_log' end }\n" +
                 "local param = paramof(nil, { [0] = 'listener', [1] = 32 + 16 })\n" +
                 "local restricted = before(hook_, param)\n" +
-                "local call = paramof(nil, { [0] = 1, [1] = '+3161234' })\n" +
+                "local call = paramof(nil, { [0] = 1, [1] = '+3161234' }, 'listener')\n" +
                 "hooked.fn('before', call)\n" +
-                "return restricted, param.args[1], hooked.object, hooked.method, call.args[1], call.args[0]");
+                "local other = paramof(nil, { [0] = 1, [1] = '+3161234' }, 'other')\n" +
+                "hooked.fn('before', other)\n" +
+                "local quiet = before(hook_, paramof(nil, { [0] = 'listener', [1] = 16 }))\n" +
+                "local again = paramof(nil, { [0] = 1, [1] = '+3161234' }, 'listener')\n" +
+                "hooked.fn('before', again)\n" +
+                "local unread = paramof(nil, { [0] = 1, [1] = '+3161234' }, 'unread')\n" +
+                "unread.getValue = function() error('toString') end\n" +
+                "hooked.fn('before', unread)\n" +
+                "return restricted, param.args[1], hooked.object, hooked.method, call.args[1], call.args[0],\n" +
+                "  other.args[1], quiet, again.args[1], unread.args[1]");
         assertTrue(result.arg(1).toboolean());
         assertEquals(48, result.arg(2).toint());
         assertEquals("listener", result.arg(3).tojstring());
         assertEquals("onCallStateChanged", result.arg(4).tojstring());
         assertEquals("", result.arg(5).tojstring());
         assertEquals(1, result.arg(6).toint());
+        assertEquals("+3161234", result.arg(7).tojstring());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals("", result.arg(9).tojstring());
+        assertEquals("", result.arg(10).tojstring());
         // Without the call state nothing is hooked
         assertFalse(Scripts.run(globals, "hook = function() error('hooked') end\n" +
                 "return before({ getName = function(self) return 'TelephonyManager.listen/call_log' end },\n" +
                 "  paramof(nil, { [0] = 'listener', [1] = 16 }))").arg1().toboolean());
     }
 
-    // The app asks for a time in the future, for which Android gives its own empty result
+    // The app asks for a time in the future, for which Android gives its own empty result, like without usage access
     @Test
     public void usageEventsAreEmpty() throws Exception {
         Globals globals = load("usageevents_query");
-        Scripts.run(globals, "luajava = { newInstance = function(name, ...)\n" +
+        Scripts.run(globals, "EMPTY = { class = 'java.util.Collections$EmptyList' }\n" +
+                "luajava = { newInstance = function(name, ...)\n" +
                 "  local args = { ... }\n" +
-                "  return { class = name, args = args, isEmpty = function() return true end,\n" +
-                "    build = function(self) return { class = name, begin = args[1], finish = args[2] } end } end }\n" +
+                "  return { class = name, args = args,\n" +
+                "    build = function(self) return { class = name, begin = args[1], finish = args[2] } end } end,\n" +
+                "  bindClass = function(name)\n" +
+                "    assert(name == 'java.util.Collections', name)\n" +
+                "    return { emptyList = function(self) return EMPTY end } end }\n" +
                 "system = false\n" +
                 "local plain = paramof\n" +
                 "function paramof(...) local param = plain(...) param.isSystem = function() return system end return param end\n" +
                 "function query(...)\n" +
                 "  local param = paramof(nil, { [0] = select(1, ...), [1] = select(2, ...) })\n" +
                 "  return before(hookof('queryEvents'), param), param.set, param.args[0], param.args[1]\n" +
+                "end\n" +
+                "function stats(method)\n" +
+                "  local param = paramof(nil, { [0] = 4, [1] = 1000, [2] = 2000 })\n" +
+                "  return before(hookof(method), param), param.result == EMPTY, param.args[1], param.args[2]\n" +
                 "end");
         Varargs times = Scripts.run(globals, "return query(1000, 2000)");
         assertTrue(times.arg(1).toboolean());
@@ -891,25 +1057,64 @@ public class ValueScriptsTest {
         Varargs none = Scripts.run(globals, "return query(nil)");
         assertFalse(none.arg(1).toboolean());
         assertFalse(none.arg(2).toboolean());
-        // The result is not touched, nor are the statistics before the call
-        assertFalse(Scripts.run(globals, "return after(hookof('queryEvents'), paramof({}))").arg1().toboolean());
-        assertFalse(Scripts.run(globals, "return before(hookof('queryUsageStats'), paramof(nil, { [0] = 4 }))").arg1().toboolean());
+        // The statistics, event counts and configurations get the empty list of Collections, which UsageStatsManager
+        // returns when the service refuses, without the call, so the service notes no access; no result is touched after
+        for (String method : new String[]{"queryUsageStats", "queryEventStats", "queryConfigurations"}) {
+            Varargs stats = Scripts.run(globals, "return stats('" + method + "')");
+            assertTrue(method, stats.arg(1).toboolean());
+            assertTrue(method, stats.arg(2).toboolean());
+            assertEquals(method, 1000, stats.arg(3).toint());
+            assertEquals(method, 2000, stats.arg(4).toint());
+        }
+        assertTrue(Scripts.run(globals, "return after == nil").arg1().toboolean());
 
-        // The statistics per app are empty; processes of the system see all apps, like the other app lists
-        Varargs stats = Scripts.run(globals,
-                "local list = { isEmpty = function() return false end }\n" +
-                        "local param = paramof(list)\n" +
-                        "return after(hookof('queryUsageStats'), param), param.result.class");
-        assertTrue(stats.arg(1).toboolean());
-        assertEquals("java.util.ArrayList", stats.arg(2).tojstring());
-        assertFalse(Scripts.run(globals, "return after(hookof('queryUsageStats'), paramof({ isEmpty = function() return true end }))")
-                .arg1().toboolean());
+        // Processes of the system see all apps, like the other app lists
         Varargs system = Scripts.run(globals, "system = true\nreturn query(1000, 2000)");
         assertFalse(system.arg(1).toboolean());
         assertFalse(system.arg(2).toboolean());
         assertEquals(1000, system.arg(3).toint());
-        assertFalse(Scripts.run(globals, "local list = { isEmpty = function() return false end }\n" +
-                "return after(hookof('queryUsageStats'), paramof(list))").arg1().toboolean());
+        Varargs systemStats = Scripts.run(globals, "return stats('queryUsageStats')");
+        assertFalse(systemStats.arg(1).toboolean());
+        assertFalse(systemStats.arg(2).toboolean());
+    }
+
+    // With usage access, by the app op or by the permission, the app's own events name the apps in whose tasks it ran,
+    // so they ask for the time in the future too; without usage access they have no task roots and stay, as for
+    // processes of the system
+    @Test
+    public void ownEventsWithUsageAccessAreEmpty() throws Exception {
+        Globals globals = load("usageevents_query");
+        Scripts.run(globals, "luajava = { bindClass = function(name)\n" +
+                "  assert(name == 'android.os.Process', name)\n" +
+                "  return { myUid = function(self) return 10001 end } end }\n" +
+                "mode = 0\n" +
+                "local appops = { checkOpNoThrow = function(self, op, uid, package)\n" +
+                "  asked = op .. ' ' .. uid .. ' ' .. package .. ' ' .. tostring(unhooked)\n" +
+                "  return mode end }\n" +
+                "permission = -1\n" +
+                "local context = { getSystemService = function(self, name) assert(name == 'appops', name) return appops end,\n" +
+                "  getOpPackageName = function(self) return 'com.example' end,\n" +
+                "  checkSelfPermission = function(self, name)\n" +
+                "    assert(name == 'android.permission.PACKAGE_USAGE_STATS', name) return permission end }\n" +
+                "function forself(system)\n" +
+                "  local param = paramof(nil, { [0] = 1000, [1] = 2000 })\n" +
+                "  param.isSystem = function() return system == true end\n" +
+                "  param.getApplicationContext = function() return context end\n" +
+                "  return before(hookof('queryEventsForSelf'), param), param.args[0], param.args[1]\n" +
+                "end");
+        Varargs granted = Scripts.run(globals, "return forself()");
+        assertTrue(granted.arg(1).toboolean());
+        assertEquals(1e18, granted.arg(2).todouble(), 0);
+        assertEquals(2e18, granted.arg(3).todouble(), 0);
+        assertEquals("android:get_usage_stats 10001 com.example true", Scripts.run(globals, "return asked").arg1().tojstring());
+        for (String lua : new String[]{"mode = 3\nreturn forself()", "mode = 1\npermission = 0\nreturn forself()",
+                "mode = 0\nreturn forself(true)"}) {
+            Varargs kept = Scripts.run(globals, lua);
+            assertFalse(lua, kept.arg(1).toboolean());
+            assertEquals(lua, 1000, kept.arg(2).toint());
+        }
+        // The permission gives usage access while the app op has its default mode
+        assertTrue(Scripts.run(globals, "mode = 3\npermission = 0\nreturn forself()").arg1().toboolean());
     }
 
     // The script of accounts with a stand-in of AccountManager, which has an account type of the app and one of Google,
@@ -1727,13 +1932,47 @@ public class ValueScriptsTest {
                         "00000000-0000-0000-0000-000000000000"}};
         for (String[] c : cases) {
             boolean restricted = Boolean.parseBoolean(c[2]);
-            check(load(c[0]), "return after_(nil, paramof(" + c[1] + "))", restricted, restricted, c[3]);
+            check(load(c[0]), "return after_(hookof('get'), paramof(" + c[1] + "))", restricted, restricted, c[3]);
         }
         // The exception of the method stays, like the SecurityException of getUserCreationTime for another user
         Varargs thrown = Scripts.run(load("generic_zero_value"),
                 "local param = paramof(nil, {}, nil, 'java.lang.SecurityException')\nreturn after(nil, param), param.set");
         assertFalse(thrown.arg1().toboolean());
         assertFalse(thrown.arg(2).toboolean());
+    }
+
+    // The app set id which the library of Play services made itself, as it does when the service of Play services
+    // cannot be bound, stays: it is in the app's preferences app_set_id_storage, read with the hooks off and with the
+    // disk reads and writes allowed by StrictMode, whose policy is the app's again after, also when the read fails.
+    // Another id, of Play services, is zeros, also when the preferences fail, and the advertising id is never compared
+    // with them.
+    @Test
+    public void appSetIdOfTheLibraryStays() throws Exception {
+        Globals globals = load("advertisingidclient$info_getid");
+        String appset = String.join("\n",
+                "policy = 'app'",
+                "luajava = { bindClass = function(name) assert(name == 'android.os.StrictMode', name)",
+                "  return { allowThreadDiskWrites = function(self) local old = policy; policy = 'writes'; return old end,",
+                "    setThreadPolicy = function(self, value) policy = value end } end }",
+                "function appsetof(result, stored, class)",
+                "  local param = paramof(result)",
+                "  param.getApplicationContext = function(self)",
+                "    return { getSharedPreferences = function(self, name, mode)",
+                "      assert(unhooked and policy == 'writes' and name == 'app_set_id_storage' and mode == 0, name)",
+                "      if stored == 'error' then error('Preferences failed') end",
+                "      return { getString = function(self, key, default)",
+                "        assert(key == 'app_set_id' and default == nil, key) return stored end } end }",
+                "  end",
+                "  local hook = hookof('getId', class or 'com.google.android.gms.appset.AppSetIdInfo')",
+                "  local restricted, set, value = after_(hook, param)",
+                "  assert(policy == 'app', policy)",
+                "  return restricted, set, value",
+                "end\n");
+        String own = "'a1b2c3d4-0000-4000-8000-123456789abc'", zeros = "00000000-0000-0000-0000-000000000000";
+        check(globals, appset + "return appsetof(" + own + ", " + own + ")", false, false, own.replace("'", ""));
+        for (String other : new String[]{"'b2c3d4e5-0000-4000-8000-123456789abc', " + own, own + ", nil", own + ", 'error'",
+                own + ", " + own + ", 'com.google.android.gms.ads.identifier.AdvertisingIdClient$Info'"})
+            check(globals, appset + "return appsetof(" + other + ")", true, true, zeros);
     }
 
     // An empty collection like Android's: unmodifiable of the same kind when Android's is, like the bonded Bluetooth
@@ -1767,8 +2006,9 @@ public class ValueScriptsTest {
         assertEquals("android.util.ArraySet", result.arg(5).tojstring());
     }
 
-    // Opt-outs by the last argument: false, also for null of a Boolean, and true; like setAnalyticsCollectionEnabled(enabled)
-    // and submitPolicyGrantResult(context, granted), of which the context stays
+    // Opt-outs by the last boolean argument: false, also for null of a Boolean, and true; like
+    // setAnalyticsCollectionEnabled(enabled), submitPolicyGrantResult(context, granted) and setHasUserConsent(consent,
+    // context) of AppLovin, of which the context stays
     @Test
     public void genericArguments() throws Exception {
         String[][] cases = {
@@ -1778,17 +2018,24 @@ public class ValueScriptsTest {
                 {"generic_true_argument", "false", "true", "true"}, {"generic_true_argument", "true", "false", "true"}};
         for (String[] c : cases) {
             Varargs single = Scripts.run(load(c[0]), "local param = paramof(nil, { [0] = " + c[1] + " })\n" +
-                    "local hook = { getParameterTypes = function(self) return { length = 1 } end }\n" +
+                    "local hook = { getParameterTypes = function(self) return arrayof('java.lang.Boolean') end }\n" +
                     "return before(hook, param), param.args[0]");
             assertEquals(c[0] + " " + c[1], Boolean.parseBoolean(c[2]), single.arg1().toboolean());
             assertEquals(c[0] + " " + c[1], c[3], single.arg(2).tojstring());
             Varargs last = Scripts.run(load(c[0]), "local param = paramof(nil, { [0] = 'context', [1] = " + c[1] + " })\n" +
-                    "local hook = { getParameterTypes = function(self) return { length = 2 } end }\n" +
+                    "local hook = { getParameterTypes = function(self) return arrayof('android.content.Context', 'boolean') end }\n" +
                     "return before(hook, param), param.args[1], param.args[0]");
             assertEquals(c[0] + " " + c[1], Boolean.parseBoolean(c[2]), last.arg1().toboolean());
             assertEquals(c[0] + " " + c[1], c[3], last.arg(2).tojstring());
             assertEquals("context", last.arg(3).tojstring());
+            Varargs first = Scripts.run(load(c[0]), "local param = paramof(nil, { [0] = " + c[1] + ", [1] = 'context' })\n" +
+                    "local hook = { getParameterTypes = function(self) return arrayof('boolean', 'android.content.Context') end }\n" +
+                    "return before(hook, param), param.args[0], param.args[1]");
+            assertEquals(c[0] + " " + c[1], Boolean.parseBoolean(c[2]), first.arg1().toboolean());
+            assertEquals(c[0] + " " + c[1], c[3], first.arg(2).tojstring());
+            assertEquals("context", first.arg(3).tojstring());
         }
+        assertEquals(Scripts.function("generic_false_argument", "switch"), Scripts.function("generic_true_argument", "switch"));
     }
 
     // A geofence and a request of play-services-location, with the names R8 gives their fields; final in the library,
@@ -1807,10 +2054,13 @@ public class ValueScriptsTest {
         }
     }
 
+    // The initial trigger is the one int field of the request, besides the constants
     public static final class Request {
+        public static final int INITIAL_TRIGGER_EXIT = 2;
         private final java.util.List<Object> zza;
+        private int zzb = 7;
         private org.luaj.vm2.LuaTable parcel;
-        private int flags;
+        private Integer flags;
 
         Request(Object... fences) {
             zza = java.util.Arrays.asList(fences);
@@ -1822,9 +2072,10 @@ public class ValueScriptsTest {
         }
     }
 
-    // Play services gets a copy of the request, read back from a parcel of it, with each fence at 0, 0 and 0.1 m, written
-    // without the hooks into the parcel of the call instead of the request of the app, which keeps the region it set and
-    // the library checked; a fence of other fields fails before anything is written, a null parcel throws like without the hook
+    // Play services gets a copy of the request, read back from a parcel of it, with each fence at 0, 0 and 0.1 m and
+    // without INITIAL_TRIGGER_EXIT, written without the hooks into the parcel of the call instead of the request of the
+    // app, which keeps the region it set and the library checked; a fence of other fields fails before anything is
+    // written, a null parcel throws like without the hook
     @Test
     public void geofencesLeaveAtZero() throws Exception {
         Globals globals = load("geofencingrequest_writetoparcel");
@@ -1852,7 +2103,8 @@ public class ValueScriptsTest {
         assertTrue(result.arg(4).toboolean());
         assertTrue(result.arg(5).toboolean());
         assertTrue(result.arg(6) == copy.parcel);
-        assertEquals(3, copy.flags);
+        assertEquals(Integer.valueOf(3), copy.flags);
+        assertEquals(5, copy.zzb);
         for (Fence fence : new Fence[]{a, b}) {
             assertEquals(0, fence.zzd, 0);
             assertEquals(0, fence.zze, 0);
@@ -1914,12 +2166,12 @@ public class ValueScriptsTest {
         assertEquals(0, invalid.arg(9).todouble(), 0);
     }
 
-    // The activity is unknown, in a mutable list like the one of Play services, at the time of the real result, by the
-    // constructor the creator uses, and with the int fields of it, the detector id and in 10.0.1 and older the version
-    // code, whatever their order, each else the one of a new result, under extractResult and the creator alike; the
-    // extras and static fields are left out. When the members are missing, which R8 can remove, extractResult gives no
-    // result rather than the real one, and the creator, whose readers fail on none, leaves it; objects of other
-    // classes, of a creator R8 merged, stay
+    // The activity is unknown, in a mutable list like the one of Play services, detected now and not at the time of the
+    // real result, by the constructor the creator uses, and with the int fields of it, the detector id and in 10.0.1 and
+    // older the version code, whatever their order, each else the one of a new result, under extractResult and the
+    // creator alike; the extras and static fields are left out. When the members are missing, which R8 can remove,
+    // extractResult gives no result rather than the real one, and the creator, whose readers fail on none, leaves it;
+    // objects of other classes, of a creator R8 merged, stay
     @Test
     public void activityIsUnknown() throws Exception {
         Globals globals = load("activityrecognitionresult_extractresult");
@@ -1932,7 +2184,10 @@ public class ValueScriptsTest {
                 "function paramof(...) local param = base(...)\n" +
                 "  param.findClass = function(self, name) return name end\n" +
                 "  param.isInstance = function(self, object, name) return object ~= nil and object.class == name end\n" +
-                "  return param end");
+                "  return param end\n" +
+                // The clocks are later than the times of the real results, which must not be copied
+                "clocks = { ['java.lang.System'] = { currentTimeMillis = function(self) return 3000 end },\n" +
+                "  ['android.os.SystemClock'] = { elapsedRealtime = function(self) return 2000 end } }");
         // The fields of 9.8.0 in the order of ART, by name, with the final version code after the detector id and a
         // static int, then those of 10.0.1, where a version code which cannot be set comes before the detector id; each
         // field sets a slot of its own in the fake, so the slots tell which ones were copied
@@ -1943,7 +2198,8 @@ public class ValueScriptsTest {
                 "fields = { length = 7, field('ajD', 'java.util.List', 0, 'list'), field('ajE', 'long', 0, 1000),\n" +
                 "  field('ajF', 'long', 0, 500), field('ajG', 'int', 0, 7), field('extras', 'android.os.Bundle', 0, 'extras'),\n" +
                 "  field('mVersionCode', 'int', 18, 2), field('SHARED', 'int', 25, 9) }\n" +
-                "luajava.bindClass = function(name) assert(name == 'java.lang.Class')\n" +
+                "luajava.bindClass = function(name) if clocks[name] then return clocks[name] end\n" +
+                "  assert(name == 'java.lang.Class')\n" +
                 "  return { getDeclaredFields = function(class) assert(class == '" + result + "') return fields end,\n" +
                 "    getName = function(type) return type end } end");
         Varargs found = Scripts.run(globals, "local real = { class = '" + result + "', real = true,\n" +
@@ -1959,7 +2215,7 @@ public class ValueScriptsTest {
                 "local older = paramof(real)\n" +
                 "after(hookof('CREATOR:createFromParcel'), older)\n" +
                 "local later = older.result\n" +
-                "luajava.bindClass = function(name) error('hidden') end\n" +
+                "luajava.bindClass = function(name) return clocks[name] or error('hidden') end\n" +
                 "local unread = paramof({ class = '" + result + "', getTime = function(self) return 1000 end,\n" +
                 "  getElapsedRealtimeMillis = function(self) return 500 end })\n" +
                 "after(hookof('extractResult'), unread)\n" +
@@ -1969,8 +2225,8 @@ public class ValueScriptsTest {
                 "  created.n, created.ajG, created.mVersionCode, created.extras == nil and created.SHARED == nil");
         assertEquals(5, found.arg(1).toint());
         assertEquals(4, found.arg(2).toint());
-        assertEquals(1000, found.arg(3).toint());
-        assertEquals(500, found.arg(4).toint());
+        assertEquals(3000, found.arg(3).toint());
+        assertEquals(2000, found.arg(4).toint());
         assertEquals(0, found.arg(5).toint());
         assertTrue(found.arg(6).isnil());
         assertEquals(7, found.arg(7).toint());
@@ -1995,9 +2251,12 @@ public class ValueScriptsTest {
                 "local creator = paramof(real)\n" +
                 "after(hookof('CREATOR:createFromParcel'), creator)\n" +
                 "local stripped = { class = '" + result + "', getElapsedRealtimeMillis = function(self) return 500 end }\n" +
+                "local function renamed(self, name) error('renamed') end\n" +
                 "local extract = paramof(stripped)\n" +
+                "extract.findClass = renamed\n" +
                 "local none = after(hookof('extractResult'), extract)\n" +
                 "local kept = paramof(stripped)\n" +
+                "kept.findClass = renamed\n" +
                 "local other = paramof({ class = 'com.google.android.gms.location.DetectedActivity' })\n" +
                 "return restricted, fake.class, activities.class, #activities, detected.class, detected.args[1], detected.args[2],\n" +
                 "  fake.args[2], fake.args[3], fake.args[4], fake.n, none, extract.result, creator.result.class,\n" +
@@ -2009,8 +2268,8 @@ public class ValueScriptsTest {
         assertEquals("com.google.android.gms.location.DetectedActivity", results.arg(5).tojstring());
         assertEquals(4, results.arg(6).toint());
         assertEquals(100, results.arg(7).toint());
-        assertEquals(1000, results.arg(8).toint());
-        assertEquals(500, results.arg(9).toint());
+        assertEquals(3000, results.arg(8).toint());
+        assertEquals(2000, results.arg(9).toint());
         assertEquals(0, results.arg(10).toint());
         assertEquals(5, results.arg(11).toint());
         assertTrue(results.arg(12).toboolean());
@@ -2023,10 +2282,10 @@ public class ValueScriptsTest {
         check(globals, "return after_(hookof('extractResult'), paramof(nil))", false, false, null);
     }
 
-    // The activity of HMS is OTHERS at 100, in a mutable list, at the time of the real response, and its conversions are
-    // none; without the members there is no response rather than the real one, and an intent without one stays so; the
-    // creators fake the same, which getDataFromIntent then fakes the same again, and without the members keep the real
-    // response, since a creator never gives none
+    // The activity of HMS is OTHERS at 100, in a mutable list, detected now and not at the time of the real response, and
+    // its conversions are none; without the members there is no response rather than the real one, and an intent
+    // without one stays so; the creators fake the same, which getDataFromIntent then fakes the same again, and without
+    // the members keep the real response, since a creator never gives none
     @Test
     public void activityOfHmsIsOthers() throws Exception {
         Globals globals = load("activityidentificationresponse_getdatafromintent");
@@ -2035,7 +2294,10 @@ public class ValueScriptsTest {
                 "    return { class = class, args = args, n = select('#', ...), getTime = function(self) return args[2] end,\n" +
                 "      getElapsedTimeFromReboot = function(self) return args[3] end } end,\n" +
                 "  newInstance = function(name) local list = { class = name } list.add = function(self, v) self[#self + 1] = v end\n" +
-                "    return list end }\n" +
+                "    return list end,\n" +
+                // The clocks are later than the times of the real responses, which must not be copied
+                "  bindClass = function(name) return ({ ['java.lang.System'] = { currentTimeMillis = function(self) return 3000 end },\n" +
+                "    ['android.os.SystemClock'] = { elapsedRealtime = function(self) return 2000 end } })[name] end }\n" +
                 "local base = paramof\n" +
                 "function paramof(...) local param = base(...)\n" +
                 "  param.isInstance = function(self, object, name) return object ~= nil and object.class == name end\n" +
@@ -2049,13 +2311,16 @@ public class ValueScriptsTest {
                 "local conversion = paramof({ class = '" + hms + "ActivityConversionResponse' })\n" +
                 "local converted = after(hookof('getDataFromIntent'), conversion)\n" +
                 "local bare = { class = '" + hms + "ActivityIdentificationResponse' }\n" +
+                "local function renamed(self, name) error('renamed') end\n" +
                 "local stripped = paramof(bare)\n" +
+                "stripped.findClass = renamed\n" +
                 "local none = after(hookof('getDataFromIntent'), stripped)\n" +
                 "local parcel = paramof(real)\n" +
                 "local created = after(hookof('CREATOR:createFromParcel'), parcel)\n" +
                 "local read = paramof(parcel.result)\n" +
                 "after(hookof('getDataFromIntent'), read)\n" +
                 "local kept = paramof(bare)\n" +
+                "kept.findClass = renamed\n" +
                 "return restricted, fake.class, datas.class, #datas, datas[1].class, datas[1].args[1], datas[1].args[2],\n" +
                 "  fake.args[2], fake.args[3], fake.n, converted, conversion.result.class, conversion.result.n,\n" +
                 "  none, stripped.set, stripped.result, created, parcel.result.args[1][1].args[1], read.result.class,\n" +
@@ -2068,8 +2333,8 @@ public class ValueScriptsTest {
         assertEquals(hms + "ActivityIdentificationData", results.arg(5).tojstring());
         assertEquals(104, results.arg(6).toint());
         assertEquals(100, results.arg(7).toint());
-        assertEquals(1000, results.arg(8).toint());
-        assertEquals(500, results.arg(9).toint());
+        assertEquals(3000, results.arg(8).toint());
+        assertEquals(2000, results.arg(9).toint());
         assertEquals(3, results.arg(10).toint());
         assertTrue(results.arg(11).toboolean());
         assertEquals(hms + "ActivityConversionResponse", results.arg(12).tojstring());
@@ -2082,34 +2347,119 @@ public class ValueScriptsTest {
         assertEquals(hms + "ActivityIdentificationResponse", results.arg(19).tojstring());
         assertEquals(104, results.arg(20).toint());
         assertEquals(100, results.arg(21).toint());
-        assertEquals(1000, results.arg(22).toint());
-        assertEquals(500, results.arg(23).toint());
+        assertEquals(3000, results.arg(22).toint());
+        assertEquals(2000, results.arg(23).toint());
         assertFalse(results.arg(24).toboolean());
         assertFalse(results.arg(25).toboolean());
         assertTrue(results.arg(26).toboolean());
         check(globals, "return after_(hookof('getDataFromIntent'), paramof(nil))", false, false, null);
     }
 
-    // The ids of AdServices are made of the zero id, an AdId with ad tracking limited and an AppSetId of the app's scope,
-    // so the getters, toString, hashCode and equals agree
+    // The stand-ins of adservices_id: the builders of the results, the results and the stack, by frames named like
+    // class.method, with the frame of the hook engine, which replaces the hooked method by a class of its own, and the
+    // frame of the creator a call through Parcelable.Creator can leave
+    private static final String ADSERVICES = String.join("\n",
+            "function hook(class) return { getClassName = function(self) return class end } end",
+            "frames = { length = 0 }",
+            "luajava = { new = function(class)",
+            "  local built = { class = class }",
+            "  local names = { 'StatusCode', 'ErrorMessage', 'AdId', 'LatEnabled', 'AppSetId', 'AppSetIdScope' }",
+            "  for _, name in ipairs(names) do",
+            "    built['set' .. name] = function(self, value) self[name] = value end",
+            "  end",
+            "  built.build = function(self) return self end",
+            "  return built",
+            "end, bindClass = function(name)",
+            "  assert(name == 'java.lang.Thread', name)",
+            "  return { currentThread = function(self) return { getStackTrace = function(self) return frames end } end }",
+            "end }",
+            "function resultof(success, id, default)",
+            "  return { isSuccess = function(self) return success end, getStatusCode = function(self) return 0 end,",
+            "    getErrorMessage = function(self) return nil end, getAdId = function(self) return id end,",
+            "    isLatEnabled = function(self) return default end, getAppSetId = function(self) return id end,",
+            "    getAppSetIdScope = function(self) return default end }",
+            "end",
+            "function stackof(...)",
+            "  local names = { 'dalvik.system.VMStack.getThreadStackTrace', 'java.lang.Thread.getStackTrace',",
+            "    'eu.faircode.xlua.XCore$6.after', 'eu.faircode.xlua.ModernBackend.lambda$hook$0', 'm.proceed',",
+            "    'android.adservices.adid.QuelaiteDrauntoss.createFromParcel', 'android.adservices.adid.GetAdIdResult$1.createFromParcel',",
+            "    ... }",
+            "  frames = { length = #names }",
+            "  for index, name in ipairs(names) do",
+            "    local class, method = string.match(name, '^(.*)%.([^.]*)$')",
+            "    frames[index] = { getClassName = function(self) return class end,",
+            "      getMethodName = function(self) return method end }",
+            "  end",
+            "end");
+
+    // The ids of AdServices are faked in the results of the service, which the app makes its ids of: a result of the same
+    // status with the zero id, ad tracking limited for the AdId like for a caller the provider of AdServices refuses and
+    // like the advertising id of Play services after the user deleted it, and the app's scope for the AppSetId, so the
+    // getters, toString, hashCode and equals agree; a result of an error or of the zero id with its default stays
     @Test
     public void adServicesIdsAreMadeOfTheZeroId() throws Exception {
-        Globals globals = load("adservices_id");
+        Globals globals = Scripts.load("adservices_id", STUBS + "\n" + ADSERVICES);
         Varargs result = Scripts.run(globals,
-                "local function hook(class) return { getClassName = function(self) return class end } end\n" +
-                        "local adid = paramof(nil, { [0] = 'f0e1d2c3-0000-4000-8000-123456789abc', [1] = false })\n" +
-                        "local appset = paramof(nil, { [0] = 'a1b2c3d4-0000-4000-8000-123456789abc', [1] = 2 })\n" +
-                        "local zero = paramof(nil, { [0] = '00000000-0000-0000-0000-000000000000', [1] = 1 })\n" +
-                        "return before(hook('android.adservices.adid.AdId'), adid), adid.args[0], adid.args[1],\n" +
-                        "  before(hook('android.adservices.appsetid.AppSetId'), appset), appset.args[0], appset.args[1],\n" +
-                        "  before(hook('android.adservices.appsetid.AppSetId'), zero)");
+                "local ad = hook('android.adservices.adid.GetAdIdResult')\n" +
+                        "local set = hook('android.adservices.appsetid.GetAppSetIdResult')\n" +
+                        "local zero = '00000000-0000-0000-0000-000000000000'\n" +
+                        "local adid = paramof(resultof(true, 'f0e1d2c3-0000-4000-8000-123456789abc', false))\n" +
+                        "local appset = paramof(resultof(true, 'a1b2c3d4-0000-4000-8000-123456789abc', 2))\n" +
+                        "local tracked = paramof(resultof(true, zero, false))\n" +
+                        "return after(ad, adid), adid.result.class, adid.result.AdId, adid.result.LatEnabled, adid.result.StatusCode,\n" +
+                        "  after(set, appset), appset.result.class, appset.result.AppSetId, appset.result.AppSetIdScope,\n" +
+                        "  after(ad, paramof(resultof(true, zero, true))), after(set, paramof(resultof(true, zero, 1))),\n" +
+                        "  after(ad, paramof(resultof(false, nil, false))), after(ad, paramof(nil)),\n" +
+                        "  after(ad, tracked), tracked.result.LatEnabled");
+        String zero = "00000000-0000-0000-0000-000000000000";
         assertTrue(result.arg(1).toboolean());
-        assertEquals("00000000-0000-0000-0000-000000000000", result.arg(2).tojstring());
-        assertTrue(result.arg(3).toboolean());
+        assertEquals("android.adservices.adid.GetAdIdResult$Builder", result.arg(2).tojstring());
+        assertEquals(zero, result.arg(3).tojstring());
         assertTrue(result.arg(4).toboolean());
-        assertEquals("00000000-0000-0000-0000-000000000000", result.arg(5).tojstring());
-        assertEquals(1, result.arg(6).toint());
-        assertFalse(result.arg(7).toboolean());
+        assertEquals(0, result.arg(5).toint());
+        assertTrue(result.arg(6).toboolean());
+        assertEquals("android.adservices.appsetid.GetAppSetIdResult$Builder", result.arg(7).tojstring());
+        assertEquals(zero, result.arg(8).tojstring());
+        assertEquals(1, result.arg(9).toint());
+        for (int i = 10; i <= 13; i++)
+            assertFalse("result " + i, result.arg(i).toboolean());
+        assertTrue(result.arg(14).toboolean());
+        assertTrue(result.arg(15).toboolean());
+    }
+
+    // Only the results the callbacks of the managers unparcel in onTransact get the zero id, by Parcel.readTypedObject
+    // or the creator itself; a result the app wrote and unparcels itself keeps its values like without Doppel, also in
+    // the app's own callback of a manager on the binder thread, and a stack of another form gets the zero id
+    @Test
+    public void adServicesResultsOfTheAppKeepTheirValues() throws Exception {
+        Globals globals = Scripts.load("adservices_id", STUBS + "\n" + ADSERVICES);
+        String[][] cases = {
+                {"true", "'android.os.Parcel.readTypedObject', 'android.adservices.adid.IGetAdIdCallback$Stub.onTransact', " +
+                        "'android.os.Binder.execTransactInternal', 'android.os.Binder.execTransact'"},
+                {"true", "'android.adservices.appsetid.IGetAppSetIdCallback$Stub.onTransact', 'android.os.Binder.execTransact'"},
+                {"false", "'android.os.Parcel.readParcelableInternal', 'android.os.Parcel.readParcelable', " +
+                        "'com.example.app.Main.onCreate', 'android.app.Activity.performCreate'"},
+                {"false", "'com.example.app.Main.onCreate'"},
+                {"false", "'android.os.Parcel.readParcelableInternal', 'android.os.Parcel.readParcelable', " +
+                        "'com.example.app.Wrapped$1.createFromParcel', 'android.os.Parcel.readParcelable', " +
+                        "'android.adservices.adid.IGetAdIdCallback$Stub.onTransact'"},
+                {"false", "'android.os.Parcel.readParcelable', 'com.example.app.Main$1.onResult', " +
+                        "'android.adservices.adid.AdIdManager$1.lambda$onResult$0', 'com.example.app.Main.execute', " +
+                        "'android.adservices.adid.AdIdManager$1.onResult', " +
+                        "'android.adservices.adid.IGetAdIdCallback$Stub.onTransact', 'android.os.Binder.execTransact'"}};
+        for (String[] c : cases) {
+            Varargs result = Scripts.run(globals, "stackof(" + c[1] + ")\n" +
+                    "local param = paramof(resultof(true, 'f0e1d2c3-0000-4000-8000-123456789abc', false))\n" +
+                    "return after(hook('android.adservices.adid.GetAdIdResult'), param), param.result.AdId or param.result:getAdId()");
+            assertEquals(c[1], Boolean.parseBoolean(c[0]), result.arg1().toboolean());
+            assertEquals(c[1], c[0].equals("true") ? "00000000-0000-0000-0000-000000000000" : "f0e1d2c3-0000-4000-8000-123456789abc",
+                    result.arg(2).tojstring());
+        }
+        // A stack without the frame of the hooked method
+        Scripts.run(globals, "frames = { length = 1, { getClassName = function(self) return 'com.example.app.Main' end,\n" +
+                "  getMethodName = function(self) return 'onCreate' end } }");
+        assertTrue(Scripts.run(globals, "return after(hook('android.adservices.adid.GetAdIdResult'), " +
+                "paramof(resultof(true, 'f0e1d2c3-0000-4000-8000-123456789abc', false)))").arg1().toboolean());
     }
 
     // The sleep events are none, in the list Play services gives for a delivered extra, by the real luajava:
@@ -2152,7 +2502,7 @@ public class ValueScriptsTest {
         assertEquals(1, result.arg(2).toint());
         assertEquals("true context", result.arg(3).tojstring());
 
-        for (String[] c : new String[][]{{"com.google.firebase.analytics.FirebaseAnalytics", "setAnalyticsCollectionEnabled", "false"},
+        for (String[] c : new String[][]{
                 {"com.google.firebase.crashlytics.FirebaseCrashlytics", "setCrashlyticsCollectionEnabled", "false"},
                 {"com.google.android.gms.analytics.GoogleAnalytics", "setAppOptOut", "true"}}) {
             result = Scripts.run(globals, "local calls = {}\n" +
@@ -2166,6 +2516,29 @@ public class ValueScriptsTest {
             assertEquals(c[0], 1, result.arg(3).toint());
             assertEquals(c[0], Boolean.parseBoolean(c[2]), result.arg(4).toboolean());
         }
+    }
+
+    // AppLovin gets no consent and do not sell by its static settings with the context, once for each instance
+    @Test
+    public void appLovinGetsNoConsent() throws Exception {
+        Varargs result = Scripts.run(load("analytics_getinstance"), "local calls = {}\n" +
+                "local privacy = {\n" +
+                "  setHasUserConsent = function(self, value, context)\n" +
+                "    calls[#calls + 1] = 'consent=' .. tostring(value) .. ' ' .. context end,\n" +
+                "  setDoNotSell = function(self, value, context) calls[#calls + 1] = 'sell=' .. tostring(value) .. ' ' .. context end }\n" +
+                "local function paramof2(sdk)\n" +
+                "  local param = paramof(sdk)\n" +
+                "  param.findClass = function(self, name) assert(name == 'com.applovin.sdk.AppLovinPrivacySettings') return privacy end\n" +
+                "  return param\n" +
+                "end\n" +
+                "local sdk = {}\n" +
+                "local hook = hookof('getInstance', 'com.applovin.sdk.AppLovinSdk')\n" +
+                "local first = after(hook, paramof2(sdk))\n" +
+                "local again = after(hook, paramof2(sdk))\n" +
+                "return first, again, table.concat(calls, ',')");
+        assertTrue(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+        assertEquals("consent=false context,sell=true context", result.arg(3).tojstring());
     }
 
     // The app's stop(false) of AppsFlyer, which resumes it, stops it: the method of the instance is hooked once, also
@@ -2211,7 +2584,8 @@ public class ValueScriptsTest {
         assertEquals("true context", result.arg(2).tojstring());
     }
 
-    // Firebase Analytics gets all consent types denied, also when the app gives consent; Amazon no consent
+    // Firebase Analytics gets all consent types denied, also when the app gives consent, and is not turned off by the
+    // setting it stores; Amazon no consent
     @Test
     public void analyticsConsentIsDenied() throws Exception {
         Globals globals = load("analytics_getinstance");
@@ -2241,7 +2615,7 @@ public class ValueScriptsTest {
                 "return stopped, enabled, consent:size(), consent:get('FUTURE'), replaced,\n" +
                 "  param.args[0]:get('ANALYTICS_STORAGE'), amazon, status, keep, before(hookof('setConsentStatus'), yes), yes.args[0]");
         assertTrue(result.arg(1).toboolean());
-        assertFalse(result.arg(2).toboolean());
+        assertTrue(result.arg(2).isnil()); // Collection is off by the meta-data, which Firebase does not store
         assertEquals(3, result.arg(3).toint());
         assertEquals("DENIED", result.arg(4).tojstring());
         assertTrue(result.arg(5).toboolean());
@@ -2295,6 +2669,31 @@ public class ValueScriptsTest {
         assertEquals("A0000049", result.arg(4).tojstring());
         assertFalse(result.arg(5).toboolean());
         assertTrue(result.arg(6).toboolean());
+
+        // All zeros, the code of an all-zero MEID which value_device_id.lua keeps with a fake MEID, stays as it is;
+        // without a fake MEID, also with a fake IMEI, it is null like the MEID
+        result = Scripts.run(globals, param + "local zeros = paramof('00000000', settings)\n" +
+                "return after(hookof('getManufacturerCode'), zeros), zeros.result");
+        assertFalse(result.arg(1).toboolean());
+        assertEquals("00000000", result.arg(2).tojstring());
+        result = Scripts.run(globals, param + "local zeros = paramof('00000000', { ['value.imei'] = '490154203237518' })\n" +
+                "local tac = paramof('00000000', {})\n" +
+                "return after(hookof('getManufacturerCode'), zeros), zeros.result == nil,\n" +
+                "  after(hookof('getTypeAllocationCode'), tac), tac.result == nil");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertTrue(result.arg(3).toboolean());
+        assertTrue(result.arg(4).toboolean());
+
+        // Without a fake IMEI or MEID, their default, the codes are null like on a device without a modem
+        Varargs unset = Scripts.run(globals, param +
+                "local tac, mc = paramof('35824005', {}), paramof('A1000001', {})\n" +
+                "return after(hookof('getTypeAllocationCode'), tac), tac.result == nil,\n" +
+                "  after(hookof('getManufacturerCode'), mc), mc.result == nil");
+        assertTrue(unset.arg(1).toboolean());
+        assertTrue(unset.arg(2).toboolean());
+        assertTrue(unset.arg(3).toboolean());
+        assertTrue(unset.arg(4).toboolean());
     }
 
     // The bytes of the hardware address of an interface are 02:00:00:00:00:00 like Android gives when it is not

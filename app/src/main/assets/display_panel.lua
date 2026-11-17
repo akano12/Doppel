@@ -27,6 +27,20 @@
 -- The luminance of HDR panels, like 1000, 500 and 0.0005 nits, becomes unknown (-1, INVALID_LUMINANCE), like of
 -- displays which do not tell it, the HDR types stay, since apps choose the videos to play by them; the maker and
 -- product of the panel (DeviceProductInfo, of its EDID) are not known, like for displays without EDID.
+-- The rounded corners of the panel, their radius and center, are not there (null), like on panels without them, and the
+-- shape of the display (Android 14+) is the rectangle Android makes for panels without a shape of their own: of the
+-- display and of the window insets of the system, also in their text, where they enter the insets
+-- (InsetsState.calculateInsets, Android 12+), so insets the app builds itself keep the corners and shape it gives them.
+-- shortcut: the cutout of the panel, the place, size and path of its notch or punch hole (Display.getCutout,
+-- WindowInsets.getDisplayCutout), stays real, since the insets of the cutout (WindowInsets.getInsets of displayCutout,
+-- the system window insets, from Android 15 its bounding rects), the status bar height and the bounds of the window
+-- have its depth, which layouts need, and Android never gives such insets without a cutout; a cutout made of the
+-- depth alone, as wide as the screen, is a shape no panel has, and from Android 12 a made cutout also differs from
+-- one of the system in its path (none on Android 12 and 12L) and its text (an empty or test cutoutSpec), until the
+-- hooks can make a cutout like the system does. The framework resources the corners and shape are made of
+-- (rounded_corner_radius and its variants, config_roundedCornerRadiusArray, config_mainDisplayShape), which an app
+-- can read by getIdentifier, stay too, since every read of a resource would need a hook; hook the resource reads by id
+-- if apps read them. The shape of a round screen stays, which a watch has.
 
 -- The metrics with the density of the device as the exact one, the one of displays without calibration: the stable
 -- one (DENSITY_DEVICE_STABLE), which does not follow the display size the user sets, like the panel does not; the
@@ -175,11 +189,85 @@ function displaytext(param)
     return true, result, text
 end
 
+-- The shape of the display as the one Android makes for a panel without a shape of its own
+-- (DisplayShape.createDefaultDisplayShape): a rectangle of the size of the display with a ratio of 1 to the physical
+-- size, with the rotation, offset and scale of the real one. It has no public constructor, so it is read from a parcel,
+-- written like DisplayShape writes itself; its spec is written by writeString8, which is hidden, so here as the ints it
+-- writes: the length, then the bytes with a zero, padded to 4 bytes. nil when it is that already, empty (the shape of
+-- insets without a frame), of a round screen, or should the parcel differ, which its size shows
+function rectangle(param, real)
+    if real == nil then
+        return nil
+    end
+    local ok, fake = pcall(function()
+        if param:getApplicationContext():getResources():getConfiguration():isScreenRound() then
+            return nil
+        end
+        local parcels = luajava.bindClass('android.os.Parcel')
+        local parcel = parcels:obtain()
+        real:writeToParcel(parcel, 0)
+        parcel:setDataPosition(0)
+        local words = math.floor(parcel:readInt() / 4) + 1
+        for _ = 1, words do
+            parcel:readInt()
+        end
+        local width, height = parcel:readInt(), parcel:readInt()
+        parcel:readFloat()
+        local rotation, x, y, scale = parcel:readInt(), parcel:readInt(), parcel:readInt(), parcel:readFloat()
+        local size = parcel:dataSize()
+        parcel:recycle()
+        if size ~= 4 * (words + 8) or width <= 0 or height <= 0 then
+            return nil
+        end
+
+        local spec = 'M0,0 L' .. width .. ',0 L' .. width .. ',' .. height .. ' L0,' .. height .. ' Z'
+        local bytes = spec .. '\0\0\0\0'
+        local made = parcels:obtain()
+        made:writeInt(#spec)
+        for index = 1, #spec + 1, 4 do
+            local a, b, c, d = string.byte(bytes, index, index + 3)
+            made:writeInt(a + b * 256 + c * 65536 + d * 16777216)
+        end
+        made:writeInt(width)
+        made:writeInt(height)
+        made:writeFloat(1)
+        made:writeInt(rotation)
+        made:writeInt(x)
+        made:writeInt(y)
+        made:writeFloat(scale)
+        made:setDataPosition(0)
+        local shape = luajava.bindClass('android.view.DisplayShape').CREATOR:createFromParcel(made)
+        made:recycle()
+        if tostring(shape) == tostring(real) then
+            return nil
+        end
+        return shape
+    end)
+    if not ok then
+        return nil
+    end
+    return fake
+end
+
+-- The rounded corners of the window insets of the system: without a frame InsetsState makes insets without corners
+-- (RoundedCorners.NO_ROUNDED_CORNERS, which is hidden), on every version, while the frame is used for the corners only
+function before(hook, param)
+    if hook:getMethodName() ~= 'calculateRelativeRoundedCorners' or param:getArgument(0) == nil then
+        return false
+    end
+    param:setArgument(0, nil)
+    return true
+end
+
 function after(hook, param)
     if param:getException() ~= nil then
         return false
     end
     local method = hook:getMethodName()
+    -- The rounded corners of the insets are removed before the call, its result is not an array of the tail below
+    if method == 'calculateRelativeRoundedCorners' then
+        return false
+    end
 
     -- Display.getMetrics and getRealMetrics fill the metrics of the caller, ResourcesImpl its own
     local metrics
@@ -222,12 +310,20 @@ function after(hook, param)
         end
         param:setResult(fake)
         return true, result, fake
-    elseif method == 'getDeviceProductInfo' then
+    elseif method == 'getDeviceProductInfo' or method == 'getRoundedCorner' then
         if param:getResult() == nil then
             return false
         end
         param:setResult(nil)
         return true
+    elseif method == 'getShape' or method == 'calculateRelativeDisplayShape' then
+        local result = param:getResult()
+        local fake = rectangle(param, result)
+        if fake == nil then
+            return false
+        end
+        param:setResult(fake)
+        return true, tostring(result), tostring(fake)
     elseif method == 'getHdrCapabilities' then
         local result = param:getResult()
         local fake = hdr(result)

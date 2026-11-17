@@ -17,7 +17,12 @@
 
 -- The type allocation code is the first 8 digits of the IMEI and the manufacturer code the first 8 digits of the MEID,
 -- which Android gives without any permission: those of the fake IMEI and MEID, so they agree with getImei and getMeid;
--- null where Android gives null, like for a slot without a phone
+-- null where Android gives null, like for a slot without a phone, and all zeros where the id is all zeros and its fake
+-- is set, which value_device_id.lua keeps then as the none of a modem without it
+-- shortcut: without a fake IMEI or MEID, their default, the codes are null like for a modem which reports no ids, while
+-- getPhoneType, getActiveModemCount and getSimState, which need no permission either, stay those of the phone, which
+-- a booted phone with a working modem does not give together; give the code of a type many phones share, or hide the
+-- phone, if the user decides so
 function after(hook, param)
     local result = param:getResult()
     if result == nil or param:getException() ~= nil then
@@ -30,7 +35,7 @@ function after(hook, param)
         id = param:getSetting('value.imei')
     end
     local fake = (id ~= nil and string.len(id) >= 8 and string.sub(id, 1, 8) or nil)
-    if result == fake then
+    if result == fake or (id ~= nil and string.match(result, '^0*$')) then
         return false
     end
     param:setResult(fake)

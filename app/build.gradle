@@ -49,7 +49,7 @@ android {
 
     defaultConfig {
         applicationId = 'sk.akano12.doppel'
-        minSdk = 27
+        minSdk = 28
         targetSdk = 35
         versionCode = 203
         versionName = '2.3'

@@ -19,7 +19,8 @@
 -- resolveContentProvider for the provider of a messenger, getNameForUid for the user ids of other apps or
 -- getPermissionInfo for a permission or a permission group an app defines, find nothing, like the probes of packages
 -- (see package_probe). The app itself, apps sharing its user id and system apps stay visible, because the Android
--- framework looks them up in the app process.
+-- framework looks them up in the app process, also by their user ids (see the shortcut of XParam.isUidVisible); the sync
+-- adapters, a list of whole apps, keep only those of the app itself (see XParam.isOwnPackage).
 
 local SIGNATURE_UNKNOWN_PACKAGE = -4 -- PackageManager
 local MATCH_ALL = 0x20000 -- PackageManager
@@ -85,10 +86,10 @@ function after(hook, param)
 
     local packageName
     if method == 'getSyncAdapterPackagesForAuthorityAsUser' then
-        -- The packages which sync an authority, of which the hidden ones are left out
+        -- The packages which sync an authority, of which those of other apps, also of the system, are left out
         local kept = {}
         for index = 1, result['length'] do
-            if param:isPackageVisible(result[index]) then
+            if param:isOwnPackage(result[index]) then
                 kept[#kept + 1] = result[index]
             end
         end
@@ -102,11 +103,12 @@ function after(hook, param)
         param:setResult(fake)
         return true, tostring(result['length']), tostring(#kept)
     elseif method == 'getSyncAdapterTypes' or method == 'getSyncAdapterTypesAsUser' then
-        -- The apps which sync, like com.whatsapp and org.telegram.messenger: those of hidden apps are left out
+        -- The apps which sync, like com.whatsapp and org.telegram.messenger: those of other apps, also of the system,
+        -- like the contacts and calendars of Google, are left out
         local kept = {}
         for index = 1, result['length'] do
             local name = syncpackage(param, result[index])
-            if name == nil or param:isPackageVisible(name) then
+            if name == nil or param:isOwnPackage(name) then
                 kept[#kept + 1] = result[index]
             end
         end
@@ -121,8 +123,8 @@ function after(hook, param)
         param:setResult(fake)
         return true, tostring(result['length']), tostring(#kept)
     elseif method == 'getIsSyncable' then
-        -- Whether an account syncs an authority: not syncable (0) for the sync adapter of a hidden app, like for an
-        -- authority without one, which Android answers so (SyncManager.computeSyncable)
+        -- Whether an account syncs an authority: not syncable (0) for the sync adapter of another app, also of the
+        -- system, like for an authority without one, which Android answers so (SyncManager.computeSyncable)
         local account = param:getArgument(0)
         local authority = param:getArgument(1)
         if result == 0 or account == nil or authority == nil then
@@ -135,7 +137,7 @@ function after(hook, param)
             local sync = types[index]
             if sync.authority == authority and sync.accountType == account.type then
                 local name = syncpackage(param, sync)
-                if name == nil or param:isPackageVisible(name) then
+                if name == nil or param:isOwnPackage(name) then
                     return false
                 end
                 param:setResult(0)
@@ -166,9 +168,9 @@ function after(hook, param)
             end
             -- The binder proxy, which apps can call by reflection, leaves the calls of PackageManager to its own hook:
             -- from Android 12 PackageManager keeps the answers of the proxy in a cache of the process, which must hold
-            -- the real packages, because whether a user id stays visible depends on the call, like for an app calling
-            -- this one (see XParam.isUidVisible)
-            if hook:getClassName() == 'android.content.pm.IPackageManager$Stub$Proxy' and packagemanager(method) then
+            -- the real packages, because the lookups of the scripts and of XParam.isUidVisible read it too
+            if hook:getClassName() == 'android.content.pm.IPackageManager$Stub$Proxy' and
+                    onstack('android.app.ApplicationPackageManager', method) then
                 return false
             end
             packageName = result[1]
@@ -197,6 +199,16 @@ function after(hook, param)
                 param:setResult(names)
                 return true, tostring(result['length']), tostring(#kept)
             end
+            return false
+        end
+        -- Android checks the app calling a media browser service of the app inside the app, which throws without the
+        -- packages of that app, and on Android 9 to 11 the permission of the app calling a speech recognizer of the app
+        -- (RecognitionService.checkPermissions, see checkPermission below), which is denied without them: the real
+        -- answer, like Android gives. The check of the media browser (isValidPackage) is found by the method calling
+        -- it, since later versions have it in a nested class, which an app can name on versions without it.
+        local uid = param:getArgument(0)
+        if caller(uid, 'android.service.media.MediaBrowserService$ServiceBinder', 'connect') or
+                caller(uid, 'android.speech.RecognitionService', 'checkPermissions') then
             return false
         end
         param:setResult(nil)
@@ -250,6 +262,15 @@ function after(hook, param)
             end
             param:setResult(-1) -- PackageManager.PERMISSION_DENIED
             return true, owner
+        end
+        -- Until Android 11, Android checks the permission of the app calling a provider of the app inside the app
+        -- (ContentProvider.checkPermissionAndAppOp), and the one to record audio of the app calling a speech recognizer
+        -- of the app (RecognitionService.checkPermissions), and later in Android itself: the real answer, like Android
+        -- gives
+        if caller(uid, 'android.content.ContentProvider', 'checkPermissionAndAppOp') or
+                (permission == 'android.permission.RECORD_AUDIO' and
+                        caller(uid, 'android.speech.RecognitionService', 'checkPermissions')) then
+            return false
         end
         param:setResult(-1) -- PackageManager.PERMISSION_DENIED
         return true, tostring(uid)
@@ -306,19 +327,29 @@ function after(hook, param)
         end
     end
 
-    -- A service any app may handle: the first visible one, which queryIntentServices also gives; also for a user
-    if (method == 'resolveService' or method == 'resolveServiceAsUser') and implicit(param:getArgument(0)) and
-            not param:isPackageVisible(packageName) then
-        local pm, intent, flags = param:getThis(), param:getArgument(0), param:getArgument(1)
+    -- A service any app may handle: the first visible one, which queryIntentServices also gives; also for a user. An
+    -- accessibility service of another app is left out like there (see otheraccessibility), also of a system app.
+    local service = (method == 'resolveService' or method == 'resolveServiceAsUser')
+    local hidden = (service and otheraccessibility(param, result.serviceInfo))
+    if service and implicit(param:getArgument(0)) and (hidden or not param:isPackageVisible(packageName)) then
+        local pm, flags = param:getThis(), param:getArgument(1)
         local ok, all = pcall(function()
+            -- A copy of Android's own class, so no code of the app runs without the hooks; none when the type of its
+            -- uri stays unknown (see XParam.plainIntent), and then the intent of the app with the hooks, so its code
+            -- runs restricted, and the visible services agree with those queryIntentServices lists
+            local intent = param:plainIntent(param:getArgument(0))
+            if intent == nil then
+                return pm:queryIntentServices(param:getArgument(0), flags)
+            end
             return param:unhooked(function()
                 return pm:queryIntentServices(intent, flags)
             end)
         end)
         for index = 0, (ok and all ~= nil) and all:size() - 1 or -1 do
-            if param:isPackageVisible(all:get(index).serviceInfo.packageName) then
+            local info = all:get(index).serviceInfo
+            if param:isPackageVisible(info.packageName) and not otheraccessibility(param, info) then
                 param:setResult(all:get(index))
-                return true, packageName, all:get(index).serviceInfo.packageName
+                return true, packageName, info.packageName
             end
         end
     end
@@ -328,11 +359,19 @@ function after(hook, param)
         packageName = param:getArgument(0):getPackage()
     end
 
-    if param:isPackageVisible(packageName) then
+    if not hidden and param:isPackageVisible(packageName) then
         return false
     end
     param:setResult(nil)
     return true, packageName
+end
+
+-- Whether a service is an accessibility service of another app, which AccessibilityManager does not list to the app;
+-- the same function as in generic_filter_by_uid, see there
+function otheraccessibility(param, info)
+    local ai = info.applicationInfo
+    return info.permission == 'android.permission.BIND_ACCESSIBILITY_SERVICE' and
+            not (ai == nil or param:isSystem() or ai.uid == param:getUid())
 end
 
 -- The app which defines a permission, nil when none does; asked without the hooks of the app, once per process,
@@ -381,13 +420,20 @@ end
 
 -- The visible apps of a query, only the browsers when asked; of all apps when none of them is visible, because of a
 -- link Android gives only the default browser unless asked for all, which leaves none when it is hidden. The second
--- value is true for those of all apps, so the browsers of a link whose default browser is hidden.
-function visibleof(param, pm, intent, flags, browsers)
+-- value is true for those of all apps, so the browsers of a link whose default browser is hidden. Asked without the
+-- hooks, or with them when hooked, for the intent of the app itself (see best).
+function visibleof(param, pm, intent, flags, browsers, hooked)
     local visible = {}
     for pass, asked in ipairs({ flags, matchall(flags) }) do
-        local all = param:unhooked(function()
+        local function query()
             return pm:queryIntentActivities(intent, asked)
-        end)
+        end
+        local all
+        if hooked then
+            all = query()
+        else
+            all = param:unhooked(query)
+        end
         for index = 0, all:size() - 1 do
             local info = all:get(index)
             if param:isPackageVisible(info.activityInfo.packageName) and (not browsers or info.handleAllWebDataURI) then
@@ -471,14 +517,23 @@ end
 -- shortcut: resolveActivityAsUser queries the apps of the own user, which is the user of nearly every call
 function best(param, chooser)
     local pm = param:getThis()
-    local intent = param:getArgument(0)
+    -- A copy of Android's own class, so no code of the app runs without the hooks; none when the type of its uri stays
+    -- unknown (see XParam.plainIntent), and then the intent of the app with the hooks, so its code runs restricted, and
+    -- the visible apps agree with those queryIntentActivities lists
+    local intent = param:plainIntent(param:getArgument(0))
+    local hooked = (intent == nil)
+    if hooked then
+        intent = param:getArgument(0)
+    end
     local flags = param:getArgument(1)
-    local visible, hidden = visibleof(param, pm, intent, flags)
+    local visible, hidden = visibleof(param, pm, intent, flags, nil, hooked)
     -- A link which only hidden apps are approved for, like the verified links of a hidden app, of which Android gives
     -- only those, also when asked for all: without them it gives the browsers, the default one or all of them
     -- shortcut: Android 8.1-11 add the visible apps which claim the host without approval, and Android 12 and later
-    -- give a visible app approved less than the hidden one; they need the package manager without the hidden apps
-    if #visible == 0 and weblink(intent) then
+    -- give a visible app approved less than the hidden one; they need the package manager without the hidden apps.
+    -- Not for the intent of the app (hooked), whose uri is of content:, which is no link, whatever its getScheme says,
+    -- and whose copy for the lookup without the hooks would hold its extras and clip data.
+    if #visible == 0 and not hooked and weblink(intent) then
         intent = unclaimed(intent)
         visible, hidden = visibleof(param, pm, intent, flags, true)
         chooser = nil
@@ -528,17 +583,31 @@ function best(param, chooser)
     return chooser
 end
 
--- Whether the method of ApplicationPackageManager is on the stack, which calls the proxy itself (from Android 12
--- through the cache of getPackagesForUid, so not right below the hook)
-function packagemanager(method)
+-- Whether a method of a class is on the stack, not right below the hook, like the method of ApplicationPackageManager
+-- which calls the proxy itself (from Android 12 through the cache of getPackagesForUid). The class is one Android has in
+-- every version, whose name the classes of the app cannot have, since Android loads its own class of that name first;
+-- an own class loader of the app which does not ask the boot class loader first can have it (see caller).
+function onstack(class, method)
     local frames = luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
     for index = 1, frames['length'] do
         local frame = frames[index]
-        if frame:getMethodName() == method and frame:getClassName() == 'android.app.ApplicationPackageManager' then
+        if frame:getMethodName() == method and frame:getClassName() == class then
             return true
         end
     end
     return false
+end
+
+-- Whether Android itself checks the app of the user id inside this app while that app calls it (Binder.getCallingUid):
+-- the method of Android is on the stack (see onstack). The stack is read only in such a call, and the checks of the
+-- code of the app and of other user ids stay hidden.
+-- shortcut: the code of the app can run below the method of Android, like an override of getPackageManager or
+-- checkCallingOrSelfPermission, and can set any user id as the calling one (Binder.restoreCallingIdentity) and call
+-- its own service or provider in its own process, so it can learn the packages and permissions of any user id this
+-- way; upgrade to a check of the frames between the hook and the method of Android, and of a binder call down to
+-- Binder.execTransact below it, once those frames are known for each hook framework on a device
+function caller(uid, class, method)
+    return uid == luajava.bindClass('android.os.Binder'):getCallingUid() and onstack(class, method)
 end
 
 -- The package of a sync adapter: its own (Android 10), else the one of its provider, nil when unknown

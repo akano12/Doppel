@@ -80,7 +80,8 @@ final class XResolver {
 
     // The field, method or constructor a definition hooks:
     // field:method is a method of the class of the object in a static field, #field a field,
-    // no method name the constructor; the return type, when given, must fit
+    // no method name the constructor; the return type, when given, must fit, else the method counts as missing,
+    // so an optional hook skips a method of the same name and parameters with another return type silently
     static Member resolveTarget(Class<?> cls, String methodName, Class<?>[] paramTypes, Class<?> returnType)
             throws Throwable {
         if (methodName != null) {
@@ -102,7 +103,7 @@ final class XResolver {
         if (methodName != null && returnType != null) {
             Class<?> memberReturnType = ((Method) member).getReturnType();
             if (!memberReturnType.isAssignableFrom(returnType))
-                throw new Throwable("Invalid return type " + memberReturnType + " got " + returnType);
+                throw new NoSuchMethodException("Invalid return type " + memberReturnType + " got " + returnType);
         }
         return member;
     }

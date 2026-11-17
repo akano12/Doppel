@@ -19,7 +19,8 @@
 -- connects, which Android matches itself: for LoWPAN instead, which phones do not have, so it finds no network.
 -- removeTransportType(TRANSPORT_VPN) removes it again. The hooks of vpn show the request with VPN in place of LoWPAN,
 -- like the app made it (hasTransport, getTransportTypes, toString). NetworkCapabilities.Builder is a system API,
--- which apps cannot use.
+-- which apps cannot use. An app which is itself a VPN does not find its own tunnel either: the request carries no
+-- owner, so letting it through would also find the VPN of another app, and such an app starts none (see vpn_service).
 
 local TRANSPORT_VPN = 4
 local TRANSPORT_LOWPAN = 6

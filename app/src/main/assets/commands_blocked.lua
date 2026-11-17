@@ -25,9 +25,15 @@
 -- libraries, which Doppel cannot hook either; they are found by their canonical path, so a link to them runs too, but
 -- a copy elsewhere does not.
 -- One reached by a link also runs by that path, so a link the app changes after the check cannot run another program.
--- shortcut: File.canExecute and Os.access with X_OK still say yes for programs like sh, getprop and id, whose exec
--- fails with EACCES, a pair a device without Doppel does not show for them; hook those too when an app is seen to
--- compare the two
+-- File.canExecute, Os.access and Files.isExecutable agree with the exec, see unrunnable.
+
+-- Each group which refuses programs has the same hooks of this script, which act the same whatever their group: once
+-- one of them refused a program the others find the program run instead (see failing) or the answer given, so only one
+-- hook of each method is installed (see XCore.installMethod), and a call, like the access of File.exists, runs the
+-- script once and not once for each restricted group
+function shared(hook)
+    return true
+end
 
 -- The error of a program which may not run, OsConstants.EACCES, and of one which does not exist, ENOENT, the same
 -- on every Linux, with the texts of strerror
@@ -88,6 +94,17 @@ function absent(path)
     return errno, text
 end
 
+-- Calls fn like pcall, with disk reads allowed, so the files the script checks, with the hooks of the app, tell
+-- StrictMode of no disk read: the call of the app tells it once itself, like access, or not at all, like the exec;
+-- the policy of the thread is restored also when fn fails
+function quietly(fn)
+    local strict = luajava.bindClass('android.os.StrictMode')
+    local policy = strict:allowThreadDiskReads()
+    local ok, first, second = pcall(fn)
+    strict:setThreadPolicy(policy)
+    return ok, first, second
+end
+
 -- The errno and text of the exec of a program which is not let run, which may not run when it exists. Os.execv and
 -- execve take it as a path, of the working directory of the process when relative, forkAndExec too when it has a /,
 -- of the working directory dir (a file or a path) when there is one, else when search is true a name in the folders
@@ -99,7 +116,7 @@ end
 -- when an app which sets the environment of a builder is seen to read that error
 function failure(dir, program, search)
     local class = luajava.bindClass('java.io.File')
-    local ok, errno, text = pcall(function()
+    local ok, errno, text = quietly(function()
         if type(dir) == 'string' then
             dir = luajava.new(class, dir)
         end
@@ -158,7 +175,7 @@ function nativeprogram(param, dir, program)
         return nil
     end
     local class = luajava.bindClass('java.io.File')
-    local resolved, paths = pcall(function()
+    local resolved, paths = quietly(function()
         local file = luajava.new(class, program)
         if dir ~= nil and not file:isAbsolute() then
             file = luajava.new(class, dir, program)
@@ -177,6 +194,46 @@ function nativeprogram(param, dir, program)
         return (paths[1] == paths[3] and program or paths[1])
     end
     return nil
+end
+
+-- The bits of access which ask whether a file may run, X_OK, and be written, W_OK, the same on every Linux and as
+-- FileSystem.ACCESS_EXECUTE and ACCESS_WRITE of java.io
+local X_OK = 1
+local W_OK = 2
+
+-- The version of Android
+function sdk()
+    return luajava.bindClass('android.os.Build$VERSION').SDK_INT
+end
+
+-- Whether the check of access for running the file at path, with mode, says no like on a device whose SELinux denies
+-- running it, with EACCES, as the exec of it is refused: for a file the app sees, not a folder, whose search stays, nor
+-- a program of the native library folder, which runs. A file in the data folders of an app which targets Android 10 or
+-- later keeps its answer, since Android itself lets access say yes for it while its exec fails (SELinux allows execute
+-- of app_data_file, not execute_no_trans). With W_OK asked too a file the app may not write keeps its answer, EROFS or
+-- EACCES, which Linux gives before it asks SELinux. A path with a / at the end, which File drops, keeps its answer
+-- too, ENOTDIR for a file, which the kernel gives when it looks the path up, before any check of the right to run.
+function unrunnable(param, path, mode)
+    local ok, denied = quietly(function()
+        local class = luajava.bindClass('java.io.File')
+        local file = luajava.new(class, path)
+        if string.sub(path, -1) == '/' or not file:isFile() or nativeprogram(param, nil, path) ~= nil or
+                (bit32.band(mode, W_OK) ~= 0 and not file:canWrite()) then
+            return false
+        end
+        local info = param:getApplicationContext():getApplicationInfo()
+        if sdk() >= 29 and info.targetSdkVersion >= 29 then
+            local canonical = file:getCanonicalPath()
+            for _, folder in pairs({ info.dataDir, info.deviceProtectedDataDir }) do
+                local prefix = luajava.new(class, folder):getCanonicalPath() .. '/'
+                if string.sub(canonical, 1, #prefix) == prefix then
+                    return false
+                end
+            end
+        end
+        return true
+    end)
+    return ok and denied
 end
 
 -- The text of a path which ProcessImpl passes on as a C string, its bytes up to the NUL it ends with
@@ -201,6 +258,29 @@ local renamed
 
 function before(hook, param)
     local method = hook:getMethodName()
+    -- Os.access and Libcore.os.access (of BlockGuardOs) for X_OK, see unrunnable: the real call for the file run
+    -- instead for EACCES, which may not run either, so the exception is that of Android, with its own stack trace;
+    -- other modes and a null path are left as they are. Likewise UnixNativeDispatcher.access, of the checkAccess of the
+    -- provider of java.nio, whose AccessDeniedException then names the path of the app like for any file which may not
+    -- run; the boot image can have it compiled into that checkAccess, which the definitions name to deoptimize.
+    -- File.canExecute and Files.isExecutable, see after.
+    -- shortcut: UnixFileSystem.checkAccess of java.io, which apps reach by reflection only, keeps the real answer where
+    -- the hook of BlockGuardOs.access does not run for it, as on Android 14, and so do its native checkAccess0 of
+    -- Android 8.1 and 9, UnixNativeDispatcher.access0 and Linux.access by Libcore.rawOs; hook them when an app is seen
+    -- to call them for running a file
+    if method == 'access' then
+        local path, mode = param:getArgument(0), param:getArgument(1)
+        local unix = (hook:getClassName() == 'sun.nio.fs.UnixNativeDispatcher')
+        path = (unix and path ~= nil and tostring(path) or path)
+        if path == nil or bit32.band(mode, X_OK) == 0 or failing(path) or not unrunnable(param, path, mode) then
+            return false
+        end
+        param:setArgument(0, unix and luajava.newInstance('java.io.File', instead(EACCES)):toPath() or instead(EACCES))
+        return true, path
+    elseif method == 'canExecute' or method == 'isExecutable' then
+        return false
+    end
+
     -- Os.execv and execve, static, and Linux.execv and execve, whose exception does not name the program; Java throws
     -- for a null program itself
     if method == 'execv' or method == 'execve' then
@@ -297,6 +377,28 @@ end
 -- trace and cause, like package_probe, else the message would have to be set by reflection on a hidden field; the
 -- builder has the list of the app again: used once more, it starts with the words the list has then
 function after(hook, param)
+    -- File.canExecute and Files.isExecutable say no after their real check, which tells StrictMode about reading the
+    -- disk like on any device, false like the real check of a file which may not run, see unrunnable, on every version:
+    -- the hooks of access beneath them do not always run, like that of BlockGuardOs.access for File on Android 14, nor
+    -- where the boot image compiled access into its caller. The path is the one the check of File takes, getPath, and
+    -- of java.nio only a path of the default file system, which the exec could run; a getPath which throws leaves the
+    -- answer as it is.
+    local method = hook:getMethodName()
+    if method == 'canExecute' or method == 'isExecutable' then
+        local ok, path = pcall(function()
+            if method == 'canExecute' then
+                return param:getThis():getPath()
+            end
+            local target = param:getArgument(0)
+            return (target:getClass() == luajava.bindClass('sun.nio.fs.UnixPath') and tostring(target) or nil)
+        end)
+        if param:getResult() ~= true or not ok or type(path) ~= 'string' or not unrunnable(param, path, X_OK) then
+            return false
+        end
+        param:setResult(false)
+        return true, path
+    end
+
     if original ~= nil then
         param:getThis():command(original)
         original = nil

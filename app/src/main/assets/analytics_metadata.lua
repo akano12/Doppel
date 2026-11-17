@@ -23,6 +23,13 @@ local SDKS = {
                   'com.google.android.gms.measurement.AppMeasurement' },
       -- Deactivated, unlike enabled, also applies when the app turned collection on before
       key = 'firebase_analytics_collection_deactivated', value = true },
+    -- Version 9.0.0 reads deactivated inverted, as off only when false, and then enabled, 11.0.4 and later read
+    -- deactivated right and first
+    -- shortcut: 9.0.0 still collects when the app turned collection on before it was restricted, which it stored,
+    -- upgrade when such old versions are seen in apps.
+    { classes = { 'com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar',
+                  'com.google.android.gms.measurement.AppMeasurement' },
+      key = 'firebase_analytics_collection_enabled', value = false },
     { classes = { 'com.google.firebase.crashlytics.CrashlyticsRegistrar',
                   'com.google.firebase.crashlytics.FirebaseCrashlytics' },
       -- Also stored by setCrashlyticsCollectionEnabled, which Crashlytics reads first, see stored
@@ -115,6 +122,81 @@ function parcelled(object)
     return copy
 end
 
+-- Whether the flags of the call, an int or from Android 13 the flags object of the overload, ask for GET_META_DATA
+function asked(param)
+    local flags = param:getArgument(1)
+    if type(flags) ~= 'number' then
+        flags = flags:getValue()
+    end
+    return math.floor(flags / GET_META_DATA) % 2 == 1
+end
+
+-- The keys of the SDKs in the app go into the meta-data where they are missing or differ; what changed
+function off(param, metaData)
+    local changed = {}
+    for _, sdk in ipairs(SDKS) do
+        if contains(param, sdk) and
+                not (metaData:containsKey(sdk.key) and metaData:getBoolean(sdk.key) == sdk.value) then
+            metaData:putBoolean(sdk.key, sdk.value)
+            changed[#changed + 1] = sdk.key .. '=' .. tostring(sdk.value)
+        end
+    end
+    return changed
+end
+
+-- Each application info the package manager answers by binder is read from a parcel, whichever method returned it,
+-- like getActivityInfo, queryIntentActivities, getInstalledApplications or getPackageInfo of a VersionedPackage,
+-- whose components share it, so all of them give the same meta-data. The fresh info keeps a copy with the keys,
+-- parcelled like the real one, also in the cache of the package manager from Android 11; read again from the
+-- parcel, like the same info of another component from Android 11, it already has them.
+-- shortcut: a parcel does not tell whether the call asked for GET_META_DATA, so an app without meta-data in its
+-- manifest gets none here, while getApplicationInfo, getPackageInfo and getPackageArchiveInfo give it a new bundle;
+-- upgrade when the flags of the binder call can be told.
+function unparcelled(param, info)
+    if info.packageName ~= param:getPackageName() or info.metaData == nil then
+        return false
+    end
+    local metaData = luajava.newInstance('android.os.Bundle', info.metaData)
+    local changed = off(param, metaData)
+    if #changed == 0 then
+        return false
+    end
+    info.metaData = parcelled(metaData)
+    return true, nil, table.concat(changed, ', ')
+end
+
+-- getPackageArchiveInfo parses an APK file in the process of the app, like the app's own sourceDir: the meta-data
+-- of the application is not parcelled, and the infos of the components hold the same bundle, so the keys go into it.
+-- It is there only with GET_META_DATA; an APK without meta-data in its manifest then gets one new bundle, which
+-- the components sharing the info hold too, like getApplicationInfo gives it. Files of other packages stay.
+-- shortcut: the app can still read the manifest of its file itself, like by AssetManager.openXmlResourceParser;
+-- upgrade when SDKs do.
+function archived(param, info)
+    local ai = info.applicationInfo
+    if info.packageName ~= param:getPackageName() or ai == nil or (ai.metaData == nil and not asked(param)) then
+        return false
+    end
+    local metaData = ai.metaData or luajava.newInstance('android.os.Bundle')
+    local changed = off(param, metaData)
+    if #changed == 0 then
+        return false
+    end
+    if ai.metaData == nil then
+        -- A component with its own meta-data has a copy of the info, which is fixed like the shared one
+        for _, kind in ipairs({ 'activities', 'receivers', 'services', 'providers' }) do
+            local components = info[kind]
+            for i = 1, components and components.length or 0 do
+                local cai = components[i].applicationInfo
+                if cai ~= nil and cai.metaData == nil then
+                    cai.metaData = metaData
+                end
+            end
+        end
+        ai.metaData = metaData
+    end
+    return true, nil, table.concat(changed, ', ')
+end
+
 function after(hook, param)
     local method = hook:getMethodName()
     if method == 'getBoolean' or method == 'getString' then
@@ -122,16 +204,24 @@ function after(hook, param)
     end
 
     local result = param:getResult()
-    if result == nil or param:getArgument(0) ~= param:getPackageName() then
+    if result == nil then
+        return false
+    end
+    if method == 'CREATOR:createFromParcel' then
+        return unparcelled(param, result)
+    end
+    if method == 'getPackageArchiveInfo' then
+        return archived(param, result)
+    end
+
+    -- From Android 11 the package manager of the app can answer from its cache with an info it read before the hooks
+    -- were installed, since the graphics setup reads the app's meta-data when the app starts, so the calls by package
+    -- name fake it too, also getApplicationInfoAsUser, which the other overloads call and apps can call by reflection
+    if param:getArgument(0) ~= param:getPackageName() then
         return false
     end
 
-    -- An int or, from Android 13, ApplicationInfoFlags
-    local flags = param:getArgument(1)
-    if type(flags) ~= 'number' then
-        flags = flags:getValue()
-    end
-    if math.floor(flags / GET_META_DATA) % 2 == 0 then
+    if not asked(param) then
         return false
     end
 
@@ -152,14 +242,7 @@ function after(hook, param)
     else
         metaData = luajava.newInstance('android.os.Bundle', info.metaData)
     end
-    local changed = {}
-    for _, sdk in ipairs(SDKS) do
-        if contains(param, sdk) and
-                not (metaData:containsKey(sdk.key) and metaData:getBoolean(sdk.key) == sdk.value) then
-            metaData:putBoolean(sdk.key, sdk.value)
-            changed[#changed + 1] = sdk.key .. '=' .. tostring(sdk.value)
-        end
-    end
+    local changed = off(param, metaData)
     if #changed == 0 then
         return false
     end

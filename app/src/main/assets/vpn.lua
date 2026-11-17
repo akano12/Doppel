@@ -46,6 +46,37 @@ function isvpninterface(name)
     return false
 end
 
+-- Whether link properties or a route with the interface of a VPN, like tun0, are of a network of the device: those the
+-- app makes itself and names like that, without such a network, keep what it set, like on Android. Kept for the object,
+-- which keeps its interface; found without the hooks, which hide the VPN, and taken as one when that fails. The same
+-- function as in vpn, vpn_addresses and vpn_parcel; a test compares them.
+-- shortcut: an object the app makes with the name of a VPN which is up gets the fakes; upgrade by marking the objects
+-- Android reads from its parcels if apps are seen to check that
+function devicevpn(param, object, name)
+    local known
+    if object ~= nil then
+        known = param:getValue('vpn.device', object)
+    end
+    if known == nil then
+        local ok, found = pcall(param.unhooked, param, function()
+            local cm = param:getApplicationContext():getSystemService('connectivity')
+            local networks = cm:getAllNetworks()
+            for index = 1, networks['length'] do
+                local lp = cm:getLinkProperties(networks[index])
+                if lp ~= nil and lp:getInterfaceName() == name then
+                    return true
+                end
+            end
+            return false
+        end)
+        known = (not ok or found)
+        if object ~= nil then
+            param:putValue('vpn.device', known, object)
+        end
+    end
+    return known
+end
+
 -- The type of a network info, without the fake type of the getType hook
 function realtype(param, info)
     param:putValue('vpn.real', true, info)
@@ -563,7 +594,7 @@ function restrict(hook, param)
         if result ~= nil then
             local name = string.match(result, 'InterfaceName: (%S+)') or string.match(result, ' (%S+) mtu ') or
                     (hook:getClassName() == 'android.net.RouteInfo' and string.match(result, ' (%S+)$'))
-            if isvpninterface(name) then
+            if isvpninterface(name) and devicevpn(param, param:getThis(), name) then
                 local other = underlyinginterface(param)
                 -- A space after the text makes a name at its end a word too
                 local fake = string.gsub(result .. ' ', '([^%w])' .. string.gsub(name, '%p', '%%%0') .. '([^%w])',
@@ -775,8 +806,9 @@ function restrict(hook, param)
     elseif method == 'getInterfaceName' or method == 'getInterface' then
         -- LinkProperties of the active network, like tun0, and its routes (RouteInfo.getInterface);
         -- LinkProperties checks the routes against its own interface when it reads a parcel or copies (addRoute),
-        -- which throws for a faked interface, so it gets the real ones
-        if isvpninterface(result) and not linkproperties() then
+        -- which throws for a faked interface, so it gets the real ones; not while vpn_parcel fakes its parcel
+        if isvpninterface(result) and (param:getValue('vpn.parcel', param:getThis()) or not linkproperties()) and
+                devicevpn(param, param:getThis(), result) then
             local fake = underlyinginterface(param)
             param:setResult(fake)
             return true, result, fake

@@ -18,34 +18,41 @@
 
 -- The values Android shows without location permission and when not connected stay, they hide the network already;
 -- the others become one fake network, a name with its access point and id, because Android hides or shows the three
--- together, see also network_tostring.
+-- together, see also network_tostring. From Android 12 they become the values Android gives apps without the location
+-- permission, like the Wi-Fi info of the connection and of the network capabilities has them (see wifishown of
+-- network_address), so every Wi-Fi info agrees with those, also the one of a VPN over Wi-Fi, and with their texts.
 -- shortcut: the fake access point and id are the same on every device, like the name, upgrade when the user can set them
+local REDACT_FOR_ACCESS_FINE_LOCATION = 1
+
 function after(hook, param)
     local result = param:getResult()
     if result == nil then
         return false
     end
+    local redacted = luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 31
 
     -- The name as bytes (public from Android 13, hidden before, which apps reach by reflection), the same network as
-    -- getSSID: unknown and empty names stay, like getSSID shows them as <unknown ssid>, the others become the fake
-    -- name, else the two would tell different networks; before Android 13 its text has no quotes
+    -- getSSID: unknown and empty names stay, like getSSID shows them as <unknown ssid>, the others become the hidden
+    -- name, or before Android 12 the fake one, whose text has no quotes there, else the two would tell different networks
     if hook:getMethodName() == 'getWifiSsid' then
         local text = result:toString()
-        if text == '' or text == '<unknown ssid>' or text == '"private"' or text == 'private' then
+        if text == '' or text == '<unknown ssid>' then
             return false
         end
-        local name = 'private'
-        local class = luajava.bindClass('android.net.wifi.WifiSsid')
-        if luajava.bindClass('android.os.Build$VERSION').SDK_INT < 33 then
-            param:setResult(class:createFromAsciiEncoded(name))
-        else
-            local bytes = luajava.bindClass('java.lang.reflect.Array'):newInstance(luajava.bindClass('java.lang.Byte').TYPE, #name)
-            for index = 1, #name do
-                bytes[index] = string.byte(name, index)
-            end
-            param:setResult(class:fromBytes(bytes))
+        -- The one of the copy Android makes without the location, which the Wi-Fi module of the device decides:
+        -- WifiSsid.createFromHex(null) on Android 12, null from 13
+        if redacted then
+            local hidden = param:unhooked(function()
+                return param:getThis():makeCopy(REDACT_FOR_ACCESS_FINE_LOCATION):getWifiSsid()
+            end)
+            param:setResult(hidden)
+            return true, text, tostring(hidden)
         end
-        return true, text, '"private"'
+        if text == 'private' then
+            return false
+        end
+        param:setResult(luajava.bindClass('android.net.wifi.WifiSsid'):createFromAsciiEncoded('private'))
+        return true, text, 'private'
     end
 
     -- The id of the link of a Wi-Fi 7 access point, -1 like Android has it without multi-link operation
@@ -65,21 +72,22 @@ function after(hook, param)
         if result == -1 then
             return false
         end
-        param:setResult(0)
-        return true, tostring(result), '0'
+        local fake = redacted and -1 or 0
+        param:setResult(fake)
+        return true, tostring(result), tostring(fake)
     end
 
     -- The access point is a locally administered address, which belongs to no real access point, and the address
     -- Android shows to apps without location permission stays, like the zeros Android 8.1 shows when Wi-Fi is on but
     -- not connected, with <unknown ssid> and id -1
-    local fake = '"private"'
     local hidden = '<unknown ssid>'
+    local fake = redacted and hidden or '"private"'
     if hook:getMethodName() == 'getBSSID' then
         if result == '00:00:00:00:00:00' then
             return false
         end
-        fake = 'a6:3e:91:5c:0d:72'
         hidden = '02:00:00:00:00:00'
+        fake = redacted and hidden or 'a6:3e:91:5c:0d:72'
     end
     if result == hidden then
         return false

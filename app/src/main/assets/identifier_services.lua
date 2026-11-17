@@ -20,7 +20,15 @@
 -- and Honor, and their ports) bind, or a provider they ask. These cannot be reached, like on a device without them:
 -- binding the service fails and the provider is not found, so the SDKs report the identifier is not supported, for
 -- each version of their interfaces. Huawei (HMS), Xiaomi, Vivo and Meizu, and Google, are covered by the hooks of
--- their identifiers (see value_device_id, contentresolver_query and adid_service).
+-- their identifiers (see value_device_id, contentresolver_query and adid_service); the app set id service of Play
+-- services is denied here too.
+-- The install referrer service of the Play Store is denied the same way: it gives the app the ad click its install
+-- came from (the campaign, the click id and the times of the click and the install), which links it to the ads seen
+-- in other apps; the library of Google does not find the service and reports the feature is not supported, like
+-- PackageManager answers for a Play Store without the service.
+-- shortcut: the Play Store package and its version stay visible unless Get.Applications hides them, though no Play
+-- Store that new lacks the service, upgrade when the user decides to hide the Play Store in Read.Identifiers too
+-- shortcut: the install referrers of other stores (Samsung, Huawei, Xiaomi) are reached, upgrade when an SDK asks one
 
 -- The services, by package; with an action or a class when the package has other services too, like the push
 -- service of ColorOS, which only the identifier service is denied, and which PackageManager does not find (see after)
@@ -46,12 +54,20 @@ local SERVICES = {
     { package = 'com.huawei.hwid', action = 'com.uodis.opendevice.OPENIDS_SERVICE' },
     { package = 'com.huawei.hwid.tv', action = 'com.uodis.opendevice.OPENIDS_SERVICE' },
     { package = 'com.huawei.hms', action = 'com.uodis.opendevice.OPENIDS_SERVICE' },
+    -- Play services: the app set id service, which its library binds by the action and the package, or by the intent
+    -- the lookup of Play services gives, which has the action in its data (see asks and after); its class serves other
+    -- APIs of Play services too, so only the action is denied (shared). The library then makes an app set id of the app
+    -- itself, like without Play services.
+    { package = 'com.google.android.gms', action = 'com.google.android.gms.appset.service.START', shared = true },
+    -- The install referrer of the Play Store, which the library com.android.installreferrer binds by its class
+    { package = 'com.android.vending', action = 'com.google.android.finsky.BIND_GET_INSTALL_REFERRER_SERVICE',
+      class = 'com.google.android.finsky.externalreferrer.GetInstallReferrerService' },
 }
 
 -- The interfaces of the identifier services (their Binder descriptors), so a service of another preinstalled package
 -- or a new device maker with one of them is not reached either; the binder of such a connection is left out, like a
--- service giving none (onNullBinding). From the stubs of the MSA SDK 2.2, Android_CN_OAID and the SDKs of Huawei and
--- Honor.
+-- service giving none (onNullBinding). From the stubs of the MSA SDK 2.2, Android_CN_OAID, the SDKs of Huawei and
+-- Honor and the install referrer library 2.2.
 -- shortcut: identifier services which the user installs and SERVICES does not list are reached, upgrade when one
 -- turns up outside the table
 local DESCRIPTORS = {
@@ -66,6 +82,7 @@ local DESCRIPTORS = {
     ['com.qiku.id.IOAIDInterface'] = true, -- 360 (Qiku)
     ['com.uodis.opendevice.aidl.OpenDeviceIdentifierService'] = true, -- Huawei
     ['com.hihonor.cloudservice.oaid.IOAIDService'] = true, -- Honor
+    ['com.google.android.finsky.externalreferrer.IGetInstallReferrerService'] = true, -- The Play Store
 }
 
 -- The system services of identifiers, which apps get from the ServiceManager: qikuid of 360 OS
@@ -88,6 +105,10 @@ end
 local PROVIDERS = {
     ['cn.nubia.identity'] = true, -- Nubia
 }
+
+-- The provider of Play services which gives the intent to bind for the action of an API (serviceIntentCall), by both
+-- of its authorities, which answer the same
+local CHIMERA = { ['com.google.android.gms.chimera'] = true, ['com.google.android.chimera'] = true }
 
 -- Whether the class of a component of the package of a service of the table offers its action, so it is the
 -- identifier service bound by its class, like with the class from resolveService; asked once per process, with the
@@ -144,13 +165,32 @@ function preinstalled(param, packageName)
     return system
 end
 
+-- Whether an intent asks for the action of a row of SERVICES: by its action, or like the intent the lookup of Play
+-- services gives (com.google.android.chimera.BoundService.START), by its data chimera-action:<action>
+function asks(intent, action)
+    if action == nil then
+        return false
+    end
+    if intent:getAction() == action then
+        return true
+    end
+    local data = intent:getData()
+    return data ~= nil and data:getScheme() == 'chimera-action' and data:getSchemeSpecificPart() == action
+end
+
 -- Whether a class of a package is the identifier service of a row of SERVICES with an action: the class of the row
--- or a class offering the action (see offers)
-function identifier(param, packageName, className)
+-- or a class offering the action (see offers); of a shared row, whose class serves other APIs too, only in a lookup
+-- of the action by the intent
+function identifier(param, packageName, className, intent)
     for _, service in ipairs(SERVICES) do
-        if service.action ~= nil and packageName == service.package and
-                (className == service.class or offers(param, className, service)) then
-            return true
+        if service.action ~= nil and packageName == service.package then
+            if service.shared then
+                if intent ~= nil and asks(intent, service.action) then
+                    return true
+                end
+            elseif className == service.class or offers(param, className, service) then
+                return true
+            end
         end
     end
     return false
@@ -173,7 +213,7 @@ function strip(param, info)
     local changed = false
     local listed = false
     for _, service in ipairs(SERVICES) do
-        listed = listed or (service.action ~= nil and service.package == info.packageName)
+        listed = listed or (service.action ~= nil and not service.shared and service.package == info.packageName)
     end
     for _, field in ipairs({ 'services', 'providers' }) do
         local items = info[field]
@@ -227,14 +267,13 @@ function serviceof(param, intent, target)
     end
     local component = intent:getComponent()
     local packageName = (component ~= nil and component:getPackageName() or intent:getPackage())
-    local action = intent:getAction()
     for _, service in ipairs(SERVICES) do
         if packageName == nil then
-            if target < 21 and service.action ~= nil and action == service.action then
+            if target < 21 and asks(intent, service.action) then
                 return service
             end
-        elseif packageName == service.package and (service.action == nil or action == service.action or
-                (component ~= nil and (component:getClassName() == service.class or
+        elseif packageName == service.package and (service.action == nil or asks(intent, service.action) or
+                (component ~= nil and not service.shared and (component:getClassName() == service.class or
                         offers(param, component:getClassName(), service)))) then
             return service
         end
@@ -287,8 +326,9 @@ function before(hook, param)
         end
         param:setArgument(1, nil)
         return true, descriptor
-    elseif string.find(method, '^bind') then
-        -- bindService, bindIsolatedService and bindServiceAsUser: the intent is the first argument
+    elseif string.find(method, '^bind') or string.find(method, '^start') or string.find(method, '^stop') then
+        -- bindService, bindIsolatedService, bindServiceAsUser, startService, startForegroundService, stopService and
+        -- their AsUser forms: the intent is the first argument
         local target = param:getApplicationContext():getApplicationInfo().targetSdkVersion
         local intent = param:getArgument(0)
         local service = serviceof(param, intent, target)
@@ -296,7 +336,9 @@ function before(hook, param)
             return false
         end
         -- A copy to a package which cannot exist, so Android itself fails the binding with the connection registered,
-        -- else unbindService throws; an isolated service needs a component (see component_hidden)
+        -- else unbindService throws, a start finds no service and returns null, before the checks of starts from the
+        -- background (ActiveServices.startServiceLocked), and a stop stops none and returns false; an isolated
+        -- service needs a component (see component_hidden)
         local copy = intent:clone()
         copy:setSelector(nil)
         copy:setComponent(nil)
@@ -309,6 +351,11 @@ function before(hook, param)
         return true, service.package
     end
 
+    -- A client is of another provider than those of PROVIDERS, which cannot be acquired; the lookup of Play services
+    -- by a client: after
+    if hook:getClassName() == 'android.content.ContentProviderClient' then
+        return false
+    end
     -- acquireContentProviderClient, acquireUnstableContentProviderClient, the hidden acquireProvider and
     -- acquireUnstableProvider, ActivityThread.acquireProvider(context, authority, user, stable) under them and, on
     -- Android 8.1 and 9, IActivityManager.getContentProvider(thread, authority, user, stable) under that: nothing
@@ -337,10 +384,34 @@ end
 -- (resolveServiceInternal), and of the provider finds none; the overloads of Android 13 and later call the others,
 -- which leave out nothing more then
 function after(hook, param)
+    local method = hook:getMethodName()
+    if method == 'call' then
+        -- The lookup of Play services gives no intent for the action of a shared row, so the library binds the action
+        -- by the package, which fails (see serviceof); without Play services Android throws, which stays. Older
+        -- libraries ask ContentResolver, newer ones a client of the provider, the same answer for both. Null is what
+        -- Play services 23.18 was seen to answer for an action which no module of it offers; a version which answers
+        -- null itself is left alone.
+        -- shortcut: the client of Android 8.1 and 9, call(method, arg, extras), does not tell its provider and is
+        -- matched by the method alone, upgrade when another provider has serviceIntentCall
+        local short = (hook:getParameterTypes()['length'] == 3)
+        local extras = param:getArgument(short and 2 or 3)
+        if param:getException() ~= nil or param:getResult() == nil or
+                (not short and CHIMERA[authorityof(param:getArgument(0))] == nil) or
+                param:getArgument(short and 0 or 1) ~= 'serviceIntentCall' or extras == nil then
+            return false
+        end
+        local action = extras:getString('serviceActionBundleKey')
+        for _, service in ipairs(SERVICES) do
+            if service.shared and action == service.action then
+                param:setResult(nil)
+                return true, action
+            end
+        end
+        return false
+    end
     if hook:getClassName() ~= 'android.content.pm.PackageManager' then
         return false
     end
-    local method = hook:getMethodName()
     if method == 'getServiceInfo' then
         -- The exception of Android for the class which no app has, with the name the app asked for: the same class,
         -- stack trace and cause, like package_probe
@@ -387,23 +458,31 @@ function after(hook, param)
         param:setResult(nil)
         return true, result.authority
     elseif method == 'resolveService' or method == 'resolveServiceAsUser' then
-        local info = result.serviceInfo
-        if not identifier(param, info.packageName, info.name) then
+        local info, intent = result.serviceInfo, param:getArgument(0)
+        if not identifier(param, info.packageName, info.name, intent) then
             return false
         end
-        local pm, intent, flags = param:getThis(), param:getArgument(0), param:getArgument(1)
+        local pm, flags = param:getThis(), param:getArgument(1)
         local ok, all = pcall(function()
-            return param:unhooked(function()
+            -- A copy of Android's own class, so no code of the app runs without the hooks; none when the type of its
+            -- uri stays unknown (see XParam.plainIntent), and then the intent of the app with the hooks, so its code
+            -- runs restricted, and the services agree with those queryIntentServices lists
+            local intent = param:plainIntent(param:getArgument(0))
+            local function query()
                 if method == 'resolveService' then
-                    return pm:queryIntentServices(intent, flags)
+                    return pm:queryIntentServices(intent or param:getArgument(0), flags)
                 end
-                return pm:queryIntentServicesAsUser(intent, flags, param:getArgument(2))
-            end)
+                return pm:queryIntentServicesAsUser(intent or param:getArgument(0), flags, param:getArgument(2))
+            end
+            if intent == nil then
+                return query()
+            end
+            return param:unhooked(query)
         end)
         local fake = nil
         for index = 0, (ok and all ~= nil) and all:size() - 1 or -1 do
             local other = all:get(index).serviceInfo
-            if not identifier(param, other.packageName, other.name) then
+            if not identifier(param, other.packageName, other.name, intent) then
                 fake = all:get(index)
                 break
             end
@@ -414,7 +493,7 @@ function after(hook, param)
         local removed = nil
         for index = result:size() - 1, 0, -1 do
             local info = result:get(index).serviceInfo
-            if identifier(param, info.packageName, info.name) then
+            if identifier(param, info.packageName, info.name, param:getArgument(0)) then
                 result:remove(index)
                 removed = info.packageName
             end

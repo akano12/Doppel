@@ -20,8 +20,11 @@
 -- hasSystemFeature answers false and getSystemAvailableFeatures lists only the OpenGL ES version, which has
 -- no name, except the features of setting features.keep (comma separated; a name ending in * matches the
 -- features starting with it, like android.hardware.nfc*), for apps which need a feature to offer something,
--- and the features of hardware another group hides (see OWNED). The framework, which checks features itself
--- in the process of the app, gets the real answer (see calledbyframework).
+-- the features of hardware another group hides (see OWNED), the features Android adds on every device
+-- (see EVERY) and the ones apps see working anyway, like the touch screen, Wi-Fi, telephony and WebView (see SHOWN). The
+-- framework, which checks features itself in the process of the app, gets the real answer (see calledbyframework), and
+-- the managers and adapters it makes with it are hidden from the app like on a device without the feature (see
+-- SERVICES), with their broadcasts (see BROADCASTS).
 -- The shared libraries of the system carry vendor names too, like com.google.android.dialer.support;
 -- the libraries of the Android platform and the ones of Google on every device stay. Libraries of apps
 -- (static and SDK libraries) stay too, apps use them, in the list of names as well as in the list
@@ -45,10 +48,95 @@ local OWNED = {
                             'android.hardware.biometrics.iris' },
 }
 
--- hasSystemFeature is called very often, so the hooks of the groups of OWNED run for their features only
+-- The features Android itself adds on every device, whatever its configuration says: exactly one of the RAM
+-- classes, the one ActivityManager.isLowRamDevice tells anyway, and from Android 11 app enumeration. No device
+-- is without them, so hiding them would show a device no Android is, and the real answer tells nothing more.
+local EVERY = { 'android.hardware.ram.low', 'android.hardware.ram.normal', 'android.software.app_enumeration' }
+
+-- The features apps see working anyway, so hiding them would only show that something hides them, while nearly every
+-- handheld has them: the touch screen and its levels of multitouch, which every touch event and the input devices show
+-- (see input_devices), like Configuration.touchscreen and the pointers of a gesture; Wi-Fi, of which ConnectivityManager
+-- shows the networks (TRANSPORT_WIFI, TYPE_WIFI), so its manager stays too; telephony, of which ConnectivityManager
+-- shows the mobile networks (TRANSPORT_CELLULAR, TYPE_MOBILE) and TelephonyManager the phone type, the SIM and whether
+-- it calls and sends messages (getPhoneType, getSimState, isVoiceCapable, isSmsCapable), and which Android 15 and later
+-- want for those methods of apps targeting them (PhoneInterfaceManager.enforceTelephonyFeatureWithException), with its
+-- GSM or CDMA radio, data, subscriptions, calls and messages, each the device's own answer; and WebView, which works in
+-- the app. The other features of Wi-Fi (Direct, Aware, RTT) and of telephony (eSIM, IMS, MBMS, carrier lock, satellite)
+-- stay hidden.
+local SHOWN = { 'android.hardware.touchscreen*', 'android.hardware.faketouch*', 'android.hardware.wifi',
+                'android.hardware.telephony', 'android.hardware.telephony.gsm', 'android.hardware.telephony.cdma',
+                'android.hardware.telephony.data', 'android.hardware.telephony.radio.access',
+                'android.hardware.telephony.subscription', 'android.hardware.telephony.calling',
+                'android.hardware.telephony.messaging', 'android.software.webview' }
+
+-- The managers and adapters Android gives only on a device with a feature, else null: by the name of the service of
+-- Context.getSystemService and by the class of the method which gives the adapter, each with the features Android
+-- checks and the version from which it does. The manager of Wi-Fi stays, its feature is shown (see SHOWN); the managers
+-- of Bluetooth and NFC exist on every device, without an adapter. The NFC adapter exists with any of its features
+-- (NfcAdapter.getNfcAdapter), Android 14 and 15 check more of them. SystemServer starts the service of MIDI only with
+-- its feature, and the one of consumer IR from Android 14; before, every handheld has the IR manager, which tells there
+-- is no emitter without the hardware (ConsumerIrService). WifiManager tells Wi-Fi Direct and RTT too (see SUPPORTED),
+-- false on a device without them: the chip of one without Wi-Fi Direct has no P2P, so also no Wi-Fi Display R2, which
+-- runs over it, the Wi-Fi service clears the RTT of the chip without the feature of RTT, which exists from Android 9,
+-- and the direct links without infrastructure of Android 15 are of Wi-Fi Direct and Aware, off in AOSP.
+-- shortcut: the hidden ways to the same objects stay, like the system services wifiscanner and rttmanager,
+-- NfcAdapter.getNfcAdapter, getDefaultAdapter of NfcAdapter without a context, BluetoothAdapter.createAdapter and
+-- the binders of ServiceManager, upgrade when an app is seen to use one.
+local SERVICES = {
+    wifip2p = { ['android.hardware.wifi.direct'] = 27 },
+    wifiaware = { ['android.hardware.wifi.aware'] = 27 },
+    wifirtt = { ['android.hardware.wifi.rtt'] = 28 },
+    midi = { ['android.software.midi'] = 27 },
+    consumer_ir = { ['android.hardware.consumerir'] = 34 },
+}
+local IR = { ['android.hardware.consumerir'] = 27 }
+local BLUETOOTH = { ['android.hardware.bluetooth'] = 27 }
+local NFC = { ['android.hardware.nfc'] = 27, ['android.hardware.nfc.hce'] = 27, ['android.hardware.nfc.hcef'] = 27,
+              ['android.hardware.nfc.uicc'] = 34, ['android.hardware.nfc.ese'] = 34, ['android.hardware.nfc.charging'] = 35 }
+local SUPPORTED = {
+    isP2pSupported = SERVICES.wifip2p,
+    isDeviceToApRttSupported = SERVICES.wifirtt,
+    isWifiDisplayR2Supported = SERVICES.wifip2p,
+    isD2dSupportedWhenInfraStaDisabled = { ['android.hardware.wifi.direct'] = 35, ['android.hardware.wifi.aware'] = 35 },
+    hasIrEmitter = IR,
+}
+local ADAPTERS = {
+    ['android.bluetooth.BluetoothAdapter'] = BLUETOOTH,
+    ['android.bluetooth.BluetoothManager'] = BLUETOOTH,
+    ['android.nfc.NfcAdapter'] = NFC,
+    ['android.nfc.NfcManager'] = NFC,
+}
+
+-- The broadcasts of the hardware of SERVICES and ADAPTERS, by the start of their actions, which Android sends only on a
+-- device with it, sticky ones too, like the state of Wi-Fi Direct (WifiP2pServiceImpl.sendP2pStateChangedBroadcast),
+-- which any app gets by registerReceiver without a receiver. While the features are hidden the app gets none of them,
+-- like on a device without the hardware: a broadcast is marked when the app reads it (Intent.CREATOR), so it reaches
+-- no receiver, also not as the first sticky broadcast of one which registers (see receiver_skip), and registerReceiver
+-- gives no sticky one.
+-- shortcut: a receiver the framework registers in the process of the app gets none either, and registerReceiver with a
+-- filter which matches another sticky broadcast too gives none instead of that one, since Android gives only the first;
+-- upgrade when an app is seen to need them
+local BROADCASTS = {
+    ['android.net.wifi.p2p.'] = SERVICES.wifip2p,
+    ['android.net.wifi.aware.'] = SERVICES.wifiaware,
+    ['android.net.wifi.rtt.'] = SERVICES.wifirtt,
+    ['android.bluetooth.'] = BLUETOOTH,
+    ['android.nfc.'] = NFC,
+}
+
+-- hasSystemFeature and Context.getSystemService are called very often, so the hooks of the groups of OWNED run for
+-- their features only, and the one of getSystemService for the services of SERVICES
 function filter(hook)
-    if hook:getMethodName() == 'hasSystemFeature' then
+    local method = hook:getMethodName()
+    if method == 'hasSystemFeature' then
         return OWNED[hook:getGroup()]
+    end
+    if method == 'getSystemService' then
+        local names = {}
+        for name in pairs(SERVICES) do
+            names[#names + 1] = name
+        end
+        return names
     end
     return nil
 end
@@ -82,7 +170,8 @@ function kept(name, param)
 end
 
 -- Whether the group of the hook hides a feature: a group of OWNED its own features, Read.Features the others
--- but the kept ones; the OpenGL ES version has no name
+-- but the ones of every device (see EVERY), the shown ones (see SHOWN) and the kept ones; the OpenGL ES version has no
+-- name
 function hides(group, name, param)
     if name == nil then
         return false
@@ -95,7 +184,26 @@ function hides(group, name, param)
             return false
         end
     end
+    if matches(name, EVERY) or matches(name, SHOWN) then
+        return false
+    end
     return not kept(name, param)
+end
+
+-- Whether Android gives no manager or adapter without the features hidden from the app: it checks at least one of
+-- them on this version, and all those are hidden
+function absent(features, group, param)
+    local sdk = luajava.bindClass('android.os.Build$VERSION').SDK_INT
+    local checked = false
+    for name, since in pairs(features) do
+        if sdk >= since then
+            if not hides(group, name, param) then
+                return false
+            end
+            checked = true
+        end
+    end
+    return checked
 end
 
 -- The classes on the stack, which tell the calls of the framework from the ones of the app
@@ -103,15 +211,24 @@ function callers()
     return luajava.bindClass('java.lang.Thread'):currentThread():getStackTrace()
 end
 
--- The framework checks features itself, also in the process of the app, like when it creates a system service:
--- without android.hardware.wifi the Wi-Fi manager is null, which apps do not expect and fail on, and WebView
--- does not start without android.software.webview. The framework gets the real answer, the code of the app,
--- its libraries included, gets false. The caller is the class on the stack below the deepest method with the name
--- of the hooked method: the hook engine can replace the frame of the hooked method by one of a class of its own,
--- with a random name, like LSPosed does, and the package manager calls the hooked method itself too,
+-- The framework checks features itself, also in the process of the app, like when it creates a system service
+-- (see SERVICES), and WebView counts the touch points of pages by them (see webviewclass). The framework gets the real answer,
+-- the code of the app, its libraries included, gets false. The caller is the class on the stack below the deepest
+-- method with the name of the hooked method: the hook engine can replace the frame of the hooked method by one of a
+-- class of its own, with a random name, like LSPosed does, and the package manager calls the hooked method itself too,
 -- like hasSystemFeature without a version, which calls the one with a version. A class of the framework is one of
 -- the boot class path, not one by its name, since an app can name its own classes android.* too.
 -- WebView is part of the framework too, with classes of its own package (see webviewclass).
+-- A service the framework looks up itself while it makes one the app asked for counts as asked for by the app, being
+-- below the same deepest frame, like WifiRttManager for RttManager. So does a call through a method of the app with the
+-- name of the hooked method, like getSystemService of its own wrapper of a context which the framework calls, like
+-- LayoutInflater.from does: a frame with the name which is not of the framework is of the app when it called the
+-- next frame with the name itself, the frames of the hook engine are between the ones it replaces and their callees.
+-- shortcut: a method of the app with the name which calls the hooked method through another method of its own counts
+-- as the hook engine; looking its class up in the class loader of the app would tell them apart, but a class loader the
+-- app makes itself (AppComponentFactory.instantiateClassLoader) would then see the names of the classes of the hook
+-- engine, which tell Doppel is there; upgrade when the classes of the frames can be told apart without a lookup, like by
+-- java.lang.StackWalker.
 local FRAMEWORK = { 'android.', 'com.android.internal.', 'com.android.server.', 'java.', 'javax.', 'dalvik.', 'libcore.' }
 local BOOT = {} -- Whether a class is of the boot class path, by name
 local WEBVIEW = {} -- Whether a class is of WebView, by name, once WebView is loaded
@@ -151,7 +268,7 @@ end
 
 -- WebView runs in the process of the app with classes of its own package, which are not of the boot class path, like
 -- org.chromium.ui.base.TouchDevice, which counts the touch points pages see (navigator.maxTouchPoints) by the
--- touchscreen features, without which a page on a touch phone sees none. A class of WebView is one the class loader of
+-- touchscreen features, and gets the features it checks like the framework. A class of WebView is one the class loader of
 -- the provider of WebView finds and the one of the app does not, since an app can have classes of the same names, like
 -- Chromium or Cronet of its own. The provider is the one WebViewFactory keeps once WebView is loaded (in every version
 -- from 8.1), since WebView.getWebViewClassLoader would load WebView, which takes long and after which the app can no
@@ -204,6 +321,11 @@ function calledbyframework(method, param)
     local caller = nil
     for index = 1, frames['length'] - 1 do
         if frames[index]:getMethodName() == method then
+            local class = frames[index]:getClassName()
+            if index > 1 and frames[index - 1]:getMethodName() == method and
+                    not framework(class, param) and not webviewclass(class, param) then
+                return false
+            end
             local next = index + 1
             while next < frames['length'] and (string.sub(frames[next]:getClassName(), 1, 18) == 'java.lang.reflect.' or
                     string.sub(frames[next]:getClassName(), 1, 17) == 'java.lang.invoke.') do
@@ -218,6 +340,20 @@ end
 -- Whether a feature is hidden from the app, see hides
 function hidden(group, name, param, method)
     return hides(group, name, param) and not calledbyframework(method, param)
+end
+
+-- Whether an intent is a broadcast of hardware whose features are hidden from the app (see BROADCASTS)
+function broadcasthidden(intent, group, param)
+    local action = intent:getAction()
+    if action == nil then
+        return false
+    end
+    for prefix, features in pairs(BROADCASTS) do
+        if string.sub(action, 1, string.len(prefix)) == prefix then
+            return absent(features, group, param)
+        end
+    end
+    return false
 end
 
 -- Whether a shared library of the system is not part of the Android platform
@@ -324,13 +460,66 @@ function hidelibraries(result, param)
     return true, tostring(named), tostring(shown)
 end
 
+-- ConsumerIrService of Android 8.1 to 13 checks a pattern to transmit after the permission, then refuses it without an
+-- emitter; the hook runs before the call, which would send by the real emitter, so it makes the same checks and lets
+-- the call go where the service throws first: without the permission, for a null pattern, a slice which is not
+-- positive or a pattern over two seconds
+function before(hook, param)
+    if hook:getMethodName() ~= 'transmit' or not absent(IR, hook:getGroup(), param) or
+            calledbyframework('transmit', param) then
+        return false
+    end
+    local pattern = param:getArgument(1)
+    if pattern == nil or param:getApplicationContext():checkSelfPermission('android.permission.TRANSMIT_IR') ~= 0 then
+        return false
+    end
+    local total = 0
+    for index = 1, pattern['length'] do
+        if pattern[index] <= 0 then
+            return false
+        end
+        total = total + pattern[index]
+    end
+    if total > 2000000 then
+        return false
+    end
+    param:setResult(luajava.newInstance('java.lang.UnsupportedOperationException', 'IR emitter not available'))
+    return true, 'transmit', nil
+end
+
 function after(hook, param)
+    local method = hook:getMethodName()
+    -- A device without consumer IR has an IR manager up to Android 13, whose service throws once the permission is
+    -- checked; the hook runs after the call of the app passed that check
+    -- shortcut: the exceptions of getCarrierFrequencies and transmit have no frames of Parcel.readException, upgrade
+    -- when an app is seen to compare them
+    if method == 'getCarrierFrequencies' then
+        if param:getException() ~= nil or not absent(IR, hook:getGroup(), param) or calledbyframework(method, param) then
+            return false
+        end
+        param:setResult(luajava.newInstance('java.lang.UnsupportedOperationException', 'IR emitter not available'))
+        return true, method, nil
+    end
+
     local result = param:getResult()
     if result == nil then
         return false
     end
 
-    local method = hook:getMethodName()
+    -- A broadcast of hidden hardware, which is marked (see BROADCASTS), many intents are read, so the check comes first
+    if method == 'CREATOR:createFromParcel' then
+        if broadcasthidden(result, hook:getGroup(), param) then
+            param:putValue('features.hidden', true, result)
+        end
+        return false
+    end
+    if method == 'registerReceiverInternal' then
+        if not broadcasthidden(result, hook:getGroup(), param) then
+            return false
+        end
+        param:setResult(nil)
+        return true, result:getAction(), nil
+    end
     if (method == 'getSharedLibraries' or method == 'getSharedLibrariesAsUser') and hook:getGroup() == 'Get.Applications' then
         return hidelibraries(result, param)
     end
@@ -364,6 +553,25 @@ function after(hook, param)
             param:setResult(kept)
         end
         return true, tostring(items['length']), tostring(kept:size())
+    end
+
+    -- What WifiManager and ConsumerIrManager tell of a feature which is hidden (see SUPPORTED)
+    if SUPPORTED[method] ~= nil then
+        if not result or not absent(SUPPORTED[method], hook:getGroup(), param) or calledbyframework(method, param) then
+            return false
+        end
+        param:setResult(false)
+        return true, method, 'false'
+    end
+
+    -- A manager or adapter which Android gives only with a feature (see SERVICES)
+    if method == 'getSystemService' or method == 'getAdapter' or method == 'getDefaultAdapter' then
+        local features = (method == 'getSystemService' and SERVICES[param:getArgument(0)]) or ADAPTERS[hook:getClassName()]
+        if features == nil or not absent(features, hook:getGroup(), param) or calledbyframework(method, param) then
+            return false
+        end
+        param:setResult(nil)
+        return true, (method == 'getSystemService' and param:getArgument(0) or hook:getClassName()), nil
     end
 
     if method == 'hasSystemFeature' then

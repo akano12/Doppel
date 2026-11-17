@@ -56,21 +56,24 @@ function replace(text, label, nextLabel, fake, kept)
     return text, restricted
 end
 
+-- From Android 12 the network name, access point and id of the copy Android gives apps without the location
+-- permission, like the getters (wifiinfo_ssid_bssid), else the fake network
 function wifiinfo(text)
     local restricted = false
     local changed
+    local redacted = luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 31
 
-    -- The network name comes first, like the getter "private" with quotes; before Android 12 the text has the name
-    -- itself, without quotes, unless the Wi-Fi module of Android 11 was updated to one which prints getSSID, and the
-    -- empty name, which Android 9 to 11 give apps without location permission and for which getSSID says
-    -- <unknown ssid> too, stays.
+    -- The network name comes first, like the getter "private" with quotes, or <unknown ssid> from Android 12, whose
+    -- text has getSSID; before Android 12 the text has the name itself, without quotes, unless the Wi-Fi module of
+    -- Android 11 was updated to one which prints getSSID, and the empty name, which Android 9 to 11 give apps without
+    -- location permission and for which getSSID says <unknown ssid> too, stays.
     -- shortcut: the text alone cannot tell some names apart, so before Android 12 the fake differs from getSSID for
     -- them: a name of only zero bytes prints empty there too, while the getter fakes the hex getSSID gives for it; a
     -- name which itself starts with a quote gets the quoted fake; and on an updated Wi-Fi module the hex of a name which
     -- is no UTF-8 gets the bare one; upgrade when such a name shows up in the connection info
     if string.sub(text, 1, 6) == 'SSID: ' then
-        local fake = '"private"'
-        if string.sub(text, 7, 7) ~= '"' and luajava.bindClass('android.os.Build$VERSION').SDK_INT < 31 then
+        local fake = redacted and '<unknown ssid>' or '"private"'
+        if string.sub(text, 7, 7) ~= '"' and not redacted then
             fake = 'private'
         end
         text, changed = replace(text, 'SSID: ', ', BSSID: ', fake, { ['<unknown ssid>'] = true, [''] = true })
@@ -79,7 +82,7 @@ function wifiinfo(text)
 
     -- The access point, like the getter, which keeps the address Android shows to apps without location permission
     -- and the zeros of Android 8.1 when not connected
-    text, changed = replace(text, ', BSSID: ', ', ', FAKE_BSSID,
+    text, changed = replace(text, ', BSSID: ', ', ', redacted and HIDDEN_MAC or FAKE_BSSID,
         { [NONE] = true, [HIDDEN_MAC] = true, ['00:00:00:00:00:00'] = true })
     restricted = restricted or changed
 
@@ -99,8 +102,8 @@ function wifiinfo(text)
     text, changed = replace(text, ', IP: ', ', ', 'null', nil)
     restricted = restricted or changed
 
-    -- The id of the saved network, like the getter (0), which keeps -1
-    text, changed = replace(text, ', Net ID: ', ', ', '0', { ['-1'] = true })
+    -- The id of the saved network, like the getter (0, from Android 12 -1), which keeps -1
+    text, changed = replace(text, ', Net ID: ', ', ', redacted and '-1' or '0', { ['-1'] = true })
     restricted = restricted or changed
 
     -- Passpoint networks
@@ -142,9 +145,12 @@ function wifiinfo(text)
 end
 
 function networkinfo(text)
-    -- The extra info is (none), which Android prints when the getter returns nothing, like the hooked getter does,
-    -- also for the empty one Android leaves most apps
-    return replace(text, ', extra: ', ', failover: ', '(none)', nil)
+    -- The extra info is what the hooked getter gives: empty from Android 11, where (none), which Android prints for
+    -- null, stays, and null before, printed as (none)
+    if luajava.bindClass('android.os.Build$VERSION').SDK_INT < 30 then
+        return replace(text, ', extra: ', ', failover: ', '(none)', nil)
+    end
+    return replace(text, ', extra: ', ', failover: ', '', { ['(none)'] = true })
 end
 
 -- The lists are empty, like the getters; the text of Android 10 and later has spaces inside the brackets.
