@@ -503,6 +503,23 @@ public class HookDefinitionsTest {
         assertTrue("Scripts which log: " + logging, logging.isEmpty());
     }
 
+    // No script removes an item of a list by its index with remove(...): for an int below 128 LuaJ scores
+    // List.remove(int) and remove(Object) the same and calls the one reflection lists first, which can be
+    // remove(Object), which removes nothing; subList(from, to):clear() has no overload. A removal by key, of a Bundle,
+    // a Map or a Set, takes a string or an object, not an index, so a remove with "index" or a number is one of a list.
+    @Test
+    public void listsAreNotShortenedByRemove() throws Exception {
+        Pattern byIndex = Pattern.compile(":remove\\(\\s*(index|\\d)");
+        Set<String> found = new TreeSet<>();
+        for (File file : ASSETS.listFiles((dir, name) -> name.endsWith(".lua")))
+            if (byIndex.matcher(read(file).replaceAll("--[^\n]*", "")).find())
+                found.add(file.getName());
+        for (Map.Entry<String, JSONObject> entry : repository().entrySet())
+            if (byIndex.matcher(entry.getValue().getString("luaScript").replaceAll("--[^\n]*", "")).find())
+                found.add(entry.getKey());
+        assertTrue("Scripts which remove from a list by index: " + found, found.isEmpty());
+    }
+
     // Every getDrawable of WallpaperManager of the SDK is hidden, not only the one without arguments,
     // which delegates to getDrawable(int) since Android 14
     @Test

@@ -494,7 +494,9 @@ function after(hook, param)
         for index = result:size() - 1, 0, -1 do
             local info = result:get(index).serviceInfo
             if identifier(param, info.packageName, info.name, param:getArgument(0)) then
-                result:remove(index)
+                -- subList, not remove(index): for an int below 128 LuaJ scores List.remove(int) and remove(Object)
+                -- the same and calls the one reflection lists first, which can be remove(Object), which removes nothing
+                result:subList(index, index + 1):clear()
                 removed = info.packageName
             end
         end

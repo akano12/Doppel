@@ -206,7 +206,9 @@ public class RepositoryScriptsTest {
                 "function listof(...)\n" +
                 "  local items = arrayof(...)\n" +
                 "  return { items = items, toArray = function(self) return arrayof(table.unpack(items)) end,\n" +
-                "    remove = function(self, index) table.remove(items, index + 1) end }\n" +
+                "    remove = function(self, index) table.remove(items, index + 1) end,\n" +
+                "    subList = function(self, from, to) return { clear = function()\n" +
+                "      for i = to, from + 1, -1 do table.remove(items, i) end end } end }\n" +
                 "end\n" +
                 "function namesof(list, field)\n" +
                 "  local names = {}\n" +

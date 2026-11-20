@@ -292,7 +292,9 @@ function after(hook, param)
         local info = result:toArray()
         for index = info['length'], 1, -1 do
             if not param:isPackageVisible(info[index].packageName) then
-                result:remove(index - 1)
+                -- subList, not remove(index): for an int below 128 LuaJ scores List.remove(int) and remove(Object)
+                -- the same and calls the one reflection lists first, which can be remove(Object), which removes nothing
+                result:subList(index - 1, index):clear()
                 filtered = true
             end
         end

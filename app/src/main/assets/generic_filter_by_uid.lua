@@ -155,8 +155,10 @@ function preferred(param, count)
     local removed = 0
     for index = activities:size() - 1, 0, -1 do
         if not param:isPackageVisible(activities:get(index):getPackageName()) then
-            filters:remove(index)
-            activities:remove(index)
+            -- subList, not remove(index): for an int below 128 LuaJ scores List.remove(int) and remove(Object) the
+            -- same and calls the one reflection lists first, which can be remove(Object), which removes nothing
+            filters:subList(index, index + 1):clear()
+            activities:subList(index, index + 1):clear()
             removed = removed + 1
         end
     end
@@ -196,7 +198,7 @@ function after(hook, param)
         local removed = 0
         for index = (activities ~= nil and activities:size() or 0) - 1, 0, -1 do
             if activities:get(index).activityInfo.applicationInfo.uid ~= param:getUid() then
-                activities:remove(index)
+                activities:subList(index, index + 1):clear() -- not remove(index), see preferred
                 removed = removed + 1
             end
         end
@@ -307,7 +309,7 @@ function after(hook, param)
         end
         if not visible then
             filtered = true
-            list:remove(index - 1)
+            list:subList(index - 1, index):clear() -- not remove(index - 1), see preferred
         end
     end
 

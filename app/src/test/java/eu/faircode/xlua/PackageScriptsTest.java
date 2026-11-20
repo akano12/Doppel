@@ -77,6 +77,9 @@ public class PackageScriptsTest {
             "    size = function(self) return #self.items end,",
             "    isEmpty = function(self) return #self.items == 0 end,",
             "    remove = function(self, index) table.remove(self.items, index + 1) end,",
+            // subList(from, to):clear(), which the scripts use instead of the overloaded remove(int)
+            "    subList = function(self, from, to) return { clear = function()",
+            "      for i = to, from + 1, -1 do table.remove(self.items, i) end end } end,",
             "    toArray = function(self) return arrayof(table.unpack(self.items)) end }",
             "end",
             Scripts.ARRAYOF,
