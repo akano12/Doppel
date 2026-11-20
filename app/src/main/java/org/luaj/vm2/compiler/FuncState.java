@@ -718,7 +718,7 @@ public class FuncState extends Constants {
 		case LexState.VINDEXED: {
 			int op = (var.u.ind_vt == LexState.VLOCAL) ? OP_SETTABLE : OP_SETTABUP;
 			int e = this.exp2RK(ex);
-		    this.codeABC(op, var.u.ind_t, var.u.ind_idx, e);
+			this.codeABC(op, var.u.ind_t, var.u.ind_idx, e);
 			break;
 		}
 		default: {

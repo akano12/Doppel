@@ -2096,7 +2096,7 @@ public class LexState extends Constants {
 			break;
 		}
 		case TK_RETURN: { /* stat -> retstat */
-		    next();  /* skip RETURN */
+			next();  /* skip RETURN */
 			this.retstat();
 			break;
 		}

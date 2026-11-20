@@ -606,7 +606,7 @@ class XCore {
                     // Isolated processes (including app zygote) cannot access the provider; this is for legacy loaders
                     // that inject there. LSPosed does not even load modules there, so an isolated service of the app
                     // reads the real Build fields (README Limits).
-                    if (Util.isIsolated(uid)) {
+                    if (Util.isIsolated()) {
                         XLog.i(TAG, "Skipping isolated " + packageName + ":" + uid);
                         return;
                     }

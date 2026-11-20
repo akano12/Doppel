@@ -45,8 +45,6 @@ class Util {
     private static final String TAG = "XLua.Util";
 
     private static final int PER_USER_RANGE = 100000;
-    private static final int FIRST_ISOLATED_UID = 99000;
-    private static final int LAST_ISOLATED_UID = 99999;
 
     static final String COLLECTION_DEFAULT = "Privacy";
 
@@ -74,11 +72,9 @@ class Util {
         return userid * PER_USER_RANGE + (appid % PER_USER_RANGE);
     }
 
-    static boolean isIsolated(int uid) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-            return Process.isIsolated(); // Includes app zygote processes
-        int appid = getAppId(uid);
-        return (appid >= FIRST_ISOLATED_UID && appid <= LAST_ISOLATED_UID);
+    // Whether this process is isolated, also an app zygote process
+    static boolean isIsolated() {
+        return Process.isIsolated();
     }
 
     static UserHandle getUserHandle(int userid) {

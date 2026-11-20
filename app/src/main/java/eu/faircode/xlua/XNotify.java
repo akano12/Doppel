@@ -412,21 +412,12 @@ final class XNotify {
         Method mCancelAsUser = nm.getClass().getDeclaredMethod(
                 "cancelAsUser", String.class, int.class, UserHandle.class);
 
+        // The active notifications of system server of the user of the context, all tags of custom groups too
         Set<String> tags = new HashSet<>();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P || userid == 0) {
-            // The active notifications of system server of the user of the context, all tags of custom groups too
-            for (StatusBarNotification sbn : nm.getActiveNotifications()) {
-                String tag = sbn.getTag();
-                if (sbn.getId() == uid && tag != null && tag.startsWith(TAG_PREFIX))
-                    tags.add(tag);
-            }
-        } else {
-            // Before Android 9 these are the notifications of the user of system server, the owner,
-            // so the tags of other users are of the groups of the definitions
-            tags.add(TAG_NEW_APP);
-            tags.add(TAG_EXCEPTION);
-            for (String group : XProvider.getGroups())
-                tags.add(TAG_USAGE + group);
+        for (StatusBarNotification sbn : nm.getActiveNotifications()) {
+            String tag = sbn.getTag();
+            if (sbn.getId() == uid && tag != null && tag.startsWith(TAG_PREFIX))
+                tags.add(tag);
         }
 
         for (String tag : tags)

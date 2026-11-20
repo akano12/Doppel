@@ -281,16 +281,6 @@ class XProvider {
         return result;
     }
 
-    // The groups of the definitions which are loaded, built-in and custom, see XNotify.cancelApp
-    static Set<String> getGroups() {
-        Set<String> groups = new HashSet<>();
-        Map<String, XHook> current = hooks;
-        if (current != null)
-            for (XHook hook : current.values())
-                groups.add(hook.getGroup());
-        return groups;
-    }
-
     private interface Answer<T> {
         T run() throws Throwable;
     }
