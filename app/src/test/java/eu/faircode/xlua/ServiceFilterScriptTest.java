@@ -27,6 +27,10 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -92,9 +96,8 @@ public class ServiceFilterScriptTest {
                 {"service_filter", "android.view.accessibility.AccessibilityManager", "getEnabledAccessibilityServiceList",
                         "accessibilityof", "com.example.app"},
                 {"service_filter", "android.view.accessibility.AccessibilityManager", "getInstalledAccessibilityServiceList",
-                        "accessibilityof", "com.example.app"},
-                {"service_filter", "android.view.textservice.TextServicesManager", "getEnabledSpellCheckerInfos", "serviceof",
-                        "com.android.inputmethod"}};
+                        "accessibilityof", "com.example.app"}};
+        // getEnabledSpellCheckerInfos: see spellCheckersStayAnArrayOfTheirType
         for (String[] list : lists) {
             Globals globals = Scripts.load(list[0], STUBS);
             String call = "filter('" + list[1] + "', '" + list[2] + "', ";
@@ -394,6 +397,26 @@ public class ServiceFilterScriptTest {
         globals.set("checkers", CoerceJavaToLua.coerce(none));
         result = Scripts.run(globals,
                 "return filter('android.view.textservice.TextServicesManager', 'getEnabledSpellCheckers', checkers)");
+        assertFalse(result.arg(1).toboolean());
+        assertFalse(result.arg(2).toboolean());
+
+        // getEnabledSpellCheckerInfos returns Arrays.asList of that array: of fixed size, so add throws
+        globals.set("infos", CoerceJavaToLua.coerce(Arrays.asList(visible, new Checker("com.other.hidden"))));
+        result = Scripts.run(globals, "local restricted, set, list, old, new = " +
+                "filter('android.view.textservice.TextServicesManager', 'getEnabledSpellCheckerInfos', infos)\n" +
+                "return restricted, set, list, old, new, pcall(function() list:add(list:get(0)) end)");
+        assertTrue(result.arg(1).toboolean());
+        assertTrue(result.arg(2).toboolean());
+        List<?> list = (List<?>) result.arg(3).touserdata();
+        assertEquals(Collections.singletonList(visible), list);
+        assertEquals("2", result.arg(4).tojstring());
+        assertEquals("1", result.arg(5).tojstring());
+        assertFalse(result.arg(6).toboolean());
+
+        // Nothing hidden: the list of the app stays
+        globals.set("infos", CoerceJavaToLua.coerce(Arrays.asList(none)));
+        result = Scripts.run(globals,
+                "return filter('android.view.textservice.TextServicesManager', 'getEnabledSpellCheckerInfos', infos)");
         assertFalse(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
     }

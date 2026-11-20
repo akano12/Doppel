@@ -1839,10 +1839,9 @@ public class NetworkScriptsTest {
                 // A VPN over Wi-Fi from Android 12 with VpnTransportInfo, and its transport info and signal strength
                 {34, "bitsof(1, 4)", "true 32 2 1000 2000 nil WifiInfo -55 -1 nil"},
                 {29, "bitsof(1, 4)", "true 32 2 1000 2000 nil WifiInfo -55 -1 nil"},
-                // A VPN without another transport, like on Android 8.1, has the one hasTransport shows, and the signal
-                // strength of the text, whose getter is hidden there
-                {28, "bitsof(4)", "true 32 2 1000 2000 nil nil -55 -1 nil"},
-                {27, "bitsof(4)", "true nil 2 1000 2000 nil nil -55 nil nil"}}) {
+                // A VPN without another transport has the one hasTransport shows, and on Android 9 the signal strength of
+                // the text, whose getter is hidden there
+                {28, "bitsof(4)", "true 32 2 1000 2000 nil nil -55 -1 nil"}}) {
             globals.set("sdk", LuaValue.valueOf((int) version[0]));
             Varargs result = Scripts.run(globals, nc +
                     "local restricted, skipped, fields, alone, recycled = parcelled(vpn(" + version[1] + "))\n" +
@@ -1922,8 +1921,6 @@ public class NetworkScriptsTest {
                 {29, "wlan0 la:192.168.1.5/24 192.168.1.1%0,fe80::1%0 fd00::53%0 1 dns.example 10.0.0.9%0 nil nil 1500" +
                         " 4096,87380 " + routes + " nil prefix:64:ff9b::/96 0 nil"},
                 {28, "wlan0 la:192.168.1.5/24 192.168.1.1%0,fe80::1%0 fd00::53%0 1 dns.example nil nil nil 1500" +
-                        " 4096,87380 " + routes + " nil nil 0 nil"},
-                {27, "wlan0 la:192.168.1.5/24 192.168.1.1%0,fe80::1%0 nil nil nil nil nil nil 1500" +
                         " 4096,87380 " + routes + " nil nil 0 nil"}}) {
             globals.set("sdk", LuaValue.valueOf((int) version[0]));
             Varargs result = Scripts.run(globals, lp);

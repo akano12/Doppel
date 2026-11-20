@@ -211,6 +211,11 @@ function after(hook, param)
     if list == nil then
         return false
     end
+    -- The binder proxy under PackageManager, which apps reach by reflection, answers with a ParceledListSlice, whose
+    -- list is the one PackageManager returns, filtered in place; PackageManager filters it again, which keeps it
+    if string.match(hook:getName(), '^IPackageManager%.getInstalled') then
+        list = list:getList()
+    end
 
     -- The standby buckets of all apps need usage access, which reads as not granted (see package_probe), so a map
     -- Android gave becomes the SecurityException which UsageStatsService throws itself for an app without usage access
@@ -222,6 +227,7 @@ function after(hook, param)
     local filtered = false
     local name = string.gsub(hook:getName(), '%.%d+$', '')
     name = string.gsub(name, 'AsUser$', '') -- Hidden methods for a user, with the items of their public twin
+    name = string.gsub(name, '^IPackageManager%.', 'PackageManager.') -- The proxy, with the items of PackageManager
     if name == 'PackageManager.getPreferredActivities' then
         return preferred(param, list)
     end
@@ -266,8 +272,10 @@ function after(hook, param)
             -- RunningTaskInfo, like the task of the launcher, which Android 9 to 11 lists to any app and 12 does not
             local component = item.baseActivity or item.topActivity
             packageName = (component ~= nil and component:getPackageName() or param:getPackageName())
-        elseif name == 'TelecomManager.getSelfManagedPhoneAccounts' then
-            packageName = item:getComponentName():getPackageName() -- PhoneAccountHandle of a VoIP app
+        elseif name == 'TelecomManager.getSelfManagedPhoneAccounts' or
+                string.match(name, '^TelecomManager%.getCallCapablePhoneAccounts') then
+            -- PhoneAccountHandle of a VoIP app, or of the SIMs, which are of the phone app, a system app
+            packageName = item:getComponentName():getPackageName()
         elseif name == 'DevicePolicyManager.getActiveAdmins' then
             packageName = item:getPackageName() -- ComponentName, system admins stay like system apps
         elseif name == 'PackageManager.queryInstrumentation' then

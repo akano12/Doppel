@@ -2694,14 +2694,14 @@ public class DeviceValuesScriptTest {
         for (int[] level : new int[][]{{15, 15}, {18, 20}, {22, 21}, {25, 25}, {26, 30}})
             assertEquals(String.valueOf(level[0]), level[1], Scripts.run(globals, "return run(hookof(" +
                     "'BatteryManager.getIntProperty', 'getIntProperty'), paramof(" + level[0] + ", { [0] = 4 }))").arg(2).toint());
-        // Other properties as not supported: an int is 0 before Android 9 and for apps made for it, else its minimum,
+        // Other properties as not supported: an int is 0 for apps made for Android 8.1 or earlier, else its minimum,
         // with the version of Android of the test, so a device runs the same branches as the JVM
         Scripts.run(globals, "local real = luajava.bindClass\n" +
                 "luajava.bindClass = function(name)\n" +
                 "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
                 "  return real(name)\n" +
                 "end");
-        for (int[] version : new int[][]{{27, 34, 0}, {34, 27, 0}, {34, 34, Integer.MIN_VALUE}})
+        for (int[] version : new int[][]{{34, 27, 0}, {34, 34, Integer.MIN_VALUE}, {28, 28, Integer.MIN_VALUE}})
             assertEquals(version[0] + "/" + version[1], version[2], Scripts.run(globals,
                     "sdk = " + version[0] + " target = " + version[1] + "\n" +
                             "return run(hookof('BatteryManager.getIntProperty', 'getIntProperty'), " +

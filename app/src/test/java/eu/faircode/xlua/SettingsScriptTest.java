@@ -311,9 +311,8 @@ public class SettingsScriptTest {
                 {"serviceof('com.example.app', 10200, false, '" + own + "')", "34", own, own},
                 {VOICE, "34", latin, voice + ":" + latin},
                 {VOICE, "28", latin, voice + ":" + latin},
-                {VOICE, "27", voice, voice},
                 {"", "34", latin, latin},
-                {"", "27", latin, latin}};
+                {"", "28", latin, latin}};
         for (String[] item : cases) {
             String enabled = HIDDEN_KEYBOARD + (item[0].isEmpty() ? "" : ", " + item[0]);
             run("enabled = arrayof(" + enabled + ")\ninstalled = arrayof(" + enabled + ", " + LATIN + ")\nsdk = " + item[1]);
@@ -338,13 +337,11 @@ public class SettingsScriptTest {
         run("spellcheckers = nil");
         assertEquals("", applications("input_method", "selected_spell_checker", "com.third.keyboard/.SpellChecker"));
 
-        // The subtype goes with the current spell checker, which TextServicesManagerService resets as of Android 9
+        // The subtype goes with the current spell checker, which TextServicesManagerService resets
         // when it chooses another one; also when the current one cannot be read
         run("current = 'com.third.keyboard/.SpellChecker'");
         assertEquals("0", applications("input_method", "selected_spell_checker_subtype", "-1234"));
         assertEquals("same", applications("input_method", "selected_spell_checker_subtype", "0"));
-        run("sdk = 27");
-        assertEquals("same", applications("input_method", "selected_spell_checker_subtype", "-1234"));
         run("sdk = 28\ncurrent = 'com.android.inputmethod.latin/.spellcheck.SpellCheckerService'");
         assertEquals("same", applications("input_method", "selected_spell_checker_subtype", "-1234"));
         run("current = nil");
@@ -367,7 +364,7 @@ public class SettingsScriptTest {
         String installed = "installed = arrayof(" + HIDDEN_KEYBOARD + ", " + VOICE + ", " + LATIN + ")\nsdk = 34\nmodern = true\n";
         for (String lists : new String[]{installed + "enabled = arrayof(" + HIDDEN_KEYBOARD + ", " + VOICE + ", " + LATIN + ")\n" +
                 SPELL_CHECKERS, installed + "enabled = arrayof(" + HIDDEN_KEYBOARD + ", " + VOICE + ")\nmodern = false\n" + SPELL_CHECKERS,
-                installed + "enabled = arrayof(" + HIDDEN_KEYBOARD + ", " + VOICE + ")\nsdk = 27",
+                installed + "enabled = arrayof(" + HIDDEN_KEYBOARD + ", " + VOICE + ")\nsdk = 28",
                 installed + "enabled = arrayof(" + HIDDEN_KEYBOARD + ")\nspellcheckers = nil",
                 installed + "enabled = arrayof(" + HIDDEN_KEYBOARD + ")\ninstalled = arrayof(" + HIDDEN_KEYBOARD + ")"}) {
             run(lists);

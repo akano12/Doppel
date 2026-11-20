@@ -1581,10 +1581,9 @@ public class HookDefinitionsTest {
                 "@generic_null_value 27-28 optional");
         check("TelephonyManager.getPhoneAccountHandleForSubscriptionId", "android.telephony.TelephonyManager " +
                 "getPhoneAccountHandleForSubscriptionId(int) @generic_null_value 29-30 optional");
-        // The subscriptions, which are hidden where the SIM accounts are: null on Android 8.1, then an empty list, of
-        // all subscriptions Collections.emptyList on Android 12, a count of 0 and no single subscription
+        // The subscriptions, which are hidden where the SIM accounts are: an empty list, of all subscriptions
+        // Collections.emptyList on Android 12, a count of 0 and no single subscription
         String sm = "android.telephony.SubscriptionManager ";
-        check("SubscriptionManager.getActiveSubscriptionInfoList.27", sm + "getActiveSubscriptionInfoList() @generic_null_value 27-27");
         check("SubscriptionManager.getActiveSubscriptionInfoList", sm + "getActiveSubscriptionInfoList() @generic_empty 28-32");
         check("SubscriptionManager.getCompleteActiveSubscriptionInfoList", sm + "getCompleteActiveSubscriptionInfoList() " +
                 "@generic_empty 30-32");
@@ -1602,11 +1601,10 @@ public class HookDefinitionsTest {
         check("SubscriptionManager.isActiveSubId", sm + "isActiveSubId(int) @subscription_denied 29-32 optional");
         check("SubscriptionManager.getAvailableSubscriptionInfoList", sm + "getAvailableSubscriptionInfoList() " +
                 "@subscription_denied 27-30 optional");
-        // The same by the proxy of the subscription service, which apps for Android 8.1 reach by reflection, with the
-        // answers of the service, null for all subscriptions
+        // The same by the proxy of the subscription service, which apps targeting Android 8.1 reach by reflection, with
+        // the answers of the service, null for all subscriptions
         String isub = "com.android.internal.telephony.ISub$Stub$Proxy ";
         String[][] proxies = {
-                {"getActiveSubscriptionInfoList.27", "(java.lang.String) @generic_null_value 27-27", "java.util.List"},
                 {"getActiveSubscriptionInfoList", "(java.lang.String) @generic_empty 28-29", "java.util.List"},
                 {"getAllSubInfoList", "(java.lang.String) @generic_null_value 27-29", "java.util.List"},
                 {"getAllSubInfoCount", "(java.lang.String) @generic_zero_value 27-29", "int"},
@@ -1621,7 +1619,7 @@ public class HookDefinitionsTest {
         List<String> names = new ArrayList<>();
         for (String[] proxy : proxies) {
             String name = "ISub." + proxy[0];
-            check(name, isub + proxy[0].replace(".27", "") + proxy[1] + " optional");
+            check(name, isub + proxy[0] + proxy[1] + " optional");
             assertEquals(name, proxy[2], hook(name).getString("returnType"));
             names.add(name);
         }
@@ -1632,7 +1630,7 @@ public class HookDefinitionsTest {
                 "TelephonyManager.getPhoneAccountHandle",
                 "ITelecomService.getCallCapablePhoneAccounts", "ITelecomService.getDefaultOutgoingPhoneAccount",
                 "ITelecomService.getUserSelectedOutgoingPhoneAccount", "TelephonyManager.getPhoneAccountHandleForSubscriptionId",
-                "SubscriptionManager.getActiveSubscriptionInfoList.27", "SubscriptionManager.getActiveSubscriptionInfoList",
+                "SubscriptionManager.getActiveSubscriptionInfoList",
                 "SubscriptionManager.getCompleteActiveSubscriptionInfoList", "SubscriptionManager.getOpportunisticSubscriptions",
                 "SubscriptionManager.getAllSubscriptionInfoList", "SubscriptionManager.getAllSubscriptionInfoList.31",
                 "SubscriptionManager.getAllSubscriptionInfoCount", "SubscriptionManager.getActiveSubscriptionInfoCount",
@@ -1930,7 +1928,6 @@ public class HookDefinitionsTest {
         check(posted + "postOnPackageChanged", handler + "postOnPackageChanged(java.lang.String," + user + ") @launcher_callbacks 27-");
         check(posted + "postOnPackagesAvailable", handler + "postOnPackagesAvailable(" + packages + ",boolean) @launcher_callbacks 27-");
         check(posted + "postOnPackagesUnavailable", handler + "postOnPackagesUnavailable(" + packages + ",boolean) @launcher_callbacks 27-");
-        check(posted + "postOnPackagesSuspended.27", handler + "postOnPackagesSuspended(" + packages + ") @launcher_callbacks 27-27");
         check(posted + "postOnPackagesSuspended", handler + "postOnPackagesSuspended(java.lang.String[],android.os.Bundle," +
                 user + ") @launcher_callbacks 28-");
         check(posted + "postOnPackagesUnsuspended", handler + "postOnPackagesUnsuspended(" + packages + ") @launcher_callbacks 27-");
@@ -2182,12 +2179,9 @@ public class HookDefinitionsTest {
     public void networkScanGetsNoCells() throws Exception {
         String scan = "android.telephony.NetworkScanRequest,java.util.concurrent.Executor," +
                 "android.telephony.TelephonyScanManager$NetworkScanCallback) @telephonymanager_registertelephonycallback ";
-        check("TelephonyManager.requestNetworkScan.27", "android.telephony.TelephonyManager requestNetworkScan(" +
-                "android.telephony.NetworkScanRequest,android.telephony.TelephonyScanManager$NetworkScanCallback) " +
-                "@telephonymanager_registertelephonycallback 27-27 optional");
         check("TelephonyManager.requestNetworkScan", "android.telephony.TelephonyManager requestNetworkScan(" + scan + "28-");
         check("TelephonyManager.requestNetworkScan.33", "android.telephony.TelephonyManager requestNetworkScan(int," + scan + "33-");
-        for (String name : new String[]{"TelephonyManager.requestNetworkScan.27", "TelephonyManager.requestNetworkScan.33"})
+        for (String name : new String[]{"TelephonyManager.requestNetworkScan", "TelephonyManager.requestNetworkScan.33"})
             assertEquals(name, "Read.Network", hook(name).getString("group"));
     }
 
@@ -2444,8 +2438,6 @@ public class HookDefinitionsTest {
         check("AutofillManager.tryAddServiceClientIfNeededLocked.credman", "android.view.autofill.AutofillManager " +
                 "tryAddServiceClientIfNeededLocked(boolean) @package_result 35- optional");
         check("AutofillManager.setState", "android.view.autofill.AutofillManager setState(int) @package_result 28- optional");
-        check("AutofillManager.setState.enabled", "android.view.autofill.AutofillManager " +
-                "setState(boolean,boolean,boolean) @package_result 27-27 optional");
         check("AutofillManager.enableCompatibilityMode", "android.view.autofill.AutofillManager " +
                 "enableCompatibilityMode() @package_result 28- optional");
         for (String[] acquire : new String[][]{{"acquireProvider/hidden", "android.net.Uri"},
@@ -2479,6 +2471,25 @@ public class HookDefinitionsTest {
                 "@generic_filter_by_uid 27-");
         check("TelecomManager.getSelfManagedPhoneAccounts", "android.telecom.TelecomManager getSelfManagedPhoneAccounts() " +
                 "@generic_filter_by_uid 27-");
+        // The calling accounts of hidden apps, on every version, which Read.Telephony empties only up to Android 12
+        String telecom = "android.telecom.TelecomManager ";
+        check("TelecomManager.getCallCapablePhoneAccounts/apps", telecom + "getCallCapablePhoneAccounts() " +
+                "@generic_filter_by_uid 27-");
+        check("TelecomManager.getCallCapablePhoneAccounts/disabled/apps", telecom + "getCallCapablePhoneAccounts(boolean) " +
+                "@generic_filter_by_uid 27- optional");
+        check("TelecomManager.getDefaultOutgoingPhoneAccount/apps", telecom + "getDefaultOutgoingPhoneAccount(" + s +
+                ") @package_result 27-");
+        check("TelecomManager.getUserSelectedOutgoingPhoneAccount/apps", telecom + "getUserSelectedOutgoingPhoneAccount() " +
+                "@package_result 27-");
+        check("TelecomManager.getSimCallManager/apps", telecom + "getSimCallManager() @package_result 27-");
+        check("TelecomManager.getSimCallManager/user/apps", telecom + "getSimCallManager(int) @package_result 27- optional");
+        check("TelecomManager.getSimCallManagerForSubscription/apps", telecom + "getSimCallManagerForSubscription(int) " +
+                "@package_result 30-");
+        check("TelecomManager.getPhoneAccount/apps", telecom + "getPhoneAccount(android.telecom.PhoneAccountHandle) " +
+                "@package_result 27-");
+        for (String name : new String[]{"getCallCapablePhoneAccounts/apps", "getDefaultOutgoingPhoneAccount/apps",
+                "getPhoneAccount/apps", "getSimCallManager/apps"})
+            assertEquals(name, "Get.Applications", hook("TelecomManager." + name).getString("group"));
         check("UsageStatsManager.getAppStandbyBuckets", "android.app.usage.UsageStatsManager getAppStandbyBuckets() " +
                 "@generic_filter_by_uid 28- optional");
         check("UsageStatsManager.getAppStandbyBucket", "android.app.usage.UsageStatsManager getAppStandbyBucket(" + s +
@@ -3361,8 +3372,6 @@ public class HookDefinitionsTest {
         check("LinkProperties.hashCode", lp + "hashCode() @network_address 27-");
         for (String method : new String[]{"isIdenticalAddresses", "isIdenticalDnses", "isIdenticalRoutes"})
             check("LinkProperties." + method, lp + method + "(android.net.LinkProperties) @network_address 27- optional");
-        for (String method : new String[]{"compareAddresses", "compareDnses", "compareAllRoutes", "compareAllInterfaceNames"})
-            check("LinkProperties." + method, lp + method + "(android.net.LinkProperties) @network_address 27-27 optional");
         check("LinkProperties.isPrivateDnsActive", lp + "isPrivateDnsActive() @network_address 28-");
         check("LinkProperties.isWakeOnLanSupported", lp + "isWakeOnLanSupported() @network_address 30-");
     }
@@ -3420,9 +3429,8 @@ public class HookDefinitionsTest {
             check("ServiceManagerProxy." + method + "/biometrics", proxy + method + "(" + s + ") @biometrics 27- optional");
             assertEquals(method, "android.os.IBinder", hook("ServiceManagerProxy." + method + "/biometrics").getString("returnType"));
         }
-        check("ServiceManagerProxy.listServices/biometrics", proxy + "listServices() @biometrics 27-27 optional");
         check("ServiceManagerProxy.listServices.priority/biometrics", proxy + "listServices(int) @biometrics 28- optional");
-        for (String name : new String[]{"getService", "checkService", "listServices", "listServices.priority"}) {
+        for (String name : new String[]{"getService", "checkService", "listServices.priority"}) {
             assertEquals(name, "android", hook("ServiceManagerProxy." + name + "/biometrics").getString("excludePackages"));
             if (name.startsWith("listServices"))
                 assertEquals(name, "java.lang.String[]", hook("ServiceManagerProxy." + name + "/biometrics").getString("returnType"));
@@ -3473,14 +3481,13 @@ public class HookDefinitionsTest {
         // Screen capture gets the result of a declined consent, by the dispatcher of each version, and no projection
         // from a consent which reaches the app otherwise (see mediaprojection_result)
         String result = "android.app.Activity dispatchActivityResult(java.lang.String,int,int,android.content.Intent";
-        check("Activity.dispatchActivityResult/projection", result + ") @mediaprojection_result 27-27 optional");
         check("Activity.dispatchActivityResult.reason/projection", result + ",java.lang.String) @mediaprojection_result 28-34 optional");
         check("Activity.internalDispatchActivityResult/projection", "android.app.Activity internalDispatchActivityResult(" +
                 "java.lang.String,int,int,android.content.Intent,android.app.ComponentCaller,java.lang.String) " +
                 "@mediaprojection_result 34- optional");
         check("MediaProjectionManager.getMediaProjection", "android.media.projection.MediaProjectionManager " +
                 "getMediaProjection(int,android.content.Intent) @generic_block 27-");
-        for (String name : new String[]{"Activity.dispatchActivityResult/projection", "Activity.dispatchActivityResult.reason/projection",
+        for (String name : new String[]{"Activity.dispatchActivityResult.reason/projection",
                 "Activity.internalDispatchActivityResult/projection", "MediaProjectionManager.getMediaProjection"})
             assertEquals(name, "Record.Video", hook(name).getString("group"));
         check("AudioManager.getCommunicationDevice", "android.media.AudioManager getCommunicationDevice() @audio_devices 31-");
@@ -3506,13 +3513,12 @@ public class HookDefinitionsTest {
         String open = manager + "openCameraDeviceUserAsync(" + s + ",android.hardware.camera2.CameraDevice$StateCallback,";
         String executor = open + "java.util.concurrent.Executor,int";
         String compat = "android.content.res.CameraCompatibilityInfo";
-        check("CameraManager2.openCameraDeviceUserAsync/handler", open + "android.os.Handler,int) @camera2_open 27-27 optional");
         check("CameraManager2.openCameraDeviceUserAsync/uid", executor + ") @camera2_open 28-30 optional");
         check("CameraManager2.openCameraDeviceUserAsync/oom", executor + ",int) @camera2_open 31-35 optional");
         check("CameraManager2.openCameraDeviceUserAsync/flag", executor + ",int,boolean) @camera2_open 34-36 optional");
         check("CameraManager2.openCameraDeviceUserAsync/rotation", executor + ",int,int) @camera2_open 35-35 optional");
         check("CameraManager2.openCameraDeviceUserAsync/compat", executor + "," + compat + ",boolean) @camera2_open 36- optional");
-        for (String name : new String[]{"handler", "uid", "oom", "flag", "rotation", "compat"})
+        for (String name : new String[]{"uid", "oom", "flag", "rotation", "compat"})
             assertTrue(name, hook("CameraManager2.openCameraDeviceUserAsync/" + name).getBoolean("notify"));
         check("CameraManager2.getCameraCharacteristics/portrait", manager + "getCameraCharacteristics(" + s +
                 ",boolean) @camera2_open 34- optional");
@@ -3591,6 +3597,28 @@ public class HookDefinitionsTest {
         check("IPackageManager.getPackagesForUid", pm + "getPackagesForUid(int) @package_resolve 27- optional");
         check("IPackageManager.getNameForUid", pm + "getNameForUid(int) @package_resolve 27- optional");
         check("IPackageManager.checkUidSignatures", pm + "checkUidSignatures(int,int) @package_resolve 27- optional");
+        // And under the lookups and lists of packages, with flags of an int up to Android 12 and a long later
+        // (IPackageManager.aidl of android12-release and android13-release)
+        for (String[] version : new String[][]{{"", "int", "27-32"}, {".33", "long", "33-"}}) {
+            String f = version[1];
+            check("IPackageManager.getPackageInfo" + version[0], pm + "getPackageInfo(" + s + "," + f + ",int) @package_probe " +
+                    version[2] + " optional");
+            check("IPackageManager.getApplicationInfo" + version[0], pm + "getApplicationInfo(" + s + "," + f +
+                    ",int) @package_probe " + version[2] + " optional");
+            check("IPackageManager.getPackageUid" + version[0], pm + "getPackageUid(" + s + "," + f + ",int) @package_probe " +
+                    version[2] + " optional");
+            check("IPackageManager.getInstalledPackages" + version[0], pm + "getInstalledPackages(" + f +
+                    ",int) @generic_filter_by_uid " + version[2] + " optional");
+            check("IPackageManager.getInstalledApplications" + version[0], pm + "getInstalledApplications(" + f +
+                    ",int) @generic_filter_by_uid " + version[2] + " optional");
+            // The lists of Android 13 and later have no return type: Android 17 returns PackageInfoList, a subclass
+            for (String list : new String[]{"getInstalledPackages", "getInstalledApplications"})
+                if (version[0].isEmpty())
+                    assertEquals(list, "android.content.pm.ParceledListSlice",
+                            hook("IPackageManager." + list).getString("returnType"));
+                else
+                    assertFalse(list, hook("IPackageManager." + list + version[0]).has("returnType"));
+        }
         check("IContentService.getSyncAdapterTypes", "android.content.IContentService$Stub$Proxy getSyncAdapterTypes() " +
                 "@package_resolve 27- optional");
         check("PackageManager.getPackageInfo/analytics", "android.content.pm.PackageManager getPackageInfo(" + s +

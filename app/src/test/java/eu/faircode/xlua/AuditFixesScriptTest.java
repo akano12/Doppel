@@ -63,6 +63,30 @@ public class AuditFixesScriptTest {
         assertFalse(result.arg(6).toboolean());
     }
 
+    // A calling account of a hidden app, by the package of its ConnectionService, is none, which Telecom answers when
+    // there is none: the default and chosen outgoing account, the SIM call manager and the lookup of the account
+    @Test
+    public void phoneAccountsOfHiddenAppsAreNone() throws Exception {
+        Globals globals = Scripts.load("package_result", PARAM + "\n" +
+                "function handleof(name) return { getComponentName = function(self)\n" +
+                "  return { getPackageName = function(self) return name end } end } end\n" +
+                "function accountof(name) local handle = handleof(name)\n" +
+                "  return { getAccountHandle = function(self) return handle end } end");
+        for (String method : new String[]{"getDefaultOutgoingPhoneAccount", "getUserSelectedOutgoingPhoneAccount",
+                "getSimCallManager", "getSimCallManagerForSubscription", "getPhoneAccount"}) {
+            String of = method.equals("getPhoneAccount") ? "accountof" : "handleof";
+            Varargs result = Scripts.run(globals,
+                    "local hook = hookof('" + method + "', 'android.telecom.TelecomManager')\n" +
+                            "local hidden = paramof(" + of + "('com.hidden.sip'))\n" +
+                            "local visible = paramof(" + of + "('com.android.phone'), nil, 'com.android.phone')\n" +
+                            "return after(hook, hidden), hidden.result, after(hook, visible), visible.set");
+            assertTrue(method, result.arg(1).toboolean());
+            assertTrue(method, result.arg(2).isnil());
+            assertFalse(method, result.arg(3).toboolean());
+            assertFalse(method, result.arg(4).toboolean());
+        }
+    }
+
     // The app which made a PendingIntent or IntentSender, like the alarm app of the next alarm clock, is unknown
     // when it is hidden, like Android 13 and later answer: no package, uid -1 and the user the getter makes of it
     @Test
@@ -292,17 +316,6 @@ public class AuditFixesScriptTest {
         assertTrue(result.arg(1).toboolean());
         assertFalse(result.arg(2).toboolean());
         assertTrue(result.arg(3).isnil());
-
-        // Android 8.1 has the setting only, a flattened component
-        result = Scripts.run(globals, "values = {}; version = 27; setting = 'com.passwords.hidden/.AutofillService'\n" +
-                "return call('setState', nil, true)");
-        assertTrue(result.arg(1).toboolean());
-        assertEquals("com.passwords.hidden", result.arg(3).tojstring());
-        assertFalse(result.arg(4).toboolean());
-        result = Scripts.run(globals, "values = {}; setting = 'com.passwords/.AutofillService'\n" +
-                "return call('ensureServiceClientAddedIfNeededLocked', nil, true, 'com.passwords')");
-        assertFalse(result.arg(1).toboolean());
-        assertTrue(result.arg(4).toboolean());
 
         // Where the field is not listed, AutofillManager stays as it is and only isEnabled is off
         globals = Scripts.load("package_result", stubs + "\nfields = arrayof()");

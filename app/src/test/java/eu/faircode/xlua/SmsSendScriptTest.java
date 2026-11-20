@@ -187,8 +187,8 @@ public class SmsSendScriptTest {
         skipped("hookof('sendTextMessage', " + TEXT + "), { [0] = '+15551234', [2] = 'hi', [3] = intentof('sent') }", "sent 1");
     }
 
-    // Sending without persisting needs carrier privileges, or MODIFY_PHONE_STATE and SEND_SMS, which Android 9 and
-    // later ask for in this order, and Android 8.1 asks for SEND_SMS first and then for the others
+    // Sending without persisting needs carrier privileges, or MODIFY_PHONE_STATE and SEND_SMS, which Android asks for
+    // in this order
     @Test
     public void sendingWithoutPersistingNeedsPrivileges() {
         String call = "hookof('sendTextMessageWithoutPersisting', " + TEXT + "), " +
@@ -211,16 +211,8 @@ public class SmsSendScriptTest {
         thrown(call, uid + "SEND_SMS.");
         Scripts.run(globals, "sdk = 28 phonestate = -1");
         thrown(call, uid + "MODIFY_PHONE_STATE.");
-        Scripts.run(globals, "sdk = 27");
-        thrown(call, uid + "SEND_SMS.");
-        Scripts.run(globals, "permission = 0");
-        thrown(call, "java.lang.SecurityException: No Carrier Privilege.");
-        Scripts.run(globals, "privileged = true");
-        skipped(call, "");
-        Scripts.run(globals, "privileged = false phonestate = 0");
-        skipped(call, "");
-        // Other messages ask neither
-        Scripts.run(globals, "sdk = 34 phonestate = -1");
+        // Other messages ask neither, only SEND_SMS
+        Scripts.run(globals, "sdk = 34 phonestate = -1 permission = 0");
         skipped("hookof('sendTextMessage', " + TEXT + "), { [0] = '+15551234', [2] = 'hi', [3] = intentof('sent') }", "sent 1");
     }
 

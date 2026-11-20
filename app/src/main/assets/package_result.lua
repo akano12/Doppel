@@ -18,10 +18,6 @@
 -- Calls which answer with an app, like the autofill service or the store which installed the app: nothing when that
 -- app is hidden, which is what Android gives for an app the caller may not see (ComputerEngine.getInstallerPackageName).
 
-function sdkversion()
-    return luajava.bindClass('android.os.Build$VERSION').SDK_INT
-end
-
 -- mEnabled of AutofillManager, whether autofill is on in the app, false when it is not listed. The fields are listed
 -- like LuaJ lists them, which Android does not report as a use of a hidden API (see features.lua).
 local ENABLED = {}
@@ -41,8 +37,7 @@ local function enabledfield()
 end
 
 -- Whether the autofill service is hidden, with its package: read without the hooks, which would else hide it, and
--- hidden too when it cannot be read, since it could be one the app may not see. Android 8.1 has no getter, only the
--- setting, which is where its autofill service comes from (AutofillManagerServiceImpl.getComponentNameFromSettings).
+-- hidden too when it cannot be read, since it could be one the app may not see.
 -- Kept for a few seconds, since Android asks for each text field whether autofill is on; read again when the service
 -- tells the app a new state, which it does when autofill was turned on or off (AutofillManagerServiceImpl.updateLocked)
 -- but not when the user chose another service while autofill stays on, so a switch is seen once the kept one is old.
@@ -53,11 +48,6 @@ function autofillhidden(param, fresh)
         local manager = param:getThis()
         local ok, service = pcall(function()
             return param:unhooked(function()
-                if sdkversion() < 28 then
-                    local setting = luajava.bindClass('android.provider.Settings$Secure'):getString(
-                            context:getContentResolver(), 'autofill_service')
-                    return (setting ~= nil and string.match(setting, '^[^/]+') or nil)
-                end
                 local component = manager:getAutofillServiceComponentName()
                 return (component ~= nil and component:getPackageName() or nil)
             end)
@@ -176,7 +166,14 @@ function after(hook, param)
         return true, service
     end
 
-    local packageName = (type(result) == 'string' and result or result:getPackageName())
+    local packageName
+    if hook:getClassName() == 'android.telecom.TelecomManager' then
+        -- A PhoneAccountHandle, or the PhoneAccount of getPhoneAccount, named by the ConnectionService of its app
+        local handle = (method == 'getPhoneAccount' and result:getAccountHandle() or result)
+        packageName = handle:getComponentName():getPackageName()
+    else
+        packageName = (type(result) == 'string' and result or result:getPackageName())
+    end
     if param:isPackageVisible(packageName) then
         return false
     end

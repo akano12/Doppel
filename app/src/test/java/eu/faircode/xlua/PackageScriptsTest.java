@@ -1843,6 +1843,51 @@ public class PackageScriptsTest {
         assertTrue(applications.arg(1).toboolean());
         assertEquals(1, applications.arg(2).toint());
         assertTrue(applications.arg(3).toboolean());
+
+        // The same lists by the binder proxy, which apps reach by reflection: a ParceledListSlice, whose list is
+        // filtered in place, so PackageManager, which returns that list, gets it filtered too
+        String proxy = "android.content.pm.IPackageManager$Stub$Proxy";
+        for (String[] hook : new String[][]{{"IPackageManager.getInstalledPackages", "{ applicationInfo = android }",
+                "{ applicationInfo = own }", ".applicationInfo"},
+                {"IPackageManager.getInstalledApplications.33", "android", "own", ""}}) {
+            Varargs result = Scripts.run(globals, items +
+                    "local list = listof({ " + hook[1] + ", " + hook[2] + " })\n" +
+                    "local slice = { getList = function(self) return list end }\n" +
+                    "local param = paramof({}, { [1000] = true })\n" +
+                    "param.result = slice\n" +
+                    "return after(hookof('" + hook[0] + "', nil, '" + proxy + "'), param), list:size(),\n" +
+                    "  list:get(0)" + hook[3] + " == own, param.result == slice");
+            assertTrue(hook[0], result.arg(1).toboolean());
+            assertEquals(hook[0], 1, result.arg(2).toint());
+            assertTrue(hook[0], result.arg(3).toboolean());
+            assertTrue(hook[0], result.arg(4).toboolean());
+        }
+    }
+
+    // A hidden package looked up by the binder proxy, which apps reach by reflection, is looked up under a name which
+    // is not installed, so the proxy answers null or -1 like Android; the name PackageManager already replaced stays
+    @Test
+    public void proxyLookupOfHiddenPackage() throws Exception {
+        String proxy = "android.content.pm.IPackageManager$Stub$Proxy";
+        for (String method : new String[]{"getPackageInfo", "getApplicationInfo", "getPackageUid"}) {
+            Varargs result = Scripts.run(load("package_probe"),
+                    "local param = paramof({ [0] = 'com.example.bank', [1] = 0, [2] = 0 }, {})\n" +
+                            "param.settings = { ['package_probe.suffix'] = '.x1' }\n" +
+                            "local hook = hookof('IPackageManager." + method + "', '" + method + "', '" + proxy + "')\n" +
+                            "local restricted, old = before(hook, param)\n" +
+                            "local renamed = param.args[0]\n" +
+                            "after(hook, param)\n" +
+                            "local again = paramof({ [0] = renamed, [1] = 0, [2] = 0 }, {})\n" +
+                            "again.settings = param.settings\n" +
+                            "local twice = before(hook, again)\n" +
+                            "after(hook, again)\n" +
+                            "return restricted, old, renamed, twice, again.args[0]");
+            assertTrue(method, result.arg(1).toboolean());
+            assertEquals(method, "com.example.bank", result.arg(2).tojstring());
+            assertEquals(method, "com.example.bank.x1", result.arg(3).tojstring());
+            assertFalse(method, result.arg(4).toboolean());
+            assertEquals(method, "com.example.bank.x1", result.arg(5).tojstring());
+        }
     }
 
     // Lists of components keep system apps, which the Android framework uses, lists of packages do not
@@ -1996,6 +2041,23 @@ public class PackageScriptsTest {
         assertEquals(1, accounts.arg(2).toint());
         assertEquals("com.visible.voip", accounts.arg(3).tojstring());
 
+        // The calling accounts too, of a SIP or VoIP app the user turned on, also with the disabled ones; the SIMs of
+        // the phone app, a system app, stay
+        for (String name : new String[]{"TelecomManager.getCallCapablePhoneAccounts/apps",
+                "TelecomManager.getCallCapablePhoneAccounts/disabled/apps"}) {
+            Varargs calling = Scripts.run(globals,
+                    "local function handle(name) return { getComponentName = function(self)\n" +
+                            "  return { getPackageName = function(self) return name end } end } end\n" +
+                            "local list = listof({ handle('com.android.phone'), handle('com.hidden.sip') })\n" +
+                            "local param = paramof({}, { ['com.android.phone'] = true })\n" +
+                            "param.result = list\n" +
+                            "return after(hookof('" + name + "'), param), list:size(),\n" +
+                            "  list:get(0):getComponentName():getPackageName()");
+            assertTrue(name, calling.arg(1).toboolean());
+            assertEquals(name, 1, calling.arg(2).toint());
+            assertEquals(name, "com.android.phone", calling.arg(3).tojstring());
+        }
+
         // The processes in error of other apps go, and none left is null, like Android answers without errors
         Varargs errors = Scripts.run(globals,
                 "local list = listof({ { uid = 10060 }, { uid = 10001 } })\n" +
@@ -2043,11 +2105,18 @@ public class PackageScriptsTest {
         assertEquals(2, managed.arg(2).toint());
     }
 
-    // Only visible packages are changed packages; no changes is null
+    // Only visible packages are changed packages; none left is null on Android 9 to 12 and changes with an empty list
+    // from Android 13 (PackageManagerService.getChangedPackages)
     @Test
     public void changedPackages() throws Exception {
         Globals globals = load("packagemanager_getchangedpackages");
-        String changed = "local result = { names = listof({ 'com.android.vending', 'com.example.bank' }),\n" +
+        String changed = "sdk = 32\n" +
+                "local bind = luajava.bindClass\n" +
+                "luajava.bindClass = function(name)\n" +
+                "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                "  return bind(name)\n" +
+                "end\n" +
+                "local result = { names = listof({ 'com.android.vending', 'com.example.bank' }),\n" +
                 "  getPackageNames = function(self) return self.names end,\n" +
                 "  getSequenceNumber = function(self) return 5 end }\n" +
                 "local hook = hookof('PackageManager.getChangedPackages')\n";
@@ -2066,6 +2135,15 @@ public class PackageScriptsTest {
                 "return after(hook, param), param.result");
         assertTrue(none.arg(1).toboolean());
         assertTrue(none.arg(2).isnil());
+
+        Varargs empty = Scripts.run(globals, changed +
+                "sdk = 33\n" +
+                "local param = paramof({ [0] = 0 }, {})\n" +
+                "param.result = result\n" +
+                "return after(hook, param), param.result.sequence, param.result.names:size()");
+        assertTrue(empty.arg(1).toboolean());
+        assertEquals(5, empty.arg(2).toint());
+        assertEquals(0, empty.arg(3).toint());
 
         Varargs all = Scripts.run(globals, changed +
                 "local param = paramof({ [0] = 0 }, { ['com.android.vending'] = true, ['com.example.bank'] = true })\n" +

@@ -107,9 +107,8 @@ end
 -- Context.enforceCallingPermission in the phone process, or for a multimedia message in system server
 function denied(method, param)
     local persisted = (method ~= 'sendTextMessageWithoutPersisting')
-    local old = (luajava.bindClass('android.os.Build$VERSION').SDK_INT < 28)
     local missing
-    if not persisted and not old then
+    if not persisted then
         if carrier(param) then
             return nil
         end
@@ -124,9 +123,6 @@ function denied(method, param)
         local what = (method == 'sendMultimediaMessage' and 'Send MMS message' or 'Sending SMS message')
         local uid = luajava.bindClass('android.os.Process'):myUid()
         return what .. ': uid ' .. uid .. ' does not have android.permission.' .. missing .. '.'
-    end
-    if not persisted and old and not granted(param, 'MODIFY_PHONE_STATE') and not carrier(param) then
-        return 'No Carrier Privilege.'
     end
     return nil
 end

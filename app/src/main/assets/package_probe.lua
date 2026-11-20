@@ -232,13 +232,7 @@ function substitute(param, value, suffix, substitutes)
         local name = hide(param, value:getPackageName(), suffix, substitutes)
         if name ~= nil then
             -- The version is part of the message of the exception
-            local code
-            if luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 28 then
-                code = value:getLongVersionCode()
-            else
-                code = value:getVersionCode()
-            end
-            return luajava.newInstance('android.content.pm.VersionedPackage', name, code)
+            return luajava.newInstance('android.content.pm.VersionedPackage', name, value:getLongVersionCode())
         end
     end
     return nil

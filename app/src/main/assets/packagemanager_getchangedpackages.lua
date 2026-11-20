@@ -17,7 +17,10 @@
 -- Copyright 2026 akano12
 
 -- The packages installed, updated or removed since the device started, without those of other apps,
--- like the package lists are filtered (see generic_filter_by_uid); no changes is null
+-- like the package lists are filtered (see generic_filter_by_uid). When none is left, Android 9 to 12 answer null,
+-- since they build the list for the caller and return null for an empty one, and Android 13 and later the changes
+-- with an empty list, since they take the names the caller may not see out of the changes they return
+-- (PackageManagerService.getChangedPackages).
 
 function after(hook, param)
     local result = param:getResult()
@@ -38,7 +41,7 @@ function after(hook, param)
         return false
     end
 
-    if kept:isEmpty() then
+    if kept:isEmpty() and luajava.bindClass('android.os.Build$VERSION').SDK_INT < 33 then
         param:setResult(nil)
     else
         param:setResult(luajava.newInstance('android.content.pm.ChangedPackages', result:getSequenceNumber(), kept))

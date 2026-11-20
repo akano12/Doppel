@@ -98,8 +98,8 @@ function copy(real, fake, from)
 end
 
 -- Capabilities: with NOT_VPN, the transports without VPN, or for a VPN without another one with the one of the network
--- under it, the transport info from Android 10 and the signal strength, like their hooked getters; Android 8.1 has no
--- forbidden capabilities. Through Lua a long is a double, exact for these bits.
+-- under it, the transport info from Android 10 and the signal strength, like their hooked getters. Through Lua a long is
+-- a double, exact for these bits.
 function capabilities(param, nc, real, fake, flags, sdk)
     local values = real:readLong()
     if not param:unhooked(function()
@@ -108,9 +108,7 @@ function capabilities(param, nc, real, fake, flags, sdk)
         values = values + 2 ^ NET_CAPABILITY_NOT_VPN
     end
     fake:writeLong(values)
-    if sdk >= 28 then
-        fake:writeLong(real:readLong())
-    end
+    fake:writeLong(real:readLong())
     local transports = real:readLong() - 2 ^ TRANSPORT_VPN
     local transport = 0
     while transports == 0 and transport < 32 do
@@ -218,11 +216,9 @@ function properties(lp, real, fake, flags, sdk)
     writeparcelables(fake, lp:getLinkAddresses(), flags)
     writeaddresses(fake, sdk, lp:getDnsServers())
     local from = real:dataPosition()
-    if sdk >= 28 then
-        skipaddresses(real, sdk)
-        real:readInt()
-        real:readString()
-    end
+    skipaddresses(real, sdk)
+    real:readInt()
+    real:readString()
     if sdk >= 29 then
         skipaddresses(real, sdk)
     end

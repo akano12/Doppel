@@ -187,8 +187,8 @@ function typing(info, english)
 end
 
 -- The enabled keyboards of a device without the hidden apps, in their order: the ones which stay visible, and when one
--- is hidden and no keyboard is left which is not auxiliary (like voice typing), or on Android 8.1 none at all, after
--- them the installed system keyboards, which InputMethodManagerService enables then (buildInputMethodListLocked).
+-- is hidden and no keyboard is left which is not auxiliary (like voice typing), after them the installed system
+-- keyboards, which InputMethodManagerService enables then (buildInputMethodListLocked).
 -- shortcut: all visible system keyboards with a keyboard subtype, where Android enables those which are default for
 -- the system language (getDefaultEnabledImes) and with none left voice typing too, upgrade when devices with more than
 -- one system keyboard are seen. The same function as in settingssecure_getstring, which names them as the enabled ones.
@@ -206,8 +206,7 @@ function keyboards(param, items)
                 typed = typed or not auxiliary(info)
             end
         end
-        if #kept < items['length'] and not typed and
-                (#kept == 0 or luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 28) then
+        if #kept < items['length'] and not typed then
             local installed = manager:getInputMethodList():toArray()
             for index = 1, installed['length'] do
                 local info = installed[index]
@@ -307,7 +306,7 @@ function after(hook, param)
         return true, result:getPackageName(), (fake ~= nil and fake:getPackageName() or nil)
     end
 
-    -- getEnabledSpellCheckers returns an array, the others a list
+    -- getEnabledSpellCheckers returns an array, the others a list, getEnabledSpellCheckerInfos one over an array
     local array = (method == 'getEnabledSpellCheckers')
     local items = (array and result or result:toArray())
     local kept = luajava.newInstance('java.util.ArrayList')
@@ -326,10 +325,17 @@ function after(hook, param)
             kept:add(infos[index])
         end
     end
-    if array then
+    if array or method == 'getEnabledSpellCheckerInfos' then
         local infoClass = luajava.bindClass('android.view.textservice.SpellCheckerInfo')
         local arrayClass = luajava.bindClass('java.lang.reflect.Array')
-        param:setResult(kept:toArray(arrayClass:newInstance(infoClass, 0)))
+        local infos = kept:toArray(arrayClass:newInstance(infoClass, 0))
+        if array then
+            param:setResult(infos)
+        else
+            -- A list of fixed size over the array, like TextServicesManager returns (Arrays.asList), so add and remove
+            -- throw and toArray gives SpellCheckerInfo[]
+            param:setResult(luajava.bindClass('java.util.Arrays'):asList(infos))
+        end
     elseif hook:getClassName() == 'android.view.accessibility.AccessibilityManager' then
         -- Unmodifiable, like the lists AccessibilityManager returns
         param:setResult(luajava.bindClass('java.util.Collections'):unmodifiableList(kept))

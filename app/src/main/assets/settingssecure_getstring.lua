@@ -281,8 +281,8 @@ function typing(info, english)
 end
 
 -- The enabled keyboards of a device without the hidden apps, in their order: the ones which stay visible, and when one
--- is hidden and no keyboard is left which is not auxiliary (like voice typing), or on Android 8.1 none at all, after
--- them the installed system keyboards, which InputMethodManagerService enables then (buildInputMethodListLocked).
+-- is hidden and no keyboard is left which is not auxiliary (like voice typing), after them the installed system
+-- keyboards, which InputMethodManagerService enables then (buildInputMethodListLocked).
 -- shortcut: all visible system keyboards with a keyboard subtype, where Android enables those which are default for
 -- the system language (getDefaultEnabledImes) and with none left voice typing too, upgrade when devices with more than
 -- one system keyboard are seen. The same function as in service_filter, which gives them as the enabled ones.
@@ -300,8 +300,7 @@ function keyboards(param, items)
                 typed = typed or not auxiliary(info)
             end
         end
-        if #kept < items['length'] and not typed and
-                (#kept == 0 or luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 28) then
+        if #kept < items['length'] and not typed then
             local installed = manager:getInputMethodList():toArray()
             for index = 1, installed['length'] do
                 local info = installed[index]
@@ -369,12 +368,9 @@ end
 -- choose instead, see keyboard and spellchecker, and the enabled keyboards get the ones Android enables when none is
 -- left, see keyboards
 function components(param, key, value)
-    -- The subtype of the spell checker, which Android 9 and later reset when they choose another spell checker
-    -- (TextServicesData.setCurrentSpellChecker) and 8.1 keeps; reset too when the spell checker cannot be read
+    -- The subtype of the spell checker, which Android resets when it chooses another spell checker
+    -- (TextServicesData.setCurrentSpellChecker); reset too when the spell checker cannot be read
     if key == 'selected_spell_checker_subtype' then
-        if luajava.bindClass('android.os.Build$VERSION').SDK_INT < 28 then
-            return value
-        end
         local ok, current = pcall(param.unhooked, param, function()
             return luajava.bindClass('android.provider.Settings$Secure'):getString(
                     param:getApplicationContext():getContentResolver(), 'selected_spell_checker')

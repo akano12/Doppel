@@ -838,6 +838,190 @@
     "excludePackages": "android",
     "luaScript": "@package_resolve"
   },
+  // The lookups and lists of apps by the same proxy, which answer like for a package which is not installed and
+  // without the other apps, like PackageManager above them: a hidden package is looked up under a name which is not
+  // installed (see package_probe); the flags are an int up to Android 12 and a long from Android 13. The lists of
+  // Android 13 and later have no return type, since Android 17 returns a subclass of ParceledListSlice
+  // (PackageInfoList), which the script reads the same way
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getPackageInfo",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 27,
+    "maxSdk": 32,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getPackageInfo.33",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getPackageInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "long",
+      "int"
+    ],
+    "returnType": "android.content.pm.PackageInfo",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getApplicationInfo",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getApplicationInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.ApplicationInfo",
+    "minSdk": 27,
+    "maxSdk": 32,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getApplicationInfo.33",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getApplicationInfo",
+    "parameterTypes": [
+      "java.lang.String",
+      "long",
+      "int"
+    ],
+    "returnType": "android.content.pm.ApplicationInfo",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getPackageUid",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getPackageUid",
+    "parameterTypes": [
+      "java.lang.String",
+      "int",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 27,
+    "maxSdk": 32,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getPackageUid.33",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getPackageUid",
+    "parameterTypes": [
+      "java.lang.String",
+      "long",
+      "int"
+    ],
+    "returnType": "int",
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_probe"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getInstalledPackages",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getInstalledPackages",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.ParceledListSlice",
+    "minSdk": 27,
+    "maxSdk": 32,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getInstalledPackages.33",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getInstalledPackages",
+    "parameterTypes": [
+      "long",
+      "int"
+    ],
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getInstalledApplications",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getInstalledApplications",
+    "parameterTypes": [
+      "int",
+      "int"
+    ],
+    "returnType": "android.content.pm.ParceledListSlice",
+    "minSdk": 27,
+    "maxSdk": 32,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "IPackageManager.getInstalledApplications.33",
+    "author": "akano12",
+    "className": "android.content.pm.IPackageManager$Stub$Proxy",
+    "methodName": "getInstalledApplications",
+    "parameterTypes": [
+      "long",
+      "int"
+    ],
+    "minSdk": 33,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
   // The binder proxy under the two above, hidden, which apps reach by reflection through ActivityThread.getPackageManager()
   {
     "collection": "Privacy",
@@ -1389,25 +1573,6 @@
     ],
     "returnType": "void",
     "minSdk": 28,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@package_result"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
-    "name": "AutofillManager.setState.enabled",
-    "author": "akano12",
-    "className": "android.view.autofill.AutofillManager",
-    "methodName": "setState",
-    "parameterTypes": [
-      "boolean",
-      "boolean",
-      "boolean"
-    ],
-    "returnType": "void",
-    "minSdk": 27,
-    "maxSdk": 27,
     "optional": true,
     "excludePackages": "android",
     "luaScript": "@package_result"
@@ -5081,23 +5246,6 @@
   {
     "collection": "Privacy",
     "group": "Get.Applications",
-    "name": "LauncherApps.CallbackMessageHandler.postOnPackagesSuspended.27",
-    "author": "akano12",
-    "className": "android.content.pm.LauncherApps$CallbackMessageHandler",
-    "methodName": "postOnPackagesSuspended",
-    "parameterTypes": [
-      "java.lang.String[]",
-      "android.os.UserHandle"
-    ],
-    "returnType": "void",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "excludePackages": "android",
-    "luaScript": "@launcher_callbacks"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Get.Applications",
     "name": "LauncherApps.CallbackMessageHandler.postOnPackagesSuspended",
     "author": "akano12",
     "className": "android.content.pm.LauncherApps$CallbackMessageHandler",
@@ -7771,6 +7919,126 @@
     "minSdk": 27,
     "excludePackages": "android",
     "luaScript": "@generic_filter_by_uid"
+  },
+  // The calling accounts, which name the app of each account by its ConnectionService, also of a SIP or VoIP app the
+  // user turned on as a calling account, without the accounts of hidden apps, like Telecom without those apps; the
+  // default, chosen and SIM call manager accounts and the lookup of an account of a hidden app are none, which Telecom
+  // answers when there is none (TelecomServiceImpl)
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getCallCapablePhoneAccounts/apps",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getCallCapablePhoneAccounts",
+    "parameterTypes": [],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getCallCapablePhoneAccounts/disabled/apps",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getCallCapablePhoneAccounts",
+    "parameterTypes": [
+      "boolean"
+    ],
+    "returnType": "java.util.List",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@generic_filter_by_uid"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getDefaultOutgoingPhoneAccount/apps",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getDefaultOutgoingPhoneAccount",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "android.telecom.PhoneAccountHandle",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_result"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getUserSelectedOutgoingPhoneAccount/apps",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getUserSelectedOutgoingPhoneAccount",
+    "parameterTypes": [],
+    "returnType": "android.telecom.PhoneAccountHandle",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_result"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getSimCallManager/apps",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getSimCallManager",
+    "parameterTypes": [],
+    "returnType": "android.telecom.PhoneAccountHandle",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_result"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getSimCallManager/user/apps",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getSimCallManager",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.telecom.PhoneAccountHandle",
+    "minSdk": 27,
+    "optional": true,
+    "excludePackages": "android",
+    "luaScript": "@package_result"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getSimCallManagerForSubscription/apps",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getSimCallManagerForSubscription",
+    "parameterTypes": [
+      "int"
+    ],
+    "returnType": "android.telecom.PhoneAccountHandle",
+    "minSdk": 30,
+    "excludePackages": "android",
+    "luaScript": "@package_result"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Get.Applications",
+    "name": "TelecomManager.getPhoneAccount/apps",
+    "author": "akano12",
+    "className": "android.telecom.TelecomManager",
+    "methodName": "getPhoneAccount",
+    "parameterTypes": [
+      "android.telecom.PhoneAccountHandle"
+    ],
+    "returnType": "android.telecom.PhoneAccount",
+    "minSdk": 27,
+    "excludePackages": "android",
+    "luaScript": "@package_result"
   },
   {
     "collection": "Privacy",
@@ -14900,72 +15168,6 @@
     "optional": true,
     "luaScript": "@network_address"
   },
-  // Hidden differences of the addresses, the DNS servers, the routes and the interfaces, which apps reach by reflection
-  // on Android 8.1, the only one which lets them
-  {
-    "collection": "Privacy",
-    "group": "Read.Network",
-    "name": "LinkProperties.compareAddresses",
-    "author": "akano12",
-    "className": "android.net.LinkProperties",
-    "methodName": "compareAddresses",
-    "parameterTypes": [
-      "android.net.LinkProperties"
-    ],
-    "returnType": "android.net.LinkProperties$CompareResult",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "optional": true,
-    "luaScript": "@network_address"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Network",
-    "name": "LinkProperties.compareDnses",
-    "author": "akano12",
-    "className": "android.net.LinkProperties",
-    "methodName": "compareDnses",
-    "parameterTypes": [
-      "android.net.LinkProperties"
-    ],
-    "returnType": "android.net.LinkProperties$CompareResult",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "optional": true,
-    "luaScript": "@network_address"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Network",
-    "name": "LinkProperties.compareAllRoutes",
-    "author": "akano12",
-    "className": "android.net.LinkProperties",
-    "methodName": "compareAllRoutes",
-    "parameterTypes": [
-      "android.net.LinkProperties"
-    ],
-    "returnType": "android.net.LinkProperties$CompareResult",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "optional": true,
-    "luaScript": "@network_address"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Network",
-    "name": "LinkProperties.compareAllInterfaceNames",
-    "author": "akano12",
-    "className": "android.net.LinkProperties",
-    "methodName": "compareAllInterfaceNames",
-    "parameterTypes": [
-      "android.net.LinkProperties"
-    ],
-    "returnType": "android.net.LinkProperties$CompareResult",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "optional": true,
-    "luaScript": "@network_address"
-  },
   // The NAT64 prefix of the network, a system API on Android 10, which apps reach by reflection
   {
     "collection": "Privacy",
@@ -15080,24 +15282,7 @@
     "minSdk": 28,
     "luaScript": "@telephonymanager_registertelephonycallback"
   },
-  // Android 8.1 has only the form without an executor, hidden; from Android 9 it calls the one with an executor
-  {
-    "collection": "Privacy",
-    "group": "Read.Network",
-    "name": "TelephonyManager.requestNetworkScan.27",
-    "author": "akano12",
-    "className": "android.telephony.TelephonyManager",
-    "methodName": "requestNetworkScan",
-    "parameterTypes": [
-      "android.telephony.NetworkScanRequest",
-      "android.telephony.TelephonyScanManager$NetworkScanCallback"
-    ],
-    "returnType": "android.telephony.NetworkScan",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "optional": true,
-    "luaScript": "@telephonymanager_registertelephonycallback"
-  },
+  // Android 13 adds a form with a flag first
   {
     "collection": "Privacy",
     "group": "Read.Network",
@@ -17739,7 +17924,7 @@
   // state permission (PhoneUtils.makePstnPhoneAccountHandleWithPrefix); later ones use the subscription id.
   // Until then the SIMs are hidden with the answers Telecom and the subscription service give a caller with the
   // permission who fails their check of the phone state app op (canReadPhoneState of TelecomServiceImpl and
-  // SubscriptionController): no subscriptions, which is null on Android 8.1 and an empty list later, a count of 0, no
+  // SubscriptionController): no subscriptions as an empty list, a count of 0, no
   // SIM accounts and no default outgoing account, rather than accounts with made-up ids, which Telecom would not know
   // when the app passes them back. Answers which Android gives without that check stay, like the ids of the active and
   // the default subscriptions, the slot of a subscription and the state of a SIM. The system and apps with
@@ -17759,20 +17944,6 @@
   // the SIMs, telephony apps of device makers in their own processes lose the SIMs when restricted, and the rows of
   // content://telephony/siminfo stay, without their serial, card id and IMSI (see contentresolver_query); upgrade when
   // apps are seen comparing them
-  {
-    "collection": "Privacy",
-    "group": "Read.Telephony",
-    "name": "SubscriptionManager.getActiveSubscriptionInfoList.27",
-    "author": "akano12",
-    "className": "android.telephony.SubscriptionManager",
-    "methodName": "getActiveSubscriptionInfoList",
-    "parameterTypes": [],
-    "returnType": "java.util.List",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "excludePackages": "android,com\\.android\\.phone,com\\.android\\.settings,com\\.android\\.systemui",
-    "luaScript": "@generic_null_value"
-  },
   {
     "collection": "Privacy",
     "group": "Read.Telephony",
@@ -17981,27 +18152,10 @@
     "optional": true,
     "luaScript": "@subscription_denied"
   },
-  // The proxy of the subscription service under these methods, which apps reach by reflection: on Android 8.1 any app,
-  // on Android 9 and 10 apps targeting Android 8.1 or earlier; Android 11 adds an argument to its methods, which the
+  // The proxy of the subscription service under these methods, which apps reach by reflection: on Android 9 and 10 apps
+  // targeting Android 8.1 or earlier; Android 11 adds an argument to its methods, which the
   // list of hidden methods apps may call does not have. The service answers like the methods, but null for all
   // subscriptions, which the method makes an empty list.
-  {
-    "collection": "Privacy",
-    "group": "Read.Telephony",
-    "name": "ISub.getActiveSubscriptionInfoList.27",
-    "author": "akano12",
-    "className": "com.android.internal.telephony.ISub$Stub$Proxy",
-    "methodName": "getActiveSubscriptionInfoList",
-    "parameterTypes": [
-      "java.lang.String"
-    ],
-    "returnType": "java.util.List",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "excludePackages": "android,com\\.android\\.phone,com\\.android\\.settings,com\\.android\\.systemui",
-    "optional": true,
-    "luaScript": "@generic_null_value"
-  },
   {
     "collection": "Privacy",
     "group": "Read.Telephony",
@@ -21019,26 +21173,6 @@
   // Screen capture by MediaProjection: the app gets the result of a user declining the consent, by the method which
   // delivers the results of activities and fragments, from the last releases of Android 14 a private one which both
   // dispatchers call; once a result is declined, the next hook leaves it (see mediaprojection_result)
-  {
-    "collection": "Privacy",
-    "group": "Record.Video",
-    "name": "Activity.dispatchActivityResult/projection",
-    "author": "akano12",
-    "className": "android.app.Activity",
-    "methodName": "dispatchActivityResult",
-    "parameterTypes": [
-      "java.lang.String",
-      "int",
-      "int",
-      "android.content.Intent"
-    ],
-    "returnType": "void",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "optional": true,
-    "notify": true,
-    "luaScript": "@mediaprojection_result"
-  },
   {
     "collection": "Privacy",
     "group": "Record.Video",
@@ -24086,26 +24220,6 @@
   // The hidden opening of a camera, which every openCamera calls, also the hidden and test ones apps reach by
   // reflection, like openCameraForUid, after Android's checks of the arguments; it reads the characteristics of the
   // id first, so an unknown id gets their error (see camera2_open)
-  {
-    "collection": "Privacy",
-    "group": "Use.Camera",
-    "name": "CameraManager2.openCameraDeviceUserAsync/handler",
-    "author": "akano12",
-    "className": "android.hardware.camera2.CameraManager",
-    "methodName": "openCameraDeviceUserAsync",
-    "parameterTypes": [
-      "java.lang.String",
-      "android.hardware.camera2.CameraDevice$StateCallback",
-      "android.os.Handler",
-      "int"
-    ],
-    "returnType": "android.hardware.camera2.CameraDevice",
-    "minSdk": 27,
-    "maxSdk": 27,
-    "notify": true,
-    "optional": true,
-    "luaScript": "@camera2_open"
-  },
   {
     "collection": "Privacy",
     "group": "Use.Camera",
@@ -32130,21 +32244,6 @@
     ],
     "returnType": "android.os.IBinder",
     "minSdk": 27,
-    "optional": true,
-    "excludePackages": "android",
-    "luaScript": "@biometrics"
-  },
-  {
-    "collection": "Privacy",
-    "group": "Read.Biometrics",
-    "name": "ServiceManagerProxy.listServices/biometrics",
-    "author": "akano12",
-    "className": "android.os.ServiceManagerProxy",
-    "methodName": "listServices",
-    "parameterTypes": [],
-    "returnType": "java.lang.String[]",
-    "minSdk": 27,
-    "maxSdk": 27,
     "optional": true,
     "excludePackages": "android",
     "luaScript": "@biometrics"

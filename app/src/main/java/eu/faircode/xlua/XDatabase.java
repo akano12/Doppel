@@ -306,7 +306,14 @@ class XDatabase {
             // the one of Huawei is not there (Context.bindService/identifiers and the settings and providers of identifiers),
             // so the Info an app makes itself keeps its values
             "AdvertisingIdClient$Info.getId", "AdvertisingIdClient$Info.isLimitAdTrackingEnabled",
-            "HuaweiAdvertisingIdClient$Info.getId", "HuaweiAdvertisingIdClient$Info.isLimitAdTrackingEnabled"
+            "HuaweiAdvertisingIdClient$Info.getId", "HuaweiAdvertisingIdClient$Info.isLimitAdTrackingEnabled",
+            // Hooks of Android 8.1 only, which Doppel no longer supports; Android 9 and later have hooks of their own
+            "AutofillManager.setState.enabled", "LauncherApps.CallbackMessageHandler.postOnPackagesSuspended.27",
+            "LinkProperties.compareAddresses", "LinkProperties.compareDnses", "LinkProperties.compareAllRoutes",
+            "LinkProperties.compareAllInterfaceNames", "TelephonyManager.requestNetworkScan.27",
+            "SubscriptionManager.getActiveSubscriptionInfoList.27", "ISub.getActiveSubscriptionInfoList.27",
+            "Activity.dispatchActivityResult/projection", "CameraManager2.openCameraDeviceUserAsync/handler",
+            "ServiceManagerProxy.listServices/biometrics"
     };
 
     // Settings of all users and apps which no script reads anymore, removed on each start, see upgrade
