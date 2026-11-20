@@ -1041,12 +1041,26 @@ public class XCoreTest {
     @Rule
     public final TemporaryFolder temp = new TemporaryFolder();
 
+    // A folder for the tests of links, which are skipped where links cannot be made, like on Windows without
+    // Developer Mode or an administrator, where making one fails with "A required privilege is not held"
+    private Path linkFolder() throws Exception {
+        Path folder = temp.getRoot().toPath().toRealPath();
+        Path probe = folder.resolve("probe");
+        try {
+            Files.createSymbolicLink(probe, folder);
+        } catch (java.nio.file.FileSystemException | UnsupportedOperationException ex) {
+            org.junit.Assume.assumeNoException("No symbolic links: " + ex.getMessage(), ex);
+        }
+        Files.delete(probe);
+        return folder;
+    }
+
     // A path through a link, like one the app made itself or a descriptor of a folder in /proc/self/fd, runs the script by
     // the path its links lead to, which the hooks of a call resolve once; a call which acts on a link itself, like lstat,
     // by the name in the folder the links before it lead to
     @Test
     public void linksRunTheScript() throws Throwable {
-        Path folder = temp.getRoot().toPath().toRealPath();
+        Path folder = linkFolder();
         Path kernel = Files.createDirectory(folder.resolve("kernel"));
         Files.createFile(kernel.resolve("osrelease"));
         Path boot = Files.createFile(folder.resolve("boot_id"));
@@ -1126,7 +1140,7 @@ public class XCoreTest {
     // value by its text still does, and so do other flags, of the platform, which are 0 in the tests
     @Test
     public void openWithoutFollowingLinks() throws Throwable {
-        Path folder = temp.getRoot().toPath().toRealPath();
+        Path folder = linkFolder();
         Path boot = Files.createFile(folder.resolve("boot_id"));
         Path link = Files.createSymbolicLink(folder.resolve("link"), boot);
         Method open = Os.class.getMethod("open", String.class, int.class, int.class);
@@ -1161,7 +1175,7 @@ public class XCoreTest {
     // declared with its interface; other relative texts are no paths (see linksRunTheScript)
     @Test
     public void relativeLinksRunTheScript() throws Throwable {
-        Path folder = temp.getRoot().toPath().toRealPath();
+        Path folder = linkFolder();
         Path boot = Files.createFile(folder.resolve("boot_id"));
         Path link = Files.createSymbolicLink(folder.resolve("link"), boot);
         Path other = Files.createSymbolicLink(folder.resolve("other"), Files.createFile(folder.resolve("file")));

@@ -200,7 +200,9 @@ public class CommandsExecScriptTest {
         assertEquals("/system/bin/io", result.arg(4).tojstring());
         ProcessBuilder builder = new ProcessBuilder("/system/bin/io").directory(new File("/system"));
         IOException ex = (IOException) start(builder).arg(2).touserdata();
-        assertEquals("Cannot run program \"/system/bin/io\" (in directory \"/system\"): error=5, I/O error", ex.getMessage());
+        // The folder as File gives it, with the separator of the OS which runs the tests
+        assertEquals("Cannot run program \"/system/bin/io\" (in directory \"" + new File("/system") + "\"): error=5, I/O error",
+                ex.getMessage());
         assertEquals("error=5, I/O error", ex.getCause().getMessage());
         assertEquals(Arrays.asList("/system/bin/io"), words(builder));
     }

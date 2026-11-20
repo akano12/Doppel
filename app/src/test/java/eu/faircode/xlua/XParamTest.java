@@ -371,6 +371,8 @@ public class XParamTest {
             keys.put(in.getFD(), "fake");
             keys.put(raf.getFD(), "fake");
             keys.put("/proc/self/fd/57", "fake");
+            // The path of a File, the same on Unix, with the separator of Windows where the tests run there
+            keys.put(new File("/proc/self/fd/57").getPath(), "fake");
             keys.put(other, "other");
             XParam.Keys keyOf = (f) -> {
                 if (!keys.containsKey(f))
