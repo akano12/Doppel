@@ -301,12 +301,8 @@ final class Data {
     static Map<String, List<String>> getAssignments(Context context) {
         Map<String, List<String>> result = new HashMap<>();
         try (Cursor cursor = query(context, "getAssignments", null)) {
-            while (cursor.moveToNext()) {
-                String packageName = cursor.getString(0);
-                if (!result.containsKey(packageName))
-                    result.put(packageName, new ArrayList<>());
-                result.get(packageName).add(cursor.getString(2));
-            }
+            while (cursor.moveToNext())
+                result.computeIfAbsent(cursor.getString(0), p -> new ArrayList<>()).add(cursor.getString(2));
         }
         return result;
     }

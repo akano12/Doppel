@@ -23,7 +23,6 @@ package eu.faircode.xlua;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Process;
 import android.os.UserHandle;
 import android.system.Os;
 import android.util.Log;
@@ -70,11 +69,6 @@ class Util {
 
     static int getUserUid(int userid, int appid) {
         return userid * PER_USER_RANGE + (appid % PER_USER_RANGE);
-    }
-
-    // Whether this process is isolated, also an app zygote process
-    static boolean isIsolated() {
-        return Process.isIsolated();
     }
 
     static UserHandle getUserHandle(int userid) {

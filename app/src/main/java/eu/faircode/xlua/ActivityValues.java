@@ -655,7 +655,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         mode.cbAll.setVisibility(boot ? View.VISIBLE : View.GONE);
 
         String text;
-        String value = null;
+        String value;
         boolean saved = chosen.equals(getSavedMode(key));
         if (INHERIT.equals(chosen)) {
             String global = FakeIds.getMode(key, globals, null);

@@ -463,7 +463,7 @@ class XCore {
     }
 
     // The binder of the settings provider, which the engine's own queries reach, kept so that it stays the same object;
-    // on Android 8.1 and 9 it tells a call of the settings provider from one of another provider, see markCall
+    // on Android 9 it tells a call of the settings provider from one of another provider, see markCall
     static volatile IBinder settingsBinder = null;
 
     // ContentProviderProxy.query has one Uri, one projection and one Bundle of arguments on all versions, see XCoreTest.
@@ -606,7 +606,7 @@ class XCore {
                     // Isolated processes (including app zygote) cannot access the provider; this is for legacy loaders
                     // that inject there. LSPosed does not even load modules there, so an isolated service of the app
                     // reads the real Build fields (README Limits).
-                    if (Util.isIsolated()) {
+                    if (Process.isIsolated()) {
                         XLog.i(TAG, "Skipping isolated " + packageName + ":" + uid);
                         return;
                     }
@@ -644,8 +644,8 @@ class XCore {
             log(ex);
         }
 
-        // shortcut: Android 8.1 to 10 call nothing between createAppContext and newApplication, so with the modern API
-        // (Android 8.1 to 10) the Application is made inside the hook; hook the end of createAppContext if that matters
+        // shortcut: Android 9 and 10 call nothing between createAppContext and newApplication, so with the modern API
+        // the Application is made inside the hook; hook the end of createAppContext if that matters
         // Instrumentation.newApplication is called by LoadedApk.makeApplication(Inner) on all versions
         // https://android.googlesource.com/platform/frameworks/base/+/169aeafb2d97b810ae123ad036d0c58336961c55%5E%21/#F1
         Class<?> clsInstrumentation = XResolver.resolveClass("android.app.Instrumentation", classLoader);
@@ -1084,7 +1084,7 @@ class XCore {
     // values. The path of a subclass of File is what its getPath gives, which is code of the app and can fail.
     // shortcut: an app's subclass of File whose getPath gives another text than its field path is filtered, and restricted
     // by the scripts (tostring of the File), by what getPath gives, while the natives of UnixFileSystem read the field:
-    // list0, getLastModifiedTime0 and getSpace0, and checkAccess0 and getLength0 of Android 8.1 and 9. From Android 10
+    // list0, getLastModifiedTime0 and getSpace0, and checkAccess0 and getLength0 of Android 9. From Android 10
     // checkAccess and getLength call getPath themselves, so the path the file system uses depends on the method and the
     // version. The field itself is not the blocker: LSPosed and Vector make the dex of the module trusted, so the hidden
     // API rules let the module read it. Each filtered hook also calls the app's getPath before and after the method, which
@@ -1176,9 +1176,7 @@ class XCore {
             // An error does not replace a restriction of the same function, nor the other way around
             String key = (function == null ? "*" : function) + ":" + event +
                     (data.containsKey("exception") ? ":error" : "");
-            if (!queue.containsKey(key))
-                queue.put(key, new HashMap<>());
-            queue.get(key).put(hook, args);
+            queue.computeIfAbsent(key, k -> new HashMap<>()).put(hook, args);
 
             if (queued)
                 return;

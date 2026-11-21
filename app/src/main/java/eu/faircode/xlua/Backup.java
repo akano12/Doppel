@@ -390,10 +390,7 @@ class Backup {
 
     // The ids of the moved built-in definitions of this version, which a backup lists, see completingMoved
     static JSONArray moved() {
-        JSONArray jmoved = new JSONArray();
-        for (String[] moved : XDatabase.MOVED)
-            jmoved.put(XHook.builtinId(moved[0]));
-        return jmoved;
+        return new JSONArray(XDatabase.movedIds());
     }
 
     // The built-in definitions moved to another group or leaving out fewer packages since a backup, which complete
@@ -406,9 +403,8 @@ class Backup {
     // like of 2.0, was made before all of them
     static List<String> completingMoved(JSONObject jroot, Collection<String> ids, Map<String, XHook> hooks,
                                         String packageName, List<String> collection) throws JSONException {
-        Set<String> moved = new HashSet<>();
-        for (String[] move : XDatabase.MOVED)
-            moved.add(XHook.builtinId(move[0]));
+        List<String> movedIds = XDatabase.movedIds();
+        Set<String> moved = new HashSet<>(movedIds);
         Set<String> groups = new HashSet<>();
         for (String id : ids)
             if (!moved.contains(id) && hooks.containsKey(id))
@@ -418,8 +414,7 @@ class Backup {
             for (int i = 0; i < jmoved.length(); i++)
                 moved.remove(renamed(jmoved.getString(i)));
         else if (jroot.optJSONArray("builtins") != null)
-            for (int i = 0; i < XDatabase.MOVED_UNLISTED; i++)
-                moved.remove(XHook.builtinId(XDatabase.MOVED[i][0]));
+            moved.removeAll(movedIds.subList(0, XDatabase.MOVED_UNLISTED));
         List<String> result = new ArrayList<>();
         for (String id : completing(moved, groups, hooks, packageName, collection))
             if (XDatabase.movedFor(id, packageName))

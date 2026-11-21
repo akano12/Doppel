@@ -339,10 +339,7 @@ public class XHook {
         hook.className = jroot.getString("className");
         hook.methodName = jroot.optString("methodName", null);
 
-        JSONArray jparam = jroot.getJSONArray("parameterTypes");
-        hook.parameterTypes = new String[jparam.length()];
-        for (int i = 0; i < jparam.length(); i++)
-            hook.parameterTypes[i] = jparam.getString(i);
+        hook.parameterTypes = strings(jroot.getJSONArray("parameterTypes"));
 
         hook.returnType = jroot.optString("returnType", null);
 
@@ -365,22 +362,19 @@ public class XHook {
 
         hook.luaScript = jroot.getString("luaScript");
 
-        if (jroot.has("settings")) {
-            JSONArray jsettings = jroot.getJSONArray("settings");
-            hook.settings = new String[jsettings.length()];
-            for (int i = 0; i < jsettings.length(); i++)
-                hook.settings[i] = jsettings.getString(i);
-        } else
-            hook.settings = null;
+        hook.settings = (jroot.has("settings") ? strings(jroot.getJSONArray("settings")) : null);
 
         JSONArray jdeoptimize = jroot.optJSONArray("deoptimize");
-        if (jdeoptimize != null) {
-            hook.deoptimize = new String[jdeoptimize.length()];
-            for (int i = 0; i < jdeoptimize.length(); i++)
-                hook.deoptimize[i] = jdeoptimize.getString(i);
-        }
+        hook.deoptimize = (jdeoptimize == null ? null : strings(jdeoptimize));
 
         return hook;
+    }
+
+    private static String[] strings(JSONArray jarray) throws JSONException {
+        String[] result = new String[jarray.length()];
+        for (int i = 0; i < result.length; i++)
+            result[i] = jarray.getString(i);
+        return result;
     }
 
     public void validate() {

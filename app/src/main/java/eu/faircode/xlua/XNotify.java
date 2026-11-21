@@ -28,7 +28,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Process;
 import android.os.UserHandle;
@@ -233,9 +232,8 @@ final class XNotify {
         // public void reportInterruptiveNotification(String packageName, String channelId, int userId) of the local service
         // next to the history of notifications, which only the system reads and which keeps them; the local service gets
         // public void reportEvent(String packageName, int userId, int eventType) when a notification is seen or used,
-        // from Android 9 by reportSeen and reportUserInteraction, on Android 8.1 by setNotificationsShownFromListener,
-        // which the status bar calls for each notification it shows, without the channel, but only Doppel's notifications
-        // are of the settings provider in normal use, see getSettingsContext
+        // by reportSeen and reportUserInteraction, without the channel, but only Doppel's notifications are of the
+        // settings provider in normal use, see getSettingsContext
         // AOSP frameworks/base: services/usage/java/com/android/server/usage/UsageStatsService.java
         try {
             Class<?> stats = Class.forName("com.android.server.usage.UsageStatsService$LocalService", false, classLoader);
@@ -359,7 +357,7 @@ final class XNotify {
     // Without a uid: Doppel posts as system server with the package of the settings provider, see getSettingsContext;
     // earlier versions posted new apps as the framework, where their channel stays
     private static boolean isOwn(String pkg, String channel) {
-        return (("android".equals(pkg) || "com.android.providers.settings".equals(pkg)) && isOwnChannel(channel));
+        return (("android".equals(pkg) || XCore.SETTINGS_PACKAGE.equals(pkg)) && isOwnChannel(channel));
     }
 
     private static boolean isOwnChannel(String channel) {

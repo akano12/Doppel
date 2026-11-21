@@ -265,15 +265,15 @@ public class XParamTest {
         assertEquals(25000, XParam.available(25000, 0));
     }
 
-    // A fake takes the number of the file opened, with its flags by fcntl on Android 8.1 and from Android 11; on Android
-    // 9 and 10, which refuse fcntl to apps, only when the open, also openat of java.nio, had no O_CLOEXEC, which dup2
-    // clears; a method without the flags of an open keeps the number of the fake
+    // A fake takes the number of the file opened, with its flags by fcntl from Android 11; on Android 9 and 10, which
+    // refuse fcntl to apps, only when the open, also openat of java.nio, had no O_CLOEXEC, which dup2 clears; a method
+    // without the flags of an open keeps the number of the fake
     @Test
     public void movableFakes() {
         int cloexec = 0x80000;
         Object[] plain = {"/proc/cpuinfo", 0, 0};
         Object[] closing = {"/proc/cpuinfo", cloexec, 0};
-        for (int sdk : new int[]{27, 30, 34})
+        for (int sdk : new int[]{30, 34})
             assertTrue(XParam.movable(sdk, closing, cloexec));
         for (int sdk : new int[]{28, 29}) {
             assertTrue(XParam.movable(sdk, plain, cloexec));

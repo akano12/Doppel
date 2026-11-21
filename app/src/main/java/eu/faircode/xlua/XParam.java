@@ -412,7 +412,7 @@ public class XParam {
     // query writes its Bundle to a parcel, where values of classes of the app, also in a nested Bundle, would run their
     // writeToParcel. The copy has the keys of ContentResolver (android:query-arg-) with their strings, arrays of strings
     // and ints, and null for values of other classes, which getString, getStringArray and getInt, all the provider of
-    // Android 8.1 and 9 reads them with, answer for those too, while containsKey stays. Read here, with the hooks, from a
+    // Android 9 reads them with, answer for those too, while containsKey stays. Read here, with the hooks, from a
     // copy of the Bundle, since unparcelling one runs the creators of its values and the app's own stays as it was;
     // unlike those getters, instanceof logs no warning with a stack trace for a value of another class.
     @SuppressWarnings({"unused", "deprecation"})
@@ -699,7 +699,7 @@ public class XParam {
     // /proc/self/fd needs the SELinux open permission of the files in memory of apps; native code can map a fake but a
     // pipe, and /proc/self/fdinfo tells the inode of each; upgrade when apps open files of /proc with O_CLOEXEC on
     // Android 9 and 10 or check how a file of /proc is open natively.
-    // NewApi: Os.fcntlInt is public from Android 11 and hidden on Android 8.1, which checks no hidden APIs (see hasFcntl).
+    // NewApi: Os.fcntlInt is public from Android 11, and only called there (see hasFcntl).
     @SuppressLint("NewApi")
     private static boolean renumbered(Object opened, FileDescriptor fake, Object[] args) throws Exception {
         int sdk = Build.VERSION.SDK_INT;
@@ -744,11 +744,11 @@ public class XParam {
         return true;
     }
 
-    // Whether fcntl, which reads and sets the flags of a descriptor, may be called: Android 8.1 has it as a hidden API but
-    // checks no hidden APIs, Android 11 makes it public, and Android 9 and 10 refuse it to apps (not in the light
-    // greylist of Android 9, greylist-max-o of Android 10), which would fail to link the call (NoSuchMethodError)
+    // Whether fcntl, which reads and sets the flags of a descriptor, may be called: Android 11 makes it public, and
+    // Android 9 and 10 refuse it to apps (not in the light greylist of Android 9, greylist-max-o of Android 10), which
+    // would fail to link the call (NoSuchMethodError)
     private static boolean hasFcntl(int sdk) {
-        return (sdk < Build.VERSION_CODES.P || sdk >= Build.VERSION_CODES.R);
+        return (sdk >= Build.VERSION_CODES.R);
     }
 
     // Whether the fake can take the number of the file opened with its flags: always with fcntl; without it only when the
@@ -782,8 +782,7 @@ public class XParam {
             return oldFile(this.context.getCacheDir(), bytes, sameSize(opened, bytes.length));
         FileDescriptor fake = Os.memfd_create("file", OsConstants.MFD_CLOEXEC);
         try {
-            for (int at = 0; at < bytes.length; )
-                at += Os.write(fake, bytes, at, bytes.length - at);
+            writeAll(fake, bytes);
             Os.lseek(fake, 0, OsConstants.SEEK_SET);
         } catch (Throwable ex) {
             Os.close(fake);
@@ -1031,8 +1030,7 @@ public class XParam {
             try {
                 FileDescriptor write = Os.open(file.getPath(), OsConstants.O_WRONLY | OsConstants.O_CLOEXEC, 0);
                 try {
-                    for (int at = 0; at < bytes.length; )
-                        at += Os.write(write, bytes, at, bytes.length - at);
+                    writeAll(write, bytes);
                 } finally {
                     Os.close(write);
                 }
@@ -1047,8 +1045,7 @@ public class XParam {
         }
         FileDescriptor[] pipe = Os.pipe();
         try {
-            for (int at = 0; at < bytes.length; )
-                at += Os.write(pipe[1], bytes, at, bytes.length - at);
+            writeAll(pipe[1], bytes);
         } catch (Throwable ex) {
             Os.close(pipe[0]);
             throw ex;
@@ -1056,6 +1053,12 @@ public class XParam {
             Os.close(pipe[1]);
         }
         return pipe[0];
+    }
+
+    // A write can write fewer bytes than asked
+    private static void writeAll(FileDescriptor fd, byte[] bytes) throws Exception {
+        for (int at = 0; at < bytes.length; )
+            at += Os.write(fd, bytes, at, bytes.length - at);
     }
 
     // A property area the hooked method opened, a file of /dev/__properties__ which bionic maps in each process to read

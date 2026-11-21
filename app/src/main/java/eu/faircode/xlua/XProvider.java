@@ -590,10 +590,7 @@ class XProvider {
 
             if (!added.isEmpty()) {
                 // A custom definition can replace the built-in definition
-                List<XHook> targets = new ArrayList<>();
-                for (String id : added)
-                    if (all.containsKey(id))
-                        targets.add(all.get(id));
+                List<XHook> targets = loaded(all, added);
                 int[] counts = assignToRestricting(d, all, targets, null, false, false);
                 Log.i(TAG, "New built-in hooks=" + added.size() + " assigned=" + counts[0]);
             }
@@ -640,21 +637,16 @@ class XProvider {
             if (marker != null)
                 done.addAll(Util.split(marker));
 
-            List<String> ids = new ArrayList<>();
+            List<String> ids = XDatabase.movedIds();
             Map<String, XHook> others = new HashMap<>(all);
-            for (String[] moved : XDatabase.MOVED) {
-                String id = XHook.builtinId(moved[0]);
-                ids.add(id);
-                others.remove(id);
-            }
+            others.keySet().removeAll(ids);
             if (done.containsAll(ids))
                 return null;
 
             // A custom definition can replace the built-in definition, then its group counts
-            List<XHook> targets = new ArrayList<>();
-            for (String id : ids)
-                if (!done.contains(id) && all.containsKey(id))
-                    targets.add(all.get(id));
+            List<String> pending = new ArrayList<>(ids);
+            pending.removeAll(done);
+            List<XHook> targets = loaded(all, pending);
             if (!targets.isEmpty()) {
                 int[] counts = assignToRestricting(d, others, targets, null, false, true);
                 Log.i(TAG, "Moved built-in hooks=" + targets.size() + " assigned=" + counts[0] + " apps=" + counts[1]);
@@ -734,15 +726,21 @@ class XProvider {
         final List<String> hookids = extras.getStringArrayList("hooks");
         final int userid = Util.getUserId(Binder.getCallingUid());
         final Map<String, XHook> all = hooks;
-        final List<XHook> targets = new ArrayList<>();
-        for (String id : hookids)
-            if (all.containsKey(id))
-                targets.add(all.get(id));
+        final List<XHook> targets = loaded(all, hookids);
         int[] counts = db.write(d -> assignToRestricting(d, all, targets, userid, true, false));
         Log.i(TAG, "Assigned hooks=" + hookids + " assignments=" + counts[0] + " apps=" + counts[1]);
 
         Bundle result = new Bundle();
         result.putInt("apps", counts[1]);
+        return result;
+    }
+
+    // The loaded definitions of the ids, of which a custom one can have replaced the built-in one
+    private static List<XHook> loaded(Map<String, XHook> all, Collection<String> ids) {
+        List<XHook> result = new ArrayList<>();
+        for (String id : ids)
+            if (all.containsKey(id))
+                result.add(all.get(id));
         return result;
     }
 
@@ -1425,8 +1423,13 @@ class XProvider {
     private static Cursor getSettings(Context context, String[] selection, boolean permitted) throws Throwable {
         int uid = ownUid(context, "getSettings", selection, permitted);
         final String category = selection[0];
+        return toCursor(readSettings(Util.getUserId(uid), category));
+    }
+
+    // Rows of a name and a value, see Data.queryMap
+    private static Cursor toCursor(Map<String, String> values) {
         MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
-        for (Map.Entry<String, String> entry : readSettings(Util.getUserId(uid), category).entrySet())
+        for (Map.Entry<String, String> entry : values.entrySet())
             result.addRow(new String[]{entry.getKey(), entry.getValue()});
         return result;
     }
@@ -1446,11 +1449,7 @@ class XProvider {
         Map<String, String> global = readSettings(userid, "global");
         Map<String, String> app = readSettings(userid, packageName);
         String developer = keptDeveloper(db, packageName, FakeIds.signer(getSignatures(context, userid, packageName)));
-        MatrixCursor result = new MatrixCursor(new String[]{"name", "value"});
-        for (Map.Entry<String, String> entry :
-                FakeIds.getBootValues(getBootSecret(), getKeptSecret(), userid, packageName, developer, global, app).entrySet())
-            result.addRow(new String[]{entry.getKey(), entry.getValue()});
-        return result;
+        return toCursor(FakeIds.getBootValues(getBootSecret(), getKeptSecret(), userid, packageName, developer, global, app));
     }
 
     // The signatures SettingsProvider derives the Android ID of, of the user's package; null when the package

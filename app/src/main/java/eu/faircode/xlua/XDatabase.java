@@ -31,7 +31,9 @@ import android.util.Log;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.io.IOException;
@@ -143,6 +145,14 @@ class XDatabase {
     // not the list of moved ones (2.1 to 2.3) had already, so its backups were made after these moves, see
     // Backup.completingMoved
     static final int MOVED_UNLISTED = 7;
+
+    // The ids of the moved built-in definitions, in the order of MOVED
+    static List<String> movedIds() {
+        List<String> ids = new ArrayList<>();
+        for (String[] move : MOVED)
+            ids.add(XHook.builtinId(move[0]));
+        return ids;
+    }
 
     // Whether a moved hook goes to an app which restricts its group, see MOVED: a hook moved to another group to every
     // such app, one which leaves out fewer packages only to an app it left out before
